@@ -1,0 +1,41 @@
+#!/bin/bash
+# PrutFolio deploy-hook — werkt zoals logboek-hook.
+# Bare repo is single source of truth.
+# /srv/prutfolio is de working tree — gevuld via "git --work-tree=..."
+# (geen .git submap erin), zelfde patroon als logboek->celine.
+set -e
+
+DEPLOY=/srv/prutfolio
+GIT_DIR=/home/roboburr/git-repos/prutfolio.git
+
+while read oldrev newrev refname ; do
+    [ "$refname" != "refs/heads/main" ] && continue
+
+    echo ">>> Deploying $newrev to $DEPLOY"
+
+    # 1. Heel zelden — als een eerdere bug git-internals los in $DEPLOY
+    #    heeft gedumpt (HEAD/objects/refs op root), eenmalig opruimen
+    #    zodat dit een echte working tree wordt.
+    if [ -f "$DEPLOY/HEAD" ] && [ -d "$DEPLOY/objects" ] && [ ! -d "$DEPLOY/.git" ]; then
+        echo "    cleanup: stale bare-init artifacts in $DEPLOY"
+        for f in branches config description FETCH_HEAD HEAD hooks info objects refs ORIG_HEAD; do
+            rm -rf "$DEPLOY/$f" 2>/dev/null || true
+        done
+    fi
+
+    # 2. Force-checkout van bare-repo state naar working tree.
+    git --git-dir="$GIT_DIR" --work-tree="$DEPLOY" checkout -f main
+
+    # 3. npm install alleen als package-lock.json wijzigde.
+    if [ -n "$oldrev" ] && [ "$oldrev" != "0000000000000000000000000000000000000000" ]; then
+        if git --git-dir="$GIT_DIR" diff --name-only "$oldrev" "$newrev" | grep -q "^package-lock.json$"; then
+            echo ">>> package-lock.json changed — npm ci --production"
+            cd "$DEPLOY" && npm ci --production
+        fi
+    fi
+
+    # 4. pm2 reload — proces heet "prutcms" (legacy naam)
+    pm2 reload prutcms 2>/dev/null || pm2 reload prutfolio 2>/dev/null || true
+
+    echo ">>> Done. App-files in $DEPLOY ongemoeid (.env, node_modules, storage)."
+done
