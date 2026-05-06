@@ -1,0 +1,25 @@
+<div class="container auth-page">
+  <h1>Register</h1>
+  <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+  <form method="post" action="/auth/register" class="auth-form">
+    <% if (typeof next !== 'undefined' && next) { %>
+      <input type="hidden" name="next" value="<%= next %>">
+    <% } %>
+    <label>
+      <span>Username (3-32 chars, letters/numbers/_-)</span>
+      <input type="text" name="username" value="<%= username %>" required autofocus autocomplete="username" pattern="[a-zA-Z0-9_-]{3,32}">
+    </label>
+    <label>
+      <span>Email</span>
+      <input type="email" name="email" value="<%= email %>" required autocomplete="email">
+    </label>
+    <label>
+      <span>Password (min 8 chars)</span>
+      <input type="password" name="password" required minlength="8" autocomplete="new-password">
+    </label>
+    <button type="submit" class="btn btn-primary">Create account</button>
+    <p class="auth-link">Already registered?
+      <a href="/auth/login<%= (typeof next !== 'undefined' && next) ? '?next=' + encodeURIComponent(next) : '' %>">Login</a>
+    </p>
+  </form>
+</div>

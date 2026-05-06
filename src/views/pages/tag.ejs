@@ -1,0 +1,68 @@
+<div class="container tag-page">
+  <header class="tag-page-header">
+    <p class="tag-eyebrow">Tag</p>
+    <h1>#<%= tag %></h1>
+    <p class="tag-meta">
+      <%= posts.length %> post<%= posts.length === 1 ? '' : 's' %>
+    </p>
+  </header>
+
+  <% if (!posts.length) { %>
+    <p class="tag-empty">No posts with this tag yet.</p>
+  <% } else { %>
+    <ol class="tag-results">
+      <% posts.forEach(function(p) { %>
+        <li class="tag-result">
+          <% if (p.cover_image_url) { %>
+            <a href="/<%= p.slug %>" class="tag-result-cover"
+               hx-get="/<%= p.slug %>?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
+               hx-push-url="/<%= p.slug %>" hx-indicator="#pcms-loading">
+              <img src="<%= p.cover_image_url %>" alt="">
+            </a>
+          <% } %>
+          <div class="tag-result-body">
+            <h2 class="tag-result-title">
+              <a href="/<%= p.slug %>"
+                 hx-get="/<%= p.slug %>?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
+                 hx-push-url="/<%= p.slug %>" hx-indicator="#pcms-loading">
+                <%= p.title || '(untitled)' %>
+              </a>
+            </h2>
+            <p class="tag-result-meta">
+              <%= p.author_username %><% if (p.published_at) { %> &middot; <%= formatDate(p.published_at) %><% } %>
+            </p>
+            <% if (p.excerpt) { %>
+              <p class="tag-result-excerpt"><%= p.excerpt %></p>
+            <% } %>
+          </div>
+        </li>
+      <% }); %>
+    </ol>
+  <% } %>
+</div>
+
+<style>
+.tag-page { max-width: 720px; margin: 3rem auto; padding: 0 1rem; }
+.tag-page-header { margin-bottom: 1.5rem; }
+.tag-eyebrow { color: var(--ink-muted, var(--ink-soft)); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.06em; margin: 0; }
+.tag-page h1 { font-family: var(--font-display, serif); font-size: 2.25rem; margin: 0.1rem 0 0.25rem; color: var(--accent); }
+.tag-meta { color: var(--ink-muted, var(--ink-soft)); font-size: 0.9rem; margin: 0; }
+.tag-empty { color: var(--ink-muted, var(--ink-soft)); text-align: center; margin: 3rem 0; }
+
+.tag-results { list-style: none; padding: 0; margin: 0; }
+.tag-result { display: flex; gap: 1rem; padding: 1rem 0; border-bottom: 1px solid var(--rule); }
+.tag-result:last-child { border-bottom: 0; }
+.tag-result-cover { flex-shrink: 0; width: 96px; height: 96px; border-radius: 6px; overflow: hidden; background: var(--paper-2); }
+.tag-result-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tag-result-body { flex: 1; min-width: 0; }
+.tag-result-title { font-family: var(--font-display, serif); font-size: 1.2rem; margin: 0 0 0.25rem; }
+.tag-result-title a { color: var(--ink); text-decoration: none; }
+.tag-result-title a:hover { color: var(--accent); }
+.tag-result-meta { color: var(--ink-muted, var(--ink-soft)); font-size: 0.85rem; margin: 0 0 0.4rem; }
+.tag-result-excerpt { color: var(--ink-soft); margin: 0; line-height: 1.5; }
+
+@media (max-width: 500px) {
+  .tag-result-cover { width: 64px; height: 64px; }
+  .tag-page h1 { font-size: 1.75rem; }
+}
+</style>

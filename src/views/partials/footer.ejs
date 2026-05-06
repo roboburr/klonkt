@@ -1,0 +1,111 @@
+<footer class="site-footer">
+  <div class="container site-footer-inner">
+    <div>
+      <span>© <%= new Date().getFullYear() %> <%= (site && site.title) || 'PrutFolio' %></span>
+    </div>
+    <div class="footer-meta">
+      <span>PrutFolio v1</span>
+      <%# Mobile-only theme toggle. On desktop the topnav has its own toggle
+          so we hide this one to avoid two visible toggles at once. The same
+          toggleTheme handler in topnav.ejs picks this button up by id. %>
+      <button type="button" class="footer-theme-toggle" id="theme-toggle-footer"
+              aria-label="Thema wisselen" title="Thema wisselen">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"/>
+          <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <%# P64 — Install-app button. JS detects platform & opens modal with steps.
+      data-apk-url is the direct download for Android users who want the
+      native APK route instead of the PWA. %>
+  <div class="site-footer-install container">
+    <button type="button" class="install-app-btn" data-pcms-install-app data-apk-url="/assets/apk/soundfabrics.apk">
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 20h14v-2H5v2zm7-18L5.33 9h3.84v6h5.66V9h3.84L12 2z" fill="currentColor"/></svg>
+      <span>Installeer app</span>
+    </button>
+  </div>
+</footer>
+
+<style>
+/* Make sure the page itself is at least viewport-tall so the flex sticky-
+   footer logic (body display:flex, main flex:1) can push the footer down.
+   100dvh is dynamic viewport height — handles mobile address-bar collapse. */
+html { min-height: 100dvh; }
+
+.site-footer {
+  border-top: 1px solid var(--rule);
+  margin-top: 4rem;
+  padding: 2rem 0;
+  padding-bottom: calc(2rem + env(safe-area-inset-bottom, 0));
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+  background: var(--paper);
+  /* When fixed bars (mini-player / bottom-tab) sit at the bottom of the
+     viewport they overlap the footer at scroll-end. The clearance below
+     mirrors the .pcms-main rule in audio.css — content goes at the top of
+     the footer, the player floats over the empty padding underneath. */
+  transition: padding-bottom .2s ease;
+}
+/* Audio player visible (desktop, no bottom-tab): clear ~80px */
+body.has-audio-player .site-footer {
+  padding-bottom: calc(2rem + 80px + env(safe-area-inset-bottom, 0));
+}
+@media (max-width: 767px) {
+  /* Bottom-tab visible alone: ~56px tab */
+  body.has-bottom-tab .site-footer {
+    padding-bottom: calc(2rem + 56px + env(safe-area-inset-bottom, 0));
+  }
+  /* Bottom-tab + audio-player stacked: ~56px tab + ~72px player */
+  body.has-bottom-tab.has-audio-player .site-footer {
+    padding-bottom: calc(2rem + 56px + 72px + env(safe-area-inset-bottom, 0));
+  }
+}
+.site-footer-inner {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 0 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.footer-meta {
+  font-size: 0.8rem; opacity: 0.7;
+  display: inline-flex; align-items: center; gap: 0.75rem;
+}
+.pcms-main { min-height: 50vh; }
+
+/* Mobile theme toggle in footer. Pill-style button matching topnav nav-btn.
+   Hidden on desktop; the topnav already has a toggle there. */
+.footer-theme-toggle {
+  display: none;
+  align-items: center; justify-content: center;
+  width: 36px; height: 36px;
+  padding: 0; margin: 0;
+  background: transparent; color: var(--ink);
+  border: 1px solid var(--rule); border-radius: 999px;
+  cursor: pointer;
+  transition: background-color 120ms, border-color 120ms;
+  -webkit-tap-highlight-color: transparent;
+  opacity: 1; /* override .footer-meta dim */
+}
+.footer-theme-toggle:hover { background: var(--paper-2); border-color: var(--accent); }
+.footer-theme-toggle:active { transform: scale(0.96); }
+.footer-theme-toggle svg { width: 18px; height: 18px; }
+
+@media (max-width: 768px) {
+  .footer-theme-toggle { display: inline-flex; }
+}
+
+/* Install-app button container — sits centered under the footer-inner row */
+.site-footer-install {
+  display: flex;
+  justify-content: center;
+  margin-top: 1.25rem;
+}
+</style>

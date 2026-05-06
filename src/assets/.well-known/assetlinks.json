@@ -1,0 +1,12 @@
+[
+    {
+        "relation": ["delegate_permission/common.handle_all_urls"],
+        "target": {
+            "namespace": "android_app",
+            "package_name": "com.roboburr.app",
+            "sha256_cert_fingerprints": [
+                "92:2F:55:C4:36:4C:8D:DA:99:0C:63:18:BA:78:A3:76:AD:B9:AD:77:E5:AA:68:54:16:FE:FB:28:62:11:EB:DB"
+            ]
+        }
+    }
+]

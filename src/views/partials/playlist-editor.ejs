@@ -1,0 +1,690 @@
+<%
+// Playlist editor modal — included once per page (in admin-playlists, and in
+// post-edit when present). Exposes `window.openPlaylistEditor({ mode, id?, onSaved? })`.
+//
+//   mode: 'create' or 'edit'
+//   id  : (edit only) playlist id to load
+//   onSaved: callback receiving { id, playlist } — used by post-editor
+//            to insert [[playlist:id]] at the cursor.
+//
+// The modal itself is appended on first call; subsequent calls reuse the
+// same DOM. CSS is included once. JS lives below.
+
+const _csrf = (typeof csrfToken !== 'undefined' && csrfToken) || '';
+%>
+
+<style>
+/* ─── Editor modal ─────────────────────────────────────────────── */
+.pl-modal-backdrop {
+  position: fixed; inset: 0; z-index: 9000;
+  background: color-mix(in srgb, #000 50%, transparent);
+  display: flex; align-items: center; justify-content: center;
+  padding: 1rem;
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+}
+.pl-modal {
+  background: var(--paper);
+  border: 1px solid var(--rule); border-radius: 16px;
+  width: 100%; max-width: 960px;
+  max-height: 92vh;
+  display: flex; flex-direction: column;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .35);
+  overflow: hidden;
+}
+.pl-modal-header {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--rule);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.pl-modal-header h3 { margin: 0; font-size: 1.15rem; }
+.pl-modal-close {
+  background: transparent; border: 0;
+  font-size: 1.5rem; line-height: 1; cursor: pointer;
+  width: 36px; height: 36px; border-radius: 8px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--ink-soft);
+}
+.pl-modal-close:hover { background: var(--paper-2); color: var(--ink); }
+.pl-modal-body {
+  flex: 1 1 auto; min-height: 0;
+  overflow: hidden;
+  padding: 1.25rem;
+  /* Become a flex container so .pl-editor-cols (grid) can flex into the
+     full available height. Without this, .pl-editor-cols had no bounded
+     parent height and inner overflow:auto never fired. */
+  display: flex; flex-direction: column;
+}
+.pl-modal-footer {
+  padding: .75rem 1.25rem;
+  border-top: 1px solid var(--rule);
+  display: flex; justify-content: flex-end; gap: .5rem;
+}
+
+.pl-editor-cols {
+  flex: 1 1 auto; min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  overflow: hidden;
+}
+@media (max-width: 720px) {
+  /* On mobile, abandon the inner-scroll-container model entirely. Two
+     scrolling boxes side-by-side don't fit, and stacked scroll boxes inside
+     a fixed modal create a scroll-trap (touch scroll easily lands on the
+     wrong layer). Instead: let the modal-body scroll the whole content,
+     and let lists flow at their natural height. */
+  .pl-editor-cols {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    height: auto;
+    overflow: visible;
+  }
+  .pl-modal-body { overflow: auto; -webkit-overflow-scrolling: touch; }
+  .pl-editor-left, .pl-editor-right { overflow: visible; min-height: 0; }
+  .pl-selected-list, .pl-available-list { overflow: visible; flex: 0 0 auto; }
+}
+
+.pl-editor-left,
+.pl-editor-right {
+  display: flex; flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Meta grid (title/artist/year/kind/cover) */
+.pl-meta-grid {
+  display: grid; gap: .5rem .75rem;
+  grid-template-columns: 1fr 1fr;
+  margin-bottom: 1rem;
+}
+.pl-field { display: flex; flex-direction: column; gap: .25rem; }
+.pl-field-full { grid-column: 1 / -1; }
+.pl-field > span {
+  font-size: .8rem; color: var(--ink-soft); font-weight: 500;
+}
+.pl-field input,
+.pl-field select {
+  width: 100%;
+  padding: .5rem .75rem;
+  border: 1px solid var(--rule); border-radius: 8px;
+  background: var(--paper); color: var(--ink);
+  font-family: var(--font-ui); font-size: .95rem;
+}
+.pl-field input:focus,
+.pl-field select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+.pl-cover-row {
+  display: flex; align-items: center; gap: .5rem;
+}
+.pl-cover-thumb {
+  width: 48px; height: 48px; border-radius: 8px;
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; padding: 0; overflow: hidden;
+}
+.pl-cover-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pl-cover-empty { font-size: 1.25rem; color: var(--ink-muted); }
+
+/* File upload row + status — only renders in edit mode */
+.pl-cover-upload-row {
+  display: flex; align-items: center; gap: .5rem;
+  margin-top: .35rem; flex-wrap: wrap;
+}
+.pl-btn-small {
+  background: var(--paper-2); color: var(--ink);
+  border: 1px solid var(--rule); border-radius: 999px;
+  padding: .35rem .75rem; font-size: .8rem;
+  cursor: pointer; transition: border-color 120ms;
+  -webkit-tap-highlight-color: transparent;
+}
+.pl-btn-small:hover { border-color: var(--accent); }
+.pl-cover-status { font-size: .8rem; color: var(--ink-muted); }
+.pl-cover-status.is-error { color: #dc2626; }
+.pl-cover-status.is-ok    { color: #2a9d5e; }
+.pl-cover-note { font-size: .75rem; color: var(--ink-muted); margin-top: .25rem; display: block; }
+
+/* Section titles */
+.pl-section-title {
+  display: flex; align-items: baseline; gap: .5rem;
+  font-size: .8rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .05em;
+  color: var(--ink-soft);
+  padding: .5rem 0;
+  margin-bottom: .5rem;
+  border-bottom: 1px solid var(--rule);
+  flex-shrink: 0;
+}
+.pl-section-title small {
+  font-size: .8em; font-weight: 400; text-transform: none; letter-spacing: 0;
+  color: var(--ink-muted);
+}
+.pl-track-count {
+  background: var(--accent); color: #fff;
+  padding: .1em .55em; border-radius: 999px; font-size: .75rem;
+  font-weight: 600; margin-left: .25rem;
+}
+
+/* Selected + available lists */
+.pl-selected-list,
+.pl-available-list {
+  flex: 1; overflow-y: auto; min-height: 0;
+  padding-right: .25rem;
+}
+.pl-empty {
+  color: var(--ink-muted); font-style: italic;
+  padding: 1.5rem; text-align: center; font-size: .9rem;
+}
+
+/* Search input on right pane */
+.pl-search-input {
+  width: 100%;
+  padding: .5rem .75rem;
+  border: 1px solid var(--rule); border-radius: 8px;
+  background: var(--paper); color: var(--ink);
+  font-family: var(--font-ui); font-size: .9rem;
+  margin-bottom: .5rem;
+  flex-shrink: 0;
+}
+
+/* Selected row (sortable) */
+.pl-row {
+  display: flex; align-items: center; gap: .5rem;
+  padding: .5rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  margin-bottom: .25rem;
+  background: var(--paper-2);
+  user-select: none;
+}
+.pl-row.is-dragging { opacity: 0.5; }
+.pl-row.drop-above { box-shadow: 0 -2px 0 var(--accent); }
+.pl-row.drop-below { box-shadow: 0 2px 0 var(--accent); }
+.pl-row-handle {
+  cursor: grab; padding: .25rem .5rem;
+  color: var(--ink-muted);
+  touch-action: none;
+}
+.pl-row-handle:active { cursor: grabbing; }
+.pl-row-num {
+  width: 22px; text-align: right;
+  font-family: var(--font-mono, monospace);
+  font-size: .8rem; color: var(--ink-muted);
+}
+.pl-row-cover {
+  width: 32px; height: 32px; border-radius: 4px;
+  flex-shrink: 0;
+  background: var(--paper); border: 1px solid var(--rule);
+  display: inline-flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+.pl-row-cover img { width: 100%; height: 100%; object-fit: cover; }
+.pl-row-cover-empty { color: var(--ink-muted); font-size: .8rem; }
+.pl-row-info {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column;
+  font-size: .85rem;
+}
+.pl-row-title {
+  font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pl-row-artist {
+  font-size: .8em; color: var(--ink-soft);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pl-row-x {
+  background: transparent; border: 0;
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--ink-muted);
+  font-size: 1.1rem;
+}
+.pl-row-x:hover { background: var(--paper); color: #dc2626; }
+
+/* Available row (clickable) */
+.pl-avail-row {
+  display: flex; align-items: center; gap: .5rem;
+  padding: .5rem; border-radius: 8px;
+  cursor: pointer; margin-bottom: .25rem;
+  transition: background 120ms ease;
+}
+.pl-avail-row:hover { background: var(--paper-2); }
+.pl-avail-row.is-added { opacity: .55; }
+.pl-avail-row.is-unplayable { opacity: .4; cursor: not-allowed; }
+.pl-avail-action {
+  width: 22px; height: 22px;
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: .9rem; font-weight: 600;
+  background: var(--paper-2); color: var(--ink-soft);
+  flex-shrink: 0;
+}
+.pl-avail-row.is-added .pl-avail-action {
+  background: var(--accent); color: #fff;
+}
+
+/* Cover-picker grid (sub-modal) */
+.pl-cover-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: .5rem; max-height: 60vh; overflow-y: auto;
+}
+.pl-cover-picker-grid button {
+  border: 1px solid var(--rule); border-radius: 8px;
+  background: var(--paper-2); padding: 0; cursor: pointer;
+  aspect-ratio: 1; overflow: hidden;
+}
+.pl-cover-picker-grid button:hover { border-color: var(--accent); }
+.pl-cover-picker-grid img { width: 100%; height: 100%; object-fit: cover; display: block; }
+</style>
+
+<script>
+(function() {
+  // Idempotency: if window.openPlaylistEditor already defined (multiple
+  // partial includes on a single page), skip re-binding.
+  if (typeof window.openPlaylistEditor === 'function') return;
+
+  const CSRF = '<%= _csrf %>';
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[c]));
+  }
+  function fmtDur(sec) {
+    if (!sec) return '';
+    const m = Math.floor(sec / 60), s = sec % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
+  }
+
+  async function api(method, url, body) {
+    const opts = {
+      method, credentials: 'same-origin',
+      headers: { 'X-CSRF-Token': CSRF },
+    };
+    if (body !== undefined) {
+      opts.headers['Content-Type'] = 'application/json';
+      opts.body = JSON.stringify(body);
+    }
+    const r = await fetch(url, opts);
+    return r.json();
+  }
+
+  /**
+   * Public entry point: open the editor.
+   *  opts: { mode: 'create'|'edit', id?, onSaved? }
+   *  onSaved is called with { id, playlist } after a successful save.
+   */
+  window.openPlaylistEditor = async function(opts) {
+    opts = opts || {};
+    const mode = opts.mode === 'edit' ? 'edit' : 'create';
+    const isEdit = mode === 'edit';
+
+    // Load all audio tracks for the picker
+    let tracks = [];
+    try {
+      const j = await api('GET', '/admin/playlists/api/tracks');
+      if (Array.isArray(j.tracks)) tracks = j.tracks;
+    } catch (e) {
+      alert('Tracks ophalen mislukt');
+      return;
+    }
+    if (!tracks.length) {
+      alert('Geen audio-tracks beschikbaar. Upload eerst tracks via Admin → Audio.');
+      return;
+    }
+
+    // Existing playlist data when editing
+    let initial = { title: '', artist: '', year: '', cover: '', kind: 'album', track_ids: [] };
+    if (isEdit && opts.id) {
+      try {
+        const j = await api('GET', '/admin/playlists/api/' + encodeURIComponent(opts.id));
+        if (j.ok) initial = { ...initial, ...j.playlist };
+      } catch (e) {}
+    }
+
+    // ── DOM ────────────────────────────────────────────────────────
+    const backdrop = document.createElement('div');
+    backdrop.className = 'pl-modal-backdrop';
+    backdrop.innerHTML = `
+      <div class="pl-modal" role="dialog" aria-label="Playlist editor">
+        <div class="pl-modal-header">
+          <h3>${isEdit ? '✎ Playlist bewerken' : '+ Nieuwe playlist'}</h3>
+          <button type="button" class="pl-modal-close" aria-label="Sluiten">×</button>
+        </div>
+        <div class="pl-modal-body">
+          <div class="pl-editor-cols">
+            <div class="pl-editor-left">
+              <div class="pl-meta-grid">
+                <label class="pl-field pl-field-full">
+                  <span>Titel *</span>
+                  <input type="text" id="pli-title" maxlength="200" autofocus value="${esc(initial.title)}">
+                </label>
+                <label class="pl-field">
+                  <span>Artiest</span>
+                  <input type="text" id="pli-artist" maxlength="200" value="${esc(initial.artist)}">
+                </label>
+                <label class="pl-field">
+                  <span>Jaar</span>
+                  <input type="number" id="pli-year" min="1900" max="2099" value="${initial.year || ''}">
+                </label>
+                <label class="pl-field">
+                  <span>Type</span>
+                  <select id="pli-kind">
+                    <option value="album"    ${initial.kind === 'album' ? 'selected' : ''}>💿 Album (genummerd)</option>
+                    <option value="playlist" ${initial.kind === 'playlist' ? 'selected' : ''}>📃 Playlist (track-covers)</option>
+                  </select>
+                </label>
+                <div class="pl-field pl-field-full">
+                  <span>Cover</span>
+                  <div class="pl-cover-row">
+                    <span class="pl-cover-thumb" id="pli-cover-thumb">
+                      ${initial.cover
+                        ? `<img src="${esc(initial.cover)}" alt="">`
+                        : `<span class="pl-cover-empty">🎨</span>`}
+                    </span>
+                    <input type="text" id="pli-cover" placeholder="https://… of upload" value="${esc(initial.cover)}" style="flex:1">
+                  </div>
+                  ${isEdit ? `
+                  <div class="pl-cover-upload-row">
+                    <input type="file" id="pli-cover-file" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
+                    <button type="button" class="pl-btn-small" id="pli-cover-pick">📷 Foto kiezen…</button>
+                    <span class="pl-cover-status" id="pli-cover-status"></span>
+                  </div>` : `
+                  <small class="pl-cover-note">Upload van een afbeelding kan na het aanmaken van de playlist.</small>`}
+                </div>
+              </div>
+              <div class="pl-section-title">
+                Tracks in playlist <span class="pl-track-count" id="pli-count">0</span>
+                <small>(sleep ⠿ om te ordenen)</small>
+              </div>
+              <div id="pli-selected" class="pl-selected-list"></div>
+            </div>
+            <div class="pl-editor-right">
+              <div class="pl-section-title">Beschikbare tracks</div>
+              <input type="search" id="pli-search" placeholder="Zoek..." class="pl-search-input">
+              <div id="pli-available" class="pl-available-list"></div>
+            </div>
+          </div>
+        </div>
+        <div class="pl-modal-footer">
+          <button type="button" class="btn" id="pli-cancel">Annuleren</button>
+          <button type="button" class="btn btn-primary" id="pli-save" disabled>
+            ${isEdit ? 'Opslaan' : 'Aanmaken'}
+          </button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+
+    const $ = sel => backdrop.querySelector(sel);
+    const close = () => backdrop.remove();
+    backdrop.addEventListener('click', e => { if (e.target === backdrop) close(); });
+    $('.pl-modal-close').addEventListener('click', close);
+    $('#pli-cancel').addEventListener('click', close);
+
+    // Index tracks by id for fast lookup
+    const trackById = new Map(tracks.map(t => [t.id, t]));
+    let selected = (initial.track_ids || []).filter(id => trackById.has(id));
+
+    const titleEl = $('#pli-title');
+    const artistEl = $('#pli-artist');
+    const yearEl = $('#pli-year');
+    const kindEl = $('#pli-kind');
+    const coverEl = $('#pli-cover');
+    const coverThumb = $('#pli-cover-thumb');
+    const saveBtn = $('#pli-save');
+    const selectedEl = $('#pli-selected');
+    const availEl = $('#pli-available');
+    const searchEl = $('#pli-search');
+    const countEl = $('#pli-count');
+
+    coverEl.addEventListener('input', () => {
+      const u = coverEl.value.trim();
+      coverThumb.innerHTML = u
+        ? `<img src="${esc(u)}" alt="" onerror="this.parentElement.innerHTML='<span class=\\'pl-cover-empty\\'>⚠️</span>'">`
+        : `<span class="pl-cover-empty">🎨</span>`;
+    });
+
+    // ── Cover file upload (edit mode only) ────────────────────
+    // The upload widget only exists once a playlist has an id to attach to.
+    // In create mode the user types/pastes a URL, saves the playlist, then
+    // re-opens for upload. The route is the same as for tracks: returns
+    // { ok, url, cover_url }.
+    const coverFileInput = $('#pli-cover-file');
+    const coverPickBtn   = $('#pli-cover-pick');
+    const coverStatus    = $('#pli-cover-status');
+    if (coverFileInput && coverPickBtn) {
+      coverPickBtn.addEventListener('click', () => coverFileInput.click());
+      coverFileInput.addEventListener('change', async (e) => {
+        const file = e.target.files && e.target.files[0];
+        coverFileInput.value = '';
+        if (!file) return;
+        if (!/^image\//.test(file.type)) {
+          coverStatus.textContent = 'Alleen afbeeldingen';
+          coverStatus.className = 'pl-cover-status is-error';
+          return;
+        }
+        coverStatus.textContent = 'Uploaden…';
+        coverStatus.className = 'pl-cover-status';
+        const fd = new FormData();
+        fd.append('cover', file);
+        try {
+          const r = await fetch(
+            `/admin/playlists/api/${encodeURIComponent(opts.id)}/cover`,
+            { method: 'POST', body: fd, credentials: 'same-origin' }
+          );
+          const j = await r.json();
+          if (!r.ok || !j.ok) throw new Error(j.error || 'Upload mislukt');
+          const url = j.cover_url || j.url || '';
+          coverEl.value = url;
+          coverThumb.innerHTML = url
+            ? `<img src="${esc(url)}" alt="">`
+            : `<span class="pl-cover-empty">🎨</span>`;
+          coverStatus.textContent = '✓ Geüpload';
+          coverStatus.className = 'pl-cover-status is-ok';
+        } catch (err) {
+          coverStatus.textContent = 'Mislukt: ' + err.message;
+          coverStatus.className = 'pl-cover-status is-error';
+        }
+      });
+    }
+
+    function updateSaveBtn() {
+      saveBtn.disabled = !titleEl.value.trim() || selected.length === 0;
+    }
+
+    function renderSelected() {
+      countEl.textContent = selected.length;
+      if (selected.length === 0) {
+        selectedEl.innerHTML = '<div class="pl-empty">Klik tracks rechts om toe te voegen.</div>';
+        updateSaveBtn();
+        return;
+      }
+      selectedEl.innerHTML = selected.map((id, i) => {
+        const t = trackById.get(id);
+        if (!t) return '';
+        const cover = t.cover
+          ? `<span class="pl-row-cover"><img src="${esc(t.cover)}" alt=""></span>`
+          : `<span class="pl-row-cover pl-row-cover-empty">♪</span>`;
+        return `<div class="pl-row" data-id="${esc(id)}" data-pos="${i}">
+          <span class="pl-row-handle" aria-label="Verslepen">⠿</span>
+          <span class="pl-row-num">${i + 1}</span>
+          ${cover}
+          <span class="pl-row-info">
+            <span class="pl-row-title">${esc(t.title)}</span>
+            ${t.artist ? `<span class="pl-row-artist">${esc(t.artist)}</span>` : ''}
+          </span>
+          <button type="button" class="pl-row-x" data-id="${esc(id)}" aria-label="Verwijderen">×</button>
+        </div>`;
+      }).join('');
+
+      selectedEl.querySelectorAll('.pl-row-x').forEach(b => {
+        b.addEventListener('click', () => {
+          selected = selected.filter(x => x !== b.dataset.id);
+          renderSelected();
+          renderAvailable();
+        });
+      });
+      bindDrag();
+      updateSaveBtn();
+    }
+
+    function renderAvailable() {
+      const q = searchEl.value.trim().toLowerCase();
+      const matches = tracks.filter(t => {
+        if (!q) return true;
+        return (t.title || '').toLowerCase().includes(q)
+            || (t.artist || '').toLowerCase().includes(q);
+      });
+      if (matches.length === 0) {
+        availEl.innerHTML = '<div class="pl-empty">Geen resultaten.</div>';
+        return;
+      }
+      availEl.innerHTML = matches.map(t => {
+        const isAdded = selected.includes(t.id);
+        const cls = ['pl-avail-row'];
+        if (isAdded) cls.push('is-added');
+        if (!t.playable) cls.push('is-unplayable');
+        const cover = t.cover
+          ? `<span class="pl-row-cover"><img src="${esc(t.cover)}" alt=""></span>`
+          : `<span class="pl-row-cover pl-row-cover-empty">♪</span>`;
+        return `<div class="${cls.join(' ')}" data-id="${esc(t.id)}" ${t.playable ? '' : 'title="Track heeft geen audio-bestand"'}>
+          ${cover}
+          <span class="pl-row-info">
+            <span class="pl-row-title">${esc(t.title)}</span>
+            ${t.artist ? `<span class="pl-row-artist">${esc(t.artist)}${t.duration ? ' · ' + fmtDur(t.duration) : ''}</span>` : ''}
+          </span>
+          <span class="pl-avail-action">${isAdded ? '✓' : '+'}</span>
+        </div>`;
+      }).join('');
+
+      availEl.querySelectorAll('.pl-avail-row').forEach(row => {
+        if (row.classList.contains('is-unplayable')) return;
+        row.addEventListener('click', () => {
+          const id = row.dataset.id;
+          if (selected.includes(id)) selected = selected.filter(x => x !== id);
+          else selected.push(id);
+          renderSelected();
+          renderAvailable();
+        });
+      });
+    }
+
+    // Pointer-based drag-to-reorder. Same pattern as v9's admin.js.
+    function bindDrag() {
+      selectedEl.querySelectorAll('.pl-row').forEach(row => {
+        const handle = row.querySelector('.pl-row-handle');
+        if (!handle) return;
+        let dragging = false, originalIdx = -1;
+
+        handle.addEventListener('pointerdown', e => {
+          e.preventDefault();
+          handle.setPointerCapture(e.pointerId);
+          dragging = true;
+          originalIdx = parseInt(row.dataset.pos, 10);
+          row.classList.add('is-dragging');
+        });
+        handle.addEventListener('pointermove', e => {
+          if (!dragging) return;
+          e.preventDefault();
+          const rows = Array.from(selectedEl.querySelectorAll('.pl-row'));
+          rows.forEach(r => r.classList.remove('drop-above', 'drop-below'));
+          let targetIdx = -1, above = false;
+          for (let i = 0; i < rows.length; i++) {
+            const r = rows[i]; if (r === row) continue;
+            const rect = r.getBoundingClientRect();
+            const mid = rect.top + rect.height / 2;
+            if (e.clientY < mid && targetIdx === -1) { targetIdx = i; above = true; break; }
+            if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
+              targetIdx = i; above = e.clientY < mid; break;
+            }
+          }
+          if (targetIdx !== -1) rows[targetIdx].classList.add(above ? 'drop-above' : 'drop-below');
+        });
+        const finish = e => {
+          if (!dragging) return;
+          dragging = false;
+          try { handle.releasePointerCapture(e.pointerId); } catch (_) {}
+          row.classList.remove('is-dragging');
+          const rows = Array.from(selectedEl.querySelectorAll('.pl-row'));
+          let targetIdx = -1, above = false;
+          for (let i = 0; i < rows.length; i++) {
+            if (rows[i].classList.contains('drop-above')) { targetIdx = i; above = true; break; }
+            if (rows[i].classList.contains('drop-below')) { targetIdx = i; above = false; break; }
+          }
+          rows.forEach(r => r.classList.remove('drop-above', 'drop-below'));
+          if (targetIdx === -1 || targetIdx === originalIdx) return;
+          const moved = selected[originalIdx];
+          selected.splice(originalIdx, 1);
+          let newIdx = targetIdx;
+          if (originalIdx < targetIdx) newIdx--;
+          if (!above) newIdx++;
+          newIdx = Math.max(0, Math.min(selected.length, newIdx));
+          selected.splice(newIdx, 0, moved);
+          renderSelected();
+        };
+        handle.addEventListener('pointerup', finish);
+        handle.addEventListener('pointercancel', () => {
+          dragging = false;
+          row.classList.remove('is-dragging');
+          selectedEl.querySelectorAll('.drop-above, .drop-below')
+            .forEach(r => r.classList.remove('drop-above', 'drop-below'));
+        });
+      });
+    }
+
+    titleEl.addEventListener('input', updateSaveBtn);
+    searchEl.addEventListener('input', renderAvailable);
+    renderSelected();
+    renderAvailable();
+
+    saveBtn.addEventListener('click', async () => {
+      if (saveBtn.disabled) return;
+      const orig = saveBtn.textContent;
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Opslaan...';
+
+      const payload = {
+        title:  titleEl.value.trim(),
+        artist: artistEl.value.trim(),
+        year:   parseInt(yearEl.value, 10) || 0,
+        cover:  coverEl.value.trim(),
+        kind:   kindEl.value === 'playlist' ? 'playlist' : 'album',
+        tracks: selected.slice(),
+      };
+
+      try {
+        const url = isEdit
+          ? '/admin/playlists/api/' + encodeURIComponent(initial.id)
+          : '/admin/playlists/api';
+        const j = await api('POST', url, payload);
+        if (!j.ok) {
+          alert('Opslaan mislukt: ' + (j.error || 'onbekend'));
+          saveBtn.disabled = false;
+          saveBtn.textContent = orig;
+          return;
+        }
+        const savedId = isEdit ? initial.id : j.id;
+        close();
+        if (typeof opts.onSaved === 'function') {
+          opts.onSaved({ id: savedId, playlist: payload });
+        }
+      } catch (err) {
+        alert('Opslaan mislukt: ' + err.message);
+        saveBtn.disabled = false;
+        saveBtn.textContent = orig;
+      }
+    });
+
+    // ESC to close
+    document.addEventListener('keydown', function onEsc(e) {
+      if (e.key === 'Escape' && document.body.contains(backdrop)) {
+        close();
+        document.removeEventListener('keydown', onEsc);
+      }
+    });
+  };
+})();
+</script>

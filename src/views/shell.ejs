@@ -1,0 +1,417 @@
+<%
+// ── Helpers used inside this template ─────────────────────────────
+function _e(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+const safeSite     = site || {};
+const safeUrlBase  = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '';
+const safeAccent   = safeSite.accent && /^#[0-9a-fA-F]{6}$/.test(safeSite.accent) ? safeSite.accent : '#c2410c';
+const lang         = safeSite.language || 'nl';
+const ogLocale     = safeSite.og_locale || (lang === 'nl' ? 'nl_NL' : (lang.length === 2 ? lang + '_' + lang.toUpperCase() : 'en_US'));
+const homePath     = safeUrlBase + '/';
+const isPostPage   = bodyClass && bodyClass.indexOf('on-post')    >= 0;
+const isHomePage   = bodyClass && bodyClass.indexOf('on-home')    >= 0;
+const isSpecialPg  = bodyClass && bodyClass.indexOf('on-special') >= 0;
+const isAdminPage  = bodyClass && bodyClass.indexOf('on-admin')   >= 0;
+
+// ── <title> via site.title_template ──────────────────────────────
+// Template: '{title} — {site}'. If pageTitle equals site.title (homepage) we
+// just use the site title alone, otherwise apply the template.
+const _siteTitle  = safeSite.title || 'PrutCMS';
+const _rawTitle   = pageTitle || _siteTitle;
+const _tpl        = safeSite.title_template || '{title} — {site}';
+const _finalTitle = (_rawTitle === _siteTitle)
+  ? _siteTitle
+  : _tpl.replace('{title}', _rawTitle).replace('{site}', _siteTitle);
+
+// ── Robots: noindex on listing pages and on per-post override ─────
+let _shouldIndex = safeSite.robots_index !== 0;
+if (typeof post !== 'undefined' && post && post.noindex) _shouldIndex = false;
+// Listing pages (search/tag/type/archive) shouldn't be indexed (dupe content)
+if (currentPath) {
+  if (/^\/(?:search|tag|type|archive|users|prutter|account|admin)(?:$|\/)/.test(currentPath)) {
+    _shouldIndex = false;
+  }
+}
+// Special-flagged views from routes opt out too
+if (isSpecialPg && (currentPath === '/search' || /^\/(tag|type|archive|users)\//.test(currentPath))) {
+  _shouldIndex = false;
+}
+
+// ── Canonical URL (only when we have one configured) ─────────────
+let _canonical = null;
+if (safeSite.canonical) {
+  const _base = safeSite.canonical.replace(/\/+$/, '');
+  let _path = '/';
+  if (typeof post !== 'undefined' && post && post.slug) _path = '/' + post.slug;
+  else if (currentPath) _path = currentPath;
+  _canonical = _base + _path;
+}
+
+// ── Social bits (OG/Twitter) ──────────────────────────────────────
+const _socialTitle = (typeof post !== 'undefined' && post && post.title) ? post.title : _siteTitle;
+const _socialDescr = (typeof socialDescr !== 'undefined' && socialDescr)
+  ? socialDescr
+  : (safeSite.default_description || safeSite.description || '');
+const _socialImage = (typeof socialImage !== 'undefined' && socialImage)
+  ? socialImage
+  : (safeSite.og_image_default || safeSite.default_cover || '');
+const _ogType = isPostPage ? 'article' : 'website';
+
+// ── JSON-LD ───────────────────────────────────────────────────────
+const _publisher = {
+  '@type': safeSite.schema_type === 'Organization' ? 'Organization' : 'Person',
+  name: safeSite.publisher_name || _siteTitle,
+  url:  safeSite.publisher_url  || (_canonical ? _canonical.split(/(?<=^[^/]*\/\/[^/]+)\//)[0] + '/' : null),
+};
+if (safeSite.publisher_logo) {
+  _publisher.logo = { '@type': 'ImageObject', url: safeSite.publisher_logo };
+}
+let _jsonLd = null;
+if (typeof post !== 'undefined' && post && post.slug) {
+  _jsonLd = {
+    '@context':    'https://schema.org',
+    '@type':       (post.type === 'foto' || post.type === 'video') ? 'CreativeWork' : 'Article',
+    headline:      post.title || _siteTitle,
+    description:   _socialDescr,
+    datePublished: post.published_at || post.created_at || new Date().toISOString(),
+    dateModified:  post.updated_at   || post.published_at || new Date().toISOString(),
+    publisher:     _publisher,
+  };
+  if (_socialImage) _jsonLd.image = _socialImage;
+  if (post.author_username) _jsonLd.author = { '@type': 'Person', name: post.author_username };
+  if (Array.isArray(post.tags) && post.tags.length) _jsonLd.keywords = post.tags.join(', ');
+} else if (isHomePage) {
+  _jsonLd = {
+    '@context': 'https://schema.org',
+    '@type':    'WebSite',
+    name:       _siteTitle,
+    description: safeSite.description || safeSite.default_description || '',
+    publisher:  _publisher,
+  };
+}
+%><!DOCTYPE html>
+<html lang="<%= _e(lang) %>" data-palette="<%= _e(safeSite.palette || 'sage') %>">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+
+<title><%= _finalTitle %></title>
+<meta name="description" content="<%= _e(_socialDescr) %>">
+<meta name="theme-color" content="<%= _e(safeAccent) %>">
+<meta name="robots" content="<%= _shouldIndex ? 'index,follow' : 'noindex,nofollow' %>">
+<% if (safeSite.author) { %><meta name="author" content="<%= _e(safeSite.author) %>"><% } %>
+<% if (_canonical) { %><link rel="canonical" href="<%= _e(_canonical) %>"><% } %>
+
+<!-- Search-engine verification -->
+<% if (safeSite.google_verification)    { %><meta name="google-site-verification" content="<%= _e(safeSite.google_verification) %>"><% } %>
+<% if (safeSite.bing_verification)      { %><meta name="msvalidate.01" content="<%= _e(safeSite.bing_verification) %>"><% } %>
+<% if (safeSite.pinterest_verification) { %><meta name="p:domain_verify" content="<%= _e(safeSite.pinterest_verification) %>"><% } %>
+<% if (safeSite.yandex_verification)    { %><meta name="yandex-verification" content="<%= _e(safeSite.yandex_verification) %>"><% } %>
+
+<!-- Feed autodiscovery -->
+<% if (site) { %>
+<link rel="alternate" type="application/rss+xml"  title="<%= _e(_siteTitle) %> — RSS"  href="<%= _e(safeUrlBase + '/feed.xml') %>">
+<link rel="alternate" type="application/atom+xml" title="<%= _e(_siteTitle) %> — Atom" href="<%= _e(safeUrlBase + '/atom.xml') %>">
+<% } %>
+
+<!-- PWA -->
+<link rel="manifest" href="<%= _e(safeUrlBase + '/manifest.webmanifest') %>">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="<%= _e(_siteTitle.slice(0, 16)) %>">
+<link rel="apple-touch-icon" href="<%= _e(safeSite.profile_photo || '/favicon.ico') %>">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="alternate icon" href="/favicon.ico">
+
+<!-- OpenGraph -->
+<meta property="og:type"        content="<%= _ogType %>">
+<meta property="og:title"       content="<%= _e(_socialTitle) %>">
+<meta property="og:description" content="<%= _e(_socialDescr) %>">
+<meta property="og:site_name"   content="<%= _e(_siteTitle) %>">
+<meta property="og:locale"      content="<%= _e(ogLocale) %>">
+<% if (_socialImage) { %>
+<meta property="og:image"     content="<%= _e(_socialImage) %>">
+<meta property="og:image:alt" content="<%= _e(_socialTitle) %>">
+<% } %>
+<% if (_canonical) { %><meta property="og:url" content="<%= _e(_canonical) %>"><% } %>
+<% if (typeof post !== 'undefined' && post && post.published_at) { %>
+<meta property="article:published_time" content="<%= _e(post.published_at) %>">
+<% if (post.author_username) { %><meta property="article:author" content="<%= _e(post.author_username) %>"><% } %>
+<% } %>
+<% if (safeSite.facebook_app_id) { %><meta property="fb:app_id" content="<%= _e(safeSite.facebook_app_id) %>"><% } %>
+
+<!-- Twitter Cards -->
+<meta name="twitter:card"        content="<%= _socialImage ? 'summary_large_image' : 'summary' %>">
+<meta name="twitter:title"       content="<%= _e(_socialTitle) %>">
+<meta name="twitter:description" content="<%= _e(_socialDescr) %>">
+<% if (_socialImage)         { %><meta name="twitter:image"   content="<%= _e(_socialImage) %>"><% } %>
+<% if (safeSite.twitter)     { %><meta name="twitter:creator" content="<%= _e(safeSite.twitter) %>"><meta name="twitter:site" content="<%= _e(safeSite.twitter) %>"><% } %>
+
+<% if (_jsonLd) { %>
+<script type="application/ld+json"><%- JSON.stringify(_jsonLd) %></script>
+<% } %>
+
+<!-- Self-hosted fonts (privacy-first) -->
+<link rel="preload" href="/assets/fonts/literata-latin-opsz-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/fraunces-latin-full-normal.woff2" as="font" type="font/woff2" crossorigin>
+
+<!-- v9 stylesheet (full palette system) -->
+<link rel="stylesheet" href="/assets/css/style.css">
+
+<!-- Audio player styles: loaded on every page so the mini-player works
+     anywhere (admin previews, post embeds, etc). The player itself is
+     a singleton — see the script tag near </body>. -->
+<link rel="stylesheet" href="/assets/css/audio.css">
+
+<%- include('partials/shared-styles') %>
+
+<!-- v1 P55 — Inline the saved site accent. The base stylesheet only sets a
+     fallback (#c2410c orange) and palette blocks don't define --accent at
+     all, so without this override the saved accent never reaches the page.
+     :root + [data-palette] hits both unscoped and palette-scoped variants;
+     source-order wins on equal specificity, and this comes after style.css. -->
+<style id="pcms-site-accent">
+  :root,
+  [data-palette] {
+    --accent: <%= _e(safeAccent) %>;
+    --accent-soft: color-mix(in srgb, <%= _e(safeAccent) %> 80%, white);
+    --accent-tint: color-mix(in srgb, <%= _e(safeAccent) %> 12%, transparent);
+  }
+</style>
+
+<!-- Per-site custom CSS injection -->
+<% if (safeSite.custom_css) { %>
+<style id="pcms-custom-css"><%- safeSite.custom_css %></style>
+<% } %>
+
+<!-- Apply theme ASAP, before paint. Precedence (first match wins):
+     1. localStorage override (visitor toggled earlier on this browser)
+     2. Site default (theme_override + palette) — what new visitors see
+     3. Device prefers-color-scheme (only if site default is empty/auto)
+     4. 'dark' as last-ditch fallback
+     Note: PALETTE never has a localStorage layer anymore. There's no UI for
+     visitors to pick a palette, so any cached pcms-palette is stale data
+     from old code paths and gets cleaned up here. Site default always wins
+     for palette. -->
+<script>
+  (function() {
+    try {
+      var siteDefault   = '<%= safeSite.theme_override || "" %>';
+      var sitePalette   = '<%= safeSite.palette || "sage" %>';
+
+      // One-time cleanup: drop the orphan pcms-palette key set by P43-P57
+      // bootstrap. After this it never re-appears because nothing writes it.
+      try { localStorage.removeItem('pcms-palette'); } catch(_) {}
+
+      // Theme: localStorage > site override > device pref > dark
+      var storedTheme = null;
+      try { storedTheme = localStorage.getItem('pcms-theme'); } catch(_) {}
+      var deviceDark = window.matchMedia &&
+                       window.matchMedia('(prefers-color-scheme: dark)').matches;
+      var t = storedTheme
+           || siteDefault
+           || (deviceDark ? 'dark' : 'light');
+
+      // Palette: site default only.
+      document.documentElement.setAttribute('data-theme', t);
+      document.documentElement.setAttribute('data-palette', sitePalette);
+    } catch(e) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+  })();
+</script>
+
+<!-- HTMX — bundled locally from node_modules at boot, zero third-party requests -->
+<script src="/assets/js/htmx.min.js"></script>
+
+<!-- Per-site custom <head> HTML (analytics, verification, etc.) -->
+<% if (safeSite.custom_head_html) { %>
+<%- safeSite.custom_head_html %>
+<% } %>
+</head>
+
+<body class="<%= bodyClass || 'on-home' %> has-bottom-tab" data-feed-view="<%= _e(safeSite.feed_view_default || 'timeline') %>" data-grid-cols="3">
+
+<%- include('partials/topnav') %>
+
+<%- include('partials/profile-header') %>
+
+<%# View switcher — visible on every non-admin page. On feed pages
+    (home, archive, tag, type, user) it toggles the visual layout;
+    on non-feed pages (post, account, search, auth) it navigates to /
+    in the chosen view. Click logic is in shell.ejs at the bottom. %>
+<% if (!isAdminPage) { %>
+  <%- include('partials/view-switcher') %>
+<% } %>
+
+<%# hx-history-elt scopes HTMX history snapshots to #pcms-main only, so
+    when the user navigates back the switcher (which lives in the shell
+    OUTSIDE this element) keeps its place rather than being replaced
+    along with the rest of the body. %>
+<main id="pcms-main" class="pcms-main" hx-history-elt>
+  <div id="pcms-loading" class="pcms-loading" aria-hidden="true"></div>
+  <%- pageContent %>
+</main>
+
+<%- include('partials/footer') %>
+
+<!-- Mobile bottom-tab navigation (auto-hidden ≥768px) -->
+<%- include('partials/bottom-tab') %>
+
+<!-- Mobile profile sheet (auto-hidden ≥768px; only rendered when logged in) -->
+<% if (user) { %>
+<%- include('partials/profile-sheet') %>
+<% } %>
+
+<!-- Audio player: load on every page (admin + public) so window.pcmsAudioPlayer
+     is always available. The PCMS_SITE_TRACKS bootstrap is still gated on
+     enable_audio_player since it's a public-page concept (auto-discovered
+     tracks from rendered post embeds). -->
+<script src="/assets/js/audio-player.js"></script>
+<% if (site && site.enable_audio_player && audioTracks && audioTracks.length > 0) { %>
+  <script>window.PCMS_SITE_TRACKS = <%- JSON.stringify(audioTracks) %>;</script>
+<% } %>
+
+<!-- Install-app button: detects platform + shows install instructions modal -->
+<script src="/assets/js/install-app.js" defer></script>
+
+<!-- Service Worker registration -->
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
+</script>
+
+<!-- HTMX navigation: keep body class in sync with the swapped page.
+     The server emits HX-Trigger-After-Settle: { pcmsNav: { bodyClass } } via
+     renderPage() in middleware/render.js. Without this listener the body
+     class stays whatever the initial page-load set, so the profile-header
+     never collapses/expands when navigating home → post → home via HTMX. -->
+<script>
+(function() {
+  // The set of mutually-exclusive page-context body classes. When pcmsNav
+  // fires we strip ALL of these and apply just the one the server told us.
+  var PAGE_CLASSES = ['on-home','on-post','on-special','on-archive','on-search','on-admin'];
+
+  document.body.addEventListener('pcmsNav', function(ev) {
+    var next = ev.detail && ev.detail.bodyClass;
+    if (!next) return;
+    // Server may send a multi-class string ("on-post extra"). Only the first
+    // page-class is what we care about — strip and replace.
+    var firstClass = String(next).split(/\s+/).find(function(c) {
+      return PAGE_CLASSES.indexOf(c) >= 0;
+    });
+    if (!firstClass) return;
+    PAGE_CLASSES.forEach(function(c) { document.body.classList.remove(c); });
+    document.body.classList.add(firstClass);
+  });
+})();
+</script>
+
+<!-- View switcher + grid-cols persistence (event delegation: works for switcher
+     elements rendered later by HTMX, e.g. when navigating back to home). -->
+<script>
+(function() {
+  var body = document.body;
+  // Restore feed view + grid cols from localStorage (overrides server default)
+  try {
+    var v = localStorage.getItem('pcms-feed-view');
+    if (v === 'timeline' || v === 'grid') body.dataset.feedView = v;
+    var c = parseInt(localStorage.getItem('pcms-grid-cols'), 10);
+    if (c === 2 || c === 3 || c === 4) body.dataset.gridCols = String(c);
+  } catch (e) {}
+
+  function syncAria() {
+    document.querySelectorAll('.view-switch-btn').forEach(function(b) {
+      b.setAttribute('aria-selected', b.dataset.view === body.dataset.feedView ? 'true' : 'false');
+    });
+    document.querySelectorAll('.grid-cols-btn').forEach(function(b) {
+      b.classList.toggle('is-active', b.dataset.cols === body.dataset.gridCols);
+    });
+  }
+  syncAria();
+  // Re-sync after HTMX brings in new content (e.g. navigating back to home)
+  document.body.addEventListener('htmx:afterSettle', syncAria);
+
+  // Pages where the body actually has a feed to toggle. On these the
+  // click stays put — it just flips body[data-feed-view] and CSS does
+  // the rest. Anywhere else (post detail, account, search, auth) we
+  // navigate to home in the chosen view, so the switcher is never
+  // a dead control.
+  var FEED_PAGE_CLASSES = ['on-home', 'on-archive', 'on-tag', 'on-type', 'on-user'];
+  function isFeedPage() {
+    for (var i = 0; i < FEED_PAGE_CLASSES.length; i++) {
+      if (body.classList.contains(FEED_PAGE_CLASSES[i])) return true;
+    }
+    return false;
+  }
+
+  // Event delegation — single listener handles current and future buttons.
+  document.addEventListener('click', function(e) {
+    var sw = e.target.closest('.view-switch-btn');
+    if (sw) {
+      var view = sw.dataset.view;
+      body.dataset.feedView = view;
+      try { localStorage.setItem('pcms-feed-view', view); } catch(_) {}
+      syncAria();
+      // On non-feed pages the switcher acts as a navigation: take the
+      // user back to home in the chosen view. Use HTMX if available so
+      // the page transition matches the rest of the site's nav.
+      if (!isFeedPage()) {
+        if (window.htmx) {
+          window.htmx.ajax('GET', '/?partial=1', { target: '#pcms-main', swap: 'innerHTML' });
+          history.pushState({}, '', '/');
+        } else {
+          location.href = '/';
+        }
+      }
+      return;
+    }
+    var gc = e.target.closest('.grid-cols-btn');
+    if (gc) {
+      body.dataset.gridCols = gc.dataset.cols;
+      try { localStorage.setItem('pcms-grid-cols', gc.dataset.cols); } catch(_) {}
+      syncAria();
+    }
+  });
+})();
+</script>
+
+<!-- PWA install prompt — show button when browser fires beforeinstallprompt -->
+<script>
+(function() {
+  var btn = document.getElementById('pwa-install-btn');
+  if (!btn) return;
+  var deferred = null;
+  window.addEventListener('beforeinstallprompt', function(e) {
+    e.preventDefault();
+    deferred = e;
+    btn.hidden = false;
+  });
+  btn.addEventListener('click', async function() {
+    if (!deferred) return;
+    btn.hidden = true;
+    deferred.prompt();
+    try { await deferred.userChoice; } catch(e) {}
+    deferred = null;
+  });
+  window.addEventListener('appinstalled', function() {
+    btn.hidden = true;
+    deferred = null;
+  });
+})();
+</script>
+
+<!-- Per-site custom footer HTML -->
+<% if (safeSite.custom_foot_html) { %>
+<%- safeSite.custom_foot_html %>
+<% } %>
+
+</body>
+</html>

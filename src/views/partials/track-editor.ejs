@@ -1,0 +1,622 @@
+<%
+// Track editor modal — mobile-first rewrite.
+//
+// Visual model:
+//   Mobile (<720px): bottom-sheet that slides up from below, max 92vh,
+//                    rounded top corners only, drag-handle bar at top.
+//   Desktop (≥720px): centered modal max-width 520px, fully-rounded.
+//
+// Self-contained styling under the .te-* namespace — no dependency on
+// the .ax-* admin primitives. Same visual language though: paper bg,
+// rule borders, accent for active states.
+//
+// Exposes window.openTrackEditor({ id, onSaved? }) — called by the
+// "✎ Bewerken" buttons on admin-audio. Fetches /admin/audio/api/:id,
+// renders the form with current values + an inline <audio> preview,
+// and PATCHes via /admin/audio/api/:id on save.
+
+const _csrf = (typeof csrfToken !== 'undefined' && csrfToken) || '';
+%>
+
+<style>
+/* ─────────────────────────────────────────────────────────────────
+   Track editor modal — namespace .te-*
+   ───────────────────────────────────────────────────────────────── */
+
+.te-backdrop {
+  position: fixed; inset: 0;
+  /* Above bottom-tab nav (z=1050) and audio-player sheet (z=1100) so the
+     editor always wins. */
+  z-index: 9000;
+  background: rgba(0, 0, 0, 0.55);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  display: flex;
+  /* Mobile: dock to bottom; desktop overrides to center via media query */
+  align-items: flex-end;
+  justify-content: center;
+  animation: te-fade 160ms ease-out;
+}
+@keyframes te-fade { from { opacity: 0; } to { opacity: 1; } }
+
+.te-modal {
+  background: var(--paper);
+  width: 100%;
+  max-height: 92vh;
+  /* Bottom-sheet shape on mobile — only top corners rounded */
+  border-radius: 16px 16px 0 0;
+  border: 1px solid var(--rule);
+  border-bottom: 0;
+  box-shadow: 0 -8px 30px rgba(0,0,0,0.4);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  animation: te-slide-up 220ms cubic-bezier(.2,.9,.3,1);
+}
+@keyframes te-slide-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+/* Desktop: center the modal as a card */
+@media (min-width: 720px) {
+  .te-backdrop { align-items: center; padding: 1rem; }
+  .te-modal {
+    max-width: 520px;
+    border-radius: 14px;
+    border: 1px solid var(--rule);
+    max-height: calc(100vh - 2rem);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    animation: te-fade 220ms ease-out;
+  }
+}
+
+/* Drag-handle bar at top of mobile sheet */
+.te-handle {
+  width: 100%; padding: 0.6rem 0;
+  display: flex; justify-content: center;
+  flex-shrink: 0;
+}
+.te-handle-bar {
+  width: 36px; height: 4px;
+  background: var(--rule);
+  border-radius: 99px;
+}
+@media (min-width: 720px) { .te-handle { display: none; } }
+
+.te-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.5rem 1.25rem 1rem;
+  border-bottom: 1px solid var(--rule);
+  flex-shrink: 0;
+}
+@media (min-width: 720px) { .te-header { padding: 1rem 1.25rem; } }
+.te-header h3 {
+  font-family: var(--font-display, serif);
+  margin: 0; font-size: 1.15rem; font-weight: 600;
+}
+.te-close {
+  width: 36px; height: 36px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 8px;
+  background: transparent;
+  color: var(--ink-muted, var(--ink-soft));
+  font-size: 1.5rem; line-height: 1;
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
+}
+.te-close:hover { background: var(--paper-2); color: var(--ink); }
+
+.te-body {
+  padding: 1rem 1.25rem;
+  overflow-y: auto;
+  flex: 1;
+  -webkit-overflow-scrolling: touch;
+  display: flex; flex-direction: column; gap: 1rem;
+}
+
+/* ── Inline preview player ─────────────────────────────────── */
+.te-preview {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+}
+.te-preview-cover {
+  width: 56px; height: 56px;
+  border-radius: 8px; overflow: hidden;
+  background: var(--paper);
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  font-size: 1.4rem; color: var(--accent);
+}
+.te-preview-cover img { width: 100%; height: 100%; object-fit: cover; }
+.te-preview-meta {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; gap: 0.25rem;
+}
+.te-preview-title {
+  font-weight: 600; font-size: 0.95rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.te-preview-sub {
+  font-size: 0.78rem;
+  color: var(--ink-muted, var(--ink-soft));
+}
+.te-preview-play {
+  width: 44px; height: 44px;
+  border: 1px solid var(--rule);
+  border-radius: 50%;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 1.1rem;
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  transition: border-color 120ms, color 120ms, background 120ms;
+}
+.te-preview-play:hover { border-color: var(--accent); color: var(--accent); }
+.te-preview-play.is-playing {
+  background: var(--accent); color: white; border-color: var(--accent);
+}
+
+/* ── Form fields ───────────────────────────────────────────── */
+.te-form { display: flex; flex-direction: column; gap: 0.85rem; }
+.te-row { display: grid; gap: 0.85rem; }
+.te-row-2 { grid-template-columns: 1fr 1fr; }
+@media (max-width: 480px) { .te-row-2 { grid-template-columns: 1fr; } }
+
+.te-field { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+.te-field > span {
+  font-size: 0.8rem; font-weight: 600;
+  color: var(--ink-soft);
+  display: flex; align-items: baseline; gap: 0.4rem;
+}
+.te-field > span small {
+  font-weight: 400; color: var(--ink-muted); font-size: 0.95em;
+}
+.te-required { color: #dc2626; }
+.te-field input[type="text"],
+.te-field input[type="number"],
+.te-field input[type="url"] {
+  width: 100%; box-sizing: border-box;
+  padding: 0.6rem 0.75rem; min-height: 44px;
+  border: 1px solid var(--rule); border-radius: 6px;
+  background: var(--paper-2); color: var(--ink);
+  font-family: var(--font-ui, system-ui), sans-serif;
+  font-size: 0.95rem;
+  -webkit-appearance: none; appearance: none;
+  transition: border-color 120ms;
+}
+.te-field input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+  border-color: var(--accent);
+}
+
+/* ── Cover field with thumb + button + URL ─────────────────── */
+.te-cover-row {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 0.75rem;
+  align-items: start;
+}
+.te-cover-thumb {
+  width: 80px; height: 80px;
+  border-radius: 10px;
+  border: 1px dashed var(--rule);
+  background: var(--paper-2);
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 120ms;
+}
+.te-cover-thumb:hover, .te-cover-thumb.is-dragover { border-color: var(--accent); border-style: solid; }
+.te-cover-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.te-cover-empty {
+  font-size: 1.6rem; opacity: 0.5;
+}
+.te-cover-actions {
+  display: flex; flex-direction: column; gap: 0.5rem;
+  min-width: 0;
+}
+.te-cover-btn-row { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.te-cover-btn {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid var(--rule); border-radius: 6px;
+  background: var(--paper-2); color: var(--ink);
+  font-family: var(--font-ui, system-ui); font-size: 0.85rem;
+  cursor: pointer;
+  transition: border-color 120ms;
+}
+.te-cover-btn:hover { border-color: var(--accent); }
+.te-cover-btn-remove:hover { color: #dc2626; border-color: #dc2626; }
+.te-cover-status {
+  font-size: 0.78rem;
+  color: var(--ink-muted, var(--ink-soft));
+  min-height: 1em;
+}
+.te-cover-status.is-error { color: #dc2626; }
+.te-cover-status.is-ok { color: #2a9d5e; }
+
+/* ── Footer (sticky) ───────────────────────────────────────── */
+.te-footer {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.85rem 1.25rem;
+  border-top: 1px solid var(--rule);
+  background: var(--paper);
+  flex-shrink: 0;
+}
+.te-footer-spacer { flex: 1; }
+.te-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem;
+  padding: 0.6rem 1.1rem; min-height: 44px;
+  border: 1px solid var(--rule); border-radius: 8px;
+  background: var(--paper-2); color: var(--ink);
+  font-family: var(--font-ui, system-ui); font-size: 0.9rem; font-weight: 500;
+  cursor: pointer;
+  transition: border-color 120ms, background 120ms;
+  -webkit-tap-highlight-color: transparent;
+}
+.te-btn:hover { border-color: var(--accent); }
+.te-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.te-btn-primary {
+  background: var(--accent); color: white; border-color: var(--accent);
+}
+.te-btn-primary:hover { opacity: 0.92; }
+
+/* Lock body scroll while modal is open */
+body.te-modal-open { overflow: hidden; }
+</style>
+
+<script>
+(function() {
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  async function api(method, url, body) {
+    const opts = { method, credentials: 'same-origin', headers: {} };
+    if (body !== undefined) {
+      if (body instanceof FormData) {
+        opts.body = body;
+      } else {
+        opts.headers['Content-Type'] = 'application/json';
+        opts.body = JSON.stringify(body);
+      }
+    }
+    const res = await fetch(url, opts);
+    let data;
+    try { data = await res.json(); }
+    catch (_) { throw new Error('Onverwacht antwoord (' + res.status + ')'); }
+    if (!res.ok) data.ok = false;
+    return data;
+  }
+
+  /**
+   * Open the track editor.
+   * @param {object} opts
+   * @param {string} opts.id        — track id to edit
+   * @param {function?} opts.onSaved — called with updated track on success
+   */
+  window.openTrackEditor = async function openTrackEditor({ id, onSaved }) {
+    if (!id) return;
+    let track, albumSuggestions = [];
+    try {
+      const [trackJson, listJson] = await Promise.all([
+        api('GET', '/admin/audio/api/' + encodeURIComponent(id)),
+        api('GET', '/admin/audio/api/albums'),
+      ]);
+      if (!trackJson.ok) throw new Error(trackJson.error || 'Track niet gevonden');
+      track = trackJson.track;
+      if (listJson.ok && Array.isArray(listJson.albums)) {
+        albumSuggestions = listJson.albums.filter(Boolean);
+      }
+    } catch (err) {
+      alert('Track ophalen mislukt: ' + err.message);
+      return;
+    }
+
+    const backdrop = document.createElement('div');
+    backdrop.className = 'te-backdrop';
+    backdrop.innerHTML = `
+      <div class="te-modal" role="dialog" aria-modal="true" aria-label="Track bewerken">
+        <div class="te-handle" aria-hidden="true"><span class="te-handle-bar"></span></div>
+
+        <div class="te-header">
+          <h3>✎ Track bewerken</h3>
+          <button type="button" class="te-close" aria-label="Sluiten">×</button>
+        </div>
+
+        <div class="te-body">
+
+          ${track.stream_url ? `
+          <div class="te-preview">
+            <div class="te-preview-cover">
+              ${track.cover_url
+                ? `<img src="${esc(track.cover_url)}" alt="">`
+                : `🎵`}
+            </div>
+            <div class="te-preview-meta">
+              <div class="te-preview-title">${esc(track.title || '(zonder titel)')}</div>
+              <div class="te-preview-sub">
+                ${esc(track.artist || '—')}${track.album ? ' · ' + esc(track.album) : ''}
+              </div>
+            </div>
+            <button type="button" class="te-preview-play" id="te-preview-play" aria-label="Afspelen">▶</button>
+          </div>
+          ` : ''}
+
+          <div class="te-form">
+
+            <label class="te-field">
+              <span>Titel <span class="te-required" aria-hidden="true">*</span></span>
+              <input type="text" id="te-title" maxlength="200" required
+                     autocomplete="off" autocapitalize="words" spellcheck="false"
+                     value="${esc(track.title || '')}">
+            </label>
+
+            <div class="te-row te-row-2">
+              <label class="te-field">
+                <span>Artiest</span>
+                <input type="text" id="te-artist" maxlength="200"
+                       autocomplete="off" autocapitalize="words" spellcheck="false"
+                       value="${esc(track.artist || '')}">
+              </label>
+              <label class="te-field">
+                <span>Album</span>
+                <input type="text" id="te-album" maxlength="200"
+                       autocomplete="off" autocapitalize="words" spellcheck="false"
+                       list="te-album-list" value="${esc(track.album || '')}">
+                <datalist id="te-album-list">
+                  ${albumSuggestions.map(a => `<option value="${esc(a)}">`).join('')}
+                </datalist>
+              </label>
+            </div>
+
+            <label class="te-field">
+              <span>Duur <small>(seconden — bv. 142 voor 2:22)</small></span>
+              <input type="number" id="te-duration" min="0" step="1"
+                     inputmode="numeric" pattern="[0-9]*"
+                     value="${track.duration || ''}" placeholder="0">
+            </label>
+
+            <div class="te-field">
+              <span>Cover</span>
+              <div class="te-cover-row">
+                <div class="te-cover-thumb" id="te-cover-thumb" tabindex="0" role="button"
+                     aria-label="Klik om cover te kiezen">
+                  ${track.cover_url
+                    ? `<img src="${esc(track.cover_url)}" alt="">`
+                    : `<span class="te-cover-empty">🎨</span>`}
+                </div>
+                <input type="file" id="te-cover-file"
+                       accept="image/jpeg,image/png,image/webp,image/gif" hidden>
+                <div class="te-cover-actions">
+                  <div class="te-cover-btn-row">
+                    <button type="button" class="te-cover-btn" id="te-cover-pick">
+                      📷 Foto kiezen
+                    </button>
+                    ${track.cover_url ? `
+                    <button type="button" class="te-cover-btn te-cover-btn-remove" id="te-cover-remove">
+                      × Verwijder
+                    </button>` : ''}
+                  </div>
+                  <input type="url" id="te-cover-url"
+                         placeholder="of plak URL: https://…"
+                         autocomplete="off" autocapitalize="none" spellcheck="false"
+                         value="${esc(track.cover_url || '')}">
+                  <div class="te-cover-status" id="te-cover-status"></div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="te-footer">
+          <button type="button" class="te-btn" id="te-cancel">Annuleren</button>
+          <div class="te-footer-spacer"></div>
+          <button type="button" class="te-btn te-btn-primary" id="te-save">💾 Opslaan</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(backdrop);
+    document.body.classList.add('te-modal-open');
+
+    const $ = sel => backdrop.querySelector(sel);
+
+    // ── Inline preview player (routed through global mini-player) ──
+    // We don't build our own <audio>; instead we tell the global
+    // window.pcmsAudioPlayer to load this single track. Visual state
+    // syncs against the global audio element so toggle works correctly
+    // even if the user pauses from the mini-bar.
+    const previewBtn = $('#te-preview-play');
+    if (previewBtn) {
+      const setPreviewState = (playing) => {
+        previewBtn.textContent = playing ? '⏸' : '▶';
+        previewBtn.classList.toggle('is-playing', playing);
+        previewBtn.setAttribute('aria-label', playing ? 'Pauzeren' : 'Afspelen');
+      };
+      const isOurTrack = () => {
+        const audio = document.getElementById('audio-element');
+        return audio && track.stream_url && audio.src.endsWith(track.stream_url);
+      };
+      const resync = () => {
+        const audio = document.getElementById('audio-element');
+        const playing = audio && !audio.paused && !audio.ended && isOurTrack();
+        setPreviewState(!!playing);
+      };
+
+      previewBtn.addEventListener('click', () => {
+        const player = window.pcmsAudioPlayer;
+        if (!player || !track.stream_url) {
+          console.warn('preview: miniplayer or url missing');
+          return;
+        }
+        const audio = document.getElementById('audio-element');
+        if (audio && isOurTrack()) {
+          // Same track loaded — toggle
+          if (audio.paused) player.play(); else player.pause();
+        } else {
+          player.setQueue([{
+            url:    track.stream_url,
+            title:  track.title  || '(zonder titel)',
+            artist: track.artist || '',
+            album:  track.album  || '',
+            cover:  track.cover_url || '',
+          }], 0);
+        }
+      });
+
+      const audio = document.getElementById('audio-element');
+      if (audio) {
+        const evs = ['play', 'pause', 'ended', 'loadstart', 'emptied'];
+        evs.forEach(ev => audio.addEventListener(ev, resync));
+        // Detach listeners on close so we don't leak them
+        backdrop._previewCleanup = () => {
+          evs.forEach(ev => audio.removeEventListener(ev, resync));
+        };
+        resync();   // initial state
+      }
+    }
+
+    function close() {
+      // Detach our resync listeners (mini-player stays running)
+      if (backdrop._previewCleanup) backdrop._previewCleanup();
+      document.body.classList.remove('te-modal-open');
+      document.removeEventListener('keydown', onEsc);
+      backdrop.remove();
+    }
+    function onEsc(e) { if (e.key === 'Escape') close(); }
+    document.addEventListener('keydown', onEsc);
+
+    backdrop.addEventListener('click', e => {
+      // Click on the backdrop itself (not modal content) closes
+      if (e.target === backdrop) close();
+    });
+    $('.te-close').addEventListener('click', close);
+    $('#te-cancel').addEventListener('click', close);
+
+    // ── Cover picking + URL paste + drag-drop ────────────────
+    const thumb     = $('#te-cover-thumb');
+    const fileInput = $('#te-cover-file');
+    const urlInput  = $('#te-cover-url');
+    const status    = $('#te-cover-status');
+    const pickBtn   = $('#te-cover-pick');
+    const removeBtn = $('#te-cover-remove');
+
+    function setStatus(text, kind) {
+      status.textContent = text || '';
+      status.className = 'te-cover-status' + (kind ? ' is-' + kind : '');
+    }
+    function setThumb(url) {
+      if (url) {
+        thumb.innerHTML = `<img src="${esc(url)}" alt="">`;
+      } else {
+        thumb.innerHTML = `<span class="te-cover-empty">🎨</span>`;
+      }
+    }
+
+    pickBtn.addEventListener('click', () => fileInput.click());
+    thumb.addEventListener('click', () => fileInput.click());
+    thumb.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
+    });
+
+    async function uploadCoverFile(file) {
+      if (!file) return;
+      if (!/^image\//.test(file.type)) {
+        setStatus('Alleen afbeeldingen toegestaan', 'error'); return;
+      }
+      setStatus('Uploaden…', null);
+      const fd = new FormData();
+      fd.append('cover', file);
+      try {
+        const r = await fetch('/admin/audio/api/' + encodeURIComponent(id) + '/cover', {
+          method: 'POST', body: fd, credentials: 'same-origin',
+        });
+        const j = await r.json();
+        if (!r.ok || !j.ok) throw new Error(j.error || 'Upload mislukt');
+        urlInput.value = j.cover_url || '';
+        setThumb(j.cover_url);
+        setStatus('✓ Geüpload', 'ok');
+      } catch (err) {
+        setStatus('Mislukt: ' + err.message, 'error');
+      }
+    }
+
+    fileInput.addEventListener('change', e => {
+      const f = e.target.files && e.target.files[0];
+      if (f) uploadCoverFile(f);
+      fileInput.value = '';
+    });
+
+    // Drag-drop on thumb (desktop nicety)
+    ['dragenter', 'dragover'].forEach(ev =>
+      thumb.addEventListener(ev, e => { e.preventDefault(); thumb.classList.add('is-dragover'); }));
+    ['dragleave', 'drop'].forEach(ev =>
+      thumb.addEventListener(ev, e => { e.preventDefault(); thumb.classList.remove('is-dragover'); }));
+    thumb.addEventListener('drop', e => {
+      const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (f) uploadCoverFile(f);
+    });
+
+    // URL paste auto-preview
+    urlInput.addEventListener('input', () => {
+      const v = urlInput.value.trim();
+      setThumb(v);
+    });
+
+    if (removeBtn) {
+      removeBtn.addEventListener('click', () => {
+        urlInput.value = '';
+        setThumb('');
+        removeBtn.remove();
+      });
+    }
+
+    // ── Save ────────────────────────────────────────────────
+    $('#te-save').addEventListener('click', async () => {
+      const titleEl = $('#te-title');
+      const title = titleEl.value.trim();
+      if (!title) {
+        titleEl.focus();
+        alert('Titel is verplicht');
+        return;
+      }
+      const saveBtn = $('#te-save');
+      saveBtn.disabled = true;
+      saveBtn.textContent = '⏳ Opslaan…';
+
+      try {
+        const j = await api('POST', '/admin/audio/api/' + encodeURIComponent(id), {
+          title,
+          artist: $('#te-artist').value.trim() || null,
+          album:  $('#te-album').value.trim() || null,
+          duration: $('#te-duration').value ? Number($('#te-duration').value) : null,
+          cover_url: urlInput.value.trim() || null,
+        });
+        if (!j.ok) throw new Error(j.error || 'Opslaan mislukt');
+        if (typeof onSaved === 'function') onSaved(j.track || { id, title,
+          artist: $('#te-artist').value.trim() || null,
+          album:  $('#te-album').value.trim() || null,
+          cover_url: urlInput.value.trim() || null });
+        close();
+      } catch (err) {
+        alert('Opslaan mislukt: ' + err.message);
+        saveBtn.disabled = false;
+        saveBtn.textContent = '💾 Opslaan';
+      }
+    });
+
+    // Focus title for fast typing
+    setTimeout(() => $('#te-title').focus(), 60);
+  };
+})();
+</script>

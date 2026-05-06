@@ -1,0 +1,55 @@
+<%
+// Homepage — feed of posts.
+//
+// Renders BOTH a timeline view (.post-list, default) AND a grid view
+// (.feed-grid, square Instagram-style tiles). CSS toggles between the
+// two based on body[data-feed-view="timeline"|"grid"]. This mirrors the
+// v9 pattern in lib/template-content.php so the same view-switcher works.
+//
+// Pinned posts sort first inside the timeline list; they are not given a
+// separate "Pinned" header (v9 just lets order speak for itself + a ★ chip).
+
+const allPosts = [...pinnedPosts, ...posts];
+%>
+
+<%# View switcher used to be rendered here; moved to shell.ejs (above
+    #pcms-main) so it survives HTMX swaps and is visible on every
+    non-admin page. %>
+
+<!-- ========== TIMELINE ========== -->
+<div class="container feed-timeline">
+
+  <% if (allPosts.length === 0) { %>
+    <div class="empty">
+      <h1>Hier is het nog stil.</h1>
+      <p>Nog geen posts. Spannend.</p>
+      <% if (user && permissions.canCreatePost(user, site)) { %>
+        <p style="margin-top:2rem">
+          <a class="btn" href="/posts/new"
+             hx-get="/posts/new?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
+             hx-push-url="/posts/new" hx-indicator="#pcms-loading">
+            Schrijf je eerste post →
+          </a>
+        </p>
+      <% } %>
+    </div>
+  <% } else { %>
+    <ul class="post-list feed-timeline-list">
+      <% allPosts.forEach(function(post) { %>
+        <%- include('../partials/post-card', { post: post }) %>
+      <% }); %>
+    </ul>
+  <% } %>
+
+</div>
+
+<!-- ========== GRID (only visible when body[data-feed-view="grid"]) ========== -->
+<% if (allPosts.length > 0) { %>
+<section class="feed-grid container" aria-label="Grid-weergave">
+  <div class="grid-tiles">
+    <% allPosts.forEach(function(post) { %>
+      <%- include('../partials/post-tile', { post: post }) %>
+    <% }); %>
+  </div>
+</section>
+<% } %>

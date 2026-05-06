@@ -1,0 +1,146 @@
+<div class="container user-page">
+  <header class="user-header">
+    <div class="user-avatar-large">
+      <% if (author.avatar_url) { %>
+        <img src="<%= author.avatar_url %>" alt="">
+      <% } else { %>
+        <span><%= author.username.charAt(0).toUpperCase() %></span>
+      <% } %>
+    </div>
+    <div class="user-meta">
+      <h1><%= author.username %></h1>
+      <% if (author.role === 'god') { %>
+        <span class="user-role-pill user-role-god">god</span>
+      <% } else if (author.role === 'admin') { %>
+        <span class="user-role-pill user-role-admin">admin</span>
+      <% } %>
+      <% if (author.bio) { %>
+        <p class="user-bio"><%= author.bio %></p>
+      <% } %>
+      <p class="user-stats">
+        <%= posts.length %> post<%= posts.length === 1 ? '' : 's' %> on this site
+        <% if (totalPosts > posts.length) { %>
+          &middot; <%= totalPosts %> total
+        <% } %>
+        <% if (author.created_at) { %>
+          &middot; joined <%= formatDate(author.created_at) %>
+        <% } %>
+      </p>
+      <% if (user && user.id !== author.id && site && site.enable_prutter) { %>
+        <p class="user-actions">
+          <a href="<%= siteUrlBase %>/prutter/new?to=<%= encodeURIComponent(author.username) %>" class="btn btn-primary">💬 Send DM</a>
+        </p>
+      <% } %>
+    </div>
+  </header>
+
+  <% if (!posts.length) { %>
+    <p class="user-empty">No posts on this site yet.</p>
+  <% } else { %>
+    <h2 class="user-posts-heading">Posts</h2>
+    <ol class="user-posts">
+      <% posts.forEach(function(p) { %>
+        <li class="user-post">
+          <% if (p.cover_image_url) { %>
+            <a href="/<%= p.slug %>" class="user-post-cover"
+               hx-get="/<%= p.slug %>?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
+               hx-push-url="/<%= p.slug %>" hx-indicator="#pcms-loading">
+              <img src="<%= p.cover_image_url %>" alt="">
+            </a>
+          <% } %>
+          <div class="user-post-body">
+            <h3 class="user-post-title">
+              <a href="/<%= p.slug %>"
+                 hx-get="/<%= p.slug %>?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
+                 hx-push-url="/<%= p.slug %>" hx-indicator="#pcms-loading">
+                <%= p.title || '(untitled)' %>
+              </a>
+            </h3>
+            <p class="user-post-meta">
+              <% if (p.published_at) { %><%= formatDate(p.published_at) %><% } %>
+            </p>
+            <% if (p.excerpt) { %>
+              <p class="user-post-excerpt"><%= p.excerpt %></p>
+            <% } %>
+          </div>
+        </li>
+      <% }); %>
+    </ol>
+  <% } %>
+</div>
+
+<style>
+.user-page { max-width: 720px; margin: 3rem auto; padding: 0 1rem; }
+
+.user-header {
+  display: flex;
+  gap: 1.25rem;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--rule);
+}
+.user-avatar-large {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: var(--paper-2);
+  border: 2px solid var(--rule);
+  overflow: hidden;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.user-avatar-large img { width: 100%; height: 100%; object-fit: cover; }
+.user-avatar-large span {
+  font-family: var(--font-display, serif);
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+.user-meta { flex: 1; min-width: 0; }
+.user-meta h1 {
+  font-family: var(--font-display, serif);
+  margin: 0;
+  font-size: 2rem;
+}
+.user-role-pill {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  vertical-align: middle;
+  margin-left: 0.4rem;
+}
+.user-role-pill.user-role-god { background: var(--accent); color: white; }
+.user-role-pill.user-role-admin { background: var(--paper); color: var(--accent); border: 1px solid var(--accent); }
+.user-bio { margin: 0.4rem 0; color: var(--ink-soft); }
+.user-stats { margin: 0; color: var(--ink-muted, var(--ink-soft)); font-size: 0.85rem; }
+
+.user-posts-heading {
+  font-family: var(--font-display, serif);
+  font-size: 1.4rem;
+  margin: 0 0 1rem;
+}
+.user-empty { color: var(--ink-muted, var(--ink-soft)); text-align: center; margin: 3rem 0; }
+
+.user-posts { list-style: none; padding: 0; margin: 0; }
+.user-post { display: flex; gap: 1rem; padding: 1rem 0; border-bottom: 1px solid var(--rule); }
+.user-post:last-child { border-bottom: 0; }
+.user-post-cover { flex-shrink: 0; width: 96px; height: 96px; border-radius: 6px; overflow: hidden; background: var(--paper-2); }
+.user-post-cover img { width: 100%; height: 100%; object-fit: cover; }
+.user-post-body { flex: 1; min-width: 0; }
+.user-post-title { font-family: var(--font-display, serif); font-size: 1.15rem; margin: 0 0 0.2rem; }
+.user-post-title a { color: var(--ink); text-decoration: none; }
+.user-post-title a:hover { color: var(--accent); }
+.user-post-meta { color: var(--ink-muted, var(--ink-soft)); font-size: 0.85rem; margin: 0 0 0.4rem; }
+.user-post-excerpt { color: var(--ink-soft); margin: 0; line-height: 1.5; }
+
+@media (max-width: 500px) {
+  .user-header { flex-direction: column; text-align: center; }
+  .user-post-cover { width: 64px; height: 64px; }
+}
+</style>

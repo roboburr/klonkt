@@ -1,0 +1,324 @@
+<%
+// Bottom-tab navigation — mobile-only (hidden ≥768px via CSS).
+//
+// Tabs:
+//   logged-out:  Home · Zoek · Inloggen        (3 tabs)
+//   logged-in:   Home · Zoek · [Plus] · [Prutter] · Profiel
+//   The Plus tab is a FAB-style center action (accent bg, slightly raised).
+//   It only appears for users with create-post permission.
+//   Prutter only appears when the site has DMs enabled.
+
+const _siteUrlBase = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '';
+const _path        = (typeof currentPath !== 'undefined' && currentPath) ? currentPath : '/';
+const _canPost     = !!(user && permissions && permissions.canCreatePost && permissions.canCreatePost(user, site));
+const _hasPrutter  = !!(user && site && site.enable_prutter);
+const _ownProfile  = user ? ('/users/' + user.username) : null;
+
+// Strip site prefix for cleaner matching
+function _normalize(p) {
+  if (_siteUrlBase && p.indexOf(_siteUrlBase) === 0) return p.slice(_siteUrlBase.length) || '/';
+  return p;
+}
+const _p = _normalize(_path);
+
+let _active = null;
+if (_p === '/' || _p === '') _active = 'home';
+else if (_p.indexOf('/search') === 0 || _p.indexOf('/tag/') === 0 || _p.indexOf('/type/') === 0) _active = 'search';
+else if (_p === '/posts/new' || /^\/posts\/[^/]+\/edit$/.test(_p)) _active = 'create';
+else if (_p.indexOf('/prutter') === 0) _active = 'prutter';
+else if (_p.indexOf('/account') === 0 || (_ownProfile && _p.indexOf(_ownProfile) === 0)) _active = 'profile';
+else if (_p.indexOf('/auth/login') === 0) _active = 'login';
+%>
+
+<nav class="bottom-tab" aria-label="Hoofdnavigatie">
+
+  <!-- Home -->
+  <a class="bottom-tab-item<%= _active === 'home' ? ' is-active' : '' %>"
+     href="<%= _siteUrlBase %>/"
+     hx-get="<%= _siteUrlBase %>/?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
+     hx-push-url="<%= _siteUrlBase %>/" hx-indicator="#pcms-loading"
+     aria-label="Home" <%= _active === 'home' ? 'aria-current="page"' : '' %>>
+    <svg class="bottom-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+      <polyline points="9 22 9 12 15 12 15 22"/>
+    </svg>
+    <span class="bottom-tab-label">Home</span>
+  </a>
+
+  <!-- Zoek -->
+  <button type="button" class="bottom-tab-item<%= _active === 'search' ? ' is-active' : '' %>"
+          id="bottom-tab-search-toggle" aria-label="Zoeken">
+    <svg class="bottom-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="11" cy="11" r="7"/>
+      <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+    <span class="bottom-tab-label">Zoek</span>
+  </button>
+
+  <!-- Plus (FAB-style, only when user can post) -->
+  <% if (_canPost) { %>
+    <a class="bottom-tab-item bottom-tab-fab<%= _active === 'create' ? ' is-active' : '' %>"
+       href="/posts/new"
+       hx-get="/posts/new?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
+       hx-push-url="/posts/new" hx-indicator="#pcms-loading"
+       aria-label="Nieuwe post">
+      <svg class="bottom-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <line x1="12" y1="5" x2="12" y2="19"/>
+        <line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      <span class="bottom-tab-label">Schrijven</span>
+    </a>
+  <% } %>
+
+  <!-- Prutter (DMs) -->
+  <% if (_hasPrutter) { %>
+    <a class="bottom-tab-item<%= _active === 'prutter' ? ' is-active' : '' %>"
+       href="<%= _siteUrlBase %>/prutter"
+       aria-label="Prutter berichten" <%= _active === 'prutter' ? 'aria-current="page"' : '' %>>
+      <svg class="bottom-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+      </svg>
+      <span class="bottom-tab-label">Prutter</span>
+      <% if (typeof unreadDmCount !== 'undefined' && unreadDmCount > 0) { %>
+        <span class="bottom-tab-badge" aria-label="<%= unreadDmCount %> ongelezen"><%= unreadDmCount > 99 ? '99+' : unreadDmCount %></span>
+      <% } %>
+    </a>
+  <% } %>
+
+  <!-- Profiel / Inloggen -->
+  <% if (user) { %>
+    <button type="button"
+            class="bottom-tab-item<%= _active === 'profile' ? ' is-active' : '' %>"
+            data-profile-sheet-toggle
+            aria-label="Profiel menu" aria-haspopup="dialog">
+      <% if (user.avatar_url) { %>
+        <img class="bottom-tab-avatar bottom-tab-avatar-img" src="<%= user.avatar_url %>" alt="">
+      <% } else { %>
+        <span class="bottom-tab-avatar"><%= user.username.charAt(0).toUpperCase() %></span>
+      <% } %>
+      <span class="bottom-tab-label">Profiel</span>
+    </button>
+  <% } else { %>
+    <a class="bottom-tab-item<%= _active === 'login' ? ' is-active' : '' %>"
+       href="/auth/login"
+       aria-label="Inloggen">
+      <svg class="bottom-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+        <polyline points="10 17 15 12 10 7"/>
+        <line x1="15" y1="12" x2="3" y2="12"/>
+      </svg>
+      <span class="bottom-tab-label">Inloggen</span>
+    </a>
+  <% } %>
+
+</nav>
+
+<style>
+/* ============================================================
+   BOTTOM-TAB NAVIGATION (mobile-first)
+   - Visible by default (mobile)
+   - Hidden ≥768px (desktop uses .masthead instead)
+   - Sticks to bottom of viewport, respects safe-area-inset
+   ============================================================ */
+
+.bottom-tab {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  /* z-index 1050: above mini-player (1000), below open sheet (1100).
+     This makes the FAB (Schrijven knop) overlay the mini-player when
+     they overlap visually. */
+  z-index: 1050;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-around;
+  background: color-mix(in srgb, var(--paper) 92%, transparent);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border-top: 1px solid var(--rule);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  font-family: var(--font-ui);
+  /* Subtle shadow so the bar feels "lifted" above content */
+  box-shadow: 0 -2px 12px color-mix(in srgb, var(--ink) 5%, transparent);
+}
+
+.bottom-tab-item {
+  flex: 1 1 0;
+  min-height: 56px;
+  /* Tap target ≥44px guaranteed (icon-row 24 + label 12 + padding) */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-muted);
+  text-decoration: none;
+  cursor: pointer;
+  font-family: inherit;
+  position: relative;
+  transition: color 120ms ease, transform 120ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bottom-tab-icon {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.bottom-tab-label {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* Pressed/active feedback — replaces hover for touch */
+.bottom-tab-item:active {
+  transform: scale(0.92);
+  color: var(--ink);
+}
+
+/* Selected tab */
+.bottom-tab-item.is-active {
+  color: var(--accent);
+}
+.bottom-tab-item.is-active::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 28px;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 0 0 2px 2px;
+}
+
+/* Hover only on devices that actually have it */
+@media (hover: hover) {
+  .bottom-tab-item:hover { color: var(--ink); }
+  .bottom-tab-item.is-active:hover { color: var(--accent); }
+}
+
+/* ── FAB-style Plus tab ───────────────────────────────
+   The FAB icon is taken OUT of the flex flow with position:absolute so it
+   cannot inflate the bar height or shift the label baseline. The label
+   stays in flex flow with a margin-top equal to (icon + gap) to mimic
+   a regular icon's contribution — that way center-alignment matches the
+   other tabs exactly. */
+.bottom-tab-fab {
+  position: relative;
+}
+.bottom-tab-fab .bottom-tab-icon {
+  position: absolute;
+  left: 50%;
+  top: -12px;            /* overhang above the bar */
+  transform: translateX(-50%);
+  width: 44px;
+  height: 44px;
+  padding: 10px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 50%;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 35%, transparent);
+  transition: transform 120ms ease, box-shadow 120ms ease;
+  margin: 0;             /* clear any inherited margin */
+}
+.bottom-tab-fab:active .bottom-tab-icon {
+  transform: translateX(-50%) scale(0.92);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.bottom-tab-fab .bottom-tab-label {
+  /* Mimic the space a regular 24px icon + 2px gap would occupy, so the
+     label sits at the same vertical position as labels in sibling tabs. */
+  margin-top: 26px;
+  color: var(--ink-muted);
+}
+.bottom-tab-fab.is-active .bottom-tab-label { color: var(--accent); }
+.bottom-tab-fab.is-active::before { display: none; } /* FAB doesn't need top-bar indicator */
+
+/* ── Avatar in profile tab ──────────────────────────── */
+.bottom-tab-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--paper-2);
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  overflow: hidden;
+  object-fit: cover;
+}
+.bottom-tab-avatar-img {
+  /* When rendered as <img>, the same dimensions + object-fit give the
+     same circular crop as the letter span. */
+  display: block;
+}
+/* Active-state used to tint the avatar with --accent. With user-uploaded
+   avatars that override looks broken (orange wash over the photo). The
+   active state is already signalled by the label color, which is enough. */
+
+/* ── Unread badge ───────────────────────────────────── */
+.bottom-tab-badge {
+  position: absolute;
+  top: 4px;
+  left: calc(50% + 8px);
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  border: 2px solid var(--paper);
+  pointer-events: none;
+}
+
+/* ============================================================
+   HIDE on desktop — top-nav takes over
+   ============================================================ */
+@media (min-width: 768px) {
+  .bottom-tab { display: none; }
+}
+
+/* ============================================================
+   When bottom-tab is present, body needs bottom padding so
+   content doesn't sit underneath it. Applied via body class.
+   ============================================================ */
+@media (max-width: 767px) {
+  body.has-bottom-tab .pcms-main {
+    /* 56 (tab height) + safe-area + breathing room */
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0));
+  }
+  /* The .has-audio-player override (extra padding for stacked bars) lives
+     in audio.css — keeps the audio-related rules together. */
+}
+</style>
+
+<script>
+// Wire the bottom-tab search button into the existing #search-overlay
+(function() {
+  const btn = document.getElementById('bottom-tab-search-toggle');
+  const overlay = document.getElementById('search-overlay');
+  if (btn && overlay) {
+    btn.addEventListener('click', function() {
+      overlay.hidden = false;
+      const inp = overlay.querySelector('input');
+      if (inp) inp.focus();
+    });
+  }
+})();
+</script>

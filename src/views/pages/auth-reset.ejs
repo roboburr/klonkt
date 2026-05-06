@@ -1,0 +1,28 @@
+<div class="container auth-page">
+  <h1>Reset password</h1>
+
+  <% if (!token) { %>
+    <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+    <p class="auth-link">
+      <a href="/auth/reset-request">Request a new reset link</a>
+      &middot;
+      <a href="/auth/login">Back to login</a>
+    </p>
+  <% } else { %>
+    <p class="auth-tagline">Set a new password for <strong><%= username %></strong>.</p>
+
+    <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+    <form method="post" action="/auth/reset/<%= token %>" class="auth-form">
+      <label>
+        <span>New password (min 8 chars)</span>
+        <input type="password" name="new_password" required minlength="8" autofocus autocomplete="new-password">
+      </label>
+      <label>
+        <span>Confirm new password</span>
+        <input type="password" name="confirm" required minlength="8" autocomplete="new-password">
+      </label>
+      <button type="submit" class="btn btn-primary">Set password</button>
+    </form>
+  <% } %>
+</div>

@@ -1,0 +1,165 @@
+<div class="container prutter-conv-page" data-conversation-id="<%= conversation.id %>" data-me="<%= user.id %>">
+  <header class="prutter-conv-header">
+    <p class="prutter-back"><a href="<%= siteUrlBase %>/prutter">&larr; Inbox</a></p>
+    <div class="prutter-conv-headline">
+      <div class="prutter-conv-avatar prutter-conv-avatar--lg">
+        <% if (other && other.avatar_url) { %>
+          <img src="<%= other.avatar_url %>" alt="">
+        <% } else { %>
+          <span><%= (other && other.username || '?').charAt(0).toUpperCase() %></span>
+        <% } %>
+      </div>
+      <div>
+        <h1><%= other ? other.username : 'Unknown' %></h1>
+        <% if (other) { %>
+          <p class="prutter-conv-sub"><a href="/users/<%= encodeURIComponent(other.username) %>">View profile</a></p>
+        <% } %>
+      </div>
+    </div>
+  </header>
+
+  <ol class="prutter-thread" id="prutter-thread">
+    <% messages.forEach(function(m) { %>
+      <li class="prutter-msg <%= m.author_id === user.id ? 'prutter-msg--mine' : 'prutter-msg--theirs' %>" data-msg-id="<%= m.id %>">
+        <div class="prutter-msg-bubble"><%= m.content %></div>
+        <div class="prutter-msg-time" title="<%= m.created_at %>"><%= formatDateTime(m.created_at) %></div>
+      </li>
+    <% }); %>
+  </ol>
+
+  <form class="prutter-composer"
+        method="post"
+        action="<%= siteUrlBase %>/prutter/<%= conversation.id %>/send"
+        hx-post="<%= siteUrlBase %>/prutter/<%= conversation.id %>/send"
+        hx-target="#prutter-thread"
+        hx-swap="beforeend"
+        hx-on::after-request="this.querySelector('textarea').value=''; window.__prutterScroll && window.__prutterScroll();">
+    <textarea name="content" rows="2" maxlength="2000" placeholder="Type a message…" required></textarea>
+    <button type="submit" class="btn btn-primary">Send</button>
+  </form>
+</div>
+
+<script>
+(function() {
+  // Auto-scroll to bottom on load and after appends.
+  var thread = document.getElementById('prutter-thread');
+  function scrollToBottom() { thread.scrollTop = thread.scrollHeight; }
+  scrollToBottom();
+  window.__prutterScroll = scrollToBottom;
+
+  // Live updates via WebSocket.
+  // Browser auto-resolves protocol/host; same origin as the page.
+  try {
+    var page = document.querySelector('.prutter-conv-page');
+    var convId = page.dataset.conversationId;
+    var me = page.dataset.me;
+    var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    var ws = new WebSocket(proto + '//' + location.host + '/ws/prutter');
+
+    ws.addEventListener('message', function(ev) {
+      try {
+        var data = JSON.parse(ev.data);
+        if (data.type !== 'new_message' || data.conversationId !== convId) return;
+        var m = data.message;
+        // Don't double-render our own messages (already added via HTMX response)
+        if (m.author_id === me) return;
+
+        var li = document.createElement('li');
+        li.className = 'prutter-msg prutter-msg--theirs';
+        li.dataset.msgId = m.id;
+        var bubble = document.createElement('div');
+        bubble.className = 'prutter-msg-bubble';
+        bubble.textContent = m.content;  // text content = automatic escaping
+        var time = document.createElement('div');
+        time.className = 'prutter-msg-time';
+        time.textContent = new Date(m.created_at).toLocaleString();
+        li.appendChild(bubble);
+        li.appendChild(time);
+        thread.appendChild(li);
+        scrollToBottom();
+      } catch (e) { /* ignore malformed */ }
+    });
+  } catch (e) {
+    console.warn('Prutter WS unavailable:', e);
+  }
+})();
+</script>
+
+<style>
+.prutter-conv-page { max-width: 720px; margin: 2rem auto; padding: 0 1rem; display: flex; flex-direction: column; gap: 1rem; }
+.prutter-back { margin: 0; }
+.prutter-back a { color: var(--accent); text-decoration: none; }
+
+.prutter-conv-headline {
+  display: flex; align-items: center; gap: 0.85rem;
+  padding-bottom: 1rem; border-bottom: 1px solid var(--rule);
+}
+.prutter-conv-headline h1 {
+  font-family: var(--font-display, serif);
+  font-size: 1.5rem; margin: 0;
+}
+.prutter-conv-sub { margin: 0; font-size: 0.85rem; color: var(--ink-muted, var(--ink-soft)); }
+.prutter-conv-sub a { color: var(--accent); }
+
+.prutter-conv-avatar--lg { width: 56px; height: 56px; }
+.prutter-conv-avatar--lg span { font-size: 1.2rem; }
+
+.prutter-thread {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 0.5rem;
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: 1rem;
+  height: 60vh;
+  overflow-y: auto;
+}
+
+.prutter-msg { display: flex; flex-direction: column; max-width: 80%; }
+.prutter-msg-bubble {
+  padding: 0.55rem 0.85rem;
+  border-radius: 14px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  line-height: 1.4;
+  font-size: 0.95rem;
+}
+.prutter-msg-time {
+  font-size: 0.7rem;
+  color: var(--ink-muted, var(--ink-soft));
+  margin-top: 0.15rem;
+}
+
+.prutter-msg--theirs { align-self: flex-start; }
+.prutter-msg--theirs .prutter-msg-bubble {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-bottom-left-radius: 4px;
+}
+.prutter-msg--theirs .prutter-msg-time { padding-left: 0.5rem; }
+
+.prutter-msg--mine { align-self: flex-end; align-items: flex-end; }
+.prutter-msg--mine .prutter-msg-bubble {
+  background: var(--accent);
+  color: white;
+  border-bottom-right-radius: 4px;
+}
+.prutter-msg--mine .prutter-msg-time { padding-right: 0.5rem; }
+
+.prutter-composer {
+  display: flex; gap: 0.5rem; align-items: flex-end;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+.prutter-composer textarea {
+  flex: 1;
+  padding: 0.6rem 0.85rem;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.95rem;
+  resize: vertical;
+  min-height: 44px;
+}
+</style>

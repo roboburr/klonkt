@@ -1,0 +1,517 @@
+<div class="container admin-site-edit-page">
+  <p><a href="/admin/sites" class="btn">&larr; Sites</a></p>
+  <h1><%= isNew ? 'New site' : 'Edit: ' + site.title %></h1>
+
+  <% if (typeof success !== 'undefined' && success) { %><div class="audio-flash audio-flash--ok"><%= success %></div><% } %>
+  <% if (error) { %><div class="audio-flash audio-flash--err"><%= error %></div><% } %>
+
+  <form method="post" action="<%= isNew ? '/admin/sites/create' : '/admin/sites/' + site.slug + '/save' %>" class="site-form">
+
+    <fieldset>
+      <legend>Identity</legend>
+      <label>
+        <span>Slug <% if (!isNew) { %><em>(immutable)</em><% } %></span>
+        <input type="text" name="slug" value="<%= site.slug %>" required <% if (!isNew) { %>readonly<% } %>
+               pattern="[a-z0-9_-]{2,40}"
+               placeholder="bedrijf1">
+      </label>
+      <label>
+        <span>Title <small class="form-hint-inline">— shown in the header and as display name</small></span>
+        <input type="text" name="title" value="<%= site.title || '' %>" required maxlength="200">
+      </label>
+      <label>
+        <span>Tagline <small class="form-hint-inline">— short one-liner</small></span>
+        <input type="text" name="tagline" value="<%= site.tagline || '' %>" maxlength="200">
+      </label>
+      <label>
+        <span>Bio / description <small class="form-hint-inline">— shown in the profile header and used for SEO</small></span>
+        <textarea name="description" rows="3" maxlength="500"><%= site.description || '' %></textarea>
+      </label>
+      <label>
+        <span>Profile photo</span>
+        <div class="photo-picker" id="photo-picker">
+          <div class="photo-thumb" id="photo-thumb" <%= site.profile_photo ? '' : 'data-empty' %>>
+            <img id="photo-preview" src="<%= site.profile_photo || '' %>" alt="" <%= site.profile_photo ? '' : 'hidden' %>>
+            <span class="photo-empty" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </span>
+          </div>
+          <div class="photo-controls">
+            <input type="text" name="profile_photo" id="photo-url" value="<%= site.profile_photo || '' %>" placeholder="/media/avatars/foo.jpg of https://…">
+            <div class="photo-actions">
+              <button type="button" class="btn" id="photo-upload-trigger">📷 Upload</button>
+              <button type="button" class="btn" id="photo-clear" <%= site.profile_photo ? '' : 'hidden' %>>Verwijder</button>
+              <small id="photo-status" class="form-hint photo-status"></small>
+            </div>
+            <input type="file" id="photo-upload-field" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
+          </div>
+        </div>
+      </label>
+      <label>
+        <span>Language (ISO code)</span>
+        <input type="text" name="language" value="<%= site.language || 'nl' %>" maxlength="8">
+      </label>
+      <label class="cb">
+        <input type="checkbox" name="profile_enabled" value="1" <%= site.profile_enabled ? 'checked' : '' %>>
+        <span>Show profile header below the nav</span>
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Appearance</legend>
+
+      <%# ── Curated accent picker ───────────────────────────────────────
+          Was a free-form <input type="color">; now a fixed set of 8 hand-
+          picked colors that work in both light and dark themes. The hex is
+          still what's stored in the DB — we just constrain WHICH hex. %>
+      <fieldset class="accent-grid">
+        <legend>Accent color</legend>
+        <% const _curAccent = (site.accent || '#c2410c').toLowerCase(); %>
+        <% accents.forEach(function(a) { %>
+          <label class="accent-swatch" title="<%= a.name %>">
+            <input type="radio" name="accent" value="<%= a.color %>" <%= a.color.toLowerCase() === _curAccent ? 'checked' : '' %>>
+            <span class="accent-dot" style="background: <%= a.color %>;" aria-hidden="true"></span>
+            <span class="accent-swatch-name"><%= a.name %></span>
+          </label>
+        <% }); %>
+      </fieldset>
+
+      <%# ── Default theme for new visitors ───────────────────────────
+          'auto' (empty value) lets the browser/OS decide via prefers-color-scheme.
+          'light' / 'dark' force the site default for visitors who haven't picked
+          their own preference yet. Logged-in users with users.theme set, and
+          visitors with a localStorage override, still win over this default. %>
+      <fieldset class="theme-default">
+        <legend>Default theme for new visitors</legend>
+        <% const td = site.theme_override || ''; %>
+        <label class="cb">
+          <input type="radio" name="theme_override" value=""      <%= td === ''      ? 'checked' : '' %>>
+          <span>Auto (volg device-voorkeur)</span>
+        </label>
+        <label class="cb">
+          <input type="radio" name="theme_override" value="light" <%= td === 'light' ? 'checked' : '' %>>
+          <span>Light</span>
+        </label>
+        <label class="cb">
+          <input type="radio" name="theme_override" value="dark"  <%= td === 'dark'  ? 'checked' : '' %>>
+          <span>Dark</span>
+        </label>
+      </fieldset>
+
+      <fieldset class="palette-grid">
+        <legend>Palette</legend>
+        <% palettes.forEach(function(p) { %>
+          <label class="palette-swatch">
+            <input type="radio" name="palette" value="<%= p.key %>" <%= (site.palette || 'sage') === p.key ? 'checked' : '' %>>
+            <span class="palette-preview" aria-hidden="true">
+              <span class="pp-half pp-light" style="background: <%= p.light.paper %>; color: <%= p.light.ink %>;">
+                <span class="pp-letter">Aa</span>
+                <span class="pp-accent" style="background: <%= p.light.accent %>;"></span>
+              </span>
+              <span class="pp-half pp-dark" style="background: <%= p.dark.paper %>; color: <%= p.dark.ink %>;">
+                <span class="pp-letter">Aa</span>
+                <span class="pp-accent" style="background: <%= p.dark.accent %>;"></span>
+              </span>
+            </span>
+            <span class="palette-swatch-name"><%= p.name %></span>
+          </label>
+        <% }); %>
+      </fieldset>
+    </fieldset>
+
+    <fieldset>
+      <legend>Behaviour</legend>
+      <label class="cb">
+        <input type="checkbox" name="is_public" value="1" <%= site.is_public ? 'checked' : '' %>>
+        <span>Public site (uncheck for closed circle)</span>
+      </label>
+      <label class="cb">
+        <input type="checkbox" name="robots_index" value="1" <%= site.robots_index ? 'checked' : '' %>>
+        <span>Search engines may index (sitemap.xml is hidden if off)</span>
+      </label>
+      <label class="cb">
+        <input type="checkbox" name="require_login_to_comment" value="1" <%= site.require_login_to_comment ? 'checked' : '' %>>
+        <span>Require login to comment</span>
+      </label>
+      <label>
+        <span>Comment moderation</span>
+        <select name="comments_moderation_mode">
+          <option value="trust"    <%= (site.comments_moderation_mode || 'trust') === 'trust'    ? 'selected' : '' %>>Trust mode (auto-approve)</option>
+          <option value="moderate" <%= site.comments_moderation_mode === 'moderate' ? 'selected' : '' %>>Moderate (queue for review)</option>
+        </select>
+      </label>
+      <label class="cb">
+        <input type="checkbox" name="enable_audio_player" value="1" <%= site.enable_audio_player ? 'checked' : '' %>>
+        <span>Enable audio player + embeds</span>
+      </label>
+      <label class="cb">
+        <input type="checkbox" name="enable_prutter" value="1" <%= site.enable_prutter ? 'checked' : '' %>>
+        <span>Enable Prutter (direct messaging)</span>
+      </label>
+    </fieldset>
+
+    <fieldset class="profile-links-fieldset">
+      <legend>Social / streaming links</legend>
+      <p class="form-hint">Shown as branded icons on the profile header. Add as many as you like.</p>
+
+      <div id="profile-links-rows">
+        <% (parsedLinks || []).forEach(function(l) { %>
+          <div class="profile-link-row">
+            <select name="profile_link_platform[]">
+              <% platforms.forEach(function(p) { %>
+                <option value="<%= p.key %>" <%= l.platform === p.key ? 'selected' : '' %>><%= p.label %></option>
+              <% }); %>
+            </select>
+            <input type="text" name="profile_link_url[]" value="<%= l.url %>" placeholder="https://…" required>
+            <button type="button" class="btn btn-danger pl-remove">×</button>
+          </div>
+        <% }); %>
+      </div>
+
+      <template id="profile-link-template">
+        <div class="profile-link-row">
+          <select name="profile_link_platform[]">
+            <% platforms.forEach(function(p) { %>
+              <option value="<%= p.key %>"><%= p.label %></option>
+            <% }); %>
+          </select>
+          <input type="text" name="profile_link_url[]" placeholder="https://…" required>
+          <button type="button" class="btn btn-danger pl-remove">×</button>
+        </div>
+      </template>
+
+      <button type="button" id="profile-link-add" class="btn">+ Add link</button>
+    </fieldset>
+
+    <fieldset>
+      <legend>Feed view</legend>
+      <label>
+        <span>Default view for the homepage</span>
+        <select name="feed_view_default">
+          <option value="timeline" <%= (site.feed_view_default || 'timeline') === 'timeline' ? 'selected' : '' %>>Timeline (chronological list)</option>
+          <option value="grid"     <%= site.feed_view_default === 'grid' ? 'selected' : '' %>>Grid (cards)</option>
+        </select>
+      </label>
+      <label class="cb">
+        <input type="checkbox" name="feed_view_switch" value="1" <%= site.feed_view_switch ? 'checked' : '' %>>
+        <span>Show timeline ↔ grid switcher above the feed</span>
+      </label>
+      <label class="cb">
+        <input type="checkbox" name="show_search" value="1" <%= site.show_search ? 'checked' : '' %>>
+        <span>Show search button in nav</span>
+      </label>
+      <label class="cb">
+        <input type="checkbox" name="show_archive_link" value="1" <%= site.show_archive_link ? 'checked' : '' %>>
+        <span>Show archive link in nav</span>
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>SEO &amp; social</legend>
+      <label>
+        <span>Title template (use {title} and {site})</span>
+        <input type="text" name="title_template" value="<%= site.title_template || '{title} — {site}' %>" maxlength="200">
+      </label>
+      <label>
+        <span>Canonical base URL (for production HTTPS)</span>
+        <input type="text" name="canonical" value="<%= site.canonical || '' %>" placeholder="https://your-domain.com">
+      </label>
+      <label>
+        <span>Twitter handle (with @)</span>
+        <input type="text" name="twitter" value="<%= site.twitter || '' %>" placeholder="@yourname" maxlength="64">
+      </label>
+      <details>
+        <summary>Search-engine verification</summary>
+        <label>
+          <span>Google site verification</span>
+          <input type="text" name="google_verification"    value="<%= site.google_verification    || '' %>" maxlength="200">
+        </label>
+        <label>
+          <span>Bing (msvalidate.01)</span>
+          <input type="text" name="bing_verification"      value="<%= site.bing_verification      || '' %>" maxlength="200">
+        </label>
+        <label>
+          <span>Pinterest (p:domain_verify)</span>
+          <input type="text" name="pinterest_verification" value="<%= site.pinterest_verification || '' %>" maxlength="200">
+        </label>
+        <label>
+          <span>Yandex</span>
+          <input type="text" name="yandex_verification"    value="<%= site.yandex_verification    || '' %>" maxlength="200">
+        </label>
+      </details>
+    </fieldset>
+
+    <fieldset>
+      <legend>Custom CSS &amp; HTML <em>(optional)</em></legend>
+      <label>
+        <span>Custom CSS (injected as &lt;style&gt; in &lt;head&gt;)</span>
+        <textarea name="custom_css" rows="3" placeholder=".foo { color: red; }"><%= site.custom_css || '' %></textarea>
+      </label>
+      <label>
+        <span>Custom &lt;head&gt; HTML (analytics, extra metas)</span>
+        <textarea name="custom_head_html" rows="3" placeholder="<meta name=&quot;...&quot;>"><%= site.custom_head_html || '' %></textarea>
+      </label>
+      <label>
+        <span>Custom footer HTML</span>
+        <textarea name="custom_foot_html" rows="3"><%= site.custom_foot_html || '' %></textarea>
+      </label>
+    </fieldset>
+
+    <button type="submit" class="btn btn-primary"><%= isNew ? 'Create site' : 'Save changes' %></button>
+  </form>
+</div>
+
+<script>
+(function() {
+  // Profile-links repeater: add row from <template>, remove on click.
+  var rows = document.getElementById('profile-links-rows');
+  var tpl  = document.getElementById('profile-link-template');
+  var add  = document.getElementById('profile-link-add');
+  if (!rows || !tpl || !add) return;
+
+  add.addEventListener('click', function() {
+    var clone = tpl.content.cloneNode(true);
+    rows.appendChild(clone);
+  });
+  rows.addEventListener('click', function(e) {
+    if (e.target && e.target.classList.contains('pl-remove')) {
+      var row = e.target.closest('.profile-link-row');
+      if (row) row.remove();
+    }
+  });
+})();
+
+// P63 — Profile photo picker: upload via /admin/sites/upload-photo,
+// then write the returned URL into the visible input. Live thumb preview.
+(function() {
+  var picker  = document.getElementById('photo-picker');
+  if (!picker) return;
+  var thumb   = document.getElementById('photo-thumb');
+  var preview = document.getElementById('photo-preview');
+  var urlEl   = document.getElementById('photo-url');
+  var trigger = document.getElementById('photo-upload-trigger');
+  var clear   = document.getElementById('photo-clear');
+  var field   = document.getElementById('photo-upload-field');
+  var status  = document.getElementById('photo-status');
+
+  function showPreview(url) {
+    if (url) {
+      preview.src = url;
+      preview.hidden = false;
+      thumb.removeAttribute('data-empty');
+      clear.hidden = false;
+    } else {
+      preview.src = '';
+      preview.hidden = true;
+      thumb.setAttribute('data-empty', '');
+      clear.hidden = true;
+    }
+  }
+
+  if (urlEl) {
+    urlEl.addEventListener('input', function() {
+      showPreview(urlEl.value.trim());
+    });
+  }
+
+  if (trigger && field) {
+    trigger.addEventListener('click', function() { field.click(); });
+    field.addEventListener('change', async function() {
+      var file = field.files && field.files[0];
+      if (!file) return;
+      status.classList.remove('is-error');
+      status.textContent = 'Uploaden…';
+      try {
+        var fd = new FormData();
+        fd.append('photo', file);
+        var r = await fetch('/admin/sites/upload-photo', {
+          method: 'POST',
+          body: fd,
+          credentials: 'same-origin',
+        });
+        var j = await r.json();
+        if (!r.ok || !j.ok) throw new Error(j.error || ('Upload mislukt (' + r.status + ')'));
+        urlEl.value = j.url;
+        showPreview(j.url);
+        status.textContent = 'Geüpload ✓';
+        setTimeout(function() { status.textContent = ''; }, 2000);
+      } catch (e) {
+        status.classList.add('is-error');
+        status.textContent = 'Mislukt: ' + e.message;
+      } finally {
+        field.value = '';
+      }
+    });
+  }
+
+  if (clear) {
+    clear.addEventListener('click', function() {
+      urlEl.value = '';
+      showPreview('');
+      status.textContent = '';
+      // Note: doesn't delete the file from disk — saving the form with empty
+      // URL leaves the file orphaned on the server. Acceptable for now.
+    });
+  }
+})();
+</script>
+
+<style>
+.admin-site-edit-page { max-width: 760px; margin: 3rem auto; padding: 0 1rem; }
+.admin-site-edit-page h1 { font-family: var(--font-display, serif); font-size: 1.8rem; margin: 0 0 1.5rem; }
+
+.site-form { display: flex; flex-direction: column; gap: 1.5rem; }
+.site-form fieldset {
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  background: var(--paper-2);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.site-form fieldset.palette-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  background: var(--paper);
+  margin-top: 0.5rem;
+}
+/* Theme default radios — horizontal, sits between accent + palette */
+.site-form fieldset.theme-default {
+  display: flex; flex-direction: row; flex-wrap: wrap; gap: 1rem;
+  background: var(--paper);
+  margin-top: 0.5rem;
+}
+.site-form fieldset.theme-default label.cb { font-size: 0.9rem; color: var(--ink); }
+.site-form fieldset legend { font-family: var(--font-display, serif); font-size: 1rem; padding: 0 0.4rem; }
+.site-form label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; color: var(--ink-muted, var(--ink-soft)); }
+.site-form label.cb { flex-direction: row; align-items: center; gap: 0.5rem; }
+.site-form input[type="text"], .site-form input[type="color"], .site-form textarea {
+  padding: 0.55rem 0.85rem;
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.95rem;
+}
+.site-form input[type="color"] { padding: 0.2rem; height: 38px; }
+.site-form textarea { resize: vertical; min-height: 60px; font-family: var(--font-mono, monospace); font-size: 0.85rem; }
+.site-form input[readonly] { opacity: 0.6; cursor: not-allowed; background: var(--paper-2); }
+
+/* Reuse the palette-swatch styles from account.ejs */
+.palette-swatch {
+  display: flex; flex-direction: column; gap: 0.4rem;
+  padding: 0.5rem;
+  border: 1px solid var(--rule); border-radius: 6px; background: var(--paper);
+  cursor: pointer; font-size: 0.85rem; transition: border-color 120ms;
+}
+.palette-swatch:hover { border-color: var(--accent); }
+.palette-swatch input[type="radio"] { position: absolute; opacity: 0; pointer-events: none; }
+.palette-swatch:has(input[type="radio"]:checked) { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.palette-preview {
+  display: grid; grid-template-columns: 1fr 1fr;
+  width: 100%; height: 44px; border-radius: 4px; overflow: hidden;
+  border: 1px solid var(--rule);
+}
+.pp-half {
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-display, serif); font-weight: 600; font-size: 1rem;
+}
+.pp-letter { line-height: 1; }
+.pp-accent {
+  position: absolute; bottom: 4px; right: 4px;
+  width: 9px; height: 9px; border-radius: 50%;
+  border: 1px solid rgba(0,0,0,0.12);
+}
+.palette-swatch-name { font-weight: 500; color: var(--ink); text-align: center; }
+
+/* Accent picker: row of small colored swatches */
+.site-form fieldset.accent-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 0.5rem;
+  background: var(--paper);
+  margin-top: 0.5rem;
+}
+.accent-swatch {
+  display: flex; flex-direction: column; align-items: center; gap: 0.4rem;
+  padding: 0.55rem 0.4rem;
+  border: 1px solid var(--rule); border-radius: 6px; background: var(--paper);
+  cursor: pointer; font-size: 0.78rem;
+  transition: border-color 120ms, box-shadow 120ms;
+}
+.accent-swatch:hover { border-color: var(--accent); }
+.accent-swatch input[type="radio"] { position: absolute; opacity: 0; pointer-events: none; }
+.accent-swatch:has(input[type="radio"]:checked) {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.accent-dot {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 1px solid rgba(0,0,0,0.1);
+  box-shadow: inset 0 -2px 4px rgba(0,0,0,0.12);
+}
+.accent-swatch-name { color: var(--ink); text-align: center; font-weight: 500; }
+
+.audio-flash { padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.9rem; }
+.audio-flash--ok { background: rgba(40, 160, 90, 0.15); color: #2a9d5e; border: 1px solid rgba(40, 160, 90, 0.3); }
+.audio-flash--err { background: rgba(200, 60, 60, 0.15); color: #c33; border: 1px solid rgba(200, 60, 60, 0.3); }
+
+.form-hint { font-size: 0.8rem; color: var(--ink-muted, var(--ink-soft)); margin: 0; }
+.form-hint-inline { font-size: 0.78rem; color: var(--ink-muted, var(--ink-soft)); font-weight: 400; margin-left: .25rem; }
+
+/* P63 — Profile photo picker
+   Mobile-first: thumb stacks above input/buttons. ≥520px the thumb floats
+   to the left and the controls fill the remaining width. */
+.photo-picker {
+  display: flex;
+  flex-direction: column;
+  gap: .65rem;
+  align-items: stretch;
+}
+.photo-thumb {
+  position: relative;
+  width: 88px; height: 88px;
+  border-radius: 50%;
+  border: 1px solid var(--rule);
+  background: var(--paper-2);
+  overflow: hidden;
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.photo-thumb .photo-empty {
+  display: flex; color: var(--ink-muted, var(--ink-soft)); opacity: .55;
+}
+.photo-thumb .photo-empty svg { width: 36px; height: 36px; }
+.photo-thumb:not([data-empty]) .photo-empty { display: none; }
+.photo-thumb[data-empty] img { display: none; }
+
+.photo-controls {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+  flex: 1;
+  min-width: 0;
+}
+.photo-controls input[type="text"] { width: 100%; }
+.photo-actions {
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: .4rem;
+}
+.photo-actions .btn { padding: .45rem .75rem; font-size: .85rem; }
+.photo-status { margin-left: .25rem; }
+.photo-status.is-error { color: #c2410c; }
+
+@media (min-width: 520px) {
+  .photo-picker { flex-direction: row; align-items: flex-start; gap: 1rem; }
+  .photo-controls { gap: .55rem; }
+}
+.profile-link-row {
+  display: grid; grid-template-columns: 160px 1fr auto; gap: 0.5rem; margin-bottom: 0.5rem;
+}
+.profile-link-row select { padding: 0.45rem 0.6rem; }
+.profile-links-fieldset details > label { margin-top: 0.4rem; }
+</style>

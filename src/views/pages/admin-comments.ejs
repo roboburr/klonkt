@@ -1,0 +1,107 @@
+<div class="container admin-comments-page">
+  <p><a href="/admin" class="btn">&larr; Admin</a></p>
+  <h1>Comment moderation</h1>
+
+  <p class="muted">
+    Mode for this site: <strong><%= moderationMode %></strong>
+    <% if (moderationMode === 'trust') { %>
+      &mdash; comments are auto-approved. Switch to <em>moderate</em> in
+      <a href="/admin/sites/<%= site.slug %>/edit">site settings</a> to queue them.
+    <% } else { %>
+      &mdash; new comments require approval before showing up on posts.
+    <% } %>
+  </p>
+
+  <% if (success) { %><div class="audio-flash audio-flash--ok"><%= success %></div><% } %>
+  <% if (error)   { %><div class="audio-flash audio-flash--err"><%= error %></div><% } %>
+
+  <h2>Pending (<%= pending.length %>)</h2>
+  <% if (!pending.length) { %>
+    <p class="muted">Nothing waiting.</p>
+  <% } else { %>
+    <ol class="moderation-list">
+      <% pending.forEach(function(c) { %>
+        <li class="moderation-item">
+          <div class="moderation-meta">
+            <strong><%= c.author_username %></strong>
+            <% if (c.parent_comment_id) { %><span class="muted">(reply)</span><% } %>
+            on <a href="/<%= c.post_slug %>"><%= c.post_title || c.post_slug %></a>
+            <span class="muted">&middot; <%= formatDateTime(c.created_at) %></span>
+          </div>
+          <blockquote class="moderation-content"><%= c.content %></blockquote>
+          <div class="moderation-actions">
+            <form method="post" action="/admin/comments/<%= c.id %>/approve" style="display:inline">
+              <button type="submit" class="btn btn-primary">Approve</button>
+            </form>
+            <form method="post" action="/admin/comments/<%= c.id %>/reject" style="display:inline">
+              <button type="submit" class="btn btn-danger">Reject</button>
+            </form>
+          </div>
+        </li>
+      <% }); %>
+    </ol>
+  <% } %>
+
+  <h2>Recent decisions</h2>
+  <% if (!recent.length) { %>
+    <p class="muted">Nothing yet.</p>
+  <% } else { %>
+    <table class="admin-table">
+      <thead>
+        <tr><th>Author</th><th>Post</th><th>Status</th><th>Date</th></tr>
+      </thead>
+      <tbody>
+        <% recent.forEach(function(c) { %>
+          <tr class="status-<%= c.status %>">
+            <td><%= c.author_username %></td>
+            <td><a href="/<%= c.post_slug %>"><%= c.post_title || c.post_slug %></a></td>
+            <td>
+              <span class="status-pill status-pill--<%= c.status %>"><%= c.status %></span>
+            </td>
+            <td><%= formatDateTime(c.created_at) %></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  <% } %>
+</div>
+
+<style>
+.admin-comments-page { max-width: 900px; margin: 3rem auto; padding: 0 1rem; }
+.admin-comments-page h1 { font-family: var(--font-display, serif); font-size: 2rem; margin: 0 0 1rem; }
+.admin-comments-page h2 { font-family: var(--font-display, serif); font-size: 1.25rem; margin: 1.5rem 0 0.75rem; }
+.muted { color: var(--ink-muted, var(--ink-soft)); }
+.muted a { color: var(--accent); }
+
+.moderation-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 1rem; }
+.moderation-item {
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: 1rem;
+}
+.moderation-meta { font-size: 0.85rem; margin-bottom: 0.5rem; color: var(--ink-soft); }
+.moderation-meta a { color: var(--accent); }
+.moderation-content {
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-left: 3px solid var(--accent);
+  background: var(--paper);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  color: var(--ink);
+}
+.moderation-actions { display: flex; gap: 0.5rem; }
+
+.status-pill {
+  display: inline-block; padding: 0.1rem 0.5rem; border-radius: 10px;
+  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;
+}
+.status-pill--approved { background: rgba(40, 160, 90, 0.15); color: #2a9d5e; }
+.status-pill--rejected { background: rgba(200, 60, 60, 0.15); color: #c33; }
+.status-pill--pending  { background: var(--paper); color: var(--ink-muted, var(--ink-soft)); }
+
+.audio-flash { padding: 0.75rem 1rem; border-radius: 6px; margin: 1rem 0; font-size: 0.9rem; }
+.audio-flash--ok { background: rgba(40, 160, 90, 0.15); color: #2a9d5e; border: 1px solid rgba(40, 160, 90, 0.3); }
+.audio-flash--err { background: rgba(200, 60, 60, 0.15); color: #c33; border: 1px solid rgba(200, 60, 60, 0.3); }
+</style>

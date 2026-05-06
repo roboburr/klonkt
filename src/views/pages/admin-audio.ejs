@@ -1,0 +1,924 @@
+<div class="container ax-page">
+
+  <header class="ax-header">
+    <a href="/admin" class="ax-back" aria-label="Terug naar admin">←</a>
+    <div>
+      <h1>Audio tracks</h1>
+      <p class="ax-tagline">Site-level MP3s. Gebruik <code>[[track:&lt;id&gt;]]</code> in een post om een play-knop in te voegen.</p>
+    </div>
+  </header>
+
+  <% if (success) { %><div class="ax-flash ax-flash-ok"><%= success %></div><% } %>
+  <% if (error) { %><div class="ax-flash ax-flash-err"><%= error %></div><% } %>
+
+  <%# ── UPLOAD ──────────────────────────────────────────────── %>
+  <section class="ax-card">
+    <div class="ax-card-title">Upload</div>
+
+    <%# Bulk drag-drop zone. Multiple files at once, transcoded sequentially.
+        Title is auto-derived from each filename. Artist/album/cover are
+        SHARED across the batch (set once, applied to every track) — same
+        pattern as iTunes/Plex bulk-add. %>
+    <div class="ax-form">
+
+      <%# Shared metadata fields (apply to ALL files in the batch). %>
+      <div class="ax-row ax-row-2">
+        <label class="ax-field">
+          <span>Artiest <small>(toegepast op alle bestanden)</small></span>
+          <input type="text" id="batch-artist" placeholder="Optioneel">
+        </label>
+        <label class="ax-field">
+          <span>Album <small>(toegepast op alle bestanden)</small></span>
+          <input type="text" id="batch-album" placeholder="Optioneel">
+        </label>
+      </div>
+      <label class="ax-field ax-file">
+        <span>Cover <small>(optioneel, toegepast op alle bestanden — jpg/png/webp/gif, max 5 MB)</small></span>
+        <span class="ax-file-control">
+          <span class="ax-btn ax-btn-secondary ax-file-btn">🖼 Kies cover</span>
+          <span class="ax-file-name" data-empty>Geen bestand gekozen</span>
+          <input type="file" id="batch-cover" accept="image/jpeg,image/png,image/webp,image/gif">
+        </span>
+      </label>
+
+      <%# The drop-zone itself. Click anywhere to open file picker. %>
+      <label class="ax-dropzone" id="audio-dropzone" tabindex="0">
+        <span class="ax-dropzone-icon">🎵</span>
+        <strong class="ax-dropzone-title">Sleep audio hierheen</strong>
+        <span class="ax-dropzone-sub">of klik om bestanden te kiezen<br><small>mp3, m4a, ogg, opus, flac, wav · max <%= maxBytesMb %> MB per bestand</small></span>
+        <input type="file" id="audio-files" accept="audio/*" multiple>
+      </label>
+
+      <%# Per-file progress list. Populated by JS as files are queued. %>
+      <ul class="ax-upload-queue" id="upload-queue" hidden></ul>
+
+      <div class="ax-form-actions" id="upload-actions" hidden>
+        <button type="button" class="ax-btn ax-btn-primary" id="start-upload-btn">⬆ Start upload</button>
+        <button type="button" class="ax-btn" id="clear-queue-btn">Wis lijst</button>
+      </div>
+    </div>
+  </section>
+
+  <%# ── TRACK LIST ─────────────────────────────────────────── %>
+  <section class="ax-card">
+    <div class="ax-card-title">
+      Tracks <span class="ax-count"><%= tracks.length %></span>
+    </div>
+
+    <% if (!tracks.length) { %>
+      <div class="ax-empty">
+        <div class="ax-empty-icon">♫</div>
+        <p>Nog geen tracks. Upload er een hierboven.</p>
+      </div>
+    <% } else { %>
+      <ul class="ax-list">
+        <% tracks.forEach(function(t) { %>
+          <li class="ax-track" data-track-id="<%= t.id %>">
+            <% if (t.cover_url) { %>
+              <img class="ax-track-cover" src="<%= t.cover_url %>" alt="" data-cover-thumb>
+            <% } else { %>
+              <span class="ax-track-cover ax-track-cover-empty" data-cover-thumb>♫</span>
+            <% } %>
+
+            <div class="ax-track-meta">
+              <div class="ax-track-title" data-cell="title"><%= t.title || '(zonder titel)' %></div>
+              <div class="ax-track-sub">
+                <span data-cell="artist"><%= t.artist || '—' %></span>
+                <% if (t.album) { %><span class="ax-track-sep">·</span><span data-cell="album"><%= t.album %></span><% } else { %><span data-cell="album" hidden></span><% } %>
+                <span class="ax-track-sep">·</span><span><%= t.size ? Math.round(t.size/1024) + ' KB' : '—' %></span>
+              </div>
+              <code class="ax-embed" data-copy="[[track:<%= t.id %>]]" title="Klik om te kopiëren">[[track:<%= t.id %>]]</code>
+            </div>
+
+            <div class="ax-track-actions">
+              <% if (t.stream_url) { %>
+                <button type="button" class="ax-icon-btn ax-track-play"
+                        data-stream-url="<%= t.stream_url %>"
+                        data-track-id="<%= t.id %>"
+                        aria-label="Afspelen" title="Afspelen">
+                  <span class="ax-track-play-icon" aria-hidden="true">▶</span>
+                </button>
+              <% } %>
+              <button type="button" class="ax-icon-btn" data-track-edit data-id="<%= t.id %>" aria-label="Bewerken" title="Bewerken">✎</button>
+              <form action="/admin/audio/<%= t.id %>/delete" method="post" onsubmit="return confirm('Track verwijderen?')" class="ax-track-delete">
+                <button type="submit" class="ax-icon-btn ax-icon-btn-danger" aria-label="Verwijderen" title="Verwijderen">🗑</button>
+              </form>
+            </div>
+          </li>
+        <% }); %>
+      </ul>
+    <% } %>
+  </section>
+
+</div>
+
+<style>
+/* ─── Page wrapper ──────────────────────────────────────────────── */
+.ax-page {
+  max-width: 880px;
+  margin: 1.5rem auto 4rem;
+  padding: 0 1rem;
+}
+.ax-header {
+  display: flex; align-items: flex-start; gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+.ax-header h1 {
+  font-family: var(--font-display, serif);
+  font-size: 1.75rem;
+  margin: 0 0 0.25rem;
+}
+.ax-tagline {
+  color: var(--ink-muted, var(--ink-soft));
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.ax-tagline code {
+  background: var(--paper-2);
+  padding: 0.1em 0.4em;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+.ax-back {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  transition: border-color 120ms;
+}
+.ax-back:hover { border-color: var(--accent); }
+
+/* ─── Flash messages ───────────────────────────────────────────── */
+.ax-flash {
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+.ax-flash-ok  { background: rgba(40,160,90,.15); color: #2a9d5e; border: 1px solid rgba(40,160,90,.3); }
+.ax-flash-err { background: rgba(200,60,60,.15); color: #c33;    border: 1px solid rgba(200,60,60,.3); }
+
+/* ─── Card sections ────────────────────────────────────────────── */
+.ax-card {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+.ax-card-title {
+  font-family: var(--font-display, serif);
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  display: flex; align-items: baseline; gap: 0.5rem;
+}
+.ax-count {
+  font-family: var(--font-ui, system-ui);
+  font-size: 0.8rem;
+  color: var(--ink-muted, var(--ink-soft));
+  background: var(--paper-2);
+  padding: 0.1em 0.55em;
+  border-radius: 999px;
+  font-weight: 500;
+}
+
+/* ─── Form fields ──────────────────────────────────────────────── */
+.ax-form {
+  display: flex; flex-direction: column;
+  gap: 0.85rem;
+}
+.ax-row {
+  display: grid; gap: 0.85rem;
+}
+.ax-row-2 { grid-template-columns: 1fr 1fr; }
+@media (max-width: 600px) {
+  .ax-row-2 { grid-template-columns: 1fr; }
+}
+.ax-field {
+  display: flex; flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.ax-field > span {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+  display: flex; align-items: baseline; gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.ax-field > span small {
+  font-weight: 400; color: var(--ink-muted);
+  font-size: 0.95em;
+}
+.ax-field input[type="text"],
+.ax-field input[type="url"],
+.ax-field input[type="email"],
+.ax-field select,
+.ax-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--paper-2);
+  color: var(--ink);
+  font-family: var(--font-ui, system-ui), sans-serif;
+  font-size: 0.95rem;
+  -webkit-appearance: none; appearance: none;
+  transition: border-color 120ms;
+}
+.ax-field input:focus,
+.ax-field select:focus,
+.ax-field textarea:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+  border-color: var(--accent);
+}
+
+/* ─── File inputs (custom-styled wrapper) ─────────────────────── */
+.ax-file-control {
+  display: flex; align-items: center; gap: 0.5rem;
+  flex-wrap: wrap;
+  position: relative;
+  min-height: 40px;
+}
+.ax-file-control input[type="file"] {
+  position: absolute; inset: 0;
+  opacity: 0; cursor: pointer;
+  z-index: 2;
+}
+.ax-file-btn {
+  pointer-events: none;  /* let clicks pass through to the file input */
+}
+.ax-file-name {
+  font-size: 0.85rem;
+  color: var(--ink);
+  word-break: break-all;
+  flex: 1;
+  min-width: 0;
+}
+.ax-file-name[data-empty] { color: var(--ink-muted, var(--ink-soft)); }
+
+.ax-form-actions {
+  display: flex; gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+.ax-form-actions[hidden] { display: none; }
+
+/* ─── Buttons ──────────────────────────────────────────────────── */
+.ax-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+  padding: 0.55rem 1rem;
+  border: 1px solid var(--rule);
+  background: var(--paper-2);
+  color: var(--ink);
+  font-family: var(--font-ui, system-ui), sans-serif;
+  font-size: 0.9rem; font-weight: 500;
+  text-decoration: none;
+  border-radius: 6px;
+  cursor: pointer;
+  min-height: 40px;
+  transition: background 120ms, border-color 120ms;
+  -webkit-tap-highlight-color: transparent;
+}
+.ax-btn:hover { border-color: var(--accent); }
+.ax-btn-secondary { background: var(--paper-2); }
+.ax-btn-primary {
+  background: var(--accent); color: white;
+  border-color: var(--accent);
+}
+.ax-btn-primary:hover { opacity: 0.92; border-color: var(--accent); }
+
+/* Tiny icon-only button for row actions */
+.ax-icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px;
+  border: 1px solid var(--rule);
+  background: var(--paper-2);
+  color: var(--ink);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background 120ms, border-color 120ms, color 120ms;
+}
+.ax-icon-btn:hover { border-color: var(--accent); }
+.ax-icon-btn-danger:hover { color: #dc2626; border-color: #dc2626; }
+
+.ax-track-play.is-playing {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--paper-2));
+}
+.ax-track-play-icon { font-size: 0.85rem; line-height: 1; }
+
+/* ─── Empty state ──────────────────────────────────────────────── */
+.ax-empty {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: var(--ink-muted, var(--ink-soft));
+}
+.ax-empty-icon {
+  font-size: 2.5rem;
+  font-family: var(--font-display, serif);
+  color: var(--ink-soft);
+  opacity: 0.4;
+  margin-bottom: 0.5rem;
+}
+.ax-empty p { margin: 0; }
+
+/* ─── Track list (card per row) ────────────────────────────────── */
+.ax-list {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column;
+  gap: 0.6rem;
+}
+.ax-track {
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  gap: 0.85rem;
+  align-items: center;
+  padding: 0.75rem;
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  transition: border-color 120ms;
+}
+.ax-track:hover { border-color: var(--accent); }
+.ax-track-cover {
+  width: 56px; height: 56px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--paper);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-display, serif);
+  font-size: 1.5rem;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.ax-track-cover-empty { /* span variant */ }
+.ax-track-meta {
+  min-width: 0;  /* allow text-overflow on long titles */
+  display: flex; flex-direction: column; gap: 0.2rem;
+}
+.ax-track-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ax-track-sub {
+  font-size: 0.8rem;
+  color: var(--ink-muted, var(--ink-soft));
+  display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center;
+}
+.ax-track-sep { opacity: 0.5; }
+.ax-embed {
+  display: inline-block;
+  background: var(--paper);
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.75rem;
+  color: var(--ink-soft);
+  cursor: pointer;
+  user-select: all;
+  margin-top: 0.15rem;
+  word-break: break-all;
+  align-self: flex-start;
+  transition: background 120ms;
+}
+.ax-embed:hover { background: var(--rule); }
+.ax-embed.is-copied { background: rgba(40,160,90,0.2); color: #2a9d5e; }
+
+.ax-track-actions {
+  display: flex; gap: 0.4rem;
+  flex-shrink: 0;
+}
+.ax-track-delete { display: inline; }
+
+/* ─── Mobile tweaks ───────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .ax-track {
+    grid-template-columns: 48px 1fr;
+    grid-template-areas: "cover meta" "actions actions";
+    gap: 0.6rem;
+  }
+  .ax-track-cover { grid-area: cover; width: 48px; height: 48px; }
+  .ax-track-meta  { grid-area: meta; }
+  .ax-track-actions {
+    grid-area: actions;
+    justify-content: flex-end;
+    border-top: 1px solid var(--rule);
+    padding-top: 0.5rem;
+    margin-top: 0.25rem;
+  }
+}
+
+/* ─── Bulk drop-zone ──────────────────────────────────────────── */
+.ax-dropzone {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 0.4rem;
+  padding: 2rem 1rem;
+  border: 2px dashed var(--rule);
+  border-radius: 12px;
+  background: var(--paper-2);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 150ms, background 150ms;
+  position: relative;
+  min-height: 160px;
+}
+.ax-dropzone:hover,
+.ax-dropzone:focus-within {
+  border-color: var(--accent);
+}
+.ax-dropzone.is-dragover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--paper-2));
+}
+.ax-dropzone input[type="file"] {
+  /* Cover the whole dropzone but invisible — clicks bubble through to it. */
+  position: absolute; inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.ax-dropzone-icon {
+  font-size: 2rem;
+  opacity: 0.5;
+  line-height: 1;
+}
+.ax-dropzone-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.ax-dropzone-sub {
+  font-size: 0.85rem;
+  color: var(--ink-muted, var(--ink-soft));
+  line-height: 1.4;
+}
+.ax-dropzone-sub small {
+  font-size: 0.75rem;
+  opacity: 0.8;
+}
+
+/* ─── Upload queue ────────────────────────────────────────────── */
+.ax-upload-queue {
+  list-style: none;
+  padding: 0; margin: 0.75rem 0 0;
+  display: flex; flex-direction: column;
+  gap: 0.4rem;
+}
+.ax-queue-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.6rem 0.85rem;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  font-size: 0.875rem;
+  transition: border-color 150ms, opacity 150ms;
+}
+.ax-queue-item--active {
+  border-color: var(--accent);
+}
+.ax-queue-item--done {
+  border-color: rgba(40,160,90,0.4);
+  opacity: 0.85;
+}
+.ax-queue-item--error {
+  border-color: rgba(220,60,60,0.5);
+}
+.ax-queue-name {
+  font-weight: 500;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.ax-queue-size {
+  font-size: 0.75rem;
+  color: var(--ink-muted, var(--ink-soft));
+  margin-left: 0.5rem;
+}
+.ax-queue-status {
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.15em 0.6em;
+  border-radius: 999px;
+  background: var(--paper-2);
+  color: var(--ink-soft);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.ax-queue-status--queued   { color: var(--ink-muted, var(--ink-soft)); }
+.ax-queue-status--uploading,
+.ax-queue-status--transcoding {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--paper-2));
+}
+.ax-queue-status--done {
+  color: #2a9d5e;
+  background: rgba(40,160,90,0.12);
+}
+.ax-queue-status--error {
+  color: #dc2626;
+  background: rgba(220,60,60,0.12);
+}
+</style>
+
+<%# Track editor modal (exposes window.openTrackEditor) %>
+<%- include('../partials/track-editor', { csrfToken: (typeof csrfToken !== 'undefined' ? csrfToken : '') }) %>
+
+<script>
+(function() {
+
+  // ── Live filename display for custom file inputs ──────────────
+  document.querySelectorAll('.ax-file-control input[type="file"]').forEach(input => {
+    const nameEl = input.parentElement.querySelector('.ax-file-name');
+    if (!nameEl) return;
+    input.addEventListener('change', () => {
+      if (input.files && input.files[0]) {
+        nameEl.textContent = input.files[0].name;
+        nameEl.removeAttribute('data-empty');
+      } else {
+        nameEl.textContent = 'Geen bestand gekozen';
+        nameEl.setAttribute('data-empty', '');
+      }
+    });
+  });
+
+  // ── Inline track preview (routed through the global mini-player) ──
+  // Each .ax-track-play button is a thin wrapper around the global
+  // window.pcmsAudioPlayer.setQueue([...]) call. Visual state (▶ / ⏸ /
+  // .is-playing) is synced from the player's own audio element so it
+  // stays accurate even when the user uses the mini-player's controls.
+  (function setupTrackPreview() {
+    const buttons = document.querySelectorAll('.ax-track-play');
+    if (!buttons.length) return;
+
+    function setIcon(btn, playing) {
+      const icon = btn.querySelector('.ax-track-play-icon');
+      if (icon) icon.textContent = playing ? '⏸' : '▶';
+      btn.classList.toggle('is-playing', playing);
+      btn.setAttribute('aria-label', playing ? 'Pauzeren' : 'Afspelen');
+    }
+
+    // Resync ALL preview buttons against the current audio element state.
+    // Called on every play/pause/ended event so admins always see the right
+    // icon — including the case where they hit pause on the mini-player
+    // bar instead of the row's button.
+    function resyncAll() {
+      const audio = document.getElementById('audio-element');
+      const playing = audio && !audio.paused && !audio.ended;
+      const currentSrc = audio ? audio.src : '';
+      buttons.forEach(b => {
+        const isThisOne = playing && currentSrc.endsWith(b.dataset.streamUrl);
+        setIcon(b, isThisOne);
+      });
+    }
+
+    buttons.forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.preventDefault();
+        const player = window.pcmsAudioPlayer;
+        if (!player) {
+          console.warn('[admin-audio] miniplayer not available');
+          return;
+        }
+        const url = btn.dataset.streamUrl;
+        if (!url) return;
+
+        // Build track metadata from the row's DOM so the mini-player shows
+        // useful info (title/artist/album/cover) without an extra API call.
+        const row = btn.closest('.ax-track');
+        const titleEl  = row && row.querySelector('[data-cell="title"]');
+        const artistEl = row && row.querySelector('[data-cell="artist"]');
+        const albumEl  = row && row.querySelector('[data-cell="album"]');
+        const coverImg = row && row.querySelector('img[data-cover-thumb]');
+        const track = {
+          url,
+          title:  titleEl  ? titleEl.textContent.trim()  : 'Track',
+          artist: artistEl ? artistEl.textContent.trim() : '',
+          album:  albumEl  ? albumEl.textContent.trim()  : '',
+          cover:  coverImg ? coverImg.src                : '',
+        };
+
+        // If this exact track is already playing, toggle pause/play instead
+        // of restarting from zero.
+        const audio = document.getElementById('audio-element');
+        if (audio && audio.src.endsWith(url)) {
+          if (audio.paused) player.play();
+          else              player.pause();
+          return;
+        }
+
+        player.setQueue([track], 0);
+      });
+    });
+
+    // Hook the global audio element's events to keep the row buttons synced.
+    // We attach lazily after the player has built its DOM. The script in
+    // shell.ejs runs at page-load so #audio-element exists by the time
+    // this IIFE fires (script tag is below the body content).
+    const audio = document.getElementById('audio-element');
+    if (audio) {
+      ['play', 'pause', 'ended', 'loadstart', 'emptied'].forEach(ev => {
+        audio.addEventListener(ev, resyncAll);
+      });
+      // Initial state on page load (e.g. user navigated back while a track
+      // was already playing — buttons should reflect that).
+      resyncAll();
+    }
+  })();
+
+
+  // ── Bulk upload (drag-drop + sequential transcoding) ─────────
+  // Files dropped or picked are queued (not uploaded immediately) so the
+  // user can review the list, set shared metadata, then hit "Start upload".
+  // The loop POSTs one file at a time to /admin/audio/upload with
+  // Accept: application/json so the server returns structured per-file
+  // results instead of redirecting.
+  const dropzone   = document.getElementById('audio-dropzone');
+  const fileInput  = document.getElementById('audio-files');
+  const queueEl    = document.getElementById('upload-queue');
+  const actionsEl  = document.getElementById('upload-actions');
+  const startBtn   = document.getElementById('start-upload-btn');
+  const clearBtn   = document.getElementById('clear-queue-btn');
+  const artistInput= document.getElementById('batch-artist');
+  const albumInput = document.getElementById('batch-album');
+  const coverInput = document.getElementById('batch-cover');
+
+  /** @type {Array<{file: File, el: HTMLElement, status: string}>} */
+  const queue = [];
+
+  function fmtBytes(n) {
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(0) + ' KB';
+    return (n / 1024 / 1024).toFixed(1) + ' MB';
+  }
+
+  function setItemStatus(item, status, label) {
+    const labels = {
+      queued:      'Wachten',
+      uploading:   'Uploaden…',
+      transcoding: 'Converteren…',
+      done:        '✓ Klaar',
+      error:       '✗ Fout',
+    };
+    item.status = status;
+    const badge = item.el.querySelector('.ax-queue-status');
+    badge.className = 'ax-queue-status ax-queue-status--' + status;
+    badge.textContent = label || labels[status] || status;
+    // Restyle the row
+    item.el.classList.remove(
+      'ax-queue-item--active', 'ax-queue-item--done', 'ax-queue-item--error'
+    );
+    if (status === 'uploading' || status === 'transcoding') item.el.classList.add('ax-queue-item--active');
+    else if (status === 'done')  item.el.classList.add('ax-queue-item--done');
+    else if (status === 'error') item.el.classList.add('ax-queue-item--error');
+  }
+
+  function addFiles(files) {
+    let added = 0;
+    for (const file of files) {
+      if (!file.type.startsWith('audio/') &&
+          !/\.(mp3|m4a|ogg|opus|flac|wav|webm|aac|oga|mp4)$/i.test(file.name)) {
+        // Silently skip non-audio drops; keeps the UX uncluttered.
+        continue;
+      }
+      const li = document.createElement('li');
+      li.className = 'ax-queue-item';
+      li.innerHTML =
+        '<div class="ax-queue-name"></div>' +
+        '<span class="ax-queue-status ax-queue-status--queued">Wachten</span>';
+      // Use textContent to avoid HTML-injection if a filename contains markup.
+      li.querySelector('.ax-queue-name').textContent = file.name;
+      // Append size hint inline
+      const size = document.createElement('span');
+      size.className = 'ax-queue-size';
+      size.textContent = fmtBytes(file.size);
+      li.querySelector('.ax-queue-name').appendChild(size);
+      queueEl.appendChild(li);
+      queue.push({ file, el: li, status: 'queued' });
+      added++;
+    }
+    if (added) {
+      queueEl.hidden = false;
+      actionsEl.hidden = false;
+    }
+  }
+
+  // ── Drop-zone events ─────────────────────────────────────────
+  // Page-level guard: a dropped file outside the zone would otherwise
+  // make the browser navigate to it (e.g. opening the audio inline), which
+  // discards typed metadata. We swallow drops anywhere unless the dropzone
+  // explicitly handles them.
+  ['dragover', 'drop'].forEach(ev => {
+    window.addEventListener(ev, e => {
+      // Allow drops INSIDE the dropzone — its own listener handles those.
+      if (dropzone.contains(e.target)) return;
+      e.preventDefault();
+    });
+  });
+
+  ['dragenter', 'dragover'].forEach(ev => {
+    dropzone.addEventListener(ev, e => {
+      e.preventDefault();
+      dropzone.classList.add('is-dragover');
+    });
+  });
+  ['dragleave', 'drop'].forEach(ev => {
+    dropzone.addEventListener(ev, e => {
+      e.preventDefault();
+      dropzone.classList.remove('is-dragover');
+    });
+  });
+  dropzone.addEventListener('drop', e => {
+    if (e.dataTransfer && e.dataTransfer.files) addFiles(e.dataTransfer.files);
+  });
+  fileInput.addEventListener('change', () => {
+    addFiles(fileInput.files);
+    // Reset so the same file can be picked again later if user wants
+    fileInput.value = '';
+  });
+
+  // ── Clear queue button ───────────────────────────────────────
+  clearBtn.addEventListener('click', () => {
+    // Only remove items that aren't currently uploading (anything queued
+    // or already finished). An in-progress upload finishes, then its row
+    // would also disappear once we re-render — but we keep it simple and
+    // just refuse to clear during an active run.
+    if (startBtn.disabled) return;
+    queue.length = 0;
+    queueEl.innerHTML = '';
+    queueEl.hidden = true;
+    actionsEl.hidden = true;
+  });
+
+  // ── Sequential upload loop ───────────────────────────────────
+  startBtn.addEventListener('click', async () => {
+    if (startBtn.disabled) return;
+    startBtn.disabled = true;
+    clearBtn.disabled = true;
+    dropzone.style.pointerEvents = 'none';
+    dropzone.style.opacity = '0.5';
+
+    const sharedArtist = artistInput.value.trim();
+    const sharedAlbum  = albumInput.value.trim();
+    const sharedCover  = coverInput.files && coverInput.files[0];
+
+    // Process queued items one at a time. We iterate via index so that
+    // if more files get dropped during the run they ALSO get processed
+    // (queue.push above mutates the same array we're iterating).
+    for (let i = 0; i < queue.length; i++) {
+      const item = queue[i];
+      if (item.status !== 'queued') continue;
+      try {
+        await uploadOne(item, sharedArtist, sharedAlbum, sharedCover);
+      } catch (err) {
+        console.error('upload failed for', item.file.name, err);
+        setItemStatus(item, 'error', '✗ ' + (err.message || 'Mislukt'));
+      }
+    }
+
+    startBtn.disabled = false;
+    clearBtn.disabled = false;
+    dropzone.style.pointerEvents = '';
+    dropzone.style.opacity = '';
+
+    // Reload the page so the new tracks appear in the list below.
+    // Could also fetch them and inject, but a full reload is simpler and
+    // ensures position indexes / album-grouping are correct.
+    const anyDone = queue.some(q => q.status === 'done');
+    if (anyDone) {
+      setTimeout(() => location.reload(), 700);
+    }
+  });
+
+  async function uploadOne(item, sharedArtist, sharedAlbum, sharedCover) {
+    setItemStatus(item, 'uploading');
+
+    const fd = new FormData();
+    fd.append('audio', item.file);
+    if (sharedArtist) fd.append('artist', sharedArtist);
+    if (sharedAlbum)  fd.append('album',  sharedAlbum);
+    if (sharedCover)  fd.append('cover',  sharedCover);
+    // Title is intentionally omitted — server uses filename fallback.
+
+    // We can't reliably distinguish "still uploading bytes" from
+    // "uploading done, ffmpeg running" without progress events, but the
+    // status flips to "Converteren…" once the request is past upload phase.
+    // We approximate this by waiting until the response arrives — by then
+    // both phases are complete on the server side. For a smoother feel we
+    // briefly show "transcoding" near the end of the request lifecycle.
+    const transcodeHint = setTimeout(() => {
+      if (item.status === 'uploading') setItemStatus(item, 'transcoding');
+    }, 1500);
+
+    try {
+      const res = await fetch('/admin/audio/upload', {
+        method: 'POST',
+        headers: { 'Accept': 'application/json' },
+        body: fd,
+        credentials: 'same-origin',
+      });
+      clearTimeout(transcodeHint);
+
+      // Server responds with JSON for our Accept header. If it didn't
+      // (e.g. session expired and got an HTML login page), surface that.
+      let data;
+      try { data = await res.json(); }
+      catch (_) { throw new Error('Onverwacht serverantwoord (' + res.status + ')'); }
+
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || ('HTTP ' + res.status));
+      }
+
+      setItemStatus(item, 'done', '✓ ' + (data.title || 'Klaar'));
+    } catch (err) {
+      clearTimeout(transcodeHint);
+      throw err;
+    }
+  }
+
+  // ── Click-to-copy embed codes ─────────────────────────────────
+  document.querySelectorAll('[data-copy]').forEach(el => {
+    el.addEventListener('click', async () => {
+      const text = el.dataset.copy;
+      try {
+        await navigator.clipboard.writeText(text);
+        el.classList.add('is-copied');
+        const original = el.textContent;
+        el.textContent = '✓ gekopieerd';
+        setTimeout(() => {
+          el.classList.remove('is-copied');
+          el.textContent = original;
+        }, 1200);
+      } catch (_) { /* fall through — selection still works */ }
+    });
+  });
+
+  // ── Wire all "Edit" buttons to the track-editor modal ─────────
+  // After save we patch the row in-place rather than reloading,
+  // so the user keeps their scroll position on long lists.
+  document.querySelectorAll('[data-track-edit]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (typeof window.openTrackEditor !== 'function') {
+        alert('Track editor niet geladen');
+        return;
+      }
+      const id = btn.dataset.id;
+      window.openTrackEditor({
+        id,
+        onSaved: (track) => {
+          const row = document.querySelector('li[data-track-id="' + id + '"]');
+          if (!row) return;
+          // Update visible cells
+          const titleEl  = row.querySelector('[data-cell="title"]');
+          const artistEl = row.querySelector('[data-cell="artist"]');
+          const albumEl  = row.querySelector('[data-cell="album"]');
+          if (titleEl)  titleEl.textContent  = track.title  || '(zonder titel)';
+          if (artistEl) artistEl.textContent = track.artist || '—';
+          if (albumEl)  {
+            albumEl.textContent = track.album || '';
+            if (track.album) albumEl.removeAttribute('hidden');
+            else albumEl.setAttribute('hidden', '');
+          }
+          // Update cover thumb (replace element if type changed)
+          const oldThumb = row.querySelector('[data-cover-thumb]');
+          if (oldThumb) {
+            const parent = oldThumb.parentElement;
+            if (track.cover_url) {
+              const img = document.createElement('img');
+              img.className = 'ax-track-cover';
+              img.src = track.cover_url;
+              img.alt = '';
+              img.dataset.coverThumb = '';
+              parent.replaceChild(img, oldThumb);
+            } else {
+              const sp = document.createElement('span');
+              sp.className = 'ax-track-cover ax-track-cover-empty';
+              sp.textContent = '♫';
+              sp.dataset.coverThumb = '';
+              parent.replaceChild(sp, oldThumb);
+            }
+          }
+        },
+      });
+    });
+  });
+})();
+</script>

@@ -1,0 +1,401 @@
+<%
+// Profile bottom sheet — mobile-only.
+//
+// Triggered by tapping any element with [data-profile-sheet-toggle]
+// (the Profiel tab in bottom-tab.ejs sets this).
+//
+// UX matches .audio-sheet for consistency: slide-up from bottom,
+// drag-to-dismiss, blur backdrop, safe-area-aware. Hidden ≥768px
+// (desktop uses the user dropdown in top-nav).
+//
+// Extension point: add more <li> blocks in any of the menu groups.
+
+if (!user) return;
+
+const _isAdmin = (user.role === 'god' || user.role === 'admin');
+const _canPost = !!(typeof permissions !== 'undefined'
+                    && permissions
+                    && permissions.canCreatePost
+                    && permissions.canCreatePost(user, site));
+const _roleLabel = (user.role === 'god' || user.role === 'admin') ? 'beheerder'
+                 : (user.role === 'editor') ? 'redacteur'
+                 : '';
+%>
+
+<div class="profile-sheet" id="profile-sheet" aria-hidden="true" role="dialog" aria-label="Profiel menu">
+  <div class="profile-sheet-backdrop" id="profile-sheet-backdrop"></div>
+  <div class="profile-sheet-panel">
+
+    <div class="profile-sheet-drag-zone" id="profile-sheet-drag-zone">
+      <button type="button" class="profile-sheet-handle" id="profile-sheet-close" aria-label="Sluiten"></button>
+    </div>
+
+    <!-- Identity header -->
+    <div class="profile-sheet-header">
+      <% if (user.avatar_url) { %>
+        <img class="profile-sheet-avatar profile-sheet-avatar-img" src="<%= user.avatar_url %>" alt="" aria-hidden="true">
+      <% } else { %>
+        <div class="profile-sheet-avatar" aria-hidden="true"><%= user.username.charAt(0).toUpperCase() %></div>
+      <% } %>
+      <div class="profile-sheet-meta">
+        <div class="profile-sheet-name"><%= user.username %></div>
+        <% if (_roleLabel) { %><div class="profile-sheet-role"><%= _roleLabel %></div><% } %>
+      </div>
+    </div>
+
+    <!-- Group 1: primary destinations -->
+    <ul class="profile-sheet-menu" role="menu">
+      <li role="none">
+        <a href="/account" class="profile-sheet-item" role="menuitem" data-close-sheet>
+          <svg class="psi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span class="psi-label">Account</span>
+          <svg class="psi-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+        </a>
+      </li>
+      <% if (_isAdmin) { %>
+      <li role="none">
+        <a href="/admin" class="profile-sheet-item" role="menuitem" data-close-sheet>
+          <svg class="psi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"/></svg>
+          <span class="psi-label">Beheer</span>
+          <svg class="psi-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+        </a>
+      </li>
+      <% } %>
+      <% if (_canPost) { %>
+      <li role="none">
+        <a href="/posts/new" class="profile-sheet-item" role="menuitem" data-close-sheet
+           hx-get="/posts/new?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
+           hx-push-url="/posts/new" hx-indicator="#pcms-loading">
+          <svg class="psi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          <span class="psi-label">Nieuwe post</span>
+          <svg class="psi-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+        </a>
+      </li>
+      <% } %>
+    </ul>
+
+    <div class="profile-sheet-divider" role="separator"></div>
+
+    <!-- Group 2: preferences (inline toggles) -->
+    <ul class="profile-sheet-menu" role="menu">
+      <li role="none">
+        <button type="button" class="profile-sheet-item" id="profile-sheet-theme" role="menuitemcheckbox">
+          <svg class="psi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+          <span class="psi-label">Thema</span>
+          <span class="psi-meta" id="profile-sheet-theme-state">Donker</span>
+        </button>
+      </li>
+    </ul>
+
+    <div class="profile-sheet-divider" role="separator"></div>
+
+    <!-- Group 3: destructive actions -->
+    <ul class="profile-sheet-menu" role="menu">
+      <li role="none">
+        <a href="/auth/logout" class="profile-sheet-item is-destructive" role="menuitem">
+          <svg class="psi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          <span class="psi-label">Uitloggen</span>
+        </a>
+      </li>
+    </ul>
+
+  </div>
+</div>
+
+<style>
+/* ============================================================
+   PROFILE SHEET — mobile bottom-sheet menu
+   Hidden ≥768px (desktop uses .user-menu dropdown in top-nav).
+   ============================================================ */
+
+.profile-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;            /* same as audio-sheet — modal layer */
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .2s ease;
+}
+.profile-sheet.is-open {
+  pointer-events: auto;
+  opacity: 1;
+}
+
+@media (min-width: 768px) {
+  /* Desktop has its own user-menu dropdown */
+  .profile-sheet { display: none !important; }
+}
+
+body.profile-sheet-locked { overflow: hidden; }
+
+.profile-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--ink, #000) 35%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.profile-sheet-panel {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  background: var(--paper);
+  color: var(--ink);
+  border-top-left-radius: 22px;
+  border-top-right-radius: 22px;
+  box-shadow: 0 -20px 60px rgba(0, 0, 0, .25);
+  padding-bottom: max(.75rem, env(safe-area-inset-bottom, 0));
+  transform: translateY(100%);
+  transition: transform .3s cubic-bezier(.22, .9, .3, 1);
+  display: flex;
+  flex-direction: column;
+  max-height: 85vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.profile-sheet.is-open .profile-sheet-panel {
+  transform: translateY(var(--pcms-drag-y, 0px));
+}
+.profile-sheet-panel.is-dragging { transition: none; will-change: transform; }
+
+[data-theme="dark"] .profile-sheet-panel {
+  box-shadow: 0 -20px 60px rgba(0, 0, 0, .5);
+}
+
+/* ── Drag handle zone ───────────────────────────── */
+.profile-sheet-drag-zone {
+  flex-shrink: 0;
+  padding: 12px 16px 4px;
+  /* MUST be 'none' so JS pointer events get the gesture (see audio-sheet) */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+}
+.profile-sheet-drag-zone:active { cursor: grabbing; }
+@media (hover: hover) and (pointer: fine) {
+  /* On desktop the sheet isn't shown anyway, but be safe */
+  .profile-sheet-drag-zone { touch-action: auto; cursor: default; }
+}
+
+.profile-sheet-handle {
+  display: block;
+  margin: 0 auto;
+  width: 44px;
+  height: 4px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--ink, #000) 25%, transparent);
+  border: 0;
+  padding: 0;
+  position: relative;
+}
+.profile-sheet-handle::before {
+  /* Larger invisible tap target on the handle itself */
+  content: "";
+  position: absolute;
+  inset: -16px -32px;
+}
+
+/* ── Identity header ────────────────────────────── */
+.profile-sheet-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 20px 18px;
+}
+.profile-sheet-avatar {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--paper-2);   /* neutral so transparent avatars blend */
+  color: var(--accent);          /* fallback initial color */
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 20px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.profile-sheet-avatar-img {
+  /* When rendered as <img>, fill the round container edge-to-edge. */
+  object-fit: cover;
+}
+.profile-sheet-meta { min-width: 0; }
+.profile-sheet-name {
+  font-family: var(--font-display, var(--font-ui));
+  font-size: 1.2rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--ink);
+}
+.profile-sheet-role {
+  font-family: var(--font-ui);
+  font-size: .82rem;
+  color: var(--ink-soft);
+  margin-top: 3px;
+  text-transform: lowercase;
+  letter-spacing: .02em;
+}
+
+/* ── Menu list ──────────────────────────────────── */
+.profile-sheet-menu {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.profile-sheet-divider {
+  height: 1px;
+  background: var(--rule);
+  margin: 4px 20px;
+}
+.profile-sheet-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 52px;
+  padding: 12px 20px;
+  background: transparent;
+  border: 0;
+  color: var(--ink);
+  text-decoration: none;
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background .12s ease, transform .12s ease;
+}
+.profile-sheet-item:active {
+  background: var(--paper-2);
+  transform: scale(0.99);
+}
+@media (hover: hover) {
+  .profile-sheet-item:hover { background: var(--paper-2); }
+}
+
+.psi-icon {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  color: var(--ink-soft);
+}
+.psi-label {
+  flex: 1;
+  min-width: 0;
+}
+.psi-chev {
+  width: 16px;
+  height: 16px;
+  color: var(--ink-muted);
+  flex-shrink: 0;
+}
+.psi-meta {
+  font-size: .85rem;
+  color: var(--ink-soft);
+  font-family: var(--font-ui);
+}
+
+.profile-sheet-item.is-destructive { color: #dc2626; }
+.profile-sheet-item.is-destructive .psi-icon { color: currentColor; }
+[data-theme="dark"] .profile-sheet-item.is-destructive { color: #f87171; }
+</style>
+
+<script>
+(function() {
+  const sheet = document.getElementById('profile-sheet');
+  if (!sheet) return;
+
+  const backdrop  = document.getElementById('profile-sheet-backdrop');
+  const panel     = sheet.querySelector('.profile-sheet-panel');
+  const closeBtn  = document.getElementById('profile-sheet-close');
+  const dragZone  = document.getElementById('profile-sheet-drag-zone');
+  const themeBtn  = document.getElementById('profile-sheet-theme');
+  const themeLbl  = document.getElementById('profile-sheet-theme-state');
+
+  function openSheet() {
+    sheet.classList.add('is-open');
+    sheet.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('profile-sheet-locked');
+    syncTheme();
+  }
+  function closeSheet() {
+    sheet.classList.remove('is-open');
+    sheet.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('profile-sheet-locked');
+    panel.style.removeProperty('--pcms-drag-y');
+  }
+
+  // Open: any element with [data-profile-sheet-toggle]
+  document.addEventListener('click', function(e) {
+    const trigger = e.target.closest('[data-profile-sheet-toggle]');
+    if (trigger) {
+      e.preventDefault();
+      openSheet();
+    }
+  });
+
+  // Close: backdrop tap, handle tap, ESC, or any [data-close-sheet] item
+  if (backdrop) backdrop.addEventListener('click', closeSheet);
+  if (closeBtn) closeBtn.addEventListener('click', closeSheet);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && sheet.classList.contains('is-open')) closeSheet();
+  });
+
+  // Menu items that navigate: close synchronously before nav fires
+  sheet.querySelectorAll('[data-close-sheet]').forEach((el) => {
+    el.addEventListener('click', closeSheet);
+  });
+
+  // Drag-down-to-close on touch.
+  // Uses --pcms-drag-y custom property rather than overwriting the panel's
+  // transform string. This composes correctly with any horizontal centering
+  // (currently none here, but the pattern matches audio-sheet for safety).
+  let startY = 0, lastY = 0, dragging = false;
+  function onDown(e) {
+    if (e.pointerType !== 'touch') return;
+    if (panel.scrollTop > 0) return;
+    startY = lastY = e.clientY;
+    dragging = true;
+    panel.classList.add('is-dragging');
+  }
+  function onMove(e) {
+    if (!dragging) return;
+    lastY = e.clientY;
+    const dy = Math.max(0, lastY - startY);
+    panel.style.setProperty('--pcms-drag-y', dy + 'px');
+  }
+  function onUp() {
+    if (!dragging) return;
+    dragging = false;
+    panel.classList.remove('is-dragging');
+    const dy = lastY - startY;
+    if (dy > 80) closeSheet();
+    else panel.style.removeProperty('--pcms-drag-y');
+  }
+  if (window.PointerEvent && dragZone) {
+    dragZone.addEventListener('pointerdown', onDown);
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onUp);
+  }
+
+  // Theme toggle inside sheet — syncs label
+  function syncTheme() {
+    if (!themeLbl) return;
+    const t = document.documentElement.getAttribute('data-theme') || 'dark';
+    themeLbl.textContent = t === 'dark' ? 'Donker' : 'Licht';
+  }
+  if (themeBtn) {
+    themeBtn.addEventListener('click', function() {
+      const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+      const next = cur === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      try { localStorage.setItem('pcms-theme', next); } catch (e) {}
+      syncTheme();
+    });
+  }
+})();
+</script>

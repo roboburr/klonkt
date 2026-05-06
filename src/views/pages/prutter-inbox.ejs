@@ -1,0 +1,108 @@
+<div class="container prutter-inbox-page">
+  <header class="prutter-header">
+    <h1>Prutter</h1>
+    <p class="prutter-tagline">Your direct messages on this site.</p>
+  </header>
+
+  <% if (!conversations.length) { %>
+    <p class="prutter-empty">
+      No conversations yet. Open someone's profile and click <em>Send DM</em> to start one.
+    </p>
+  <% } else { %>
+    <ol class="prutter-conv-list">
+      <% conversations.forEach(function(c) { %>
+        <li class="prutter-conv-row">
+          <a class="prutter-conv-link" href="<%= siteUrlBase %>/prutter/<%= c.id %>">
+            <div class="prutter-conv-avatar">
+              <% if (c.other_avatar) { %>
+                <img src="<%= c.other_avatar %>" alt="">
+              <% } else { %>
+                <span><%= (c.other_username || '?').charAt(0).toUpperCase() %></span>
+              <% } %>
+            </div>
+            <div class="prutter-conv-body">
+              <div class="prutter-conv-meta">
+                <strong class="prutter-conv-name"><%= c.other_username %></strong>
+                <% if (c.last_message_at) { %>
+                  <span class="prutter-conv-time"><%= formatDateTime(c.last_message_at) %></span>
+                <% } %>
+              </div>
+              <% if (c.last_message_preview) { %>
+                <div class="prutter-conv-preview"><%= c.last_message_preview %></div>
+              <% } else { %>
+                <div class="prutter-conv-preview muted">Empty conversation</div>
+              <% } %>
+            </div>
+            <% if (c.unread_count > 0) { %>
+              <span class="prutter-unread-badge"><%= c.unread_count %></span>
+            <% } %>
+          </a>
+        </li>
+      <% }); %>
+    </ol>
+  <% } %>
+</div>
+
+<style>
+.prutter-inbox-page { max-width: 720px; margin: 3rem auto; padding: 0 1rem; }
+.prutter-header h1 {
+  font-family: var(--font-display, serif);
+  font-size: 2rem; margin: 0 0 0.25rem;
+}
+.prutter-tagline { color: var(--ink-muted, var(--ink-soft)); margin: 0 0 1.5rem; }
+.prutter-empty {
+  text-align: center; padding: 2rem; color: var(--ink-muted, var(--ink-soft));
+  background: var(--paper-2); border: 1px dashed var(--rule); border-radius: 8px;
+}
+
+.prutter-conv-list { list-style: none; padding: 0; margin: 0; }
+.prutter-conv-row { border-bottom: 1px solid var(--rule); }
+.prutter-conv-row:last-child { border-bottom: 0; }
+.prutter-conv-link {
+  display: flex; gap: 0.85rem; align-items: center;
+  padding: 0.85rem 0;
+  text-decoration: none; color: var(--ink);
+  transition: background 100ms;
+}
+.prutter-conv-link:hover { background: var(--paper-2); }
+
+.prutter-conv-avatar {
+  flex-shrink: 0;
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.prutter-conv-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.prutter-conv-avatar span {
+  font-family: var(--font-display, serif);
+  font-weight: 700; color: var(--accent);
+}
+
+.prutter-conv-body { flex: 1; min-width: 0; }
+.prutter-conv-meta {
+  display: flex; justify-content: space-between; gap: 0.5rem;
+  margin-bottom: 0.15rem;
+}
+.prutter-conv-name { font-weight: 600; }
+.prutter-conv-time {
+  color: var(--ink-muted, var(--ink-soft));
+  font-size: 0.8rem; flex-shrink: 0;
+}
+.prutter-conv-preview {
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.prutter-conv-preview.muted { font-style: italic; color: var(--ink-muted, var(--ink-soft)); }
+
+.prutter-unread-badge {
+  background: var(--accent); color: white;
+  border-radius: 10px;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+</style>

@@ -1,0 +1,634 @@
+<article class="container post-page">
+  <% if (post.cover_image_url) { %>
+    <figure class="post-cover">
+      <img src="<%= post.cover_image_url %>" alt="">
+    </figure>
+  <% } %>
+
+  <header class="post-header">
+    <h1 class="post-title"><%= post.title %></h1>
+    <div class="post-meta">
+      <a class="author" href="/users/<%= encodeURIComponent(post.author_username) %>"
+         hx-get="/users/<%= encodeURIComponent(post.author_username) %>?partial=1"
+         hx-target="#pcms-main" hx-swap="innerHTML"
+         hx-push-url="/users/<%= encodeURIComponent(post.author_username) %>"
+         hx-indicator="#pcms-loading"><%= post.author_username %></a>
+      <span class="meta-sep">·</span>
+      <time datetime="<%= post.published_at || post.created_at %>"><%= formatDate(post.published_at || post.created_at) %></time>
+      <% if (post.status !== 'published') { %>
+        <span class="meta-sep">·</span>
+        <span class="status-badge status-<%= post.status %>"><%= post.status %></span>
+      <% } %>
+    </div>
+  </header>
+
+  <div class="post-content">
+    <%- post.content_html %>
+  </div>
+
+  <% if (post.tags && post.tags.length > 0) { %>
+    <div class="post-tags">
+      <% post.tags.forEach(t => { %>
+        <a class="tag" href="/tag/<%= encodeURIComponent(t) %>"
+           hx-get="/tag/<%= encodeURIComponent(t) %>?partial=1"
+           hx-target="#pcms-main" hx-swap="innerHTML"
+           hx-push-url="/tag/<%= encodeURIComponent(t) %>"
+           hx-indicator="#pcms-loading">#<%= t %></a>
+      <% }); %>
+    </div>
+  <% } %>
+
+  <!-- Inline admin actions: only visible if user has permission -->
+  <% if (user && (permissions.canEditPost(user, post, site) || permissions.canDeletePost(user, post, site))) { %>
+    <aside class="post-actions">
+      <% if (permissions.canEditPost(user, post, site)) { %>
+        <a href="/posts/<%= post.slug %>/edit" class="btn"
+           hx-get="/posts/<%= post.slug %>/edit?partial=1" hx-target="#pcms-main"
+           hx-push-url="/posts/<%= post.slug %>/edit" hx-indicator="#pcms-loading">
+          ✏️ Edit
+        </a>
+      <% } %>
+      <% if (permissions.canDeletePost(user, post, site)) { %>
+        <form method="post" action="/posts/<%= post.slug %>/delete" style="display:inline" onsubmit="return confirm('Delete this post?')">
+          <button type="submit" class="btn btn-danger">🗑 Delete</button>
+        </form>
+      <% } %>
+    </aside>
+  <% } %>
+
+  <!-- Comments -->
+  <section class="post-comments" id="comments">
+    <h2 class="comments-heading">
+      <%= totalComments %> comment<%= totalComments === 1 ? '' : 's' %>
+    </h2>
+
+    <% if (typeof currentPath === 'string' && currentPath && currentPath.indexOf('/' + post.slug) === 0) { %>
+      <% /* If the URL has ?pending=1, the previous submit landed in the queue */ %>
+    <% } %>
+    <script>
+      (function() {
+        if (location.search.indexOf('pending=1') !== -1) {
+          var s = document.createElement('div');
+          s.className = 'comments-pending-flash';
+          s.textContent = 'Your comment is awaiting moderation. It will appear once an admin approves it.';
+          document.currentScript.parentNode.insertBefore(s, document.currentScript);
+        }
+      })();
+    </script>
+
+    <% if (!comments || !comments.length) { %>
+      <p class="comments-empty">No comments yet.<% if (!user) { %> <a href="/auth/login?next=<%= encodeURIComponent('/' + post.slug + '#comments') %>">Log in</a> to start the conversation.<% } %></p>
+    <% } else { %>
+      <ol class="comments-list">
+        <% comments.forEach(function(c) { %>
+          <li class="comment" id="comment-<%= c.id %>">
+            <div class="comment-avatar">
+              <% if (c.author_avatar) { %>
+                <img src="<%= c.author_avatar %>" alt="">
+              <% } else { %>
+                <span><%= c.author_username.charAt(0).toUpperCase() %></span>
+              <% } %>
+            </div>
+            <div class="comment-body">
+              <div class="comment-meta">
+                <a class="comment-author" href="/users/<%= encodeURIComponent(c.author_username) %>"><%= c.author_username %></a>
+                <span class="comment-time" title="<%= c.created_at %>"><%= formatDateTime(c.created_at) %></span>
+              </div>
+              <div class="comment-content"><%= c.content %></div>
+              <div class="comment-actions">
+                <% if (user) { %>
+                  <button type="button" class="comment-reply-btn" data-reply-to="<%= c.id %>">Reply</button>
+                <% } %>
+                <% if (user && permissions.canDeleteComment(user, c, site)) { %>
+                  <form method="post" action="/comments/<%= c.id %>/delete" style="display:inline" onsubmit="return confirm('Delete this comment?')">
+                    <button type="submit" class="comment-delete-btn">Delete</button>
+                  </form>
+                <% } %>
+              </div>
+
+              <!-- Inline reply form (hidden by default) -->
+              <% if (user) { %>
+                <form method="post" action="/comments" class="comment-reply-form" hidden data-reply-form-for="<%= c.id %>">
+                  <input type="hidden" name="post_slug" value="<%= post.slug %>">
+                  <input type="hidden" name="parent_comment_id" value="<%= c.id %>">
+                  <textarea name="content" rows="3" maxlength="4000" placeholder="Reply to <%= c.author_username %>…" required></textarea>
+                  <div class="comment-reply-form-actions">
+                    <button type="submit" class="btn btn-primary">Reply</button>
+                    <button type="button" class="btn comment-cancel-reply">Cancel</button>
+                  </div>
+                </form>
+              <% } %>
+
+              <!-- Replies (1 level deep) -->
+              <% if (c.replies && c.replies.length) { %>
+                <ol class="comment-replies">
+                  <% c.replies.forEach(function(r) { %>
+                    <li class="comment comment-reply" id="comment-<%= r.id %>">
+                      <div class="comment-avatar">
+                        <% if (r.author_avatar) { %>
+                          <img src="<%= r.author_avatar %>" alt="">
+                        <% } else { %>
+                          <span><%= r.author_username.charAt(0).toUpperCase() %></span>
+                        <% } %>
+                      </div>
+                      <div class="comment-body">
+                        <div class="comment-meta">
+                          <a class="comment-author" href="/users/<%= encodeURIComponent(r.author_username) %>"><%= r.author_username %></a>
+                          <span class="comment-time"><%= formatDateTime(r.created_at) %></span>
+                        </div>
+                        <div class="comment-content"><%= r.content %></div>
+                        <div class="comment-actions">
+                          <% if (user && permissions.canDeleteComment(user, r, site)) { %>
+                            <form method="post" action="/comments/<%= r.id %>/delete" style="display:inline" onsubmit="return confirm('Delete this comment?')">
+                              <button type="submit" class="comment-delete-btn">Delete</button>
+                            </form>
+                          <% } %>
+                        </div>
+                      </div>
+                    </li>
+                  <% }); %>
+                </ol>
+              <% } %>
+            </div>
+          </li>
+        <% }); %>
+      </ol>
+    <% } %>
+
+    <!-- Top-level comment form (only for logged-in users for now) -->
+    <% if (user) { %>
+      <form method="post" action="/comments" class="comment-form">
+        <input type="hidden" name="post_slug" value="<%= post.slug %>">
+        <label class="comment-form-label">
+          <span>Add a comment as <strong><%= user.username %></strong></span>
+          <textarea name="content" rows="3" maxlength="4000" placeholder="Share your thoughts…" required></textarea>
+        </label>
+        <button type="submit" class="btn btn-primary">Post comment</button>
+      </form>
+    <% } else { %>
+      <p class="comments-login-cta">
+        <a href="/auth/login?next=<%= encodeURIComponent('/' + post.slug + '#comments') %>" class="btn">Log in to comment</a>
+      </p>
+    <% } %>
+  </section>
+
+  <!-- Reply form toggle -->
+  <script>
+  (function() {
+    document.querySelectorAll('.comment-reply-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var id = btn.dataset.replyTo;
+        var form = document.querySelector('[data-reply-form-for="' + id + '"]');
+        if (form) {
+          form.hidden = !form.hidden;
+          if (!form.hidden) form.querySelector('textarea').focus();
+        }
+      });
+    });
+    document.querySelectorAll('.comment-cancel-reply').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        btn.closest('.comment-reply-form').hidden = true;
+      });
+    });
+  })();
+  </script>
+
+  <%# ── Related posts (3-card grid) ─────────────────────────────
+      Always shown if at least one related post exists. Selection logic
+      lives server-side: same-tag posts ranked by overlap, falling back
+      to most-recent if there's no tag overlap. %>
+  <% if (relatedPosts && relatedPosts.length > 0) { %>
+    <section class="post-related" aria-labelledby="related-heading">
+      <h2 class="post-related-heading" id="related-heading">Gerelateerde posts</h2>
+      <ul class="post-related-grid">
+        <% relatedPosts.forEach(function(rp) { %>
+          <li class="post-related-card">
+            <a href="/<%= rp.slug %>"
+               hx-get="/<%= rp.slug %>?partial=1" hx-target="#pcms-main"
+               hx-push-url="/<%= rp.slug %>" hx-indicator="#pcms-loading">
+              <% if (rp.cover_image_url) { %>
+                <span class="post-related-cover"
+                      style="background-image: url('<%= rp.cover_image_url %>')"
+                      aria-hidden="true"></span>
+              <% } else { %>
+                <span class="post-related-cover post-related-cover--empty" aria-hidden="true"></span>
+              <% } %>
+              <span class="post-related-meta">
+                <span class="post-related-date"><%= formatDate(rp.published_at) %></span>
+                <span class="post-related-title"><%= rp.title %></span>
+              </span>
+            </a>
+          </li>
+        <% }); %>
+      </ul>
+    </section>
+  <% } %>
+
+  <%# ── Pinned navigation (only when current post is pinned) ───
+      Two card-style links: "Vorige vastgepinde" / "Volgende vastgepinde".
+      Edge-of-stack states show "← BOVENAAN — Nieuwste post" or the equivalent
+      for the bottom. Layout mirrors v9 exactly. %>
+  <% if (post.pinned) { %>
+    <nav class="post-pinned-nav" aria-label="Pinned navigation">
+      <%# LEFT card: post one step UP the pinned stack (towards #1).
+          Uses prevPinnedPost which now means "smaller rank". %>
+      <% if (prevPinnedPost) { %>
+        <a class="post-pinned-card post-pinned-card--prev" href="/<%= prevPinnedPost.slug %>"
+           hx-get="/<%= prevPinnedPost.slug %>?partial=1" hx-target="#pcms-main"
+           hx-push-url="/<%= prevPinnedPost.slug %>" hx-indicator="#pcms-loading">
+          <span class="post-pinned-arrow" aria-hidden="true">←</span>
+          <span class="post-pinned-body">
+            <span class="post-pinned-label">📌 Vorige vastgepinde</span>
+            <span class="post-pinned-title"><%= prevPinnedPost.title %></span>
+            <span class="post-pinned-cta">Lees deze post →</span>
+          </span>
+        </a>
+      <% } else if (pinnedTopOfStack) { %>
+        <span class="post-pinned-card post-pinned-card--edge">
+          <span class="post-pinned-edge-label">— BOVENAAN —</span>
+          <span class="post-pinned-edge-title">Nieuwste post</span>
+        </span>
+      <% } %>
+
+      <%# RIGHT card: post one step DOWN the pinned stack (away from #1).
+          Uses nextPinnedPost which now means "larger rank". %>
+      <% if (nextPinnedPost) { %>
+        <a class="post-pinned-card post-pinned-card--next" href="/<%= nextPinnedPost.slug %>"
+           hx-get="/<%= nextPinnedPost.slug %>?partial=1" hx-target="#pcms-main"
+           hx-push-url="/<%= nextPinnedPost.slug %>" hx-indicator="#pcms-loading">
+          <span class="post-pinned-arrow" aria-hidden="true">→</span>
+          <span class="post-pinned-body">
+            <span class="post-pinned-label">📌 Volgende vastgepinde</span>
+            <span class="post-pinned-title"><%= nextPinnedPost.title %></span>
+            <span class="post-pinned-cta">← Lees deze post</span>
+          </span>
+        </a>
+      <% } else if (pinnedBottomOfStack) { %>
+        <span class="post-pinned-card post-pinned-card--edge">
+          <span class="post-pinned-edge-label">— ONDERAAN —</span>
+          <span class="post-pinned-edge-title">Oudste post</span>
+        </span>
+      <% } %>
+    </nav>
+  <% } %>
+
+  <%# ── Chronological prev/next (kept for non-pinned posts) ──────
+      For pinned posts the pinned-nav above replaces this. Non-pinned
+      regular posts still get the simple older/newer pair. %>
+  <% if (!post.pinned && (prevPost || nextPost)) { %>
+    <nav class="post-nav">
+      <% if (prevPost) { %>
+        <a class="post-nav-prev" href="/<%= prevPost.slug %>"
+           hx-get="/<%= prevPost.slug %>?partial=1" hx-target="#pcms-main"
+           hx-push-url="/<%= prevPost.slug %>" hx-indicator="#pcms-loading">
+          <span class="post-nav-label">← Older</span>
+          <span class="post-nav-title"><%= prevPost.title %></span>
+        </a>
+      <% } else { %><span></span><% } %>
+      <% if (nextPost) { %>
+        <a class="post-nav-next" href="/<%= nextPost.slug %>"
+           hx-get="/<%= nextPost.slug %>?partial=1" hx-target="#pcms-main"
+           hx-push-url="/<%= nextPost.slug %>" hx-indicator="#pcms-loading">
+          <span class="post-nav-label">Newer →</span>
+          <span class="post-nav-title"><%= nextPost.title %></span>
+        </a>
+      <% } %>
+    </nav>
+  <% } %>
+</article>
+<style>
+.post-page { max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
+.post-cover { margin: 0 0 2rem; border-radius: 8px; overflow: hidden; }
+.post-cover img { width: 100%; height: auto; display: block; }
+.post-header { margin-bottom: 2rem; }
+.post-title { font-family: var(--font-display, serif); font-size: 2.5rem; line-height: 1.1; margin: 0 0 1rem; }
+@media (max-width: 600px) { .post-title { font-size: 1.85rem; } }
+.post-meta { font-size: 0.9rem; color: var(--ink-muted); }
+.author { font-weight: 500; color: var(--ink-soft); text-decoration: none; }
+.author:hover { color: var(--accent); }
+.post-content { font-family: var(--font-body, serif); font-size: 1.1rem; line-height: 1.7; color: var(--ink); }
+.post-content p { margin: 1.2em 0; }
+.post-content h2 { font-family: var(--font-display, serif); font-size: 1.6rem; margin: 2rem 0 1rem; }
+.post-content h3 { font-family: var(--font-display, serif); font-size: 1.3rem; margin: 1.5rem 0 0.75rem; }
+.post-content a { color: var(--accent); }
+.post-content code { background: var(--paper-2); padding: 0.1em 0.4em; border-radius: 3px; font-family: var(--font-mono, monospace); font-size: 0.9em; }
+.post-content pre { background: var(--paper-2); padding: 1rem; border-radius: 6px; overflow-x: auto; }
+.post-content blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1.5rem 0; color: var(--ink-soft); font-style: italic; }
+.post-content img { max-width: 100%; height: auto; border-radius: 6px; }
+.post-tags { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 2rem 0; }
+.tag { background: var(--paper-2); color: var(--ink-soft); padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.85rem; text-decoration: none; transition: background 120ms, color 120ms; }
+.tag:hover { background: var(--accent); color: white; }
+.post-actions { display: flex; gap: 0.5rem; margin: 2rem 0; padding: 1rem; background: var(--paper-2); border-radius: 6px; flex-wrap: wrap; }
+.post-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--rule); }
+.post-nav-prev, .post-nav-next { display: flex; flex-direction: column; padding: 1rem; background: var(--paper-2); border-radius: 6px; text-decoration: none; color: var(--ink); }
+.post-nav-next { text-align: right; align-items: flex-end; }
+.post-nav-label { font-size: 0.8rem; color: var(--ink-muted); margin-bottom: 0.25rem; }
+.post-nav-title { font-weight: 500; }
+@media (max-width: 600px) { .post-nav { grid-template-columns: 1fr; } }
+
+/* ============================================================
+   Comments
+   ============================================================ */
+.post-comments {
+  margin-top: 3rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--rule);
+}
+.comments-heading {
+  font-family: var(--font-display, serif);
+  font-size: 1.5rem;
+  margin: 0 0 1.5rem;
+}
+.comments-empty { color: var(--ink-muted, var(--ink-soft)); margin: 0 0 1.5rem; }
+.comments-pending-flash {
+  background: rgba(40, 160, 90, 0.15);
+  color: #2a9d5e;
+  border: 1px solid rgba(40, 160, 90, 0.3);
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+.comments-empty a { color: var(--accent); }
+
+.comments-list, .comment-replies {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 2rem;
+}
+
+.comment {
+  display: flex;
+  gap: 0.85rem;
+  padding: 1rem 0;
+  border-top: 1px solid var(--rule);
+}
+.comments-list > .comment:first-child { border-top: 0; padding-top: 0; }
+
+.comment-avatar {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.comment-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.comment-avatar span {
+  font-family: var(--font-display, serif);
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.comment-body { flex: 1; min-width: 0; }
+.comment-meta {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  font-size: 0.85rem;
+  margin-bottom: 0.3rem;
+}
+.comment-author { color: var(--ink); font-weight: 600; text-decoration: none; }
+.comment-author:hover { color: var(--accent); }
+.comment-time { color: var(--ink-muted, var(--ink-soft)); }
+.comment-content {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  color: var(--ink);
+  line-height: 1.5;
+  font-size: 0.95rem;
+}
+
+.comment-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+}
+.comment-reply-btn, .comment-delete-btn {
+  background: none;
+  border: 0;
+  color: var(--ink-muted, var(--ink-soft));
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0.2rem 0;
+  font-family: inherit;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.comment-reply-btn:hover { color: var(--accent); }
+.comment-delete-btn:hover { color: #c33; }
+
+.comment-replies {
+  margin-top: 1rem;
+  margin-left: 0;
+  border-left: 2px solid var(--rule);
+  padding-left: 1rem;
+}
+.comment-reply { padding: 0.75rem 0; }
+.comment-replies > .comment-reply:first-child { border-top: 0; padding-top: 0; }
+.comment-reply .comment-avatar { width: 32px; height: 32px; }
+.comment-reply .comment-avatar span { font-size: 0.85rem; }
+
+.comment-form, .comment-reply-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+.comment-form-label { display: flex; flex-direction: column; gap: 0.4rem; }
+.comment-form-label > span { font-size: 0.85rem; color: var(--ink-muted, var(--ink-soft)); }
+.comment-form textarea, .comment-reply-form textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 70px;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  box-sizing: border-box;
+}
+.comment-form button { align-self: flex-start; }
+.comment-reply-form-actions { display: flex; gap: 0.5rem; }
+
+.comments-login-cta { margin-top: 1.5rem; text-align: center; }
+
+/* ─── Related posts (3-card grid above pinned-nav) ─────────────── */
+.post-related {
+  margin: 3rem auto 1.5rem;
+  /* Break out of the 720px article column so the cards have room to breathe.
+     Cap at 1100 to match other wide content. */
+  max-width: 1100px;
+  padding: 0 1rem;
+}
+.post-related-heading {
+  font-family: var(--font-ui, system-ui), sans-serif;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--ink-muted, var(--ink-soft));
+  margin: 0 0 1rem;
+}
+.post-related-grid {
+  list-style: none;
+  padding: 0; margin: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+@media (max-width: 880px) { .post-related-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 540px) { .post-related-grid { grid-template-columns: 1fr; } }
+
+.post-related-card {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  overflow: hidden;
+  transition: border-color 150ms, transform 150ms;
+}
+.post-related-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+.post-related-card a {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+.post-related-cover {
+  display: block;
+  aspect-ratio: 16 / 10;
+  background: var(--paper-2) center/cover no-repeat;
+}
+.post-related-cover--empty {
+  background-image: linear-gradient(135deg,
+    color-mix(in srgb, var(--accent) 12%, var(--paper-2)),
+    var(--paper-2));
+}
+.post-related-meta {
+  display: flex; flex-direction: column; gap: 0.4rem;
+  padding: 0.85rem 1rem 1.1rem;
+}
+.post-related-date {
+  font-size: 0.78rem;
+  color: var(--ink-muted, var(--ink-soft));
+  font-variant-numeric: tabular-nums;
+}
+.post-related-title {
+  font-family: var(--font-display, serif);
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.25;
+}
+
+/* ─── Pinned navigation cards (v9 style) ───────────────────────── */
+.post-pinned-nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin: 1.5rem auto 2rem;
+  max-width: 1100px;
+  padding: 0 1rem;
+}
+@media (max-width: 600px) {
+  .post-pinned-nav { grid-template-columns: 1fr; }
+}
+
+.post-pinned-card {
+  display: flex; align-items: center; gap: 1rem;
+  padding: 1rem 1.25rem;
+  border: 1.5px solid color-mix(in srgb, var(--accent) 50%, transparent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--paper));
+  border-radius: 10px;
+  text-decoration: none;
+  color: var(--ink);
+  transition: border-color 150ms, background 150ms, transform 150ms;
+  min-height: 88px;
+}
+.post-pinned-card:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 11%, var(--paper));
+  transform: translateY(-2px);
+}
+.post-pinned-arrow {
+  font-size: 1.6rem;
+  color: var(--accent);
+  flex-shrink: 0;
+  line-height: 1;
+}
+.post-pinned-card--next {
+  /* "Volgende" card aligns text to the right with the arrow on the right
+     side, mirroring v9 — the arrow is on the OPPOSITE end from the body. */
+  flex-direction: row-reverse;
+  text-align: right;
+}
+.post-pinned-body {
+  display: flex; flex-direction: column; gap: 0.25rem;
+  flex: 1; min-width: 0;
+}
+.post-pinned-label {
+  font-family: var(--font-ui, system-ui), sans-serif;
+  font-size: 0.7rem; font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+}
+.post-pinned-title {
+  font-family: var(--font-display, serif);
+  font-size: 1.05rem; font-weight: 600;
+  color: var(--ink);
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.post-pinned-cta {
+  font-size: 0.78rem;
+  color: var(--accent);
+  font-weight: 500;
+}
+
+/* Edge-of-stack indicator: dashed border, muted styling. */
+.post-pinned-card--edge {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.35rem;
+  border-style: dashed;
+  background: transparent;
+  color: var(--ink-muted, var(--ink-soft));
+  cursor: default;
+}
+.post-pinned-card--edge:hover {
+  /* Edge cards aren't clickable — undo the lift effect. */
+  transform: none;
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  background: transparent;
+}
+.post-pinned-edge-label {
+  font-family: var(--font-ui, system-ui), sans-serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--accent);
+}
+.post-pinned-edge-title {
+  font-family: var(--font-display, serif);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+</style>

@@ -1,0 +1,1355 @@
+<%
+// Post editor — split into card sections for visual hierarchy:
+//   - Identity   : title, slug, excerpt
+//   - Cover      : thumbnail + URL + custom upload button
+//   - Content    : markdown textarea with attached toolbar
+//   - Meta       : status, type, pin, noindex, tags
+//
+// All behavior (IDs, names, upload endpoints) is preserved — only layout
+// and styling changed.
+const _hasCover = !!post.cover_image_url;
+%>
+<div class="container post-edit-page">
+  <h1><%= isNew ? 'Nieuwe post' : 'Post bewerken' %></h1>
+
+  <form method="post" action="<%= isNew ? '/posts/create' : '/posts/' + post.slug + '/save' %>" class="post-edit-form">
+
+    <%# ── IDENTITY ─────────────────────────────────────────────── %>
+    <section class="pe-card">
+      <label class="pe-field">
+        <span>Titel</span>
+        <input type="text" name="title" value="<%= post.title %>" required autofocus>
+      </label>
+      <div class="pe-row pe-row-2">
+        <label class="pe-field">
+          <span>Slug (URL)</span>
+          <input type="text" name="slug" value="<%= post.slug %>" placeholder="auto van titel als leeg">
+        </label>
+        <label class="pe-field">
+          <span>Tags <small>(komma-gescheiden)</small></span>
+          <input type="text" name="tags" value="<%= Array.isArray(post.tags) ? post.tags.join(', ') : '' %>">
+        </label>
+      </div>
+      <label class="pe-field">
+        <span>Excerpt <small>(preview tekst)</small></span>
+        <textarea name="excerpt" rows="2"><%= post.excerpt %></textarea>
+      </label>
+    </section>
+
+    <%# ── COVER ────────────────────────────────────────────────── %>
+    <section class="pe-card">
+      <div class="pe-section-title">Cover</div>
+      <div class="pe-cover-row">
+        <div class="pe-cover-thumb" id="cover-preview-wrap" <%= _hasCover ? '' : 'data-empty' %>>
+          <img src="<%= _hasCover ? post.cover_image_url : '' %>" alt="" id="cover-preview-img" <%= _hasCover ? '' : 'hidden' %>>
+          <% if (!_hasCover) { %><span class="pe-cover-empty">🖼</span><% } %>
+        </div>
+        <div class="pe-cover-actions">
+          <label class="pe-field">
+            <span>Cover URL</span>
+            <input type="url" name="cover_image_url" id="cover-url-field"
+                   value="<%= post.cover_image_url || '' %>"
+                   placeholder="https://…  of upload met de knop">
+          </label>
+          <div class="pe-cover-upload">
+            <button type="button" class="pe-btn pe-btn-secondary" id="cover-upload-trigger">
+              📷 Upload nieuwe cover
+            </button>
+            <input type="file" id="cover-upload-field" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
+            <small id="cover-upload-status" class="pe-status"></small>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <%# ── CONTENT ──────────────────────────────────────────────── %>
+    <section class="pe-card pe-card-content">
+      <div class="pe-section-title">
+        Content
+        <small>Sleep een afbeelding om in te voegen · selecteer tekst om op te maken</small>
+      </div>
+      <div class="pe-editor-frame">
+        <div class="pe-toolbar" id="pe-toolbar" role="toolbar" aria-label="Format">
+          <button type="button" data-cmd="bold" title="Vet (Ctrl+B)" aria-label="Vet">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4h8a4 4 0 0 1 0 8H6z"/><path d="M6 12h9a4 4 0 0 1 0 8H6z"/></svg>
+          </button>
+          <button type="button" data-cmd="italic" title="Cursief (Ctrl+I)" aria-label="Cursief">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="4" x2="10" y2="4"/><line x1="14" y1="20" x2="5" y2="20"/><line x1="15" y1="4" x2="9" y2="20"/></svg>
+          </button>
+          <button type="button" data-cmd="underline" title="Onderstreept" aria-label="Onderstreept">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4v6a6 6 0 0 0 12 0V4"/><line x1="4" y1="20" x2="20" y2="20"/></svg>
+          </button>
+          <span class="pe-toolbar-sep" aria-hidden="true"></span>
+          <button type="button" class="pe-tb-text" data-cmd="formatBlock" data-arg="h2" title="Kop">H2</button>
+          <button type="button" class="pe-tb-text" data-cmd="formatBlock" data-arg="h3" title="Subkop">H3</button>
+          <button type="button" class="pe-tb-text" data-cmd="formatBlock" data-arg="p"  title="Paragraaf">¶</button>
+          <span class="pe-toolbar-sep" aria-hidden="true"></span>
+          <button type="button" data-cmd="insertUnorderedList" title="Lijst" aria-label="Lijst">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="4.5" cy="6" r="1.2"/><circle cx="4.5" cy="12" r="1.2"/><circle cx="4.5" cy="18" r="1.2"/></svg>
+          </button>
+          <button type="button" data-cmd="insertOrderedList" title="Genummerde lijst" aria-label="Genummerde lijst">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/><path d="M4 6h1v4"/><path d="M4 10h2"/><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/></svg>
+          </button>
+          <button type="button" data-cmd="formatBlock" data-arg="blockquote" title="Quote" aria-label="Quote">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21c3 0 7-1 7-8V5c0-1.25-.75-2-2-2H4c-1.25 0-2 .75-2 2v6c0 1.25.75 2 2 2h2.5C6 17.5 4 19 3 19v2z"/><path d="M14 21c3 0 7-1 7-8V5c0-1.25-.75-2-2-2h-4c-1.25 0-2 .75-2 2v6c0 1.25.75 2 2 2h2.5c-.5 4.5-2.5 6-3.5 6v2z"/></svg>
+          </button>
+          <button type="button" data-cmd="link-prompt" title="Link (Ctrl+K)" aria-label="Link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          </button>
+          <button type="button" data-cmd="code-wrap" title="Code (inline)" aria-label="Code">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+          </button>
+          <span class="pe-toolbar-sep" aria-hidden="true"></span>
+          <button type="button" id="insert-image-btn" title="Afbeelding invoegen" aria-label="Afbeelding">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          </button>
+          <button type="button" id="insert-track-btn" title="Track invoegen" aria-label="Track">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+          </button>
+          <button type="button" id="insert-playlist-btn" title="Playlist invoegen" aria-label="Playlist">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="15" y2="18"/><polygon points="3 5 3 13 9 9"/></svg>
+          </button>
+          <span class="pe-toolbar-spacer"></span>
+          <button type="button" data-cmd="removeFormat" title="Wis opmaak" aria-label="Wis opmaak">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M5 5l14 14" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+
+        <div id="content-editor"
+             class="pe-editor"
+             contenteditable="true"
+             role="textbox"
+             aria-multiline="true"
+             aria-label="Content"
+             data-placeholder="Begin met schrijven…"></div>
+
+        <%# Hidden field is what actually submits to the server. The visible
+            contenteditable's serialized HTML is copied here on submit. %>
+        <input type="hidden" name="content" id="content-hidden" value="">
+
+        <%# Initial content is injected as a JSON string in a script tag so we
+            can set innerHTML safely from JS. EJS-escaping HTML directly into
+            the editor would render entity-escaped tags as text. %>
+        <script id="initial-content" type="application/json"><%- JSON.stringify(post.content || '').replace(/</g, '\\u003c') %></script>
+
+        <div class="pe-editor-status">
+          <small id="content-upload-status" class="pe-status"></small>
+          <span class="pe-char-count"><span id="char-count">0</span> tekens</span>
+        </div>
+
+        <input type="file" id="content-upload-field" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
+      </div>
+    </section>
+
+    <%# ── META ─────────────────────────────────────────────────── %>
+    <section class="pe-card">
+      <div class="pe-section-title">Publicatie</div>
+      <div class="pe-row pe-row-2">
+        <label class="pe-field">
+          <span>Status</span>
+          <select name="status">
+            <option value="draft"     <%= post.status === 'draft'     ? 'selected' : '' %>>Draft</option>
+            <option value="published" <%= post.status === 'published' ? 'selected' : '' %>>Published</option>
+            <option value="archived"  <%= post.status === 'archived'  ? 'selected' : '' %>>Archived</option>
+          </select>
+        </label>
+        <label class="pe-field">
+          <span>Type</span>
+          <select name="type">
+            <% var ptype = post.type || 'post'; %>
+            <option value="post"  <%= ptype === 'post'  ? 'selected' : '' %>>Post</option>
+            <option value="foto"  <%= ptype === 'foto'  ? 'selected' : '' %>>Foto</option>
+            <option value="video" <%= ptype === 'video' ? 'selected' : '' %>>Video</option>
+            <option value="audio" <%= ptype === 'audio' ? 'selected' : '' %>>Audio</option>
+          </select>
+        </label>
+      </div>
+      <div class="pe-checkboxes">
+        <label class="pe-pinned-rank">
+          <span>📌 Pinned rank</span>
+          <input type="number" name="pinned" min="0" step="1"
+                 inputmode="numeric" pattern="[0-9]*"
+                 value="<%= post.pinned || 0 %>"
+                 title="0 = niet pinned. 1 = bovenaan, 2 = daaronder, etc.">
+          <small>0 = niet pinned · 1 = bovenaan · 2 daaronder · …</small>
+        </label>
+        <label class="pe-checkbox">
+          <input type="checkbox" name="noindex" value="1" <%= post.noindex ? 'checked' : '' %>>
+          <span>🚫 noindex (verberg voor zoekmachines)</span>
+        </label>
+      </div>
+    </section>
+
+    <%# ── ACTIONS (sticky at bottom) ──────────────────────────── %>
+    <div class="pe-actions">
+      <a href="<%= isNew ? '/' : '/' + post.slug %>" class="pe-btn">Annuleren</a>
+      <div class="pe-actions-spacer"></div>
+      <% if (!isNew && post.status !== 'published') { %>
+        <button type="submit" name="action" value="publish" class="pe-btn pe-btn-success">📤 Publish</button>
+      <% } %>
+      <button type="submit" class="pe-btn pe-btn-primary">💾 Opslaan</button>
+    </div>
+  </form>
+</div>
+
+<style>
+/* ─── Page wrapper ──────────────────────────────────────────────── */
+.post-edit-page {
+  max-width: 880px;
+  margin: 1.5rem auto 6rem;   /* extra bottom for sticky-actions clearance */
+  padding: 0 1rem;
+}
+.post-edit-page h1 {
+  font-family: var(--font-display, serif);
+  margin: 0 0 1.25rem;
+  font-size: 1.75rem;
+}
+
+.post-edit-form {
+  display: flex; flex-direction: column;
+  gap: 1rem;
+}
+
+/* ─── Card sections ─────────────────────────────────────────────── */
+.pe-card {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  padding: 1.25rem;
+  display: flex; flex-direction: column;
+  gap: 0.85rem;
+}
+.pe-card-content { padding-bottom: 0; overflow: hidden; }  /* editor flush to bottom */
+.pe-section-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-soft);
+  display: flex; align-items: baseline; gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.pe-section-title small {
+  font-size: 0.75rem; font-weight: 400;
+  letter-spacing: 0; text-transform: none;
+  color: var(--ink-muted, var(--ink-soft));
+}
+
+/* ─── Field primitives ──────────────────────────────────────────── */
+.pe-field {
+  display: flex; flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;       /* allow grid items to shrink */
+}
+.pe-field > span {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+  display: flex; align-items: baseline; gap: 0.4rem;
+}
+.pe-field > span small {
+  font-weight: 400; color: var(--ink-muted);
+}
+.pe-field input,
+.pe-field textarea,
+.pe-field select {
+  width: 100%;
+  box-sizing: border-box;
+  display: block;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--paper-2);
+  color: var(--ink);
+  font-family: var(--font-ui, system-ui), sans-serif;
+  font-size: 0.95rem;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: border-color 120ms;
+}
+.pe-field input:focus,
+.pe-field textarea:focus,
+.pe-field select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+  border-color: var(--accent);
+}
+.pe-field textarea {
+  font-family: var(--font-mono, monospace);
+  resize: vertical;
+}
+.pe-field select {
+  /* Restore the dropdown arrow we removed with appearance:none */
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  padding-right: 2rem;
+}
+
+.pe-row {
+  display: grid;
+  gap: 0.75rem;
+}
+.pe-row-2 { grid-template-columns: 1fr 1fr; }
+@media (max-width: 600px) {
+  .pe-row-2 { grid-template-columns: 1fr; }
+}
+
+/* ─── Cover field ───────────────────────────────────────────────── */
+.pe-cover-row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+.pe-cover-thumb {
+  width: 120px; height: 120px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+}
+.pe-cover-thumb[data-empty] {
+  border-style: dashed;
+}
+.pe-cover-thumb img {
+  width: 100%; height: 100%;
+  object-fit: cover; display: block;
+}
+/* Honor HTML hidden — our display:block above otherwise renders an empty
+   broken-image icon when no cover is set. */
+.pe-cover-thumb img[hidden] { display: none; }
+.pe-cover-empty {
+  font-size: 2rem;
+  color: var(--ink-muted, var(--ink-soft));
+  opacity: 0.5;
+}
+.pe-cover-actions {
+  display: flex; flex-direction: column;
+  gap: 0.6rem;
+  min-width: 0;
+}
+.pe-cover-upload {
+  display: flex; align-items: center; gap: 0.6rem;
+  flex-wrap: wrap;
+}
+@media (max-width: 600px) {
+  .pe-cover-row { grid-template-columns: 88px 1fr; }
+  .pe-cover-thumb { width: 88px; height: 88px; }
+}
+
+/* ─── Editor frame (WYSIWYG: top toolbar, contenteditable body, status bar) ─── */
+.pe-editor-frame {
+  margin: 0 -1.25rem -1.25rem;   /* break out of card padding for flush edges */
+  border-top: 1px solid var(--rule);
+  background: var(--paper);
+  display: flex; flex-direction: column;
+}
+
+/* Top toolbar — sticks to the top of the viewport while editing */
+.pe-toolbar {
+  display: flex; align-items: center; gap: .15rem;
+  flex-wrap: wrap;
+  padding: .4rem .75rem;
+  background: color-mix(in srgb, var(--paper) 92%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--rule);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.pe-toolbar button {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--ink);
+  cursor: pointer;
+  font-family: var(--font-ui, system-ui), sans-serif;
+  font-weight: 600; font-size: .85rem;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+  -webkit-tap-highlight-color: transparent;
+}
+.pe-toolbar button:hover {
+  background: var(--paper-2);
+  color: var(--accent);
+}
+.pe-toolbar button:active { transform: scale(.94); }
+.pe-toolbar button.is-active {
+  background: color-mix(in srgb, var(--accent) 14%, var(--paper-2));
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.pe-toolbar button svg { width: 16px; height: 16px; }
+.pe-toolbar button.pe-tb-text { font-family: var(--font-display, serif); font-weight: 700; }
+.pe-toolbar-sep {
+  width: 1px; height: 18px;
+  background: var(--rule);
+  margin: 0 .35rem;
+  flex-shrink: 0;
+}
+.pe-toolbar-spacer { flex: 1; }
+
+/* Editor body — looks like prose, behaves like a textarea */
+.pe-editor {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 420px;
+  padding: 1.25rem 1.5rem;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-body, system-ui), serif;
+  font-size: 1.0625rem;
+  line-height: 1.65;
+  outline: none;
+  overflow-y: auto;
+}
+.pe-editor:focus { outline: none; }
+.pe-editor.is-dragover {
+  outline: 2px dashed var(--accent);
+  outline-offset: -10px;
+}
+.pe-editor[data-placeholder]:empty::before,
+.pe-editor[data-placeholder]:has(br:only-child)::before {
+  content: attr(data-placeholder);
+  color: var(--ink-muted, #999);
+  pointer-events: none;
+  opacity: .55;
+}
+/* Inline prose styles inside the editor — match the public post styling so
+   what you see is roughly what you'll get. Margins are tighter than on the
+   live site since this is a confined writing space. */
+.pe-editor h1, .pe-editor h2, .pe-editor h3, .pe-editor h4 {
+  font-family: var(--font-display, serif);
+  line-height: 1.2;
+  margin: 1.1rem 0 .35rem;
+}
+.pe-editor h1 { font-size: 1.85rem; }
+.pe-editor h2 { font-size: 1.45rem; }
+.pe-editor h3 { font-size: 1.2rem; }
+.pe-editor p { margin: 0 0 .85em; }
+.pe-editor ul, .pe-editor ol { margin: 0 0 .85em 1.4em; padding: 0; }
+.pe-editor li { margin: .15em 0; }
+.pe-editor blockquote {
+  margin: 1em 0;
+  padding: .15em 0 .15em 1em;
+  border-left: 3px solid var(--accent);
+  color: var(--ink-soft, var(--ink));
+  font-style: italic;
+}
+.pe-editor code {
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: .1em .35em;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: .92em;
+}
+.pe-editor a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.pe-editor img {
+  max-width: 100%; height: auto;
+  border-radius: 6px;
+  display: block;
+  margin: 1em auto;
+}
+
+/* Shortcode chips — visible inline placeholder in the editor for
+   [[track:UUID]] / [[album:Name]] / [[playlist:slug]]. They serialize back
+   to plain shortcode text on submit. */
+.sc-chip {
+  display: inline-flex; align-items: center; gap: .3rem;
+  padding: .15em .5em;
+  margin: 0 .15em;
+  background: color-mix(in srgb, var(--accent) 10%, var(--paper-2));
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--rule));
+  border-radius: 999px;
+  color: var(--accent);
+  font-family: var(--font-ui, system-ui), sans-serif;
+  font-size: .85em;
+  font-weight: 600;
+  font-style: normal;
+  white-space: nowrap;
+  user-select: none;
+  cursor: default;
+  vertical-align: baseline;
+}
+.sc-chip-icon { display: inline-flex; opacity: .8; }
+.sc-chip-icon svg { width: 12px; height: 12px; }
+
+/* Status bar below the editor */
+.pe-editor-status {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: .75rem;
+  padding: .45rem 1rem;
+  border-top: 1px solid var(--rule);
+  background: var(--paper-2);
+  color: var(--ink-muted, var(--ink-soft));
+  font-size: .78rem;
+}
+.pe-char-count { font-variant-numeric: tabular-nums; }
+
+/* ─── Track picker modal (P59) ─────────────────────────────────
+   Mobile-first: full-screen bottom-sheet on phones, centered card
+   on desktop. Lock body scroll while open via .tp-locked on body. */
+.tp-modal {
+  position: fixed; inset: 0;
+  z-index: 1000;
+  display: flex; align-items: stretch; justify-content: center;
+  /* Avoid the iOS home-indicator + the keyboard when search is focused */
+  padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+}
+.tp-modal[hidden] { display: none; }
+.tp-backdrop {
+  position: absolute; inset: 0;
+  background: color-mix(in srgb, var(--ink) 55%, transparent);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: tp-bd-in .18s ease-out;
+}
+@keyframes tp-bd-in { from { opacity: 0 } to { opacity: 1 } }
+
+/* Mobile: sheet docks to the bottom and fills viewport almost completely */
+.tp-sheet {
+  position: relative;
+  margin-top: auto;
+  width: 100%;
+  max-height: calc(100dvh - env(safe-area-inset-top) - 1rem);
+  background: var(--paper);
+  border-top: 1px solid var(--rule);
+  border-radius: 16px 16px 0 0;
+  box-shadow:
+    0 -2px 8px color-mix(in srgb, var(--ink) 8%, transparent),
+    0 -16px 48px color-mix(in srgb, var(--ink) 18%, transparent);
+  display: flex; flex-direction: column;
+  animation: tp-sheet-up .22s cubic-bezier(.2, .8, .25, 1);
+  overflow: hidden;
+}
+@keyframes tp-sheet-up {
+  from { transform: translateY(100%); opacity: .8; }
+  to   { transform: translateY(0);    opacity: 1;  }
+}
+
+/* Header — title + close, with a small grab-handle bar on mobile */
+.tp-header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: .75rem;
+  padding: .85rem 1rem .65rem;
+  border-bottom: 1px solid var(--rule);
+  position: relative;
+}
+.tp-header::before {
+  /* Grab-handle: visible on mobile only */
+  content: '';
+  position: absolute;
+  top: .35rem; left: 50%;
+  transform: translateX(-50%);
+  width: 38px; height: 4px;
+  background: var(--rule-2, var(--rule));
+  border-radius: 2px;
+}
+.tp-h2 {
+  margin: .35rem 0 0;
+  font-family: var(--font-display, serif);
+  font-size: 1.15rem; font-weight: 600;
+  color: var(--ink);
+  line-height: 1.1;
+}
+.tp-close {
+  width: 32px; height: 32px; border-radius: 8px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: 1px solid transparent;
+  color: var(--ink-muted, var(--ink-soft));
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+  -webkit-tap-highlight-color: transparent;
+  margin-top: .35rem;
+}
+.tp-close:hover, .tp-close:focus-visible {
+  background: var(--paper-2);
+  color: var(--ink);
+  outline: none;
+}
+.tp-close svg { width: 18px; height: 18px; }
+
+/* Search row — sticky just below header so list scrolls underneath */
+.tp-search-row {
+  position: relative;
+  padding: .65rem 1rem;
+  border-bottom: 1px solid var(--rule);
+  background: var(--paper);
+}
+.tp-search-icon {
+  position: absolute;
+  top: 50%; left: 1.65rem;
+  transform: translateY(-50%);
+  color: var(--ink-muted, var(--ink-soft));
+  pointer-events: none;
+  display: inline-flex;
+}
+.tp-search-icon svg { width: 16px; height: 16px; }
+.tp-search {
+  width: 100%; box-sizing: border-box;
+  padding: .65rem .85rem .65rem 2.4rem;
+  font-family: var(--font-ui, system-ui), sans-serif;
+  font-size: 1rem;
+  background: var(--paper-2);
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  border-radius: 9px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.tp-search:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+/* List — vertically scrollable, takes remaining sheet height */
+.tp-list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: .35rem .35rem 1rem;
+}
+.tp-empty {
+  padding: 1.5rem 1rem;
+  text-align: center;
+  color: var(--ink-muted, var(--ink-soft));
+  font-size: .9rem;
+}
+
+/* Track row — tap target ≥ 56px for mobile */
+.tp-row {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  align-items: center;
+  gap: .75rem;
+  width: 100%;
+  padding: .55rem .65rem;
+  border: 0; background: transparent;
+  border-radius: 10px;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  transition: background var(--transition);
+  -webkit-tap-highlight-color: transparent;
+}
+.tp-row:hover, .tp-row:focus-visible {
+  background: color-mix(in srgb, var(--accent) 8%, var(--paper-2));
+  outline: none;
+}
+.tp-row:active { transform: scale(.98); }
+.tp-row[aria-disabled="true"] { opacity: .55; cursor: not-allowed; }
+
+.tp-cover {
+  width: 44px; height: 44px;
+  border-radius: 6px;
+  background-size: cover; background-position: center;
+  background-color: var(--rule);
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.tp-cover-empty {
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--accent) 30%, var(--paper-2)),
+    color-mix(in srgb, var(--accent) 8%, var(--paper-2)));
+  color: var(--accent);
+}
+.tp-cover-empty svg { width: 18px; height: 18px; opacity: .8; }
+
+.tp-meta {
+  display: flex; flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+.tp-row-title {
+  font-weight: 600; font-size: .94rem;
+  color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tp-row-artist {
+  font-size: .8rem;
+  color: var(--ink-muted, var(--ink-soft));
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-top: .1rem;
+}
+.tp-duration {
+  font-variant-numeric: tabular-nums;
+  font-size: .8rem;
+  color: var(--ink-muted, var(--ink-soft));
+  flex-shrink: 0;
+}
+
+/* Body lock when modal open */
+body.tp-locked { overflow: hidden; touch-action: none; }
+
+/* Desktop: centered card, max-width ~520px */
+@media (min-width: 640px) {
+  .tp-modal {
+    align-items: center;
+    padding: 1.5rem;
+  }
+  .tp-sheet {
+    margin-top: 0;
+    width: 100%;
+    max-width: 520px;
+    max-height: 80dvh;
+    border-radius: 14px;
+    border: 1px solid var(--rule);
+    animation: tp-sheet-pop .2s cubic-bezier(.2, .8, .25, 1);
+  }
+  .tp-header::before { display: none; }   /* hide grab-handle on desktop */
+  .tp-header { padding: 1rem 1.25rem .75rem; }
+  .tp-h2 { margin-top: 0; font-size: 1.25rem; }
+  .tp-close { margin-top: 0; }
+  @keyframes tp-sheet-pop {
+    from { transform: translateY(-8px) scale(.97); opacity: 0; }
+    to   { transform: translateY(0)     scale(1);   opacity: 1; }
+  }
+}
+
+/* ─── Buttons ───────────────────────────────────────────────────── */
+.pe-btn {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.55rem 1rem;
+  border: 1px solid var(--rule);
+  background: var(--paper-2);
+  color: var(--ink);
+  font-family: var(--font-ui, system-ui), sans-serif;
+  font-size: 0.9rem; font-weight: 500;
+  text-decoration: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms;
+  min-height: 40px;
+  -webkit-tap-highlight-color: transparent;
+}
+.pe-btn:hover { border-color: var(--accent); }
+.pe-btn:active { transform: scale(0.97); }
+.pe-btn-tiny {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.85rem;
+  min-height: 32px;
+}
+.pe-btn-secondary { background: var(--paper-2); }
+.pe-btn-primary {
+  background: var(--accent); color: white;
+  border-color: var(--accent);
+}
+.pe-btn-primary:hover { opacity: 0.92; border-color: var(--accent); }
+.pe-btn-success {
+  background: #16a34a; color: white;
+  border-color: #16a34a;
+}
+.pe-btn-success:hover { opacity: 0.92; border-color: #16a34a; }
+
+.pe-status {
+  color: var(--ink-muted, var(--ink-soft));
+  font-size: 0.8rem;
+}
+.pe-status.is-error { color: #dc2626; }
+
+/* ─── Checkboxes (clean inline row) ─────────────────────────────── */
+.pe-checkboxes {
+  display: flex; flex-direction: column;
+  gap: 0.5rem;
+  padding-top: 0.25rem;
+}
+.pe-checkbox {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  cursor: pointer;
+  font-size: 0.95rem;
+  color: var(--ink);
+  user-select: none;
+}
+.pe-checkbox input[type="checkbox"] {
+  width: 18px; height: 18px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+
+/* Pinned rank: replaces the old boolean checkbox with a number input.
+   Stack the label / input / hint vertically — small footprint. */
+.pe-pinned-rank {
+  display: flex; flex-direction: column; gap: 0.25rem;
+  font-size: 0.95rem;
+  color: var(--ink);
+}
+.pe-pinned-rank input[type="number"] {
+  width: 80px;
+  padding: 0.4rem 0.6rem; min-height: 36px;
+  border: 1px solid var(--rule); border-radius: 6px;
+  background: var(--paper-2); color: var(--ink);
+  font-family: var(--font-ui, system-ui), sans-serif;
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+  -webkit-appearance: none; appearance: textfield;
+}
+.pe-pinned-rank input[type="number"]:focus {
+  outline: 2px solid var(--accent); outline-offset: -1px;
+  border-color: var(--accent);
+}
+.pe-pinned-rank small {
+  font-size: 0.78rem;
+  color: var(--ink-muted, var(--ink-soft));
+}
+
+/* ─── Sticky action footer ──────────────────────────────────────── */
+.pe-actions {
+  position: sticky;
+  bottom: 0;
+  display: flex; align-items: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1rem;
+  margin: 0.5rem -1rem 0;   /* extend to viewport edges on tight container */
+  background: color-mix(in srgb, var(--paper) 94%, transparent);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid var(--rule);
+  z-index: 10;
+}
+.pe-actions-spacer { flex: 1; }
+
+/* On a body that already has a fixed bottom-tab nav (mobile), nudge the
+   sticky footer up so it doesn't sit under it. The bottom-tab is ~64px tall. */
+body.has-bottom-tab .pe-actions {
+  bottom: 64px;
+}
+</style>
+
+<script>
+(function() {
+
+  // ── Cover upload ────────────────────────────────────────────────
+  const coverField   = document.getElementById('cover-upload-field');
+  const coverTrigger = document.getElementById('cover-upload-trigger');
+  const coverUrl     = document.getElementById('cover-url-field');
+  const coverStatus  = document.getElementById('cover-upload-status');
+  const coverWrap    = document.getElementById('cover-preview-wrap');
+  const coverImg     = document.getElementById('cover-preview-img');
+
+  async function uploadImage(file) {
+    const fd = new FormData();
+    fd.append('image', file);
+    const res = await fetch('/posts/upload-image', { method: 'POST', body: fd });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      throw new Error(j.error || ('Upload failed (' + res.status + ')'));
+    }
+    return await res.json();   // {url, size, mime}
+  }
+
+  function showCoverPreview(url) {
+    if (!coverWrap || !coverImg) return;
+    if (url) {
+      coverImg.src = url;
+      coverImg.hidden = false;
+      coverWrap.removeAttribute('data-empty');
+      const emptyIcon = coverWrap.querySelector('.pe-cover-empty');
+      if (emptyIcon) emptyIcon.remove();
+    } else {
+      coverImg.hidden = true;
+      coverImg.src = '';
+      coverWrap.setAttribute('data-empty', '');
+      if (!coverWrap.querySelector('.pe-cover-empty')) {
+        const span = document.createElement('span');
+        span.className = 'pe-cover-empty';
+        span.textContent = '🖼';
+        coverWrap.appendChild(span);
+      }
+    }
+  }
+
+  if (coverTrigger && coverField) {
+    coverTrigger.addEventListener('click', () => coverField.click());
+  }
+  if (coverField) {
+    coverField.addEventListener('change', async () => {
+      if (!coverField.files[0]) return;
+      coverStatus.classList.remove('is-error');
+      coverStatus.textContent = 'Uploaden…';
+      try {
+        const j = await uploadImage(coverField.files[0]);
+        coverUrl.value = j.url;
+        showCoverPreview(j.url);
+        coverStatus.textContent = 'Geüpload ✓';
+        setTimeout(() => { coverStatus.textContent = ''; }, 2000);
+      } catch (e) {
+        coverStatus.classList.add('is-error');
+        coverStatus.textContent = 'Mislukt: ' + e.message;
+      }
+    });
+  }
+  // Live-update preview when user pastes a URL manually
+  if (coverUrl) {
+    coverUrl.addEventListener('input', () => {
+      const v = coverUrl.value.trim();
+      if (v) showCoverPreview(v); else showCoverPreview('');
+    });
+  }
+
+  // ── WYSIWYG editor (P58) ────────────────────────────────────────
+  // Architecture:
+  //   - Visible <div contenteditable> (`#content-editor`) is what the user
+  //     types in; it shows real HTML (formatted, not raw markup).
+  //   - Hidden <input name="content"> (`#content-hidden`) is what submits.
+  //     On submit we serialize the editor's HTML into it, with shortcode
+  //     chips reduced back to their [[track:UUID]]/[[album:Name]]/[[playlist:slug]] text.
+  //   - Initial content comes from a <script type="application/json"> tag
+  //     to avoid HTML-escape-into-DOM issues; we set innerHTML once on load
+  //     and walk text nodes to render shortcode tokens as chips.
+  const contentField  = document.getElementById('content-upload-field');
+  const contentBtn    = document.getElementById('insert-image-btn');
+  const contentStatus = document.getElementById('content-upload-status');
+  const editor        = document.getElementById('content-editor');
+  const hiddenField   = document.getElementById('content-hidden');
+  const charCountEl   = document.getElementById('char-count');
+  const initialEl     = document.getElementById('initial-content');
+  const toolbar       = document.getElementById('pe-toolbar');
+  const form          = editor && editor.closest('form');
+
+  if (!editor) return;
+
+  // ── Shortcode chip rendering / serialization ────────────────────
+  // Pattern matches [[track:UUID]] / [[album:any text]] / [[playlist:slug]]
+  // — but we DON'T want to chipify text the user is mid-typing inside an
+  // HTML attribute; since chipify only walks text nodes (never attribute
+  // values) that's already safe.
+  const SC_RE = /\[\[(track|album|playlist):([^\]]+)\]\]/g;
+
+  const SC_ICONS = {
+    track:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>',
+    album:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>',
+    playlist: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="15" y2="18"/><polygon points="3 5 3 13 9 9"/></svg>',
+  };
+
+  function chipLabel(kind, value) {
+    if (kind === 'track') {
+      // UUIDs are noisy — show a 6-char prefix for visual hint
+      const v = String(value || '');
+      return 'Track ' + (v.length > 8 ? v.slice(0, 6) + '…' : v);
+    }
+    if (kind === 'album')    return 'Album: ' + value;
+    if (kind === 'playlist') return 'Playlist: ' + value;
+    return value;
+  }
+
+  function makeChip(kind, value) {
+    const span = document.createElement('span');
+    span.className = 'sc-chip';
+    span.contentEditable = 'false';
+    span.setAttribute('data-sc', kind + ':' + value);
+    span.innerHTML =
+      '<span class="sc-chip-icon" aria-hidden="true">' + (SC_ICONS[kind] || '') + '</span>' +
+      '<span class="sc-chip-label"></span>';
+    span.querySelector('.sc-chip-label').textContent = chipLabel(kind, value);
+    return span;
+  }
+
+  // Walk text nodes inside `root` and replace [[type:value]] tokens with chips.
+  function chipifyShortcodes(root) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+    const targets = [];
+    while (walker.nextNode()) {
+      const n = walker.currentNode;
+      // Skip text inside existing chips (their .sc-chip-label is set via .textContent so the [[...]] text never appears)
+      if (n.parentElement && n.parentElement.closest('.sc-chip')) continue;
+      if (SC_RE.test(n.nodeValue)) targets.push(n);
+      SC_RE.lastIndex = 0;
+    }
+    for (const node of targets) {
+      const txt = node.nodeValue;
+      const frag = document.createDocumentFragment();
+      let last = 0;
+      let m;
+      SC_RE.lastIndex = 0;
+      while ((m = SC_RE.exec(txt)) !== null) {
+        if (m.index > last) frag.appendChild(document.createTextNode(txt.slice(last, m.index)));
+        frag.appendChild(makeChip(m[1], m[2].trim()));
+        last = m.index + m[0].length;
+      }
+      if (last < txt.length) frag.appendChild(document.createTextNode(txt.slice(last)));
+      node.parentNode.replaceChild(frag, node);
+    }
+  }
+
+  // Inverse of chipify: clone the editor, replace every chip with its text.
+  function serializeChips(rootClone) {
+    const chips = rootClone.querySelectorAll('.sc-chip[data-sc]');
+    for (const c of chips) {
+      const txt = '[[' + c.getAttribute('data-sc') + ']]';
+      c.replaceWith(document.createTextNode(txt));
+    }
+  }
+
+  // ── Boot: load initial content as HTML, then render shortcodes as chips
+  try {
+    const initial = JSON.parse(initialEl.textContent || '""');
+    editor.innerHTML = initial || '';
+    chipifyShortcodes(editor);
+  } catch (e) {
+    console.error('[editor] could not parse initial content', e);
+    editor.innerHTML = '';
+  }
+
+  // ── Char counter
+  function updateCharCount() {
+    const text = (editor.innerText || '').replace(/\s+/g, ' ').trim();
+    if (charCountEl) charCountEl.textContent = String(text.length);
+  }
+  updateCharCount();
+  editor.addEventListener('input', updateCharCount);
+
+  // ── Toolbar wiring
+  function execCmd(cmd, arg) {
+    editor.focus();
+    document.execCommand(cmd, false, arg);
+    updateToolbarState();
+    updateCharCount();
+  }
+  function wrapCode() {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+    const range = sel.getRangeAt(0);
+    const code = document.createElement('code');
+    code.textContent = sel.toString();
+    range.deleteContents();
+    range.insertNode(code);
+    // Move caret after the new node
+    range.setStartAfter(code);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+    editor.focus();
+  }
+  function linkPrompt() {
+    const url = window.prompt('Link URL (https://… of /pad)');
+    if (!url) return;
+    execCmd('createLink', url);
+  }
+
+  if (toolbar) {
+    toolbar.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-cmd]');
+      if (!btn) return;
+      e.preventDefault();
+      const cmd = btn.dataset.cmd;
+      const arg = btn.dataset.arg || null;
+      if (cmd === 'link-prompt') linkPrompt();
+      else if (cmd === 'code-wrap') wrapCode();
+      else execCmd(cmd, arg);
+    });
+  }
+
+  // Reflect bold/italic/list state on the toolbar buttons
+  function updateToolbarState() {
+    if (!toolbar) return;
+    const cmds = ['bold', 'italic', 'underline', 'insertUnorderedList', 'insertOrderedList'];
+    for (const cmd of cmds) {
+      const btn = toolbar.querySelector('button[data-cmd="' + cmd + '"]');
+      if (!btn) continue;
+      try { btn.classList.toggle('is-active', document.queryCommandState(cmd)); } catch(_) {}
+    }
+  }
+  document.addEventListener('selectionchange', () => {
+    if (document.activeElement === editor) updateToolbarState();
+  });
+
+  // Keyboard shortcuts: Ctrl/Cmd + B/I/U/K
+  editor.addEventListener('keydown', (e) => {
+    const mod = e.ctrlKey || e.metaKey;
+    if (!mod) return;
+    const k = e.key.toLowerCase();
+    if (k === 'b') { e.preventDefault(); execCmd('bold'); }
+    else if (k === 'i') { e.preventDefault(); execCmd('italic'); }
+    else if (k === 'u') { e.preventDefault(); execCmd('underline'); }
+    else if (k === 'k') { e.preventDefault(); linkPrompt(); }
+  });
+
+  // Paste: keep it simple — strip formatting unless user wants it. Default
+  // execCommand 'paste' includes Word/Google-Docs garbage. We accept inline
+  // styles from clipboard only when shift is held — otherwise plain text.
+  editor.addEventListener('paste', (e) => {
+    if (e.shiftKey) return; // user wants formatted paste
+    const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+    if (text == null) return;
+    e.preventDefault();
+    document.execCommand('insertText', false, text);
+  });
+
+  // ── Image upload (button + drag-drop into the editor)
+  async function uploadAndInsertImage(file) {
+    contentStatus.classList.remove('is-error');
+    contentStatus.textContent = 'Uploaden…';
+    try {
+      const j = await uploadImage(file);
+      const img = '<img src="' + j.url + '" alt="">';
+      editor.focus();
+      document.execCommand('insertHTML', false, img);
+      contentStatus.textContent = 'Ingevoegd ✓';
+      setTimeout(() => { contentStatus.textContent = ''; }, 2000);
+      updateCharCount();
+    } catch (e) {
+      contentStatus.classList.add('is-error');
+      contentStatus.textContent = 'Mislukt: ' + e.message;
+    }
+  }
+
+  if (contentBtn && contentField) {
+    contentBtn.addEventListener('click', () => contentField.click());
+    contentField.addEventListener('change', () => {
+      if (contentField.files[0]) uploadAndInsertImage(contentField.files[0]);
+      contentField.value = '';
+    });
+
+    editor.addEventListener('dragover', (e) => {
+      if (e.dataTransfer && e.dataTransfer.types.includes('Files')) {
+        e.preventDefault();
+        editor.classList.add('is-dragover');
+      }
+    });
+    editor.addEventListener('dragleave', () => editor.classList.remove('is-dragover'));
+    editor.addEventListener('drop', async (e) => {
+      editor.classList.remove('is-dragover');
+      const files = e.dataTransfer && e.dataTransfer.files;
+      if (!files || !files.length) return;
+      e.preventDefault();
+      for (const f of files) {
+        if (f.type.startsWith('image/')) await uploadAndInsertImage(f);
+      }
+    });
+  }
+
+  // ── Insert chip helpers (track / playlist)
+  function insertChip(kind, value) {
+    editor.focus();
+    const chip = makeChip(kind, value);
+    // Insert at caret using the Selection API (execCommand insertNode)
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      range.deleteContents();
+      range.insertNode(chip);
+      // Insert a trailing space so the user can keep typing after the chip
+      const space = document.createTextNode('\u00A0');
+      chip.after(space);
+      range.setStartAfter(space);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    } else {
+      editor.appendChild(chip);
+      editor.appendChild(document.createTextNode('\u00A0'));
+    }
+    updateCharCount();
+  }
+
+  // ── Track insert: opens the track-picker modal (P59)
+  const trackBtn = document.getElementById('insert-track-btn');
+  const trackPicker = document.getElementById('track-picker');
+  if (trackBtn && trackPicker) {
+    const tpList   = document.getElementById('tp-list');
+    const tpEmpty  = document.getElementById('tp-empty');
+    const tpSearch = document.getElementById('tp-search');
+    let tpCache = null;       // cached tracks list (fetched once per page load)
+    let tpLastFocus = null;   // element to restore focus to on close
+
+    const SVG_NOTE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 17V5l12-2v12"/><circle cx="6" cy="17" r="3"/><circle cx="18" cy="15" r="3"/></svg>';
+
+    function fmtDur(sec) {
+      sec = Math.max(0, Math.floor(sec || 0));
+      const m = Math.floor(sec / 60), s = sec % 60;
+      return m + ':' + String(s).padStart(2, '0');
+    }
+    function escAttr(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      }[c]));
+    }
+
+    function renderList(filter) {
+      if (!Array.isArray(tpCache)) return;
+      const q = (filter || '').trim().toLowerCase();
+      const filtered = q
+        ? tpCache.filter(t =>
+            (t.title  || '').toLowerCase().includes(q) ||
+            (t.artist || '').toLowerCase().includes(q))
+        : tpCache;
+
+      if (!filtered.length) {
+        tpList.innerHTML = '';
+        tpEmpty.textContent = q ? 'Geen tracks gevonden voor "' + q + '"' : 'Nog geen tracks. Upload via Beheer → Audio.';
+        tpList.appendChild(tpEmpty);
+        return;
+      }
+
+      tpList.innerHTML = filtered.map(t => {
+        const cov = t.cover
+          ? '<span class="tp-cover" style="background-image:url(\'' + escAttr(t.cover) + '\')"></span>'
+          : '<span class="tp-cover tp-cover-empty">' + SVG_NOTE + '</span>';
+        const dis = t.playable ? '' : ' aria-disabled="true"';
+        const sub = t.artist ? '<span class="tp-row-artist">' + escAttr(t.artist) + '</span>' : '';
+        return (
+          '<button type="button" class="tp-row" role="option" data-track-id="' + escAttr(t.id) + '"' + dis + '>' +
+            cov +
+            '<span class="tp-meta">' +
+              '<span class="tp-row-title">' + escAttr(t.title) + '</span>' +
+              sub +
+            '</span>' +
+            '<span class="tp-duration">' + fmtDur(t.duration) + '</span>' +
+          '</button>'
+        );
+      }).join('');
+    }
+
+    async function loadTracks() {
+      if (Array.isArray(tpCache)) return tpCache;
+      tpEmpty.textContent = 'Tracks laden…';
+      try {
+        const r = await fetch('/admin/playlists/api/tracks', { credentials: 'same-origin' });
+        const j = await r.json();
+        tpCache = (j && j.ok && Array.isArray(j.tracks)) ? j.tracks : [];
+      } catch (e) {
+        tpCache = [];
+        tpEmpty.textContent = 'Kon tracks niet laden: ' + e.message;
+      }
+      return tpCache;
+    }
+
+    function openPicker() {
+      tpLastFocus = document.activeElement;
+      trackPicker.hidden = false;
+      trackPicker.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('tp-locked');
+      tpSearch.value = '';
+      renderList('');
+      // Defer focus so the open animation doesn't get jumped
+      setTimeout(() => tpSearch.focus(), 30);
+    }
+    function closePicker() {
+      trackPicker.hidden = true;
+      trackPicker.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('tp-locked');
+      if (tpLastFocus && typeof tpLastFocus.focus === 'function') {
+        try { tpLastFocus.focus(); } catch(_) {}
+      }
+    }
+
+    trackBtn.addEventListener('click', async () => {
+      openPicker();
+      await loadTracks();
+      renderList(tpSearch.value);
+    });
+
+    // Close: backdrop click, [data-tp-close], or Escape
+    trackPicker.addEventListener('click', (e) => {
+      if (e.target.closest('[data-tp-close]')) {
+        closePicker();
+        return;
+      }
+      const row = e.target.closest('.tp-row[data-track-id]');
+      if (row) {
+        if (row.getAttribute('aria-disabled') === 'true') return;
+        const id = row.dataset.trackId;
+        if (id) {
+          insertChip('track', id);
+          closePicker();
+        }
+      }
+    });
+    document.addEventListener('keydown', (e) => {
+      if (!trackPicker.hidden && e.key === 'Escape') {
+        e.preventDefault();
+        closePicker();
+      }
+    });
+
+    // Live filter
+    tpSearch.addEventListener('input', () => renderList(tpSearch.value));
+  }
+
+  // ── Playlist insert (open existing or create new via modal)
+  const playlistBtn = document.getElementById('insert-playlist-btn');
+  if (playlistBtn) {
+    playlistBtn.addEventListener('click', async () => {
+      if (typeof window.openPlaylistEditor !== 'function') {
+        alert('Playlist editor niet geladen');
+        return;
+      }
+      try {
+        const r = await fetch('/admin/playlists/api/list', { credentials: 'same-origin' });
+        const j = await r.json();
+        if (j.ok && Array.isArray(j.playlists) && j.playlists.length > 0) {
+          const choice = prompt(
+            'Bestaande playlists:\n\n' +
+            j.playlists.map((p, i) => `${i + 1}. ${p.title} (${p.track_count} tracks)`).join('\n') +
+            '\n\nKies een nummer om in te voegen, leeg = nieuwe maken:'
+          );
+          if (choice && /^\d+$/.test(choice.trim())) {
+            const idx = parseInt(choice.trim(), 10) - 1;
+            if (idx >= 0 && idx < j.playlists.length) {
+              insertChip('playlist', j.playlists[idx].id);
+              return;
+            }
+          }
+          if (choice === null) return;
+        }
+      } catch (_) { /* fall through to create */ }
+
+      window.openPlaylistEditor({
+        mode: 'create',
+        onSaved: ({ id }) => insertChip('playlist', id),
+      });
+    });
+  }
+
+  // ── Submit: serialize editor contents into the hidden field
+  if (form && hiddenField) {
+    form.addEventListener('submit', () => {
+      const clone = editor.cloneNode(true);
+      serializeChips(clone);
+      hiddenField.value = clone.innerHTML;
+    });
+  }
+})();
+</script>
+
+<%# ── Track picker modal (P59). Mobile-first: full-screen sheet on small
+    viewports, centered modal on ≥640px. Populated lazily on first open. %>
+<% if (typeof user !== 'undefined' && user) { %>
+<div id="track-picker" class="tp-modal" hidden aria-hidden="true">
+  <div class="tp-backdrop" data-tp-close></div>
+  <div class="tp-sheet" role="dialog" aria-modal="true" aria-labelledby="tp-title">
+    <header class="tp-header">
+      <h2 id="tp-title" class="tp-h2">Track invoegen</h2>
+      <button type="button" class="tp-close" data-tp-close aria-label="Sluiten">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </header>
+    <div class="tp-search-row">
+      <span class="tp-search-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </span>
+      <input type="search" class="tp-search" id="tp-search" placeholder="Zoek op titel of artiest…" autocomplete="off" inputmode="search">
+    </div>
+    <div class="tp-list" id="tp-list" role="listbox" aria-label="Tracks">
+      <div class="tp-empty" id="tp-empty">Tracks laden…</div>
+    </div>
+  </div>
+</div>
+<% } %>
+
+<%# Playlist editor modal — included so its global window.openPlaylistEditor
+    is available when the toolbar button fires. Only renders if user can post. %>
+<% if (typeof user !== 'undefined' && user) { %>
+  <%- include('../partials/playlist-editor', { csrfToken: (typeof csrfToken !== 'undefined' ? csrfToken : '') }) %>
+<% } %>

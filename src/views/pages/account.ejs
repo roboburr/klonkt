@@ -1,0 +1,234 @@
+<div class="container ax-page">
+
+  <header class="ax-header">
+    <a href="/" class="ax-back" aria-label="Terug naar home">←</a>
+    <div>
+      <h1>Account</h1>
+      <p class="ax-tagline">Profiel en wachtwoord.</p>
+    </div>
+  </header>
+
+  <% if (success) { %><div class="ax-flash ax-flash-ok"><%= success %></div><% } %>
+  <% if (error)   { %><div class="ax-flash ax-flash-err"><%= error %></div><% } %>
+
+  <%# ── PROFILE ────────────────────────────────────────────── %>
+  <section class="ax-card">
+    <div class="ax-card-title">Profiel</div>
+
+    <div class="ax-profile-id">
+      <div class="ax-profile-avatar">
+        <% if (account.avatar_url) { %>
+          <img src="<%= account.avatar_url %>" alt="">
+        <% } else { %>
+          <span><%= account.username.charAt(0).toUpperCase() %></span>
+        <% } %>
+      </div>
+      <div class="ax-profile-meta">
+        <div class="ax-profile-name"><%= account.username %></div>
+        <div class="ax-profile-role"><%= account.role %> · <%= account.email %></div>
+        <% if (account.created_at) { %>
+          <div class="ax-profile-joined">Lid sinds <%= formatDate(account.created_at) %></div>
+        <% } %>
+      </div>
+    </div>
+
+    <form action="/account/avatar" method="post" enctype="multipart/form-data" class="ax-form">
+      <label class="ax-field ax-file">
+        <span>Avatar uploaden <small>(jpg/png/webp/gif, max 5 MB)</small></span>
+        <span class="ax-file-control">
+          <span class="ax-btn ax-btn-secondary ax-file-btn">📷 Kies bestand</span>
+          <span class="ax-file-name" data-empty>Geen bestand gekozen</span>
+          <input type="file" name="avatar" accept="image/jpeg,image/png,image/webp,image/gif" required>
+        </span>
+      </label>
+      <div class="ax-form-actions">
+        <button type="submit" class="ax-btn ax-btn-primary">⬆ Uploaden</button>
+        <% if (account.avatar_url) { %>
+          <%# Separate <form> block kept inline since it submits to a different endpoint. %>
+          <button type="button" class="ax-btn" onclick="document.getElementById('avatar-remove-form').submit()">Avatar verwijderen</button>
+        <% } %>
+      </div>
+    </form>
+    <% if (account.avatar_url) { %>
+      <form action="/account/avatar/remove" method="post" id="avatar-remove-form" hidden></form>
+    <% } %>
+
+    <form action="/account/profile" method="post" class="ax-form ax-form-bio">
+      <label class="ax-field">
+        <span>Bio</span>
+        <textarea name="bio" rows="3" maxlength="500" placeholder="Een korte regel over jezelf"><%= account.bio || '' %></textarea>
+      </label>
+      <div class="ax-form-actions">
+        <button type="submit" class="ax-btn ax-btn-primary">💾 Bio opslaan</button>
+      </div>
+    </form>
+  </section>
+
+  <%# ── PASSWORD ──────────────────────────────────────────── %>
+  <section class="ax-card">
+    <div class="ax-card-title">Wachtwoord wijzigen</div>
+    <form action="/account/password" method="post" class="ax-form">
+      <label class="ax-field">
+        <span>Huidig wachtwoord</span>
+        <input type="password" name="current" required autocomplete="current-password">
+      </label>
+      <div class="ax-row ax-row-2">
+        <label class="ax-field">
+          <span>Nieuw wachtwoord <small>(min 8 tekens)</small></span>
+          <input type="password" name="new_password" required minlength="8" autocomplete="new-password">
+        </label>
+        <label class="ax-field">
+          <span>Bevestig nieuw wachtwoord</span>
+          <input type="password" name="confirm" required minlength="8" autocomplete="new-password">
+        </label>
+      </div>
+      <div class="ax-form-actions">
+        <button type="submit" class="ax-btn ax-btn-primary">🔒 Wachtwoord wijzigen</button>
+      </div>
+    </form>
+  </section>
+
+</div>
+
+<style>
+.ax-page { max-width: 720px; margin: 1.5rem auto 4rem; padding: 0 1rem; }
+.ax-header { display: flex; align-items: flex-start; gap: 0.75rem; margin-bottom: 1.5rem; }
+.ax-header h1 { font-family: var(--font-display, serif); font-size: 1.75rem; margin: 0 0 0.25rem; }
+.ax-tagline { color: var(--ink-muted, var(--ink-soft)); margin: 0; font-size: 0.9rem; }
+.ax-back {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px;
+  border: 1px solid var(--rule); border-radius: 8px;
+  background: var(--paper); color: var(--ink); text-decoration: none;
+  font-size: 1.1rem; flex-shrink: 0; transition: border-color 120ms;
+}
+.ax-back:hover { border-color: var(--accent); }
+
+.ax-flash { padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.9rem; }
+.ax-flash-ok  { background: rgba(40,160,90,.15); color: #2a9d5e; border: 1px solid rgba(40,160,90,.3); }
+.ax-flash-err { background: rgba(200,60,60,.15); color: #c33; border: 1px solid rgba(200,60,60,.3); }
+
+/* ─── Cards ────────────────────────────────────────────────────── */
+.ax-card {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+.ax-card-title {
+  font-family: var(--font-display, serif);
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+/* ─── Form fields ──────────────────────────────────────────────── */
+.ax-form { display: flex; flex-direction: column; gap: 0.85rem; }
+.ax-form-bio { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--rule); }
+.ax-row { display: grid; gap: 0.85rem; }
+.ax-row-2 { grid-template-columns: 1fr 1fr; }
+@media (max-width: 600px) { .ax-row-2 { grid-template-columns: 1fr; } }
+
+.ax-field { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+.ax-field > span {
+  font-size: 0.8rem; font-weight: 600;
+  color: var(--ink-soft);
+  display: flex; align-items: baseline; gap: 0.4rem; flex-wrap: wrap;
+}
+.ax-field > span small { font-weight: 400; color: var(--ink-muted); font-size: 0.95em; }
+.ax-field input[type="text"],
+.ax-field input[type="email"],
+.ax-field input[type="password"],
+.ax-field input[type="url"],
+.ax-field select,
+.ax-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--paper-2);
+  color: var(--ink);
+  font-family: var(--font-ui, system-ui), sans-serif;
+  font-size: 0.95rem;
+  -webkit-appearance: none; appearance: none;
+  transition: border-color 120ms;
+}
+.ax-field textarea { resize: vertical; min-height: 70px; font-family: inherit; }
+.ax-field input:focus, .ax-field select:focus, .ax-field textarea:focus {
+  outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent);
+}
+
+/* ─── File upload ─────────────────────────────────────────────── */
+.ax-file-control {
+  display: flex; align-items: center; gap: 0.5rem;
+  flex-wrap: wrap;
+  position: relative;
+  min-height: 40px;
+}
+.ax-file-control input[type="file"] {
+  position: absolute; inset: 0;
+  opacity: 0; cursor: pointer;
+  z-index: 2;
+}
+.ax-file-btn { pointer-events: none; }
+.ax-file-name {
+  font-size: 0.85rem;
+  color: var(--ink);
+  word-break: break-all;
+  flex: 1; min-width: 0;
+}
+.ax-file-name[data-empty] { color: var(--ink-muted, var(--ink-soft)); }
+
+.ax-form-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.25rem; }
+
+/* ─── Buttons ──────────────────────────────────────────────────── */
+.ax-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+  padding: 0.55rem 1rem;
+  border: 1px solid var(--rule); background: var(--paper-2);
+  color: var(--ink);
+  font-family: var(--font-ui, system-ui), sans-serif;
+  font-size: 0.9rem; font-weight: 500;
+  text-decoration: none; border-radius: 6px;
+  cursor: pointer; min-height: 40px;
+  transition: background 120ms, border-color 120ms;
+  -webkit-tap-highlight-color: transparent;
+}
+.ax-btn:hover { border-color: var(--accent); }
+.ax-btn-secondary { background: var(--paper-2); }
+.ax-btn-primary { background: var(--accent); color: white; border-color: var(--accent); }
+.ax-btn-primary:hover { opacity: 0.92; border-color: var(--accent); }
+
+/* ─── Profile ID row ──────────────────────────────────────────── */
+.ax-profile-id {
+  display: flex; align-items: center; gap: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 1rem;
+}
+.ax-profile-avatar {
+  width: 64px; height: 64px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--paper-2);   /* neutral so transparent avatars blend */
+  color: var(--accent);          /* accent only for the fallback initial */
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: var(--font-display, serif);
+  font-size: 1.6rem; font-weight: 600;
+  flex-shrink: 0;
+}
+.ax-profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.ax-profile-meta { min-width: 0; }
+.ax-profile-name { font-weight: 600; font-size: 1.1rem; }
+.ax-profile-role,
+.ax-profile-joined {
+  color: var(--ink-muted, var(--ink-soft));
+  font-size: 0.85rem;
+}
+
+@media (max-width: 480px) {
+  .ax-profile-id { flex-direction: column; align-items: flex-start; gap: 0.75rem; text-align: left; }
+}
+</style>

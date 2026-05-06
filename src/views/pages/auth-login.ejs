@@ -1,0 +1,23 @@
+<div class="container auth-page">
+  <h1>Login</h1>
+  <% if (typeof success !== 'undefined' && success) { %><div class="alert alert-success"><%= success %></div><% } %>
+  <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+  <form method="post" action="/auth/login" class="auth-form">
+    <% if (typeof next !== 'undefined' && next) { %>
+      <input type="hidden" name="next" value="<%= next %>">
+    <% } %>
+    <label>
+      <span>Username or email</span>
+      <input type="text" name="username" value="<%= username %>" required autofocus autocomplete="username">
+    </label>
+    <label>
+      <span>Password</span>
+      <input type="password" name="password" required autocomplete="current-password">
+    </label>
+    <button type="submit" class="btn btn-primary">Login</button>
+    <p class="auth-link">No account?
+      <a href="/auth/register<%= (typeof next !== 'undefined' && next) ? '?next=' + encodeURIComponent(next) : '' %>">Register</a>
+    </p>
+    <p class="auth-link auth-link-muted"><a href="/auth/reset-request">Forgot password?</a></p>
+  </form>
+</div>

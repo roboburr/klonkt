@@ -1,0 +1,81 @@
+<%
+// Archive — chronological feed of all posts.
+//
+// Renders both a timeline view (year/month grouped link list) AND a grid
+// view (flat tiles) — same toggle pattern as home.ejs. The view-switcher
+// at the top lets the user pick. Body class is `on-archive`; the inline
+// <style> below adds an `.on-archive` clause to the existing home-only
+// feed toggle in style.css (cleaner than editing the global CSS).
+//
+// Flatten posts for grid mode: skip the year/month grouping (it doesn't
+// translate well to a tile grid). Newest-first order is preserved by the
+// route's SQL ORDER BY.
+const _flatPosts = [];
+Object.keys(grouped).sort((a, b) => b - a).forEach(function(y) {
+  Object.keys(grouped[y]).forEach(function(m) {
+    grouped[y][m].forEach(function(p) { _flatPosts.push(p); });
+  });
+});
+%>
+
+<%# View switcher used to be rendered here; now lives in shell.ejs above
+    #pcms-main, visible on every non-admin page. %>
+
+<!-- ========== TIMELINE (year/month grouped) ========== -->
+<div class="container archive-page feed-timeline">
+  <h1>Archive</h1>
+  <p class="archive-meta"><%= totalPosts %> post<%= totalPosts !== 1 ? 's' : '' %></p>
+
+  <% if (totalPosts === 0) { %>
+    <p class="empty-state">No posts yet.</p>
+  <% } %>
+
+  <% Object.keys(grouped).sort((a,b) => b - a).forEach(year => { %>
+    <section class="archive-year">
+      <h2><%= year %></h2>
+      <% Object.keys(grouped[year]).forEach(month => { %>
+        <div class="archive-month">
+          <h3><%= month %></h3>
+          <ul>
+            <% grouped[year][month].forEach(post => { %>
+              <li>
+                <a href="/<%= post.slug %>"
+                   hx-get="/<%= post.slug %>?partial=1" hx-target="#pcms-main"
+                   hx-push-url="/<%= post.slug %>" hx-indicator="#pcms-loading">
+                  <%= post.title %>
+                </a>
+                <span class="archive-author">— <%= post.author_username %></span>
+              </li>
+            <% }); %>
+          </ul>
+        </div>
+      <% }); %>
+    </section>
+  <% }); %>
+</div>
+
+<!-- ========== GRID (only visible when body[data-feed-view="grid"]) ========== -->
+<% if (_flatPosts.length > 0) { %>
+<section class="feed-grid container" aria-label="Grid-weergave">
+  <div class="grid-tiles">
+    <% _flatPosts.forEach(function(post) { %>
+      <%- include('../partials/post-tile', { post: post }) %>
+    <% }); %>
+  </div>
+</section>
+<% } %>
+
+<style>
+.archive-page { max-width: 700px; margin: 2rem auto; padding: 0 1rem; }
+.archive-page h1 { font-family: var(--font-display, serif); margin: 0 0 0.25rem; }
+.archive-meta { color: var(--ink-muted); margin-bottom: 2rem; }
+.archive-year { margin-bottom: 2.5rem; }
+.archive-year h2 { font-family: var(--font-display, serif); font-size: 1.8rem; padding-bottom: 0.4rem; border-bottom: 2px solid var(--accent); margin: 0 0 1rem; }
+.archive-month { margin: 1.5rem 0 1.5rem 1rem; }
+.archive-month h3 { font-size: 1.05rem; color: var(--ink-muted); text-transform: capitalize; margin: 0 0 0.5rem; font-weight: 500; }
+.archive-page ul { list-style: none; padding: 0 0 0 1rem; margin: 0; }
+.archive-page li { padding: 0.4rem 0; }
+.archive-page a { color: var(--ink); text-decoration: none; font-weight: 500; }
+.archive-page a:hover { color: var(--accent); }
+.archive-author { color: var(--ink-muted); font-size: 0.85rem; margin-left: 0.5rem; }
+</style>

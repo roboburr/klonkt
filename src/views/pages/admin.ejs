@@ -1,0 +1,184 @@
+<div class="container admin-page">
+  <h1>Admin</h1>
+  <p class="admin-tagline">God-level overview. <em>(Stub — full dashboard later.)</em></p>
+
+  <nav class="admin-quick-links" aria-label="Beheer-snelkoppelingen">
+    <a href="/admin/sites" class="btn">🌐 Sites</a>
+    <a href="/admin/users" class="btn">👥 Users</a>
+    <a href="/admin/audio" class="btn">🎵 Audio tracks</a>
+    <a href="/admin/playlists" class="btn">📃 Playlists</a>
+    <a href="/admin/comments" class="btn">💬 Comments</a>
+  </nav>
+
+  <div class="admin-stats">
+    <div class="stat-card">
+      <div class="stat-num"><%= stats.users %></div>
+      <div class="stat-label">Users</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num"><%= stats.sites %></div>
+      <div class="stat-label">Sites</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num"><%= stats.posts %></div>
+      <div class="stat-label">Posts</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num"><%= stats.published %></div>
+      <div class="stat-label">Published</div>
+    </div>
+  </div>
+
+  <% if (sites && sites.length) { %>
+    <h2>Sites</h2>
+    <table class="admin-table">
+      <thead>
+        <tr><th>Slug</th><th>Title</th><th>Owner</th><th>Created</th></tr>
+      </thead>
+      <tbody>
+        <% sites.forEach(function(s) { %>
+          <tr>
+            <td><code><%= s.slug %></code></td>
+            <td><%= s.title %></td>
+            <td><%= s.owner_username || '—' %></td>
+            <td><%= formatDate(s.created_at) %></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  <% } %>
+
+  <% if (users && users.length) { %>
+    <h2>Users</h2>
+    <table class="admin-table">
+      <thead>
+        <tr><th>Username</th><th>Email</th><th>Role</th><th>Joined</th></tr>
+      </thead>
+      <tbody>
+        <% users.forEach(function(u) { %>
+          <tr>
+            <td><%= u.username %></td>
+            <td><%= u.email %></td>
+            <td><span class="role-pill role-<%= u.role %>"><%= u.role %></span></td>
+            <td><%= formatDate(u.created_at) %></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  <% } %>
+
+  <p class="admin-todo">
+    <strong>Coming later:</strong> create/delete sites, manage users, theme picker, audio toggles, Prutter settings.
+  </p>
+</div>
+
+<style>
+.admin-page { max-width: 1000px; margin: 3rem auto; padding: 0 1rem; }
+.admin-page h1 { font-family: var(--font-display, serif); font-size: 2rem; margin: 0 0 0.25rem; }
+.admin-page h2 { font-family: var(--font-display, serif); font-size: 1.4rem; margin: 2rem 0 0.75rem; }
+.admin-tagline { color: var(--ink-muted); margin: 0 0 2rem; }
+.admin-tagline em { font-style: normal; opacity: 0.7; }
+
+/* Quick-links grid — mobile-first.
+   auto-fit + minmax means: as many equal columns as fit, each at least 140px.
+   Mobile (~360-440px): 2 per row.
+   Tablet (~480-700px): 3 per row.
+   Desktop (≥ ~720px): all 5 in a single row. */
+.admin-quick-links {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.5rem;
+  margin: 0 0 1.5rem;
+  padding: 0;
+}
+.admin-quick-links .btn {
+  justify-content: center;
+  padding: 0.7rem 0.9rem;
+  font-weight: 600;
+  text-align: center;
+}
+.admin-quick-links .btn:hover {
+  background: color-mix(in srgb, var(--accent) 8%, var(--paper-2));
+  border-color: var(--accent);
+}
+
+.admin-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.stat-card {
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  text-align: center;
+}
+.stat-num {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1;
+  font-family: var(--font-display, serif);
+}
+.stat-label {
+  color: var(--ink-muted);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 0.25rem;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.admin-table th, .admin-table td {
+  padding: 0.6rem 0.9rem;
+  text-align: left;
+  border-bottom: 1px solid var(--rule);
+}
+.admin-table th {
+  background: var(--paper);
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-muted);
+}
+.admin-table tr:last-child td { border-bottom: 0; }
+.admin-table code { background: var(--paper); padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.85rem; }
+
+.role-pill {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--paper);
+  color: var(--ink-muted);
+}
+.role-pill.role-god { background: var(--accent); color: white; }
+.role-pill.role-admin { background: var(--paper); color: var(--accent); border: 1px solid var(--accent); }
+
+.admin-todo {
+  margin: 2rem 0 0;
+  padding: 0.75rem 1rem;
+  background: var(--paper-2);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  font-size: 0.9rem;
+  color: var(--ink-muted);
+}
+
+@media (max-width: 600px) {
+  .admin-table { font-size: 0.85rem; }
+  .admin-table th, .admin-table td { padding: 0.45rem 0.6rem; }
+}
+</style>

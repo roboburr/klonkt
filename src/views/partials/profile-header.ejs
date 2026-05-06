@@ -1,0 +1,252 @@
+<!-- Profile header (v9 structure)
+     Body class controls collapse:
+       .on-home    → full size, avatar + bio + links
+       .on-post    → compact, just avatar + name
+       .on-special → compact (archive/search/tag pages)
+       .on-admin   → hidden (admin pages don't show profile)
+-->
+
+<%
+// Show profile-header unless we're on an admin page or the site explicitly
+// disabled it via profile_enabled=0.
+const _showProfile = site
+  && (site.profile_enabled === undefined || site.profile_enabled !== 0)
+  && !(typeof bodyClass !== 'undefined' && bodyClass.indexOf('on-admin') >= 0);
+
+// profile_name and profile_bio used to be optional overrides exposed in the
+// admin form. P62 removed those form fields — title and description are the
+// single source of truth. We still consult the override columns first for
+// backward compat with any legacy data, but the form no longer writes them.
+const _displayName = (site && (site.profile_name || site.title)) || '';
+const _bioText     = (site && (site.profile_bio || site.description || site.tagline)) || '';
+
+// Parse profile_links JSON column once.
+let _profileLinks = [];
+if (site && site.profile_links) {
+  try { _profileLinks = JSON.parse(site.profile_links) || []; } catch (e) { _profileLinks = []; }
+}
+%>
+
+<% if (_showProfile) { %>
+<aside class="profile-header" aria-label="Site profile">
+  <div class="container profile-header-inner">
+
+    <a class="profile-photo" href="<%= (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '' %>/"
+       hx-get="<%= (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '' %>/?partial=1"
+       hx-target="#pcms-main" hx-swap="innerHTML"
+       hx-push-url="<%= (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '' %>/"
+       hx-indicator="#pcms-loading" aria-label="Home">
+      <% if (typeof user !== 'undefined' && user && user.avatar_url) { %>
+        <img src="<%= user.avatar_url %>" alt="">
+      <% } else if (site.profile_photo) { %>
+        <img src="<%= site.profile_photo %>" alt="">
+      <% } else if (site.enable_audio_player) { %>
+        <span class="profile-photo-fallback profile-photo-fallback--music" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 17V5l12-2v12"/>
+            <circle cx="6" cy="17" r="3"/>
+            <circle cx="18" cy="15" r="3"/>
+          </svg>
+        </span>
+      <% } else { %>
+        <span class="profile-photo-fallback" aria-hidden="true"><%= (_displayName || '?').charAt(0).toUpperCase() %></span>
+      <% } %>
+    </a>
+
+    <div class="profile-info">
+      <h2 class="profile-name">
+        <a href="<%= (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '' %>/"
+           hx-get="<%= (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '' %>/?partial=1"
+           hx-target="#pcms-main" hx-swap="innerHTML"
+           hx-push-url="<%= (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '' %>/"
+           hx-indicator="#pcms-loading">
+          <%= _displayName %>
+        </a>
+      </h2>
+      <% if (_bioText) { %>
+        <p class="profile-bio"><%= _bioText %></p>
+      <% } %>
+
+      <% if (_profileLinks.length) { %>
+        <% const _platforms = (typeof platforms_catalog !== 'undefined' && platforms_catalog) || {}; %>
+        <ul class="profile-links" aria-label="External links">
+          <% _profileLinks.forEach(function(l) {
+               const meta = _platforms[l.platform];
+               if (!meta) return; %>
+            <li>
+              <a class="profile-link profile-link--<%= l.platform %>"
+                 href="<%= l.platform === 'email' && l.url.indexOf('mailto:') !== 0 ? ('mailto:' + l.url) : l.url %>"
+                 target="<%= l.platform === 'email' ? '_self' : '_blank' %>"
+                 rel="noopener noreferrer"
+                 aria-label="<%= meta.label %>"
+                 title="<%= meta.label %>"
+                 style="--brand: <%= meta.brand %>">
+                <%- meta.svg %>
+              </a>
+            </li>
+          <% }); %>
+        </ul>
+      <% } %>
+    </div>
+
+  </div>
+</aside>
+<% } %>
+
+<style>
+/* Profile header (v9 collapse pattern) */
+.profile-header {
+  border-bottom: 1px solid var(--rule);
+  background: var(--paper);
+  padding: 1.5rem 0;
+  transition: padding 250ms cubic-bezier(.4,0,.2,1);
+}
+.profile-header-inner {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 0 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  transition: gap 250ms;
+}
+.profile-photo {
+  flex-shrink: 0;
+  display: block;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--paper-2);
+  border: 2px solid var(--rule);
+  transition: width 250ms, height 250ms;
+  cursor: pointer;
+}
+.profile-photo:hover {
+  border-color: var(--accent);
+}
+.profile-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+.profile-photo-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-family: var(--font-display, serif);
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  background: var(--paper-2);
+  pointer-events: none;
+}
+.profile-photo-fallback--music {
+  color: var(--accent);
+}
+.profile-photo-fallback--music svg {
+  width: 50%;
+  height: 50%;
+}
+.profile-info {
+  flex: 1;
+  min-width: 0;
+}
+.profile-name {
+  font-family: var(--font-display, serif);
+  font-size: 1.75rem;
+  margin: 0 0 0.25rem;
+  line-height: 1.2;
+}
+.profile-name a {
+  color: var(--ink);
+  text-decoration: none;
+}
+.profile-bio {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+/* Compact mode on post / special pages */
+.on-post .profile-header,
+.on-special .profile-header,
+.on-search .profile-header,
+.on-archive .profile-header {
+  padding: 0.75rem 0;
+}
+.on-post .profile-photo,
+.on-special .profile-photo,
+.on-search .profile-photo,
+.on-archive .profile-photo {
+  width: 40px;
+  height: 40px;
+  border-width: 1px;
+}
+.on-post .profile-photo-fallback,
+.on-special .profile-photo-fallback,
+.on-search .profile-photo-fallback,
+.on-archive .profile-photo-fallback {
+  font-size: 1rem;
+}
+.on-post .profile-name,
+.on-special .profile-name,
+.on-search .profile-name,
+.on-archive .profile-name {
+  font-size: 1.1rem;
+  margin: 0;
+}
+.on-post .profile-bio,
+.on-special .profile-bio,
+.on-search .profile-bio,
+.on-archive .profile-bio {
+  display: none;
+}
+
+/* Hide on admin pages */
+.on-admin .profile-header { display: none; }
+
+/* Mobile tweaks */
+@media (max-width: 600px) {
+  .profile-photo { width: 64px; height: 64px; }
+  .profile-photo-fallback { font-size: 1.5rem; }
+  .profile-name { font-size: 1.4rem; }
+}
+
+/* Social / streaming icon row */
+.profile-links {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.profile-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--paper-2);
+  color: var(--ink-soft);
+  text-decoration: none;
+  transition: background 120ms, color 120ms, transform 100ms ease;
+}
+.profile-link:hover {
+  background: var(--brand, var(--accent));
+  color: white;
+  transform: translateY(-1px);
+}
+.profile-link svg { width: 18px; height: 18px; display: block; }
+
+/* Compact mode collapses social links too (post pages) */
+.on-post .profile-links,
+.on-special .profile-links,
+.on-archive .profile-links { display: none; }
+</style>

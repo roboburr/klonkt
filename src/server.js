@@ -1,0 +1,341 @@
+/**
+ * PrutFolio v1 — server bootstrap
+ *
+ * Persoonlijk multi-site platform forked van PrutCMS v9 (PHP, file-based).
+ * Stack: Express + better-sqlite3 + EJS + htmx + ws.
+ */
+
+import 'dotenv/config';
+import express from 'express';
+import helmet from 'helmet';
+import session from 'express-session';
+import bodyParser from 'body-parser';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+import http from 'http';
+import db, { initializeDatabase } from './config/database.js';
+import { SqliteSessionStore } from './services/SqliteSessionStore.js';
+import PrutterService from './services/PrutterService.js';
+import { WebSocketServer } from 'ws';
+
+import { resolveSite, loadAudioTracks, loadTheme } from './middleware/site.js';
+import authRoutes from './routes/auth.js';
+import accountRoutes from './routes/account.js';
+import adminRoutes from './routes/admin.js';
+import adminAudioRoutes from './routes/admin-audio.js';
+import adminPlaylistsRoutes from './routes/admin-playlists.js';
+import adminSitesRoutes from './routes/admin-sites.js';
+import adminUsersRoutes from './routes/admin-users.js';
+import adminCommentsRoutes from './routes/admin-comments.js';
+import prutterRoutes from './routes/prutter.js';
+import audioRoutes from './routes/audio.js';
+import searchRoutes from './routes/search.js';
+import commentsRoutes from './routes/comments.js';
+import tagsRoutes from './routes/tags.js';
+import typesRoutes from './routes/types.js';
+import usersRoutes from './routes/users.js';
+import feedRoutes from './routes/feed.js';
+import postsRoutes from './routes/posts.js';
+
+if (!process.env.SESSION_SECRET) {
+  console.error('❌ FATAL: SESSION_SECRET is required');
+  process.exit(1);
+}
+
+if (process.env.NODE_ENV === 'production' && process.env.SESSION_SECRET.length < 32) {
+  console.error('❌ FATAL: SESSION_SECRET too weak for production');
+  process.exit(1);
+}
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PORT = process.env.PORT || 3000;
+const isDev = process.env.NODE_ENV !== 'production';
+
+const app = express();
+const server = http.createServer(app);
+
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "wss:", "ws:"],
+      mediaSrc: ["'self'", "https:"],
+      fontSrc: ["'self'"],
+      frameSrc: [
+        "'self'",
+        "https://open.spotify.com",
+        "https://w.soundcloud.com",
+        "https://bandcamp.com",
+        "https://embed.music.apple.com",
+        "https://www.youtube-nocookie.com",
+        "https://player.vimeo.com",
+      ],
+    },
+  },
+  hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+  frameguard: { action: 'sameorigin' },
+  referrerPolicy: { policy: 'no-referrer-when-downgrade' },
+}));
+
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
+
+app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
+app.use(bodyParser.json({ limit: '10mb' }));
+
+// Trust one upstream proxy in production. NPM (or Caddy / nginx) terminates
+// HTTPS and forwards to us over plain HTTP, setting X-Forwarded-Proto: https.
+// Without this, Express sees req.protocol === 'http' and won't issue secure
+// cookies — sessions never persist past the redirect after login.
+if (!isDev) app.set('trust proxy', 1);
+
+// Session middleware extracted into a variable so the WebSocket upgrade
+// handler can reuse it (it needs req.session to authenticate sockets).
+const sessionMiddleware = session({
+  store: new SqliteSessionStore(),
+  secret: process.env.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  name: 'pcms.sid',
+  cookie: {
+    httpOnly: true,
+    secure: !isDev,
+    sameSite: 'lax',
+    maxAge: 30 * 24 * 60 * 60 * 1000,
+  },
+});
+app.use(sessionMiddleware);
+
+app.use('/assets', express.static(path.join(__dirname, 'assets'), { maxAge: isDev ? 0 : '1y' }));
+app.use('/media', express.static(process.env.MEDIA_PATH || './storage/media'));
+
+// P64 — TWA / digital-asset-links: must be served at /.well-known/assetlinks.json
+// at the site root with Content-Type: application/json. Without this Android
+// shows the URL bar inside the installed PrutFolio app.
+app.get('/.well-known/assetlinks.json', (req, res) => {
+  res.type('application/json').sendFile(
+    path.join(__dirname, 'assets', '.well-known', 'assetlinks.json')
+  );
+});
+
+initializeDatabase();
+
+// Bundle HTMX: copy from node_modules into our own assets dir so we can serve
+// it locally (no third-party CDN). Idempotent — only copies if size differs.
+(function ensureLocalHtmx() {
+  const src = path.join(__dirname, '..', 'node_modules', 'htmx.org', 'dist', 'htmx.min.js');
+  const dest = path.join(__dirname, 'assets', 'js', 'htmx.min.js');
+  try {
+    const srcStat = fs.statSync(src);
+    const destStat = fs.existsSync(dest) ? fs.statSync(dest) : null;
+    if (!destStat || destStat.size !== srcStat.size) {
+      fs.copyFileSync(src, dest);
+      console.log(`📦 HTMX bundled locally: ${srcStat.size} bytes`);
+    }
+  } catch (e) {
+    console.warn('⚠️  Could not bundle HTMX:', e.message, '— run `npm install`');
+  }
+})();
+
+// Singleton PrutterService — routes get it via req.app.locals.prutter.
+const prutter = new PrutterService(db);
+app.locals.prutter = prutter;
+
+app.use(resolveSite);
+app.use(loadAudioTracks);
+app.use(loadTheme);
+
+app.use('/auth', authRoutes);
+app.use('/account', accountRoutes);
+app.use('/admin/audio', adminAudioRoutes);
+app.use('/admin/playlists', adminPlaylistsRoutes);
+app.use('/admin/sites', adminSitesRoutes);
+app.use('/admin/users', adminUsersRoutes);
+app.use('/admin/comments', adminCommentsRoutes);
+app.use('/admin', adminRoutes);
+app.use('/prutter', prutterRoutes);
+app.use('/audio', audioRoutes);
+app.use('/search', searchRoutes);
+app.use('/comments', commentsRoutes);
+app.use('/tag', tagsRoutes);
+app.use('/type', typesRoutes);
+app.use('/users', usersRoutes);
+// Feed/sitemap routes are mounted at root because they're at well-known paths
+app.use('/', feedRoutes);
+app.use('/', postsRoutes);
+
+app.get('/manifest.webmanifest', (req, res) => {
+  const site = res.locals.site;
+
+  // PWA scope: confines installed apps to ONE site. If a user is in the
+  // bedrijf1 PWA and clicks a link to /sites/bedrijf2/..., the browser will
+  // open it in a regular tab (out-of-scope) instead of within the PWA.
+  // Same applies to APK packaging — the WebView is locked to this scope.
+  //
+  // For path-mounted sites: scope = /sites/<slug>/
+  // For root/subdomain sites:  scope = /
+  const base = res.locals.siteUrlBase || '';   // '' or '/sites/<slug>'
+  const scope = (base || '') + '/';
+  const startUrl = (base || '') + '/?source=pwa';
+
+  // A stable identity per site so installs don't collide (Chromium uses `id`)
+  const idBase = site?.slug ? `prutfolio-${site.slug}` : 'prutfolio';
+
+  res.set('Cache-Control', 'no-cache');
+  res.json({
+    id: idBase,
+    name: site?.title || 'PrutFolio',
+    short_name: (site?.title || 'PrutFolio').slice(0, 12),
+    description: site?.description || site?.tagline || '',
+    scope,
+    start_url: startUrl,
+    display: 'standalone',
+    display_override: ['standalone', 'minimal-ui'],
+    orientation: 'any',
+    background_color: '#1a1a17',
+    theme_color: site?.accent || '#c2410c',
+    lang: site?.language || 'nl',
+    icons: [
+      { src: '/favicon.svg', sizes: 'any', type: 'image/svg+xml' },
+      { src: '/favicon.ico', sizes: '64x64', type: 'image/x-icon' },
+    ],
+    // Hint to capable browsers: capture all in-scope links inside the PWA
+    capture_links: 'existing-client-navigate',
+  });
+});
+
+// Favicon — served as SVG so it picks up the site's accent color dynamically.
+// Browsers also request /favicon.ico by convention; we serve the same SVG
+// content there with a forgiving content-type since modern browsers accept it.
+function _renderFavicon(res, accent) {
+  const safeAccent = /^#[0-9a-fA-F]{3,8}$/.test(accent) ? accent : '#c2410c';
+  // Simple PrutFolio mark: a rounded square in the site accent + lowercase 'p'
+  // (display font is server-side unavailable, so we use a generic serif fallback)
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="${safeAccent}"/>
+  <text x="50%" y="50%" dy="0.36em" text-anchor="middle"
+        font-family="Georgia, 'Times New Roman', serif"
+        font-size="44" font-weight="700" fill="#fff">p</text>
+</svg>`;
+  res.set('Content-Type', 'image/svg+xml');
+  res.set('Cache-Control', 'public, max-age=86400');
+  res.send(svg);
+}
+
+app.get('/favicon.svg', (req, res) => {
+  _renderFavicon(res, res.locals.site?.accent);
+});
+app.get('/favicon.ico', (req, res) => {
+  // Browsers requesting .ico will accept SVG content; chrome/firefox both fine.
+  // Keeping the route prevents 404 spam in the console.
+  _renderFavicon(res, res.locals.site?.accent);
+});
+
+app.get('/sw.js', (req, res) => {
+  res.set('Content-Type', 'application/javascript');
+  res.set('Cache-Control', 'no-cache');
+  res.send(`
+const CACHE_VERSION = 'pcms-v10-' + new Date().toISOString().split('T')[0];
+self.addEventListener('install', e => {
+  e.waitUntil(caches.open(CACHE_VERSION).then(c => c.addAll(['/'])));
+  self.skipWaiting();
+});
+self.addEventListener('activate', e => {
+  e.waitUntil(caches.keys().then(keys => Promise.all(
+    keys.filter(k => k !== CACHE_VERSION).map(k => caches.delete(k))
+  )));
+  self.clients.claim();
+});
+self.addEventListener('fetch', e => {
+  if (e.request.method !== 'GET') return;
+  e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+});
+  `);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('⚠️  Unhandled Rejection:', reason);
+});
+
+app.use((err, req, res, next) => {
+  console.error('❌ Error:', err);
+  res.status(err.status || 500).send(
+    isDev ? `<pre>${err.stack || err.message}</pre>` : 'Internal Server Error'
+  );
+});
+
+app.use((req, res) => {
+  res.status(404).send(`
+    <div style="font-family:system-ui;max-width:500px;margin:4rem auto;text-align:center;padding:2rem;">
+      <h1 style="font-size:5rem;margin:0;color:#c33;">404</h1>
+      <p>Not found</p>
+      <a href="/" style="color:#c2410c;">← Home</a>
+    </div>
+  `);
+});
+
+// ==================== WebSocket: Prutter real-time ====================
+// Authenticate via the existing session cookie. We reuse sessionMiddleware
+// during the HTTP upgrade so req.session is populated; if no user, abort.
+const wss = new WebSocketServer({ noServer: true });
+
+server.on('upgrade', (req, socket, head) => {
+  if (req.url !== '/ws/prutter') {
+    socket.destroy();
+    return;
+  }
+  // Run session middleware on the upgrade request.
+  // (Express's middleware accepts (req, res, next); we pass a stub res.)
+  const stubRes = { setHeader: () => {}, getHeader: () => undefined, on: () => {}, end: () => {} };
+  sessionMiddleware(req, stubRes, () => {
+    if (!req.session?.user) {
+      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      ws.userId = req.session.user.id;
+      wss.emit('connection', ws, req);
+    });
+  });
+});
+
+wss.on('connection', (ws) => {
+  prutter.addConnection(ws.userId, ws);
+  ws.on('close', () => prutter.removeConnection(ws.userId, ws));
+  ws.on('error', () => prutter.removeConnection(ws.userId, ws));
+  // Optional: ping every 30s to keep connections alive through proxies
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
+});
+const wsPing = setInterval(() => {
+  for (const ws of wss.clients) {
+    if (ws.isAlive === false) { ws.terminate(); continue; }
+    ws.isAlive = false;
+    try { ws.ping(); } catch {}
+  }
+}, 30000);
+if (wsPing.unref) wsPing.unref();
+
+server.listen(PORT, () => {
+  console.log('');
+  console.log('🪶 PrutFolio v1 — alpha');
+  console.log(`   http://localhost:${PORT}`);
+  console.log('');
+  console.log(`   ✓ Security: Helmet, CSP, secure sessions`);
+  console.log(`   ✓ Privacy:  Self-hosted fonts, no third-party requests`);
+  console.log(`   ✓ Layout:   v9 editorial feel (top nav, profile header)`);
+  console.log(`   ✓ Auth:     login / register / logout`);
+  console.log(`   ✓ Posts:    create / edit / view / archive`);
+  console.log(`   ✓ Realtime: WebSocket server ready (Prutter)`);
+  console.log('');
+  console.log(`   Mode: ${isDev ? 'development' : 'PRODUCTION'}`);
+  console.log('');
+});
+
+export default app;

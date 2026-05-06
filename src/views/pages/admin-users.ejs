@@ -1,0 +1,248 @@
+<div class="container ax-page">
+
+  <header class="ax-header">
+    <a href="/admin" class="ax-back" aria-label="Terug naar admin">←</a>
+    <div>
+      <h1>Users</h1>
+      <p class="ax-tagline">Beheer gebruikers, rollen, en verwijderingen.</p>
+    </div>
+  </header>
+
+  <% if (success) { %><div class="ax-flash ax-flash-ok"><%= success %></div><% } %>
+  <% if (error)   { %><div class="ax-flash ax-flash-err"><%= error %></div><% } %>
+
+  <% if (!users.length) { %>
+    <div class="ax-card">
+      <div class="ax-empty">
+        <div class="ax-empty-icon">👤</div>
+        <p>Geen gebruikers.</p>
+      </div>
+    </div>
+  <% } else { %>
+    <ul class="ax-list">
+      <% users.forEach(function(u) { %>
+        <li class="ax-user<%= u.id === user.id ? ' is-self' : '' %>">
+
+          <div class="ax-user-id">
+            <% if (u.avatar_url) { %>
+              <img class="ax-avatar" src="<%= u.avatar_url %>" alt="">
+            <% } else { %>
+              <span class="ax-avatar ax-avatar-empty"><%= u.username.charAt(0).toUpperCase() %></span>
+            <% } %>
+            <div class="ax-user-meta">
+              <div class="ax-user-name">
+                <a href="/users/<%= encodeURIComponent(u.username) %>"><%= u.username %></a>
+                <% if (u.id === user.id) { %><span class="ax-pill">jij</span><% } %>
+              </div>
+              <div class="ax-user-email"><%= u.email %></div>
+            </div>
+          </div>
+
+          <div class="ax-user-stats">
+            <span class="ax-stat" title="Sites">
+              <span class="ax-stat-num"><%= u.site_count %></span>
+              <span class="ax-stat-label">sites</span>
+            </span>
+            <span class="ax-stat" title="Posts">
+              <span class="ax-stat-num"><%= u.post_count %></span>
+              <span class="ax-stat-label">posts</span>
+            </span>
+            <span class="ax-stat" title="Geregistreerd op">
+              <span class="ax-stat-num ax-stat-date"><%= formatDate(u.created_at) %></span>
+              <span class="ax-stat-label">joined</span>
+            </span>
+          </div>
+
+          <div class="ax-user-controls">
+            <form method="post" action="/admin/users/<%= u.id %>/role" class="ax-role-form">
+              <label class="ax-role">
+                <span>Rol</span>
+                <select name="role" onchange="this.form.submit()" <% if (u.id === user.id) { %>disabled<% } %>>
+                  <option value="member" <%= u.role === 'member' ? 'selected' : '' %>>member</option>
+                  <option value="admin"  <%= u.role === 'admin'  ? 'selected' : '' %>>admin</option>
+                  <option value="god"    <%= u.role === 'god'    ? 'selected' : '' %>>god</option>
+                </select>
+              </label>
+            </form>
+
+            <% if (u.id !== user.id && (u.post_count + u.site_count === 0)) { %>
+              <form method="post" action="/admin/users/<%= u.id %>/delete" class="ax-delete-form"
+                    onsubmit="return confirm('Verwijder gebruiker <%= u.username %>?')">
+                <button type="submit" class="ax-icon-btn ax-icon-btn-danger" aria-label="Verwijderen" title="Verwijderen">🗑</button>
+              </form>
+            <% } %>
+          </div>
+
+        </li>
+      <% }); %>
+    </ul>
+  <% } %>
+
+</div>
+
+<style>
+.ax-page { max-width: 880px; margin: 1.5rem auto 4rem; padding: 0 1rem; }
+.ax-header { display: flex; align-items: flex-start; gap: 0.75rem; margin-bottom: 1.5rem; }
+.ax-header h1 { font-family: var(--font-display, serif); font-size: 1.75rem; margin: 0 0 0.25rem; }
+.ax-tagline { color: var(--ink-muted, var(--ink-soft)); margin: 0; font-size: 0.9rem; }
+.ax-back {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px;
+  border: 1px solid var(--rule); border-radius: 8px;
+  background: var(--paper); color: var(--ink); text-decoration: none;
+  font-size: 1.1rem; flex-shrink: 0; transition: border-color 120ms;
+}
+.ax-back:hover { border-color: var(--accent); }
+
+.ax-flash { padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.9rem; }
+.ax-flash-ok  { background: rgba(40,160,90,.15); color: #2a9d5e; border: 1px solid rgba(40,160,90,.3); }
+.ax-flash-err { background: rgba(200,60,60,.15); color: #c33; border: 1px solid rgba(200,60,60,.3); }
+
+.ax-card {
+  background: var(--paper); border: 1px solid var(--rule);
+  border-radius: 12px; padding: 1.25rem;
+}
+.ax-empty { text-align: center; padding: 2rem 1rem; color: var(--ink-muted); }
+.ax-empty-icon { font-size: 2.5rem; margin-bottom: 0.5rem; opacity: 0.5; }
+.ax-empty p { margin: 0; }
+
+/* ─── User cards ───────────────────────────────────────────────── */
+.ax-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.6rem; }
+.ax-user {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.85rem 1rem;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  transition: border-color 120ms;
+}
+.ax-user:hover { border-color: var(--accent); }
+.ax-user.is-self {
+  background: color-mix(in srgb, var(--accent) 7%, var(--paper));
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--rule));
+}
+
+.ax-user-id { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
+.ax-avatar {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--paper-2);
+  color: var(--accent);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: var(--font-display, serif);
+  font-weight: 700; font-size: 1.1rem;
+  flex-shrink: 0;
+}
+.ax-avatar-empty { /* span variant uses same styling */ }
+.ax-user-meta { min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+.ax-user-name {
+  font-weight: 600; font-size: 0.95rem;
+  display: flex; align-items: baseline; gap: 0.4rem; flex-wrap: wrap;
+}
+.ax-user-name a { color: var(--ink); text-decoration: none; }
+.ax-user-name a:hover { color: var(--accent); }
+.ax-user-email {
+  font-size: 0.82rem;
+  color: var(--ink-muted, var(--ink-soft));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ax-pill {
+  font-size: 0.7rem; font-weight: 500;
+  color: var(--ink-soft);
+  background: var(--paper-2);
+  padding: 0.15em 0.55em; border-radius: 999px;
+}
+
+/* ─── Stats (3 mini-columns) ──────────────────────────────────── */
+.ax-user-stats {
+  display: flex; gap: 1.25rem;
+  align-items: center;
+}
+.ax-stat {
+  display: flex; flex-direction: column;
+  font-size: 0.8rem;
+  text-align: center;
+  min-width: 0;
+}
+.ax-stat-num {
+  font-family: var(--font-display, serif);
+  font-weight: 600; font-size: 1.05rem;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.ax-stat-date {
+  font-family: var(--font-ui, system-ui);
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.ax-stat-label {
+  color: var(--ink-muted, var(--ink-soft));
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.7rem;
+}
+
+/* ─── Role select + delete ────────────────────────────────────── */
+.ax-user-controls {
+  display: flex; gap: 0.5rem; align-items: center;
+  flex-shrink: 0;
+}
+.ax-role-form { margin: 0; }
+.ax-role {
+  display: flex; flex-direction: column; gap: 0.2rem;
+  font-size: 0.7rem;
+}
+.ax-role > span {
+  color: var(--ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  font-size: 0.7rem;
+}
+.ax-role select {
+  padding: 0.4rem 1.75rem 0.4rem 0.6rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--paper-2);
+  color: var(--ink);
+  font-family: var(--font-ui, system-ui), sans-serif;
+  font-size: 0.85rem;
+  -webkit-appearance: none; appearance: none;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+}
+.ax-role select:disabled { cursor: not-allowed; opacity: 0.5; }
+.ax-delete-form { margin: 0; }
+.ax-icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px;
+  border: 1px solid var(--rule); border-radius: 8px;
+  background: var(--paper-2); color: var(--ink);
+  cursor: pointer; font-size: 1rem;
+  transition: background 120ms, border-color 120ms, color 120ms;
+}
+.ax-icon-btn:hover { border-color: var(--accent); }
+.ax-icon-btn-danger:hover { color: #dc2626; border-color: #dc2626; }
+
+/* ─── Mobile: stack everything vertically ─────────────────────── */
+@media (max-width: 720px) {
+  .ax-user {
+    grid-template-columns: 1fr;
+    grid-template-areas: "id" "stats" "controls";
+    gap: 0.75rem;
+  }
+  .ax-user-id       { grid-area: id; }
+  .ax-user-stats    { grid-area: stats; justify-content: flex-start; gap: 1.5rem; padding-top: 0.5rem; border-top: 1px solid var(--rule); }
+  .ax-user-controls { grid-area: controls; justify-content: space-between; align-items: flex-end; }
+  .ax-role { flex: 1; max-width: 200px; }
+}
+</style>

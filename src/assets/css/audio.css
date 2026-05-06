@@ -1,0 +1,698 @@
+/* PrutCMS v10 — Audio CSS
+   Two pieces:
+     1. .post-audio-track — the play-button block inserted by [[track:id]] shortcode
+     2. .pcms-player      — the persistent footer-style widget (audio-player.js)
+   Both theme-aware via CSS variables. Mobile-first. */
+
+/* ============================================================
+   In-post track button
+   ============================================================ */
+.post-audio-track {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin: 1rem 0;
+  padding: 0.6rem 0.9rem;
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  transition: border-color 150ms, background 150ms;
+}
+.post-audio-track:hover {
+  border-color: var(--accent);
+}
+.post-audio-track .pat-play {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--accent);
+  color: white;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 100ms ease;
+}
+.post-audio-track .pat-play:hover { transform: scale(1.06); }
+.post-audio-track .pat-play:active { transform: scale(0.96); }
+.post-audio-track .pat-play svg {
+  width: 20px;
+  height: 20px;
+}
+/* style.css has a v9 "cross-fade between site-logo and play-icon" rule that
+   forces ALL svg descendants of .pat-play to position:absolute; width:100%;
+   height:100% (so the logo fills the circle and play-icon overlays it).
+   We don't generate that two-layer markup anymore — just one bare <svg>.
+   Override here so the bare child SVG is statically centered by flex. */
+.post-audio-track .pat-play > svg {
+  position: static;
+  width: 20px;
+  height: 20px;
+  top: auto;
+  left: auto;
+}
+.post-audio-track .pat-info {
+  flex: 1;
+  min-width: 0;
+}
+.post-audio-track .pat-title {
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.post-audio-track .pat-artist {
+  font-size: 0.85rem;
+  color: var(--ink-muted, var(--ink-soft));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ============================================================
+   Mini player (bottom strip) — v9 style
+   ============================================================ */
+.audio-player {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  background: color-mix(in srgb, var(--paper, #fff) 96%, var(--ink, #000));
+  border-top: 1px solid var(--rule, rgba(0,0,0,.1));
+  color: var(--ink, #222);
+  z-index: 1000;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 -4px 20px rgba(0,0,0,.04);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  transition: transform .2s ease, opacity .2s ease;
+}
+/* Mobile: stack the mini-player ON TOP OF the bottom-tab nav
+   (which sits at bottom:0 with ~56px height + safe-area).
+   Desktop has no bottom-tab, so the player stays at bottom:0. */
+@media (max-width: 767px) {
+  body.has-bottom-tab .audio-player {
+    bottom: calc(56px + env(safe-area-inset-bottom, 0));
+    padding-bottom: 0;
+  }
+  /* Bottom padding for body so content isn't hidden behind both bars */
+  body.has-bottom-tab.has-audio-player .pcms-main {
+    padding-bottom: calc(72px + 80px + env(safe-area-inset-bottom, 0));
+  }
+}
+[data-theme="dark"] .audio-player {
+  background: color-mix(in srgb, var(--paper, #1a1a1a) 92%, #fff);
+  box-shadow: 0 -4px 20px rgba(0,0,0,.3);
+}
+.audio-player-hidden {
+  transform: translateY(110%);
+  opacity: 0;
+  pointer-events: none;
+}
+.audio-player-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) auto minmax(180px, 2fr) auto;
+  gap: 1rem;
+  align-items: center;
+  padding: .65rem 1.25rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.audio-player-expand-trigger {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  min-width: 0;
+  background: none; border: 0; padding: 0; margin: 0;
+  cursor: pointer; color: inherit; text-align: left; font: inherit;
+  border-radius: 6px;
+  transition: background .15s;
+}
+.audio-player-expand-trigger:hover {
+  background: color-mix(in srgb, var(--ink, #000) 6%, transparent);
+}
+
+.audio-player-cover {
+  width: 48px; height: 48px;
+  border-radius: 4px;
+  background:
+    linear-gradient(135deg,
+      var(--accent, #c2410c),
+      color-mix(in srgb, var(--accent, #c2410c) 55%, #000));
+  background-size: cover; background-position: center;
+  flex-shrink: 0; position: relative;
+  display: flex; align-items: center; justify-content: center;
+  color: rgba(255,255,255,0.9);
+}
+.audio-player-cover svg { width: 50%; height: 50%; }
+.audio-player-cover.has-image svg { display: none; }
+
+.audio-player-meta { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.audio-player-title-wrap { overflow: hidden; white-space: nowrap; position: relative; }
+.audio-player-title {
+  display: inline-block;
+  font-family: var(--font-ui, inherit);
+  font-weight: 600; font-size: .9rem; line-height: 1.3;
+  letter-spacing: -.01em; color: var(--ink, inherit);
+  white-space: nowrap;
+}
+.audio-player-artist {
+  font-family: var(--font-ui, inherit);
+  font-size: .74rem; line-height: 1.3;
+  color: var(--ink-muted, rgba(0,0,0,.55));
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.audio-player-controls { display: flex; gap: .1rem; align-items: center; }
+.audio-btn {
+  background: transparent; border: 0; color: inherit;
+  cursor: pointer; padding: .5rem; border-radius: 50%;
+  transition: background .15s, color .15s, transform .08s;
+  display: inline-flex; align-items: center; justify-content: center;
+  position: relative;
+}
+.audio-btn svg { width: 18px; height: 18px; display: block; }
+.audio-btn:hover { background: color-mix(in srgb, var(--ink, #000) 8%, transparent); }
+.audio-btn:active { transform: scale(.94); }
+.audio-btn-play {
+  background: var(--accent, #c2410c);
+  color: #fff;
+  width: 38px; height: 38px;
+  padding: 0;
+}
+.audio-btn-play:hover {
+  background: color-mix(in srgb, var(--accent, #c2410c) 85%, #fff);
+}
+[data-theme="dark"] .audio-btn-play:hover {
+  background: color-mix(in srgb, var(--accent, #c2410c) 85%, #000);
+}
+.audio-btn-play svg { width: 16px; height: 16px; }
+.audio-btn-play .icon-pause { display: none; }
+.audio-player.is-playing .audio-btn-play .icon-play  { display: none; }
+.audio-player.is-playing .audio-btn-play .icon-pause { display: block; }
+
+.audio-player-progress {
+  display: flex; gap: .75rem; align-items: center; min-width: 0;
+}
+.audio-time {
+  font-size: .7rem;
+  color: var(--ink-muted, rgba(0,0,0,.55));
+  font-variant-numeric: tabular-nums;
+  min-width: 2.7em; text-align: center;
+}
+.audio-seek {
+  flex: 1; min-width: 0;
+  cursor: pointer; padding: .5rem 0; position: relative;
+}
+.audio-seek-bar {
+  height: 3px;
+  background: color-mix(in srgb, var(--ink, #000) 12%, transparent);
+  border-radius: 2px; overflow: hidden;
+  transition: height .15s;
+}
+.audio-seek:hover .audio-seek-bar { height: 5px; }
+.audio-seek-fill {
+  height: 100%;
+  background: var(--accent, #c2410c);
+  width: 0%;
+  transition: width .1s linear;
+}
+
+.audio-player-volume { position: relative; display: flex; align-items: center; }
+.audio-btn .icon-mute { display: none; }
+.audio-player.is-muted .audio-btn .icon-vol  { display: none; }
+.audio-player.is-muted .audio-btn .icon-mute { display: block; }
+.audio-volume-popup {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) scale(.95);
+  transform-origin: bottom center;
+  background: var(--paper, #fff);
+  border: 1px solid var(--rule, rgba(0,0,0,.1));
+  border-radius: 8px;
+  padding: .75rem .5rem;
+  box-shadow: 0 4px 16px rgba(0,0,0,.15);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .15s, transform .15s, visibility .15s;
+  height: 110px;
+  visibility: hidden;
+}
+.audio-volume-popup::after {
+  content: '';
+  position: absolute;
+  bottom: -12px; left: -10px; right: -10px;
+  height: 16px;
+}
+[data-theme="dark"] .audio-volume-popup {
+  background: color-mix(in srgb, var(--paper, #111) 92%, #fff);
+}
+.audio-player-volume:hover .audio-volume-popup,
+.audio-player-volume:focus-within .audio-volume-popup,
+.audio-player-volume.is-open .audio-volume-popup {
+  opacity: 1; visibility: visible;
+  transform: translateX(-50%) scale(1);
+  pointer-events: auto;
+}
+.audio-volume-popup input[type=range] {
+  /* Standard vertical slider — replaces deprecated -webkit-appearance: slider-vertical.
+     vertical-lr + direction: rtl gives bottom-to-top rendering in all modern browsers. */
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 6px; height: 90px;
+  accent-color: var(--accent, #c2410c);
+  padding: 0 12px;
+  box-sizing: content-box;
+  cursor: pointer;
+}
+
+@media (max-width: 720px) {
+  .audio-player-inner {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: .5rem;
+    padding: .5rem .8rem;
+  }
+  .audio-player-progress { display: none; }
+  .audio-player-cover { width: 40px; height: 40px; }
+  .audio-btn-play { width: 34px; height: 34px; }
+  .audio-player-volume { display: none; }
+}
+
+/* When the main page would be obscured by the player, give it bottom padding */
+body.has-audio-player main {
+  padding-bottom: 80px;
+}
+
+/* ============================================================
+   Now-playing sheet (v9 style — slide-up, drag-to-close)
+   ============================================================ */
+.audio-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .25s ease;
+}
+.audio-sheet.is-open {
+  pointer-events: auto;
+  opacity: 1;
+}
+.audio-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgb(0 0 0 / calc(.4 * var(--pcms-sheet-progress, 1)));
+  backdrop-filter: blur(calc(24px * var(--pcms-sheet-progress, 1)));
+  -webkit-backdrop-filter: blur(calc(24px * var(--pcms-sheet-progress, 1)));
+  transition: background .25s ease, backdrop-filter .25s ease, -webkit-backdrop-filter .25s ease;
+  will-change: backdrop-filter, background;
+}
+.audio-sheet-panel.is-dragging ~ .audio-sheet-backdrop,
+.audio-sheet-backdrop.is-dragging {
+  transition: none;
+}
+.audio-sheet-panel {
+  position: absolute;
+  bottom: 0;
+  background: var(--paper, #fff);
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
+  box-shadow: 0 -20px 60px rgba(0, 0, 0, .25);
+  padding: .75rem 1.5rem 2rem;
+  max-height: 85vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  scrollbar-width: none; -ms-overflow-style: none;
+  transition: transform .3s cubic-bezier(.22, .9, .3, 1), opacity .3s cubic-bezier(.22, .9, .3, 1);
+  display: flex; flex-direction: column; gap: 1rem;
+  color: var(--ink);
+}
+.audio-sheet-panel::-webkit-scrollbar { display: none; }
+body.audio-sheet-locked { overflow: hidden; }
+
+/* MOBILE (<720px): full-width sheet, slide up from bottom */
+@media (max-width: 719.98px) {
+  .audio-sheet-panel {
+    /* Real full-screen, edge-to-edge, no rounded corners or shadow */
+    inset: 0;
+    left: 0; right: 0;
+    width: auto;
+    max-height: none;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    box-shadow: none;
+    padding-top: calc(.75rem + env(safe-area-inset-top, 0));
+    padding-bottom: calc(2rem + env(safe-area-inset-bottom, 0));
+    transform: translateY(100%);
+  }
+  /* When open: at rest unless drag is active (--pcms-drag-y set by JS) */
+  .audio-sheet.is-open .audio-sheet-panel {
+    transform: translateY(var(--pcms-drag-y, 0px));
+  }
+}
+
+/* DESKTOP (≥720px): 480px wide, horizontally centered (v9 design intent).
+   We MUST set width here because v9's style.css sets width:480px and
+   we don't want left/right:0 stretching to override it.
+   The -50% horizontal centering is preserved during drag by composing
+   --pcms-drag-y into the existing translate(-50%, ...) transform. */
+@media (min-width: 720px) {
+  .audio-sheet-panel {
+    left: 50%;
+    right: auto;
+    width: 480px;
+    transform: translate(-50%, 100%);
+    border-top-left-radius: 20px;
+    border-top-right-radius: 20px;
+  }
+  .audio-sheet.is-open .audio-sheet-panel {
+    transform: translate(-50%, var(--pcms-drag-y, 0px));
+  }
+}
+
+.audio-sheet-panel.is-dragging {
+  transition: none;
+  will-change: transform;
+}
+[data-theme="dark"] .audio-sheet-panel {
+  background: var(--paper, #1a1a1a);
+  box-shadow: 0 -20px 60px rgba(0, 0, 0, .5);
+}
+
+.audio-sheet-drag-zone {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1rem;
+  /* MUST be 'none' so pointer events reach JS (drag-down-to-close handler).
+     'pan-y' would let the browser claim the vertical gesture for scroll. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+  margin: -.75rem -1.5rem 0;
+  padding: .75rem 1.5rem 0;
+}
+.audio-sheet-drag-zone:active { cursor: grabbing; }
+
+@media (hover: hover) and (pointer: fine) {
+  .audio-sheet-drag-zone {
+    touch-action: auto;
+    cursor: default;
+    pointer-events: none;
+  }
+  .audio-sheet-drag-zone .audio-sheet-handle {
+    pointer-events: auto;
+    cursor: pointer;
+  }
+}
+
+.audio-sheet-handle {
+  display: block;
+  width: 48px; height: 4px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--ink, #000) 25%, transparent);
+  border: 0; padding: 0;
+  margin: 0 auto .5rem;
+  cursor: pointer;
+  flex-shrink: 0;
+  position: relative;
+}
+.audio-sheet-handle::before {
+  content: ""; position: absolute;
+  inset: -10px -20px;
+}
+
+.audio-sheet-cover {
+  width: 100%;
+  max-width: 320px;
+  aspect-ratio: 1;
+  margin: 0 auto;
+  border-radius: 12px;
+  background:
+    linear-gradient(135deg,
+      var(--accent, #c2410c),
+      color-mix(in srgb, var(--accent, #c2410c) 55%, #000));
+  background-size: cover; background-position: center;
+  display: flex; align-items: center; justify-content: center;
+  color: rgba(255,255,255,0.9);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+}
+.audio-sheet-cover svg { width: 30%; height: 30%; }
+.audio-sheet-cover.has-image svg { display: none; }
+
+.audio-sheet-info { text-align: center; min-width: 0; }
+.audio-sheet-title  { font-family: var(--font-display, serif); font-size: 1.5rem; font-weight: 600; line-height: 1.2; }
+.audio-sheet-artist { color: var(--ink-soft, rgba(0,0,0,.55)); margin-top: .25rem; }
+.audio-sheet-album  { color: var(--ink-muted, rgba(0,0,0,.45)); font-size: 0.85rem; margin-top: .15rem; }
+
+.audio-sheet-progress {
+  display: flex;
+  gap: .75rem;
+  align-items: center;
+  padding: 0 1rem;
+}
+
+.audio-sheet-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: nowrap;
+  min-height: 64px;
+}
+.audio-sheet-btn { width: 48px; height: 48px; }
+.audio-sheet-btn svg { width: 22px; height: 22px; }
+.audio-sheet-play {
+  background: var(--accent, #c2410c);
+  color: #fff;
+  width: 64px; height: 64px;
+  border-radius: 50%;
+  padding: 0;
+}
+.audio-sheet-play svg { width: 24px; height: 24px; }
+.audio-sheet-play .icon-pause { display: none; }
+/* Both descendant AND sibling — works whether the sheet is nested in
+   .audio-player (legacy) or detached as a body sibling (current fix). */
+.audio-player.is-playing .audio-sheet-play .icon-play,
+.audio-player.is-playing ~ .audio-sheet .audio-sheet-play .icon-play,
+body.audio-is-playing .audio-sheet-play .icon-play { display: none; }
+.audio-player.is-playing .audio-sheet-play .icon-pause,
+.audio-player.is-playing ~ .audio-sheet .audio-sheet-play .icon-pause,
+body.audio-is-playing .audio-sheet-play .icon-pause { display: block; }
+
+.audio-sheet-queue {
+  border-top: 1px solid var(--rule);
+  padding-top: 1rem;
+}
+.audio-sheet-queue-label {
+  font-size: 0.85rem;
+  color: var(--ink-muted, rgba(0,0,0,.55));
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+}
+.audio-sheet-queue-list {
+  list-style: none;
+  margin: 0; padding: 0;
+}
+.audio-sheet-queue-item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+.audio-sheet-queue-item:hover { background: color-mix(in srgb, var(--ink, #000) 5%, transparent); }
+.audio-sheet-queue-item.is-current { color: var(--accent); font-weight: 600; }
+.audio-sheet-queue-item .aqi-num { color: var(--ink-muted, rgba(0,0,0,.45)); min-width: 1.6em; }
+.audio-sheet-queue-item .aqi-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.audio-sheet-queue-item .aqi-artist {
+  color: var(--ink-muted, rgba(0,0,0,.45));
+  font-size: 0.85rem;
+  margin-left: auto;
+}
+
+/* ============================================================
+   External-link variant ([[link:url]])
+   Branded "Open in Spotify" / etc. button. No iframe.
+   ============================================================ */
+.post-audio-external {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+  padding: 0.55rem 0.95rem;
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 0.9rem;
+  transition: transform 100ms ease, border-color 150ms;
+}
+.post-audio-external:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+.post-audio-external .pae-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: white;
+  font-size: 0.7rem;
+  flex-shrink: 0;
+}
+.post-audio-external .pae-arrow { color: var(--ink-muted, var(--ink-soft)); font-size: 0.85rem; }
+
+/* Platform-specific accent colors (matches v9 brand palette where possible) */
+.post-audio-external--spotify    .pae-icon { background: #1DB954; }
+.post-audio-external--bandcamp   .pae-icon { background: #629aa9; }
+.post-audio-external--soundcloud .pae-icon { background: #ff5500; }
+.post-audio-external--applemusic .pae-icon { background: #fc3c44; }
+.post-audio-external--youtube    .pae-icon { background: #ff0000; }
+.post-audio-external--vimeo      .pae-icon { background: #1ab7ea; }
+.post-audio-external--tidal      .pae-icon { background: #000; }
+.post-audio-external--deezer     .pae-icon { background: #ef5466; }
+.post-audio-external--mixcloud   .pae-icon { background: #314359; }
+
+/* ============================================================
+   Album block (v9 style)
+   ============================================================ */
+.post-album {
+  margin: 1.5rem 0;
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.post-album-header {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem;
+  align-items: center;
+  border-bottom: 1px solid var(--rule);
+}
+.post-album-cover-btn {
+  position: relative;
+  flex-shrink: 0;
+  width: 96px;
+  height: 96px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--accent);
+  cursor: pointer;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.post-album-cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.post-album-cover-icon {
+  width: 48px;
+  height: 48px;
+}
+.post-album-play-overlay {
+  position: absolute;
+  inset: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.35);
+  color: white;
+  opacity: 0;
+  transition: opacity 150ms;
+}
+.post-album-play-overlay svg { width: 36px; height: 36px; }
+.post-album-cover-btn:hover .post-album-play-overlay,
+.post-album-cover-btn:focus .post-album-play-overlay { opacity: 1; }
+
+.post-album-info { flex: 1; min-width: 0; }
+.post-album-title {
+  font-family: var(--font-display, serif);
+  font-size: 1.25rem;
+  margin: 0 0 0.15rem;
+  color: var(--ink);
+}
+.post-album-artist {
+  margin: 0 0 0.15rem;
+  color: var(--ink);
+  font-size: 0.95rem;
+}
+.post-album-count {
+  margin: 0;
+  color: var(--ink-muted, var(--ink-soft));
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.post-album-tracks {
+  list-style: none;
+  margin: 0;
+  padding: 0.25rem 0;
+  counter-reset: track;
+}
+.post-album-tracks .post-audio-track {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0.5rem 1rem;
+}
+.post-album-tracks .post-audio-track:hover {
+  background: var(--paper);
+}
+.post-album-tracks .pat-play {
+  width: 36px;
+  height: 36px;
+  background: var(--paper-2);
+  color: var(--accent);
+  border: 1px solid var(--rule);
+}
+.post-album-tracks .pat-play:hover {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+.post-album-tracks .pat-play svg { width: 14px; height: 14px; }
+.post-album-tracks .pat-track-num {
+  display: inline-block;
+  margin-right: 0.4rem;
+  color: var(--ink-muted, var(--ink-soft));
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+}
+.post-album-tracks .pat-info {
+  display: flex;
+  align-items: baseline;
+  gap: 0.2rem;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 600px) {
+  .post-album-header { padding: 0.75rem; gap: 0.75rem; }
+  .post-album-cover-btn { width: 72px; height: 72px; }
+  .post-album-cover-icon { width: 32px; height: 32px; }
+  .post-album-title { font-size: 1.05rem; }
+}

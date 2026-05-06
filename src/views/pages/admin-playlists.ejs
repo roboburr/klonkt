@@ -1,0 +1,282 @@
+<%
+// Admin: Playlists management
+// Shows all playlists for current site, with new/edit/delete actions.
+// The editor itself is the same modal that's used from the post-editor.
+const _csrf = (typeof csrfToken !== 'undefined' && csrfToken) || '';
+%>
+<div class="container ax-page">
+
+  <header class="ax-header">
+    <a href="/admin" class="ax-back" aria-label="Terug naar admin">←</a>
+    <div>
+      <h1>Playlists</h1>
+      <p class="ax-tagline">
+        Canonieke playlists. Bewerk een playlist hier en de wijzigingen werken
+        door in álle posts die hem gebruiken via <code>[[playlist:&lt;id&gt;]]</code>.
+      </p>
+    </div>
+  </header>
+
+  <%# Sticky-on-mobile create button — easier reach than a header button. %>
+  <div class="ax-actions-bar">
+    <button type="button" class="ax-btn ax-btn-primary" id="pl-new-btn">
+      ＋ Nieuwe playlist
+    </button>
+  </div>
+
+  <% if (!playlists.length) { %>
+    <div class="ax-card">
+      <div class="ax-empty">
+        <div class="ax-empty-icon">📃</div>
+        <p>Nog geen playlists.</p>
+        <p class="ax-empty-sub">Maak er een via de knop hierboven, of via de 📃 knop in de post-editor.</p>
+      </div>
+    </div>
+  <% } else { %>
+    <ul class="ax-list">
+      <% playlists.forEach(function(p) { %>
+        <li class="ax-track" data-id="<%= p.id %>">
+          <div class="ax-track-cover" <%- p.cover ? `style="background-image:url('${p.cover}'); background-size:cover; background-position:center"` : '' %>>
+            <% if (!p.cover) { %><span><%= p.kind === 'playlist' ? '📃' : '💿' %></span><% } %>
+          </div>
+
+          <div class="ax-track-meta">
+            <div class="ax-track-title">
+              <%= p.title %>
+              <span class="ax-pill"><%= p.kind === 'playlist' ? '📃 playlist' : '💿 album' %></span>
+            </div>
+            <div class="ax-track-sub">
+              <span><%= p.track_count %> <%= p.track_count === 1 ? 'track' : 'tracks' %></span>
+              <% if (p.artist) { %><span class="ax-track-sep">·</span><span><%= p.artist %></span><% } %>
+              <% if (p.year) { %><span class="ax-track-sep">·</span><span><%= p.year %></span><% } %>
+            </div>
+            <code class="ax-embed" data-copy="[[playlist:<%= p.id %>]]" title="Klik om te kopiëren">[[playlist:<%= p.id %>]]</code>
+          </div>
+
+          <div class="ax-track-actions">
+            <button type="button" class="ax-icon-btn" data-pl-edit data-id="<%= p.id %>" aria-label="Bewerken" title="Bewerken">✎</button>
+            <button type="button" class="ax-icon-btn ax-icon-btn-danger" data-pl-delete data-id="<%= p.id %>" data-title="<%= p.title %>" aria-label="Verwijderen" title="Verwijderen">🗑</button>
+          </div>
+        </li>
+      <% }); %>
+    </ul>
+  <% } %>
+
+</div>
+
+<%# Editor modal lives in its own partial so the post-editor can include it too %>
+<%- include('../partials/playlist-editor', { csrfToken: _csrf }) %>
+
+<style>
+/* Re-use the admin-audio (.ax-*) primitives. Define them here too so this
+   page is self-contained — both pages get refreshed independently. */
+
+.ax-page { max-width: 880px; margin: 1.5rem auto 4rem; padding: 0 1rem; }
+.ax-header { display: flex; align-items: flex-start; gap: 0.75rem; margin-bottom: 1.5rem; }
+.ax-header h1 { font-family: var(--font-display, serif); font-size: 1.75rem; margin: 0 0 0.25rem; }
+.ax-tagline { color: var(--ink-muted, var(--ink-soft)); margin: 0; font-size: 0.9rem; line-height: 1.5; }
+.ax-tagline code { background: var(--paper-2); padding: 0.1em 0.4em; border-radius: 4px; font-size: 0.9em; }
+.ax-back {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px;
+  border: 1px solid var(--rule); border-radius: 8px;
+  background: var(--paper); color: var(--ink); text-decoration: none;
+  font-size: 1.1rem; flex-shrink: 0; transition: border-color 120ms;
+}
+.ax-back:hover { border-color: var(--accent); }
+
+.ax-actions-bar {
+  display: flex;
+  margin-bottom: 1rem;
+}
+
+.ax-card {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+/* ─── Buttons (same primitives as admin-audio) ─────────────────── */
+.ax-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+  padding: 0.6rem 1.1rem;
+  border: 1px solid var(--rule); background: var(--paper-2);
+  color: var(--ink);
+  font-family: var(--font-ui, system-ui), sans-serif;
+  font-size: 0.95rem; font-weight: 500;
+  text-decoration: none; border-radius: 8px; cursor: pointer;
+  min-height: 44px;
+  transition: background 120ms, border-color 120ms;
+  -webkit-tap-highlight-color: transparent;
+}
+.ax-btn:hover { border-color: var(--accent); }
+.ax-btn-primary { background: var(--accent); color: white; border-color: var(--accent); }
+.ax-btn-primary:hover { opacity: 0.92; }
+
+.ax-icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px;
+  border: 1px solid var(--rule); border-radius: 8px;
+  background: var(--paper-2); color: var(--ink);
+  cursor: pointer; font-size: 1rem;
+  transition: background 120ms, border-color 120ms, color 120ms;
+}
+.ax-icon-btn:hover { border-color: var(--accent); }
+.ax-icon-btn-danger:hover { color: #dc2626; border-color: #dc2626; }
+
+/* ─── Empty state ──────────────────────────────────────────────── */
+.ax-empty { text-align: center; padding: 2rem 1rem; color: var(--ink-muted, var(--ink-soft)); }
+.ax-empty-icon { font-size: 2.5rem; margin-bottom: 0.5rem; opacity: 0.5; }
+.ax-empty p { margin: 0; }
+.ax-empty-sub { font-size: 0.85rem; margin-top: 0.5rem !important; }
+
+/* ─── List items (same as audio tracks) ───────────────────────── */
+.ax-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.6rem; }
+.ax-track {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  gap: 0.85rem; align-items: center;
+  padding: 0.85rem;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  transition: border-color 120ms;
+}
+.ax-track:hover { border-color: var(--accent); }
+.ax-track-cover {
+  width: 64px; height: 64px; border-radius: 8px;
+  background: var(--paper-2);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-display, serif);
+  font-size: 1.5rem; color: var(--accent);
+  flex-shrink: 0;
+}
+.ax-track-meta { min-width: 0; display: flex; flex-direction: column; gap: 0.25rem; }
+.ax-track-title {
+  font-family: var(--font-display, serif);
+  font-weight: 600; font-size: 1.05rem; color: var(--ink);
+  display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;
+}
+.ax-pill {
+  font-family: var(--font-ui);
+  font-size: 0.7rem; font-weight: 500;
+  color: var(--ink-soft);
+  background: var(--paper-2);
+  padding: 0.15em 0.55em; border-radius: 999px;
+  letter-spacing: 0;
+}
+.ax-track-sub {
+  font-size: 0.85rem;
+  color: var(--ink-muted, var(--ink-soft));
+  display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center;
+}
+.ax-track-sep { opacity: 0.5; }
+.ax-embed {
+  display: inline-block;
+  background: var(--paper-2);
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.75rem;
+  color: var(--ink-soft);
+  cursor: pointer; user-select: all;
+  margin-top: 0.15rem;
+  word-break: break-all;
+  align-self: flex-start;
+  transition: background 120ms;
+}
+.ax-embed:hover { background: var(--rule); }
+.ax-embed.is-copied { background: rgba(40,160,90,0.2); color: #2a9d5e; }
+
+.ax-track-actions { display: flex; gap: 0.4rem; flex-shrink: 0; }
+
+/* ─── Mobile ──────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .ax-track {
+    grid-template-columns: 56px 1fr;
+    grid-template-areas: "cover meta" "actions actions";
+    gap: 0.6rem;
+  }
+  .ax-track-cover { grid-area: cover; width: 56px; height: 56px; }
+  .ax-track-meta  { grid-area: meta; }
+  .ax-track-actions {
+    grid-area: actions;
+    justify-content: flex-end;
+    border-top: 1px solid var(--rule);
+    padding-top: 0.5rem;
+    margin-top: 0.25rem;
+  }
+}
+</style>
+
+<script>
+(function() {
+  const csrf = '<%= _csrf %>';
+
+  document.getElementById('pl-new-btn')?.addEventListener('click', () => {
+    if (typeof window.openPlaylistEditor === 'function') {
+      window.openPlaylistEditor({ mode: 'create', onSaved: () => location.reload() });
+    }
+  });
+
+  // Click-to-copy on shortcodes
+  document.querySelectorAll('[data-copy]').forEach(el => {
+    el.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(el.dataset.copy);
+        el.classList.add('is-copied');
+        const original = el.textContent;
+        el.textContent = '✓ gekopieerd';
+        setTimeout(() => { el.classList.remove('is-copied'); el.textContent = original; }, 1200);
+      } catch (_) { /* fall back to selection */ }
+    });
+  });
+
+  document.querySelectorAll('[data-pl-edit]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (typeof window.openPlaylistEditor === 'function') {
+        window.openPlaylistEditor({ mode: 'edit', id: btn.dataset.id, onSaved: () => location.reload() });
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-pl-delete]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const title = btn.dataset.title || id;
+      if (!confirm(`Playlist "${title}" verwijderen? Posts die deze playlist embedden tonen vanaf nu een placeholder.`)) return;
+      try {
+        const r = await fetch(`/admin/playlists/api/${encodeURIComponent(id)}/delete`, {
+          method: 'POST',
+          headers: { 'X-CSRF-Token': csrf },
+          credentials: 'same-origin',
+        });
+        const j = await r.json();
+        if (j.ok) location.reload();
+        else alert('Verwijderen mislukt: ' + (j.error || ''));
+      } catch (err) {
+        alert('Verwijderen mislukt: ' + err.message);
+      }
+    });
+  });
+
+  // P52 — deep-link from playlist embed (?edit=<id>) auto-opens the editor.
+  // openPlaylistEditor is defined synchronously by the included partial, so
+  // it's available by the time this IIFE runs.
+  (function deepLinkEdit() {
+    const params = new URLSearchParams(location.search);
+    const editId = params.get('edit');
+    if (!editId) return;
+    if (typeof window.openPlaylistEditor !== 'function') return;
+    // Strip the query param immediately so reload after save doesn't re-open.
+    history.replaceState({}, '', location.pathname);
+    window.openPlaylistEditor({
+      mode: 'edit',
+      id: editId,
+      onSaved: () => location.reload(),
+    });
+  })();
+})();
+</script>

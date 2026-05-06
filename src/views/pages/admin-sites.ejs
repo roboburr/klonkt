@@ -1,0 +1,248 @@
+<div class="container ax-page">
+
+  <header class="ax-header">
+    <a href="/admin" class="ax-back" aria-label="Terug naar admin">←</a>
+    <div>
+      <h1>Sites</h1>
+      <p class="ax-tagline">Beheer alle sites op deze installatie.</p>
+    </div>
+  </header>
+
+  <% if (success) { %><div class="ax-flash ax-flash-ok"><%= success %></div><% } %>
+  <% if (error)   { %><div class="ax-flash ax-flash-err"><%= error %></div><% } %>
+
+  <div class="ax-actions-bar">
+    <a href="/admin/sites/new" class="ax-btn ax-btn-primary">＋ Nieuwe site</a>
+  </div>
+
+  <% if (!sites.length) { %>
+    <div class="ax-card">
+      <div class="ax-empty">
+        <div class="ax-empty-icon">🌐</div>
+        <p>Nog geen sites.</p>
+        <p class="ax-empty-sub">Maak er een via de knop hierboven.</p>
+      </div>
+    </div>
+  <% } else { %>
+    <ul class="ax-list">
+      <% sites.forEach(function(s) { %>
+        <li class="ax-site">
+
+          <div class="ax-site-id">
+            <%# Sites have no avatar in the data model — fall back to the first
+                letter of their title, same pattern as users without avatar_url. %>
+            <span class="ax-avatar ax-avatar-empty"><%= (s.title || s.slug || '?').charAt(0).toUpperCase() %></span>
+            <div class="ax-site-meta">
+              <div class="ax-site-name">
+                <a href="/sites/<%= s.slug %>"><%= s.title %></a>
+                <% if (s.is_public) { %>
+                  <span class="ax-pill ax-pill-ok" title="Publiek zichtbaar">✓ public</span>
+                <% } else { %>
+                  <span class="ax-pill" title="Niet publiek">🔒 private</span>
+                <% } %>
+                <% if (!s.robots_index) { %>
+                  <span class="ax-pill" title="Niet geïndexeerd door zoekmachines">🚫🤖 noindex</span>
+                <% } %>
+              </div>
+              <div class="ax-site-slug">
+                <code>/<%= s.slug %></code>
+                <% if (s.owner_username) { %>
+                  <span class="ax-track-sep">·</span>
+                  <span>door <%= s.owner_username %></span>
+                <% } %>
+              </div>
+            </div>
+          </div>
+
+          <div class="ax-site-stats">
+            <span class="ax-stat" title="Aantal posts">
+              <span class="ax-stat-num"><%= s.post_count %></span>
+              <span class="ax-stat-label">posts</span>
+            </span>
+            <span class="ax-stat" title="Aangemaakt op">
+              <span class="ax-stat-num ax-stat-date"><%= formatDate(s.created_at) %></span>
+              <span class="ax-stat-label">created</span>
+            </span>
+          </div>
+
+          <div class="ax-site-controls">
+            <a href="/admin/sites/<%= s.slug %>/edit" class="ax-icon-btn" aria-label="Bewerken" title="Bewerken">✎</a>
+            <form method="post" action="/admin/sites/<%= s.slug %>/delete" class="ax-delete-form"
+                  onsubmit="return confirm('Site verwijderen? Lukt alleen als er geen posts zijn.')">
+              <button type="submit" class="ax-icon-btn ax-icon-btn-danger" aria-label="Verwijderen" title="Verwijderen">🗑</button>
+            </form>
+          </div>
+
+        </li>
+      <% }); %>
+    </ul>
+  <% } %>
+
+</div>
+
+<style>
+.ax-page { max-width: 880px; margin: 1.5rem auto 4rem; padding: 0 1rem; }
+.ax-header { display: flex; align-items: flex-start; gap: 0.75rem; margin-bottom: 1.5rem; }
+.ax-header h1 { font-family: var(--font-display, serif); font-size: 1.75rem; margin: 0 0 0.25rem; }
+.ax-tagline { color: var(--ink-muted, var(--ink-soft)); margin: 0; font-size: 0.9rem; }
+.ax-back {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px;
+  border: 1px solid var(--rule); border-radius: 8px;
+  background: var(--paper); color: var(--ink); text-decoration: none;
+  font-size: 1.1rem; flex-shrink: 0; transition: border-color 120ms;
+}
+.ax-back:hover { border-color: var(--accent); }
+
+.ax-flash { padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.9rem; }
+.ax-flash-ok  { background: rgba(40,160,90,.15); color: #2a9d5e; border: 1px solid rgba(40,160,90,.3); }
+.ax-flash-err { background: rgba(200,60,60,.15); color: #c33; border: 1px solid rgba(200,60,60,.3); }
+
+.ax-actions-bar { display: flex; margin-bottom: 1rem; }
+
+.ax-card {
+  background: var(--paper); border: 1px solid var(--rule);
+  border-radius: 12px; padding: 1.25rem;
+}
+.ax-empty { text-align: center; padding: 2rem 1rem; color: var(--ink-muted); }
+.ax-empty-icon { font-size: 2.5rem; margin-bottom: 0.5rem; opacity: 0.5; }
+.ax-empty p { margin: 0; }
+.ax-empty-sub { font-size: 0.85rem; margin-top: 0.5rem !important; }
+
+.ax-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+  padding: 0.6rem 1.1rem;
+  border: 1px solid var(--rule); background: var(--paper-2);
+  color: var(--ink);
+  font-family: var(--font-ui, system-ui), sans-serif;
+  font-size: 0.95rem; font-weight: 500;
+  text-decoration: none; border-radius: 8px; cursor: pointer;
+  min-height: 44px;
+  transition: background 120ms, border-color 120ms;
+  -webkit-tap-highlight-color: transparent;
+}
+.ax-btn:hover { border-color: var(--accent); }
+.ax-btn-primary { background: var(--accent); color: white; border-color: var(--accent); }
+.ax-btn-primary:hover { opacity: 0.92; }
+
+.ax-icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px;
+  border: 1px solid var(--rule); border-radius: 8px;
+  background: var(--paper-2); color: var(--ink);
+  cursor: pointer; font-size: 1rem;
+  text-decoration: none;
+  transition: background 120ms, border-color 120ms, color 120ms;
+}
+.ax-icon-btn:hover { border-color: var(--accent); }
+.ax-icon-btn-danger:hover { color: #dc2626; border-color: #dc2626; }
+
+/* ─── Site cards (same structure as admin-users) ──────────────── */
+.ax-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.6rem; }
+.ax-site {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.85rem 1rem;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  transition: border-color 120ms;
+}
+.ax-site:hover { border-color: var(--accent); }
+
+.ax-site-id { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
+.ax-avatar {
+  width: 44px; height: 44px;
+  border-radius: 10px;            /* squarer than user avatars — sites read better as rounded squares */
+  object-fit: cover;
+  background: var(--paper-2);
+  color: var(--accent);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: var(--font-display, serif);
+  font-weight: 700; font-size: 1.1rem;
+  flex-shrink: 0;
+}
+.ax-site-meta { min-width: 0; display: flex; flex-direction: column; gap: 0.2rem; }
+.ax-site-name {
+  font-weight: 600; font-size: 0.95rem;
+  display: flex; align-items: baseline; gap: 0.4rem; flex-wrap: wrap;
+}
+.ax-site-name a { color: var(--ink); text-decoration: none; }
+.ax-site-name a:hover { color: var(--accent); }
+.ax-site-slug {
+  font-size: 0.8rem;
+  color: var(--ink-muted, var(--ink-soft));
+  display: flex; align-items: center; gap: 0.3rem; flex-wrap: wrap;
+}
+.ax-site-slug code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  background: var(--paper-2);
+  padding: 0.1em 0.4em; border-radius: 4px;
+  font-size: 0.95em;
+  color: var(--ink-soft);
+}
+.ax-track-sep { opacity: 0.5; }
+
+.ax-pill {
+  font-family: var(--font-ui);
+  font-size: 0.7rem; font-weight: 500;
+  color: var(--ink-soft);
+  background: var(--paper-2);
+  padding: 0.15em 0.55em; border-radius: 999px;
+  letter-spacing: 0;
+}
+.ax-pill-ok {
+  color: #2a9d5e;
+  background: rgba(40,160,90,0.12);
+}
+
+/* ─── Stats (2 mini-columns for sites) ────────────────────────── */
+.ax-site-stats {
+  display: flex; gap: 1.5rem;
+  align-items: center;
+}
+.ax-stat {
+  display: flex; flex-direction: column;
+  font-size: 0.8rem;
+  text-align: center;
+  min-width: 0;
+}
+.ax-stat-num {
+  font-family: var(--font-display, serif);
+  font-weight: 600; font-size: 1.05rem;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.ax-stat-date {
+  font-family: var(--font-ui, system-ui);
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.ax-stat-label {
+  color: var(--ink-muted, var(--ink-soft));
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.7rem;
+}
+
+.ax-site-controls {
+  display: flex; gap: 0.5rem; align-items: center;
+  flex-shrink: 0;
+}
+.ax-delete-form { margin: 0; display: inline; }
+
+/* ─── Mobile: stack everything vertically (same pattern as users) */
+@media (max-width: 720px) {
+  .ax-site {
+    grid-template-columns: 1fr;
+    grid-template-areas: "id" "stats" "controls";
+    gap: 0.75rem;
+  }
+  .ax-site-id       { grid-area: id; }
+  .ax-site-stats    { grid-area: stats; justify-content: flex-start; gap: 1.5rem; padding-top: 0.5rem; border-top: 1px solid var(--rule); }
+  .ax-site-controls { grid-area: controls; justify-content: flex-end; }
+}
+</style>

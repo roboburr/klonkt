@@ -1,0 +1,4143 @@
+/* ============================================================
+   LOKALE FONTS — SIL OFL 1.1 licensed, self-hosted
+   Geen third-party requests, geen privacy-leak naar Google.
+   Variable WOFF2 bestanden onder /assets/fonts/
+   Licenses in /assets/fonts/licenses/
+   ============================================================ */
+@font-face {
+    font-family: 'Fraunces';
+    font-style: normal;
+    font-display: swap;
+    font-weight: 100 900;
+    src: url('/assets/fonts/fraunces-latin-full-normal.woff2') format('woff2-variations');
+    unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+    font-family: 'Fraunces';
+    font-style: italic;
+    font-display: swap;
+    font-weight: 100 900;
+    src: url('/assets/fonts/fraunces-latin-full-italic.woff2') format('woff2-variations');
+    unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+    font-family: 'Literata';
+    font-style: normal;
+    font-display: swap;
+    font-weight: 400 700;
+    src: url('/assets/fonts/literata-latin-opsz-normal.woff2') format('woff2-variations');
+    unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+    font-family: 'Literata';
+    font-style: italic;
+    font-display: swap;
+    font-weight: 400 700;
+    src: url('/assets/fonts/literata-latin-opsz-italic.woff2') format('woff2-variations');
+    unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+    font-family: 'Plus Jakarta Sans';
+    font-style: normal;
+    font-display: swap;
+    font-weight: 400 700;
+    src: url('/assets/fonts/plus-jakarta-sans-latin-wght-normal.woff2') format('woff2-variations');
+    unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+    font-family: 'Plus Jakarta Sans';
+    font-style: italic;
+    font-display: swap;
+    font-weight: 400 700;
+    src: url('/assets/fonts/plus-jakarta-sans-latin-wght-italic.woff2') format('woff2-variations');
+    unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+
+/* PrutCMS publieke stijl — editorial-ish, geen emoji-UI */
+
+:root {
+    --font-display: 'Fraunces', Georgia, serif;
+    --font-body: 'Literata', Georgia, serif;
+    --font-ui: 'Plus Jakarta Sans', system-ui, sans-serif;
+    --font-mono: ui-monospace, Menlo, Consolas, monospace;
+    --radius: 8px; --transition: 180ms cubic-bezier(.4,0,.2,1);
+    --safe-top: env(safe-area-inset-top, 0); --safe-bot: env(safe-area-inset-bottom, 0);
+    color-scheme: light dark;
+}
+
+/* ============================================================
+   PALETTES — elk palette definieert alleen bg/tekst/rand shades.
+   --accent wordt LOS ingesteld via de accent-kleur config (inline in template).
+   Palette-selector: <html data-palette="forest"> en optioneel data-theme="dark"|"light".
+   Als geen data-palette = Sage default.
+   ============================================================ */
+
+/* ── SAGE (default) ── warme crème ── */
+:root,
+[data-palette="sage"] {
+    --paper: #faf8f3; --paper-2: #f2ede0;
+    --ink: #1a1a1a; --ink-soft: #3d3833; --ink-muted: #6b6560; --ink-faint: #a8a29e;
+    --rule: #e8e2d5; --rule-2: #d4ccb8;
+}
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]):not([data-palette]),
+    [data-palette="sage"]:not([data-theme="light"]) {
+        --paper: #1c1a17; --paper-2: #252220;
+        --ink: #f4ede0; --ink-soft: #d4ccb8; --ink-muted: #a8a29e; --ink-faint: #6b6560;
+        --rule: #3d3833; --rule-2: #4d4740;
+    }
+}
+[data-theme="dark"]:not([data-palette]),
+[data-theme="dark"][data-palette="sage"] {
+    --paper: #1c1a17; --paper-2: #252220;
+    --ink: #f4ede0; --ink-soft: #d4ccb8; --ink-muted: #a8a29e; --ink-faint: #6b6560;
+    --rule: #3d3833; --rule-2: #4d4740;
+}
+
+/* ── PAPER ── minimalistisch wit → zwart ── */
+[data-palette="paper"] {
+    --paper: #ffffff; --paper-2: #f4f4f5;
+    --ink: #09090b; --ink-soft: #27272a; --ink-muted: #52525b; --ink-faint: #a1a1aa;
+    --rule: #e4e4e7; --rule-2: #d4d4d8;
+}
+@media (prefers-color-scheme: dark) {
+    [data-palette="paper"]:not([data-theme="light"]) {
+        --paper: #0a0a0a; --paper-2: #18181b;
+        --ink: #fafafa; --ink-soft: #d4d4d8; --ink-muted: #a1a1aa; --ink-faint: #71717a;
+        --rule: #27272a; --rule-2: #3f3f46;
+    }
+}
+[data-theme="dark"][data-palette="paper"] {
+    --paper: #0a0a0a; --paper-2: #18181b;
+    --ink: #fafafa; --ink-soft: #d4d4d8; --ink-muted: #a1a1aa; --ink-faint: #71717a;
+    --rule: #27272a; --rule-2: #3f3f46;
+}
+
+/* ── OCEAN ── koel blauw-grijs → diep navy ── */
+[data-palette="ocean"] {
+    --paper: #f0f6fb; --paper-2: #dce9f4;
+    --ink: #0f1e2e; --ink-soft: #1e3a52; --ink-muted: #475569; --ink-faint: #94a3b8;
+    --rule: #c7d9ea; --rule-2: #a8c0d6;
+}
+@media (prefers-color-scheme: dark) {
+    [data-palette="ocean"]:not([data-theme="light"]) {
+        --paper: #0a1929; --paper-2: #152a3f;
+        --ink: #e0f2fe; --ink-soft: #bfdbfe; --ink-muted: #93c5fd; --ink-faint: #64748b;
+        --rule: #1e3a52; --rule-2: #2a4a68;
+    }
+}
+[data-theme="dark"][data-palette="ocean"] {
+    --paper: #0a1929; --paper-2: #152a3f;
+    --ink: #e0f2fe; --ink-soft: #bfdbfe; --ink-muted: #93c5fd; --ink-faint: #64748b;
+    --rule: #1e3a52; --rule-2: #2a4a68;
+}
+
+/* ── FOREST ── olijfgroen → donker bos ── */
+[data-palette="forest"] {
+    --paper: #f2f6ed; --paper-2: #e1ead6;
+    --ink: #1a2e15; --ink-soft: #2d4a26; --ink-muted: #5a6f52; --ink-faint: #8aa080;
+    --rule: #ccddbd; --rule-2: #adc396;
+}
+@media (prefers-color-scheme: dark) {
+    [data-palette="forest"]:not([data-theme="light"]) {
+        --paper: #0d1f12; --paper-2: #1a331e;
+        --ink: #dcf2d0; --ink-soft: #b8d8a8; --ink-muted: #8aad7c; --ink-faint: #5a7a50;
+        --rule: #2d4a30; --rule-2: #3d5e42;
+    }
+}
+[data-theme="dark"][data-palette="forest"] {
+    --paper: #0d1f12; --paper-2: #1a331e;
+    --ink: #dcf2d0; --ink-soft: #b8d8a8; --ink-muted: #8aad7c; --ink-faint: #5a7a50;
+    --rule: #2d4a30; --rule-2: #3d5e42;
+}
+
+/* ── STONE ── beige bruin → koffie ── */
+[data-palette="stone"] {
+    --paper: #f5f0e8; --paper-2: #e7ddce;
+    --ink: #2b2218; --ink-soft: #4a3a2a; --ink-muted: #78614a; --ink-faint: #a8927b;
+    --rule: #d6c6ac; --rule-2: #bda98a;
+}
+@media (prefers-color-scheme: dark) {
+    [data-palette="stone"]:not([data-theme="light"]) {
+        --paper: #1a130b; --paper-2: #2d2416;
+        --ink: #f5e9d5; --ink-soft: #d4c0a3; --ink-muted: #a8927b; --ink-faint: #786452;
+        --rule: #3d2f1e; --rule-2: #534029;
+    }
+}
+[data-theme="dark"][data-palette="stone"] {
+    --paper: #1a130b; --paper-2: #2d2416;
+    --ink: #f5e9d5; --ink-soft: #d4c0a3; --ink-muted: #a8927b; --ink-faint: #786452;
+    --rule: #3d2f1e; --rule-2: #534029;
+}
+
+/* ── MIDNIGHT ── lavendel → donker paars ── */
+[data-palette="midnight"] {
+    --paper: #f3f1f8; --paper-2: #e3ddf0;
+    --ink: #1e1a2e; --ink-soft: #332c4d; --ink-muted: #5e5478; --ink-faint: #9288a8;
+    --rule: #d4cae3; --rule-2: #b8a9cc;
+}
+@media (prefers-color-scheme: dark) {
+    [data-palette="midnight"]:not([data-theme="light"]) {
+        --paper: #0f0a1f; --paper-2: #1c1432;
+        --ink: #e9def7; --ink-soft: #c4b5d9; --ink-muted: #9d88b8; --ink-faint: #6b5a85;
+        --rule: #2d1f4a; --rule-2: #3d2b5e;
+    }
+}
+[data-theme="dark"][data-palette="midnight"] {
+    --paper: #0f0a1f; --paper-2: #1c1432;
+    --ink: #e9def7; --ink-soft: #c4b5d9; --ink-muted: #9d88b8; --ink-faint: #6b5a85;
+    --rule: #2d1f4a; --rule-2: #3d2b5e;
+}
+
+/* ── SUNSET ── roze crème → diep paars-roze ── */
+[data-palette="sunset"] {
+    --paper: #fdf4f3; --paper-2: #f7e1dc;
+    --ink: #2e1618; --ink-soft: #4d282b; --ink-muted: #7a4a4e; --ink-faint: #b08589;
+    --rule: #ebcac3; --rule-2: #d9a8a0;
+}
+@media (prefers-color-scheme: dark) {
+    [data-palette="sunset"]:not([data-theme="light"]) {
+        --paper: #1f0a14; --paper-2: #321525;
+        --ink: #fce7f3; --ink-soft: #f0c5d3; --ink-muted: #c896a8; --ink-faint: #8a6878;
+        --rule: #4a1f35; --rule-2: #5e2d43;
+    }
+}
+[data-theme="dark"][data-palette="sunset"] {
+    --paper: #1f0a14; --paper-2: #321525;
+    --ink: #fce7f3; --ink-soft: #f0c5d3; --ink-muted: #c896a8; --ink-faint: #8a6878;
+    --rule: #4a1f35; --rule-2: #5e2d43;
+}
+
+/* ── CREAM ── warm papier → caramel-donker ── */
+[data-palette="cream"] {
+    --paper: #fefaf0; --paper-2: #f5ebd5;
+    --ink: #2a1f0f; --ink-soft: #4a3820; --ink-muted: #786140; --ink-faint: #ad9068;
+    --rule: #e8d9b0; --rule-2: #d1bc8a;
+}
+@media (prefers-color-scheme: dark) {
+    [data-palette="cream"]:not([data-theme="light"]) {
+        --paper: #1a1208; --paper-2: #2e2012;
+        --ink: #fef3d6; --ink-soft: #e0cfa0; --ink-muted: #b0996b; --ink-faint: #7a6848;
+        --rule: #3d2c16; --rule-2: #523d1f;
+    }
+}
+[data-theme="dark"][data-palette="cream"] {
+    --paper: #1a1208; --paper-2: #2e2012;
+    --ink: #fef3d6; --ink-soft: #e0cfa0; --ink-muted: #b0996b; --ink-faint: #7a6848;
+    --rule: #3d2c16; --rule-2: #523d1f;
+}
+
+/* Accent-tint wordt berekend uit --accent, zodat hij meegaat bij elke accent-keuze.
+   Wordt in template inline gezet; hier alleen een fallback. */
+:root { --accent: #c2410c; --accent-soft: #ea580c; --accent-tint: #fef2e8; }
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
+body {
+    margin: 0;
+    overflow-x: hidden;
+}
+body:not(.admin) {
+    min-height: 100dvh;
+    background: var(--paper); color: var(--ink);
+    font-family: var(--font-body); font-size: 1.0625rem; line-height: 1.65;
+    font-feature-settings: "liga" 1, "kern" 1, "onum" 1;
+    -webkit-font-smoothing: antialiased;
+    /* v9.4 — Sticky footer: body als flex-kolom, main groeit, footer onderaan */
+    display: flex;
+    flex-direction: column;
+}
+body:not(.admin) #pcms-main { flex: 1 0 auto; }
+body:not(.admin) .site-footer { flex-shrink: 0; }
+body:not(.admin)::before {
+    content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background: radial-gradient(ellipse at top, color-mix(in srgb, var(--accent) 3%, transparent), transparent 60%),
+                radial-gradient(ellipse at bottom right, color-mix(in srgb, var(--accent) 4%, transparent), transparent 55%);
+}
+::selection { background: var(--accent-tint); color: var(--accent); }
+
+h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 450; line-height: 1.15; letter-spacing: -0.015em; margin: 0; text-wrap: balance; font-variation-settings: "opsz" 144, "SOFT" 50; }
+h1 { font-size: clamp(2rem, 4vw + 1rem, 3.5rem); letter-spacing: -0.022em; }
+h2 { font-size: clamp(1.5rem, 2vw + 1rem, 2.25rem); margin: 1.5rem 0 .4rem; }
+h3 { font-size: 1.375rem; margin: 1.25rem 0 .3rem; }
+p { margin: 0 0 .85em; text-wrap: pretty; hyphens: auto; }
+a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--rule-2); text-underline-offset: 3px; transition: color var(--transition), text-decoration-color var(--transition); }
+a:hover { color: var(--accent); text-decoration-color: var(--accent); }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; text-decoration: none; }
+blockquote { margin: 2em 0; padding: .25em 0 .25em 1.25em; border-left: 2px solid var(--accent); font-family: var(--font-display); font-style: italic; font-size: 1.15em; color: var(--ink-soft); }
+code { font-family: var(--font-mono); font-size: .9em; padding: .15em .4em; background: var(--paper-2); border: 1px solid var(--rule); border-radius: 4px; }
+pre { font-family: var(--font-mono); font-size: .85rem; padding: 1.25em 1.5em; background: var(--paper-2); border: 1px solid var(--rule); border-radius: var(--radius); overflow-x: auto; line-height: 1.5; }
+pre code { padding: 0; background: none; border: none; }
+hr { border: 0; border-top: 1px solid var(--rule); margin: 3em auto; max-width: 4rem; }
+
+/* Container — schaalt mee met schermgrootte.
+   42rem default (optimale leesbreedte voor tekst),
+   breder op HD/2.5K/4K waar je meer ademruimte hebt.
+   Grid-view heeft z'n eigen bredere variant (zie .feed-grid). */
+/* Container max-width schaalt per schermformaat.
+   42rem is optimale leesbreedte voor tekst. Op grotere schermen
+   ademruimte geven zonder uitwaaieren. Grid apart geregeld. */
+.container { max-width: 42rem; margin-inline: auto; padding-inline: clamp(1.25rem, 4vw, 2rem); }
+
+/* Laptop / Full HD — 1440px viewport of groter */
+@media (min-width: 1440px) {
+    .container { max-width: 56rem; }
+}
+/* Desktop / QHD 2.5K — 1920px viewport of groter */
+@media (min-width: 1920px) {
+    .container { max-width: 72rem; }
+}
+/* 4K UHD — 2560px viewport of groter */
+@media (min-width: 2560px) {
+    .container { max-width: 88rem; }
+}
+
+/* Grid-view tiles: Instagram-feel. Max-width schaalt met gekozen kolommen zodat
+   tegels niet te groot of te klein worden. */
+@media (min-width: 1200px) {
+    body[data-grid-cols="4"] .feed-grid.container { max-width: 80rem; }
+    body[data-grid-cols="3"] .feed-grid.container { max-width: 64rem; }
+    body[data-grid-cols="2"] .feed-grid.container { max-width: 48rem; }
+}
+@media (min-width: 1920px) {
+    body[data-grid-cols="4"] .feed-grid.container { max-width: 96rem; }
+}
+
+.icon { width: 1.125em; height: 1.125em; flex-shrink: 0; vertical-align: -0.15em; stroke: currentColor; fill: none; display: inline-block; }
+
+/* Masthead */
+.masthead {
+    border-bottom: 1px solid var(--rule);
+    padding: calc(1rem + var(--safe-top)) 0 1rem;
+    background: color-mix(in srgb, var(--paper) 88%, transparent);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    position: sticky; top: 0; z-index: 20;
+}
+.masthead-inner { display: flex; align-items: center; justify-content: flex-end; gap: 1.5rem; }
+.masthead-brand { min-width: 0; flex: 1 1 auto; overflow: hidden; }
+.site-title { font-family: var(--font-display); font-size: 1.5rem; font-weight: 500; font-variation-settings: "opsz" 72, "SOFT" 100; letter-spacing: -0.015em; text-decoration: none; color: var(--ink); line-height: 1; display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+.site-title:hover { color: var(--accent); }
+/* v9.0 — nav-home icon (replaces site-title text in nav) */
+.nav-home {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 2.25rem; height: 2.25rem;
+    color: var(--ink-soft); text-decoration: none;
+    border-radius: 6px; border: 1px solid transparent;
+    transition: all var(--transition);
+}
+.nav-home:hover { color: var(--ink); background: var(--paper-2); border-color: var(--rule); }
+.nav-home .icon { width: 1.15rem; height: 1.15rem; }
+.top-nav { display: flex; align-items: center; gap: .25rem; flex-shrink: 0; }
+.nav-link, .nav-btn {
+    font-family: var(--font-ui); font-size: .875rem; font-weight: 500;
+    color: var(--ink-soft); text-decoration: none;
+    padding: .5rem .85rem; border-radius: 6px;
+    background: transparent; border: 1px solid transparent;
+    cursor: pointer;
+    display: inline-flex; align-items: center; gap: .4rem;
+    min-height: 2.25rem;
+    transition: all var(--transition);
+}
+.nav-link:hover, .nav-btn:hover { color: var(--ink); background: var(--paper-2); border-color: var(--rule); }
+.nav-link-muted { color: var(--ink-muted); }
+.nav-label { display: none; }
+@media (min-width: 560px) { .nav-label { display: inline; } }
+
+/* Article */
+main { padding-top: 2rem; }
+.page { padding-block: 2rem 3rem; }
+page-container { display: block; font-size: 1.125rem; line-height: 1.75; }
+page-container h1 { font-size: clamp(2rem, 5vw + 1rem, 3.75rem); margin-bottom: 1rem; letter-spacing: -0.025em; }
+page-container img, page-container iframe, page-container video { max-width: 100%; height: auto; display: block; margin: 2rem auto; border-radius: var(--radius); }
+page-container audio { width: 100%; margin: 1.5rem 0; }
+page-container figure { margin: 2rem 0; }
+page-container figcaption { font-family: var(--font-ui); font-size: .85rem; color: var(--ink-muted); text-align: center; margin-top: .5rem; }
+page-container[contenteditable="true"] { outline: 2px dashed var(--accent); outline-offset: .5rem; border-radius: var(--radius); }
+
+.empty { text-align: center; padding: 4rem 1rem; }
+.empty h1 { font-size: 2rem; }
+.empty p { color: var(--ink-muted); }
+
+/* Embeds */
+.pcms-embed, .folio-embed { margin: 2rem 0; }
+.pcms-embed iframe, .folio-embed iframe { width: 100%; display: block; border: 0; border-radius: var(--radius); }
+
+/* Article footer */
+.article-footer { display: flex; justify-content: center; padding-top: 2rem; margin-top: 2rem; border-top: 1px solid var(--rule); }
+
+/* Buttons */
+.button {
+    font-family: var(--font-ui); font-size: .875rem; font-weight: 500;
+    padding: .6rem 1.1rem; min-height: 2.5rem;
+    display: inline-flex; align-items: center; gap: .5rem;
+    background: var(--ink); color: var(--paper);
+    border: 1px solid var(--ink);
+    border-radius: 6px;
+    text-decoration: none; cursor: pointer;
+    transition: all var(--transition);
+}
+.button:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+.button-ghost { background: transparent; color: var(--ink); border-color: var(--rule-2); }
+.button-ghost:hover { background: var(--paper-2); border-color: var(--accent); color: var(--accent); }
+
+/* Pagination */
+.pagination {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    padding-block: 2rem 4rem;
+    margin-top: 2rem;
+    border-top: 1px solid var(--rule);
+}
+a.pagination-item {
+    display: flex; align-items: center; gap: 1rem; padding: 1rem 1.25rem;
+    border: 2px solid var(--rule-2, var(--rule));
+    border-radius: var(--radius);
+    text-decoration: none; transition: all .15s ease; font-size: .9rem;
+    background: var(--paper-2);
+    min-height: 5rem;
+    min-width: 0;
+    overflow: hidden;
+    cursor: pointer;
+    box-shadow: 0 1px 0 rgba(0,0,0,.02);
+    -webkit-tap-highlight-color: color-mix(in srgb, var(--accent) 30%, transparent);
+    position: relative;
+}
+.pagination-item:not(a) {
+    display: flex; align-items: center; gap: 1rem; padding: 1rem 1.25rem;
+    border: 1px dashed var(--rule); border-radius: var(--radius);
+    font-size: .9rem; background: transparent; min-height: 5rem;
+    min-width: 0; overflow: hidden;
+}
+.pagination-next { flex-direction: row-reverse; text-align: right; }
+a.pagination-item:hover {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 5%, var(--paper-2));
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,.08);
+}
+a.pagination-item:active {
+    transform: translateY(0);
+    transition-duration: .05s;
+}
+.pagination-disabled { opacity: .5; cursor: default; font-style: italic; }
+.pagination-body { display: flex; flex-direction: column; gap: .15rem; min-width: 0; flex: 1; }
+.pagination-label {
+    display: block; font-family: var(--font-ui); font-size: .7rem; font-weight: 700;
+    letter-spacing: .08em; text-transform: uppercase; color: var(--accent);
+    margin-bottom: .15rem;
+}
+.pagination-slug {
+    display: block; font-size: .72rem; color: var(--ink-muted);
+    opacity: .75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    font-style: italic;
+}
+.pagination-title {
+    display: block; font-family: var(--font-display); font-weight: 600; color: var(--ink);
+    font-variation-settings: "opsz" 72; font-style: normal;
+    line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    font-size: 1.05rem;
+    text-decoration: underline;
+    text-decoration-color: var(--rule-2, var(--rule));
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+    transition: text-decoration-color .15s;
+}
+a.pagination-item:hover .pagination-title {
+    text-decoration-color: var(--accent);
+}
+.pagination .icon {
+    width: 1.75em; height: 1.75em; flex-shrink: 0;
+    color: var(--accent);
+    transition: transform .15s;
+}
+a.pagination-prev:hover .icon { transform: translateX(-4px); }
+a.pagination-next:hover .icon { transform: translateX(4px); }
+
+/* Pinned-targets → accent-tint en dikkere rand voor duidelijkheid */
+.pagination-item.is-pinned {
+    background: color-mix(in srgb, var(--accent) 8%, var(--paper-2));
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--rule));
+}
+a.pagination-item.is-pinned:hover {
+    background: color-mix(in srgb, var(--accent) 15%, var(--paper-2));
+    border-color: var(--accent);
+}
+
+@media (max-width: 800px) { .pagination { grid-template-columns: 1fr; } }
+
+/* Footer */
+.site-footer { padding: 2rem 0 calc(2rem + var(--safe-bot)); border-top: 1px solid var(--rule); margin-top: 4rem; font-family: var(--font-ui); font-size: .85rem; color: var(--ink-muted); }
+.site-footer-inner { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem; align-items: center; }
+.site-footer a { color: var(--ink-muted); text-decoration-color: var(--rule); }
+.site-footer a:hover { color: var(--accent); }
+.site-footer-links { display: flex; gap: 1rem; }
+.sep { color: var(--ink-faint); margin: 0 .5rem; }
+.footer-tagline { font-style: italic; opacity: .8; }
+
+@media print {
+    .masthead, .pagination, .site-footer, .article-footer, .top-nav { display: none; }
+    body { background: #fff; color: #000; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
+
+/* ============================================================
+   V7 ADDITIONS — post metadata UI + audio player + post-images
+   ============================================================ */
+
+/* Post header */
+.post-header { margin: 0 0 2rem; }
+.post-cover {
+    margin: 0 0 1.5rem;
+    border-radius: 8px;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--fg) 4%, transparent);
+}
+.post-cover img {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: 50vh;
+    object-fit: cover;
+}
+.post-title { font-size: clamp(1.6rem, 4vw, 2.6rem); line-height: 1.15; margin: 0 0 .5rem; letter-spacing: -.02em; }
+
+/* Pin banner — duidelijk zichtbaar dat een post gepind is */
+.post-pin-banner {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+    color: var(--accent);
+    padding: .4rem .8rem;
+    border-radius: 999px;
+    font-size: .75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    margin: 0 0 .85rem;
+    line-height: 1;
+}
+.post-pin-banner-icon { font-size: 1rem; line-height: 1; }
+.post-pin-banner-sep { opacity: .5; }
+.post-pin-banner-pos { opacity: .85; }
+.post-date {
+    color: var(--fg-muted, #888);
+    font-size: .85rem;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    margin: 0 0 1.5rem;
+}
+
+/* Post-images in content (resize + align) */
+.post-image {
+    margin: 1.5rem 0;
+}
+.post-image img {
+    display: block;
+    height: auto;
+    border-radius: 6px;
+    max-width: 100%;
+}
+.post-image figcaption {
+    font-size: .85rem;
+    color: var(--fg-muted, #888);
+    margin-top: .5rem;
+    font-style: italic;
+    text-align: center;
+}
+.post-image--small img { max-width: 240px; }
+.post-image--medium img { max-width: 440px; }
+.post-image--large img { max-width: 720px; }
+.post-image--full img { width: 100%; max-width: 100%; }
+.post-image--left { text-align: left; }
+.post-image--left img { margin-left: 0; margin-right: auto; }
+.post-image--center { text-align: center; }
+.post-image--center img { margin-left: auto; margin-right: auto; }
+.post-image--right { text-align: right; }
+.post-image--right img { margin-left: auto; margin-right: 0; }
+
+/* Mini-player + bottom-tab clearance: applied to .pcms-main so the footer
+   is NOT pushed below the viewport bottom. The bars are position:fixed so
+   they overlap whatever they sit on top of; the padding ensures the last
+   content row isn't covered. Footer naturally follows main and now sits
+   exactly at viewport-bottom on short pages (sticky footer flex). */
+.pcms-main { padding-bottom: 5.5rem; }
+body.has-audio-player .pcms-main { padding-bottom: 5.5rem; }
+
+/* ============================================================
+   AUDIO PLAYER v7.1 — SVG iconen, thema-aware, geen emoji
+   ============================================================ */
+.audio-player {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    background: color-mix(in srgb, var(--paper, #fff) 96%, var(--ink, #000));
+    border-top: 1px solid var(--rule, rgba(0,0,0,.1));
+    color: var(--ink, #222);
+    z-index: 1000;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 -4px 20px rgba(0,0,0,.04);
+}
+[data-theme="dark"] .audio-player {
+    background: color-mix(in srgb, var(--paper, #1a1a1a) 92%, #fff);
+    box-shadow: 0 -4px 20px rgba(0,0,0,.3);
+}
+.audio-player-inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) auto minmax(180px, 2fr) auto;
+    gap: 1rem;
+    align-items: center;
+    padding: .65rem 1.25rem;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+/* v9.0 — Clickable trigger dat cover + meta combineert zodat klikken erop sheet opent */
+.audio-player-expand-trigger {
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+    min-width: 0;
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+    color: inherit;
+    text-align: left;
+    font: inherit;
+    border-radius: 6px;
+    transition: background .15s;
+}
+.audio-player-expand-trigger:hover {
+    background: color-mix(in srgb, var(--ink, #000) 6%, transparent);
+}
+
+/* Cover art */
+.audio-player-cover {
+    width: 48px; height: 48px;
+    border-radius: 4px;
+    background: linear-gradient(135deg,
+        var(--accent, #c2410c),
+        color-mix(in srgb, var(--accent, #c2410c) 55%, #000));
+    background-size: cover;
+    background-position: center;
+    flex-shrink: 0;
+    position: relative;
+}
+.audio-player-cover.has-image {
+    background-blend-mode: normal;
+}
+
+/* Meta — titel + artiest */
+.audio-player-meta {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.audio-player-title-wrap {
+    overflow: hidden;
+    white-space: nowrap;
+    position: relative;
+}
+.audio-player-title {
+    display: inline-block;
+    font-family: var(--font-ui, inherit);
+    font-weight: 600;
+    font-size: .9rem;
+    line-height: 1.3;
+    letter-spacing: -.01em;
+    color: var(--ink, inherit);
+    white-space: nowrap;
+}
+.audio-player-title.is-overflowing {
+    animation: audio-title-marquee 6s ease-in-out infinite alternate;
+}
+@keyframes audio-title-marquee {
+    0%, 8%    { transform: translateX(0); }
+    92%, 100% { transform: translateX(calc(-1 * var(--audio-shift, 0px))); }
+}
+.audio-player-artist {
+    font-family: var(--font-ui, inherit);
+    font-size: .74rem;
+    line-height: 1.3;
+    color: var(--ink-muted, rgba(0,0,0,.55));
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Controls — prev / play / next */
+.audio-player-controls {
+    display: flex;
+    gap: .1rem;
+    align-items: center;
+}
+.audio-btn {
+    background: transparent;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    padding: .5rem;
+    border-radius: 50%;
+    transition: background .15s, color .15s, transform .08s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+.audio-btn svg {
+    width: 18px; height: 18px;
+    display: block;
+}
+.audio-btn:hover { background: color-mix(in srgb, var(--ink, #000) 8%, transparent); }
+.audio-btn:active { transform: scale(.94); }
+.audio-btn-play {
+    background: var(--accent, #c2410c);
+    color: #fff;
+    width: 38px; height: 38px;
+    padding: 0;
+}
+.audio-btn-play:hover {
+    background: color-mix(in srgb, var(--accent, #c2410c) 85%, #fff);
+}
+[data-theme="dark"] .audio-btn-play:hover {
+    background: color-mix(in srgb, var(--accent, #c2410c) 85%, #000);
+}
+.audio-btn-play svg { width: 16px; height: 16px; }
+.audio-btn-play .icon-pause { display: none; }
+.audio-player.is-playing .audio-btn-play .icon-play  { display: none; }
+.audio-player.is-playing .audio-btn-play .icon-pause { display: block; }
+
+/* Progress bar */
+.audio-player-progress {
+    display: flex;
+    gap: .75rem;
+    align-items: center;
+    min-width: 0;
+}
+.audio-time {
+    font-size: .7rem;
+    color: var(--ink-muted, rgba(0,0,0,.55));
+    font-variant-numeric: tabular-nums;
+    min-width: 2.7em;
+    text-align: center;
+}
+.audio-seek {
+    flex: 1;
+    min-width: 0;
+    cursor: pointer;
+    padding: .5rem 0;
+    position: relative;
+}
+.audio-seek-bar {
+    height: 3px;
+    background: color-mix(in srgb, var(--ink, #000) 12%, transparent);
+    border-radius: 2px;
+    overflow: hidden;
+    transition: height .15s;
+}
+.audio-seek:hover .audio-seek-bar { height: 5px; }
+.audio-seek-fill {
+    height: 100%;
+    background: var(--accent, #c2410c);
+    width: 0%;
+    transition: width .1s linear;
+}
+
+/* Volume — popup on hover */
+.audio-player-volume {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+.audio-btn .icon-mute { display: none; }
+.audio-player.is-muted .audio-btn .icon-vol  { display: none; }
+.audio-player.is-muted .audio-btn .icon-mute { display: block; }
+.audio-volume-popup {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%) scale(.95);
+    transform-origin: bottom center;
+    background: var(--paper, #fff);
+    border: 1px solid var(--rule, rgba(0,0,0,.1));
+    border-radius: 8px;
+    padding: .75rem .5rem;
+    box-shadow: 0 4px 16px rgba(0,0,0,.15);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .15s, transform .15s, visibility .15s;
+    height: 110px;
+    visibility: hidden;
+}
+/* Invisible bridge tussen knop en popup zodat hover niet breekt */
+.audio-volume-popup::after {
+    content: '';
+    position: absolute;
+    bottom: -12px;
+    left: -10px;
+    right: -10px;
+    height: 16px;
+}
+[data-theme="dark"] .audio-volume-popup {
+    background: color-mix(in srgb, var(--paper, #111) 92%, #fff);
+}
+.audio-player-volume:hover .audio-volume-popup,
+.audio-player-volume:focus-within .audio-volume-popup,
+.audio-player-volume.is-open .audio-volume-popup {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) scale(1);
+    pointer-events: auto;
+}
+.audio-volume-popup input[type=range] {
+    /* Standard vertical slider — replaces deprecated -webkit-appearance: slider-vertical. */
+    writing-mode: vertical-lr;
+    direction: rtl;
+    width: 6px;
+    height: 90px;
+    accent-color: var(--accent, #c2410c);
+    /* Grotere hit-area via pseudo-touch padding */
+    padding: 0 12px;
+    box-sizing: content-box;
+    cursor: pointer;
+}
+
+/* Mobile */
+@media (max-width: 720px) {
+    .audio-player-inner {
+        /* v9.0 — 3 cols: expand-trigger (cover+meta) | controls | volume */
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        gap: .5rem;
+        padding: .5rem .8rem;
+    }
+    .audio-player-progress {
+        display: none;
+    }
+    .audio-player-cover { width: 40px; height: 40px; }
+    .audio-btn-play { width: 34px; height: 34px; }
+    body.has-audio-player .pcms-main { padding-bottom: 4.2rem; }
+    /* Verberg titel-artiest op bijzonder smal, verstop volume op mobile */
+    .audio-player-volume { display: none; }
+}
+
+/* Ultra-small schermen (iPhone 4 = 320px; iPhone SE 1st gen = 320px;
+   iPhone mini ~360px). v9.3 — alles vanaf 320px moet werken; daaronder
+   accepteren we wel/niet. */
+@media (max-width: 380px) {
+    .audio-player-inner {
+        gap: .35rem;
+        padding: .4rem .6rem;
+    }
+    .audio-player-expand-trigger {
+        gap: .45rem;
+    }
+    .audio-player-cover { width: 36px; height: 36px; }
+    .audio-player-title { font-size: .88rem; }
+    .audio-player-artist { font-size: .72rem; }
+    .audio-player-controls { gap: .15rem; }
+    .audio-btn { width: 30px; height: 30px; }
+    .audio-btn svg { width: 16px; height: 16px; }
+    .audio-btn-play { width: 32px; height: 32px; }
+    .audio-btn-play svg { width: 18px; height: 18px; }
+
+    /* v9.3 — Tracklist compact op smalle telefoons.
+       Leader 28×28, kleinere gap, padding strakker. Tijd in monoscript blijft
+       leesbaar; titel krijgt 5-10px meer ruimte. */
+    .pat-row {
+        grid-template-columns: 28px 1fr auto;
+        gap: .5rem;
+        padding: .45rem .65rem;
+    }
+    .pat-row .pat-num,
+    .pat-row .pat-cover {
+        width: 28px;
+        height: 28px;
+    }
+    .pat-row::before {
+        left: .65rem;
+        width: 28px; height: 28px;
+        -webkit-mask-size: 22px 22px;
+                mask-size: 22px 22px;
+    }
+    .pat-row .pat-title { font-size: .92rem; }
+    .pat-row .pat-artist { font-size: .74rem; }
+    .pat-row .pat-duration { font-size: .74rem; }
+
+    /* v9.3 — Album binnen post: cover + tracks compacter */
+    .post-album-cover {
+        width: 90px;
+        height: 90px;
+    }
+    .post-album-header {
+        gap: .65rem;
+        padding: .65rem;
+    }
+    .post-album-title { font-size: 1rem; }
+
+    /* v9.3 — Profile-header bovenin compacter */
+    .profile-photo {
+        width: 48px !important;
+        height: 48px !important;
+    }
+    .profile-content {
+        gap: .65rem;
+    }
+
+    /* v9.3 — Install-app modal: minder padding, kleinere knoppen */
+    .install-modal-inner {
+        padding: 1rem;
+    }
+    .install-app-btn {
+        padding: .55rem 1rem;
+        font-size: .9rem;
+    }
+
+    /* v9.3 — Forceer niets schuift horizontaal weg */
+    body, html {
+        overflow-x: hidden;
+    }
+}
+
+/* iPhone 4 / iPhone SE 1st gen / iPhone 5/5s (320px) — strakste niveau */
+@media (max-width: 340px) {
+    .audio-player-inner {
+        padding: .35rem .5rem;
+    }
+    .audio-player-artist { display: none; }
+    .audio-player-cover { width: 32px; height: 32px; }
+    body.has-audio-player .pcms-main { padding-bottom: 3.6rem; }
+    /* Expand-sheet wat strakker */
+    .audio-sheet-panel {
+        padding: .5rem 1rem 1.5rem;
+    }
+    .audio-sheet-title { font-size: 1.2rem; }
+    .audio-sheet-artist { font-size: .9rem; }
+    .audio-sheet-play { width: 60px; height: 60px; }
+    .audio-sheet-play svg { width: 26px; height: 26px; }
+    .audio-sheet-btn { width: 42px; height: 42px; }
+    .audio-sheet-btn svg { width: 24px; height: 24px; }
+    .audio-sheet-controls { gap: 1rem; }
+
+    /* v9.3 — Op iPhone 4 (320px): tracklist nog strakker */
+    .pat-row {
+        grid-template-columns: 26px 1fr auto;
+        gap: .4rem;
+        padding: .4rem .55rem;
+    }
+    .pat-row .pat-num,
+    .pat-row .pat-cover {
+        width: 26px;
+        height: 26px;
+    }
+    .pat-row::before {
+        left: .55rem;
+        width: 26px; height: 26px;
+        -webkit-mask-size: 20px 20px;
+                mask-size: 20px 20px;
+    }
+    .pat-row .pat-artist {
+        display: none;  /* op extreem smal weglaten ten gunste van titel */
+    }
+    .pat-row .pat-title { font-size: .9rem; }
+    .pat-row .pat-duration { font-size: .72rem; }
+
+    /* Container padding reduceren voor max content-breedte */
+    .container {
+        padding-inline: 1rem !important;
+    }
+
+    /* Post-cover (de grote bovenste) krimpen */
+    .post-cover {
+        max-height: 200px;
+    }
+}
+
+/* ============================================================
+   v9.0 — Audio player expand-sheet (Spotify-style "now playing")
+   Slide-up half-screen met grote cover, track info, big controls
+   ============================================================ */
+.audio-sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 1100;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .25s ease;
+}
+.audio-sheet.is-open {
+    pointer-events: auto;
+    opacity: 1;
+}
+.audio-sheet-backdrop {
+    position: absolute;
+    inset: 0;
+    /* v9.3 — Blur en overlay-dim allebei via CSS-variabele --pcms-sheet-progress
+       (1 = volledig, 0 = weg). JS update tijdens drag; CSS-transition pakt
+       open/close af. Sterke blur (24px) zodat 't effect goed zichtbaar is. */
+    background: rgb(0 0 0 / calc(.4 * var(--pcms-sheet-progress, 1)));
+    backdrop-filter: blur(calc(24px * var(--pcms-sheet-progress, 1)));
+    -webkit-backdrop-filter: blur(calc(24px * var(--pcms-sheet-progress, 1)));
+    transition: background .25s ease,
+                backdrop-filter .25s ease,
+                -webkit-backdrop-filter .25s ease;
+    will-change: backdrop-filter, background;
+}
+/* Tijdens drag: instant updates vanuit JS, geen transition */
+.audio-sheet-panel.is-dragging ~ .audio-sheet-backdrop,
+.audio-sheet-backdrop.is-dragging {
+    transition: none;
+}
+.audio-sheet-panel {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    background: var(--paper, #fff);
+    border-top-left-radius: 20px;
+    border-top-right-radius: 20px;
+    box-shadow: 0 -20px 60px rgba(0, 0, 0, .25);
+    padding: .75rem 1.5rem 2rem;
+    max-height: 85vh;
+    overflow-y: auto;
+    /* v9.2.1 — scroll blijft binnen panel, geen chaining naar body (iOS-proof) */
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    /* Hide scrollbar but keep scrollable */
+    scrollbar-width: none;          /* Firefox */
+    -ms-overflow-style: none;       /* IE/Edge */
+    transform: translateY(100%);
+    transition: transform .3s cubic-bezier(.22, .9, .3, 1),
+                opacity .3s cubic-bezier(.22, .9, .3, 1);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    color: var(--ink);
+}
+.audio-sheet-panel::-webkit-scrollbar {
+    display: none;                  /* Chrome/Safari */
+}
+/* Body scroll lock wanneer sheet open is */
+body.audio-sheet-locked {
+    overflow: hidden;
+}
+.audio-sheet.is-open .audio-sheet-panel {
+    transform: translateY(0);
+}
+
+/* v9.3 — Drag-zone: pill bovenaan + cover. Hele strook is touch-target voor
+   swipe-down-to-close. Pull-to-refresh is uitgeschakeld op html-niveau dus
+   geen interferentie. Onder de cover (info/progress/controls/queue) werkt
+   normale touch — knoppen, scroll in queue, etc. */
+.audio-sheet-drag-zone {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+    /* v9.3 — touch-action: pan-y staat verticale scroll toe (zodat queue
+       eronder scrollt als gebruiker omhoog veegt over cover). Onze JS
+       detecteert intent: alleen omlaag-swipe vanaf de top sluit de sheet,
+       omhoog-swipe = scroll. */
+    touch-action: pan-y;
+    user-select: none;
+    -webkit-user-select: none;
+    cursor: grab;
+    margin: -.75rem -1.5rem 0;
+    padding: .75rem 1.5rem 0;
+}
+.audio-sheet-drag-zone:active { cursor: grabbing; }
+
+/* v9.4 — Drag alleen actief op touch-only apparaten (telefoons).
+   Desktop met muis + tablets met muis-cursor → geen drag-grip,
+   gebruiker sluit via × pill-knop bovenin of klik op backdrop. */
+@media (hover: hover) and (pointer: fine) {
+    .audio-sheet-drag-zone {
+        touch-action: auto;
+        cursor: default;
+        pointer-events: none;
+    }
+    /* Pill blijft klikbaar als sluit-knop */
+    .audio-sheet-drag-zone .audio-sheet-handle {
+        pointer-events: auto;
+        cursor: pointer;
+    }
+}
+
+/* Pill (handle) gecentreerd boven de cover */
+.audio-sheet-drag-zone .audio-sheet-handle {
+    margin: 0 auto .25rem;
+}
+
+/* Tijdens dragging: panel volgt vinger realtime; geen transition */
+.audio-sheet-panel.is-dragging {
+    transition: none;
+    will-change: transform;
+}
+[data-theme="dark"] .audio-sheet-panel {
+    background: var(--paper, #1a1a1a);
+    box-shadow: 0 -20px 60px rgba(0, 0, 0, .5);
+}
+/* Drag-handle + close button in één */
+.audio-sheet-handle {
+    display: block;
+    width: 48px;
+    height: 4px;
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--ink, #000) 25%, transparent);
+    border: none;
+    margin: 0 auto .5rem;
+    padding: 0;
+    cursor: pointer;
+    flex-shrink: 0;
+    position: relative;
+}
+.audio-sheet-handle::before {
+    content: "";
+    position: absolute;
+    /* v9.3 — Drag-strip wrapper neemt nu de hit-area-rol over. ::before
+       blijft als kleine extra padding voor click-comfort. */
+    inset: -10px -20px;
+}
+.audio-sheet-handle:hover {
+    background: color-mix(in srgb, var(--ink, #000) 45%, transparent);
+}
+/* Grote cover */
+.audio-sheet-cover {
+    width: 100%;
+    max-width: 360px;
+    aspect-ratio: 1/1;
+    margin: 0 auto;
+    border-radius: 12px;
+    background: linear-gradient(135deg,
+        var(--accent, #c2410c),
+        color-mix(in srgb, var(--accent, #c2410c) 55%, #000));
+    background-size: cover;
+    background-position: center;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, .15);
+    flex-shrink: 0;
+}
+[data-theme="dark"] .audio-sheet-cover {
+    box-shadow: 0 20px 40px rgba(0, 0, 0, .4);
+}
+.audio-sheet-info {
+    text-align: center;
+    padding: 0 1rem;
+}
+.audio-sheet-title {
+    font-family: var(--font-display, inherit);
+    font-size: 1.5rem;
+    font-weight: 600;
+    line-height: 1.2;
+    margin: 0 0 .25rem;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+}
+.audio-sheet-artist {
+    font-size: 1rem;
+    color: var(--ink-muted, var(--ink));
+    opacity: .7;
+}
+.audio-sheet-album {
+    margin-top: .35rem;
+    font-size: .82rem;
+    opacity: .5;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
+.audio-sheet-album:empty { display: none; }
+/* Progress + time */
+.audio-sheet-progress {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: .6rem;
+    align-items: center;
+    padding: 0 .5rem;
+}
+.audio-sheet-progress .audio-seek { width: 100%; }
+.audio-sheet-progress .audio-time {
+    font-size: .78rem;
+    opacity: .55;
+}
+/* Grote controls */
+.audio-sheet-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.75rem;
+}
+.audio-sheet-btn {
+    width: 48px;
+    height: 48px;
+    padding: 0;
+}
+.audio-sheet-btn svg { width: 28px; height: 28px; }
+.audio-sheet-play {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: var(--accent, #c2410c);
+    color: var(--paper, #fff);
+    border: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform .1s;
+}
+.audio-sheet-play:hover { transform: scale(1.05); }
+.audio-sheet-play:active { transform: scale(.95); }
+.audio-sheet-play svg { width: 30px; height: 30px; }
+.audio-sheet-play .icon-pause { display: none; }
+/* v9.2.1 — sheet staat nu als sibling van .audio-player buiten de balk,
+   dus ancestor-selector .audio-player.is-playing werkt niet meer voor de
+   sheet. JS zet is-playing ook rechtstreeks op sheet.play (regel 551 app.js). */
+.audio-sheet-play.is-playing .icon-play { display: none; }
+.audio-sheet-play.is-playing .icon-pause { display: block; }
+/* v9.2.1 — fallback: als sheet buiten alle ancestors zit, tag body */
+body.audio-is-playing .audio-sheet-play .icon-play { display: none; }
+body.audio-is-playing .audio-sheet-play .icon-pause { display: block; }
+
+/* v9.3 — Loading state: roterende spiraal (het roboburr logo).
+   Button-achtergrond wordt transparant, play/pause svgs verbergen, en de
+   spiraal verschijnt als roterende background via ::after pseudo-element.
+   Cool-effect: zachte hue-drift geeft de kleur een levend gevoel. */
+.audio-player.is-loading .audio-btn-play,
+.audio-player.is-loading .audio-sheet-play,
+body.audio-is-loading .audio-sheet-play,
+.pat-row.is-loading {
+    pointer-events: none;
+}
+.audio-player.is-loading .audio-btn-play,
+.audio-player.is-loading .audio-sheet-play,
+body.audio-is-loading .audio-sheet-play {
+    background: transparent;
+    box-shadow: none;
+}
+
+/* v9.3 — Play/pause-icons in de player-knoppen faden smooth uit/in tijdens
+   loading. Pseudo-spiraal faded tegelijkertijd in (geen instant pop). */
+.audio-btn-play > svg,
+.audio-sheet-play > svg {
+    transition: opacity .35s cubic-bezier(.4, 0, .2, 1),
+                transform .35s cubic-bezier(.4, 0, .2, 1);
+}
+.audio-player.is-loading .audio-btn-play > svg,
+.audio-player.is-loading .audio-sheet-play > svg,
+body.audio-is-loading .audio-sheet-play > svg {
+    opacity: 0;
+    transform: scale(.7);
+}
+.pat-row.is-loading .pat-play-icon > svg,
+.pat-row.is-loading .pat-num,
+.pat-row.is-loading .pat-cover {
+    opacity: 0;
+}
+
+/* v9.3 — Spiraal als pseudo-element, ALTIJD aanwezig met opacity 0 default.
+   Bij is-loading faden 'ie smooth in (opacity + scale-bounce), bij klaar
+   faden 'ie weer uit. Pure accent-kleur, geen hue-drift. */
+.audio-player .audio-btn-play,
+.audio-player .audio-sheet-play,
+.pat-row .pat-play-icon {
+    position: relative;
+}
+.audio-btn-play::after,
+.audio-sheet-play::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-color: var(--accent, #c2410c);
+    -webkit-mask: url('/assets/spinner.svg') center/contain no-repeat;
+            mask: url('/assets/spinner.svg') center/contain no-repeat;
+    opacity: 0;
+    transform: scale(.6);
+    transition: opacity .4s cubic-bezier(.4, 0, .2, 1),
+                transform .4s cubic-bezier(.34, 1.56, .64, 1);
+    pointer-events: none;
+    animation: pcms-spiral-spin 1.2s linear infinite paused;
+    will-change: opacity, transform;
+}
+.audio-player.is-loading .audio-btn-play::after,
+.audio-player.is-loading .audio-sheet-play::after,
+body.audio-is-loading .audio-sheet-play::after {
+    opacity: 1;
+    transform: scale(1);
+    animation-play-state: running;
+}
+/* Pat-row keeps its existing ::before spinner from earlier change.
+   Voor backward-compat als oude HTML nog .pat-play-icon::after spinner had */
+.pat-row.is-loading .pat-play-icon::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-color: var(--accent, #c2410c);
+    -webkit-mask: url('/assets/spinner.svg') center/contain no-repeat;
+            mask: url('/assets/spinner.svg') center/contain no-repeat;
+    opacity: 1;
+    animation: pcms-spiral-spin 1.2s linear infinite;
+    pointer-events: none;
+}
+@keyframes pcms-spiral-spin {
+    to { transform: scale(1) rotate(-360deg); }
+}
+/* Queue list */
+.audio-sheet-queue {
+    margin-top: .5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--rule);
+}
+.audio-sheet-queue-label {
+    font-size: .75rem;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    opacity: .5;
+    font-weight: 600;
+    margin-bottom: .5rem;
+    padding: 0 .5rem;
+}
+.audio-sheet-queue-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.audio-sheet-queue-item {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    padding: .5rem .6rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background .15s;
+    background: none;
+    border: none;
+    width: 100%;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+}
+.audio-sheet-queue-item:hover {
+    background: color-mix(in srgb, var(--ink, #000) 6%, transparent);
+}
+.audio-sheet-queue-item.is-current {
+    background: color-mix(in srgb, var(--accent, #c2410c) 14%, transparent);
+    color: var(--accent, #c2410c);
+}
+.audio-sheet-queue-cover {
+    width: 36px;
+    height: 36px;
+    border-radius: 4px;
+    background-size: cover;
+    background-position: center;
+    background-color: var(--rule);
+    flex-shrink: 0;
+}
+.audio-sheet-queue-meta {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+.audio-sheet-queue-title {
+    font-size: .9rem;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.audio-sheet-queue-artist {
+    font-size: .75rem;
+    opacity: .55;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.audio-sheet-queue-duration {
+    font-family: ui-monospace, monospace;
+    font-size: .72rem;
+    opacity: .5;
+    flex-shrink: 0;
+}
+
+/* Desktop: sheet is max 480px wide and centered for bigger screens */
+@media (min-width: 720px) {
+    .audio-sheet-panel {
+        left: 50%;
+        right: auto;
+        width: 480px;
+        transform: translate(-50%, 100%);
+        border-top-left-radius: 20px;
+        border-top-right-radius: 20px;
+    }
+    .audio-sheet.is-open .audio-sheet-panel {
+        transform: translate(-50%, 0);
+    }
+}
+
+/* v9.2.1 — Mobiel: sheet is fullscreen, alleen te sluiten via handle-knop bovenin.
+   Geen rounded corners, volledige viewport, safe-area voor notches/status bar. */
+@media (max-width: 719.98px) {
+    .audio-sheet-panel {
+        inset: 0;
+        max-height: none;
+        border-top-left-radius: 0;
+        border-top-right-radius: 0;
+        box-shadow: none;
+        padding-top: calc(.75rem + env(safe-area-inset-top, 0px));
+        padding-bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
+    }
+    /* v9.3 — Backdrop blijft visible op mobile zodat drag-gesture de blur
+       laat doorschemeren naar helder. */
+}
+
+/* ============================================================
+   Mobile masthead + pagination
+   ============================================================ */
+@media (max-width: 600px) {
+    .masthead-inner { gap: .35rem; }
+    .site-title { font-size: 1.2rem; }
+    .site-subtitle { display: none; }
+    .top-nav { gap: .1rem; }
+    .nav-label { display: none; }
+    .nav-btn, .nav-link {
+        padding: .4rem .45rem;
+        min-width: 38px;
+        justify-content: center;
+    }
+    .pagination { flex-direction: column; gap: .5rem; }
+    .pagination-item { width: 100%; }
+}
+@media (max-width: 400px) {
+    .masthead { padding: calc(.5rem + var(--safe-top)) 0 .5rem; }
+    .masthead-inner { gap: .25rem; }
+    .site-title { font-size: 1.05rem; }
+    .nav-btn, .nav-link {
+        padding: .35rem .3rem;
+        min-width: 34px;
+    }
+    .nav-btn .icon, .nav-link .icon { width: 1rem; height: 1rem; }
+    /* PWA-install knop verbergen op klein scherm — kan ook via menu */
+    .nav-install-btn { display: none !important; }
+}
+@media (max-width: 340px) {
+    .site-title { font-size: .95rem; }
+    .nav-btn, .nav-link { padding: .3rem .25rem; min-width: 30px; }
+    /* Theme-toggle verbergen op ultra-klein — kan via user-menu */
+    [data-pcms-theme-toggle] { display: none; }
+}
+
+.post-date-ago {
+    margin-left: .5em;
+    opacity: .6;
+    font-size: .9em;
+    font-style: italic;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+/* HTMX loading indicator — subtle progress-bar aan de top van de content */
+.pcms-loading {
+    position: fixed;
+    top: 0; left: 0;
+    height: 2px;
+    width: 0%;
+    background: var(--accent, #c2410c);
+    z-index: 9999;
+    transition: width .3s ease, opacity .2s;
+    opacity: 0;
+    pointer-events: none;
+}
+.pcms-loading.htmx-request {
+    opacity: 1;
+    width: 80%;
+    transition: width 6s cubic-bezier(.1,.9,.2,1), opacity .2s;
+}
+/* subtile fade wanneer content gewisseld wordt */
+#pcms-main.htmx-swapping {
+    opacity: .5;
+    transition: opacity .15s;
+}
+
+/* Masthead brand group (site-title + optional tagline) */
+.masthead-brand { display: flex; flex-direction: column; gap: 2px; }
+.site-subtitle {
+    font-family: var(--font-ui, inherit);
+    font-size: .75rem;
+    color: var(--ink-muted, rgba(0,0,0,.55));
+    letter-spacing: 0;
+    line-height: 1.3;
+}
+
+/* ============================================================
+   v7.3 — TAGS, TYPE, ARCHIEF, ZOEK, RELATED, SPECIAL VIEWS
+   ============================================================ */
+
+/* Post-meta row — datum + type-chip + tags samen onder de titel */
+.post-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem .85rem;
+    margin-top: .5rem;
+}
+.post-meta .post-date { margin: 0; }
+
+/* Type-chip (groter, als een label) */
+.post-type-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: .2rem .6rem;
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    color: var(--accent);
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+    border-radius: 999px;
+    font-family: var(--font-ui);
+    font-size: .72rem;
+    font-weight: 600;
+    text-decoration: none;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    transition: background .15s;
+}
+.post-type-chip:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+
+/* Tag-chips — klein, subtiel, gelinkt */
+.post-tags, .post-list-tags {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: .3rem;
+}
+.tag-chip {
+    display: inline-block;
+    padding: .15rem .55rem;
+    background: color-mix(in srgb, var(--ink) 5%, transparent);
+    color: var(--ink-muted);
+    border-radius: 999px;
+    font-family: var(--font-ui);
+    font-size: .72rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: background .15s, color .15s;
+}
+.tag-chip:hover {
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    color: var(--accent);
+}
+
+/* ============================================================
+   SPECIAL PAGES (archief, tag, type, zoek)
+   ============================================================ */
+.special-page .post-header { margin-bottom: 2rem; }
+.special-eyebrow {
+    font-size: .72rem;
+    color: var(--ink-muted);
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    margin: 0 0 .25rem;
+}
+
+/* Archief: jaar-overzicht */
+.archive-years {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+.archive-year h2 {
+    font-family: var(--font-display);
+    font-size: 1.75rem;
+    margin: 0 0 .75rem;
+}
+.archive-year h2 a {
+    color: var(--ink);
+    text-decoration: none;
+}
+.archive-year h2 a:hover { color: var(--accent); }
+.archive-year h2 .admin-muted { font-size: .9rem; font-weight: normal; color: var(--ink-muted); }
+.archive-months {
+    list-style: none;
+    padding: 0; margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: .5rem;
+}
+.archive-months li {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .55rem .75rem;
+    background: color-mix(in srgb, var(--ink) 3%, transparent);
+    border-radius: var(--radius);
+    transition: background .15s;
+}
+.archive-months li:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.archive-months a {
+    color: var(--ink);
+    text-decoration: none;
+    font-weight: 500;
+    font-size: .95rem;
+}
+.archive-months .admin-muted { font-size: .75rem; color: var(--ink-muted); margin-left: auto; }
+
+/* Archief: jaar drill-down */
+.archive-month-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+.archive-month h2 {
+    font-family: var(--font-display);
+    font-size: 1.35rem;
+    margin: 0 0 .5rem;
+    padding-bottom: .35rem;
+    border-bottom: 1px solid var(--rule);
+}
+.archive-month h2 a {
+    color: var(--ink);
+    text-decoration: none;
+}
+.archive-month h2 a:hover { color: var(--accent); }
+
+/* Compact post-list (gebruikt in archief drill-down per maand) */
+.post-compact-list {
+    list-style: none;
+    padding: 0; margin: 0;
+    display: flex;
+    flex-direction: column;
+}
+.post-compact-list li {
+    border-bottom: 1px solid var(--rule);
+}
+.post-compact-list li:last-child { border-bottom: none; }
+.post-compact-list a {
+    display: grid;
+    grid-template-columns: 3em 1fr;
+    gap: .75rem;
+    padding: .6rem .2rem;
+    text-decoration: none;
+    color: var(--ink);
+    transition: background .12s;
+    border-radius: 4px;
+}
+.post-compact-list a:hover {
+    background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+.post-compact-date {
+    color: var(--ink-muted);
+    font-size: .8rem;
+    align-self: center;
+}
+.post-compact-title { font-weight: 500; font-size: 1rem; align-self: center; }
+.post-compact-list.large a { grid-template-columns: 4em 1fr; padding: .8rem .3rem; }
+.post-compact-list.large .post-compact-title { font-family: var(--font-display); font-size: 1.15rem; }
+.post-compact-excerpt {
+    grid-column: 2;
+    color: var(--ink-muted);
+    font-size: .88rem;
+    line-height: 1.5;
+}
+
+/* Post-list (gebruikt in tag / type / zoek pagina's) */
+.post-list {
+    list-style: none;
+    padding: 0; margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+.post-list-item {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 1.25rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--rule);
+}
+.post-list-item:last-child { border-bottom: none; }
+.post-list-item:has(> .post-list-cover + .post-list-body) { grid-template-columns: 120px 1fr; }
+.post-list-item:not(:has(.post-list-cover)) { grid-template-columns: 1fr; }
+.post-list-cover {
+    display: block;
+    aspect-ratio: 1;
+    overflow: hidden;
+    border-radius: var(--radius);
+}
+.post-list-cover img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.post-list-body { display: flex; flex-direction: column; gap: .35rem; }
+.post-list-meta {
+    color: var(--ink-muted);
+    font-size: .75rem;
+    display: flex; gap: .35rem; align-items: center;
+}
+.post-list-title {
+    font-family: var(--font-display);
+    font-size: 1.3rem;
+    font-weight: 450;
+    margin: 0;
+    line-height: 1.2;
+}
+.post-list-title a {
+    color: var(--ink);
+    text-decoration: none;
+}
+.post-list-title a:hover { color: var(--accent); }
+.post-list-excerpt {
+    color: var(--ink-muted);
+    font-size: .95rem;
+    margin: 0;
+    line-height: 1.5;
+}
+
+/* Zoek-formulier binnen special view */
+.search-form {
+    display: flex;
+    gap: .5rem;
+    margin-bottom: 2rem;
+}
+.search-form input[type=search] {
+    flex: 1;
+    padding: .75rem 1rem;
+    background: var(--paper-2);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    font: inherit;
+    color: var(--ink);
+}
+.search-form input[type=search]:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+/* ============================================================
+   SEARCH OVERLAY (masthead → full-screen zoekbalk)
+   ============================================================ */
+.search-overlay {
+    position: fixed;
+    inset: 0;
+    background: color-mix(in srgb, var(--ink) 50%, transparent);
+    z-index: 1500;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding-top: 10vh;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+.search-overlay[hidden] { display: none; }
+.search-overlay-form {
+    width: min(90vw, 600px);
+    background: var(--paper);
+    border-radius: calc(var(--radius) * 1.5);
+    padding: .75rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    box-shadow: 0 20px 60px rgba(0,0,0,.3);
+    border: 1px solid var(--rule);
+}
+.search-overlay-form .icon {
+    width: 1.2rem; height: 1.2rem;
+    color: var(--ink-muted);
+    flex-shrink: 0;
+}
+.search-overlay-form input[type=search] {
+    flex: 1;
+    background: transparent;
+    border: none;
+    font-family: var(--font-body);
+    font-size: 1.1rem;
+    color: var(--ink);
+    padding: .5rem 0;
+}
+.search-overlay-form input[type=search]:focus { outline: none; }
+.search-overlay-form .nav-btn {
+    background: transparent;
+    border: none;
+    color: var(--ink-muted);
+    cursor: pointer;
+    font-size: 1.25rem;
+    line-height: 1;
+    padding: .3rem .5rem;
+}
+.search-overlay-form .nav-btn:hover { color: var(--ink); }
+body.search-open { overflow: hidden; }
+
+/* ============================================================
+   RELATED POSTS (onder elke post-view)
+   ============================================================ */
+.related-posts {
+    margin-top: 2.5rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--rule);
+}
+.related-title {
+    font-family: var(--font-mono);
+    font-size: .7rem;
+    color: var(--ink-muted);
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    margin: 0 0 1rem;
+}
+.related-grid {
+    list-style: none;
+    padding: 0; margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+.related-grid a {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    text-decoration: none;
+    color: var(--ink);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    overflow: hidden;
+    transition: border-color .15s, transform .15s;
+    height: 100%;
+}
+.related-grid a:hover {
+    border-color: color-mix(in srgb, var(--accent) 50%, var(--rule));
+    transform: translateY(-2px);
+}
+.related-cover {
+    display: block;
+    aspect-ratio: 16/10;
+    background-size: cover;
+    background-position: center;
+    background-color: var(--paper-2);
+}
+
+/* v9.4 — Wanneer related-cover ook .grid-tile-gradient class heeft (lege cover
+   fallback), erft 'ie automatisch de hue/gradient/title styling van grid-tiles.
+   Geen aparte related-cover-gradient meer nodig. */
+.related-body {
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+    padding: .6rem .75rem .9rem;
+}
+.related-meta { color: var(--ink-muted); font-size: .7rem; }
+.related-name {
+    font-family: var(--font-display);
+    font-weight: 450;
+    font-size: 1rem;
+    line-height: 1.25;
+}
+
+/* ============================================================
+   MOBILE TWEAKS voor v7.3
+   ============================================================ */
+@media (max-width: 600px) {
+    .post-list-item { grid-template-columns: 1fr; }
+    .post-list-cover { aspect-ratio: 16/9; }
+    .archive-months { grid-template-columns: repeat(2, 1fr); }
+    .related-grid { grid-template-columns: 1fr; }
+    .search-overlay { padding-top: 4vh; }
+}
+
+/* ============================================================
+   v7.4 — PROFILE HEADER + VIEW SWITCHER + GRID + POST-TYPE LAYOUTS
+   MOBILE-FIRST — belangrijkste eis
+   ============================================================ */
+
+/* -------- PROFILE HEADER (Optie C: full op home, compact op post/special) -------- */
+
+.profile-header {
+    background: var(--paper-2, var(--paper));
+    border-bottom: 1px solid var(--rule);
+    transition: padding .25s ease, background .2s;
+}
+/* Mobiel default = full-mode padding */
+.profile-header { padding: 1.25rem 0; }
+.profile-header-inner {
+    display: flex;
+    gap: .9rem;
+    align-items: flex-start;
+}
+
+.profile-photo {
+    flex-shrink: 0;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    overflow: hidden;
+    display: block;
+    background: var(--paper);
+    border: 2px solid var(--rule);
+    transition: width .25s ease, height .25s ease, border-color .2s;
+    text-decoration: none;
+}
+.profile-photo:hover { border-color: var(--accent); }
+.profile-photo img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.profile-photo-fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%; height: 100%;
+    background: var(--accent);
+    color: var(--paper);
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 2.2rem;
+    text-transform: uppercase;
+    line-height: 1;
+    transition: font-size .25s ease;
+}
+
+.profile-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .3rem;
+}
+.profile-name {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 1.2rem;
+    font-weight: 500;
+    line-height: 1.15;
+    transition: font-size .25s ease;
+}
+.profile-name a {
+    color: var(--ink);
+    text-decoration: none;
+}
+.profile-name a:hover { color: var(--accent); }
+.profile-bio {
+    margin: 0;
+    color: var(--ink-muted);
+    font-size: .92rem;
+    line-height: 1.45;
+    max-height: 200px;
+    overflow: hidden;
+    transition: max-height .25s ease, margin .25s ease, opacity .2s;
+}
+.profile-links {
+    list-style: none;
+    padding: 0;
+    margin: .15rem 0 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4rem;
+    max-height: 50px;
+    overflow: hidden;
+    transition: max-height .25s ease, margin .25s ease, opacity .2s;
+}
+.profile-links li { margin: 0; }
+.profile-links a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--ink) 5%, transparent);
+    color: var(--ink-muted);
+    text-decoration: none;
+    transition: background .15s, color .15s;
+}
+.profile-links a:hover {
+    background: color-mix(in srgb, var(--accent) 15%, transparent);
+    color: var(--accent);
+}
+.profile-links .icon { width: 1.1rem; height: 1.1rem; }
+
+/* -------- COMPACT MODE: op post + special pages -------- */
+
+.on-post .profile-header,
+.on-special .profile-header {
+    padding: .5rem 0;
+}
+.on-post .profile-photo,
+.on-special .profile-photo {
+    width: 36px;
+    height: 36px;
+    border-width: 1px;
+}
+.on-post .profile-photo-fallback,
+.on-special .profile-photo-fallback {
+    font-size: 1rem;
+}
+.on-post .profile-name,
+.on-special .profile-name {
+    font-size: 1rem;
+    align-self: center;
+}
+.on-post .profile-bio,
+.on-special .profile-bio,
+.on-post .profile-links,
+.on-special .profile-links {
+    display: none;
+}
+.on-post .profile-header-inner,
+.on-special .profile-header-inner {
+    align-items: center;
+    justify-content: flex-start;
+    gap: .6rem;
+}
+.on-post .profile-info,
+.on-special .profile-info {
+    flex: 0 1 auto;
+    min-width: 0;
+}
+.on-post .profile-name,
+.on-special .profile-name {
+    text-align: left;
+}
+
+/* -------- DESKTOP: meer ruimte, grotere foto -------- */
+@media (min-width: 768px) {
+    .profile-header { padding: 2rem 0; }
+    .profile-photo { width: 120px; height: 120px; }
+    .profile-photo-fallback { font-size: 3.2rem; }
+    .profile-name { font-size: 1.5rem; }
+    .profile-bio { font-size: 1rem; }
+    .profile-header-inner { gap: 1.5rem; }
+    .on-post .profile-header,
+    .on-special .profile-header { padding: .6rem 0; }
+    .on-post .profile-photo,
+    .on-special .profile-photo { width: 42px; height: 42px; }
+    /* Compact mode: gap blijft klein, ook op desktop */
+    .on-post .profile-header-inner,
+    .on-special .profile-header-inner { gap: .75rem; }
+    .on-post .profile-name,
+    .on-special .profile-name { font-size: 1.1rem; }
+}
+
+/* -------- VIEW SWITCHER -------- */
+.view-switcher-wrap {
+    border-bottom: 1px solid var(--rule);
+    background: var(--paper);
+    /* Bottom margin gives breathing room between the switcher bar and the
+       first post — without it the feed sits flush against the bar. */
+    margin-bottom: 1.5rem;
+}
+.view-switcher {
+    display: flex;
+    justify-content: center;
+    gap: .35rem;
+    /* Slimmer bar — was .6rem, now .35rem so the bar reads as a divider
+       rather than a row of weight equal to the header. */
+    padding: .35rem 0;
+}
+.view-switch-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .35rem .85rem;     /* was .55rem 1rem */
+    min-height: 32px;            /* was 44px */
+    background: transparent;
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    color: var(--ink-muted);
+    font-family: var(--font-ui);
+    font-size: .82rem;           /* was .85rem */
+    cursor: pointer;
+    transition: all .15s;
+}
+.view-switch-btn:hover {
+    color: var(--ink);
+    border-color: var(--ink-muted);
+}
+/* Actieve state: puur afgeleid van body[data-feed-view]. Geen .is-active class meer. */
+body[data-feed-view="timeline"] .view-switch-btn[data-view="timeline"],
+body[data-feed-view="grid"] .view-switch-btn[data-view="grid"] {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
+}
+.view-switch-btn .icon { width: 1rem; height: 1rem; }
+
+/* -------- FEED TOGGLE VIA BODY --------
+   Grid-modus werkt op elke feed-pagina (home, archive). Op een post-pagina
+   is de feed-timeline article juist het hoofdonderwerp — daar moet 'ie
+   altijd zichtbaar zijn, dus de grid-toggle slaat alleen aan op
+   feed-pagina's (.on-home, .on-archive). Andere body-classes negeren de
+   data-feed-view en houden timeline visible. */
+body.on-home[data-feed-view="grid"]    .feed-timeline,
+body.on-home[data-feed-view="grid"]    .pagination,
+body.on-home[data-feed-view="grid"]    .related-posts,
+body.on-home[data-feed-view="grid"]    .article-footer,
+body.on-archive[data-feed-view="grid"] .feed-timeline,
+body.on-archive[data-feed-view="grid"] .pagination {
+    display: none !important;
+}
+/* Grid-sectie alleen zichtbaar op feed-pagina's in grid-mode */
+.feed-grid { display: none; }
+body.on-home[data-feed-view="grid"]    .feed-grid,
+body.on-archive[data-feed-view="grid"] .feed-grid { display: block; }
+
+/* -------- GRID VIEW TILES (Instagram-stijl) -------- */
+.feed-grid {
+    padding: 1rem 0 2rem;
+}
+.grid-tiles {
+    display: grid;
+    gap: 4px;
+    grid-template-columns: repeat(2, 1fr);
+}
+.grid-tile {
+    position: relative;
+    display: block;
+    aspect-ratio: 1;
+    background-size: cover;
+    background-position: center;
+    background-color: var(--paper-2);
+    overflow: hidden;
+    text-decoration: none;
+    color: var(--ink);
+    transition: transform .2s;
+    cursor: pointer;
+    -webkit-tap-highlight-color: rgba(0,0,0,.1);
+}
+.grid-tile:hover { transform: scale(0.98); }
+.grid-tile-overlay {
+    position: absolute;
+    inset: 0;
+    padding: .6rem;
+    display: flex;
+    align-items: flex-end;
+    background: linear-gradient(to top, rgba(0,0,0,.65) 0%, rgba(0,0,0,0) 50%);
+    opacity: 0;
+    transition: opacity .2s;
+    pointer-events: none; /* klik moet naar de <a> eronder gaan, niet naar de overlay */
+}
+.grid-tile-overlay strong {
+    color: #fff;
+    font-family: var(--font-display);
+    font-size: .9rem;
+    font-weight: 500;
+    line-height: 1.15;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+@media (hover: hover) {
+    .grid-tile:hover .grid-tile-overlay { opacity: 1; }
+}
+@media (hover: none) {
+    /* Op touch-devices altijd overlay tonen zodat titels zichtbaar zijn */
+    .grid-tile-overlay { opacity: 1; background: linear-gradient(to top, rgba(0,0,0,.7) 0%, rgba(0,0,0,0) 70%); }
+}
+
+.grid-tile-gradient {
+    background-image: none;
+    background-color: hsl(var(--tile-hue, 30), 40%, 85%);
+    background-image: linear-gradient(135deg, hsl(var(--tile-hue, 30), 45%, 88%), hsl(calc(var(--tile-hue, 30) + 30), 35%, 75%));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    text-align: center;
+}
+[data-theme="dark"] .grid-tile-gradient,
+.grid-tile-gradient[data-theme="dark"] {
+    background-image: linear-gradient(135deg, hsl(var(--tile-hue, 30), 30%, 18%), hsl(calc(var(--tile-hue, 30) + 30), 25%, 12%));
+}
+.grid-tile-title {
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--ink);
+    line-height: 1.2;
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    z-index: 1;
+}
+
+.grid-tile-pin {
+    position: absolute;
+    top: .5rem;
+    right: .5rem;
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    padding: .2rem .55rem;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 999px;
+    font-family: var(--font-ui);
+    font-size: .65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    z-index: 3;
+    box-shadow: 0 2px 6px rgba(0,0,0,.3);
+    pointer-events: none;
+}
+.grid-tile-pin::before {
+    content: "📌";
+    font-size: .9em;
+    line-height: 1;
+}
+/* Pinned-tile overall highlight: accent border + subtle inner glow */
+.grid-tile.is-pinned {
+    outline: 3px solid var(--accent);
+    outline-offset: -3px;
+    z-index: 1;
+}
+.grid-tile.is-pinned:hover {
+    outline-offset: -2px;
+}
+.grid-tile-type {
+    position: absolute;
+    top: .4rem;
+    left: .4rem;
+    padding: .15rem .5rem;
+    background: rgba(0,0,0,.55);
+    color: #fff;
+    border-radius: 999px;
+    font-family: var(--font-ui);
+    font-size: .6rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    z-index: 2;
+}
+
+@media (min-width: 600px) {
+    .grid-tiles { grid-template-columns: repeat(3, 1fr); }
+}
+@media (min-width: 900px) {
+    .grid-tiles { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+}
+
+/* -------- POST-TYPE SPECIFIEKE LAYOUTS -------- */
+
+/* Foto-post: beeld prominent, geen titel bovenaan, caption onder */
+.feed-timeline[data-post-type="foto"] .post-title {
+    font-size: 1.1rem;
+    color: var(--ink-muted);
+    font-weight: 400;
+}
+.feed-timeline[data-post-type="foto"] .post-cover {
+    margin: 0 -1rem 1rem;
+    border-radius: 0;
+}
+.feed-timeline[data-post-type="foto"] .post-cover img {
+    width: 100%;
+    border-radius: 0;
+}
+
+/* Post-caption onder de cover */
+.post-caption {
+    font-family: var(--font-body);
+    font-size: 1rem;
+    color: var(--ink);
+    line-height: 1.5;
+    margin: 0 0 1.25rem;
+    padding: 0 0 1rem;
+    border-bottom: 1px solid var(--rule);
+    white-space: pre-wrap;
+}
+.feed-timeline[data-post-type="foto"] .post-caption {
+    font-size: 1.05rem;
+    margin-top: -.5rem;
+    padding-bottom: 1.25rem;
+}
+
+/* Audio/video posts — type-chip helder, content eronder zoals normaal */
+.feed-timeline[data-post-type="audio"] .post-title,
+.feed-timeline[data-post-type="video"] .post-title {
+    font-size: 1.5rem;
+}
+
+@media (min-width: 768px) {
+    .feed-timeline[data-post-type="foto"] .post-cover {
+        margin: 0 0 1.5rem;
+        border-radius: var(--radius);
+    }
+}
+
+/* -------- ADMIN EDIT-BUTTON op post-view (alleen zichtbaar voor ingelogde admin) -------- */
+.post-edit-btn {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 50%;
+    color: var(--ink-muted);
+    text-decoration: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,.08);
+    transition: background .15s, color .15s, transform .15s, border-color .15s;
+    z-index: 10;
+}
+.post-edit-btn:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--paper);
+    transform: scale(1.05);
+}
+.post-edit-btn .icon {
+    width: 1.1rem;
+    height: 1.1rem;
+}
+/* Zorg dat de article relative is zodat absolute positionering werkt */
+.feed-timeline { position: relative; }
+
+@media (min-width: 768px) {
+    .post-edit-btn {
+        top: 1.5rem;
+        right: 1.5rem;
+    }
+}
+
+/* ============================================================
+   v8.0 — ACCENT SPAN + POST-TABLE (published posts)
+   ============================================================ */
+.post span.accent,
+.post-content span.accent,
+article span.accent,
+page-container span.accent {
+    color: var(--accent);
+    font-weight: 500;
+}
+
+.post-table,
+article table.post-table {
+    width: 100%;
+    max-width: 100%;
+    border-collapse: collapse;
+    margin: 1.25rem 0;
+    font-size: .95rem;
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+.post-table thead { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.post-table th,
+.post-table td {
+    padding: .6rem .8rem;
+    text-align: left;
+    border: 1px solid var(--rule);
+    vertical-align: top;
+}
+.post-table th {
+    font-family: var(--font-ui);
+    font-weight: 600;
+    font-size: .88rem;
+    color: var(--ink);
+    letter-spacing: .02em;
+}
+.post-table tbody tr:nth-child(even) {
+    background: color-mix(in srgb, var(--ink) 3%, transparent);
+}
+@media (min-width: 700px) {
+    .post-table { display: table; overflow: visible; }
+}
+
+/* ============================================================
+   v8.0 fix — grid-cols picker (desktop only) + grid col overrides
+   ============================================================ */
+
+/* Switcher-wrap bevat nu ook de cols-picker; layout side-by-side */
+.view-switcher-wrap .container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.grid-cols-picker {
+    display: none; /* default hidden — desktop + grid-active maakt 'm zichtbaar */
+    gap: 2px;
+    padding: 0;
+}
+.grid-cols-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
+    height: 32px;
+    padding: 0 .6rem;
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--ink-muted);
+    font-family: var(--font-ui);
+    font-size: .85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all .12s;
+}
+.grid-cols-btn:first-child { border-radius: 999px 0 0 999px; }
+.grid-cols-btn:last-child  { border-radius: 0 999px 999px 0; }
+.grid-cols-btn:not(:first-child):not(:last-child) { border-left: none; border-right: none; }
+.grid-cols-btn:hover { color: var(--ink); }
+/* Active state puur via body[data-grid-cols] — geen is-active-class meer. */
+body[data-grid-cols="2"] .grid-cols-btn[data-cols="2"],
+body[data-grid-cols="3"] .grid-cols-btn[data-cols="3"],
+body[data-grid-cols="4"] .grid-cols-btn[data-cols="4"] {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
+}
+
+/* Desktop + grid-view → toon cols-picker (op home + archive) */
+@media (min-width: 600px) {
+    body.on-home[data-feed-view="grid"] .grid-cols-picker,
+    body.on-archive[data-feed-view="grid"] .grid-cols-picker {
+        display: inline-flex;
+    }
+}
+
+/* Kolom-overrides op desktop. Mobiel negeert dit (staat vast op 2). */
+@media (min-width: 600px) {
+    body.on-home[data-grid-cols="2"] .grid-tiles { grid-template-columns: repeat(2, 1fr); }
+    body.on-home[data-grid-cols="3"] .grid-tiles { grid-template-columns: repeat(3, 1fr); }
+    body.on-home[data-grid-cols="4"] .grid-tiles { grid-template-columns: repeat(4, 1fr); }
+}
+
+/* Gradient-tile: iets meer contrast voor light + dark mode zodat titel altijd leesbaar is */
+.grid-tile-gradient {
+    background-image: linear-gradient(135deg,
+        hsl(var(--tile-hue, 30), 55%, 72%),
+        hsl(calc(var(--tile-hue, 30) + 40), 45%, 60%));
+}
+[data-theme="dark"] .grid-tile-gradient {
+    background-image: linear-gradient(135deg,
+        hsl(var(--tile-hue, 30), 40%, 30%),
+        hsl(calc(var(--tile-hue, 30) + 40), 30%, 18%));
+}
+.grid-tile-gradient .grid-tile-title {
+    color: #fff;
+    text-shadow: 0 1px 3px rgba(0,0,0,.25);
+}
+[data-theme="dark"] .grid-tile-gradient .grid-tile-title {
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0,0,0,.5);
+}
+
+/* ============================================================
+   v8.0.2 — COMPACT DESIGN OVERRIDES
+   Tighter masthead, padding, margins overall. Profiel-header
+   collapse/expand blijft zoals 'ie was.
+   ============================================================ */
+
+/* Masthead: compacter */
+.masthead { padding: calc(.55rem + var(--safe-top)) 0 .55rem; }
+.masthead-inner { gap: 1rem; }
+.site-title { font-size: 1.25rem; }
+.nav-link, .nav-btn { padding: .4rem .7rem; min-height: 2rem; font-size: .82rem; }
+
+/* Main content padding */
+main { padding-top: 1rem; }
+.page { padding-block: 1rem 1.75rem; }
+
+/* View switcher-bar strakker */
+.view-switcher { padding: .4rem 0; gap: .3rem; }
+.view-switch-btn { padding: .4rem .85rem; min-height: 38px; font-size: .8rem; }
+.grid-cols-btn { min-width: 32px; height: 28px; padding: 0 .5rem; font-size: .8rem; }
+
+/* Post header spacing terug */
+.post-header { margin: 0 0 1.25rem; }
+.post-title { margin-bottom: .35rem; }
+.post-meta { font-size: .78rem; }
+.post-tags { margin-top: .6rem; gap: .3rem; }
+.post-tag { font-size: .7rem; padding: .15rem .55rem; }
+
+/* Article footer + pagination compacter */
+.article-footer { padding-top: 1.25rem; margin-top: 1.5rem; }
+.pagination { padding-block: 1.25rem 2rem; margin-top: 1.5rem; }
+.pagination-item { padding: .75rem .95rem; min-height: 4rem; }
+.pagination-title { font-size: .95rem; }
+
+/* Site footer compacter */
+.site-footer { padding: 1.25rem 0 calc(1.25rem + var(--safe-bot)); margin-top: 2rem; font-size: .78rem; }
+.site-footer-inner { gap: .75rem; }
+
+/* Profiel-header: full mode iets minder riant (compact mode blijft hetzelfde) */
+.profile-header { padding: 1rem 0; }
+.profile-photo { width: 72px; height: 72px; }
+.profile-photo-fallback { font-size: 1.8rem; }
+.profile-name { font-size: 1.2rem; }
+.profile-bio { font-size: .85rem; margin-top: .15rem; }
+.profile-links { margin-top: .5rem; gap: .4rem; }
+.profile-links a { width: 32px; height: 32px; }
+
+@media (min-width: 768px) {
+    .profile-header { padding: 1.35rem 0; }
+    .profile-photo { width: 92px; height: 92px; }
+    .profile-photo-fallback { font-size: 2.4rem; }
+    .profile-name { font-size: 1.4rem; }
+    .profile-bio { font-size: .95rem; }
+    .profile-header-inner { gap: 1.1rem; }
+    /* Compact-mode op desktop blijft klein zoals we hadden afgesproken */
+    .on-post .profile-photo,
+    .on-special .profile-photo { width: 42px; height: 42px; }
+}
+
+/* Grid-tegels iets strakker gaten */
+.grid-tiles { gap: 3px; }
+
+/* Post-cover margin */
+.post-cover { margin: 0 0 1rem; }
+
+/* Audio player wat lichter */
+#pcms-audio-bar { padding: .55rem 1rem; }
+
+/* v8.1 — pagination CTA + mobile tap target */
+.pagination-cta {
+    display: inline-block;
+    font-family: var(--font-ui);
+    font-size: .72rem;
+    font-weight: 600;
+    color: var(--accent);
+    margin-top: .35rem;
+    letter-spacing: .02em;
+    opacity: .9;
+}
+a.pagination-item:hover .pagination-cta { opacity: 1; }
+
+/* Mobiel: nog meer tap-feedback + iets prominenter */
+@media (max-width: 640px) {
+    a.pagination-item {
+        padding: 1.1rem 1rem;
+        min-height: 5.5rem;
+        border-width: 2px;
+    }
+    a.pagination-item:active {
+        background: color-mix(in srgb, var(--accent) 10%, var(--paper-2));
+        transform: scale(.98);
+    }
+    .pagination-title { font-size: 1rem; }
+    .pagination-cta { font-size: .75rem; }
+    .pagination .icon { width: 1.5em; height: 1.5em; }
+}
+
+
+
+/* v8.3 / v9.4 — PWA install button (alleen zichtbaar als browser install ondersteunt) */
+.nav-install-btn[hidden] { display: none; }
+.nav-install-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .35rem;
+    background: linear-gradient(135deg,
+        var(--accent),
+        color-mix(in srgb, var(--accent) 80%, #000));
+    color: #fff;
+    border: none;
+    border-radius: .65rem;
+    padding: .45rem .85rem;
+    font-size: .8rem;
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+    overflow: hidden;
+    isolation: isolate;
+    box-shadow:
+        0 1px 0 rgba(255,255,255,.15) inset,
+        0 2px 6px color-mix(in srgb, var(--accent) 35%, transparent);
+    transition:
+        transform .15s cubic-bezier(.4, 0, .2, 1),
+        box-shadow .2s ease,
+        filter .15s ease;
+}
+.nav-install-btn::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 60%;
+    height: 100%;
+    background: linear-gradient(110deg,
+        transparent 30%,
+        rgba(255,255,255,.22) 50%,
+        transparent 70%);
+    z-index: -1;
+    animation: pcmsInstallShimmer 4s ease-in-out infinite;
+    pointer-events: none;
+}
+.nav-install-btn:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.08);
+    box-shadow:
+        0 1px 0 rgba(255,255,255,.2) inset,
+        0 4px 10px color-mix(in srgb, var(--accent) 50%, transparent);
+}
+.nav-install-btn:active { transform: translateY(0); }
+.nav-install-btn .icon {
+    flex-shrink: 0;
+    transition: transform .25s cubic-bezier(.34, 1.56, .64, 1);
+}
+.nav-install-btn:hover .icon { transform: translateY(-1px); }
+@media (prefers-reduced-motion: reduce) {
+    .nav-install-btn::before { animation: none; left: -100%; }
+    .nav-install-btn:hover { transform: none; }
+    .nav-install-btn:hover .icon { transform: none; }
+}
+/* Als PWA al draait (standalone mode) — verberg install-prompt knop volledig */
+@media all and (display-mode: standalone) {
+    #pwa-install-btn { display: none !important; }
+}
+
+/* ========== v8.9.9 — Privé-post indicators ========== */
+.post-private-banner {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    padding: .75rem 1rem;
+    background: color-mix(in srgb, #eab308 12%, var(--paper, #fff));
+    border: 1px solid color-mix(in srgb, #eab308 40%, transparent);
+    border-radius: 8px;
+    margin: 0 0 1rem;
+    font-size: .88rem;
+    color: var(--ink, #1a1a1a);
+}
+.post-private-banner strong {
+    color: #b45309;
+}
+
+.grid-tile-private {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    padding: 3px 8px;
+    background: rgba(0,0,0,0.7);
+    color: #fde68a;
+    font-size: .7rem;
+    font-weight: 700;
+    border-radius: 999px;
+    z-index: 3;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+/* ========== v8.9.10 — Social chip (inline in post-body) ========== */
+.social-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    padding: .35rem .75rem;
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    border-radius: 999px;
+    color: var(--ink, #1a1a1a);
+    text-decoration: none;
+    font-family: var(--font-ui, system-ui);
+    font-size: .85rem;
+    font-weight: 600;
+    line-height: 1.2;
+    transition: all .15s;
+    vertical-align: middle;
+    margin: 0 .1rem;
+}
+.social-chip:hover {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+    text-decoration: none;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.social-chip .icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+.social-chip-icon-only {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 50%;
+}
+.social-chip-icon-only .icon {
+    width: 18px;
+    height: 18px;
+}
+
+/* v8.9.34 — player hidden state + post audio blocks
+   v9.3 — Hide-rules uitgeschakeld: mini-player blijft permanent zichtbaar
+   zodat 'ie niet meer verdwijnt bij browser-back of navigatie. */
+.audio-player.is-hidden {
+    /* display: none !important; */
+}
+body:not(.has-audio-player) #pcms-audio-player.is-hidden {
+    /* display: none !important; */
+}
+
+/* Post audio track — single track row in een post */
+/* Lokale audio-track — visueel consistent met .post-audio-external */
+.post-audio-track {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    padding: .65rem .85rem;
+    background: var(--paper-2, color-mix(in srgb, var(--ink) 4%, transparent));
+    border: 1px solid var(--rule, rgba(0,0,0,.08));
+    border-radius: 10px;
+    margin: .75rem 0;
+    transition: background .15s, border-color .15s;
+}
+.post-audio-track:hover {
+    border-color: var(--accent, #c2410c);
+    background: color-mix(in srgb, var(--accent, #c2410c) 5%, var(--paper-2, transparent));
+}
+.post-audio-track .pat-play {
+    flex-shrink: 0;
+    width: 42px;
+    height: 42px;
+    border-radius: 8px;          /* zelfde rounded-square als pae-icon */
+    border: none;
+    background: var(--accent, #c2410c);
+    color: var(--paper, #fff);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform .1s, background .15s;
+    padding: 0;
+    position: relative;
+    overflow: hidden;
+}
+.post-audio-track .pat-play:hover { transform: scale(1.04); }
+.post-audio-track .pat-play:active { transform: scale(.96); }
+.post-audio-track .pat-play svg,
+.post-audio-track .pat-play .pat-sitelogo {
+    width: 100%; height: 100%;
+    position: absolute;
+    top: 0; left: 0;
+    transition: opacity .15s;
+}
+.post-audio-track .pat-play .icon-play,
+.post-audio-track .pat-play .icon-pause {
+    width: 18px; height: 18px;
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    fill: currentColor;
+    opacity: 0;              /* verborgen tot hover of is-current */
+}
+/* Site logo: object-cover binnen 42x42 box */
+.post-audio-track .pat-play .pat-sitelogo {
+    object-fit: cover;
+    opacity: 1;
+}
+.post-audio-track .pat-play .pat-sitelogo-fallback {
+    padding: 11px;            /* SVG music-note iets kleiner in box */
+    opacity: 1;
+}
+/* Bij hover: site logo faded, play-icoon verschijnt */
+.post-audio-track:hover .pat-play .pat-sitelogo { opacity: 0.25; }
+.post-audio-track:hover .pat-play .icon-play { opacity: 1; }
+/* Bij current + playing: toon pause-icon */
+.post-audio-track.is-current .pat-play .pat-sitelogo { opacity: 0.25; }
+.post-audio-track.is-current .pat-play .icon-play { opacity: 1; }
+.post-audio-track.is-current.is-playing .pat-play .icon-play { opacity: 0; }
+.post-audio-track.is-current.is-playing .pat-play .icon-pause { opacity: 1; }
+.post-audio-track.is-current {
+    border-color: var(--accent, #c2410c);
+    background: color-mix(in srgb, var(--accent, #c2410c) 10%, transparent);
+}
+.post-audio-track .pat-meta {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.post-audio-track .pat-title {
+    display: block;
+    font-weight: 600;
+    color: var(--ink);
+    font-size: .95rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.post-audio-track .pat-artist {
+    display: block;
+    font-size: .78rem;
+    color: var(--ink-muted, var(--ink));
+    opacity: .65;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.post-audio-track .pat-duration {
+    flex-shrink: 0;
+    font-family: ui-monospace, monospace;
+    font-size: .8rem;
+    opacity: .55;
+}
+
+/* Album block in een post */
+.post-album {
+    position: relative;
+    border: 1px solid var(--rule, rgba(0,0,0,.1));
+    border-radius: 14px;
+    overflow: hidden;
+    margin: 1.25rem 0;
+    background: var(--paper-2, color-mix(in srgb, var(--ink) 3%, transparent));
+}
+.post-album-header {
+    display: flex;
+    gap: .75rem;
+    padding: .55rem .7rem;
+    align-items: center;
+}
+.post-album-cover {
+    width: 120px;
+    height: 120px;
+    border-radius: 8px;
+    background-size: cover;
+    background-position: center;
+    background-color: var(--rule);
+    flex-shrink: 0;
+}
+/* v9.0 — Collage van track-covers als album-cover leeg is */
+.post-album-cover-collage {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 0;
+    overflow: hidden;
+    background: transparent;
+}
+.post-album-cover-collage .post-album-cover-tile {
+    background-size: cover;
+    background-position: center;
+    width: 100%;
+    height: 100%;
+}
+/* Empty state: gradient met muziek-noot */
+.post-album-cover-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 25%, var(--paper-2)), color-mix(in srgb, var(--accent) 10%, var(--paper)));
+    color: var(--accent, #c2410c);
+}
+.post-album-cover-empty svg {
+    width: 42%;
+    height: 42%;
+    opacity: .55;
+}
+.post-album-info {
+    flex: 1;
+    min-width: 0;
+}
+.post-album-label {
+    text-transform: uppercase;
+    font-size: .68rem;
+    letter-spacing: .1em;
+    opacity: .55;
+    margin: 0 0 .15rem;
+    font-weight: 700;
+}
+.post-album-title {
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 0 0 .1rem;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+}
+.post-album-artist {
+    font-size: .88rem;
+    opacity: .8;
+    margin: 0 0 .12rem;
+    line-height: 1.25;
+}
+.post-album-meta {
+    font-size: .74rem;
+    opacity: .55;
+    margin: 0;
+    line-height: 1.2;
+}
+.post-album-playall {
+    margin-top: .75rem;
+    padding: .45rem .9rem;
+    background: var(--accent, #c2410c);
+    color: var(--paper, #fff);
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: .88rem;
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+}
+.post-album-playall:hover { filter: brightness(1.08); }
+
+/* ============================================================
+   v9.0 — Album cover clickable button
+   ============================================================ */
+.post-album-cover-btn {
+    position: relative;
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+    flex-shrink: 0;
+    border-radius: 8px;
+    overflow: hidden;
+    display: block;
+    width: auto;
+    /* v9.1 — voorkom mobile 300ms double-tap zoom delay, anders zou 2× snel klikken
+       een zoom triggeren i.p.v. 2× click-events */
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+.post-album-cover-btn .post-album-cover {
+    display: block;
+    width: 76px;
+    height: 76px;
+    border-radius: 7px;
+    background-size: cover;
+    background-position: center;
+    background-color: var(--rule);
+    transition: transform .25s ease;
+}
+.post-album-cover-btn:hover .post-album-cover {
+    transform: scale(1.04);
+}
+.post-album-cover-btn .post-album-cover-empty {
+    background: linear-gradient(135deg,
+        color-mix(in srgb, var(--accent, #c2410c) 35%, var(--paper)),
+        color-mix(in srgb, var(--accent, #c2410c) 10%, var(--paper-2)));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.post-album-cover-btn .post-album-cover-empty svg {
+    width: 28px;
+    height: 28px;
+    color: color-mix(in srgb, var(--accent, #c2410c) 60%, transparent);
+}
+/* Play overlay op hover */
+.post-album-cover-play {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, .35);
+    opacity: 0;
+    transition: opacity .2s ease;
+    border-radius: 8px;
+    pointer-events: none;
+}
+.post-album-cover-play svg {
+    width: 48px;
+    height: 48px;
+    color: #fff;
+    filter: drop-shadow(0 2px 8px rgba(0,0,0,.4));
+}
+.post-album-cover-btn:hover .post-album-cover-play,
+.post-album-cover-btn:focus-visible .post-album-cover-play {
+    opacity: 1;
+}
+
+/* ============================================================
+   v1 P52 — Admin actions overlay (edit / delete)
+   Only rendered when the viewer has god role. Sits top-right
+   of the card so it doesn't compete with the cover play affordance.
+   ============================================================ */
+.post-album-actions {
+    position: absolute;
+    top: .4rem;
+    right: .4rem;
+    display: flex;
+    gap: .25rem;
+    z-index: 2;
+}
+.post-album-action {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: 1px solid var(--rule);
+    background: color-mix(in srgb, var(--paper) 78%, transparent);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: var(--ink);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    text-decoration: none;
+    opacity: .65;
+    padding: 0;
+    transition: opacity .15s ease, transform .15s ease, background .15s ease, color .15s ease, border-color .15s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+.post-album-action:hover,
+.post-album-action:focus-visible {
+    opacity: 1;
+    transform: translateY(-1px);
+    outline: none;
+}
+.post-album-action.is-danger:hover,
+.post-album-action.is-danger:focus-visible {
+    background: color-mix(in srgb, #c2410c 18%, var(--paper));
+    border-color: color-mix(in srgb, #c2410c 45%, var(--rule));
+    color: #c2410c;
+}
+.post-album-action svg {
+    width: 15px;
+    height: 15px;
+    display: block;
+}
+
+/* ============================================================
+   v9.0 — Compacte tracklist (informatief, niet-klikbaar)
+   ============================================================ */
+.post-album-tracks {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    border-top: 1px solid var(--rule);
+}
+/* v9.4 — Playlist insert modal rows */
+.pli-row {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    padding: .65rem .5rem;
+    border-bottom: 1px solid var(--border);
+}
+.pli-row:last-child { border-bottom: none; }
+.pli-row-cover {
+    width: 44px;
+    height: 44px;
+    border-radius: 6px;
+    background-size: cover;
+    background-position: center;
+    background-color: color-mix(in srgb, var(--ink, #000) 8%, transparent);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+}
+.pli-row-info {
+    flex: 1;
+    min-width: 0;
+}
+.pli-row-title {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.pli-row-meta {
+    font-size: .82rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.post-playlist-placeholder {
+    margin: 1rem 0;
+    user-select: none;
+}
+
+/* v9.4 — Generic modal classes (gebruikt door playlist-editor en andere modals) */
+.pcms-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, .6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9000;
+    padding: 1rem;
+    box-sizing: border-box;
+    overflow-y: auto;
+}
+.pcms-modal {
+    background: var(--paper, #fff);
+    color: var(--ink, #000);
+    border-radius: 12px;
+    width: 100%;
+    max-width: 640px;
+    max-height: calc(100vh - 2rem);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, .3);
+}
+.pcms-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+.pcms-modal-header h3 { font-size: 1.1rem; }
+.pcms-modal-close {
+    background: transparent;
+    border: none;
+    font-size: 1.6rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: .25rem .5rem;
+    color: var(--fg-muted, #666);
+    border-radius: 4px;
+}
+.pcms-modal-close:hover {
+    background: color-mix(in srgb, var(--ink, #000) 8%, transparent);
+}
+.pcms-modal-body {
+    padding: 1.25rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    flex: 1;
+    min-height: 0;
+}
+.pcms-modal-footer {
+    display: flex;
+    gap: .5rem;
+    justify-content: flex-end;
+    padding: .75rem 1.25rem;
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+    background: color-mix(in srgb, var(--ink, #000) 3%, transparent);
+}
+
+/* On mobile: full-screen modal */
+@media (max-width: 600px) {
+    .pcms-modal-backdrop {
+        padding: 0;
+    }
+    .pcms-modal {
+        border-radius: 0;
+        max-width: 100%;
+        max-height: 100vh;
+        height: 100vh;
+    }
+}
+
+/* v9.4 — Media → Playlists tab */
+.playlists-page-header {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.25rem;
+}
+.playlists-page-header > p { flex: 1; min-width: 200px; }
+.playlists-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: .75rem;
+}
+@media (min-width: 720px) {
+    .playlists-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (min-width: 1100px) {
+    .playlists-grid { grid-template-columns: repeat(3, 1fr); }
+}
+.playlist-card {
+    display: grid;
+    grid-template-columns: 64px 1fr auto;
+    gap: .75rem;
+    align-items: center;
+    padding: .75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--paper, #fff);
+}
+.playlist-card-cover {
+    width: 64px;
+    height: 64px;
+    border-radius: 8px;
+    overflow: hidden;
+    background-color: color-mix(in srgb, var(--ink, #000) 6%, transparent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.playlist-card-cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.playlist-card-cover-empty { font-size: 1.6rem; opacity: .5; }
+.playlist-card-info { min-width: 0; }
+.playlist-card-title {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.playlist-card-artist,
+.playlist-card-meta {
+    font-size: .82rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.playlist-card-actions {
+    display: flex;
+    gap: .25rem;
+    flex-shrink: 0;
+}
+
+/* v9.4 — Playlist editor modal (mobile-friendly, single-column) */
+.pl-editor {
+    /* Erft van .pcms-modal */
+}
+.pl-editor-meta {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: .75rem;
+    margin-bottom: 1rem;
+}
+@media (min-width: 560px) {
+    .pl-editor-meta {
+        grid-template-columns: 1fr 1fr;
+    }
+    .pl-editor-meta .pl-editor-field-full { grid-column: 1 / -1; }
+}
+.pl-editor-field {
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+    min-width: 0;
+}
+.pl-editor-field span {
+    font-size: .82rem;
+    color: var(--fg-muted, #666);
+    font-weight: 500;
+}
+.pl-editor-field input,
+.pl-editor-field select {
+    width: 100%;
+    box-sizing: border-box;
+    padding: .5rem .65rem;
+    font-size: .95rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--paper, #fff);
+    color: var(--ink, #000);
+}
+.pl-editor-field input:focus,
+.pl-editor-field select:focus {
+    outline: 2px solid var(--accent, #5a8a5a);
+    outline-offset: -1px;
+}
+.pl-editor-section-title {
+    margin: 1.25rem 0 .5rem;
+    font-size: 1rem;
+    font-weight: 600;
+}
+.pl-tracks-selected {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--paper, #fff);
+    min-height: 60px;
+    margin-bottom: 1rem;
+    padding: .25rem;
+}
+.pl-tracks-empty {
+    padding: 1.5rem;
+    text-align: center;
+    color: var(--fg-muted, #666);
+    font-size: .9rem;
+}
+.pl-track-row {
+    display: grid;
+    grid-template-columns: 32px 36px 1fr auto;
+    gap: .5rem;
+    align-items: center;
+    padding: .5rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--paper, #fff);
+    user-select: none;
+    touch-action: pan-x;
+}
+.pl-track-row:last-child { border-bottom: none; }
+.pl-track-row.is-dragging {
+    opacity: .55;
+    transform: scale(.98);
+    background: color-mix(in srgb, var(--accent, #5a8a5a) 10%, transparent);
+    border-radius: 6px;
+}
+.pl-track-row.drop-target-above {
+    box-shadow: inset 0 2px 0 0 var(--accent, #5a8a5a);
+}
+.pl-track-row.drop-target-below {
+    box-shadow: inset 0 -2px 0 0 var(--accent, #5a8a5a);
+}
+.pl-track-handle {
+    cursor: grab;
+    font-size: 1.2rem;
+    line-height: 1;
+    color: var(--fg-muted, #666);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 32px;
+    width: 32px;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+.pl-track-handle:active { cursor: grabbing; }
+.pl-track-handle:hover {
+    background: color-mix(in srgb, var(--ink, #000) 8%, transparent);
+}
+.pl-track-num {
+    text-align: center;
+    color: var(--fg-muted, #666);
+    font-size: .85rem;
+    width: 36px;
+}
+.pl-track-info {
+    min-width: 0;
+    overflow: hidden;
+}
+.pl-track-title {
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.pl-track-artist {
+    font-size: .78rem;
+    color: var(--fg-muted, #666);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.pl-track-remove {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: .35rem;
+    border-radius: 4px;
+    color: var(--fg-muted, #666);
+    font-size: 1.2rem;
+    line-height: 1;
+}
+.pl-track-remove:hover {
+    background: color-mix(in srgb, #c00 12%, transparent);
+    color: #c00;
+}
+
+/* Available tracks panel */
+.pl-tracks-available-panel {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--paper, #fff);
+}
+.pl-tracks-available-search {
+    padding: .5rem;
+    border-bottom: 1px solid var(--border);
+}
+.pl-tracks-available-search input {
+    width: 100%;
+    box-sizing: border-box;
+}
+.pl-tracks-available-list {
+    max-height: 30vh;
+    overflow-y: auto;
+}
+.pl-track-row-available {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: .5rem;
+    align-items: center;
+    padding: .5rem;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+}
+.pl-track-row-available:last-child { border-bottom: none; }
+.pl-track-row-available:hover {
+    background: color-mix(in srgb, var(--accent, #5a8a5a) 8%, transparent);
+}
+.pl-track-row-available.is-already-added {
+    opacity: .4;
+    pointer-events: none;
+}
+.pl-track-add-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: .25rem .5rem;
+    cursor: pointer;
+    font-size: .85rem;
+    color: var(--accent, #5a8a5a);
+}
+
+/* v9.3 — Tracklist items zijn nu klikbare <button class="pat-row"> binnen <li>.
+   De LI is puur een container zonder visuele styling; alles gebeurt op de button. */
+.post-album-track-compact {
+    padding: 0;
+    margin: 0;
+    border-bottom: 1px solid var(--rule);
+    list-style: none;
+}
+.post-album-track-compact:last-child { border-bottom: none; }
+
+.pat-row {
+    display: grid;
+    grid-template-columns: 32px 1fr auto;
+    gap: .65rem;
+    align-items: center;
+    width: 100%;
+    padding: .5rem .85rem;
+    background: transparent;
+    border: none;
+    color: inherit;
+    font: inherit;
+    font-size: .82rem;
+    text-align: left;
+    cursor: pointer;
+    position: relative;
+    transition: background .15s ease;
+}
+.pat-row:hover {
+    background: color-mix(in srgb, var(--ink, #000) 6%, transparent);
+}
+.pat-row:active { transform: scale(.995); }
+[data-theme="dark"] .pat-row:hover {
+    background: color-mix(in srgb, var(--paper, #fff) 10%, transparent);
+}
+
+/* Leader: track-nummer OF cover-thumb (afhankelijk van kind).
+   v9.3 — pat-leader is altijd 32×32, met overgang voor spinner-vervanging. */
+.pat-row .pat-num,
+.pat-row .pat-cover {
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    transition: opacity .25s ease, transform .25s ease;
+}
+.pat-row .pat-num {
+    font-family: ui-monospace, monospace;
+    font-size: .8rem;
+    opacity: .5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.pat-row .pat-cover {
+    background-size: cover;
+    background-position: center;
+    background-color: color-mix(in srgb, var(--ink, #000) 8%, transparent);
+}
+
+/* v9.3 — Loading-spiraal als overlay op de leader-kolom.
+   pat-num/pat-cover faden uit, spinner faded in via ::before. */
+.pat-row::before {
+    content: "";
+    position: absolute;
+    left: .85rem; top: 50%;
+    width: 32px; height: 32px;
+    transform: translateY(-50%);
+    color: var(--accent, #c2410c);
+    background-color: currentColor;
+    -webkit-mask: url('/assets/spinner.svg') center/26px 26px no-repeat;
+            mask: url('/assets/spinner.svg') center/26px 26px no-repeat;
+    opacity: 0;
+    transition: opacity .25s ease;
+    pointer-events: none;
+    animation: pat-spinner-rotate 1.2s linear infinite;
+    animation-play-state: paused;
+}
+.pat-row.is-loading::before {
+    opacity: 1;
+    animation-play-state: running;
+}
+.pat-row.is-loading .pat-num,
+.pat-row.is-loading .pat-cover {
+    opacity: 0;
+    transform: scale(.85);
+}
+@keyframes pat-spinner-rotate {
+    from { transform: translateY(-50%) rotate(0deg); }
+    to   { transform: translateY(-50%) rotate(-360deg); }
+}
+
+/* Meta-kolom */
+.pat-row .pat-meta {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    gap: 1px;
+    overflow: hidden;
+}
+.pat-row .pat-title {
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.pat-row .pat-artist {
+    font-size: .72rem;
+    opacity: .6;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.pat-row .pat-duration {
+    font-family: ui-monospace, monospace;
+    font-size: .72rem;
+    opacity: .55;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.pat-row .pat-duration-empty {
+    opacity: .25;
+}
+
+/* is-current — actieve track in de player */
+.pat-row.is-current {
+    background: color-mix(in srgb, var(--accent, #c2410c) 12%, transparent);
+}
+.pat-row.is-current .pat-title,
+.pat-row.is-current .pat-artist  { color: var(--accent, #c2410c); }
+
+/* v9.3 — Marquee bij actief afspelen: titel scrollt heen-en-weer.
+   --pat-shift wordt door JS gezet (= overflow in pixels). Bij 0 → geen
+   beweging want translateX(0) blijft 0.
+   Snelle cyclus (6s) met korte rust aan beide uiteinden (8%) zodat 't
+   vlot voelt zonder onleesbaar te zijn. */
+.pat-row.is-current.is-playing .pat-title {
+    animation: pat-title-marquee 6s ease-in-out infinite alternate;
+    text-overflow: clip;
+    overflow: visible;
+    will-change: transform;
+}
+@keyframes pat-title-marquee {
+    0%, 8%    { transform: translateX(0); }
+    92%, 100% { transform: translateX(calc(-1 * var(--pat-shift, 0px))); }
+}
+
+/* ============================================================
+   v9.0 — CSS-migratie voor OUDE opgeslagen albums
+   Oude posts hebben <li class="post-audio-track"> met play-knoppen + cover-spans.
+   We renderen die VISUEEL als compact, zonder de HTML aan te passen.
+   ============================================================ */
+.post-album-tracks .post-audio-track {
+    display: grid;
+    grid-template-columns: 28px 1fr auto;
+    gap: .75rem;
+    align-items: center;
+    padding: .5rem .85rem;
+    margin: 0;
+    border: none;
+    border-bottom: 1px solid var(--rule);
+    background: transparent;
+    border-radius: 0;
+    cursor: default;
+    font-size: .92rem;
+}
+.post-album-tracks .post-audio-track:last-child { border-bottom: none; }
+/* Verberg de cover-thumb en play-button in OUDE saved posts */
+.post-album-tracks .post-audio-track .pat-cover,
+.post-album-tracks .post-audio-track .pat-play {
+    display: none !important;
+}
+.post-album-tracks .post-audio-track .pat-num {
+    font-family: ui-monospace, monospace;
+    font-size: .8rem;
+    opacity: .45;
+    text-align: center;
+    width: auto;
+}
+.post-album-tracks .post-audio-track .pat-meta {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    gap: 1px;
+}
+.post-album-tracks .post-audio-track .pat-title {
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.post-album-tracks .post-audio-track .pat-artist {
+    font-size: .78rem;
+    opacity: .6;
+}
+.post-album-tracks .post-audio-track .pat-duration {
+    font-family: ui-monospace, monospace;
+    font-size: .78rem;
+    opacity: .55;
+}
+.post-album-tracks .post-audio-track.is-current {
+    background: color-mix(in srgb, var(--accent, #c2410c) 10%, transparent);
+}
+.post-album-tracks .post-audio-track.is-current .pat-num,
+.post-album-tracks .post-audio-track.is-current .pat-title {
+    color: var(--accent);
+}
+
+@media (max-width: 540px) {
+    .post-album-header { flex-direction: column; }
+    .post-album-cover-btn .post-album-cover { width: 100%; max-width: 240px; height: auto; aspect-ratio: 1/1; }
+}
+@media (max-width: 380px) {
+    .post-album-header { padding: .75rem; gap: .75rem; }
+    .post-album-cover-btn .post-album-cover { max-width: 180px; }
+    .post-album-title { font-size: 1.15rem; }
+    .post-album-meta { font-size: .8rem; }
+    .post-album-track-compact,
+    .post-album-tracks .post-audio-track {
+        grid-template-columns: 24px 1fr auto;
+        gap: .5rem;
+        padding: .4rem .6rem;
+        font-size: .85rem;
+    }
+    .post-album-track-compact .pat-duration,
+    .post-album-tracks .post-audio-track .pat-duration {
+        font-size: .72rem;
+    }
+    /* Queue items in expand-sheet */
+    .audio-sheet-queue-item { padding: .4rem .45rem; gap: .55rem; }
+    .audio-sheet-queue-cover { width: 32px; height: 32px; }
+    .audio-sheet-queue-title { font-size: .85rem; }
+    .audio-sheet-queue-artist { font-size: .7rem; }
+}
+
+/* External track (SoundCloud / YouTube / Spotify / etc) — klikbaar maar link-naar-platform */
+.post-audio-external {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    padding: .65rem .85rem;
+    background: var(--paper-2, color-mix(in srgb, var(--ink) 4%, transparent));
+    border: 1px solid var(--rule, rgba(0,0,0,.08));
+    border-radius: 10px;
+    margin: .75rem 0;
+    text-decoration: none;
+    color: var(--ink);
+    transition: background .15s, border-color .15s;
+}
+.post-audio-external:hover {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 5%, var(--paper-2, transparent));
+}
+.post-audio-external .pae-icon {
+    flex-shrink: 0;
+    width: 42px;
+    height: 42px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--platform-color, #555);
+    color: #fff;
+    font-size: 1.2rem;
+}
+.post-audio-external .pae-icon-svg svg {
+    width: 60%;
+    height: 60%;
+    fill: currentColor;
+}
+/* Per-platform vult de box net wat anders — brand-specifiek geoptimaliseerd */
+.post-audio-external[data-platform="soundcloud"] .pae-icon-svg svg { width: 72%; height: auto; }
+.post-audio-external[data-platform="spotify"]    .pae-icon-svg svg { width: 72%; height: 72%; }
+.post-audio-external[data-platform="youtube"]    .pae-icon-svg svg { width: 68%; height: auto; }
+.post-audio-external[data-platform="bandcamp"]   .pae-icon-svg svg { width: 62%; height: auto; }
+.post-audio-external[data-platform="apple"]      .pae-icon-svg svg { width: 58%; height: 58%; }
+.post-audio-external[data-platform="tidal"]      .pae-icon-svg svg { width: 68%; height: auto; }
+.post-audio-external[data-platform="deezer"]     .pae-icon-svg svg { width: 65%; height: auto; }
+.post-audio-external[data-platform="mixcloud"]   .pae-icon-svg svg { width: 75%; height: auto; }
+.post-audio-external[data-platform="soundcloud"] .pae-icon { background: #ff5500; }
+.post-audio-external[data-platform="spotify"]    .pae-icon { background: #1db954; }
+.post-audio-external[data-platform="youtube"]    .pae-icon { background: #ff0000; }
+.post-audio-external[data-platform="bandcamp"]   .pae-icon { background: #1da0c3; }
+.post-audio-external[data-platform="apple"]      .pae-icon { background: #fa243c; }
+.post-audio-external[data-platform="tidal"]      .pae-icon { background: #000; }
+.post-audio-external[data-platform="deezer"]     .pae-icon { background: #a238ff; }
+.post-audio-external[data-platform="mixcloud"]   .pae-icon { background: #314359; }
+.post-audio-external[data-platform="other"]      .pae-icon { background: #555; }
+.post-audio-external .pae-meta {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.post-audio-external .pae-title {
+    display: block;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--ink);
+}
+.post-audio-external .pae-platform {
+    display: block;
+    font-size: .78rem;
+    opacity: .65;
+    text-transform: capitalize;
+}
+.post-audio-external .pae-go {
+    flex-shrink: 0;
+    opacity: .5;
+    font-size: 1.1rem;
+}
+
+/* =========================================================================
+   v9.0 — Video player (inline)
+   ========================================================================= */
+
+.post-video-figure {
+    margin: 1.25rem 0;
+    max-width: 100%;
+}
+
+.post-video {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    border-radius: 10px;
+    background: #000;
+    box-shadow: 0 4px 20px rgba(0,0,0,.15);
+}
+
+.post-video-caption {
+    margin-top: .5rem;
+    font-size: .88rem;
+    color: var(--ink-muted, color-mix(in srgb, var(--ink) 60%, transparent));
+    text-align: center;
+    line-height: 1.5;
+}
+
+.post-video-caption strong {
+    display: inline;
+    font-weight: 600;
+    color: var(--ink);
+}
+
+@media (max-width: 640px) {
+    .post-video-figure { margin: .75rem -.5rem; }
+    .post-video { border-radius: 6px; }
+}
+
+/* v9.3 — Floating "Bewerken" knop voor album-blokken in de post-editor.
+   Verschijnt bij hover over een .post-album binnen #visual en wordt via JS
+   geplaatst op de rechterbovenhoek van het blok. Niet in de opgeslagen HTML. */
+.pcms-album-edit-overlay {
+    position: absolute;
+    z-index: 1000;
+    transform: translateX(-100%);
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    padding: .35rem .7rem;
+    background: var(--accent, #c2410c);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: .82rem;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, .18);
+    transition: transform .12s ease, box-shadow .12s ease;
+}
+.pcms-album-edit-overlay:hover {
+    transform: translateX(-100%) translateY(-1px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, .24);
+}
+.pcms-album-edit-overlay:active {
+    transform: translateX(-100%) translateY(0);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, .18);
+}
+
+/* v9.3 — Drag-and-drop in de album-builder selected-lijst */
+.ab-selected-row { cursor: default; }
+.ab-selected-row .ab-drag-handle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 100%;
+    color: color-mix(in srgb, currentColor 40%, transparent);
+    cursor: grab;
+    user-select: none;
+    font-size: .9rem;
+    letter-spacing: -2px;
+    flex-shrink: 0;
+}
+.ab-selected-row:hover .ab-drag-handle {
+    color: color-mix(in srgb, currentColor 70%, transparent);
+}
+.ab-selected-row.is-dragging {
+    opacity: .35;
+    cursor: grabbing;
+}
+.ab-selected-row.is-dragging .ab-drag-handle { cursor: grabbing; }
+/* Drop-indicator lijnen boven/onder de target rij */
+.ab-selected-row.is-drag-target-before {
+    box-shadow: 0 -2px 0 0 var(--accent, #c2410c) inset, 0 2px 0 0 var(--accent, #c2410c);
+    /* Gebruik outline voor cross-browser zichtbaarheid */
+    position: relative;
+}
+.ab-selected-row.is-drag-target-before::before {
+    content: "";
+    position: absolute;
+    top: -1px; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent, #c2410c);
+    pointer-events: none;
+}
+.ab-selected-row.is-drag-target-after::after {
+    content: "";
+    position: absolute;
+    bottom: -1px; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent, #c2410c);
+    pointer-events: none;
+}
+.ab-selected-row.is-drag-target-after { position: relative; }
+
+/* v9.3 — Playlist fallback states (missing of empty playlist reference in post) */
+.post-playlist-missing, .post-playlist-empty {
+    padding: 1rem;
+    margin: .75rem 0;
+    background: color-mix(in srgb, var(--accent, #c2410c) 8%, transparent);
+    border: 1px dashed color-mix(in srgb, var(--accent, #c2410c) 30%, transparent);
+    border-radius: 8px;
+    font-size: .9rem;
+}
+.post-playlist-missing em, .post-playlist-empty em {
+    opacity: .8;
+}
+
+/* v9.3 — Install-app footer-knop */
+.site-footer-install {
+    display: flex;
+    justify-content: center;
+    padding: 1rem 1rem 1.25rem;
+    border-top: 1px solid color-mix(in srgb, currentColor 8%, transparent);
+    margin-top: .5rem;
+}
+
+/* v9.4 — Cooler install-knop: gradient + shimmer + perfect centering.
+   Twee kleur-stops voor diepte, animated shimmer-streep om aandacht te trekken,
+   icon perfect verticaal gecentreerd via flex (was: net iets te hoog tov tekst). */
+.install-app-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .55rem;
+    padding: .8rem 1.6rem;
+    background: linear-gradient(135deg,
+        var(--accent, #c2410c),
+        color-mix(in srgb, var(--accent, #c2410c) 80%, #000));
+    color: #fff;
+    border: none;
+    border-radius: 999px;
+    font: inherit;
+    font-weight: 600;
+    font-size: .95rem;
+    line-height: 1;
+    letter-spacing: .01em;
+    cursor: pointer;
+    overflow: hidden;
+    isolation: isolate;
+    box-shadow:
+        0 1px 0 rgba(255,255,255,.15) inset,
+        0 -2px 0 rgba(0,0,0,.1) inset,
+        0 4px 14px color-mix(in srgb, var(--accent, #c2410c) 40%, transparent),
+        0 1px 3px rgba(0,0,0,.18);
+    transition:
+        transform .15s cubic-bezier(.4, 0, .2, 1),
+        box-shadow .2s ease,
+        filter .15s ease;
+}
+.install-app-btn svg {
+    flex-shrink: 0;
+    /* subtle bounce-on-hover trigger, separate animation */
+    transition: transform .25s cubic-bezier(.34, 1.56, .64, 1);
+}
+.install-app-btn span {
+    line-height: 1;
+}
+
+/* Shimmer-streep die langzaam over de knop loopt — "alive" effect */
+.install-app-btn::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 60%;
+    height: 100%;
+    background: linear-gradient(110deg,
+        transparent 30%,
+        rgba(255,255,255,.25) 50%,
+        transparent 70%);
+    z-index: -1;
+    animation: pcmsInstallShimmer 4s ease-in-out infinite;
+    pointer-events: none;
+}
+@keyframes pcmsInstallShimmer {
+    0%, 35%   { left: -100%; }
+    65%, 100% { left: 200%; }
+}
+
+.install-app-btn:hover {
+    transform: translateY(-2px) scale(1.02);
+    filter: brightness(1.06);
+    box-shadow:
+        0 1px 0 rgba(255,255,255,.2) inset,
+        0 -2px 0 rgba(0,0,0,.1) inset,
+        0 8px 24px color-mix(in srgb, var(--accent, #c2410c) 55%, transparent),
+        0 2px 6px rgba(0,0,0,.2);
+}
+.install-app-btn:hover svg {
+    transform: translateY(-2px);
+}
+.install-app-btn:active {
+    transform: translateY(0) scale(.98);
+    transition-duration: .05s;
+}
+.install-app-btn:focus-visible {
+    outline: 2px solid var(--accent, #c2410c);
+    outline-offset: 3px;
+}
+
+/* Reduced motion: shimmer uit, alleen statisch */
+@media (prefers-reduced-motion: reduce) {
+    .install-app-btn::before { animation: none; left: -100%; }
+    .install-app-btn:hover { transform: none; }
+    .install-app-btn:hover svg { transform: none; }
+}
+
+/* Install-instructions modal */
+.install-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+.install-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,.55);
+    backdrop-filter: blur(3px);
+}
+.install-modal-panel {
+    position: relative;
+    z-index: 1;
+    background: var(--paper);
+    color: var(--ink);
+    border: 1px solid var(--rule);
+    border-radius: 14px;
+    padding: 1.5rem;
+    max-width: 440px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,.4);
+}
+.install-modal-panel h3 { font-size: 1.15rem; color: var(--ink); }
+.install-modal-panel h4 {
+    margin: 1rem 0 .4rem;
+    font-size: .92rem;
+    letter-spacing: .03em;
+    text-transform: uppercase;
+    opacity: .7;
+    color: var(--ink);
+}
+.install-modal-panel p { color: var(--ink); }
+.install-steps {
+    margin: 0;
+    padding-left: 1.35rem;
+    display: flex;
+    flex-direction: column;
+    gap: .45rem;
+    font-size: .95rem;
+    line-height: 1.45;
+    color: var(--ink);
+}
+.install-steps li::marker { color: var(--accent); font-weight: 700; }
+.install-apk-block {
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px dashed var(--rule);
+}
+.install-apk-link {
+    display: inline-flex;
+    align-items: center;
+    margin-top: .4rem;
+    padding: .6rem 1rem;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+}
+.install-apk-link:hover { filter: brightness(1.08); }
+.install-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 1.25rem;
+}
+.install-modal-actions .btn {
+    padding: .5rem 1rem;
+    background: var(--paper-2);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    color: var(--ink);
+    cursor: pointer;
+    font: inherit;
+    font-weight: 500;
+}
+.install-modal-actions .btn:hover {
+    background: color-mix(in srgb, var(--accent) 10%, var(--paper-2));
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+@media (max-width: 520px) {
+    .install-modal-panel { padding: 1.2rem; }
+    .install-app-btn { width: 100%; justify-content: center; }
+}
+
+/* v9.3 — Install-modal: choice-blocks met voor/nadelen */
+.install-choice {
+    margin-top: 1.25rem;
+    padding: 1rem;
+    border: 1px solid color-mix(in srgb, currentColor 15%, transparent);
+    border-radius: 10px;
+    background: color-mix(in srgb, currentColor 3%, transparent);
+}
+.install-choice + .install-choice { margin-top: 1rem; }
+.install-choice h4 {
+    margin: 0 0 .75rem;
+    font-size: 1rem;
+    letter-spacing: 0;
+    text-transform: none;
+    opacity: 1;
+}
+.install-pros-cons {
+    display: flex;
+    gap: 1rem;
+    margin: .5rem 0 1rem;
+}
+.install-pros,
+.install-cons {
+    flex: 1;
+    min-width: 0;
+    font-size: .85rem;
+    line-height: 1.45;
+}
+.install-pros strong,
+.install-cons strong {
+    display: block;
+    margin-bottom: .35rem;
+    font-size: .82rem;
+    letter-spacing: .02em;
+}
+.install-pros strong { color: #16a34a; }
+.install-cons strong { color: #dc2626; }
+.install-pros ul,
+.install-cons ul {
+    margin: 0;
+    padding-left: 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+}
+.install-pros li::marker { color: #16a34a; }
+.install-cons li::marker { color: #dc2626; }
+
+.install-choice-cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .35rem;
+    margin-top: .5rem;
+    padding: .7rem 1.1rem;
+    background: var(--accent, #c2410c);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    text-decoration: none;
+    font: inherit;
+    font-weight: 600;
+    font-size: .95rem;
+    cursor: pointer;
+    transition: filter .12s ease;
+}
+.install-choice-cta:hover { filter: brightness(1.08); }
+.install-choice-note {
+    margin: .5rem 0 0;
+    padding: .6rem .8rem;
+    background: color-mix(in srgb, currentColor 4%, transparent);
+    border-left: 3px solid var(--accent, #c2410c);
+    border-radius: 4px;
+    font-size: .9rem;
+    line-height: 1.45;
+}
+
+@media (max-width: 520px) {
+    .install-pros-cons { flex-direction: column; gap: .75rem; }
+}
+
+/* v9.4 — Soft fade-overgang tussen posts bij navigatie.
+   Fade-out is rustig (450ms): oude content vervaagt geleidelijk terwijl
+   de scroll-naar-top loopt. Fade-in is snel (180ms) met een lichte blur-
+   onscherp → scherp animatie zodat de nieuwe content niet abrupt verschijnt. */
+#pcms-main {
+    transition: opacity .45s ease-out;
+}
+#pcms-main.is-pcms-transitioning-out {
+    opacity: 0;
+}
+#pcms-main.is-pcms-transitioning-in {
+    opacity: 0;
+    filter: blur(6px);
+    animation: pcmsFadeIn .18s ease-out forwards;
+    will-change: opacity, filter;
+}
+@keyframes pcmsFadeIn {
+    from { opacity: 0; filter: blur(6px); }
+    to   { opacity: 1; filter: blur(0); }
+}
+
+/* Respecteer reduced-motion voorkeur (iOS/Android accessibility setting) */
+@media (prefers-reduced-motion: reduce) {
+    #pcms-main {
+        transition: opacity .15s ease-out;
+    }
+    #pcms-main.is-pcms-transitioning-in {
+        filter: none;
+        animation: none;
+        opacity: 1;
+    }
+}

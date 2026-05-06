@@ -1,0 +1,134 @@
+<div class="container search-page">
+  <h1>Search</h1>
+
+  <form method="get" action="/search" class="search-page-form">
+    <input
+      type="search"
+      name="q"
+      value="<%= query %>"
+      placeholder="Search posts…"
+      autocomplete="off"
+      autofocus
+      aria-label="Search query">
+    <button type="submit" class="btn btn-primary">Search</button>
+  </form>
+
+  <% if (queryError) { %>
+    <p class="search-error">Couldn't run that query. Try a simpler term.</p>
+  <% } %>
+
+  <% if (query && !queryError) { %>
+    <p class="search-meta">
+      <%= total %> result<%= total === 1 ? '' : 's' %> for &ldquo;<%= query %>&rdquo;
+    </p>
+  <% } %>
+
+  <% if (results && results.length) { %>
+    <ol class="search-results">
+      <% results.forEach(function(r) { %>
+        <li class="search-result">
+          <h2 class="search-result-title">
+            <a href="/<%= r.slug %>"
+               hx-get="/<%= r.slug %>?partial=1"
+               hx-target="#pcms-main"
+               hx-swap="innerHTML"
+               hx-push-url="/<%= r.slug %>"
+               hx-indicator="#pcms-loading">
+              <%= r.title || '(untitled)' %>
+            </a>
+          </h2>
+          <p class="search-result-meta">
+            <%= r.author_username %>
+            <% if (r.published_at) { %> &middot; <%= formatDate(r.published_at) %><% } %>
+          </p>
+          <p class="search-result-snippet"><%- r.snippet %></p>
+        </li>
+      <% }); %>
+    </ol>
+  <% } else if (query && !queryError) { %>
+    <p class="search-empty">No posts found.</p>
+  <% } %>
+</div>
+
+<style>
+.search-page { max-width: 720px; margin: 3rem auto; padding: 0 1rem; }
+.search-page h1 { font-family: var(--font-display, serif); font-size: 2rem; margin: 0 0 1.5rem; }
+
+.search-page-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+.search-page-form input {
+  flex: 1;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  background: var(--paper-2);
+  color: var(--ink);
+  font-size: 1rem;
+}
+.search-page-form input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.search-meta {
+  color: var(--ink-muted, var(--ink-soft));
+  font-size: 0.9rem;
+  margin: 0 0 1rem;
+}
+.search-error {
+  background: rgba(200, 60, 60, 0.15);
+  color: #c33;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  border: 1px solid rgba(200, 60, 60, 0.3);
+}
+.search-empty {
+  color: var(--ink-muted, var(--ink-soft));
+  text-align: center;
+  margin: 3rem 0;
+}
+
+.search-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: search-result;
+}
+.search-result {
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+.search-result:last-child { border-bottom: 0; }
+
+.search-result-title {
+  font-family: var(--font-display, serif);
+  font-size: 1.25rem;
+  margin: 0 0 0.25rem;
+}
+.search-result-title a {
+  color: var(--ink);
+  text-decoration: none;
+}
+.search-result-title a:hover { color: var(--accent); }
+
+.search-result-meta {
+  margin: 0 0 0.5rem;
+  color: var(--ink-muted, var(--ink-soft));
+  font-size: 0.85rem;
+}
+
+.search-result-snippet {
+  margin: 0;
+  color: var(--ink-soft);
+  line-height: 1.5;
+}
+.search-result-snippet mark {
+  background: var(--accent);
+  color: white;
+  padding: 0.05em 0.25em;
+  border-radius: 3px;
+}
+</style>

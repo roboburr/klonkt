@@ -1,0 +1,21 @@
+<div class="container welcome-page">
+  <h1>Welcome to PrutCMS</h1>
+  <p class="welcome-tagline">A self-hosted publishing platform.</p>
+  
+  <% if (!user) { %>
+    <div class="welcome-actions">
+      <a href="/auth/register" class="btn btn-primary">Create your account</a>
+      <a href="/auth/login" class="btn">Already have one? Login</a>
+    </div>
+    <p class="welcome-note">The first user becomes <strong>god</strong> and gets a personal site auto-created.</p>
+  <% } else { %>
+    <p>Hi <%= user.username %>! No site is configured yet.</p>
+  <% } %>
+</div>
+<style>
+.welcome-page { max-width: 600px; margin: 4rem auto; padding: 0 1rem; text-align: center; }
+.welcome-page h1 { font-family: var(--font-display, serif); font-size: 2.5rem; margin: 0 0 0.5rem; }
+.welcome-tagline { color: var(--ink-muted); margin-bottom: 2rem; font-size: 1.1rem; }
+.welcome-actions { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin: 2rem 0; }
+.welcome-note { color: var(--ink-muted); font-size: 0.9rem; margin-top: 2rem; }
+</style>

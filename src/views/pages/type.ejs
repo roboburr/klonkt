@@ -1,0 +1,61 @@
+<div class="container type-page">
+  <header class="type-page-header">
+    <p class="type-eyebrow">Type</p>
+    <h1><%= type.charAt(0).toUpperCase() + type.slice(1) %></h1>
+    <p class="type-meta"><%= posts.length %> post<%= posts.length === 1 ? '' : 's' %></p>
+  </header>
+
+  <% if (!posts.length) { %>
+    <p class="type-empty">No posts of this type yet.</p>
+  <% } else { %>
+    <ol class="type-results">
+      <% posts.forEach(function(p) { %>
+        <li class="type-result">
+          <% if (p.cover_image_url) { %>
+            <a href="/<%= p.slug %>" class="type-result-cover"
+               hx-get="/<%= p.slug %>?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
+               hx-push-url="/<%= p.slug %>" hx-indicator="#pcms-loading">
+              <img src="<%= p.cover_image_url %>" alt="">
+            </a>
+          <% } %>
+          <div class="type-result-body">
+            <h2 class="type-result-title">
+              <a href="/<%= p.slug %>"
+                 hx-get="/<%= p.slug %>?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
+                 hx-push-url="/<%= p.slug %>" hx-indicator="#pcms-loading">
+                <%= p.title || '(untitled)' %>
+              </a>
+            </h2>
+            <p class="type-result-meta">
+              <%= p.author_username %><% if (p.published_at) { %> &middot; <%= formatDate(p.published_at) %><% } %>
+            </p>
+            <% if (p.excerpt) { %>
+              <p class="type-result-excerpt"><%= p.excerpt %></p>
+            <% } %>
+          </div>
+        </li>
+      <% }); %>
+    </ol>
+  <% } %>
+</div>
+
+<style>
+.type-page { max-width: 720px; margin: 3rem auto; padding: 0 1rem; }
+.type-page-header { margin-bottom: 1.5rem; }
+.type-eyebrow { color: var(--ink-muted, var(--ink-soft)); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.06em; margin: 0; }
+.type-page h1 { font-family: var(--font-display, serif); font-size: 2.25rem; margin: 0.1rem 0 0.25rem; color: var(--accent); }
+.type-meta { color: var(--ink-muted, var(--ink-soft)); font-size: 0.9rem; margin: 0; }
+.type-empty { color: var(--ink-muted, var(--ink-soft)); text-align: center; margin: 3rem 0; }
+
+.type-results { list-style: none; padding: 0; margin: 0; }
+.type-result { display: flex; gap: 1rem; padding: 1rem 0; border-bottom: 1px solid var(--rule); }
+.type-result:last-child { border-bottom: 0; }
+.type-result-cover { flex-shrink: 0; width: 96px; height: 96px; border-radius: 6px; overflow: hidden; background: var(--paper-2); }
+.type-result-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.type-result-body { flex: 1; min-width: 0; }
+.type-result-title { font-family: var(--font-display, serif); font-size: 1.2rem; margin: 0 0 0.25rem; }
+.type-result-title a { color: var(--ink); text-decoration: none; }
+.type-result-title a:hover { color: var(--accent); }
+.type-result-meta { color: var(--ink-muted, var(--ink-soft)); font-size: 0.85rem; margin: 0 0 0.4rem; }
+.type-result-excerpt { color: var(--ink-soft); margin: 0; line-height: 1.5; }
+</style>
