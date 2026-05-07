@@ -188,7 +188,12 @@
       return;
     }
     console.log('[pcms-audio] loading', t.title, t.url);
+    // Schone overgang: pause + reset voorkomt state-corruption van het
+    // audio-element na meerdere src-changes (bug die continuous playback
+    // brak na 3-4 tracks). audio.load() forceert reset van internal state.
+    try { audio.pause(); } catch (e) {}
     audio.src = t.url;
+    try { audio.load(); } catch (e) {}
     titleEl.textContent  = t.title  || 'Untitled';
     artistEl.textContent = t.artist || '';
     sheetTitle.textContent  = t.title  || 'Untitled';
@@ -213,7 +218,17 @@
     if (!audio.src) return;
     const p = audio.play();
     if (p && typeof p.catch === 'function') {
-      p.catch((err) => console.warn('[pcms-audio] play() rejected', err));
+      p.catch((err) => {
+        console.warn('[pcms-audio] play() rejected:', err.name, err.message);
+        // Browser-autoplay-policy heeft 't gestopt (typisch na 3-4
+        // automatische plays op iOS Safari, of als tab tijdelijk inactive
+        // was). Visuele hint dat user op play moet tappen.
+        if (err && err.name === 'NotAllowedError') {
+          root.classList.add('audio-needs-tap');
+          isPlaying = false;
+          root.classList.remove('is-playing');
+        }
+      });
     }
   }
   function pause()      { audio.pause(); }
@@ -267,14 +282,29 @@
   // ============================================================
   // 5. Audio element events → UI sync
   // ============================================================
-  audio.addEventListener('play',  () => { isPlaying = true;  root.classList.add('is-playing'); });
+  // Error-counter voorkomt infinite-loop als ALLE tracks broken zijn.
+  let consecutiveErrors = 0;
+
+  audio.addEventListener('play',  () => {
+    isPlaying = true;
+    consecutiveErrors = 0;  // reset bij succesvolle play
+    root.classList.add('is-playing');
+    root.classList.remove('audio-needs-tap');  // verstop tap-hint
+  });
   audio.addEventListener('pause', () => { isPlaying = false; root.classList.remove('is-playing'); });
   audio.addEventListener('ended', next);
   audio.addEventListener('error', (e) => {
     const code = audio.error ? audio.error.code : '?';
     console.error('[pcms-audio] playback error', code, audio.src, e);
+    consecutiveErrors++;
+    // Bij netwerk/decode-fout: skip naar volgende track ipv stilstaan.
+    // Max 3 fouten op rij voordat we opgeven (anders infinite loop).
+    if (consecutiveErrors < 3 && queue.length > 1) {
+      console.warn('[pcms-audio] auto-skip naar volgende na error', consecutiveErrors);
+      setTimeout(next, 400);
+    }
   });
-  audio.addEventListener('stalled', () => console.warn('[pcms-audio] stalled'));
+  audio.addEventListener('stalled', () => console.warn('[pcms-audio] stalled at', audio.currentTime));
   audio.addEventListener('volumechange', () => { root.classList.toggle('is-muted', audio.muted || audio.volume === 0); });
   audio.addEventListener('timeupdate', () => {
     if (!audio.duration || isNaN(audio.duration)) return;
