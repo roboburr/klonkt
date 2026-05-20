@@ -444,8 +444,11 @@ body.te-modal-open { overflow: hidden; }
         previewBtn.setAttribute('aria-label', playing ? 'Pauzeren' : 'Afspelen');
       };
       const isOurTrack = () => {
-        const audio = document.getElementById('audio-element');
-        return audio && track.stream_url && audio.src.endsWith(track.stream_url);
+        // audio.src is a blob: URL (Spotify-style playback) — compare against
+        // the player's logical current-track URL instead.
+        const player = window.pcmsAudioPlayer;
+        const cur = player && player.currentTrack();
+        return !!(cur && track.stream_url && cur.url === track.stream_url);
       };
       const resync = () => {
         const audio = document.getElementById('audio-element');

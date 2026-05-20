@@ -12,7 +12,7 @@ import MarkdownService from '../services/MarkdownService.js';
 import HtmlSanitizerService from '../services/HtmlSanitizerService.js';
 import AudioEmbedService from '../services/AudioEmbedService.js';
 import PlaylistService from '../services/PlaylistService.js';
-import { signUrl } from '../services/AudioStreamService.js';
+import { audioUrl } from '../services/AudioStreamService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const POST_IMAGES_DIR = path.resolve(
@@ -418,7 +418,7 @@ router.get('/:slug', (req, res, next) => {
           title: r.title,
           artist: r.artist,
           cover: r.cover_url,
-          url: signUrl(r.filename).url,
+          url: audioUrl(r.filename),
         };
       });
     }
@@ -438,7 +438,7 @@ router.get('/:slug', (req, res, next) => {
         if (!r.filename) continue;
         if (!byAlbum.has(r.album)) byAlbum.set(r.album, []);
         byAlbum.get(r.album).push({
-          url: signUrl(r.filename).url,
+          url: audioUrl(r.filename),
           title: r.title || 'Untitled',
           artist: r.artist || '',
           cover: r.cover_url || '',
@@ -463,7 +463,7 @@ router.get('/:slug', (req, res, next) => {
     if (playlistIds.length) {
       const isAdmin = req.session?.user?.role === 'god';
       html = AudioEmbedService.embedPlaylistShortcodes(html, (id) => {
-        return PlaylistService.get(site.id, id, signUrl);
+        return PlaylistService.get(site.id, id, audioUrl);
       }, { isAdmin });
     }
   }

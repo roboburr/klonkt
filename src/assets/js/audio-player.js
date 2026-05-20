@@ -157,6 +157,13 @@
   let currentIndex = 0;
   let isPlaying = false;
   let albumName = '';
+  // Blob playback state. We fetch each track's bytes and play from a blob:
+  // object URL — no plain media URL is ever exposed to the page. currentObjectUrl
+  // is revoked when we move on, so we don't leak one Blob per track in memory.
+  let currentObjectUrl = null;
+  // Monotonic load token: a fast prev/next can fire several loads before an
+  // earlier fetch resolves. Only the latest load may set audio.src.
+  let loadSeq = 0;
 
   // Hide initially
   root.classList.add('audio-player-hidden');
@@ -176,7 +183,22 @@
     }
   }
 
-  function loadTrack(index) {
+  // Fetch the track bytes and hand back a blob: object URL. The X-Audio-Player
+  // header + same-origin credentials get us past the stream route's access gate.
+  async function fetchAsObjectUrl(url) {
+    const r = await fetch(url, {
+      credentials: 'same-origin',
+      headers: { 'X-Audio-Player': '1' },
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const blob = await r.blob();
+    return URL.createObjectURL(blob);
+  }
+
+  // metaOnly: show the track in the UI but DON'T download its bytes yet.
+  // Used by the site pre-seed so opening a page doesn't auto-download audio;
+  // the blob is fetched lazily on the first play().
+  function loadTrack(index, autoplay, metaOnly) {
     if (!queue[index]) {
       console.warn('[pcms-audio] loadTrack: no track at index', index);
       return;
@@ -187,13 +209,9 @@
       console.error('[pcms-audio] track has no url', t);
       return;
     }
-    console.log('[pcms-audio] loading', t.title, t.url);
-    // Schone overgang: pause + reset voorkomt state-corruption van het
-    // audio-element na meerdere src-changes (bug die continuous playback
-    // brak na 3-4 tracks). audio.load() forceert reset van internal state.
-    try { audio.pause(); } catch (e) {}
-    audio.src = t.url;
-    try { audio.load(); } catch (e) {}
+    console.log('[pcms-audio] loading', t.title, t.url, metaOnly ? '(meta only)' : '');
+    // Metadata + chrome update synchronously so the UI reacts instantly while
+    // the bytes download.
     titleEl.textContent  = t.title  || 'Untitled';
     artistEl.textContent = t.artist || '';
     sheetTitle.textContent  = t.title  || 'Untitled';
@@ -204,18 +222,48 @@
     root.classList.remove('audio-player-hidden');
     document.body.classList.add('has-audio-player');
     renderQueue();
+
+    if (metaOnly) return;
+
+    const mySeq = ++loadSeq;
+    root.classList.add('audio-loading');
+    fetchAsObjectUrl(t.url).then((objUrl) => {
+      if (mySeq !== loadSeq) { URL.revokeObjectURL(objUrl); return; }  // superseded
+      root.classList.remove('audio-loading');
+      // Free the previous track's blob — otherwise every track leaks a copy.
+      if (currentObjectUrl) { try { URL.revokeObjectURL(currentObjectUrl); } catch (e) {} }
+      currentObjectUrl = objUrl;
+      // Schone overgang: pause + load forceert reset van internal state na
+      // meerdere src-changes (voorkomt state-corruption van het audio-element).
+      try { audio.pause(); } catch (e) {}
+      audio.src = objUrl;
+      try { audio.load(); } catch (e) {}
+      if (autoplay) play();
+    }).catch((err) => {
+      if (mySeq !== loadSeq) return;  // superseded — ignore stale failure
+      root.classList.remove('audio-loading');
+      console.error('[pcms-audio] track fetch failed', err);
+      // Treat a failed download like a playback error: bump the counter and
+      // auto-skip, but stop after 3 in a row so we never loop forever.
+      consecutiveErrors++;
+      if (consecutiveErrors < 3 && queue.length > 1) setTimeout(next, 400);
+    });
   }
 
   function setQueue(tracks, startIdx, opts) {
     queue = Array.isArray(tracks) ? tracks.slice() : [];
     albumName = (opts && opts.albumName) || '';
     if (!queue.length) return;
-    loadTrack(typeof startIdx === 'number' ? Math.max(0, Math.min(startIdx, queue.length - 1)) : 0);
-    play();
+    loadTrack(typeof startIdx === 'number' ? Math.max(0, Math.min(startIdx, queue.length - 1)) : 0, true);
   }
 
   function play() {
-    if (!audio.src) return;
+    if (!audio.src) {
+      // Nothing fetched yet (pre-seed showed metadata only, or a load is still
+      // in flight). Kick off the blob load for the current track and autoplay.
+      if (queue[currentIndex]) loadTrack(currentIndex, true);
+      return;
+    }
     const p = audio.play();
     if (p && typeof p.catch === 'function') {
       p.catch((err) => {
@@ -235,13 +283,11 @@
   function togglePlay() { audio.paused ? play() : pause(); }
   function next() {
     if (!queue.length) return;
-    loadTrack((currentIndex + 1) % queue.length);
-    play();
+    loadTrack((currentIndex + 1) % queue.length, true);
   }
   function prev() {
     if (!queue.length) return;
-    loadTrack(currentIndex === 0 ? queue.length - 1 : currentIndex - 1);
-    play();
+    loadTrack(currentIndex === 0 ? queue.length - 1 : currentIndex - 1, true);
   }
   function close() {
     pause();
@@ -250,6 +296,10 @@
     closeSheet();
     queue = [];
     albumName = '';
+    loadSeq++;  // cancel any in-flight load
+    if (currentObjectUrl) { try { URL.revokeObjectURL(currentObjectUrl); } catch (e) {} }
+    currentObjectUrl = null;
+    try { audio.removeAttribute('src'); audio.load(); } catch (e) {}
   }
 
   function renderQueue() {
@@ -267,8 +317,7 @@
       li.addEventListener('click', () => {
         const idx = parseInt(li.dataset.idx, 10);
         if (!isNaN(idx) && idx !== currentIndex) {
-          loadTrack(idx);
-          play();
+          loadTrack(idx, true);
         }
       });
     });
@@ -287,10 +336,15 @@
 
   audio.addEventListener('play',  () => {
     isPlaying = true;
-    consecutiveErrors = 0;  // reset bij succesvolle play
     root.classList.add('is-playing');
     root.classList.remove('audio-needs-tap');  // verstop tap-hint
   });
+  // Reset de error-teller pas bij ECHTE playback-start (`playing`), niet bij
+  // het eager `play`-event. `play` vuurt vóór een eventuele netwerk-/decode-
+  // fout, dus resetten daar zou de 3-strikes-stop nooit laten triggeren bij
+  // een kapotte track → infinite "next"-loop. `playing` vuurt alleen als er
+  // daadwerkelijk audio speelt.
+  audio.addEventListener('playing', () => { consecutiveErrors = 0; });
   audio.addEventListener('pause', () => { isPlaying = false; root.classList.remove('is-playing'); });
   audio.addEventListener('ended', next);
   audio.addEventListener('error', (e) => {
@@ -538,6 +592,6 @@
       artist: t.artist || '',
       cover:  t.cover_url || t.cover || '',
     }));
-    if (queue.length) loadTrack(0);
+    if (queue.length) loadTrack(0, false, true);  // metadata only — fetch on first play
   }
 })();

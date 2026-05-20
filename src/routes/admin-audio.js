@@ -19,7 +19,7 @@ import db from '../config/database.js';
 import { renderPage } from '../middleware/render.js';
 import { requireGod } from '../middleware/auth.js';
 import { transcodeToMp3 } from '../services/AudioTranscoder.js';
-import { signUrl } from '../services/AudioStreamService.js';
+import { audioUrl } from '../services/AudioStreamService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Audio files live OUTSIDE storage/media so the public /media static
@@ -79,12 +79,10 @@ router.get('/', requireGod, (req, res) => {
     ORDER BY t.position ASC, t.created_at ASC
   `).all(site.id);
 
-  // Sign each track's stream URL so admins can preview audio inline.
-  // Short TTL (default 10 min from AudioStreamService) means the URL on
-  // the page expires if it sits open too long; a refresh re-signs.
+  // Build each track's stream URL so admins can preview audio inline.
   const tracks = rows.map(t => ({
     ...t,
-    stream_url: t.filename ? signUrl(t.filename).url : null,
+    stream_url: t.filename ? audioUrl(t.filename) : null,
   }));
 
   renderPage(req, res, 'pages/admin-audio', {
@@ -334,8 +332,8 @@ router.get('/api/:id', requireGod, (req, res) => {
     WHERE t.id = ? AND t.site_id = ?
   `).get(req.params.id, site.id);
   if (!t) return res.status(404).json({ error: 'Track niet gevonden' });
-  // Sign the stream URL so the modal can render an inline preview player.
-  const stream_url = t.filename ? signUrl(t.filename).url : null;
+  // Stream URL so the modal can render an inline preview player.
+  const stream_url = t.filename ? audioUrl(t.filename) : null;
   res.json({ ok: true, track: { ...t, stream_url } });
 });
 

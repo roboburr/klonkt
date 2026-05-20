@@ -76,12 +76,12 @@ class PlaylistService {
    *
    * Returns null if the playlist doesn't exist.
    *
-   * `signUrl` is an optional callback that takes a media filename and returns
-   * a (possibly signed) URL. If not provided, tracks come back with no `url`
-   * and the caller has to resolve them. The render pipeline in posts.js
-   * always passes signUrl.
+   * `urlFor` is an optional callback that takes a media filename and returns
+   * its stream URL. If not provided, tracks come back with no `url` and the
+   * caller has to resolve them. The render pipeline in posts.js always passes
+   * urlFor.
    */
-  static get(siteId, id, signUrl) {
+  static get(siteId, id, urlFor) {
     id = this.normalizeId(id);
     if (!id) return null;
     const p = db.prepare(`
@@ -116,7 +116,7 @@ class PlaylistService {
           artist: t.artist || p.artist || '',
           cover: t.cover_url || p.cover_url || '',
           duration: t.duration || 0,
-          url: signUrl ? signUrl(t.filename).url : null,
+          url: urlFor ? urlFor(t.filename) : null,
         })),
     };
   }

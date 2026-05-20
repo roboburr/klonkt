@@ -582,10 +582,14 @@
     // bar instead of the row's button.
     function resyncAll() {
       const audio = document.getElementById('audio-element');
+      const player = window.pcmsAudioPlayer;
       const playing = audio && !audio.paused && !audio.ended;
-      const currentSrc = audio ? audio.src : '';
+      // audio.src is now a blob: URL (Spotify-style playback), so compare
+      // against the player's logical track URL, not the element src.
+      const cur = player && player.currentTrack();
+      const curUrl = cur ? cur.url : '';
       buttons.forEach(b => {
-        const isThisOne = playing && currentSrc.endsWith(b.dataset.streamUrl);
+        const isThisOne = playing && curUrl === b.dataset.streamUrl;
         setIcon(b, isThisOne);
       });
     }
@@ -616,12 +620,12 @@
           cover:  coverImg ? coverImg.src                : '',
         };
 
-        // If this exact track is already playing, toggle pause/play instead
-        // of restarting from zero.
-        const audio = document.getElementById('audio-element');
-        if (audio && audio.src.endsWith(url)) {
-          if (audio.paused) player.play();
-          else              player.pause();
+        // If this exact track is already current, toggle pause/play instead
+        // of restarting from zero. Compare logical URLs (audio.src is a blob:).
+        const cur = player.currentTrack();
+        if (cur && cur.url === url) {
+          if (player.isPlaying()) player.pause();
+          else                    player.play();
           return;
         }
 

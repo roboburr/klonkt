@@ -111,7 +111,7 @@ router.get('/api/:id', requireGod, (req, res) => {
   const site = res.locals.site;
   if (!site) return res.status(404).json({ error: 'Site required' });
 
-  // Editor needs the raw track-id list (not signed URLs) — pass no signUrl.
+  // Editor needs the raw track-id list (not stream URLs) — pass no urlFor.
   const playlist = PlaylistService.get(site.id, req.params.id, null);
   if (!playlist) return res.status(404).json({ error: 'Playlist niet gevonden' });
   // Ship just the track ids in order so the editor can populate selection.
