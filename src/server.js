@@ -63,7 +63,11 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "https:"],
       connectSrc: ["'self'", "wss:", "ws:"],
-      mediaSrc: ["'self'", "https:"],
+      // blob: is required for the audio player — it fetch()es track bytes and
+      // plays from a blob: object URL (Spotify-style). Without blob: here the
+      // CSP silently blocks <audio>.src = blob:… → the player fires 'error' and
+      // auto-skips every track. 'self'/https: do NOT imply blob:.
+      mediaSrc: ["'self'", "https:", "blob:"],
       fontSrc: ["'self'"],
       frameSrc: [
         "'self'",
