@@ -13,6 +13,17 @@
 import rateLimit from 'express-rate-limit';
 import { renderPage } from './render.js';
 
+// Achter Cloudflare/Caddy kan req.ip binnenkomen als "1.2.3.4:11046" (IPv4 met
+// poort). express-rate-limit v7 valideert het IP en gooit anders
+// ERR_ERL_INVALID_IP_ADDRESS — onafgevangen async → het proces crasht (en pm2
+// loopt in een restart-loop). Strip een trailing IPv4-poort, val terug op de
+// socket, en laat IPv6 (meerdere dubbele punten) ongemoeid.
+function clientKey(req) {
+  let ip = req.ip || req.socket?.remoteAddress || '';
+  if (/^\d{1,3}(\.\d{1,3}){3}:\d+$/.test(ip)) ip = ip.split(':')[0];
+  return ip || 'unknown';
+}
+
 function blockedHandler(viewName, bodyClass, friendlyMsg) {
   return (req, res, next, options) => {
     const message = `${friendlyMsg} Try again in a few minutes.`;
@@ -41,6 +52,8 @@ export const loginLimiter = rateLimit({
   max: 5,                          // 5 attempts per IP per window
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: clientKey,
+  validate: { ip: false },
   // Only count failed attempts. Successful logins don't burn the budget.
   skipSuccessfulRequests: true,
   handler: blockedHandler('pages/auth-login', 'on-special', 'Too many login attempts.'),
@@ -51,6 +64,8 @@ export const registerLimiter = rateLimit({
   max: 5,                          // 5 signups per IP per hour
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: clientKey,
+  validate: { ip: false },
   skipSuccessfulRequests: false,   // any attempt counts (registration spam is the concern)
   handler: blockedHandler('pages/auth-register', 'on-special', 'Too many signup attempts.'),
 });
