@@ -65,6 +65,12 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'", "'unsafe-inline'"],
+      // Helmet's default zet script-src-attr op 'none', wat ALLE inline event-
+      // handlers (onchange/onclick/onsubmit) blokkeert — daardoor deed o.a. de
+      // avatar-upload (<input onchange="this.form.submit()">) en de rol-dropdown
+      // niets. We staan inline handlers expliciet toe, consistent met de al
+      // toegestane inline <script> hierboven.
+      scriptSrcAttr: ["'unsafe-inline'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "https:"],
       connectSrc: ["'self'", "wss:", "ws:"],
