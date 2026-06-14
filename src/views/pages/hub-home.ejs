@@ -37,7 +37,7 @@
     <%# ── LAATSTE POSTS ────────────────────────────────────────────── %>
     <% if (posts && posts.length) { %>
     <section class="hub-sec">
-      <h2 class="hub-sec-title">Laatste posts</h2>
+      <h2 class="hub-sec-title">Laatste posts van users</h2>
       <div class="hub-feed">
         <% posts.forEach(function(p){ %>
           <a class="feed-item" href="/user/<%= p.site_slug %>/<%= p.slug %>">

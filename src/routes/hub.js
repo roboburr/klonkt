@@ -15,6 +15,10 @@ const router = express.Router();
 
 router.get('/', (req, res, next) => {
   if (getTenancy() !== 'hub') return next();
+  // Als resolveSite een specifieke site adresseerde (/user/:slug of /sites/:slug),
+  // is req.url naar '/' herschreven — dan NIET de overview tonen maar de site zelf
+  // laten renderen door posts.js. siteUrlBase is dan gezet.
+  if (res.locals.siteUrlBase) return next();
 
   // Laatste gepubliceerde posts over álle sites heen.
   const posts = db.prepare(`
