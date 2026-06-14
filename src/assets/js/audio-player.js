@@ -12,7 +12,7 @@
  *  - Reads data-pcms-track-url + data-pcms-track + data-pcms-album from posts
  *  - body.has-audio-player adds bottom padding when player visible
  *  - body.audio-sheet-locked prevents body scroll when sheet open
- *  - Survives HTMX swaps via htmx:afterSettle re-attach
+ *  - Survives HTMX swaps + history-restores via event delegation on document.body
  *
  * Singleton — guards against double-init.
  */
@@ -592,57 +592,48 @@
   // For .pat-play the metadata lives on the surrounding .post-audio-track
   // wrapper. For the other three the data is on the button itself. The
   // handler reads from button-first, falls back to wrapper.
-  function attachListeners() {
-    const playBtns = document.querySelectorAll(
-      '.post-audio-track .pat-play, ' +
-      '.post-album-tracks .pat-row, ' +
-      '.post-album-cover-btn, ' +
-      '.post-album-playall'
-    );
-    if (playBtns.length) console.log('[pcms-audio] attaching to', playBtns.length, 'play buttons');
+  // Event-delegation op document.body i.p.v. per-knop listeners. Dit overleeft
+  // HTMX history-restores: de mobiele terug-knop (popstate) laat HTMX #pcms-main
+  // terugzetten uit z'n snapshot; een per-element `data-pcms-attached`-vlag zou
+  // dan dode knoppen geven (vlag ingebakken in de snapshot, listener weg). Eén
+  // gedelegeerde listener werkt ongeacht hoe vaak de DOM ge(her)swapt wordt.
+  const PLAY_SELECTOR =
+    '.post-audio-track .pat-play, .post-album-tracks .pat-row, .post-album-cover-btn, .post-album-playall';
+  document.body.addEventListener('click', (e) => {
+    const btn = e.target.closest(PLAY_SELECTOR);
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    // Resolve metadata: button-first, then closest .post-audio-track wrapper
+    // (only inline single-track widgets put the data on the wrapper).
+    const wrapper = btn.closest('.post-audio-track');
+    const albumId   = btn.dataset.pcmsAlbumId  || (wrapper && wrapper.dataset.pcmsAlbumId);
+    const trackData = btn.dataset.pcmsTrack    || (wrapper && wrapper.dataset.pcmsTrack);
+    const trackUrl  = btn.dataset.pcmsTrackUrl || (wrapper && wrapper.dataset.pcmsTrackUrl);
+    console.log('[pcms-audio] click', { btn: btn.className, albumId, trackUrl, hasTrackData: !!trackData });
 
-    playBtns.forEach((btn) => {
-      if (btn.dataset.pcmsAttached) return;
-      btn.dataset.pcmsAttached = '1';
-
-      btn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        // Resolve metadata: button-first, then closest .post-audio-track wrapper
-        // (only inline single-track widgets put the data on the wrapper).
-        const wrapper = btn.closest('.post-audio-track');
-        const albumId   = btn.dataset.pcmsAlbumId  || (wrapper && wrapper.dataset.pcmsAlbumId);
-        const trackData = btn.dataset.pcmsTrack    || (wrapper && wrapper.dataset.pcmsTrack);
-        const trackUrl  = btn.dataset.pcmsTrackUrl || (wrapper && wrapper.dataset.pcmsTrackUrl);
-        console.log('[pcms-audio] click', { btn: btn.className, albumId, trackUrl, hasTrackData: !!trackData });
-
-        if (albumId) {
-          const album = document.getElementById(albumId);
-          if (!album) { console.error('[pcms-audio] album not found:', albumId); return; }
-          try {
-            const tracks = JSON.parse(album.dataset.pcmsAlbum);
-            // Start at the clicked track if we know its URL, else start at 0
-            // (cover-btn and playall both want to start from the beginning).
-            const startIdx = trackUrl ? tracks.findIndex(t => t.url === trackUrl) : 0;
-            setQueue(tracks, startIdx >= 0 ? startIdx : 0, { albumName: album.dataset.pcmsAlbumTitle || '' });
-          } catch(err) { console.error('[pcms-audio] bad album JSON', err, album.dataset.pcmsAlbum); }
-        } else if (trackData) {
-          try {
-            const t = JSON.parse(trackData);
-            setQueue([t], 0);
-          } catch(err) { console.error('[pcms-audio] bad track JSON', err, trackData); }
-        } else if (trackUrl) {
-          // Fallback: at minimum we have the signed URL
-          setQueue([{ url: trackUrl, title: 'Track', artist: '', cover: '' }], 0);
-        } else {
-          console.error('[pcms-audio] no track data or url on button or wrapper', btn);
-        }
-      });
-    });
-  }
-
-  attachListeners();
-  document.body.addEventListener('htmx:afterSettle', attachListeners);
+    if (albumId) {
+      const album = document.getElementById(albumId);
+      if (!album) { console.error('[pcms-audio] album not found:', albumId); return; }
+      try {
+        const tracks = JSON.parse(album.dataset.pcmsAlbum);
+        // Start at the clicked track if we know its URL, else start at 0
+        // (cover-btn and playall both want to start from the beginning).
+        const startIdx = trackUrl ? tracks.findIndex(t => t.url === trackUrl) : 0;
+        setQueue(tracks, startIdx >= 0 ? startIdx : 0, { albumName: album.dataset.pcmsAlbumTitle || '' });
+      } catch(err) { console.error('[pcms-audio] bad album JSON', err, album.dataset.pcmsAlbum); }
+    } else if (trackData) {
+      try {
+        const t = JSON.parse(trackData);
+        setQueue([t], 0);
+      } catch(err) { console.error('[pcms-audio] bad track JSON', err, trackData); }
+    } else if (trackUrl) {
+      // Fallback: at minimum we have the signed URL
+      setQueue([{ url: trackUrl, title: 'Track', artist: '', cover: '' }], 0);
+    } else {
+      console.error('[pcms-audio] no track data or url on button or wrapper', btn);
+    }
+  });
 
   // ============================================================
   // 8b. Admin playlist delete (event delegation)
