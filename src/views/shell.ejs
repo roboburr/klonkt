@@ -242,7 +242,8 @@ if (typeof post !== 'undefined' && post && post.slug) {
     - de hub-overview (on-hub): standalone landing, begint met de hero;
     - auth-pagina's (on-auth): focus-schermen voor in-/uitloggen.
     Die chrome hoort bij een PrutFolio en verschijnt dus op /user/-pagina's. %>
-<% var bareChrome = (typeof bodyClass === 'string' && (bodyClass.indexOf('on-hub') >= 0 || bodyClass.indexOf('on-auth') >= 0)); %>
+<% var bareChrome = (typeof bodyClass === 'string' && (bodyClass.indexOf('on-hub') >= 0 || bodyClass.indexOf('on-auth') >= 0))
+     || ((typeof tenancy !== 'undefined' && tenancy === 'hub') && !siteUrlBase && !isAdminPage); %>
 
 <% if (!bareChrome) { %>
   <%- include('partials/topnav') %>
