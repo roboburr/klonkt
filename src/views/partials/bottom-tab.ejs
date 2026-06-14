@@ -11,7 +11,7 @@
 const _siteUrlBase = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '';
 const _path        = (typeof currentPath !== 'undefined' && currentPath) ? currentPath : '/';
 const _canPost     = !!(user && permissions && permissions.canCreatePost && permissions.canCreatePost(user, site));
-const _hasPrutter  = !!(user && site && site.enable_prutter);
+const _hasPrutter  = !!(user && site && site.enable_prutter && (typeof tenancy !== 'undefined' && tenancy === 'hub'));
 const _ownProfile  = user ? ('/users/' + user.username) : null;
 
 // Strip site prefix for cleaner matching

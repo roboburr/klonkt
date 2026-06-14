@@ -41,6 +41,7 @@ export async function renderPage(req, res, viewName, data = {}) {
     site: data.site || res.locals.site || null,
     audioTracks: data.audioTracks || res.locals.audioTracks || [],
     siteUrlBase: res.locals.siteUrlBase || '',
+    tenancy: res.locals.tenancy || 'solo',
     platforms_catalog: PLATFORMS_CATALOG,
     permissions: PermissionsService,
     formatDate,

@@ -14,7 +14,7 @@
 const _siteUrlBase = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '';
 const _isAdmin     = typeof bodyClass !== 'undefined' && bodyClass.indexOf('on-admin') >= 0;
 const _hasSearch   = !site || site.show_search === undefined || site.show_search;
-const _hasPrutter  = user && site && site.enable_prutter;
+const _hasPrutter  = user && site && site.enable_prutter && (typeof tenancy !== 'undefined' && tenancy === 'hub');
 const _canPost     = user && permissions && permissions.canCreatePost && permissions.canCreatePost(user, site);
 %>
 
