@@ -263,13 +263,13 @@ app.get('/manifest.webmanifest', (req, res) => {
 // content there with a forgiving content-type since modern browsers accept it.
 function _renderFavicon(res, accent) {
   const safeAccent = /^#[0-9a-fA-F]{3,8}$/.test(accent) ? accent : '#c2410c';
-  // Site mark: rounded square in the site accent + bold white 'SF'
+  // Site mark: rounded square in the site accent + bold white 'K' (Klonkt)
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect width="64" height="64" rx="14" fill="${safeAccent}"/>
-  <text x="50%" y="50%" dy="0.36em" text-anchor="middle"
+  <text x="50%" y="50%" dy="0.35em" text-anchor="middle"
         font-family="Arial, Helvetica, sans-serif"
-        font-size="30" font-weight="800" letter-spacing="-1" fill="#fff">SF</text>
+        font-size="42" font-weight="800" fill="#fff">K</text>
 </svg>`;
   res.set('Content-Type', 'image/svg+xml');
   res.set('Cache-Control', 'public, max-age=86400');

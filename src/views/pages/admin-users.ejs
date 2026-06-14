@@ -198,7 +198,7 @@
 
 /* ─── Role select + delete ────────────────────────────────────── */
 .ax-user-controls {
-  display: flex; gap: 0.5rem; align-items: center;
+  display: flex; gap: 0.5rem; align-items: flex-end;
   flex-shrink: 0;
 }
 .ax-role-form { margin: 0; }
@@ -214,6 +214,9 @@
   font-size: 0.7rem;
 }
 .ax-role select {
+  width: 112px;
+  height: 40px;
+  box-sizing: border-box;
   padding: 0.4rem 1.75rem 0.4rem 0.6rem;
   border: 1px solid var(--rule);
   border-radius: 6px;
