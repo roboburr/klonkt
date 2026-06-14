@@ -16,42 +16,34 @@
     <div class="ax-card-title">Profiel</div>
 
     <div class="ax-profile-id">
-      <div class="ax-profile-avatar">
-        <% if (account.avatar_url) { %>
-          <img src="<%= account.avatar_url %>" alt="">
-        <% } else { %>
-          <span><%= account.username.charAt(0).toUpperCase() %></span>
-        <% } %>
-      </div>
+      <form action="/account/avatar" method="post" enctype="multipart/form-data" class="ax-avatar-form">
+        <label class="ax-avatar-wrap" title="Klik om je foto te wijzigen">
+          <span class="ax-profile-avatar">
+            <% if (account.avatar_url) { %>
+              <img src="<%= account.avatar_url %>" alt="">
+            <% } else { %>
+              <span><%= account.username.charAt(0).toUpperCase() %></span>
+            <% } %>
+          </span>
+          <span class="ax-avatar-edit" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          </span>
+          <input type="file" name="avatar" accept="image/jpeg,image/png,image/webp,image/gif" onchange="this.form.submit()" hidden>
+        </label>
+      </form>
       <div class="ax-profile-meta">
         <div class="ax-profile-name"><%= account.username %></div>
         <div class="ax-profile-role"><%= account.role %> · <%= account.email %></div>
         <% if (account.created_at) { %>
           <div class="ax-profile-joined">Lid sinds <%= formatDate(account.created_at) %></div>
         <% } %>
-      </div>
-    </div>
-
-    <form action="/account/avatar" method="post" enctype="multipart/form-data" class="ax-form">
-      <label class="ax-field ax-file">
-        <span>Avatar uploaden <small>(jpg/png/webp/gif, max 5 MB)</small></span>
-        <span class="ax-file-control">
-          <span class="ax-btn ax-btn-secondary ax-file-btn">📷 Kies bestand</span>
-          <span class="ax-file-name" data-empty>Geen bestand gekozen</span>
-          <input type="file" name="avatar" accept="image/jpeg,image/png,image/webp,image/gif" required>
-        </span>
-      </label>
-      <div class="ax-form-actions">
-        <button type="submit" class="ax-btn ax-btn-primary">⬆ Uploaden</button>
         <% if (account.avatar_url) { %>
-          <%# Separate <form> block kept inline since it submits to a different endpoint. %>
-          <button type="button" class="ax-btn" onclick="document.getElementById('avatar-remove-form').submit()">Avatar verwijderen</button>
+          <form action="/account/avatar/remove" method="post" class="ax-avatar-remove">
+            <button type="submit" class="ax-linkbtn">Foto verwijderen</button>
+          </form>
         <% } %>
       </div>
-    </form>
-    <% if (account.avatar_url) { %>
-      <form action="/account/avatar/remove" method="post" id="avatar-remove-form" hidden></form>
-    <% } %>
+    </div>
 
     <form action="/account/profile" method="post" class="ax-form ax-form-bio">
       <label class="ax-field">
@@ -59,7 +51,7 @@
         <textarea name="bio" rows="3" maxlength="500" placeholder="Een korte regel over jezelf"><%= account.bio || '' %></textarea>
       </label>
       <div class="ax-form-actions">
-        <button type="submit" class="ax-btn ax-btn-primary">💾 Bio opslaan</button>
+        <button type="submit" class="ax-btn ax-btn-primary">Bio opslaan</button>
       </div>
     </form>
   </section>
@@ -84,7 +76,7 @@
         </label>
       </div>
       <div class="ax-form-actions">
-        <button type="submit" class="ax-btn ax-btn-primary">🔒 Wachtwoord wijzigen</button>
+        <button type="submit" class="ax-btn ax-btn-primary">Wachtwoord wijzigen</button>
       </div>
     </form>
   </section>
@@ -215,18 +207,41 @@
   border-bottom: 1px solid var(--rule);
   margin-bottom: 1rem;
 }
+.ax-avatar-form { margin: 0; flex-shrink: 0; }
+.ax-avatar-wrap {
+  position: relative; display: block;
+  width: 84px; height: 84px; cursor: pointer;
+}
 .ax-profile-avatar {
-  width: 64px; height: 64px;
+  width: 84px; height: 84px;
   border-radius: 50%;
   overflow: hidden;
   background: var(--paper-2);   /* neutral so transparent avatars blend */
   color: var(--accent);          /* accent only for the fallback initial */
   display: inline-flex; align-items: center; justify-content: center;
   font-family: var(--font-display, serif);
-  font-size: 1.6rem; font-weight: 600;
-  flex-shrink: 0;
+  font-size: 1.7rem; font-weight: 600;
+  border: 1px solid var(--rule);
+  transition: border-color 120ms;
 }
+.ax-avatar-wrap:hover .ax-profile-avatar { border-color: var(--accent); }
 .ax-profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.ax-avatar-edit {
+  position: absolute; right: -2px; bottom: -2px;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--accent); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  border: 3px solid var(--paper);
+  transition: transform 120ms;
+}
+.ax-avatar-wrap:hover .ax-avatar-edit { transform: scale(1.08); }
+.ax-avatar-remove { margin-top: 0.45rem; }
+.ax-linkbtn {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  color: var(--ink-muted, var(--ink-soft)); font-size: 0.8rem; text-decoration: underline;
+  font-family: var(--font-ui, system-ui), sans-serif;
+}
+.ax-linkbtn:hover { color: #c33; }
 .ax-profile-meta { min-width: 0; }
 .ax-profile-name { font-weight: 600; font-size: 1.1rem; }
 .ax-profile-role,
