@@ -20,13 +20,14 @@ export function resolveSite(req, res, next) {
   // site. In SOLO-mode bestaat er maar één site: we slaan die routing over en
   // pinnen altijd op de primaire site.
   if (tenancy === 'hub') {
-    const m = req.path.match(/^\/sites\/([a-zA-Z0-9_-]+)(\/.*)?$/);
+    // Een PrutFolio is bereikbaar via /user/:slug (canoniek) én /sites/:slug (legacy).
+    const m = req.path.match(/^\/(sites|user)\/([a-zA-Z0-9_-]+)(\/.*)?$/);
     if (m) {
-      const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(m[1]);
+      const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(m[2]);
       if (site) {
         res.locals.site = site;
-        req.url = (m[2] || '/'); // strip /sites/:slug zodat downstream de rest ziet
-        res.locals.siteUrlBase = `/sites/${m[1]}`;
+        req.url = (m[3] || '/'); // strip /<prefix>/:slug zodat downstream de rest ziet
+        res.locals.siteUrlBase = `/${m[1]}/${m[2]}`;
         return next();
       }
     }

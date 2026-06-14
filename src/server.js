@@ -37,6 +37,7 @@ import tagsRoutes from './routes/tags.js';
 import typesRoutes from './routes/types.js';
 import usersRoutes from './routes/users.js';
 import feedRoutes from './routes/feed.js';
+import hubRoutes from './routes/hub.js';
 import postsRoutes from './routes/posts.js';
 
 if (!process.env.SESSION_SECRET) {
@@ -180,6 +181,7 @@ app.use('/type', typesRoutes);
 app.use('/users', usersRoutes);
 // Feed/sitemap routes are mounted at root because they're at well-known paths
 app.use('/', feedRoutes);
+app.use('/', hubRoutes); // hub-overview op '/' (solo: next() -> postsRoutes)
 app.use('/', postsRoutes);
 
 app.get('/manifest.webmanifest', (req, res) => {
