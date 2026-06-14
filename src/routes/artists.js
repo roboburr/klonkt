@@ -25,14 +25,19 @@ router.get('/', (req, res, next) => {
   let page = parseInt(req.query.page, 10);
   if (!Number.isFinite(page) || page < 1) page = 1;
 
+  // De hoofd-/labelsite (oudste) is geen artiest -> uit de directory weren,
+  // consistent met de hub-home die 'm apart toont.
+  const mainRow = db.prepare('SELECT id FROM sites ORDER BY created_at ASC LIMIT 1').get();
+  const mainId = mainRow ? mainRow.id : '';
+
   // Zoekterm tegen titel/slug/tagline (case-insensitive via LIKE; SQLite LIKE is
   // standaard ongevoelig voor ASCII-hoofdletters). De ESCAPE '\' maakt %, _ en \
   // in de zoekterm letterlijk (anders zouden ze als wildcards werken).
-  const where = q
-    ? "WHERE (s.title LIKE @like ESCAPE '\\' OR s.slug LIKE @like ESCAPE '\\' OR s.tagline LIKE @like ESCAPE '\\')"
-    : '';
   const like = '%' + q.replace(/[\\%_]/g, (m) => '\\' + m) + '%';
-  const params = q ? { like } : {};
+  const conds = ['s.id != @mainId'];
+  if (q) conds.push("(s.title LIKE @like ESCAPE '\\' OR s.slug LIKE @like ESCAPE '\\' OR s.tagline LIKE @like ESCAPE '\\')");
+  const where = 'WHERE ' + conds.join(' AND ');
+  const params = q ? { mainId, like } : { mainId };
 
   const total = db.prepare(`SELECT COUNT(*) AS c FROM sites s ${where}`)
     .get(params).c;

@@ -34,9 +34,22 @@ router.get('/', (req, res, next) => {
     LIMIT 24
   `).all();
 
+  // De hoofd-/labelsite (oudste = de bedrijfs-/hoofdaccount) is GEEN artiest;
+  // die tonen we apart bovenaan, niet in de Artiesten-roster.
+  const mainSite = db.prepare(`
+    SELECT s.id, s.slug, s.title, s.tagline, s.profile_photo, s.accent,
+           u.avatar_url AS owner_avatar,
+           (SELECT COUNT(*) FROM posts WHERE site_id = s.id AND status = 'published') AS post_count
+    FROM sites s
+    LEFT JOIN users u ON u.id = s.owner_id
+    ORDER BY s.created_at ASC
+    LIMIT 1
+  `).get() || null;
+  const mainId = mainSite ? mainSite.id : '';
+
   // Uitgelichte PrutFolio's voor de home-roster: meest-actief eerst (aantal
-  // gepubliceerde posts), dan nieuwste. Beperkt tot HOME_ROSTER_LIMIT zodat de
-  // home schaalt — de volledige, doorzoekbare lijst staat op /artiesten.
+  // gepubliceerde posts), dan nieuwste. Excl. de hoofdsite. Beperkt tot
+  // HOME_ROSTER_LIMIT zodat de home schaalt — volledige lijst staat op /artiesten.
   const HOME_ROSTER_LIMIT = 24;
   const artists = db.prepare(`
     SELECT s.slug, s.title, s.tagline, s.profile_photo, s.accent,
@@ -44,10 +57,11 @@ router.get('/', (req, res, next) => {
            (SELECT COUNT(*) FROM posts WHERE site_id = s.id AND status = 'published') AS post_count
     FROM sites s
     LEFT JOIN users u ON u.id = s.owner_id
+    WHERE s.id != @mainId
     ORDER BY post_count DESC, s.created_at DESC
-    LIMIT ?
-  `).all(HOME_ROSTER_LIMIT);
-  const totalArtists = db.prepare('SELECT COUNT(*) AS c FROM sites').get().c;
+    LIMIT @limit
+  `).all({ mainId, limit: HOME_ROSTER_LIMIT });
+  const totalArtists = db.prepare('SELECT COUNT(*) AS c FROM sites WHERE id != ?').get(mainId).c;
 
   // De hub-pagina is GENERIEK (van geen enkele user) — branding komt uit globale
   // instellingen die de admin in Beheer beheert, niet uit een site.
@@ -63,6 +77,7 @@ router.get('/', (req, res, next) => {
     socialDescr: hub.intro || hub.tagline || '',
     bodyClass: 'on-home on-hub',
     hub,
+    mainSite,
     artists,
     totalArtists,
     rosterLimit: HOME_ROSTER_LIMIT,
