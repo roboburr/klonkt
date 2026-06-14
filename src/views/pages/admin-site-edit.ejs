@@ -1,6 +1,10 @@
 <div class="container admin-site-edit-page">
-  <p><a href="/admin/sites" class="btn">&larr; Sites</a></p>
-  <h1><%= isNew ? 'New site' : 'Edit: ' + site.title %></h1>
+  <% if (typeof tenancy !== 'undefined' && tenancy === 'solo') { %>
+    <p><a href="/admin" class="btn">&larr; Beheer</a></p>
+  <% } else { %>
+    <p><a href="/admin/sites" class="btn">&larr; Sites</a></p>
+  <% } %>
+  <h1><%= isNew ? 'New site' : 'Uiterlijk: ' + site.title %></h1>
 
   <% if (typeof success !== 'undefined' && success) { %><div class="audio-flash audio-flash--ok"><%= success %></div><% } %>
   <% if (error) { %><div class="audio-flash audio-flash--err"><%= error %></div><% } %>

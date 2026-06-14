@@ -22,6 +22,7 @@ import { v4 as uuid } from 'uuid';
 import db from '../config/database.js';
 import { renderPage } from '../middleware/render.js';
 import { requireGod } from '../middleware/auth.js';
+import { getTenancy } from '../services/SettingsService.js';
 import ThemeService from '../services/ThemeService.js';
 import { listPlatforms, PLATFORMS } from '../services/PlatformIcons.js';
 
@@ -160,6 +161,7 @@ router.get('/new', requireGod, (req, res) => {
   renderPage(req, res, 'pages/admin-site-edit', {
     pageTitle: 'New site',
     bodyClass: 'on-admin',
+    tenancy: getTenancy(),
     isNew: true,
     site: { slug: '', ...siteEditableFields() },
     palettes: ThemeService.listPalettes(),
@@ -229,6 +231,7 @@ router.get('/:slug/edit', requireGod, (req, res) => {
   renderPage(req, res, 'pages/admin-site-edit', {
     pageTitle: `Edit: ${site.title}`,
     bodyClass: 'on-admin',
+    tenancy: getTenancy(),
     isNew: false,
     site,
     palettes: ThemeService.listPalettes(),
