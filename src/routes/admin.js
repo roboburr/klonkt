@@ -15,9 +15,11 @@ const router = express.Router();
 router.get('/', requireAuth, (req, res) => {
   const user = req.session.user;
 
-  // Niet-god: een artiest die een eigen site bezit krijgt een "Mijn PrutFolio"-
-  // dashboard, gescopet op z'n eigen site. Bezit 'ie geen site -> geen beheer.
-  if (user.role !== 'god') {
+  // Een kijker mag het volledige (god-)Beheer alleen-lezen inzien — net als god
+  // dus, alleen schrijven is globaal geblokkeerd. Een gewone artiest die een
+  // eigen site bezit krijgt een "Mijn Klonkt Hub"-dashboard, gescopet op z'n
+  // eigen site. Bezit 'ie geen site -> geen beheer.
+  if (user.role !== 'god' && user.role !== 'kijker') {
     const mySite = db.prepare(
       'SELECT * FROM sites WHERE owner_id = ? ORDER BY created_at ASC LIMIT 1'
     ).get(user.id);
@@ -28,7 +30,7 @@ router.get('/', requireAuth, (req, res) => {
       published: db.prepare("SELECT COUNT(*) AS c FROM posts WHERE site_id = ? AND status = 'published'").get(mySite.id).c,
     };
     return renderPage(req, res, 'pages/my-site', {
-      pageTitle: 'Mijn PrutFolio',
+      pageTitle: 'Mijn Klonkt Hub',
       bodyClass: 'on-admin',
       mySite,
       mine,

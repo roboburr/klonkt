@@ -32,8 +32,13 @@
 
     <%# ── ARTIESTEN-ROSTER ─────────────────────────────────────────── %>
     <% if (artists && artists.length) { %>
+    <% var _total = (typeof totalArtists !== 'undefined') ? totalArtists : artists.length; %>
+    <% var _hasMore = _total > artists.length; %>
     <section class="hub-sec">
-      <h2 class="hub-sec-title">Artiesten</h2>
+      <h2 class="hub-sec-title">
+        Artiesten
+        <% if (_hasMore) { %><span class="hub-sec-count"><%= _total %></span><% } %>
+      </h2>
       <div class="roster">
         <% artists.forEach(function(a){ %>
           <a class="roster-card" href="/user/<%= a.slug %>">
@@ -47,6 +52,11 @@
           </a>
         <% }); %>
       </div>
+      <% if (_hasMore) { %>
+        <div class="hub-more">
+          <a class="hub-more-link" href="/artiesten">Alle <%= _total %> artiesten <span aria-hidden="true">→</span></a>
+        </div>
+      <% } %>
     </section>
     <% } %>
 
@@ -130,6 +140,19 @@
   display: flex; align-items: center; gap: 0.75rem;
 }
 .hub-sec-title::after { content: ''; flex: 1; height: 1px; background: var(--rule); }
+.hub-sec-count {
+  font-family: var(--font-ui, system-ui); font-size: 0.8rem; font-weight: 700;
+  color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent);
+  padding: 0.1rem 0.55rem; border-radius: 99px; order: 1;
+}
+.hub-more { margin-top: 1.25rem; text-align: center; }
+.hub-more-link {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.6rem 1.3rem; border: 1px solid var(--rule); border-radius: 99px;
+  background: var(--paper-2); color: var(--ink); text-decoration: none;
+  font-weight: 600; font-size: 0.92rem; transition: border-color 140ms, background 140ms;
+}
+.hub-more-link:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--paper-2)); }
 
 /* ── Roster (artiesten) ───────────────────────────────────────────── */
 .roster {

@@ -97,7 +97,7 @@ router.post('/upload-photo', requireAuth, (req, res) => {
 const RESERVED_SITE_SLUGS = new Set([
   'auth', 'admin', 'login', 'register', 'logout', 'archive', 'search',
   'account', 'sites', 'comments', 'posts', 'media', 'audio', 'prutter',
-  'forum', 'tag', 'users', 'feed.xml', 'atom.xml', 'sitemap.xml',
+  'forum', 'tag', 'user', 'users', 'artiesten', 'feed.xml', 'atom.xml', 'sitemap.xml',
   'manifest.webmanifest', 'sw.js', 'favicon.ico', 'favicon.svg', 'assets',
 ]);
 

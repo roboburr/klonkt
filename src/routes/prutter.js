@@ -17,7 +17,7 @@
 import express from 'express';
 import db from '../config/database.js';
 import { renderPage } from '../middleware/render.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, isViewer } from '../middleware/auth.js';
 import PermissionsService from '../services/PermissionsService.js';
 
 const router = express.Router();
@@ -54,6 +54,12 @@ router.get('/', requirePrutter, (req, res) => {
 
 // ==================== START / RESUME CONVERSATION ====================
 router.get('/new', requirePrutter, (req, res) => {
+  // Een gesprek starten is een schrijf-actie (INSERT) — een kijker mag dat niet.
+  // De globale guard pakt dit niet omdat het een GET is, dus expliciet blokkeren.
+  if (isViewer(req.session.user)) {
+    res.status(403);
+    return renderPage(req, res, 'pages/viewer-blocked', { pageTitle: 'Kijker-modus', bodyClass: 'on-special' });
+  }
   const targetUsername = (req.query.to || '').toString().trim();
   if (!targetUsername) {
     return res.redirect(`${res.locals.siteUrlBase || ''}/prutter`);
@@ -89,8 +95,9 @@ router.get('/:id', requirePrutter, (req, res) => {
   // Messages (oldest first for natural reading order)
   const messages = prutter.getMessages(conv.id, 200, 0).reverse();
 
-  // Mark inbound messages as read
-  prutter.markAsRead(conv.id, me);
+  // Mark inbound messages as read — sla over voor kijkers (markAsRead is een
+  // UPDATE; een GET valt buiten de globale guard, dus hier expliciet skippen).
+  if (!isViewer(req.session.user)) prutter.markAsRead(conv.id, me);
 
   renderPage(req, res, 'pages/prutter-conversation', {
     pageTitle: 'Prutter — ' + (other?.username || ''),

@@ -34,15 +34,20 @@ router.get('/', (req, res, next) => {
     LIMIT 24
   `).all();
 
-  // ALLE PrutFolio's (elke user, incl. de admin z'n eigen site) voor de roster.
+  // Uitgelichte PrutFolio's voor de home-roster: meest-actief eerst (aantal
+  // gepubliceerde posts), dan nieuwste. Beperkt tot HOME_ROSTER_LIMIT zodat de
+  // home schaalt — de volledige, doorzoekbare lijst staat op /artiesten.
+  const HOME_ROSTER_LIMIT = 24;
   const artists = db.prepare(`
     SELECT s.slug, s.title, s.tagline, s.profile_photo, s.accent,
            u.avatar_url AS owner_avatar,
            (SELECT COUNT(*) FROM posts WHERE site_id = s.id AND status = 'published') AS post_count
     FROM sites s
     LEFT JOIN users u ON u.id = s.owner_id
-    ORDER BY s.created_at ASC
-  `).all();
+    ORDER BY post_count DESC, s.created_at DESC
+    LIMIT ?
+  `).all(HOME_ROSTER_LIMIT);
+  const totalArtists = db.prepare('SELECT COUNT(*) AS c FROM sites').get().c;
 
   // De hub-pagina is GENERIEK (van geen enkele user) — branding komt uit globale
   // instellingen die de admin in Beheer beheert, niet uit een site.
@@ -59,6 +64,8 @@ router.get('/', (req, res, next) => {
     bodyClass: 'on-home on-hub',
     hub,
     artists,
+    totalArtists,
+    rosterLimit: HOME_ROSTER_LIMIT,
     posts,
   });
 });

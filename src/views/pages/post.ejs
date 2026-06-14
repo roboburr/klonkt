@@ -102,7 +102,7 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
               </div>
               <div class="comment-content"><%= c.content %></div>
               <div class="comment-actions">
-                <% if (user) { %>
+                <% if (user && canMutate) { %>
                   <button type="button" class="comment-reply-btn" data-reply-to="<%= c.id %>">Reply</button>
                 <% } %>
                 <% if (user && permissions.canDeleteComment(user, c, site)) { %>
@@ -113,7 +113,7 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
               </div>
 
               <!-- Inline reply form (hidden by default) -->
-              <% if (user) { %>
+              <% if (user && canMutate) { %>
                 <form method="post" action="<%= _base %>/comments" class="comment-reply-form" hidden data-reply-form-for="<%= c.id %>">
                   <input type="hidden" name="post_slug" value="<%= post.slug %>">
                   <input type="hidden" name="parent_comment_id" value="<%= c.id %>">
@@ -162,7 +162,7 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
     <% } %>
 
     <!-- Top-level comment form (only for logged-in users for now) -->
-    <% if (user) { %>
+    <% if (user && canMutate) { %>
       <form method="post" action="<%= _base %>/comments" class="comment-form">
         <input type="hidden" name="post_slug" value="<%= post.slug %>">
         <label class="comment-form-label">
@@ -171,10 +171,12 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
         </label>
         <button type="submit" class="btn btn-primary">Post comment</button>
       </form>
-    <% } else { %>
+    <% } else if (!user) { %>
       <p class="comments-login-cta">
         <a href="/auth/login?next=<%= encodeURIComponent(_base + '/' + post.slug + '#comments') %>" class="btn">Log in to comment</a>
       </p>
+    <% } else { %>
+      <p class="comments-login-cta" style="color:var(--ink-muted)">👁️ Kijker-modus — reageren is uitgeschakeld.</p>
     <% } %>
   </section>
 

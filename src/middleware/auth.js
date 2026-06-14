@@ -36,9 +36,20 @@ export function requireAuth(req, res, next) {
   next();
 }
 
+// Een 'kijker' mag ALLES bekijken (incl. Beheer) maar NIETS wijzigen. De
+// schrijf-blokkade zit in de globale guard in server.js; deze helper bepaalt
+// alleen "is dit een alleen-lezen account?". `readonly` is de legacy-vlag die
+// we nog meenemen zodat niet-gemigreerde demo-accounts geblokkeerd blijven.
+export function isViewer(user) {
+  return !!user && (user.role === 'kijker' || !!user.readonly);
+}
+
 export function requireGod(req, res, next) {
   if (!req.session?.user) return loginRedirect(req, res);
-  if (req.session.user.role !== 'god') {
+  const role = req.session.user.role;
+  // god beheert; een kijker mág het Beheer-paneel zien (alleen-lezen) — de
+  // globale guard 403't elke write, dus dit geeft enkel kijk-toegang.
+  if (role !== 'god' && role !== 'kijker') {
     return res.status(403).send('God role required');
   }
   next();
@@ -51,7 +62,7 @@ export function requireGod(req, res, next) {
 export function requireSiteManager(req, res, next) {
   if (!req.session?.user) return loginRedirect(req, res);
   const u = req.session.user;
-  if (u.role === 'god') return next();
+  if (u.role === 'god' || u.role === 'kijker') return next(); // kijker = alleen-lezen kijk-toegang
   const site = res.locals.site;
   if (site && site.owner_id === u.id) return next();
   return res.status(403).send('Geen toegang tot deze site.');
@@ -61,7 +72,7 @@ export function requireSiteManager(req, res, next) {
 export function requireSiteManagerBySlug(req, res, next) {
   if (!req.session?.user) return loginRedirect(req, res);
   const u = req.session.user;
-  if (u.role === 'god') return next();
+  if (u.role === 'god' || u.role === 'kijker') return next(); // kijker = alleen-lezen kijk-toegang
   const site = db.prepare('SELECT owner_id FROM sites WHERE slug = ?').get(req.params.slug);
   if (site && site.owner_id === u.id) return next();
   return res.status(403).send('Geen toegang tot deze site.');

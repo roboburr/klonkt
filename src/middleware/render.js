@@ -14,6 +14,7 @@ import { fileURLToPath } from 'url';
 import ejs from 'ejs';
 import db from '../config/database.js';
 import PermissionsService from '../services/PermissionsService.js';
+import { isViewer } from './auth.js';
 import { getSetting } from '../services/SettingsService.js';
 import { PLATFORMS as PLATFORMS_CATALOG } from '../services/PlatformIcons.js';
 
@@ -50,10 +51,16 @@ export async function renderPage(req, res, viewName, data = {}) {
     ? (db.prepare('SELECT avatar_url FROM users WHERE id = ?').get(_site.owner_id)?.avatar_url || null)
     : null;
 
+  // Kijker-modus: alles bekijken mag, niets wijzigen. Views gebruiken canMutate
+  // om schrijf-knoppen (posten, opslaan, verwijderen) te verbergen/uit te zetten.
+  const _isViewer = isViewer(_u);
+
   // Common locals
   const locals = {
     user: _u,
     userOwnsSite,
+    isViewer: _isViewer,
+    canMutate: !_isViewer,
     siteOwnerAvatar,
     site: _site,
     audioTracks: data.audioTracks || res.locals.audioTracks || [],
@@ -64,7 +71,7 @@ export async function renderPage(req, res, viewName, data = {}) {
     permissions: PermissionsService,
     formatDate,
     formatDateTime,
-    pageTitle: data.pageTitle || (data.site && data.site.title) || 'PrutCMS',
+    pageTitle: data.pageTitle || (data.site && data.site.title) || 'Klonkt Hub Beta',
     bodyClass: data.bodyClass || 'on-home',
     socialDescr: data.socialDescr || '',
     socialImage: data.socialImage || '',

@@ -24,7 +24,7 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
     <div class="empty">
       <h1>Hier is het nog stil.</h1>
       <p>Nog geen posts. Spannend.</p>
-      <% if (user && permissions.canCreatePost(user, site)) { %>
+      <% if (user && canMutate && permissions.canCreatePost(user, site)) { %>
         <p style="margin-top:2rem">
           <a class="btn" href="<%= _base %>/posts/new"
              hx-get="<%= _base %>/posts/new?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"

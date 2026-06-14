@@ -1,0 +1,154 @@
+<%
+// Artiesten-directory — bodyClass 'on-hub' => headerloos (bareChrome), dus deze
+// pagina draagt z'n eigen minimale nav + kop, net als de hub-overview.
+function _qs(extra) {
+  const p = new URLSearchParams();
+  if (q) p.set('q', q);
+  Object.keys(extra || {}).forEach(k => p.set(k, extra[k]));
+  const s = p.toString();
+  return s ? ('?' + s) : '';
+}
+%>
+<div class="adir">
+
+  <%# ── Minimale nav (terug naar hub + auth) ── %>
+  <nav class="adir-nav">
+    <div class="adir-nav-inner container">
+      <a class="adir-nav-home" href="/"><span aria-hidden="true">←</span> <%= (typeof hubTitle !== 'undefined' && hubTitle) ? hubTitle : 'Home' %></a>
+      <span class="adir-nav-spacer"></span>
+      <% if (user) { %>
+        <a class="adir-nav-link" href="/account"><%= user.username %></a>
+        <a class="adir-nav-link" href="/auth/logout">Uitloggen</a>
+      <% } else { %>
+        <a class="adir-nav-link" href="/auth/login">Inloggen</a>
+      <% } %>
+    </div>
+  </nav>
+
+  <header class="adir-head container">
+    <h1 class="adir-title">Artiesten</h1>
+    <p class="adir-sub"><%= total %> PrutFolio<%= total === 1 ? '' : "'s" %></p>
+
+    <form class="adir-search" method="get" action="/artiesten" role="search">
+      <input type="search" name="q" value="<%= q %>" placeholder="Zoek op naam…"
+             autocomplete="off" aria-label="Zoek artiesten">
+      <button type="submit" class="adir-search-btn" aria-label="Zoeken">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </button>
+      <% if (q) { %><a class="adir-search-clear" href="/artiesten">Wissen</a><% } %>
+    </form>
+  </header>
+
+  <div class="container adir-body">
+    <% if (!artists.length) { %>
+      <p class="adir-empty">
+        <% if (q) { %>Geen artiesten gevonden voor "<strong><%= q %></strong>".<% } else { %>Nog geen artiesten.<% } %>
+      </p>
+    <% } else { %>
+      <div class="roster">
+        <% artists.forEach(function(a){ %>
+          <a class="roster-card" href="/user/<%= a.slug %>">
+            <% var _ava = a.profile_photo || a.owner_avatar; %>
+            <span class="roster-avatar"<% if (_ava) { %> style="background-image:url('<%= _ava %>')"<% } else { %> style="background:<%= a.accent || 'var(--accent)' %>;color:#fff"<% } %>>
+              <% if (!_ava) { %><%= (a.title || a.slug).charAt(0).toUpperCase() %><% } %>
+            </span>
+            <span class="roster-name"><%= a.title %></span>
+            <% if (a.tagline) { %><span class="roster-tag"><%= a.tagline %></span><% } %>
+            <span class="roster-count"><%= a.post_count %> post<%= a.post_count === 1 ? '' : 's' %></span>
+          </a>
+        <% }); %>
+      </div>
+
+      <% if (pages > 1) { %>
+        <nav class="adir-pager" aria-label="Paginering">
+          <% if (page > 1) { %>
+            <a class="adir-page" href="<%= _qs({ page: page - 1 }) %>" rel="prev">← Vorige</a>
+          <% } else { %>
+            <span class="adir-page is-disabled">← Vorige</span>
+          <% } %>
+          <span class="adir-page-info">Pagina <%= page %> van <%= pages %></span>
+          <% if (page < pages) { %>
+            <a class="adir-page" href="<%= _qs({ page: page + 1 }) %>" rel="next">Volgende →</a>
+          <% } else { %>
+            <span class="adir-page is-disabled">Volgende →</span>
+          <% } %>
+        </nav>
+      <% } %>
+    <% } %>
+  </div>
+</div>
+
+<style>
+.adir { width: 100%; }
+
+/* ── Nav ── */
+.adir-nav { border-bottom: 1px solid var(--rule); padding: 0.9rem 0; }
+.adir-nav-inner { display: flex; align-items: center; gap: 1.2rem; }
+.adir-nav-home { color: var(--ink); text-decoration: none; font-weight: 700; }
+.adir-nav-home:hover { color: var(--accent); }
+.adir-nav-spacer { flex: 1; }
+.adir-nav-link { color: var(--ink-muted); text-decoration: none; font-weight: 600; font-size: 0.9rem; }
+.adir-nav-link:hover { color: var(--accent); }
+
+/* ── Header + search ── */
+.adir-head { padding: 2.5rem 1rem 1.5rem; }
+.adir-title { font-family: var(--font-display, serif); font-size: clamp(2rem, 5vw, 3rem); margin: 0; }
+.adir-sub { color: var(--ink-muted); margin: 0.3rem 0 1.3rem; }
+.adir-search { display: flex; align-items: center; gap: 0.5rem; max-width: 480px; }
+.adir-search input {
+  flex: 1; min-width: 0; box-sizing: border-box;
+  padding: 0.65rem 0.9rem; border: 1px solid var(--rule); border-radius: 99px;
+  background: var(--paper-2); color: var(--ink); font: inherit; font-size: 0.95rem;
+}
+.adir-search input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
+.adir-search-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; flex-shrink: 0;
+  border: 1px solid var(--accent); border-radius: 50%;
+  background: var(--accent); color: #fff; cursor: pointer;
+}
+.adir-search-clear { color: var(--ink-muted); font-size: 0.85rem; text-decoration: underline; white-space: nowrap; }
+
+.adir-body { padding-bottom: 4rem; }
+.adir-empty { color: var(--ink-muted); padding: 2rem 0; }
+
+/* ── Roster (zelfde stijl als hub-home) ── */
+.roster {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 1rem;
+}
+.roster-card {
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  gap: 0.4rem; padding: 1.6rem 1rem 1.3rem;
+  border: 1px solid var(--rule); border-radius: 16px;
+  background: var(--paper-2); color: var(--ink); text-decoration: none;
+  transition: border-color 140ms, transform 140ms, box-shadow 140ms;
+}
+.roster-card:hover {
+  border-color: var(--accent); transform: translateY(-3px);
+  box-shadow: 0 10px 28px -14px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.roster-avatar {
+  width: 88px; height: 88px; border-radius: 50%; margin-bottom: 0.45rem;
+  background-size: cover; background-position: center;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: var(--font-display, serif); font-size: 2.1rem; font-weight: 700; color: #fff;
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,.18);
+}
+.roster-name { font-weight: 700; font-size: 1.1rem; }
+.roster-tag { color: var(--ink-muted); font-size: 0.82rem; }
+.roster-count {
+  margin-top: 0.35rem; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent);
+  padding: 0.15rem 0.6rem; border-radius: 99px;
+}
+
+/* ── Pager ── */
+.adir-pager { display: flex; align-items: center; justify-content: center; gap: 1.25rem; margin-top: 2.5rem; }
+.adir-page {
+  color: var(--ink); text-decoration: none; font-weight: 600; font-size: 0.9rem;
+  padding: 0.5rem 1rem; border: 1px solid var(--rule); border-radius: 99px;
+}
+.adir-page:hover { border-color: var(--accent); color: var(--accent); }
+.adir-page.is-disabled { color: var(--ink-muted); opacity: 0.4; pointer-events: none; }
+.adir-page-info { color: var(--ink-muted); font-size: 0.85rem; }
+</style>

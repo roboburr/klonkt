@@ -15,7 +15,8 @@ const _siteUrlBase = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteU
 const _isAdmin     = typeof bodyClass !== 'undefined' && bodyClass.indexOf('on-admin') >= 0;
 const _hasSearch   = !site || site.show_search === undefined || site.show_search;
 const _hasPrutter  = user && site && site.enable_prutter && (typeof tenancy !== 'undefined' && tenancy === 'hub');
-const _canPost     = user && permissions && permissions.canCreatePost && permissions.canCreatePost(user, site);
+const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
+                     && permissions && permissions.canCreatePost && permissions.canCreatePost(user, site);
 %>
 
 <header class="masthead">
@@ -35,7 +36,7 @@ const _canPost     = user && permissions && permissions.canCreatePost && permiss
            hx-get="<%= _siteUrlBase %>/?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
            hx-push-url="<%= _siteUrlBase %>/" hx-indicator="#pcms-loading"><%= site.title %></a>
       <% } else { %>
-        <a class="site-title" href="/">PrutFolio</a>
+        <a class="site-title" href="/">Klonkt</a>
       <% } %>
     </div>
 

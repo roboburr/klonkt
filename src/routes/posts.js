@@ -61,7 +61,7 @@ const RESERVED_SLUGS = new Set([
   'auth', 'admin', 'login', 'register', 'logout',
   'archive', 'search', 'account', 'sites', 'comments',
   'posts', 'media', 'audio', 'prutter', 'forum',
-  'tag', 'type', 'users', 'feed.xml', 'atom.xml', 'sitemap.xml',
+  'tag', 'type', 'user', 'users', 'artiesten', 'feed.xml', 'atom.xml', 'sitemap.xml',
   'manifest.webmanifest', 'sw.js', 'favicon.ico', 'favicon.svg', 'assets',
 ]);
 

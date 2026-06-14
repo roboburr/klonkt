@@ -4,7 +4,7 @@
   <header class="ax-header">
     <div>
       <h1>Users</h1>
-      <p class="ax-tagline">Beheer gebruikers, rollen, en verwijderingen.</p>
+      <p class="ax-tagline">Beheer gebruikers, rollen, en verwijderingen. Rol <strong>kijker</strong> = alles bekijken (incl. Beheer), niets wijzigen — handig voor demo's.</p>
     </div>
   </header>
 
@@ -57,7 +57,8 @@
             <form method="post" action="/admin/users/<%= u.id %>/role" class="ax-role-form">
               <label class="ax-role">
                 <span>Rol</span>
-                <select name="role" onchange="this.form.submit()" <% if (u.id === user.id) { %>disabled<% } %>>
+                <select name="role" onchange="this.form.submit()" <% if (u.id === user.id || !canMutate) { %>disabled<% } %>>
+                  <option value="kijker" <%= u.role === 'kijker' ? 'selected' : '' %>>kijker</option>
                   <option value="member" <%= u.role === 'member' ? 'selected' : '' %>>member</option>
                   <option value="admin"  <%= u.role === 'admin'  ? 'selected' : '' %>>admin</option>
                   <option value="god"    <%= u.role === 'god'    ? 'selected' : '' %>>god</option>
@@ -65,15 +66,7 @@
               </label>
             </form>
 
-            <form method="post" action="/admin/users/<%= u.id %>/readonly" class="ax-role-form">
-              <label class="ax-role ax-ro" title="Alleen-lezen: kan alles bekijken, niets wijzigen">
-                <span>Kijk-modus</span>
-                <input type="checkbox" name="readonly" value="1" <%= u.readonly ? 'checked' : '' %>
-                       onchange="this.form.submit()" <% if (u.id === user.id) { %>disabled<% } %>>
-              </label>
-            </form>
-
-            <% if (u.id !== user.id) { %>
+            <% if (u.id !== user.id && canMutate) { %>
               <% var _warn = (u.post_count + u.site_count > 0)
                    ? ('Dit verwijdert ook hun site + ' + u.post_count + ' post(s). ')
                    : ''; %>
@@ -82,7 +75,7 @@
                 <button type="submit" class="ax-icon-btn ax-icon-btn-danger" aria-label="Verwijderen" title="Verwijderen">🗑</button>
               </form>
             <% } else { %>
-              <%# Lege plek zodat de kolommen (rol/kijk-modus) op elke rij uitlijnen. %>
+              <%# Lege plek zodat de rol-kolom op elke rij uitlijnt. %>
               <span class="ax-icon-btn-spacer" aria-hidden="true"></span>
             <% } %>
           </div>

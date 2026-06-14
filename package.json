@@ -1,7 +1,7 @@
 {
   "name": "prutfolio",
   "version": "1.0.0-alpha.1",
-  "description": "PrutFolio v1 — persoonlijk multi-site platform met community, realtime, en (later) E2EE DMs. Forked van PrutCMS v9 (PHP) naar Node + SQLite + htmx.",
+  "description": "Klonkt Hub Beta — persoonlijk multi-site platform met community, realtime, en (later) E2EE DMs. Forked van PrutCMS v9 (PHP) naar Node + SQLite + htmx.",
   "type": "module",
   "main": "src/server.js",
   "scripts": {

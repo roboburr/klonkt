@@ -19,7 +19,10 @@ import { requireGod } from '../middleware/auth.js';
 
 const router = express.Router();
 
-const VALID_ROLES = new Set(['member', 'admin', 'god']);
+// 'kijker' = alleen-lezen demonstratie/audit-account: mag alles bekijken (incl.
+// Beheer), maar de globale guard blokkeert elke wijziging. Vervangt de oude
+// losse 'kijk-modus'-vlag (readonly), die nu door deze rol wordt afgedekt.
+const VALID_ROLES = new Set(['kijker', 'member', 'admin', 'god']);
 
 function godCount() {
   return db.prepare("SELECT COUNT(*) AS c FROM users WHERE role = 'god'").get().c;
@@ -65,23 +68,11 @@ router.post('/:id/role', requireGod, (req, res) => {
     return res.redirect('/admin/users?error=' + encodeURIComponent('Cannot demote the only remaining god'));
   }
 
-  db.prepare('UPDATE users SET role = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+  // readonly=0: de alleen-lezen-status zit nu volledig in de 'kijker'-rol, dus
+  // bij elke rolwijziging ruimen we de legacy-vlag op (geen dubbele bron).
+  db.prepare('UPDATE users SET role = ?, readonly = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
     .run(newRole, userId);
   res.redirect('/admin/users?success=' + encodeURIComponent('Role updated'));
-});
-
-// ==================== READ-ONLY (kijk-account) ====================
-router.post('/:id/readonly', requireGod, (req, res) => {
-  const target = db.prepare('SELECT id FROM users WHERE id = ?').get(req.params.id);
-  if (!target) return res.redirect('/admin/users?error=User+not+found');
-  // Niet op jezelf — voorkomt dat een god zichzelf alleen-lezen maakt en vastloopt.
-  if (target.id === req.session.user.id) {
-    return res.redirect('/admin/users?error=' + encodeURIComponent('Kan jezelf niet op alleen-lezen zetten'));
-  }
-  const ro = req.body.readonly === '1' ? 1 : 0;
-  db.prepare('UPDATE users SET readonly = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-    .run(ro, req.params.id);
-  res.redirect('/admin/users?success=' + encodeURIComponent(ro ? 'Kijk-modus aan' : 'Kijk-modus uit'));
 });
 
 // ==================== DELETE ====================

@@ -1,0 +1,46 @@
+<div class="container vb-page">
+  <div class="vb-card">
+    <div class="vb-ico" aria-hidden="true">👁️</div>
+    <h1 class="vb-title">Kijker-modus</h1>
+    <p class="vb-text">
+      Dit is een alleen-lezen account. Je kunt alles bekijken, maar
+      <strong>niets wijzigen</strong> — opslaan, uploaden, verwijderen en
+      reageren zijn uitgeschakeld.
+    </p>
+    <div class="vb-actions">
+      <button type="button" class="vb-btn vb-btn-primary" onclick="history.back()">← Terug</button>
+      <a class="vb-btn" href="/">Naar de hoofdpagina</a>
+    </div>
+  </div>
+</div>
+
+<style>
+.vb-page { max-width: 540px; margin: 3rem auto 4rem; padding: 0 1rem; }
+.vb-card {
+  text-align: center;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 16px;
+  padding: 2.5rem 1.75rem;
+}
+.vb-ico {
+  width: 64px; height: 64px; margin: 0 auto 1rem;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.8rem; border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 14%, var(--paper-2));
+}
+.vb-title { font-family: var(--font-display, serif); font-size: 1.6rem; margin: 0 0 0.5rem; }
+.vb-text { color: var(--ink-muted, var(--ink-soft)); font-size: 0.95rem; line-height: 1.55; margin: 0 auto 1.5rem; max-width: 42ch; }
+.vb-actions { display: flex; gap: 0.6rem; justify-content: center; flex-wrap: wrap; }
+.vb-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0.6rem 1.1rem; min-height: 42px;
+  border: 1px solid var(--rule); border-radius: 8px;
+  background: var(--paper-2); color: var(--ink);
+  font-family: var(--font-ui, system-ui), sans-serif; font-size: 0.9rem; font-weight: 600;
+  text-decoration: none; cursor: pointer; transition: border-color 120ms, opacity 120ms;
+}
+.vb-btn:hover { border-color: var(--accent); }
+.vb-btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.vb-btn-primary:hover { opacity: 0.92; }
+</style>

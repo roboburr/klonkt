@@ -1,5 +1,5 @@
 /**
- * PrutFolio v1 — server bootstrap
+ * Klonkt Hub Beta — server bootstrap
  *
  * Persoonlijk multi-site platform forked van PrutCMS v9 (PHP, file-based).
  * Stack: Express + better-sqlite3 + EJS + htmx + ws.
@@ -20,6 +20,8 @@ import PrutterService from './services/PrutterService.js';
 import { WebSocketServer } from 'ws';
 
 import { resolveSite, loadAudioTracks, loadTheme } from './middleware/site.js';
+import { isViewer } from './middleware/auth.js';
+import { renderPage } from './middleware/render.js';
 import authRoutes from './routes/auth.js';
 import accountRoutes from './routes/account.js';
 import adminRoutes from './routes/admin.js';
@@ -38,6 +40,7 @@ import typesRoutes from './routes/types.js';
 import usersRoutes from './routes/users.js';
 import feedRoutes from './routes/feed.js';
 import hubRoutes from './routes/hub.js';
+import artistsRoutes from './routes/artists.js';
 import postsRoutes from './routes/posts.js';
 
 if (!process.env.SESSION_SECRET) {
@@ -163,12 +166,26 @@ app.use((req, res, next) => {
   next();
 });
 
-// Read-only/kijk-accounts: alles bekijken mag, niets wijzigen. Blokkeert elke
-// state-wijzigende methode (de login-POST zelf zet de sessie pas, dus die valt
-// hier nog niet onder).
+// Kijker-accounts: alles bekijken mag (incl. Beheer), niets wijzigen. Dit is de
+// ENIGE schrijf-blokkade — fail-closed, vóór alle route-handlers. Elke state-
+// wijzigende methode wordt geweigerd (de login-POST zet de sessie pas ná deze
+// guard, dus die valt er niet onder). I.p.v. rauwe 403-tekst tonen we een nette
+// pagina (of, bij HTMX, een ingeswapte melding).
 app.use((req, res, next) => {
-  if (req.session?.user?.readonly && req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS') {
-    return res.status(403).send('Demo-account: alleen-lezen — wijzigen is uitgeschakeld.');
+  const mutating = req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS';
+  if (mutating && isViewer(req.session?.user)) {
+    if (req.headers['hx-request'] === 'true') {
+      // htmx swapt niet op 4xx; stuur 200 + retarget zodat de melding in #pcms-main verschijnt.
+      res.setHeader('HX-Retarget', '#pcms-main');
+      res.setHeader('HX-Reswap', 'innerHTML');
+      res.status(200);
+    } else {
+      res.status(403);
+    }
+    return renderPage(req, res, 'pages/viewer-blocked', {
+      pageTitle: 'Kijker-modus',
+      bodyClass: 'on-special',
+    });
   }
   next();
 });
@@ -191,6 +208,7 @@ app.use('/type', typesRoutes);
 app.use('/users', usersRoutes);
 // Feed/sitemap routes are mounted at root because they're at well-known paths
 app.use('/', feedRoutes);
+app.use('/artiesten', artistsRoutes); // doorzoekbare artiesten-directory (alleen hub; solo: next())
 app.use('/', hubRoutes); // hub-overview op '/' (solo: next() -> postsRoutes)
 app.use('/', postsRoutes);
 
@@ -214,8 +232,8 @@ app.get('/manifest.webmanifest', (req, res) => {
   res.set('Cache-Control', 'no-cache');
   res.json({
     id: idBase,
-    name: site?.title || 'PrutFolio',
-    short_name: (site?.title || 'PrutFolio').slice(0, 12),
+    name: site?.title || 'Klonkt Hub Beta',
+    short_name: (site?.title || 'Klonkt').slice(0, 12),
     description: site?.description || site?.tagline || '',
     scope,
     start_url: startUrl,
@@ -323,6 +341,14 @@ server.on('upgrade', (req, socket, head) => {
       socket.destroy();
       return;
     }
+    // Kijker-accounts zijn alleen-lezen: weiger de WS-upgrade. De HTTP-guard
+    // dekt geen WS, dus dit is de plek om schrijven via een (toekomstige)
+    // message-handler te voorkomen.
+    if (isViewer(req.session.user)) {
+      socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+      socket.destroy();
+      return;
+    }
     wss.handleUpgrade(req, socket, head, (ws) => {
       ws.userId = req.session.user.id;
       wss.emit('connection', ws, req);
@@ -349,7 +375,7 @@ if (wsPing.unref) wsPing.unref();
 
 server.listen(PORT, () => {
   console.log('');
-  console.log('🪶 PrutFolio v1 — alpha');
+  console.log('🪶 Klonkt Hub Beta');
   console.log(`   http://localhost:${PORT}`);
   console.log('');
   console.log(`   ✓ Security: Helmet, CSP, secure sessions`);

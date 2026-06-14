@@ -11,33 +11,53 @@
   <% if (success) { %><div class="ax-flash ax-flash-ok"><%= success %></div><% } %>
   <% if (error)   { %><div class="ax-flash ax-flash-err"><%= error %></div><% } %>
 
+  <% if (isViewer) { %>
+    <div class="ax-viewer-note" role="note">
+      <span class="ax-viewer-ico" aria-hidden="true">👁️</span>
+      <div>
+        <strong>Kijker-modus</strong>
+        <span>Dit is een demo-account. Je kunt alles bekijken, maar niets wijzigen — ook geen foto of bio.</span>
+      </div>
+    </div>
+  <% } %>
+
   <%# ── PROFILE ────────────────────────────────────────────── %>
   <section class="ax-card">
     <div class="ax-card-title">Profiel</div>
 
     <div class="ax-profile-id">
-      <form action="/account/avatar" method="post" enctype="multipart/form-data" class="ax-avatar-form">
-        <label class="ax-avatar-wrap" title="Klik om je foto te wijzigen">
-          <span class="ax-profile-avatar">
-            <% if (account.avatar_url) { %>
-              <img src="<%= account.avatar_url %>" alt="">
-            <% } else { %>
-              <span><%= account.username.charAt(0).toUpperCase() %></span>
-            <% } %>
-          </span>
-          <span class="ax-avatar-edit" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-          </span>
-          <input type="file" name="avatar" accept="image/jpeg,image/png,image/webp,image/gif" onchange="this.form.submit()" hidden>
-        </label>
-      </form>
+      <% if (canMutate) { %>
+        <form action="/account/avatar" method="post" enctype="multipart/form-data" class="ax-avatar-form">
+          <label class="ax-avatar-wrap" title="Klik om je foto te wijzigen">
+            <span class="ax-profile-avatar">
+              <% if (account.avatar_url) { %>
+                <img src="<%= account.avatar_url %>" alt="">
+              <% } else { %>
+                <span><%= account.username.charAt(0).toUpperCase() %></span>
+              <% } %>
+            </span>
+            <span class="ax-avatar-edit" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            </span>
+            <input type="file" name="avatar" accept="image/jpeg,image/png,image/webp,image/gif" onchange="this.form.submit()" hidden>
+          </label>
+        </form>
+      <% } else { %>
+        <span class="ax-profile-avatar ax-profile-avatar-static">
+          <% if (account.avatar_url) { %>
+            <img src="<%= account.avatar_url %>" alt="">
+          <% } else { %>
+            <span><%= account.username.charAt(0).toUpperCase() %></span>
+          <% } %>
+        </span>
+      <% } %>
       <div class="ax-profile-meta">
         <div class="ax-profile-name"><%= account.username %></div>
         <div class="ax-profile-role"><%= account.role %> · <%= account.email %></div>
         <% if (account.created_at) { %>
           <div class="ax-profile-joined">Lid sinds <%= formatDate(account.created_at) %></div>
         <% } %>
-        <% if (account.avatar_url) { %>
+        <% if (account.avatar_url && canMutate) { %>
           <form action="/account/avatar/remove" method="post" class="ax-avatar-remove">
             <button type="submit" class="ax-linkbtn">Foto verwijderen</button>
           </form>
@@ -45,18 +65,29 @@
       </div>
     </div>
 
-    <form action="/account/profile" method="post" class="ax-form ax-form-bio">
-      <label class="ax-field">
-        <span>Bio</span>
-        <textarea name="bio" rows="3" maxlength="500" placeholder="Een korte regel over jezelf"><%= account.bio || '' %></textarea>
-      </label>
-      <div class="ax-form-actions">
-        <button type="submit" class="ax-btn ax-btn-primary">Bio opslaan</button>
+    <% if (canMutate) { %>
+      <form action="/account/profile" method="post" class="ax-form ax-form-bio">
+        <label class="ax-field">
+          <span>Bio</span>
+          <textarea name="bio" rows="3" maxlength="500" placeholder="Een korte regel over jezelf"><%= account.bio || '' %></textarea>
+        </label>
+        <div class="ax-form-actions">
+          <button type="submit" class="ax-btn ax-btn-primary">Bio opslaan</button>
+        </div>
+      </form>
+    <% } else { %>
+      <div class="ax-form ax-form-bio">
+        <label class="ax-field">
+          <span>Bio</span>
+          <textarea rows="3" disabled placeholder="Geen bio"><%= account.bio || '' %></textarea>
+        </label>
       </div>
-    </form>
+    <% } %>
   </section>
 
   <%# ── WACHTWOORD ────────────────────────────────────────── %>
+  <%# In kijker-modus geen wachtwoord-sectie (niets te wijzigen). %>
+  <% if (canMutate) { %>
   <% if (hasPassword) { %>
   <section class="ax-card">
     <div class="ax-card-title">Wachtwoord wijzigen</div>
@@ -86,6 +117,7 @@
     <p class="ax-tagline" style="margin:0">Je bent ingelogd via Google (<%= account.email %>). Er is geen apart wachtwoord.</p>
   </section>
   <% } %>
+  <% } %>
 
 </div>
 
@@ -106,6 +138,21 @@
 .ax-flash { padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.9rem; }
 .ax-flash-ok  { background: rgba(40,160,90,.15); color: #2a9d5e; border: 1px solid rgba(40,160,90,.3); }
 .ax-flash-err { background: rgba(200,60,60,.15); color: #c33; border: 1px solid rgba(200,60,60,.3); }
+
+/* ─── Kijker-modus notice ──────────────────────────────────────── */
+.ax-viewer-note {
+  display: flex; align-items: flex-start; gap: 0.75rem;
+  padding: 0.85rem 1rem; margin-bottom: 1rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--rule));
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--paper));
+}
+.ax-viewer-ico { font-size: 1.1rem; line-height: 1.4; }
+.ax-viewer-note strong { display: block; font-size: 0.92rem; }
+.ax-viewer-note span { color: var(--ink-muted, var(--ink-soft)); font-size: 0.85rem; }
+.ax-profile-avatar-static { flex-shrink: 0; }
+.ax-form-bio textarea:disabled { opacity: 0.7; cursor: default; }
 
 /* ─── Cards ────────────────────────────────────────────────────── */
 .ax-card {

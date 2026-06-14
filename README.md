@@ -1,11 +1,12 @@
-# PrutFolio v1
+# Klonkt Hub Beta
 
 Persoonlijk multi-site platform met editorial-feel content + sociale community.
 Forked van **PrutCMS v9** (PHP, file-based) naar **Node + SQLite + htmx**.
 
-> **Naam-uitleg.** "PrutCMS v9" is en blijft het file-based PHP-product. PrutFolio
-> v1 is een nieuw product met andere DNA: het is geen *publishing tool* maar een
-> *persoonlijk canvas* — content, profiel, sociale interactie en realtime in één.
+> **Naam-uitleg.** "PrutCMS v9" is en blijft het file-based PHP-product. Klonkt Hub
+> (intern pakket `prutfolio`) is een nieuw product met andere DNA: het is geen
+> *publishing tool* maar een *persoonlijk canvas* — content, profiel, sociale
+> interactie en realtime in één.
 
 ## Filosofie
 

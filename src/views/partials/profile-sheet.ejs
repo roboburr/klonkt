@@ -13,7 +13,8 @@
 if (!user) return;
 
 const _isAdmin = (user.role === 'god' || user.role === 'admin');
-const _canPost = !!(typeof permissions !== 'undefined'
+const _canPost = !!((typeof canMutate === 'undefined' || canMutate)
+                    && typeof permissions !== 'undefined'
                     && permissions
                     && permissions.canCreatePost
                     && permissions.canCreatePost(user, site));
