@@ -94,7 +94,7 @@ export function initializeDatabase() {
   `);
 
   // Globale app-instellingen (key/value singleton). O.a. de tenancy-modus
-  // (solo = één site, hub = bedrijfssite + /gebruikers). Default = solo.
+  // (solo = één site, hub = bedrijfssite + /user/). Default = solo.
   db.exec(`
     CREATE TABLE IF NOT EXISTS app_settings (
       key TEXT PRIMARY KEY,
