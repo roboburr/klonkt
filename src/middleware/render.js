@@ -14,6 +14,7 @@ import { fileURLToPath } from 'url';
 import ejs from 'ejs';
 import db from '../config/database.js';
 import PermissionsService from '../services/PermissionsService.js';
+import { getSetting } from '../services/SettingsService.js';
 import { PLATFORMS as PLATFORMS_CATALOG } from '../services/PlatformIcons.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -58,6 +59,7 @@ export async function renderPage(req, res, viewName, data = {}) {
     audioTracks: data.audioTracks || res.locals.audioTracks || [],
     siteUrlBase: res.locals.siteUrlBase || '',
     tenancy: res.locals.tenancy || 'solo',
+    hubTitle: getSetting('hub_title') || '',
     platforms_catalog: PLATFORMS_CATALOG,
     permissions: PermissionsService,
     formatDate,

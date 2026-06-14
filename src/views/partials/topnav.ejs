@@ -25,6 +25,10 @@ const _canPost     = user && permissions && permissions.canCreatePost && permiss
     <div class="masthead-brand">
       <% if (_isAdmin) { %>
         <a href="<%= _siteUrlBase %>/" class="nav-link nav-link-admin">← Terug naar site</a>
+      <% } else if (typeof tenancy !== 'undefined' && tenancy === 'hub') { %>
+        <%# Hub: de brand is de hub-naam en gaat naar de hub-home (volledige nav, geen
+            HTMX, zodat de headerloze overview correct rendert). %>
+        <a class="site-title" href="/" aria-label="Naar de hub-home"><%= (typeof hubTitle !== 'undefined' && hubTitle) ? hubTitle : 'Home' %></a>
       <% } else if (site) { %>
         <a class="site-title" href="<%= _siteUrlBase %>/"
            hx-get="<%= _siteUrlBase %>/?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
