@@ -57,7 +57,7 @@ router.get('/', (req, res, next) => {
   `).all({ ...params, limit: PER_PAGE, offset });
 
   renderPage(req, res, 'pages/artists-directory', {
-    pageTitle: 'Artiesten',
+    pageTitle: 'Leden',
     bodyClass: 'on-hub',
     q,
     artists,

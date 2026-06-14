@@ -26,12 +26,12 @@ function _qs(extra) {
   </nav>
 
   <header class="adir-head container">
-    <h1 class="adir-title">Artiesten</h1>
-    <p class="adir-sub"><%= total %> PrutFolio<%= total === 1 ? '' : "'s" %></p>
+    <h1 class="adir-title">Leden</h1>
+    <p class="adir-sub"><%= total %> <%= total === 1 ? 'lid' : 'leden' %></p>
 
     <form class="adir-search" method="get" action="/artiesten" role="search">
       <input type="search" name="q" value="<%= q %>" placeholder="Zoek op naam…"
-             autocomplete="off" aria-label="Zoek artiesten">
+             autocomplete="off" aria-label="Zoek leden">
       <button type="submit" class="adir-search-btn" aria-label="Zoeken">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       </button>
@@ -42,7 +42,7 @@ function _qs(extra) {
   <div class="container adir-body">
     <% if (!artists.length) { %>
       <p class="adir-empty">
-        <% if (q) { %>Geen artiesten gevonden voor "<strong><%= q %></strong>".<% } else { %>Nog geen artiesten.<% } %>
+        <% if (q) { %>Geen leden gevonden voor "<strong><%= q %></strong>".<% } else { %>Nog geen leden.<% } %>
       </p>
     <% } else { %>
       <div class="roster">

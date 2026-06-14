@@ -54,7 +54,7 @@
     <% var _hasMore = _total > artists.length; %>
     <section class="hub-sec">
       <h2 class="hub-sec-title">
-        Artiesten
+        Leden
         <% if (_hasMore) { %><span class="hub-sec-count"><%= _total %></span><% } %>
       </h2>
       <div class="roster">
@@ -72,7 +72,7 @@
       </div>
       <% if (_hasMore) { %>
         <div class="hub-more">
-          <a class="hub-more-link" href="/artiesten">Alle <%= _total %> artiesten <span aria-hidden="true">→</span></a>
+          <a class="hub-more-link" href="/artiesten">Alle <%= _total %> leden <span aria-hidden="true">→</span></a>
         </div>
       <% } %>
     </section>
@@ -81,7 +81,7 @@
     <%# ── LAATSTE POSTS ────────────────────────────────────────────── %>
     <% if (posts && posts.length) { %>
     <section class="hub-sec">
-      <h2 class="hub-sec-title">Laatste posts van users</h2>
+      <h2 class="hub-sec-title">Laatste posts van onze leden.</h2>
       <div class="hub-feed">
         <% posts.forEach(function(p){ %>
           <a class="feed-item" href="/user/<%= p.site_slug %>/<%= p.slug %>">
