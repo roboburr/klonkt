@@ -10,6 +10,7 @@
 // separate "Pinned" header (v9 just lets order speak for itself + a ★ chip).
 
 const allPosts = [...pinnedPosts, ...posts];
+const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '';
 %>
 
 <%# View switcher used to be rendered here; moved to shell.ejs (above
@@ -25,9 +26,9 @@ const allPosts = [...pinnedPosts, ...posts];
       <p>Nog geen posts. Spannend.</p>
       <% if (user && permissions.canCreatePost(user, site)) { %>
         <p style="margin-top:2rem">
-          <a class="btn" href="/posts/new"
-             hx-get="/posts/new?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
-             hx-push-url="/posts/new" hx-indicator="#pcms-loading">
+          <a class="btn" href="<%= _base %>/posts/new"
+             hx-get="<%= _base %>/posts/new?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
+             hx-push-url="<%= _base %>/posts/new" hx-indicator="#pcms-loading">
             Schrijf je eerste post →
           </a>
         </p>

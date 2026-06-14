@@ -20,6 +20,8 @@ const _canPost = !!(typeof permissions !== 'undefined'
 const _roleLabel = (user.role === 'god' || user.role === 'admin') ? 'beheerder'
                  : (user.role === 'editor') ? 'redacteur'
                  : '';
+// Site-scoped link (post-aanmaken) heeft in hub de /user/<slug>-prefix nodig.
+const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '';
 %>
 
 <div class="profile-sheet" id="profile-sheet" aria-hidden="true" role="dialog" aria-label="Profiel menu">
@@ -63,9 +65,9 @@ const _roleLabel = (user.role === 'god' || user.role === 'admin') ? 'beheerder'
       <% } %>
       <% if (_canPost) { %>
       <li role="none">
-        <a href="/posts/new" class="profile-sheet-item" role="menuitem" data-close-sheet
-           hx-get="/posts/new?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
-           hx-push-url="/posts/new" hx-indicator="#pcms-loading">
+        <a href="<%= _base %>/posts/new" class="profile-sheet-item" role="menuitem" data-close-sheet
+           hx-get="<%= _base %>/posts/new?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
+           hx-push-url="<%= _base %>/posts/new" hx-indicator="#pcms-loading">
           <svg class="psi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
           <span class="psi-label">Nieuwe post</span>
           <svg class="psi-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>

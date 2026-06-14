@@ -1,7 +1,8 @@
+<% const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : ''; %>
 <div class="container search-page">
   <h1>Search</h1>
 
-  <form method="get" action="/search" class="search-page-form">
+  <form method="get" action="<%= _base %>/search" class="search-page-form">
     <input
       type="search"
       name="q"

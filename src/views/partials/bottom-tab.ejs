@@ -58,9 +58,9 @@ else if (_p.indexOf('/auth/login') === 0) _active = 'login';
   <!-- Plus (FAB-style, only when user can post) -->
   <% if (_canPost) { %>
     <a class="bottom-tab-item bottom-tab-fab<%= _active === 'create' ? ' is-active' : '' %>"
-       href="/posts/new"
-       hx-get="/posts/new?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
-       hx-push-url="/posts/new" hx-indicator="#pcms-loading"
+       href="<%= _siteUrlBase %>/posts/new"
+       hx-get="<%= _siteUrlBase %>/posts/new?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
+       hx-push-url="<%= _siteUrlBase %>/posts/new" hx-indicator="#pcms-loading"
        aria-label="Nieuwe post">
       <svg class="bottom-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <line x1="12" y1="5" x2="12" y2="19"/>
