@@ -4,7 +4,7 @@
     <a href="/" class="ax-back" aria-label="Terug naar home">←</a>
     <div>
       <h1>Account</h1>
-      <p class="ax-tagline">Profiel en wachtwoord.</p>
+      <p class="ax-tagline">Profiel en avatar.</p>
     </div>
   </header>
 
@@ -64,28 +64,10 @@
     </form>
   </section>
 
-  <%# ── PASSWORD ──────────────────────────────────────────── %>
+  <%# ── INLOG ─────────────────────────────────────────────── %>
   <section class="ax-card">
-    <div class="ax-card-title">Wachtwoord wijzigen</div>
-    <form action="/account/password" method="post" class="ax-form">
-      <label class="ax-field">
-        <span>Huidig wachtwoord</span>
-        <input type="password" name="current" required autocomplete="current-password">
-      </label>
-      <div class="ax-row ax-row-2">
-        <label class="ax-field">
-          <span>Nieuw wachtwoord <small>(min 8 tekens)</small></span>
-          <input type="password" name="new_password" required minlength="8" autocomplete="new-password">
-        </label>
-        <label class="ax-field">
-          <span>Bevestig nieuw wachtwoord</span>
-          <input type="password" name="confirm" required minlength="8" autocomplete="new-password">
-        </label>
-      </div>
-      <div class="ax-form-actions">
-        <button type="submit" class="ax-btn ax-btn-primary">🔒 Wachtwoord wijzigen</button>
-      </div>
-    </form>
+    <div class="ax-card-title">Inloggen</div>
+    <p class="ax-tagline" style="margin:0">Je bent ingelogd via Google (<%= account.email %>). Er is geen apart wachtwoord.</p>
   </section>
 
 </div>

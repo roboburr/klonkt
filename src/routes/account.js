@@ -16,7 +16,6 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import bcrypt from 'bcryptjs';
 import multer from 'multer';
 import { v4 as uuid } from 'uuid';
 import db from '../config/database.js';
@@ -83,30 +82,8 @@ router.post('/profile', requireAuth, (req, res) => {
 // users.palette columns stay in the schema (no migration needed) but are no
 // longer read or written.
 
-// ==================== CHANGE PASSWORD ====================
-router.post('/password', requireAuth, (req, res) => {
-  const { current, new_password, confirm } = req.body;
-  if (!current || !new_password || !confirm) {
-    return res.redirect('/account?error=' + encodeURIComponent('All password fields required'));
-  }
-  if (new_password.length < 8) {
-    return res.redirect('/account?error=' + encodeURIComponent('New password must be at least 8 characters'));
-  }
-  if (new_password !== confirm) {
-    return res.redirect('/account?error=' + encodeURIComponent('New passwords do not match'));
-  }
-
-  const row = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(req.session.user.id);
-  if (!row || !bcrypt.compareSync(current, row.password_hash)) {
-    return res.redirect('/account?error=' + encodeURIComponent('Current password is incorrect'));
-  }
-
-  const newHash = bcrypt.hashSync(new_password, 10);
-  db.prepare('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-    .run(newHash, req.session.user.id);
-
-  res.redirect('/account?success=' + encodeURIComponent('Password changed'));
-});
+// Wachtwoord-wijzigen is verwijderd: inloggen gaat sinds de Google-OAuth-migratie
+// volledig via Google, er is geen wachtwoord meer om te wijzigen.
 
 // ==================== UPLOAD AVATAR ====================
 router.post('/avatar', requireAuth, (req, res) => {

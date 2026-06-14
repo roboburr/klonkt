@@ -38,6 +38,8 @@ export function initializeDatabase() {
   ensureColumn('audio_tracks', 'album', 'TEXT');
   ensureColumn('users', 'reset_token', 'TEXT');
   ensureColumn('users', 'reset_token_expires', 'DATETIME');
+  // Google OAuth: koppel een Google-account aan een user (login via Google).
+  ensureColumn('users', 'google_sub', 'TEXT');
   // Site-level moderation toggle. 'trust' = auto-approve, 'moderate' = pending until reviewed.
   ensureColumn('sites', 'comments_moderation_mode', "TEXT DEFAULT 'trust'");
   // Per-site Prutter toggle: when off, DM endpoints/UI are hidden for that site.

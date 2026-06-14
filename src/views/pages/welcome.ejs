@@ -4,10 +4,9 @@
   
   <% if (!user) { %>
     <div class="welcome-actions">
-      <a href="/auth/register" class="btn btn-primary">Create your account</a>
-      <a href="/auth/login" class="btn">Already have one? Login</a>
+      <a href="/auth/login" class="btn btn-primary">Inloggen met Google</a>
     </div>
-    <p class="welcome-note">The first user becomes <strong>god</strong> and gets a personal site auto-created.</p>
+    <p class="welcome-note">De eerste gebruiker die inlogt wordt <strong>god</strong> en krijgt automatisch een eigen site.</p>
   <% } else { %>
     <p>Hi <%= user.username %>! No site is configured yet.</p>
   <% } %>
