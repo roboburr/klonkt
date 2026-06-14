@@ -75,6 +75,7 @@ router.post('/login', loginLimiter, (req, res) => {
   req.session.user = {
     id: user.id, username: user.username, email: user.email, role: user.role,
     avatar_url: user.avatar_url, palette: user.palette, theme: user.theme,
+    readonly: !!user.readonly,
   };
   res.redirect(next || '/');
 });
@@ -289,6 +290,7 @@ router.get('/google/callback', async (req, res) => {
     req.session.user = {
       id: user.id, username: user.username, email: user.email, role: user.role,
       avatar_url: user.avatar_url, palette: user.palette, theme: user.theme,
+      readonly: !!user.readonly,
     };
     res.redirect(next || '/');
   } catch (e) {

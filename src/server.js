@@ -163,6 +163,16 @@ app.use((req, res, next) => {
   next();
 });
 
+// Read-only/kijk-accounts: alles bekijken mag, niets wijzigen. Blokkeert elke
+// state-wijzigende methode (de login-POST zelf zet de sessie pas, dus die valt
+// hier nog niet onder).
+app.use((req, res, next) => {
+  if (req.session?.user?.readonly && req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS') {
+    return res.status(403).send('Demo-account: alleen-lezen — wijzigen is uitgeschakeld.');
+  }
+  next();
+});
+
 app.use('/auth', authRoutes);
 app.use('/account', accountRoutes);
 app.use('/admin/audio', adminAudioRoutes);

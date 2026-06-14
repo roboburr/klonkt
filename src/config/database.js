@@ -40,6 +40,8 @@ export function initializeDatabase() {
   ensureColumn('users', 'reset_token_expires', 'DATETIME');
   // Google OAuth: koppel een Google-account aan een user (login via Google).
   ensureColumn('users', 'google_sub', 'TEXT');
+  // Read-only/kijk-account: kan alles bekijken maar geen wijzigingen doen.
+  ensureColumn('users', 'readonly', 'INTEGER DEFAULT 0');
   // Site-level moderation toggle. 'trust' = auto-approve, 'moderate' = pending until reviewed.
   ensureColumn('sites', 'comments_moderation_mode', "TEXT DEFAULT 'trust'");
   // Per-site Prutter toggle: when off, DM endpoints/UI are hidden for that site.

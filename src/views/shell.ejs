@@ -238,6 +238,12 @@ if (typeof post !== 'undefined' && post && post.slug) {
 
 <body class="<%= bodyClass || 'on-home' %> has-bottom-tab" data-feed-view="<%= _e(safeSite.feed_view_default || 'timeline') %>" data-grid-cols="3">
 
+<% if (user && user.readonly) { %>
+  <div style="position:sticky;top:0;z-index:50;background:#e8b04b;color:#1a1a1a;text-align:center;font-size:0.85rem;font-weight:600;padding:0.4rem 1rem;">
+    👁️ Demo — alleen-lezen: je kunt alles bekijken, maar niets wijzigen.
+  </div>
+<% } %>
+
 <%# Geen shell-chrome (masthead/profile-header/view-switcher/bottom-tab) op:
     - de hub-overview (on-hub): standalone landing, begint met de hero;
     - auth-pagina's (on-auth): focus-schermen voor in-/uitloggen.
