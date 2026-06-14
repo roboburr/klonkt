@@ -21,7 +21,7 @@ import multer from 'multer';
 import { v4 as uuid } from 'uuid';
 import db from '../config/database.js';
 import { renderPage } from '../middleware/render.js';
-import { requireGod } from '../middleware/auth.js';
+import { requireGod, requireAuth, requireSiteManagerBySlug } from '../middleware/auth.js';
 import ThemeService from '../services/ThemeService.js';
 import { listPlatforms, PLATFORMS } from '../services/PlatformIcons.js';
 
@@ -81,7 +81,7 @@ const router = express.Router();
 // Used by the admin-site-edit form's photo picker. The form itself still
 // holds the URL string in `profile_photo` — this endpoint just stores the
 // file and hands back a URL that the form can paste into the input field.
-router.post('/upload-photo', requireGod, (req, res) => {
+router.post('/upload-photo', requireAuth, (req, res) => {
   photoUpload.single('photo')(req, res, (err) => {
     if (err) return res.status(400).json({ ok: false, error: err.message });
     if (!req.file) return res.status(400).json({ ok: false, error: 'Geen bestand ontvangen' });
@@ -217,7 +217,7 @@ router.post('/create', requireGod, (req, res) => {
 });
 
 // ==================== EDIT (form) ====================
-router.get('/:slug/edit', requireGod, (req, res) => {
+router.get('/:slug/edit', requireSiteManagerBySlug, (req, res) => {
   const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(req.params.slug);
   if (!site) return res.redirect('/admin/sites?error=Not+found');
 
@@ -241,7 +241,7 @@ router.get('/:slug/edit', requireGod, (req, res) => {
 });
 
 // ==================== SAVE ====================
-router.post('/:slug/save', requireGod, (req, res) => {
+router.post('/:slug/save', requireSiteManagerBySlug, (req, res) => {
   const site = db.prepare('SELECT id FROM sites WHERE slug = ?').get(req.params.slug);
   if (!site) return res.redirect('/admin/sites?error=Not+found');
 

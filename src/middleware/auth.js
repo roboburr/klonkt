@@ -2,6 +2,8 @@
  * Auth middleware
  */
 
+import db from '../config/database.js';
+
 /**
  * Validate a "next" URL for safe redirect after login.
  * Returns the URL if safe, otherwise null.
@@ -40,4 +42,27 @@ export function requireGod(req, res, next) {
     return res.status(403).send('God role required');
   }
   next();
+}
+
+// Mag de ingelogde user de HUIDIGE site (res.locals.site) beheren? god altijd;
+// anders alleen de owner van die site. Gebruikt voor site-gescopete beheerroutes
+// die een artiest via /user/<eigen-slug>/admin/... bereikt (res.locals.site is dan
+// z'n eigen site; een vreemde slug levert een andere site -> 403).
+export function requireSiteManager(req, res, next) {
+  if (!req.session?.user) return loginRedirect(req, res);
+  const u = req.session.user;
+  if (u.role === 'god') return next();
+  const site = res.locals.site;
+  if (site && site.owner_id === u.id) return next();
+  return res.status(403).send('Geen toegang tot deze site.');
+}
+
+// Idem, maar de site wordt bepaald door de :slug-parameter (bv. site-edit).
+export function requireSiteManagerBySlug(req, res, next) {
+  if (!req.session?.user) return loginRedirect(req, res);
+  const u = req.session.user;
+  if (u.role === 'god') return next();
+  const site = db.prepare('SELECT owner_id FROM sites WHERE slug = ?').get(req.params.slug);
+  if (site && site.owner_id === u.id) return next();
+  return res.status(403).send('Geen toegang tot deze site.');
 }

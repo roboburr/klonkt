@@ -12,6 +12,7 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
 import ejs from 'ejs';
+import db from '../config/database.js';
 import PermissionsService from '../services/PermissionsService.js';
 import { PLATFORMS as PLATFORMS_CATALOG } from '../services/PlatformIcons.js';
 
@@ -35,9 +36,16 @@ export async function renderPage(req, res, viewName, data = {}) {
   // Decide: partial (HTMX) or full?
   const isPartial = req.headers['hx-request'] === 'true' || req.query.partial === '1';
 
+  // Bezit deze (niet-god) user een eigen site? Bepaalt of 'ie een "Beheer"-
+  // ingang ziet (artiest-zelfbeheer). god ziet beheer sowieso (op rol).
+  const _u = req.session?.user || null;
+  const userOwnsSite = !!(_u && _u.role !== 'god' &&
+    db.prepare('SELECT 1 FROM sites WHERE owner_id = ? LIMIT 1').get(_u.id));
+
   // Common locals
   const locals = {
-    user: req.session?.user || null,
+    user: _u,
+    userOwnsSite,
     site: data.site || res.locals.site || null,
     audioTracks: data.audioTracks || res.locals.audioTracks || [],
     siteUrlBase: res.locals.siteUrlBase || '',

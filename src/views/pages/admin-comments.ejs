@@ -25,15 +25,15 @@
           <div class="moderation-meta">
             <strong><%= c.author_username %></strong>
             <% if (c.parent_comment_id) { %><span class="muted">(reply)</span><% } %>
-            on <a href="/<%= c.post_slug %>"><%= c.post_title || c.post_slug %></a>
+            on <a href="<%= siteUrlBase %>/<%= c.post_slug %>"><%= c.post_title || c.post_slug %></a>
             <span class="muted">&middot; <%= formatDateTime(c.created_at) %></span>
           </div>
           <blockquote class="moderation-content"><%= c.content %></blockquote>
           <div class="moderation-actions">
-            <form method="post" action="/admin/comments/<%= c.id %>/approve" style="display:inline">
+            <form method="post" action="<%= siteUrlBase %>/admin/comments/<%= c.id %>/approve" style="display:inline">
               <button type="submit" class="btn btn-primary">Approve</button>
             </form>
-            <form method="post" action="/admin/comments/<%= c.id %>/reject" style="display:inline">
+            <form method="post" action="<%= siteUrlBase %>/admin/comments/<%= c.id %>/reject" style="display:inline">
               <button type="submit" class="btn btn-danger">Reject</button>
             </form>
           </div>
@@ -54,7 +54,7 @@
         <% recent.forEach(function(c) { %>
           <tr class="status-<%= c.status %>">
             <td><%= c.author_username %></td>
-            <td><a href="/<%= c.post_slug %>"><%= c.post_title || c.post_slug %></a></td>
+            <td><a href="<%= siteUrlBase %>/<%= c.post_slug %>"><%= c.post_title || c.post_slug %></a></td>
             <td>
               <span class="status-pill status-pill--<%= c.status %>"><%= c.status %></span>
             </td>

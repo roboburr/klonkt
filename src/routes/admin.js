@@ -7,12 +7,34 @@
 import express from 'express';
 import db from '../config/database.js';
 import { renderPage } from '../middleware/render.js';
-import { requireGod } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
 import { getTenancy } from '../services/SettingsService.js';
 
 const router = express.Router();
 
-router.get('/', requireGod, (req, res) => {
+router.get('/', requireAuth, (req, res) => {
+  const user = req.session.user;
+
+  // Niet-god: een artiest die een eigen site bezit krijgt een "Mijn PrutFolio"-
+  // dashboard, gescopet op z'n eigen site. Bezit 'ie geen site -> geen beheer.
+  if (user.role !== 'god') {
+    const mySite = db.prepare(
+      'SELECT * FROM sites WHERE owner_id = ? ORDER BY created_at ASC LIMIT 1'
+    ).get(user.id);
+    if (!mySite) return res.status(403).send('Geen beheer beschikbaar voor dit account.');
+
+    const mine = {
+      posts: db.prepare("SELECT COUNT(*) AS c FROM posts WHERE site_id = ?").get(mySite.id).c,
+      published: db.prepare("SELECT COUNT(*) AS c FROM posts WHERE site_id = ? AND status = 'published'").get(mySite.id).c,
+    };
+    return renderPage(req, res, 'pages/my-site', {
+      pageTitle: 'Mijn PrutFolio',
+      bodyClass: 'on-admin',
+      mySite,
+      mine,
+    });
+  }
+
   const tenancy = getTenancy();
 
   // De primaire/owner-site — in solo dé site, in hub de hoofdsite. Geeft de

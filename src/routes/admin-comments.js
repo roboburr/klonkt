@@ -14,11 +14,11 @@
 import express from 'express';
 import db from '../config/database.js';
 import { renderPage } from '../middleware/render.js';
-import { requireGod } from '../middleware/auth.js';
+import { requireSiteManager } from '../middleware/auth.js';
 
 const router = express.Router();
 
-router.get('/', requireGod, (req, res) => {
+router.get('/', requireSiteManager, (req, res) => {
   const site = res.locals.site;
   if (!site) return res.status(404).send('No site');
 
@@ -60,21 +60,22 @@ router.get('/', requireGod, (req, res) => {
 function setStatus(req, res, status) {
   const site = res.locals.site;
   if (!site) return res.status(404).send('No site');
+  const base = res.locals.siteUrlBase || ''; // /user/<slug> in hub-artiestcontext, anders ''
 
   const row = db.prepare(`
     SELECT c.id FROM comments c JOIN posts p ON p.id = c.post_id
     WHERE c.id = ? AND p.site_id = ?
   `).get(req.params.id, site.id);
 
-  if (!row) return res.redirect('/admin/comments?error=Not+found');
+  if (!row) return res.redirect(base + '/admin/comments?error=Not+found');
 
   db.prepare(
     'UPDATE comments SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
   ).run(status, req.params.id);
-  res.redirect('/admin/comments?success=' + encodeURIComponent('Comment ' + status));
+  res.redirect(base + '/admin/comments?success=' + encodeURIComponent('Comment ' + status));
 }
 
-router.post('/:id/approve', requireGod, (req, res) => setStatus(req, res, 'approved'));
-router.post('/:id/reject',  requireGod, (req, res) => setStatus(req, res, 'rejected'));
+router.post('/:id/approve', requireSiteManager, (req, res) => setStatus(req, res, 'approved'));
+router.post('/:id/reject',  requireSiteManager, (req, res) => setStatus(req, res, 'rejected'));
 
 export default router;
