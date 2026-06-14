@@ -238,12 +238,13 @@ if (typeof post !== 'undefined' && post && post.slug) {
 
 <body class="<%= bodyClass || 'on-home' %> has-bottom-tab" data-feed-view="<%= _e(safeSite.feed_view_default || 'timeline') %>" data-grid-cols="3">
 
-<%# Hub-overview is een standalone landing: geen masthead/profile-header/
-    view-switcher — die horen bij een PrutFolio (en verschijnen dus op /user/-
-    pagina's). De landing begint meteen met de hero. %>
-<% var isHubLanding = (typeof bodyClass === 'string' && bodyClass.indexOf('on-hub') >= 0); %>
+<%# Geen shell-chrome (masthead/profile-header/view-switcher/bottom-tab) op:
+    - de hub-overview (on-hub): standalone landing, begint met de hero;
+    - auth-pagina's (on-auth): focus-schermen voor in-/uitloggen.
+    Die chrome hoort bij een PrutFolio en verschijnt dus op /user/-pagina's. %>
+<% var bareChrome = (typeof bodyClass === 'string' && (bodyClass.indexOf('on-hub') >= 0 || bodyClass.indexOf('on-auth') >= 0)); %>
 
-<% if (!isHubLanding) { %>
+<% if (!bareChrome) { %>
   <%- include('partials/topnav') %>
   <%- include('partials/profile-header') %>
 <% } %>
@@ -252,7 +253,7 @@ if (typeof post !== 'undefined' && post && post.slug) {
     (home, archive, tag, type, user) it toggles the visual layout;
     on non-feed pages (post, account, search, auth) it navigates to /
     in the chosen view. Click logic is in shell.ejs at the bottom. %>
-<% if (!isAdminPage && !isHubLanding) { %>
+<% if (!isAdminPage && !bareChrome) { %>
   <%- include('partials/view-switcher') %>
 <% } %>
 
@@ -267,8 +268,8 @@ if (typeof post !== 'undefined' && post && post.slug) {
 
 <%- include('partials/footer') %>
 
-<!-- Mobile bottom-tab navigation (auto-hidden ≥768px) — niet op de hub-landing -->
-<% if (!isHubLanding) { %>
+<!-- Mobile bottom-tab navigation (auto-hidden ≥768px) — niet op landing/auth -->
+<% if (!bareChrome) { %>
 <%- include('partials/bottom-tab') %>
 <% } %>
 

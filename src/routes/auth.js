@@ -42,7 +42,7 @@ router.get('/login', (req, res) => {
   if (isSetupMode()) return res.redirect('/auth/register' + (next ? '?next=' + encodeURIComponent(next) : ''));
   renderPage(req, res, 'pages/auth-login', {
     pageTitle: 'Inloggen',
-    bodyClass: 'on-special',
+    bodyClass: 'on-special on-auth',
     error: null,
     success: req.query.success || null,
     username: '',
