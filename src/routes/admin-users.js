@@ -28,7 +28,7 @@ function godCount() {
 // ==================== LIST ====================
 router.get('/', requireGod, (req, res) => {
   const users = db.prepare(`
-    SELECT u.id, u.username, u.email, u.role, u.created_at, u.avatar_url,
+    SELECT u.id, u.username, u.email, u.role, u.created_at, u.avatar_url, u.readonly,
            (SELECT COUNT(*) FROM posts p WHERE p.author_id = u.id) AS post_count,
            (SELECT COUNT(*) FROM sites s  WHERE s.owner_id  = u.id) AS site_count
     FROM users u
@@ -68,6 +68,20 @@ router.post('/:id/role', requireGod, (req, res) => {
   db.prepare('UPDATE users SET role = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
     .run(newRole, userId);
   res.redirect('/admin/users?success=' + encodeURIComponent('Role updated'));
+});
+
+// ==================== READ-ONLY (kijk-account) ====================
+router.post('/:id/readonly', requireGod, (req, res) => {
+  const target = db.prepare('SELECT id FROM users WHERE id = ?').get(req.params.id);
+  if (!target) return res.redirect('/admin/users?error=User+not+found');
+  // Niet op jezelf — voorkomt dat een god zichzelf alleen-lezen maakt en vastloopt.
+  if (target.id === req.session.user.id) {
+    return res.redirect('/admin/users?error=' + encodeURIComponent('Kan jezelf niet op alleen-lezen zetten'));
+  }
+  const ro = req.body.readonly === '1' ? 1 : 0;
+  db.prepare('UPDATE users SET readonly = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+    .run(ro, req.params.id);
+  res.redirect('/admin/users?success=' + encodeURIComponent(ro ? 'Kijk-modus aan' : 'Kijk-modus uit'));
 });
 
 // ==================== DELETE ====================

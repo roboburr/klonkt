@@ -65,6 +65,14 @@
               </label>
             </form>
 
+            <form method="post" action="/admin/users/<%= u.id %>/readonly" class="ax-role-form">
+              <label class="ax-role ax-ro" title="Alleen-lezen: kan alles bekijken, niets wijzigen">
+                <span>Kijk-modus</span>
+                <input type="checkbox" name="readonly" value="1" <%= u.readonly ? 'checked' : '' %>
+                       onchange="this.form.submit()" <% if (u.id === user.id) { %>disabled<% } %>>
+              </label>
+            </form>
+
             <% if (u.id !== user.id && (u.post_count + u.site_count === 0)) { %>
               <form method="post" action="/admin/users/<%= u.id %>/delete" class="ax-delete-form"
                     onsubmit="return confirm('Verwijder gebruiker <%= u.username %>?')">
@@ -221,6 +229,9 @@
   background-position: right 0.5rem center;
 }
 .ax-role select:disabled { cursor: not-allowed; opacity: 0.5; }
+.ax-ro { align-items: center; }
+.ax-ro input { width: 18px; height: 18px; cursor: pointer; margin-top: 0.15rem; accent-color: var(--accent); }
+.ax-ro input:disabled { cursor: not-allowed; opacity: 0.5; }
 .ax-delete-form { margin: 0; }
 .ax-icon-btn {
   display: inline-flex; align-items: center; justify-content: center;
