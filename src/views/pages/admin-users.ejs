@@ -78,6 +78,9 @@
                     onsubmit="return confirm('Verwijder gebruiker <%= u.username %>?')">
                 <button type="submit" class="ax-icon-btn ax-icon-btn-danger" aria-label="Verwijderen" title="Verwijderen">🗑</button>
               </form>
+            <% } else { %>
+              <%# Lege plek zodat de kolommen (rol/kijk-modus) op elke rij uitlijnen. %>
+              <span class="ax-icon-btn-spacer" aria-hidden="true"></span>
             <% } %>
           </div>
 
@@ -243,6 +246,7 @@
 }
 .ax-icon-btn:hover { border-color: var(--accent); }
 .ax-icon-btn-danger:hover { color: #dc2626; border-color: #dc2626; }
+.ax-icon-btn-spacer { display: inline-block; width: 40px; height: 40px; flex-shrink: 0; }
 
 /* ─── Mobile: stack everything vertically ─────────────────────── */
 @media (max-width: 720px) {
