@@ -167,7 +167,7 @@ if (typeof post !== 'undefined' && post && post.slug) {
 <!-- Audio player styles: loaded on every page so the mini-player works
      anywhere (admin previews, post embeds, etc). The player itself is
      a singleton — see the script tag near </body>. -->
-<link rel="stylesheet" href="/assets/css/audio.css">
+<link rel="stylesheet" href="/assets/css/audio.css?v=2">
 
 <%- include('partials/shared-styles') %>
 
@@ -308,7 +308,7 @@ if (typeof post !== 'undefined' && post && post.slug) {
 
      ?v=N — cache-buster: bump bij elke audio-player.js wijziging zodat
      Cloudflare (max-age=1y) niet de oude versie blijft serveren. -->
-<script src="/assets/js/audio-player.js?v=9"></script>
+<script src="/assets/js/audio-player.js?v=10"></script>
 <% if (site && site.enable_audio_player && audioTracks && audioTracks.length > 0) { %>
   <script>window.PCMS_SITE_TRACKS = <%- JSON.stringify(audioTracks) %>;</script>
 <% } %>

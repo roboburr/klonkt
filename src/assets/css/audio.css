@@ -148,6 +148,12 @@
 .audio-player-expand-trigger:hover {
   background: color-mix(in srgb, var(--ink, #000) 6%, transparent);
 }
+/* DESKTOP (≥1200px): geen full player — de expand-trigger opent niets (JS),
+   dus 'm niet als klikbaar laten ogen. */
+@media (min-width: 1200px) {
+  .audio-player-expand-trigger { cursor: default; }
+  .audio-player-expand-trigger:hover { background: none; }
+}
 
 .audio-player-cover {
   width: 48px; height: 48px;
@@ -349,8 +355,8 @@ body.has-audio-player main {
 .audio-sheet-panel::-webkit-scrollbar { display: none; }
 body.audio-sheet-locked { overflow: hidden; }
 
-/* MOBILE (<720px): full-width sheet, slide up from bottom */
-@media (max-width: 719.98px) {
+/* TELEFOON (<768px): full-width sheet, slide up from bottom */
+@media (max-width: 767.98px) {
   .audio-sheet-panel {
     /* Real full-screen, edge-to-edge, no rounded corners or shadow */
     inset: 0;
@@ -370,23 +376,38 @@ body.audio-sheet-locked { overflow: hidden; }
   }
 }
 
-/* DESKTOP (≥720px): 480px wide, horizontally centered (v9 design intent).
-   We MUST set width here because v9's style.css sets width:480px and
-   we don't want left/right:0 stretching to override it.
-   The -50% horizontal centering is preserved during drag by composing
-   --pcms-drag-y into the existing translate(-50%, ...) transform. */
-@media (min-width: 720px) {
+/* TABLET / AUTO (768–1199px): grote, landscape, knop-vriendelijke full-player
+   voor tablets + een tablet-in-de-auto. Bewust full-screen + grote touch-targets.
+   Desktop (≥1200px) opent de full player NIET (afgehandeld in audio-player.js),
+   dus daar is geen sheet-styling nodig. */
+@media (min-width: 768px) and (max-width: 1199.98px) {
   .audio-sheet-panel {
-    left: 50%;
-    right: auto;
-    width: 480px;
-    transform: translate(-50%, 100%);
-    border-top-left-radius: 20px;
-    border-top-right-radius: 20px;
+    inset: 0; left: 0; right: 0; width: auto;
+    max-height: none;
+    border-radius: 0;
+    box-shadow: none;
+    transform: translateY(100%);
+    padding: clamp(2rem, 5vh, 4rem) clamp(2rem, 6vw, 5rem);
+    gap: clamp(1.25rem, 3vh, 2.5rem);
+    justify-content: center;
+    align-items: center;
   }
-  .audio-sheet.is-open .audio-sheet-panel {
-    transform: translate(-50%, var(--pcms-drag-y, 0px));
-  }
+  .audio-sheet.is-open .audio-sheet-panel { transform: translateY(var(--pcms-drag-y, 0px)); }
+
+  .audio-sheet-drag-zone { align-items: center; width: 100%; margin: 0; padding: 0; }
+  .audio-sheet-cover { width: min(48vh, 460px); max-width: none; border-radius: 20px; }
+  .audio-sheet-cover svg { width: 26%; height: 26%; }
+  .audio-sheet-info { width: 100%; max-width: 660px; }
+  .audio-sheet-title  { font-size: clamp(2rem, 4vw, 3rem); }
+  .audio-sheet-artist { font-size: clamp(1.1rem, 2vw, 1.5rem); margin-top: .5rem; }
+  .audio-sheet-album  { font-size: 1rem; margin-top: .25rem; }
+  .audio-sheet-progress { width: 100%; max-width: 660px; gap: 1.25rem; }
+  .audio-sheet-progress .audio-time { font-size: 1.05rem; min-width: 3.2em; }
+  .audio-sheet-controls { gap: clamp(1.5rem, 5vw, 3.5rem); }
+  .audio-sheet-btn { width: 76px; height: 76px; }
+  .audio-sheet-btn svg { width: 34px; height: 34px; }
+  .audio-sheet-play { width: 108px; height: 108px; }
+  .audio-sheet-play svg { width: 46px; height: 46px; }
 }
 
 .audio-sheet-panel.is-dragging {

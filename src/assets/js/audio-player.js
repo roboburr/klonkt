@@ -326,9 +326,17 @@
   // breakpoint where .audio-sheet slides up full-width from the bottom
   // (@media max-width:719.98px). On wider/desktop widths the sheet is a centered
   // panel, so we do NOT auto-open it there.
-  function isMobileView() {
-    return window.matchMedia('(max-width: 719.98px)').matches;
+  // Drie weergaves (Robin 2026-06-15): telefoon (<768) = fullscreen sheet;
+  // tablet/auto (768–1199) = grote landscape full-player (tablet + tablet-in-de-
+  // auto); desktop (≥1200) = alleen mini-speler, GEEN full player. matchMedia
+  // zodat dit exact de CSS-breekpunten volgt.
+  function playerTier() {
+    if (window.matchMedia('(min-width: 1200px)').matches) return 'desktop';
+    if (window.matchMedia('(min-width: 768px)').matches) return 'tablet';
+    return 'phone';
   }
+  function hasFullPlayer() { return playerTier() !== 'desktop'; }
+  function isMobileView() { return playerTier() === 'phone'; }
 
   function setQueue(tracks, startIdx, opts) {
     queue = Array.isArray(tracks) ? tracks.slice() : [];
@@ -340,7 +348,7 @@
     // Alleen hier (setQueue = een verse, door-de-gebruiker-gestarte queue) —
     // niet bij next/prev of de site-pre-seed — zodat een sheet die de gebruiker
     // bewust sloot niet vanzelf terugkomt.
-    if (isMobileView()) openSheet();
+    if (hasFullPlayer()) openSheet();
   }
 
   function play() {
@@ -501,13 +509,13 @@
   let sheetHistoryPushed = false;
 
   function openSheet() {
+    if (!hasFullPlayer()) return; // desktop (≥1200): geen full player, alleen mini-speler
     if (sheet.classList.contains('is-open')) return;
     sheet.classList.add('is-open');
     sheet.setAttribute('aria-hidden', 'false');
     document.body.classList.add('audio-sheet-locked');
-    if (isMobileView()) {
-      try { history.pushState({ pcmsSheet: true }, ''); sheetHistoryPushed = true; } catch (e) {}
-    }
+    // Telefoon + tablet: history-entry zodat de terug-knop eerst de sheet sluit.
+    try { history.pushState({ pcmsSheet: true }, ''); sheetHistoryPushed = true; } catch (e) {}
   }
   function closeSheet(fromPopstate) {
     if (!sheet.classList.contains('is-open')) return;
@@ -531,6 +539,11 @@
   sheetBackdrop.addEventListener('click', () => closeSheet());
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && sheet.classList.contains('is-open')) closeSheet();
+  });
+  // Naar desktop-breedte (≥1200) gesleept terwijl de full player open is? Sluiten —
+  // op desktop bestaat de full player niet.
+  window.addEventListener('resize', () => {
+    if (!hasFullPlayer() && sheet.classList.contains('is-open')) closeSheet();
   });
 
   // Drag-down-to-close on touch devices.
