@@ -6,14 +6,16 @@ const _tileHue = ((post.id || post.slug || '0').charCodeAt(0) * 7) % 360;
 const _isPinned = !!post.pinned;
 const _hasCover = !!post.cover_image_url;
 const _typeLabel = (post.type && post.type !== 'post') ? post.type : '';
+const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '';
+const _href = _base + '/' + post.slug;
 %>
 <a class="grid-tile<%= _hasCover ? '' : ' grid-tile-gradient' %><%= _isPinned ? ' is-pinned' : '' %>"
-   href="/<%= post.slug %>"
+   href="<%= _href %>"
    <% if (_hasCover) { %>style="background-image: url('<%= post.cover_image_url %>'); --tile-hue: <%= _tileHue %>;"<% } else { %>style="--tile-hue: <%= _tileHue %>;"<% } %>
-   hx-get="/<%= post.slug %>?partial=1"
+   hx-get="<%= _href %>?partial=1"
    hx-target="#pcms-main"
    hx-swap="innerHTML"
-   hx-push-url="/<%= post.slug %>"
+   hx-push-url="<%= _href %>"
    hx-indicator="#pcms-loading">
 
   <% if (_typeLabel) { %>

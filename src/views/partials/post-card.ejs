@@ -10,7 +10,8 @@
 //   v9 pattern — 120px square cover left, content right.
 //   Hover state on cover. Tap-target stays large.
 
-const _href      = '/' + post.slug;
+const _base      = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '';
+const _href      = _base + '/' + post.slug;
 const _hasCover  = !!post.cover_image_url;
 const _typeLabel = (post.type && post.type !== 'overig' && post.type !== 'post') ? post.type : '';
 const _isPinned  = !!post.pinned;
@@ -75,9 +76,9 @@ if (post.tags) {
     <% if (_tags.length) { %>
       <div class="post-list-tags">
         <% _tags.forEach(function(t) { %>
-          <a href="/tag/<%= encodeURIComponent(t) %>" class="tag-chip"
-             hx-get="/tag/<%= encodeURIComponent(t) %>?partial=1" hx-target="#pcms-main"
-             hx-swap="innerHTML" hx-push-url="/tag/<%= encodeURIComponent(t) %>"
+          <a href="<%= _base %>/tag/<%= encodeURIComponent(t) %>" class="tag-chip"
+             hx-get="<%= _base %>/tag/<%= encodeURIComponent(t) %>?partial=1" hx-target="#pcms-main"
+             hx-swap="innerHTML" hx-push-url="<%= _base %>/tag/<%= encodeURIComponent(t) %>"
              hx-indicator="#pcms-loading">#<%= t %></a>
         <% }); %>
       </div>
