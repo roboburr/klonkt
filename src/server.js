@@ -117,14 +117,8 @@ app.use(sessionMiddleware);
 app.use('/assets', express.static(path.join(__dirname, 'assets'), { maxAge: isDev ? 0 : '1y' }));
 app.use('/media', express.static(process.env.MEDIA_PATH || './storage/media'));
 
-// P64 — TWA / digital-asset-links: must be served at /.well-known/assetlinks.json
-// at the site root with Content-Type: application/json. Without this Android
-// shows the URL bar inside the installed PrutFolio app.
-app.get('/.well-known/assetlinks.json', (req, res) => {
-  res.type('application/json').sendFile(
-    path.join(__dirname, 'assets', '.well-known', 'assetlinks.json')
-  );
-});
+// (Verwijderd) TWA / digital-asset-links — alleen nodig voor de APK/TWA-variant.
+// Klonkt is PWA-only; geen assetlinks.json meer.
 
 initializeDatabase();
 

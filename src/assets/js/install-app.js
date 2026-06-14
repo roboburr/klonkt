@@ -6,12 +6,12 @@
  *    (display-mode: standalone) or iOS web-app.
  *  - On click, opens a modal with platform-specific instructions:
  *      iOS     → "Voeg toe aan beginscherm" via Safari share sheet
- *      Android → choice between PWA install (1-tap if available) and APK download
+ *      Android → PWA install (1-tap if available, else Chrome ⋮-menu instructions)
  *      Desktop → instructions for Chrome/Edge install icon, or native prompt if available
  *  - Listens for `beforeinstallprompt` (Android Chrome / desktop Chromium) and
  *    deferreds it so the modal's "Install as PWA" button can fire it.
  *
- * Markup contract: <button data-pcms-install-app data-apk-url="/path/to.apk">
+ * Markup contract: <button data-pcms-install-app>
  *
  * CSS: .install-app-btn / .install-modal* / .install-choice* — defined in
  * style.css (carried over from v9 import).
@@ -29,7 +29,6 @@
   const ua        = navigator.userAgent;
   const isIOS     = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
   const isAndroid = /Android/.test(ua);
-  const apkUrl    = btn.dataset.apkUrl || '';
 
   // Capture Chrome/Edge native install prompt so we can fire it from our modal.
   let deferredPrompt = null;
@@ -99,73 +98,16 @@
       ? `<button type="button" class="install-choice-cta" data-install-pwa>📱 Installeer als PWA (1 tik)</button>`
       : `<p class="install-choice-note">Open deze site in <strong>Chrome</strong> en kies in het <strong>⋮-menu → "App installeren"</strong> (of "Aan beginscherm toevoegen").</p>`;
 
-    const apkBlock = apkUrl ? `
-      <div class="install-choice install-choice-apk">
-        <h4>🤖 Optie B — APK (native Android-app)</h4>
-        <div class="install-pros-cons">
-          <div class="install-pros">
-            <strong>Voordelen</strong>
-            <ul>
-              <li>Echte app in app-lade, naast WhatsApp/Gmail</li>
-              <li>Beste achtergrond-audio ondersteuning</li>
-              <li>Lock-screen controls werken optimaal</li>
-              <li>Blijft geïnstalleerd ongeacht browser-cache</li>
-            </ul>
-          </div>
-          <div class="install-cons">
-            <strong>Nadelen</strong>
-            <ul>
-              <li>Moet eenmalig "onbekende bronnen" toestaan</li>
-              <li>Geen auto-updates — nieuwe versie = APK opnieuw downloaden</li>
-              <li>Browser toont beveiligings-waarschuwing bij install</li>
-              <li>Alleen Android (Android 5+ / API 21+)</li>
-            </ul>
-          </div>
-        </div>
-        <a href="${apkUrl}" class="install-choice-cta" download>
-          <svg width="18" height="18" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:.35rem"><path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z" fill="currentColor"/></svg>
-          Download APK
-        </a>
-        <ol class="install-steps" style="margin-top:.75rem">
-          <li>Tik op de gedownloade APK</li>
-          <li>Sta eenmalig <strong>"installeren van onbekende bronnen"</strong> toe voor je browser</li>
-          <li>Tik <strong>Installeer</strong> in de popup</li>
-          <li>Open de app vanuit je app-lade</li>
-        </ol>
-      </div>
-    ` : '';
-
     showModal(`
       <h3 id="install-title" style="margin:0 0 .5rem">🤖 Installeer op Android</h3>
-      <p style="margin:0 0 1.25rem;opacity:.8">Twee manieren. Kies wat bij je past:</p>
-
-      <div class="install-choice install-choice-pwa">
-        <h4>📱 Optie A — Home-screen shortcut (PWA)</h4>
-        <div class="install-pros-cons">
-          <div class="install-pros">
-            <strong>Voordelen</strong>
-            <ul>
-              <li>Instant — geen download of toestemmingen</li>
-              <li>Updates automatisch bij elke site-wijziging</li>
-              <li>Geen beveiligings-waarschuwing</li>
-              <li>Minder opslagruimte op je telefoon</li>
-            </ul>
-          </div>
-          <div class="install-cons">
-            <strong>Nadelen</strong>
-            <ul>
-              <li>Vereist Chrome als browser</li>
-              <li>Audio-in-achtergrond iets minder robuust dan native</li>
-              <li>Kan verdwijnen als je browser-data wist</li>
-            </ul>
-          </div>
-        </div>
-        ${nativeLine}
-      </div>
-
-      ${apkBlock}
-
-      <p style="margin:1rem 0 0;opacity:.65;font-size:.82rem">💡 Weet je niet wat te kiezen? Begin met <strong>Optie A (shortcut)</strong>. Te beperkt? Ga dan voor de APK.</p>
+      <p style="margin:0 0 1rem;opacity:.8">Voeg deze site als app toe aan je beginscherm:</p>
+      <ul class="install-steps" style="opacity:.85">
+        <li>Instant — geen download of toestemmingen</li>
+        <li>Updatet automatisch bij elke wijziging</li>
+        <li>Minder opslag dan een losse app</li>
+      </ul>
+      ${nativeLine}
+      <p style="margin:1rem 0 0;opacity:.7;font-size:.85rem">⚠️ Werkt het best in Chrome.</p>
     `);
   }
 

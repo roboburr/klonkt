@@ -19,11 +19,10 @@
     </div>
   </div>
 
-  <%# P64 — Install-app button. JS detects platform & opens modal with steps.
-      data-apk-url is the direct download for Android users who want the
-      native APK route instead of the PWA. %>
+  <%# Install-app button. JS detects platform & opens a modal with PWA-install
+      steps (iOS share-sheet / Android Chrome / desktop). PWA only — geen APK. %>
   <div class="site-footer-install container">
-    <button type="button" class="install-app-btn" data-pcms-install-app data-apk-url="/assets/apk/soundfabrics.apk">
+    <button type="button" class="install-app-btn" data-pcms-install-app>
       <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 20h14v-2H5v2zm7-18L5.33 9h3.84v6h5.66V9h3.84L12 2z" fill="currentColor"/></svg>
       <span>Installeer app</span>
     </button>
