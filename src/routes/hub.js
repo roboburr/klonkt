@@ -49,7 +49,7 @@ router.get('/', (req, res, next) => {
 
   // Uitgelichte PrutFolio's voor de home-roster: meest-actief eerst (aantal
   // gepubliceerde posts), dan nieuwste. Excl. de hoofdsite. Beperkt tot
-  // HOME_ROSTER_LIMIT zodat de home schaalt — volledige lijst staat op /artiesten.
+  // HOME_ROSTER_LIMIT zodat de home schaalt — volledige lijst staat op /leden.
   const HOME_ROSTER_LIMIT = 24;
   const artists = db.prepare(`
     SELECT s.slug, s.title, s.tagline, s.profile_photo, s.accent,

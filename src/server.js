@@ -214,7 +214,8 @@ app.use('/type', typesRoutes);
 app.use('/users', usersRoutes);
 // Feed/sitemap routes are mounted at root because they're at well-known paths
 app.use('/', feedRoutes);
-app.use('/artiesten', artistsRoutes); // doorzoekbare artiesten-directory (alleen hub; solo: next())
+app.use('/leden', artistsRoutes); // doorzoekbare leden-directory (alleen hub; solo: next())
+app.get('/artiesten', (req, res) => res.redirect(301, req.originalUrl.replace(/^\/artiesten/, '/leden'))); // oude URL -> /leden
 app.use('/', hubRoutes); // hub-overview op '/' (solo: next() -> postsRoutes)
 app.use('/', postsRoutes);
 

@@ -1,7 +1,7 @@
 /**
  * Artiesten-directory — alleen in hub-modus.
  *
- * GET /artiesten?q=&page=  -> doorzoekbare, gepagineerde lijst van ALLE
+ * GET /leden?q=&page=  -> doorzoekbare, gepagineerde lijst van ALLE
  * PrutFolio's. De hub-home toont maar een beperkte selectie; deze pagina
  * schaalt naar honderden/duizenden artiesten via zoeken + paginering.
  *
