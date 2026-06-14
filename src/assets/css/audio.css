@@ -376,39 +376,8 @@ body.audio-sheet-locked { overflow: hidden; }
   }
 }
 
-/* TABLET / AUTO (768–1199px): grote, landscape, knop-vriendelijke full-player
-   voor tablets + een tablet-in-de-auto. Bewust full-screen + grote touch-targets.
-   Desktop (≥1200px) opent de full player NIET (afgehandeld in audio-player.js),
-   dus daar is geen sheet-styling nodig. */
-@media (min-width: 768px) and (max-width: 1199.98px) {
-  .audio-sheet-panel {
-    inset: 0; left: 0; right: 0; width: auto;
-    max-height: none;
-    border-radius: 0;
-    box-shadow: none;
-    transform: translateY(100%);
-    padding: clamp(2rem, 5vh, 4rem) clamp(2rem, 6vw, 5rem);
-    gap: clamp(1.25rem, 3vh, 2.5rem);
-    justify-content: center;
-    align-items: center;
-  }
-  .audio-sheet.is-open .audio-sheet-panel { transform: translateY(var(--pcms-drag-y, 0px)); }
-
-  .audio-sheet-drag-zone { align-items: center; width: 100%; margin: 0; padding: 0; }
-  .audio-sheet-cover { width: min(48vh, 460px); max-width: none; border-radius: 20px; }
-  .audio-sheet-cover svg { width: 26%; height: 26%; }
-  .audio-sheet-info { width: 100%; max-width: 660px; }
-  .audio-sheet-title  { font-size: clamp(2rem, 4vw, 3rem); }
-  .audio-sheet-artist { font-size: clamp(1.1rem, 2vw, 1.5rem); margin-top: .5rem; }
-  .audio-sheet-album  { font-size: 1rem; margin-top: .25rem; }
-  .audio-sheet-progress { width: 100%; max-width: 660px; gap: 1.25rem; }
-  .audio-sheet-progress .audio-time { font-size: 1.05rem; min-width: 3.2em; }
-  .audio-sheet-controls { gap: clamp(1.5rem, 5vw, 3.5rem); }
-  .audio-sheet-btn { width: 76px; height: 76px; }
-  .audio-sheet-btn svg { width: 34px; height: 34px; }
-  .audio-sheet-play { width: 108px; height: 108px; }
-  .audio-sheet-play svg { width: 46px; height: 46px; }
-}
+/* (De grote tablet/auto-variant staat onderaan deze sectie — NÁ de basis cover/
+   info/controls-regels — anders overschrijft de basis die overrides.) */
 
 .audio-sheet-panel.is-dragging {
   transition: none;
@@ -554,6 +523,41 @@ body.audio-is-playing .audio-sheet-play .icon-pause { display: block; }
   color: var(--ink-muted, rgba(0,0,0,.45));
   font-size: 0.85rem;
   margin-left: auto;
+}
+
+/* TABLET / AUTO (768–1199px): grote, landscape, knop-vriendelijke full-player
+   voor tablets + een tablet-in-de-auto. Bewust full-screen + grote touch-targets.
+   STAAT BEWUST NA de basis-sheet-regels hierboven, anders overschrijft de basis
+   deze overrides (cascade-volgorde). Desktop (≥1200px) opent de full player NIET
+   (afgehandeld in audio-player.js), dus daar is geen sheet-styling nodig. */
+@media (min-width: 768px) and (max-width: 1199.98px) {
+  .audio-sheet-panel {
+    inset: 0; left: 0; right: 0; width: auto;
+    max-height: none;
+    border-radius: 0;
+    box-shadow: none;
+    transform: translateY(100%);
+    padding: clamp(2rem, 5vh, 4rem) clamp(2rem, 6vw, 5rem);
+    gap: clamp(1.25rem, 3vh, 2.5rem);
+    justify-content: center;
+    align-items: center;
+  }
+  .audio-sheet.is-open .audio-sheet-panel { transform: translateY(var(--pcms-drag-y, 0px)); }
+
+  .audio-sheet-drag-zone { align-items: center; width: 100%; margin: 0; padding: 0; }
+  .audio-sheet-cover { width: min(48vh, 460px); max-width: none; border-radius: 20px; }
+  .audio-sheet-cover svg { width: 26%; height: 26%; }
+  .audio-sheet-info { width: 100%; max-width: 660px; }
+  .audio-sheet-title  { font-size: clamp(2rem, 4vw, 3rem); }
+  .audio-sheet-artist { font-size: clamp(1.1rem, 2vw, 1.5rem); margin-top: .5rem; }
+  .audio-sheet-album  { font-size: 1rem; margin-top: .25rem; }
+  .audio-sheet-progress { width: 100%; max-width: 660px; gap: 1.25rem; }
+  .audio-sheet-progress .audio-time { font-size: 1.05rem; min-width: 3.2em; }
+  .audio-sheet-controls { gap: clamp(1.5rem, 5vw, 3.5rem); }
+  .audio-sheet-btn { width: 76px; height: 76px; }
+  .audio-sheet-btn svg { width: 34px; height: 34px; }
+  .audio-sheet-play { width: 108px; height: 108px; }
+  .audio-sheet-play svg { width: 46px; height: 46px; }
 }
 
 /* ============================================================
