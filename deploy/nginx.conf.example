@@ -1,0 +1,126 @@
+# ──────────────────────────────────────────────────────────────────
+# PrutCMS v10 — nginx reverse proxy
+#
+# Place this in /etc/nginx/sites-available/prutcms and symlink to
+# /etc/nginx/sites-enabled/. Replace <YOUR-DOMAIN> with the real host.
+#
+# Key points:
+#   • SSL termination here; Node listens on 127.0.0.1:3000 only.
+#   • WebSocket upgrade headers wired through (Prutter live messaging).
+#   • Static assets cached aggressively (Node gives them 1y maxAge anyway).
+#   • Audio streaming endpoint /audio/stream/* must NOT be cached by nginx —
+#     each request carries a different signed token and is byte-range based.
+#   • HSTS + security headers added at the proxy.
+#
+# After installing:
+#   sudo ln -s /etc/nginx/sites-available/prutcms /etc/nginx/sites-enabled/
+#   sudo nginx -t
+#   sudo systemctl reload nginx
+#
+# Then provision SSL:
+#   sudo certbot --nginx -d <YOUR-DOMAIN> -d www.<YOUR-DOMAIN>
+# certbot will edit this file in place to insert the cert paths.
+# ──────────────────────────────────────────────────────────────────
+
+# WebSocket connection upgrade map (let nginx set it once globally)
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+# Redirect HTTP → HTTPS
+server {
+    listen 80;
+    listen [::]:80;
+    server_name <YOUR-DOMAIN> www.<YOUR-DOMAIN>;
+
+    # Let's Encrypt http-01 challenge path
+    location /.well-known/acme-challenge/ {
+        root /var/www/letsencrypt;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name <YOUR-DOMAIN> www.<YOUR-DOMAIN>;
+
+    # certbot will fill these in:
+    # ssl_certificate     /etc/letsencrypt/live/<YOUR-DOMAIN>/fullchain.pem;
+    # ssl_certificate_key /etc/letsencrypt/live/<YOUR-DOMAIN>/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache   shared:SSL:10m;
+    ssl_session_timeout 1d;
+    ssl_stapling on;
+    ssl_stapling_verify on;
+
+    # Security headers (Helmet adds them at the app too — these are belt+braces)
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    add_header X-Frame-Options          "SAMEORIGIN" always;
+    add_header X-Content-Type-Options   "nosniff" always;
+    add_header Referrer-Policy          "no-referrer-when-downgrade" always;
+
+    # Reasonable body size — accommodates 50 MB MP3 uploads with headroom
+    client_max_body_size 60M;
+
+    # Compression
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript application/xml application/atom+xml application/rss+xml image/svg+xml;
+    gzip_min_length 256;
+
+    # ── Static assets: serve via Node, but tell upstream they're long-cached.
+    location /assets/ {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_cache_valid 200 1y;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+    }
+
+    # ── Audio streaming: pass through, no caching, no buffering (HTML5 <audio>
+    #    needs to seek using byte-range; nginx must not slurp the whole file).
+    location /audio/stream/ {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_read_timeout 600s;
+        add_header Cache-Control "private, no-store" always;
+    }
+
+    # ── WebSocket: Prutter live chat. Long-lived connection.
+    location /ws/ {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 3600s;     # let pings keep it alive an hour
+        proxy_send_timeout 3600s;
+    }
+
+    # ── Everything else: standard reverse proxy
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Real-IP $remote_addr;
+
+        # Upgrade headers in case any other route ever uses WS
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+
+        proxy_read_timeout 90s;
+    }
+}

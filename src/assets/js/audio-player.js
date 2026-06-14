@@ -164,6 +164,12 @@
   // Monotonic load token: a fast prev/next can fire several loads before an
   // earlier fetch resolves. Only the latest load may set audio.src.
   let loadSeq = 0;
+  // Next-track prefetch. While the current track plays we download the *next*
+  // track's bytes into a held blob, so `ended` → next() can swap src instantly
+  // (no silent gap, and no long async window where the browser's autoplay
+  // activation can lapse and reject play()). At most one track ahead is held.
+  // Shape: { url, objUrl }  — objUrl is null while the fetch is still in flight.
+  let preload = null;
 
   // Hide initially
   root.classList.add('audio-player-hidden');
@@ -185,14 +191,85 @@
 
   // Fetch the track bytes and hand back a blob: object URL. The X-Audio-Player
   // header + same-origin credentials get us past the stream route's access gate.
-  async function fetchAsObjectUrl(url) {
-    const r = await fetch(url, {
-      credentials: 'same-origin',
-      headers: { 'X-Audio-Player': '1' },
-    });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const blob = await r.blob();
-    return URL.createObjectURL(blob);
+  // Retries a few times with backoff: a single transient network blip used to
+  // bump the error counter and SKIP the song (auto-advance past it). Now one
+  // hiccup just costs a retry, and we only give up after genuinely failing.
+  async function fetchAsObjectUrl(url, attempts) {
+    attempts = attempts || 1;
+    let lastErr;
+    for (let i = 0; i < attempts; i++) {
+      try {
+        const r = await fetch(url, {
+          credentials: 'same-origin',
+          headers: { 'X-Audio-Player': '1' },
+        });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const blob = await r.blob();
+        return URL.createObjectURL(blob);
+      } catch (e) {
+        lastErr = e;
+        if (i < attempts - 1) {
+          await new Promise((res) => setTimeout(res, 350 * (i + 1)));
+        }
+      }
+    }
+    throw lastErr;
+  }
+
+  // Apply a ready blob URL to the <audio> element. Single source of truth for
+  // "swap the playing source": used by both the cached-preload path and the
+  // fresh-fetch path so there's one place that touches audio.src.
+  function applyBlob(objUrl, autoplay, mySeq) {
+    if (mySeq !== loadSeq) { try { URL.revokeObjectURL(objUrl); } catch (e) {} return; }  // superseded
+    root.classList.remove('audio-loading');
+    // Free the previously-playing track's blob — otherwise each track leaks a
+    // copy. Never the same handle as objUrl (createObjectURL is unique), so this
+    // can't revoke the source we're about to play.
+    if (currentObjectUrl && currentObjectUrl !== objUrl) {
+      try { URL.revokeObjectURL(currentObjectUrl); } catch (e) {}
+    }
+    currentObjectUrl = objUrl;
+    // Schone overgang: pause + load forceert reset van internal state na
+    // meerdere src-changes (voorkomt state-corruption van het audio-element).
+    try { audio.pause(); } catch (e) {}
+    audio.src = objUrl;
+    try { audio.load(); } catch (e) {}
+    if (autoplay) play();
+  }
+
+  function onLoadError(err, mySeq) {
+    if (mySeq !== loadSeq) return;  // superseded — ignore stale failure
+    root.classList.remove('audio-loading');
+    console.error('[pcms-audio] track load failed after retries', err);
+    // Genuine failure (after retries): bump the counter and auto-skip, but stop
+    // after 3 in a row so a fully-broken queue can't loop "next" forever.
+    consecutiveErrors++;
+    if (consecutiveErrors < 3 && queue.length > 1) setTimeout(next, 400);
+  }
+
+  // Discard any held/in-flight preload and free its blob if resolved.
+  function dropPreload() {
+    if (preload && preload.objUrl) { try { URL.revokeObjectURL(preload.objUrl); } catch (e) {} }
+    preload = null;
+  }
+
+  // Prefetch the *next* track's bytes in the background. Idempotent: re-calling
+  // while the same track is already cached / in flight is a no-op. Called from
+  // the `playing` event so the network is otherwise idle.
+  function preloadNext() {
+    if (queue.length < 2) return;
+    const ni = (currentIndex + 1) % queue.length;
+    const t = queue[ni];
+    if (!t || !t.url) return;
+    if (preload && preload.url === t.url) return;  // already held or in flight
+    dropPreload();                                  // different track queued before → free it
+    const marker = { url: t.url, objUrl: null };
+    preload = marker;
+    fetchAsObjectUrl(t.url, 2).then((obj) => {
+      // Only keep it if this is still the track we want next; otherwise free it.
+      if (preload === marker) { marker.objUrl = obj; }
+      else { try { URL.revokeObjectURL(obj); } catch (e) {} }
+    }).catch(() => { if (preload === marker) preload = null; });
   }
 
   // metaOnly: show the track in the UI but DON'T download its bytes yet.
@@ -226,28 +303,23 @@
     if (metaOnly) return;
 
     const mySeq = ++loadSeq;
+
+    // Fast path: the bytes for this exact track were already prefetched while
+    // the previous track played → swap in instantly, no gap, no fetch window.
+    if (preload && preload.url === t.url && preload.objUrl) {
+      const obj = preload.objUrl;
+      preload = null;  // ownership moves to applyBlob (becomes currentObjectUrl)
+      applyBlob(obj, autoplay, mySeq);
+      return;
+    }
+
+    // Not preloaded (or preload still in flight) → drop any stale preload and
+    // fetch fresh, retrying transient failures before giving up.
+    dropPreload();
     root.classList.add('audio-loading');
-    fetchAsObjectUrl(t.url).then((objUrl) => {
-      if (mySeq !== loadSeq) { URL.revokeObjectURL(objUrl); return; }  // superseded
-      root.classList.remove('audio-loading');
-      // Free the previous track's blob — otherwise every track leaks a copy.
-      if (currentObjectUrl) { try { URL.revokeObjectURL(currentObjectUrl); } catch (e) {} }
-      currentObjectUrl = objUrl;
-      // Schone overgang: pause + load forceert reset van internal state na
-      // meerdere src-changes (voorkomt state-corruption van het audio-element).
-      try { audio.pause(); } catch (e) {}
-      audio.src = objUrl;
-      try { audio.load(); } catch (e) {}
-      if (autoplay) play();
-    }).catch((err) => {
-      if (mySeq !== loadSeq) return;  // superseded — ignore stale failure
-      root.classList.remove('audio-loading');
-      console.error('[pcms-audio] track fetch failed', err);
-      // Treat a failed download like a playback error: bump the counter and
-      // auto-skip, but stop after 3 in a row so we never loop forever.
-      consecutiveErrors++;
-      if (consecutiveErrors < 3 && queue.length > 1) setTimeout(next, 400);
-    });
+    fetchAsObjectUrl(t.url, 3)
+      .then((objUrl) => applyBlob(objUrl, autoplay, mySeq))
+      .catch((err) => onLoadError(err, mySeq));
   }
 
   function setQueue(tracks, startIdx, opts) {
@@ -297,6 +369,7 @@
     queue = [];
     albumName = '';
     loadSeq++;  // cancel any in-flight load
+    dropPreload();  // free any prefetched next-track blob
     if (currentObjectUrl) { try { URL.revokeObjectURL(currentObjectUrl); } catch (e) {} }
     currentObjectUrl = null;
     try { audio.removeAttribute('src'); audio.load(); } catch (e) {}
@@ -344,7 +417,7 @@
   // fout, dus resetten daar zou de 3-strikes-stop nooit laten triggeren bij
   // een kapotte track → infinite "next"-loop. `playing` vuurt alleen als er
   // daadwerkelijk audio speelt.
-  audio.addEventListener('playing', () => { consecutiveErrors = 0; });
+  audio.addEventListener('playing', () => { consecutiveErrors = 0; preloadNext(); });
   audio.addEventListener('pause', () => { isPlaying = false; root.classList.remove('is-playing'); });
   audio.addEventListener('ended', next);
   audio.addEventListener('error', (e) => {

@@ -126,8 +126,8 @@ if (typeof post !== 'undefined' && post && post.slug) {
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="<%= _e(_siteTitle.slice(0, 16)) %>">
 <link rel="apple-touch-icon" href="<%= _e(safeSite.profile_photo || '/favicon.ico') %>">
-<link rel="icon" type="image/svg+xml" href="/favicon.svg">
-<link rel="alternate icon" href="/favicon.ico">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=sf">
+<link rel="alternate icon" href="/favicon.ico?v=sf">
 
 <!-- OpenGraph -->
 <meta property="og:type"        content="<%= _ogType %>">
@@ -276,7 +276,7 @@ if (typeof post !== 'undefined' && post && post.slug) {
 
      ?v=N — cache-buster: bump bij elke audio-player.js wijziging zodat
      Cloudflare (max-age=1y) niet de oude versie blijft serveren. -->
-<script src="/assets/js/audio-player.js?v=5"></script>
+<script src="/assets/js/audio-player.js?v=6"></script>
 <% if (site && site.enable_audio_player && audioTracks && audioTracks.length > 0) { %>
   <script>window.PCMS_SITE_TRACKS = <%- JSON.stringify(audioTracks) %>;</script>
 <% } %>
