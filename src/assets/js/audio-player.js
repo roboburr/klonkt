@@ -495,21 +495,40 @@
   // ============================================================
   // 7. Sheet expand/close + drag-down-to-close
   // ============================================================
+  // Back-knop sluit de sheet op mobiel: bij openen pushen we een history-entry,
+  // zodat de telefoon-terugknop (popstate) eerst de sheet sluit i.p.v. de pagina
+  // te verlaten. We balanceren 'm bij een UI-sluiting via history.back().
+  let sheetHistoryPushed = false;
+
   function openSheet() {
+    if (sheet.classList.contains('is-open')) return;
     sheet.classList.add('is-open');
     sheet.setAttribute('aria-hidden', 'false');
     document.body.classList.add('audio-sheet-locked');
+    if (isMobileView()) {
+      try { history.pushState({ pcmsSheet: true }, ''); sheetHistoryPushed = true; } catch (e) {}
+    }
   }
-  function closeSheet() {
+  function closeSheet(fromPopstate) {
+    if (!sheet.classList.contains('is-open')) return;
     sheet.classList.remove('is-open');
     sheet.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('audio-sheet-locked');
     sheetPanel.style.removeProperty('--pcms-drag-y');
     sheetBackdrop.style.removeProperty('--pcms-sheet-progress');
+    // UI-sluiting (X / swipe / backdrop / Esc): pop onze eigen history-entry zodat
+    // de volgende terug-knop weer normaal navigeert. Bij een popstate-sluiting
+    // (de terug-knop zelf) is de entry al gepopt.
+    const wasPushed = sheetHistoryPushed;
+    sheetHistoryPushed = false;
+    if (wasPushed && !fromPopstate) { try { history.back(); } catch (e) {} }
   }
+  window.addEventListener('popstate', () => {
+    if (sheet.classList.contains('is-open')) closeSheet(true);
+  });
   expandTrigger.addEventListener('click', openSheet);
-  sheetClose.addEventListener('click', closeSheet);
-  sheetBackdrop.addEventListener('click', closeSheet);
+  sheetClose.addEventListener('click', () => closeSheet());
+  sheetBackdrop.addEventListener('click', () => closeSheet());
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && sheet.classList.contains('is-open')) closeSheet();
   });
