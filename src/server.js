@@ -327,7 +327,7 @@ server.listen(PORT, () => {
   console.log(`   ✓ Security: Helmet, CSP, secure sessions`);
   console.log(`   ✓ Privacy:  Self-hosted fonts, no third-party requests`);
   console.log(`   ✓ Layout:   v9 editorial feel (top nav, profile header)`);
-  console.log(`   ✓ Auth:     login / register / logout`);
+  console.log(`   ✓ Auth:     Google login / logout`);
   console.log(`   ✓ Posts:    create / edit / view / archive`);
   console.log(`   ✓ Realtime: WebSocket server ready (Prutter)`);
   console.log('');
