@@ -55,10 +55,18 @@ export async function renderPage(req, res, viewName, data = {}) {
   // om schrijf-knoppen (posten, opslaan, verwijderen) te verbergen/uit te zetten.
   const _isViewer = isViewer(_u);
 
+  // Wie ziet de "Beheer"-link? god/admin, een site-eigenaar (artiest-zelfbeheer),
+  // én een kijker (mag het Beheer alleen-lezen inzien). Eén bron van waarheid,
+  // gespiegeld in topnav/hub-nav/profielsheet — anders raakt de link verborgen
+  // voor wie 'm wél mag zien (kijker zag 'm eerst nergens).
+  const _role = _u ? _u.role : null;
+  const canSeeBeheer = !!(_u && (_role === 'god' || _role === 'admin' || _role === 'kijker' || userOwnsSite));
+
   // Common locals
   const locals = {
     user: _u,
     userOwnsSite,
+    canSeeBeheer,
     isViewer: _isViewer,
     canMutate: !_isViewer,
     siteOwnerAvatar,

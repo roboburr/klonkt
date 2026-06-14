@@ -4,7 +4,7 @@
   <nav class="hub-nav">
     <div class="hub-nav-inner container">
       <% if (user) { %>
-        <% if (user.role === 'god' || user.role === 'admin' || (typeof userOwnsSite !== 'undefined' && userOwnsSite)) { %>
+        <% if (typeof canSeeBeheer !== 'undefined' && canSeeBeheer) { %>
           <a class="hub-nav-link" href="/admin">Beheer</a>
         <% } %>
         <a class="hub-nav-link" href="/account"><%= user.username %></a>

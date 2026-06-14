@@ -114,7 +114,7 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
                 <svg class="udi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                 <span>Account</span>
               </a>
-              <% if (user.role === 'god' || user.role === 'admin' || (typeof userOwnsSite !== 'undefined' && userOwnsSite)) { %>
+              <% if (typeof canSeeBeheer !== 'undefined' && canSeeBeheer) { %>
                 <a href="/admin" role="menuitem" class="udi">
                   <svg class="udi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3h7v7H3z"/><path d="M14 3h7v7h-7z"/><path d="M14 14h7v7h-7z"/><path d="M3 14h7v7H3z"/></svg>
                   <span>Beheer</span>
