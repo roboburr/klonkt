@@ -36,10 +36,10 @@ if (site && site.profile_links) {
        hx-target="#pcms-main" hx-swap="innerHTML"
        hx-push-url="<%= (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '' %>/"
        hx-indicator="#pcms-loading" aria-label="Home">
-      <% if (typeof user !== 'undefined' && user && user.avatar_url) { %>
-        <img src="<%= user.avatar_url %>" alt="">
-      <% } else if (site.profile_photo) { %>
+      <% if (site.profile_photo) { %>
         <img src="<%= site.profile_photo %>" alt="">
+      <% } else if (typeof siteOwnerAvatar !== 'undefined' && siteOwnerAvatar) { %>
+        <img src="<%= siteOwnerAvatar %>" alt="">
       <% } else if (site.enable_audio_player) { %>
         <span class="profile-photo-fallback profile-photo-fallback--music" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

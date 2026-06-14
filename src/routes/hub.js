@@ -37,8 +37,10 @@ router.get('/', (req, res, next) => {
   // ALLE PrutFolio's (elke user, incl. de admin z'n eigen site) voor de roster.
   const artists = db.prepare(`
     SELECT s.slug, s.title, s.tagline, s.profile_photo, s.accent,
+           u.avatar_url AS owner_avatar,
            (SELECT COUNT(*) FROM posts WHERE site_id = s.id AND status = 'published') AS post_count
     FROM sites s
+    LEFT JOIN users u ON u.id = s.owner_id
     ORDER BY s.created_at ASC
   `).all();
 

@@ -37,8 +37,9 @@
       <div class="roster">
         <% artists.forEach(function(a){ %>
           <a class="roster-card" href="/user/<%= a.slug %>">
-            <span class="roster-avatar"<% if (a.profile_photo) { %> style="background-image:url('<%= a.profile_photo %>')"<% } else { %> style="background:<%= a.accent || 'var(--accent)' %>;color:#fff"<% } %>>
-              <% if (!a.profile_photo) { %><%= (a.title || a.slug).charAt(0).toUpperCase() %><% } %>
+            <% var _ava = a.profile_photo || a.owner_avatar; %>
+            <span class="roster-avatar"<% if (_ava) { %> style="background-image:url('<%= _ava %>')"<% } else { %> style="background:<%= a.accent || 'var(--accent)' %>;color:#fff"<% } %>>
+              <% if (!_ava) { %><%= (a.title || a.slug).charAt(0).toUpperCase() %><% } %>
             </span>
             <span class="roster-name"><%= a.title %></span>
             <% if (a.tagline) { %><span class="roster-tag"><%= a.tagline %></span><% } %>

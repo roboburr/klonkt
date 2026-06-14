@@ -42,11 +42,19 @@ export async function renderPage(req, res, viewName, data = {}) {
   const userOwnsSite = !!(_u && _u.role !== 'god' &&
     db.prepare('SELECT 1 FROM sites WHERE owner_id = ? LIMIT 1').get(_u.id));
 
+  // De avatar van de SITE-EIGENAAR (niet de kijker!) — voor de PrutFolio-kop,
+  // zodat de artiest z'n eigen account-foto als sitefoto kan gebruiken.
+  const _site = data.site || res.locals.site || null;
+  const siteOwnerAvatar = (_site && _site.owner_id)
+    ? (db.prepare('SELECT avatar_url FROM users WHERE id = ?').get(_site.owner_id)?.avatar_url || null)
+    : null;
+
   // Common locals
   const locals = {
     user: _u,
     userOwnsSite,
-    site: data.site || res.locals.site || null,
+    siteOwnerAvatar,
+    site: _site,
     audioTracks: data.audioTracks || res.locals.audioTracks || [],
     siteUrlBase: res.locals.siteUrlBase || '',
     tenancy: res.locals.tenancy || 'solo',
