@@ -1,25 +1,23 @@
 <div class="container auth-page">
-  <h1>Register</h1>
+  <h1>Beheerder aanmaken</h1>
+  <p class="auth-intro">Eerste keer opzetten — maak je beheerdersaccount aan. Dit kan maar één keer.</p>
   <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
   <form method="post" action="/auth/register" class="auth-form">
     <% if (typeof next !== 'undefined' && next) { %>
       <input type="hidden" name="next" value="<%= next %>">
     <% } %>
     <label>
-      <span>Username (3-32 chars, letters/numbers/_-)</span>
+      <span>Gebruikersnaam (3-32 tekens, letters/cijfers/_-)</span>
       <input type="text" name="username" value="<%= username %>" required autofocus autocomplete="username" pattern="[a-zA-Z0-9_-]{3,32}">
     </label>
     <label>
-      <span>Email</span>
+      <span>E-mail</span>
       <input type="email" name="email" value="<%= email %>" required autocomplete="email">
     </label>
     <label>
-      <span>Password (min 8 chars)</span>
+      <span>Wachtwoord (min 8 tekens)</span>
       <input type="password" name="password" required minlength="8" autocomplete="new-password">
     </label>
-    <button type="submit" class="btn btn-primary">Create account</button>
-    <p class="auth-link">Already registered?
-      <a href="/auth/login<%= (typeof next !== 'undefined' && next) ? '?next=' + encodeURIComponent(next) : '' %>">Login</a>
-    </p>
+    <button type="submit" class="btn btn-primary">Beheerder aanmaken</button>
   </form>
 </div>

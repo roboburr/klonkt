@@ -4,9 +4,10 @@
   
   <% if (!user) { %>
     <div class="welcome-actions">
-      <a href="/auth/login" class="btn btn-primary">Inloggen met Google</a>
+      <a href="/auth/register" class="btn btn-primary">Beheerder aanmaken</a>
+      <a href="/auth/login" class="btn">Al een account? Inloggen</a>
     </div>
-    <p class="welcome-note">De eerste gebruiker die inlogt wordt <strong>god</strong> en krijgt automatisch een eigen site.</p>
+    <p class="welcome-note">Maak je beheerdersaccount aan om te beginnen — daarna is registratie gesloten.</p>
   <% } else { %>
     <p>Hi <%= user.username %>! No site is configured yet.</p>
   <% } %>

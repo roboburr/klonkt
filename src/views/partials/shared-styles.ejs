@@ -124,6 +124,8 @@
 }
 .btn-google:hover { background: #f7f8f8; border-color: #dadce0; }
 .btn-google .g-icon { flex-shrink: 0; }
+.auth-divider { display: flex; align-items: center; gap: 0.75rem; margin: 1.25rem 0; color: var(--ink-muted); font-size: 0.85rem; }
+.auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--rule); }
 
 /* HTMX loading indicator */
 .pcms-loading {

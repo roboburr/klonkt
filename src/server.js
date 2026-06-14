@@ -147,6 +147,20 @@ app.use(resolveSite);
 app.use(loadAudioTracks);
 app.use(loadTheme);
 
+// Lichtgewicht CSRF-defense: weiger cross-origin state-wijzigende requests.
+// Same-origin forms + HTMX sturen een matchende Origin; ontbreekt Origin dan
+// laten we door (non-browser clients). sameSite:'lax' op de sessiecookie is de
+// tweede laag. (Geldt niet voor GET/HEAD/OPTIONS.)
+app.use((req, res, next) => {
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
+  const origin = req.get('origin');
+  if (!origin) return next(); // geen Origin -> geen browser-CSRF-vector
+  let originHost;
+  try { originHost = new URL(origin).host; } catch { return res.status(403).send('Ongeldige origin'); }
+  if (originHost !== req.get('host')) return res.status(403).send('Cross-origin request geweigerd');
+  next();
+});
+
 app.use('/auth', authRoutes);
 app.use('/account', accountRoutes);
 app.use('/admin/audio', adminAudioRoutes);
@@ -327,7 +341,7 @@ server.listen(PORT, () => {
   console.log(`   ✓ Security: Helmet, CSP, secure sessions`);
   console.log(`   ✓ Privacy:  Self-hosted fonts, no third-party requests`);
   console.log(`   ✓ Layout:   v9 editorial feel (top nav, profile header)`);
-  console.log(`   ✓ Auth:     Google login / logout`);
+  console.log(`   ✓ Auth:     wachtwoord (beheer) + Google (luisteraars) / logout`);
   console.log(`   ✓ Posts:    create / edit / view / archive`);
   console.log(`   ✓ Realtime: WebSocket server ready (Prutter)`);
   console.log('');
