@@ -4,35 +4,35 @@ import { v4 as uuid } from 'uuid';
 import db from '../config/database.js';
 import { renderPage } from '../middleware/render.js';
 import { safeNext } from '../middleware/auth.js';
-import { googleConfigured, authorizeUrl, exchangeCode, fetchUserinfo } from '../config/google.js';
+import { brokerConfigured, brokerStartUrl, verifyIdentityToken, consumeJti } from '../config/google.js';
 
 const router = express.Router();
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
 
-// ==================== LOGIN (alleen Google) ====================
-// Het oude username/wachtwoord-systeem is verwijderd; inloggen gaat via Google.
+// ==================== LOGIN (Google via Klonkt-broker) ====================
+// Het oude username/wachtwoord-systeem is verwijderd; inloggen gaat via Google,
+// gerouteerd door de centrale broker (geen Google-creds op deze instance).
 router.get('/login', (req, res) => {
   const next = safeNext(req.query.next) || '';
   if (req.session.user) return res.redirect(next || '/');
   renderPage(req, res, 'pages/auth-login', {
     pageTitle: 'Inloggen',
     bodyClass: 'on-special',
-    googleReady: googleConfigured(),
+    googleReady: brokerConfigured(),
     error: req.query.error || null,
     next,
   });
 });
 
-// Start de Google OAuth-flow.
+// Start de login: random state in de sessie (CSRF), dan door naar de broker.
 router.get('/google', (req, res) => {
-  if (!googleConfigured()) {
+  if (!brokerConfigured()) {
     return res.redirect('/auth/login?error=' + encodeURIComponent('Google-login is op deze site nog niet geconfigureerd.'));
   }
-  const next = safeNext(req.query.next) || '';
-  const state = crypto.randomBytes(16).toString('hex');
-  req.session.oauthState = state;
-  req.session.oauthNext = next;
-  res.redirect(authorizeUrl(state));
+  const istate = crypto.randomBytes(16).toString('hex');
+  req.session.loginState = istate;
+  req.session.loginNext = safeNext(req.query.next) || '';
+  res.redirect(brokerStartUrl(istate));
 });
 
 // Leid een geldige, unieke username af uit naam/e-mail (schema vereist username).
@@ -47,40 +47,53 @@ function uniqueUsername(base) {
   return candidate;
 }
 
-// Google callback: wissel code in, haal profiel, vind-of-maak user (op e-mail),
-// zet de sessie. ADMIN_EMAIL bepaalt wie owner/admin (god) is.
+// Callback van de broker: ?klonkt_id_token=&klonkt_state=(&klonkt_login_error=).
+// We checken state (CSRF), verifiëren het token (sig + audience + replay), en
+// vinden-of-maken de user op e-mail. ADMIN_EMAIL bepaalt wie owner/admin (god) is.
 router.get('/google/callback', async (req, res) => {
   const fail = (msg) => res.redirect('/auth/login?error=' + encodeURIComponent(msg));
   try {
-    const { code, state } = req.query;
-    if (!code || !state || state !== req.session.oauthState) {
-      return fail('Login afgebroken of ongeldige sessie.');
-    }
-    const next = safeNext(req.session.oauthNext) || '';
-    delete req.session.oauthState;
-    delete req.session.oauthNext;
+    const { klonkt_id_token: idToken, klonkt_state: state, klonkt_login_error: loginError } = req.query;
 
-    const tok = await exchangeCode(String(code));
-    const info = await fetchUserinfo(tok.access_token);
-    const email = (info.email || '').trim().toLowerCase();
-    if (!email || info.email_verified === false) {
-      return fail('Geen geverifieerd Google-e-mailadres ontvangen.');
+    // State-check (CSRF) eerst — bind de callback aan de sessie die login startte.
+    const expected = req.session.loginState;
+    const next = safeNext(req.session.loginNext) || '';
+    delete req.session.loginState;
+    delete req.session.loginNext;
+    if (!expected || state !== expected) return fail('Login afgebroken of ongeldige sessie.');
+
+    if (loginError === 'unverified_email') return fail('Geen geverifieerd Google-e-mailadres.');
+    if (!idToken) return fail('Geen logintoken ontvangen.');
+
+    let payload;
+    try {
+      payload = await verifyIdentityToken(String(idToken));
+    } catch (e) {
+      console.error('[auth/google/callback] tokenverificatie:', e.message);
+      return fail('Logintoken ongeldig of verlopen.');
     }
+    if (!consumeJti(payload.jti, payload.exp)) return fail('Logintoken al gebruikt.');
+
+    const email = (payload.email || '').trim().toLowerCase();
+    if (!email) return fail('Geen e-mailadres in logintoken.');
 
     const isAdmin = !!ADMIN_EMAIL && email === ADMIN_EMAIL;
     let user = db.prepare('SELECT * FROM users WHERE LOWER(email) = ?').get(email);
 
     if (!user) {
       const userCount = db.prepare('SELECT COUNT(*) AS c FROM users').get().c;
-      const role = (isAdmin || userCount === 0) ? 'god' : 'member';
+      // god = de ingestelde ADMIN_EMAIL. De "eerste user wordt god"-bootstrap geldt
+      // ALLEEN als er helemaal geen ADMIN_EMAIL is ingesteld — anders zou een vreemde
+      // die toevallig als eerste inlogt op een verse install eigenaar worden.
+      const role = isAdmin ? 'god' : (!ADMIN_EMAIL && userCount === 0 ? 'god' : 'member');
       const userId = uuid();
-      const username = uniqueUsername(info.name || email.split('@')[0]);
-      // password_hash is NOT NULL in het schema; we zetten een onbruikbare
-      // sentinel (er is geen wachtwoord-login meer).
+      const username = uniqueUsername(payload.name || email.split('@')[0]);
+      // password_hash is NOT NULL in het schema; er is geen wachtwoord-login meer,
+      // dus we zetten een onbruikbare sentinel.
       db.prepare(`
         INSERT INTO users (id, username, email, password_hash, role, avatar_url, theme, palette, google_sub)
         VALUES (?, ?, ?, '!google-oauth', ?, ?, 'dark', 'sage', ?)
-      `).run(userId, username, info.email || email, role, info.picture || null, info.sub || null);
+      `).run(userId, username, payload.email || email, role, payload.picture || null, payload.sub || null);
 
       // Eerste/admin-user krijgt een persoonlijke site (zoals de oude flow), maar
       // alleen als er nog geen site bestaat.
@@ -94,6 +107,12 @@ router.get('/google/callback', async (req, res) => {
       }
       user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
     } else {
+      // Identiteits-integriteit: als deze user al aan een ander Google-account
+      // gekoppeld is (google_sub mismatch), weiger — voorkomt overname als een
+      // geverifieerd e-mailadres ooit naar een andere Google-sub verhuist.
+      if (user.google_sub && payload.sub && user.google_sub !== payload.sub) {
+        return fail('Dit e-mailadres is al aan een ander Google-account gekoppeld.');
+      }
       // Bestaande user (gekoppeld op e-mail): koppel Google-id + avatar als die
       // nog ontbreken, en promoveer naar god als dit ADMIN_EMAIL is.
       db.prepare(`
@@ -102,7 +121,7 @@ router.get('/google/callback', async (req, res) => {
             avatar_url = COALESCE(avatar_url, ?),
             updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `).run(info.sub || null, info.picture || null, user.id);
+      `).run(payload.sub || null, payload.picture || null, user.id);
       if (isAdmin && user.role !== 'god') {
         db.prepare("UPDATE users SET role = 'god' WHERE id = ?").run(user.id);
         user.role = 'god';

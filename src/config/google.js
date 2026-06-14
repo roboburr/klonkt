@@ -1,56 +1,75 @@
-// Google OAuth2 (per-instance). Raw via de ingebouwde fetch — geen passport-dep.
-// Config via env (per instance, in .env):
-//   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
-//   GOOGLE_REDIRECT_URI = https://<dit-domein>/auth/google/callback
-//   ADMIN_EMAIL         = de Google-mail die owner/admin (god) is op deze instance
-// Niet geconfigureerd? Dan booten we gewoon door; /auth/google meldt netjes
-// "nog niet geconfigureerd" i.p.v. te crashen.
+// Google-login via de centrale Klonkt-broker (license.klonkt.com).
+//
+// Deze instance praat NOOIT zelf met Google. De broker doet de OAuth-dans met één
+// centrale Google-client en stuurt een kortlevend, gesigneerd identity-token terug;
+// dat verifiëren we offline tegen de broker-pubkey. Zo hoeft geen enkele self-host
+// een eigen Google-client aan te maken.
+//
+// Config via env:
+//   KLONKT_BROKER_URL = https://license.klonkt.com
+//   SITE_ORIGIN       = het eigen publieke origin (bv https://roboburr.com) —
+//                       bepaalt de callback + de audience die we eisen.
+//   ADMIN_EMAIL       = de Google-mail die owner/admin (god) is op deze instance.
 
-const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
-const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
-const REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || '';
+import { importSPKI, jwtVerify } from 'jose';
 
-const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
-const TOKEN_URL = 'https://oauth2.googleapis.com/token';
-const USERINFO_URL = 'https://openidconnect.googleapis.com/v1/userinfo';
+const ALG = 'EdDSA';
+const ISSUER = 'klonkt-license';
 
-export function googleConfigured() {
-  return !!(CLIENT_ID && CLIENT_SECRET && REDIRECT_URI);
+const BROKER_URL = (process.env.KLONKT_BROKER_URL || '').replace(/\/$/, '');
+const SITE_ORIGIN = (process.env.SITE_ORIGIN || '').replace(/\/$/, '');
+
+export function brokerConfigured() {
+  return !!(BROKER_URL && SITE_ORIGIN);
 }
 
-export function authorizeUrl(state) {
-  const p = new URLSearchParams({
-    client_id: CLIENT_ID,
-    redirect_uri: REDIRECT_URI,
-    response_type: 'code',
-    scope: 'openid email profile',
-    state,
-    access_type: 'online',
-    prompt: 'select_account',
-  });
-  return `${AUTH_URL}?${p.toString()}`;
+// Waar de broker naartoe terugstuurt (moet in de broker-allowlist staan).
+export function callbackUrl() {
+  return `${SITE_ORIGIN}/auth/google/callback`;
 }
 
-export async function exchangeCode(code) {
-  const body = new URLSearchParams({
-    code,
-    client_id: CLIENT_ID,
-    client_secret: CLIENT_SECRET,
-    redirect_uri: REDIRECT_URI,
-    grant_type: 'authorization_code',
-  });
-  const r = await fetch(TOKEN_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body,
-  });
-  if (!r.ok) throw new Error(`Google token-exchange faalde: ${r.status} ${await r.text().catch(() => '')}`);
-  return r.json(); // { access_token, id_token, ... }
+export function brokerStartUrl(istate) {
+  const p = new URLSearchParams({ return: callbackUrl(), istate });
+  return `${BROKER_URL}/auth/google/start?${p.toString()}`;
 }
 
-// Returns { sub, email, email_verified, name, picture }.
-export async function fetchUserinfo(accessToken) {
-  const r = await fetch(USERINFO_URL, { headers: { Authorization: `Bearer ${accessToken}` } });
-  if (!r.ok) throw new Error(`Google userinfo faalde: ${r.status}`);
-  return r.json();
+// Broker-pubkey ophalen + cachen (bij fout NIET permanent cachen).
+let _pubkeyPromise = null;
+function getPublicKey() {
+  if (!_pubkeyPromise) {
+    _pubkeyPromise = (async () => {
+      const r = await fetch(`${BROKER_URL}/pubkey`);
+      if (!r.ok) throw new Error(`broker /pubkey faalde: ${r.status}`);
+      return importSPKI(await r.text(), ALG);
+    })().catch((e) => {
+      _pubkeyPromise = null;
+      throw e;
+    });
+  }
+  return _pubkeyPromise;
+}
+
+// Verifieer het identity-token van de broker. Returnt de payload
+// { typ:'identity', sub, email, name, picture, jti, exp, ... }.
+export async function verifyIdentityToken(token) {
+  const key = await getPublicKey();
+  const { payload } = await jwtVerify(token, key, {
+    issuer: ISSUER,
+    algorithms: [ALG],
+    audience: SITE_ORIGIN, // token moet voor ÓNZE site bedoeld zijn
+  });
+  if (payload.typ !== 'identity') throw new Error('verkeerd tokentype');
+  return payload;
+}
+
+// Kleine in-memory jti-cache tegen replay binnen de (korte) geldigheidsduur.
+// Returnt false als de jti al gebruikt is.
+const _usedJti = new Map(); // jti -> exp (epoch seconds)
+export function consumeJti(jti, expEpoch) {
+  if (!jti) return true; // geen jti = niets te dedupen
+  const now = Math.floor(Date.now() / 1000);
+  for (const [k, e] of _usedJti) if (e < now) _usedJti.delete(k);
+  if (_usedJti.has(jti)) return false;
+  _usedJti.set(jti, expEpoch || now + 600);
+  return true;
 }
