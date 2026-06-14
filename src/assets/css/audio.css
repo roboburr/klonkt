@@ -561,6 +561,12 @@ body.audio-is-playing .audio-sheet-play .icon-pause { display: block; }
   .audio-sheet-btn svg { width: 34px; height: 34px; }
   .audio-sheet-play { width: 108px; height: 108px; }
   .audio-sheet-play svg { width: 46px; height: 46px; }
+  /* Queue dezelfde breedte als info/progress (anders krimpt 'ie door
+     align-items:center tot z'n inhoud = smal), + grotere rijen voor touch. */
+  .audio-sheet-queue { width: 100%; max-width: 660px; }
+  .audio-sheet-queue-label { font-size: 0.95rem; }
+  .audio-sheet-queue-item { padding: 0.7rem 0.7rem; gap: 0.6rem; font-size: 1.05rem; }
+  .audio-sheet-queue-item .aqi-artist { font-size: 0.95rem; }
 }
 
 /* ============================================================
