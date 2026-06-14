@@ -40,16 +40,18 @@ router.get('/', (req, res, next) => {
     ORDER BY s.created_at ASC
   `).all();
 
-  // De primaire/oudste site geldt als de bedrijfssite (titel/omschrijving = koptekst).
+  // De primaire/oudste site geldt als de bedrijfssite (label). De roster toont
+  // alleen de artiesten (alle overige sites), niet de bedrijfssite zelf.
   const company = res.locals.site || null;
+  const artists = company ? sites.filter((s) => s.slug !== company.slug) : sites;
 
   renderPage(req, res, 'pages/hub-home', {
     pageTitle: company ? company.title : 'Overzicht',
     socialDescr: (company && (company.description || company.tagline)) || '',
-    bodyClass: 'on-home',
+    bodyClass: 'on-home on-hub',
     company,
+    artists,
     posts,
-    sites,
   });
 });
 
