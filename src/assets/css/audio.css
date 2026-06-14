@@ -539,7 +539,10 @@ body.audio-is-playing .audio-sheet-play .icon-pause { display: block; }
     transform: translateY(100%);
     padding: clamp(2rem, 5vh, 4rem) clamp(2rem, 6vw, 5rem);
     gap: clamp(1.25rem, 3vh, 2.5rem);
-    justify-content: center;
+    /* 'safe center': verticaal centreren als alles past, maar bovenaan uitlijnen
+       (geen clip) zodra cover + queue hoger zijn dan het scherm — anders wordt de
+       cover boven de viewport geduwd en is 'ie niet te scrollen. */
+    justify-content: safe center;
     align-items: center;
   }
   .audio-sheet.is-open .audio-sheet-panel { transform: translateY(var(--pcms-drag-y, 0px)); }
