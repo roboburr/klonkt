@@ -1,7 +1,7 @@
 <div class="hub">
 
-  <%# ── HERO (label / bedrijf) ─────────────────────────────────────── %>
-  <header class="hub-hero">
+  <%# ── HERO (label) — de pagina begint hier, geen header erboven ────── %>
+  <header class="hub-hero<%= hub.heroImage ? ' has-img' : '' %>"<% if (hub.heroImage) { %> style="--hero-img:url('<%= hub.heroImage %>')"<% } %>>
     <div class="hub-hero-inner container">
       <h1 class="hub-hero-title"><%= hub.title %></h1>
       <% if (hub.tagline) { %>
@@ -22,7 +22,7 @@
       <div class="roster">
         <% artists.forEach(function(a){ %>
           <a class="roster-card" href="/user/<%= a.slug %>">
-            <span class="roster-avatar"<% if (a.profile_photo) { %> style="background-image:url('<%= a.profile_photo %>')"<% } %>>
+            <span class="roster-avatar"<% if (a.profile_photo) { %> style="background-image:url('<%= a.profile_photo %>')"<% } else { %> style="background:<%= a.accent || 'var(--accent)' %>;color:#fff"<% } %>>
               <% if (!a.profile_photo) { %><%= (a.title || a.slug).charAt(0).toUpperCase() %><% } %>
             </span>
             <span class="roster-name"><%= a.title %></span>
@@ -64,28 +64,39 @@
 
 /* ── Hero ─────────────────────────────────────────────────────────── */
 .hub-hero {
-  background:
-    radial-gradient(120% 140% at 50% -20%, color-mix(in srgb, var(--accent) 22%, var(--paper)) 0%, var(--paper) 60%);
-  border-bottom: 1px solid var(--rule);
+  display: flex; align-items: center; justify-content: center;
+  min-height: clamp(340px, 58vh, 560px);
   text-align: center;
+  background:
+    radial-gradient(130% 130% at 50% -10%, color-mix(in srgb, var(--accent) 26%, var(--paper)) 0%, var(--paper) 62%);
+  border-bottom: 1px solid var(--rule);
 }
-.hub-hero-inner { padding: 4rem 1rem 3.25rem; }
+.hub-hero.has-img {
+  background:
+    linear-gradient(180deg, rgba(0,0,0,.45) 0%, rgba(0,0,0,.55) 100%),
+    var(--hero-img) center / cover no-repeat;
+  border-bottom: 0;
+  color: #fff;
+}
+.hub-hero-inner { padding: 3.5rem 1rem; }
 .hub-hero-title {
   font-family: var(--font-display, serif);
-  font-size: clamp(2.4rem, 6vw, 3.6rem);
-  line-height: 1.05; margin: 0;
-  letter-spacing: -0.01em;
+  font-size: clamp(2.6rem, 7vw, 4.4rem);
+  line-height: 1.02; margin: 0; letter-spacing: -0.015em;
 }
 .hub-hero-tag {
-  margin: 0.6rem 0 0; font-size: 1.05rem; font-weight: 600;
-  color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em;
+  margin: 0.7rem 0 0; font-size: 1.05rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--accent);
 }
+.hub-hero.has-img .hub-hero-tag { color: #fff; opacity: 0.92; }
 .hub-hero-desc {
-  margin: 1rem auto 0; max-width: 46ch;
-  color: var(--ink-muted); font-size: 1.05rem; line-height: 1.5;
+  margin: 1.1rem auto 0; max-width: 48ch;
+  font-size: 1.1rem; line-height: 1.55; color: var(--ink-muted);
 }
+.hub-hero.has-img .hub-hero-desc { color: rgba(255,255,255,.9); }
 
-.hub-body { padding-bottom: 4rem; }
+.hub-body { padding-bottom: 4.5rem; }
 .hub-sec { margin-top: 3rem; }
 .hub-sec-title {
   font-family: var(--font-display, serif);
@@ -102,26 +113,26 @@
 }
 .roster-card {
   display: flex; flex-direction: column; align-items: center; text-align: center;
-  gap: 0.4rem; padding: 1.5rem 1rem 1.25rem;
-  border: 1px solid var(--rule); border-radius: 14px;
+  gap: 0.4rem; padding: 1.6rem 1rem 1.3rem;
+  border: 1px solid var(--rule); border-radius: 16px;
   background: var(--paper-2); color: var(--ink); text-decoration: none;
   transition: border-color 140ms, transform 140ms, box-shadow 140ms;
 }
 .roster-card:hover {
   border-color: var(--accent); transform: translateY(-3px);
-  box-shadow: 0 8px 24px -12px color-mix(in srgb, var(--accent) 50%, transparent);
+  box-shadow: 0 10px 28px -14px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 .roster-avatar {
-  width: 84px; height: 84px; border-radius: 50%; margin-bottom: 0.4rem;
-  background-size: cover; background-position: center; background-color: var(--paper);
+  width: 88px; height: 88px; border-radius: 50%; margin-bottom: 0.45rem;
+  background-size: cover; background-position: center;
   display: inline-flex; align-items: center; justify-content: center;
-  font-family: var(--font-display, serif); font-size: 2rem; font-weight: 600; color: var(--accent);
-  border: 2px solid color-mix(in srgb, var(--accent) 30%, var(--rule));
+  font-family: var(--font-display, serif); font-size: 2.1rem; font-weight: 700; color: #fff;
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,.18);
 }
-.roster-name { font-weight: 700; font-size: 1.08rem; }
+.roster-name { font-weight: 700; font-size: 1.1rem; }
 .roster-tag { color: var(--ink-muted); font-size: 0.82rem; }
 .roster-count {
-  margin-top: 0.3rem; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em;
+  margin-top: 0.35rem; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em;
   color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent);
   padding: 0.15rem 0.6rem; border-radius: 99px;
 }
@@ -150,7 +161,7 @@
 .feed-item:hover .feed-arrow { color: var(--accent); transform: translateX(3px); }
 
 @media (max-width: 560px) {
-  .hub-hero-inner { padding: 2.75rem 1rem 2.25rem; }
+  .hub-hero-inner { padding: 2.5rem 1rem; }
   .feed-cover { width: 52px; height: 52px; }
   .feed-arrow { display: none; }
 }

@@ -36,7 +36,7 @@ router.get('/', (req, res, next) => {
 
   // ALLE PrutFolio's (elke user, incl. de admin z'n eigen site) voor de roster.
   const artists = db.prepare(`
-    SELECT s.slug, s.title, s.tagline, s.profile_photo,
+    SELECT s.slug, s.title, s.tagline, s.profile_photo, s.accent,
            (SELECT COUNT(*) FROM posts WHERE site_id = s.id AND status = 'published') AS post_count
     FROM sites s
     ORDER BY s.created_at ASC
@@ -48,6 +48,7 @@ router.get('/', (req, res, next) => {
     title: getSetting('hub_title') || 'Overzicht',
     tagline: getSetting('hub_tagline') || '',
     intro: getSetting('hub_intro') || '',
+    heroImage: getSetting('hub_hero_image') || '',
   };
 
   renderPage(req, res, 'pages/hub-home', {

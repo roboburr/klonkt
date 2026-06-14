@@ -50,6 +50,10 @@
         <span>Intro</span>
         <textarea name="hub_intro" maxlength="400" rows="3" placeholder="Korte introtekst onder de titel."><%= hubIntro %></textarea>
       </label>
+      <label class="set-field">
+        <span>Hero-afbeelding (URL) <small style="font-weight:400;color:var(--ink-muted)">— optioneel; achtergrond van de hero</small></span>
+        <input type="text" name="hub_hero_image" maxlength="300" value="<%= hubHeroImage %>" placeholder="/media/... of https://...">
+      </label>
       <button type="submit" class="btn btn-primary">Opslaan</button>
     </form>
   </section>

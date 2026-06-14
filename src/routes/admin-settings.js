@@ -25,6 +25,7 @@ router.get('/', requireGod, (req, res) => {
     hubTitle: getSetting('hub_title') || '',
     hubTagline: getSetting('hub_tagline') || '',
     hubIntro: getSetting('hub_intro') || '',
+    hubHeroImage: getSetting('hub_hero_image') || '',
     success: req.query.success || null,
   });
 });
@@ -41,6 +42,9 @@ router.post('/', requireGod, (req, res) => {
   }
   if (typeof req.body.hub_intro !== 'undefined') {
     setSetting('hub_intro', (req.body.hub_intro || '').toString().slice(0, 400).trim());
+  }
+  if (typeof req.body.hub_hero_image !== 'undefined') {
+    setSetting('hub_hero_image', (req.body.hub_hero_image || '').toString().slice(0, 300).trim());
   }
   res.redirect('/admin/settings?success=' + encodeURIComponent('Opgeslagen'));
 });

@@ -238,15 +238,21 @@ if (typeof post !== 'undefined' && post && post.slug) {
 
 <body class="<%= bodyClass || 'on-home' %> has-bottom-tab" data-feed-view="<%= _e(safeSite.feed_view_default || 'timeline') %>" data-grid-cols="3">
 
-<%- include('partials/topnav') %>
+<%# Hub-overview is een standalone landing: geen masthead/profile-header/
+    view-switcher — die horen bij een PrutFolio (en verschijnen dus op /user/-
+    pagina's). De landing begint meteen met de hero. %>
+<% var isHubLanding = (typeof bodyClass === 'string' && bodyClass.indexOf('on-hub') >= 0); %>
 
-<%- include('partials/profile-header') %>
+<% if (!isHubLanding) { %>
+  <%- include('partials/topnav') %>
+  <%- include('partials/profile-header') %>
+<% } %>
 
 <%# View switcher — visible on every non-admin page. On feed pages
     (home, archive, tag, type, user) it toggles the visual layout;
     on non-feed pages (post, account, search, auth) it navigates to /
     in the chosen view. Click logic is in shell.ejs at the bottom. %>
-<% if (!isAdminPage) { %>
+<% if (!isAdminPage && !isHubLanding) { %>
   <%- include('partials/view-switcher') %>
 <% } %>
 
@@ -261,8 +267,10 @@ if (typeof post !== 'undefined' && post && post.slug) {
 
 <%- include('partials/footer') %>
 
-<!-- Mobile bottom-tab navigation (auto-hidden ≥768px) -->
+<!-- Mobile bottom-tab navigation (auto-hidden ≥768px) — niet op de hub-landing -->
+<% if (!isHubLanding) { %>
 <%- include('partials/bottom-tab') %>
+<% } %>
 
 <!-- Mobile profile sheet (auto-hidden ≥768px; only rendered when logged in) -->
 <% if (user) { %>
