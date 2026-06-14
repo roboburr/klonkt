@@ -27,8 +27,9 @@ const _canPost     = user && permissions && permissions.canCreatePost && permiss
         <a href="<%= _siteUrlBase %>/" class="nav-link nav-link-admin">← Terug naar site</a>
       <% } else if (typeof tenancy !== 'undefined' && tenancy === 'hub') { %>
         <%# Hub: de brand is de hub-naam en gaat naar de hub-home (volledige nav, geen
-            HTMX, zodat de headerloze overview correct rendert). %>
-        <a class="site-title" href="/" aria-label="Naar de hub-home"><%= (typeof hubTitle !== 'undefined' && hubTitle) ? hubTitle : 'Home' %></a>
+            HTMX, zodat de headerloze overview correct rendert). Eigen class want
+            .site-title is overal display:none. %>
+        <a class="nav-hub-home" href="/" aria-label="Naar de hub-home"><%= (typeof hubTitle !== 'undefined' && hubTitle) ? hubTitle : 'Home' %></a>
       <% } else if (site) { %>
         <a class="site-title" href="<%= _siteUrlBase %>/"
            hx-get="<%= _siteUrlBase %>/?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
@@ -230,6 +231,15 @@ const _canPost     = user && permissions && permissions.canCreatePost && permiss
 .masthead-brand .site-title {
   display: none;
 }
+
+/* Hub-home brand is WÉL zichtbaar — de thuisknop op artiest-/hub-pagina's. */
+.masthead-brand .nav-hub-home {
+  display: inline-block; vertical-align: middle;
+  color: var(--ink); text-decoration: none;
+  font-family: var(--font-display, serif); font-weight: 700; font-size: 1.05rem;
+  transition: color 120ms;
+}
+.masthead-brand .nav-hub-home:hover { color: var(--accent); }
 
 /* On mobile, hide the entire masthead except for admin pages. The brand
    appears in the profile-header on content pages, and the bottom-tab

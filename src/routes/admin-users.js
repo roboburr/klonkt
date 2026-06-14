@@ -97,24 +97,35 @@ router.post('/:id/delete', requireGod, (req, res) => {
     return res.redirect('/admin/users?error=' + encodeURIComponent('Cannot delete the only remaining god'));
   }
 
-  const owned = db.prepare(`
-    SELECT
-      (SELECT COUNT(*) FROM posts WHERE author_id = ?) AS posts,
-      (SELECT COUNT(*) FROM sites WHERE owner_id  = ?) AS sites
-  `).get(userId, userId);
+  // Cascade-verwijderen: de sites van deze user (+ posts/playlists/audio/leden/
+  // comments daaronder), z'n eigen content elders, en daarna de user zelf.
+  // Atomisch in een transactie — faalt er een FK, dan rolt alles terug.
+  const del = db.transaction(() => {
+    const sites = db.prepare('SELECT id FROM sites WHERE owner_id = ?').all(userId).map((s) => s.id);
+    for (const sid of sites) {
+      db.prepare('DELETE FROM comments WHERE post_id IN (SELECT id FROM posts WHERE site_id = ?)').run(sid);
+      db.prepare('DELETE FROM posts WHERE site_id = ?').run(sid);
+      db.prepare('DELETE FROM playlists WHERE site_id = ?').run(sid);
+      db.prepare('DELETE FROM audio_tracks WHERE site_id = ?').run(sid);
+      db.prepare('DELETE FROM site_members WHERE site_id = ?').run(sid);
+      db.prepare('DELETE FROM sites WHERE id = ?').run(sid);
+    }
+    // Eigen content op andere sites + losse koppelingen.
+    db.prepare('DELETE FROM comments WHERE post_id IN (SELECT id FROM posts WHERE author_id = ?)').run(userId);
+    db.prepare('DELETE FROM posts WHERE author_id = ?').run(userId);
+    db.prepare('DELETE FROM comments WHERE author_id = ?').run(userId);
+    db.prepare('DELETE FROM site_members WHERE user_id = ?').run(userId);
+    db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+  });
 
-  if (owned.posts > 0 || owned.sites > 0) {
-    return res.redirect('/admin/users?error=' + encodeURIComponent(
-      `Cannot delete: user owns ${owned.sites} site(s) and ${owned.posts} post(s). Reassign or delete those first.`
-    ));
+  try {
+    del();
+  } catch (e) {
+    console.error('[admin/users delete]', e.message);
+    return res.redirect('/admin/users?error=' + encodeURIComponent('Verwijderen mislukt (mogelijk gekoppelde data).'));
   }
 
-  // Clean up dangling references
-  db.prepare('DELETE FROM site_members WHERE user_id = ?').run(userId);
-  db.prepare('DELETE FROM comments WHERE author_id = ?').run(userId);
-  db.prepare('DELETE FROM users WHERE id = ?').run(userId);
-
-  res.redirect('/admin/users?success=' + encodeURIComponent('User deleted: ' + target.username));
+  res.redirect('/admin/users?success=' + encodeURIComponent('Gebruiker verwijderd: ' + target.username));
 });
 
 export default router;

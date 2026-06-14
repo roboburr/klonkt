@@ -73,9 +73,12 @@
               </label>
             </form>
 
-            <% if (u.id !== user.id && (u.post_count + u.site_count === 0)) { %>
+            <% if (u.id !== user.id) { %>
+              <% var _warn = (u.post_count + u.site_count > 0)
+                   ? ('Dit verwijdert ook hun site + ' + u.post_count + ' post(s). ')
+                   : ''; %>
               <form method="post" action="/admin/users/<%= u.id %>/delete" class="ax-delete-form"
-                    onsubmit="return confirm('Verwijder gebruiker <%= u.username %>?')">
+                    onsubmit="return confirm('Gebruiker <%= u.username %> verwijderen? <%= _warn %>Dit kan niet ongedaan worden.')">
                 <button type="submit" class="ax-icon-btn ax-icon-btn-danger" aria-label="Verwijderen" title="Verwijderen">🗑</button>
               </form>
             <% } else { %>
