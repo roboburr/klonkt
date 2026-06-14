@@ -236,7 +236,7 @@ if (typeof post !== 'undefined' && post && post.slug) {
 <% } %>
 </head>
 
-<body class="<%= bodyClass || 'on-home' %> has-bottom-tab" data-feed-view="<%= _e(safeSite.feed_view_default || 'timeline') %>" data-grid-cols="3">
+<body class="<%= bodyClass || 'on-home' %> has-bottom-tab" data-feed-view="<%= _e(safeSite.feed_view_default || 'timeline') %>" data-grid-cols="3" data-site-base="<%= _e((typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '') %>">
 
 <% if (user && user.readonly) { %>
   <div style="position:sticky;top:0;z-index:50;background:#e8b04b;color:#1a1a1a;text-align:center;font-size:0.85rem;font-weight:600;padding:0.4rem 1rem;">
@@ -383,11 +383,14 @@ if (typeof post !== 'undefined' && post && post.slug) {
       // user back to home in the chosen view. Use HTMX if available so
       // the page transition matches the rest of the site's nav.
       if (!isFeedPage()) {
+        // Naar de SITE-home in de gekozen view (siteUrlBase), niet de globale '/'
+        // — in hub is '/' de hub-overview, niet de tijdlijn van deze artiest.
+        var base = body.dataset.siteBase || '';
         if (window.htmx) {
-          window.htmx.ajax('GET', '/?partial=1', { target: '#pcms-main', swap: 'innerHTML' });
-          history.pushState({}, '', '/');
+          window.htmx.ajax('GET', base + '/?partial=1', { target: '#pcms-main', swap: 'innerHTML' });
+          history.pushState({}, '', base + '/');
         } else {
-          location.href = '/';
+          location.href = base + '/';
         }
       }
       return;
