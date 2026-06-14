@@ -10,35 +10,38 @@
  */
 
 import db from '../config/database.js';
+import { getTenancy } from '../services/SettingsService.js';
 
 export function resolveSite(req, res, next) {
-  // Try /sites/:slug pattern
-  const m = req.path.match(/^\/sites\/([a-zA-Z0-9_-]+)(\/.*)?$/);
-  if (m) {
-    const slug = m[1];
-    const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(slug);
-    if (site) {
-      res.locals.site = site;
-      // Strip /sites/:slug from req.url so downstream routes see the rest
-      req.url = (m[2] || '/');
-      // Also rewrite originalUrl for redirect targets to keep the prefix
-      res.locals.siteUrlBase = `/sites/${slug}`;
-      return next();
+  const tenancy = getTenancy();
+  res.locals.tenancy = tenancy; // ook beschikbaar voor views
+
+  // In HUB-mode mapt /sites/:slug en (later) een subdomein naar een specifieke
+  // site. In SOLO-mode bestaat er maar één site: we slaan die routing over en
+  // pinnen altijd op de primaire site.
+  if (tenancy === 'hub') {
+    const m = req.path.match(/^\/sites\/([a-zA-Z0-9_-]+)(\/.*)?$/);
+    if (m) {
+      const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(m[1]);
+      if (site) {
+        res.locals.site = site;
+        req.url = (m[2] || '/'); // strip /sites/:slug zodat downstream de rest ziet
+        res.locals.siteUrlBase = `/sites/${m[1]}`;
+        return next();
+      }
+    }
+    const host = req.get('host')?.toLowerCase().replace(/:\d+$/, '');
+    if (host) {
+      const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(host);
+      if (site) {
+        res.locals.site = site;
+        res.locals.siteUrlBase = '';
+        return next();
+      }
     }
   }
 
-  // Future: subdomain mapping
-  const host = req.get('host')?.toLowerCase().replace(/:\d+$/, '');
-  if (host) {
-    const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(host);
-    if (site) {
-      res.locals.site = site;
-      res.locals.siteUrlBase = '';
-      return next();
-    }
-  }
-
-  // Default: pick first site
+  // Solo (of hub zonder match): de primaire/owner-site (eerste aangemaakte).
   const defaultSite = db.prepare('SELECT * FROM sites ORDER BY created_at ASC LIMIT 1').get();
   if (defaultSite) {
     res.locals.site = defaultSite;

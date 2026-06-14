@@ -92,6 +92,17 @@ export function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_playlist_tracks_pos
       ON playlist_tracks(playlist_id, position);
   `);
+
+  // Globale app-instellingen (key/value singleton). O.a. de tenancy-modus
+  // (solo = één site, hub = bedrijfssite + /gebruikers). Default = solo.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+  db.prepare("INSERT OR IGNORE INTO app_settings (key, value) VALUES ('tenancy', 'solo')").run();
 }
 
 function ensureColumn(table, column, definition) {

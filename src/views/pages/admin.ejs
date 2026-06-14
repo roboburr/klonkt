@@ -1,32 +1,38 @@
 <div class="container admin-page">
-  <h1>Admin</h1>
-  <p class="admin-tagline">God-level overview. <em>(Stub — full dashboard later.)</em></p>
+  <h1>Beheer</h1>
+  <% if (tenancy === 'hub') { %>
+    <p class="admin-tagline">Hub-modus — bedrijfssite met gebruikers, elk hun eigen PrutFolio.</p>
+  <% } else { %>
+    <p class="admin-tagline">Solo-modus — jouw site.</p>
+  <% } %>
 
   <nav class="admin-quick-links" aria-label="Beheer-snelkoppelingen">
-    <a href="/admin/sites" class="btn">🌐 Sites</a>
-    <a href="/admin/users" class="btn">👥 Users</a>
-    <a href="/admin/audio" class="btn">🎵 Audio tracks</a>
-    <a href="/admin/playlists" class="btn">📃 Playlists</a>
-    <a href="/admin/comments" class="btn">💬 Comments</a>
+    <% if (tenancy === 'hub') { %>
+      <a href="/admin/sites" class="btn">🌐 Sites</a>
+      <a href="/admin/users" class="btn">👥 Gebruikers</a>
+      <a href="/admin/audio" class="btn">🎵 Audio</a>
+      <a href="/admin/playlists" class="btn">📃 Playlists</a>
+      <a href="/admin/comments" class="btn">💬 Reacties</a>
+      <a href="/admin/settings" class="btn">⚙️ Instellingen</a>
+    <% } else { %>
+      <a href="/posts/new" class="btn">✍️ Nieuwe post</a>
+      <a href="/admin/audio" class="btn">🎵 Audio</a>
+      <a href="/admin/comments" class="btn">💬 Reacties</a>
+      <% if (primarySite) { %>
+        <a href="/admin/sites/<%= primarySite.slug %>/edit" class="btn">🎨 Uiterlijk</a>
+      <% } %>
+      <a href="/account" class="btn">👤 Account</a>
+      <a href="/admin/settings" class="btn">⚙️ Instellingen</a>
+    <% } %>
   </nav>
 
   <div class="admin-stats">
-    <div class="stat-card">
-      <div class="stat-num"><%= stats.users %></div>
-      <div class="stat-label">Users</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-num"><%= stats.sites %></div>
-      <div class="stat-label">Sites</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-num"><%= stats.posts %></div>
-      <div class="stat-label">Posts</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-num"><%= stats.published %></div>
-      <div class="stat-label">Published</div>
-    </div>
+    <% if (tenancy === 'hub') { %>
+      <div class="stat-card"><div class="stat-num"><%= stats.users %></div><div class="stat-label">Gebruikers</div></div>
+      <div class="stat-card"><div class="stat-num"><%= stats.sites %></div><div class="stat-label">Sites</div></div>
+    <% } %>
+    <div class="stat-card"><div class="stat-num"><%= stats.posts %></div><div class="stat-label">Posts</div></div>
+    <div class="stat-card"><div class="stat-num"><%= stats.published %></div><div class="stat-label">Gepubliceerd</div></div>
   </div>
 
   <% if (sites && sites.length) { %>
@@ -67,9 +73,6 @@
     </table>
   <% } %>
 
-  <p class="admin-todo">
-    <strong>Coming later:</strong> create/delete sites, manage users, theme picker, audio toggles, Prutter settings.
-  </p>
 </div>
 
 <style>
