@@ -29,6 +29,31 @@
       <button type="submit" class="btn btn-primary">Opslaan</button>
     </form>
   </section>
+
+  <% if (tenancy === 'hub') { %>
+  <section class="set-card" style="margin-top:1rem">
+    <h2>Hub-hoofdpagina</h2>
+    <p class="set-help">
+      De openbare hub-pagina (<code>/</code>) is generiek — van geen enkele gebruiker.
+      Hier stel je de naam en intro in. Jouw eigen PrutFolio blijft los bestaan onder <code>/user/</code>.
+    </p>
+    <form method="post" action="/admin/settings" class="set-form">
+      <label class="set-field">
+        <span>Naam</span>
+        <input type="text" name="hub_title" maxlength="80" value="<%= hubTitle %>" placeholder="bijv. Studio Noord">
+      </label>
+      <label class="set-field">
+        <span>Tagline</span>
+        <input type="text" name="hub_tagline" maxlength="120" value="<%= hubTagline %>" placeholder="bijv. Onafhankelijk muzieklabel">
+      </label>
+      <label class="set-field">
+        <span>Intro</span>
+        <textarea name="hub_intro" maxlength="400" rows="3" placeholder="Korte introtekst onder de titel."><%= hubIntro %></textarea>
+      </label>
+      <button type="submit" class="btn btn-primary">Opslaan</button>
+    </form>
+  </section>
+  <% } %>
 </div>
 
 <style>
@@ -47,6 +72,15 @@
 .set-opt small { color: var(--ink-muted); font-size: 0.82rem; }
 .set-opt code { background: var(--paper-2); padding: 0.05rem 0.35rem; border-radius: 3px; font-size: 0.85em; }
 .set-form .btn { align-self: flex-start; }
+.set-field { display: flex; flex-direction: column; gap: 0.3rem; }
+.set-field > span { font-size: 0.8rem; font-weight: 600; color: var(--ink-soft, var(--ink-muted)); }
+.set-field input, .set-field textarea {
+  width: 100%; box-sizing: border-box; padding: 0.55rem 0.7rem;
+  border: 1px solid var(--rule); border-radius: 6px; background: var(--paper); color: var(--ink);
+  font: inherit; font-size: 0.95rem;
+}
+.set-field textarea { resize: vertical; }
+.set-field input:focus, .set-field textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
 .alert { padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; }
 .alert-success { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
 </style>

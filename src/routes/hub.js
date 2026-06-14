@@ -9,7 +9,7 @@
 import express from 'express';
 import db from '../config/database.js';
 import { renderPage } from '../middleware/render.js';
-import { getTenancy } from '../services/SettingsService.js';
+import { getTenancy, getSetting } from '../services/SettingsService.js';
 
 const router = express.Router();
 
@@ -34,26 +34,27 @@ router.get('/', (req, res, next) => {
     LIMIT 24
   `).all();
 
-  // De PrutFolio's (sites) voor de gebruikers-lijst.
-  const sites = db.prepare(`
-    SELECT s.slug, s.title, s.profile_photo,
-           u.username AS owner_username,
+  // ALLE PrutFolio's (elke user, incl. de admin z'n eigen site) voor de roster.
+  const artists = db.prepare(`
+    SELECT s.slug, s.title, s.tagline, s.profile_photo,
            (SELECT COUNT(*) FROM posts WHERE site_id = s.id AND status = 'published') AS post_count
     FROM sites s
-    LEFT JOIN users u ON u.id = s.owner_id
     ORDER BY s.created_at ASC
   `).all();
 
-  // De primaire/oudste site geldt als de bedrijfssite (label). De roster toont
-  // alleen de artiesten (alle overige sites), niet de bedrijfssite zelf.
-  const company = res.locals.site || null;
-  const artists = company ? sites.filter((s) => s.slug !== company.slug) : sites;
+  // De hub-pagina is GENERIEK (van geen enkele user) — branding komt uit globale
+  // instellingen die de admin in Beheer beheert, niet uit een site.
+  const hub = {
+    title: getSetting('hub_title') || 'Overzicht',
+    tagline: getSetting('hub_tagline') || '',
+    intro: getSetting('hub_intro') || '',
+  };
 
   renderPage(req, res, 'pages/hub-home', {
-    pageTitle: company ? company.title : 'Overzicht',
-    socialDescr: (company && (company.description || company.tagline)) || '',
+    pageTitle: hub.title,
+    socialDescr: hub.intro || hub.tagline || '',
     bodyClass: 'on-home on-hub',
-    company,
+    hub,
     artists,
     posts,
   });

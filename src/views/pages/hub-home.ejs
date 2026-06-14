@@ -3,12 +3,12 @@
   <%# ── HERO (label / bedrijf) ─────────────────────────────────────── %>
   <header class="hub-hero">
     <div class="hub-hero-inner container">
-      <h1 class="hub-hero-title"><%= company ? company.title : 'Overzicht' %></h1>
-      <% if (company && company.tagline) { %>
-        <p class="hub-hero-tag"><%= company.tagline %></p>
+      <h1 class="hub-hero-title"><%= hub.title %></h1>
+      <% if (hub.tagline) { %>
+        <p class="hub-hero-tag"><%= hub.tagline %></p>
       <% } %>
-      <% if (company && (company.profile_bio || company.description)) { %>
-        <p class="hub-hero-desc"><%= company.profile_bio || company.description %></p>
+      <% if (hub.intro) { %>
+        <p class="hub-hero-desc"><%= hub.intro %></p>
       <% } %>
     </div>
   </header>

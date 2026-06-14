@@ -1,17 +1,19 @@
 /**
- * Admin: globale instellingen — nu de tenancy-modus (Solo/Hub).
+ * Admin: globale instellingen.
+ *  - tenancy-modus (Solo/Hub)
+ *  - hub-branding (naam/tagline/intro van de generieke hub-hoofdpagina)
  *
- * GET  /admin/settings        -> toon huidige modus + uitleg
- * POST /admin/settings        -> sla modus op (god-only)
+ * GET  /admin/settings   -> toon huidige instellingen
+ * POST /admin/settings   -> sla op (god-only)
  *
- * Schakelen is niet-destructief: Solo verbergt alleen de multi-site-onderdelen
- * en routeert naar de primaire site; er wordt niets verwijderd.
+ * De hub-pagina is generiek (van geen enkele user); deze branding leeft in
+ * globale settings, niet in een site.
  */
 
 import express from 'express';
 import { renderPage } from '../middleware/render.js';
 import { requireGod } from '../middleware/auth.js';
-import { getTenancy, setTenancy } from '../services/SettingsService.js';
+import { getTenancy, setTenancy, getSetting, setSetting } from '../services/SettingsService.js';
 
 const router = express.Router();
 
@@ -20,13 +22,27 @@ router.get('/', requireGod, (req, res) => {
     pageTitle: 'Instellingen',
     bodyClass: 'on-admin',
     tenancy: getTenancy(),
+    hubTitle: getSetting('hub_title') || '',
+    hubTagline: getSetting('hub_tagline') || '',
+    hubIntro: getSetting('hub_intro') || '',
     success: req.query.success || null,
   });
 });
 
 router.post('/', requireGod, (req, res) => {
-  setTenancy(req.body.tenancy === 'hub' ? 'hub' : 'solo');
-  res.redirect('/admin/settings?success=' + encodeURIComponent('Modus opgeslagen'));
+  if (typeof req.body.tenancy !== 'undefined') {
+    setTenancy(req.body.tenancy === 'hub' ? 'hub' : 'solo');
+  }
+  if (typeof req.body.hub_title !== 'undefined') {
+    setSetting('hub_title', (req.body.hub_title || '').toString().slice(0, 80).trim());
+  }
+  if (typeof req.body.hub_tagline !== 'undefined') {
+    setSetting('hub_tagline', (req.body.hub_tagline || '').toString().slice(0, 120).trim());
+  }
+  if (typeof req.body.hub_intro !== 'undefined') {
+    setSetting('hub_intro', (req.body.hub_intro || '').toString().slice(0, 400).trim());
+  }
+  res.redirect('/admin/settings?success=' + encodeURIComponent('Opgeslagen'));
 });
 
 export default router;
