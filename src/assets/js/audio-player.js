@@ -322,11 +322,25 @@
       .catch((err) => onLoadError(err, mySeq));
   }
 
+  // True when the viewport is in the mobile sheet-layout — matches the CSS
+  // breakpoint where .audio-sheet slides up full-width from the bottom
+  // (@media max-width:719.98px). On wider/desktop widths the sheet is a centered
+  // panel, so we do NOT auto-open it there.
+  function isMobileView() {
+    return window.matchMedia('(max-width: 719.98px)').matches;
+  }
+
   function setQueue(tracks, startIdx, opts) {
     queue = Array.isArray(tracks) ? tracks.slice() : [];
     albumName = (opts && opts.albumName) || '';
     if (!queue.length) return;
     loadTrack(typeof startIdx === 'number' ? Math.max(0, Math.min(startIdx, queue.length - 1)) : 0, true);
+    // Mobile: a track press from an album/playlist auto-opens the full
+    // now-playing sheet (Spotify-style) i.p.v. alleen de dunne mini-strip.
+    // Alleen hier (setQueue = een verse, door-de-gebruiker-gestarte queue) —
+    // niet bij next/prev of de site-pre-seed — zodat een sheet die de gebruiker
+    // bewust sloot niet vanzelf terugkomt.
+    if (isMobileView()) openSheet();
   }
 
   function play() {
