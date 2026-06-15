@@ -285,20 +285,23 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
       regular posts still get the simple older/newer pair. %>
   <% if (!post.pinned && (prevPost || nextPost)) { %>
     <nav class="post-nav">
-      <% if (prevPost) { %>
-        <a class="post-nav-prev" href="<%= prevPost._urlBase || '' %>/<%= prevPost.slug %>"<% if (!prevPost._urlBase) { %>
-           hx-get="/<%= prevPost.slug %>?partial=1" hx-target="#pcms-main"
-           hx-push-url="/<%= prevPost.slug %>" hx-indicator="#pcms-loading"<% } %>>
-          <span class="post-nav-label">← Older</span>
-          <span class="post-nav-title"><%= prevPost.title %></span>
-        </a>
-      <% } else { %><span></span><% } %>
+      <%# Newer links, Older rechts (lijst nieuwste-eerst → naar rechts = ouder).
+          .post-nav-prev = linker kolom (links uitgelijnd), .post-nav-next =
+          rechter kolom (rechts uitgelijnd). %>
       <% if (nextPost) { %>
-        <a class="post-nav-next" href="<%= nextPost._urlBase || '' %>/<%= nextPost.slug %>"<% if (!nextPost._urlBase) { %>
+        <a class="post-nav-prev" href="<%= nextPost._urlBase || '' %>/<%= nextPost.slug %>"<% if (!nextPost._urlBase) { %>
            hx-get="/<%= nextPost.slug %>?partial=1" hx-target="#pcms-main"
            hx-push-url="/<%= nextPost.slug %>" hx-indicator="#pcms-loading"<% } %>>
-          <span class="post-nav-label">Newer →</span>
+          <span class="post-nav-label">← Newer</span>
           <span class="post-nav-title"><%= nextPost.title %></span>
+        </a>
+      <% } else { %><span></span><% } %>
+      <% if (prevPost) { %>
+        <a class="post-nav-next" href="<%= prevPost._urlBase || '' %>/<%= prevPost.slug %>"<% if (!prevPost._urlBase) { %>
+           hx-get="/<%= prevPost.slug %>?partial=1" hx-target="#pcms-main"
+           hx-push-url="/<%= prevPost.slug %>" hx-indicator="#pcms-loading"<% } %>>
+          <span class="post-nav-label">Older →</span>
+          <span class="post-nav-title"><%= prevPost.title %></span>
         </a>
       <% } %>
     </nav>
