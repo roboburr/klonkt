@@ -184,16 +184,26 @@ router.post('/upload', requireGod, (req, res) => {
         VALUES (?, ?, ?, ?, ?, ?)
       `).run(mediaId, site.id, transcoded.filename, transcoded.mimeType, transcoded.size, transcoded.path);
 
-      console.log('[admin-audio] inserting audio_tracks row');
+      // Duur automatisch: primair uit de transcode (ffmpeg codecData), anders een
+      // optionele client-side waarde (bulk-uploader leest <audio>.duration uit),
+      // anders NULL (UI toont dan '—:—', handmatig bij te werken in de editor).
+      const clientDur = req.body.duration != null ? parseInt(req.body.duration, 10) : NaN;
+      const finalDuration =
+        (transcoded.durationSec != null && transcoded.durationSec > 0) ? transcoded.durationSec
+        : (Number.isFinite(clientDur) && clientDur > 0) ? clientDur
+        : null;
+
+      console.log('[admin-audio] inserting audio_tracks row (duration=' + finalDuration + ')');
       db.prepare(`
-        INSERT INTO audio_tracks (id, site_id, title, artist, album, cover_url, media_id, position)
-        VALUES (?, ?, ?, ?, ?, ?, ?, COALESCE(
+        INSERT INTO audio_tracks (id, site_id, title, artist, album, duration, cover_url, media_id, position)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, COALESCE(
           (SELECT MAX(position) + 1 FROM audio_tracks WHERE site_id = ?),
           0
         ))
       `).run(
         trackId, site.id,
         finalTitle, finalArtist, finalAlbum,
+        finalDuration,
         coverUrl,
         mediaId, site.id
       );

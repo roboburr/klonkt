@@ -379,10 +379,10 @@ body.te-modal-open { overflow: hidden; }
             </div>
 
             <label class="te-field">
-              <span>Duur <small>(seconden — bv. 142 voor 2:22)</small></span>
+              <span>Duur <small>(seconden — automatisch bepaald, hier te overschrijven)</small></span>
               <input type="number" id="te-duration" min="0" step="1"
                      inputmode="numeric" pattern="[0-9]*"
-                     value="${track.duration || ''}" placeholder="0">
+                     value="${track.duration || ''}" placeholder="auto">
             </label>
 
             <div class="te-field">
@@ -617,6 +617,34 @@ body.te-modal-open { overflow: hidden; }
         saveBtn.textContent = '💾 Opslaan';
       }
     });
+
+    // ── Auto-duur ───────────────────────────────────────────
+    // De server bepaalt de duur al automatisch bij upload. Dit is de vangnet/
+    // UX-laag: opent een admin een bestaande track zónder duur, dan lezen we 'm
+    // hier uit de audio-metadata en vullen het veld — zodat je nooit seconden
+    // hoeft te typen. Bestaande waarde wordt nooit overschreven. We halen de
+    // bytes via dezelfde header-gate als de speler (X-Audio-Player).
+    (async function autoDuration() {
+      const durEl = $('#te-duration');
+      if (!durEl || !track.stream_url) return;
+      if (durEl.value && Number(durEl.value) > 0) return;  // al ingevuld → met rust laten
+      let objUrl = null;
+      try {
+        const r = await fetch(track.stream_url, { credentials: 'same-origin', headers: { 'X-Audio-Player': '1' } });
+        if (!r.ok) return;
+        objUrl = URL.createObjectURL(await r.blob());
+        const probe = new Audio();
+        probe.preload = 'metadata';
+        probe.addEventListener('loadedmetadata', () => {
+          if (isFinite(probe.duration) && probe.duration > 0 && !(durEl.value && Number(durEl.value) > 0)) {
+            durEl.value = Math.round(probe.duration);
+          }
+          if (objUrl) URL.revokeObjectURL(objUrl);
+        });
+        probe.addEventListener('error', () => { if (objUrl) URL.revokeObjectURL(objUrl); });
+        probe.src = objUrl;
+      } catch (e) { if (objUrl) URL.revokeObjectURL(objUrl); }
+    })();
 
     // Focus title for fast typing
     setTimeout(() => $('#te-title').focus(), 60);

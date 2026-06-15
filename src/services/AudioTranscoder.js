@@ -89,8 +89,10 @@ export async function transcodeToMp3({ inputPath, outputDir, outputBaseName, tag
   // (same partition guaranteed). Suffix avoids collisions between concurrent transcodes.
   const tmpPath = path.join(outputDir, `${outputBaseName}.transcoding-${process.pid}.mp3`);
 
+  let durationSec = null;
   try {
-    await runFfmpeg({ inputPath, tmpPath, tags });
+    const r = await runFfmpeg({ inputPath, tmpPath, tags });
+    durationSec = r && r.durationSec != null ? r.durationSec : null;
 
     // Verify the output is not zero bytes — ffmpeg sometimes "succeeds" but
     // produces empty output for unreadable inputs. Better to fail loudly here.
@@ -123,6 +125,7 @@ export async function transcodeToMp3({ inputPath, outputDir, outputBaseName, tag
       path: finalPath,
       size: outStat.size,
       mimeType: 'audio/mpeg',
+      durationSec,   // hele seconden uit ffmpeg's codecData (null als onbekend)
     };
 
   } catch (err) {
@@ -139,6 +142,7 @@ export async function transcodeToMp3({ inputPath, outputDir, outputBaseName, tag
  */
 function runFfmpeg({ inputPath, tmpPath, tags }) {
   return new Promise((resolve, reject) => {
+    let durationSec = null;
     const cmd = ffmpeg(inputPath)
       .audioCodec('libmp3lame')
       .audioBitrate('192k')          // CBR — easier seeking than VBR for our small <50MB files
@@ -167,6 +171,9 @@ function runFfmpeg({ inputPath, tmpPath, tags }) {
     if (tags.album)  cmd.outputOptions('-metadata', `album=${tags.album}`);
 
     cmd
+      // codecData geeft de duur van de INPUT als "HH:MM:SS.xx" — zo bepalen we
+      // de tracklengte automatisch zonder aparte ffprobe-binary.
+      .on('codecData', (data) => { durationSec = parseHmsToSeconds(data && data.duration); })
       .on('error', (err, stdout, stderr) => {
         // ffmpeg's stderr is the most useful diagnostic. fluent-ffmpeg's
         // err.message is usually a short summary; we glue stderr on so the
@@ -175,9 +182,45 @@ function runFfmpeg({ inputPath, tmpPath, tags }) {
         const tail = (stderr || '').split('\n').slice(-6).join('\n').trim();
         reject(new Error(`Transcode failed: ${reason}${tail ? '\n' + tail : ''}`));
       })
-      .on('end', () => resolve())
+      .on('end', () => resolve({ durationSec }))
       .save(tmpPath);
   });
 }
 
-export default { transcodeToMp3 };
+/**
+ * Parse een ffmpeg-duurstring "HH:MM:SS.xx" naar hele seconden. Geeft null bij
+ * "N/A" of een onverwacht formaat.
+ */
+function parseHmsToSeconds(hms) {
+  if (!hms || typeof hms !== 'string') return null;
+  const m = hms.match(/^(\d+):(\d{2}):(\d{2})(?:\.(\d+))?$/);
+  if (!m) return null;
+  const sec = (+m[1]) * 3600 + (+m[2]) * 60 + (+m[3]) + (m[4] ? Number('0.' + m[4]) : 0);
+  return Number.isFinite(sec) ? Math.round(sec) : null;
+}
+
+/**
+ * Lees de duur (hele seconden) van een audiobestand ZONDER te transcoderen.
+ * Start een ffmpeg-pass en leest enkel het codecData-event (duur), waarna we het
+ * proces direct stoppen — snel en zonder aparte ffprobe-binary (ffmpeg-static
+ * levert alleen ffmpeg). Bedoeld voor het backfill-script.
+ * @returns {Promise<number|null>}
+ */
+export function probeDuration(filePath) {
+  return new Promise((resolve) => {
+    let durationSec = null, done = false;
+    const finish = () => { if (!done) { done = true; resolve(durationSec); } };
+    const cmd = ffmpeg(filePath)
+      .on('codecData', (data) => {
+        durationSec = parseHmsToSeconds(data && data.duration);
+        try { cmd.kill('SIGKILL'); } catch { /* al klaar */ }
+        finish();
+      })
+      .on('error', finish)
+      .on('end', finish)
+      .format('null')
+      .save(process.platform === 'win32' ? 'NUL' : '/dev/null');
+  });
+}
+
+export default { transcodeToMp3, probeDuration };
