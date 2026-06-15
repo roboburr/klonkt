@@ -134,6 +134,25 @@
 .pcms-embed-card--spotify.is-mounted .pcms-embed-info { display: none; }
 .pcms-embed-card--spotify:not(.is-mounted) .pcms-embed-mount { display: none; }
 
+/* Spotify in een nette witte box (Robin 2026-06-15): witte rand + rounded +
+ * schaduw. Hogere specificity (.folio-embed.pcms-embed-card--spotify) zodat dit
+ * de generieke .folio-embed.pcms-embed-card-basis (gelijke specificity) wint —
+ * staat ook later in het bestand. */
+.folio-embed.pcms-embed-card--spotify {
+  border: 3px solid #ffffff;
+  border-radius: 16px;
+  background: #ffffff;
+  padding: 5px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, .18);
+}
+.pcms-embed-card--spotify .pcms-embed-mount iframe { border-radius: 12px; }
+/* Facade (vóór afspelen) leesbaar op de witte box, ongeacht het thema. */
+.pcms-embed-card--spotify .pcms-embed-audio { background: #ffffff; border-radius: 12px; overflow: hidden; }
+.pcms-embed-card--spotify .pcms-embed-art { background: #f0f0f0; color: #191414; }
+.pcms-embed-card--spotify .pcms-embed-title { color: #191414; }
+.pcms-embed-card--spotify .pcms-embed-sub { color: #555555; }
+.pcms-embed-card--spotify .pcms-embed-frame-badge { background: #ffffff; border-top: 0; padding-top: 0; }
+
 /* ---- Grote play-knop (poster/art) ---- */
 .pcms-embed-bigplay {
   width: 64px;
