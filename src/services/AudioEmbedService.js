@@ -189,6 +189,24 @@ class AudioEmbedService {
   }
 
   /**
+   * Replace [[embed:<url>]] shortcodes met de platform-iframe (YouTube, Spotify,
+   * SoundCloud, Apple Music, Bandcamp, Vimeo). De editor-knop voegt deze
+   * shortcode in; losse URL-regels embedden ook automatisch via autoembed().
+   * Niet-ondersteunde/ongeldige URLs krijgen een nette inline-melding.
+   */
+  static embedMediaShortcodes(html) {
+    if (!html) return html;
+    return html.replace(/\[\[embed:([^\]]+)\]\]/gi, (match, rawUrl) => {
+      const url = rawUrl.trim().replace(/&amp;/g, '&');
+      const detected = this.detectProvider(url);
+      if (!detected) {
+        return `<div class="post-embed-missing"><em>Embed: niet-ondersteunde of ongeldige URL.</em></div>`;
+      }
+      return this.generateIframe(detected.provider, detected) || match;
+    });
+  }
+
+  /**
    * Replace [[track:<id>]] shortcodes with v9-style player markup.
    * Caller passes a lookup function (id) -> { id, title, artist, url, cover }
    * where url is already a signed /audio/stream/... URL. Unknown ids → left as-is.

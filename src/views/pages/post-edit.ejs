@@ -114,6 +114,9 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
           <button type="button" id="insert-playlist-btn" title="Playlist invoegen" aria-label="Playlist">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="15" y2="18"/><polygon points="3 5 3 13 9 9"/></svg>
           </button>
+          <button type="button" id="insert-embed-btn" title="Embed (YouTube, Spotify, SoundCloud, Vimeo…)" aria-label="Media embedden">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><polygon points="10 9 15.5 12 10 15"/></svg>
+          </button>
           <span class="pe-toolbar-spacer"></span>
           <button type="button" data-cmd="removeFormat" title="Wis opmaak" aria-label="Wis opmaak">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M5 5l14 14" stroke-linecap="round"/></svg>
@@ -929,12 +932,13 @@ body.has-bottom-tab .pe-actions {
   // — but we DON'T want to chipify text the user is mid-typing inside an
   // HTML attribute; since chipify only walks text nodes (never attribute
   // values) that's already safe.
-  const SC_RE = /\[\[(track|album|playlist):([^\]]+)\]\]/g;
+  const SC_RE = /\[\[(track|album|playlist|embed):([^\]]+)\]\]/g;
 
   const SC_ICONS = {
     track:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>',
     album:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>',
     playlist: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="15" y2="18"/><polygon points="3 5 3 13 9 9"/></svg>',
+    embed:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><polygon points="10 9 15.5 12 10 15"/></svg>',
   };
 
   function chipLabel(kind, value) {
@@ -945,6 +949,10 @@ body.has-bottom-tab .pe-actions {
     }
     if (kind === 'album')    return 'Album: ' + value;
     if (kind === 'playlist') return 'Playlist: ' + value;
+    if (kind === 'embed') {
+      const clean = String(value || '').replace(/^https?:\/\/(www\.)?/, '');
+      return '▶ ' + (clean.length > 36 ? clean.slice(0, 34) + '…' : clean);
+    }
     return value;
   }
 
@@ -1156,6 +1164,19 @@ body.has-bottom-tab .pe-actions {
       editor.appendChild(document.createTextNode('\u00A0'));
     }
     updateCharCount();
+  }
+
+  // ── Embed insert: plak een platform-URL -> [[embed:url]]-chip die server-side
+  //    een iframe wordt (YouTube/Spotify/SoundCloud/Vimeo/Apple Music/Bandcamp).
+  const embedBtn = document.getElementById('insert-embed-btn');
+  if (embedBtn) {
+    embedBtn.addEventListener('click', () => {
+      const raw = window.prompt('Plak een media-URL om in te sluiten\n(YouTube, Spotify, SoundCloud, Vimeo, Apple Music, Bandcamp):');
+      if (!raw) return;
+      const url = raw.trim();
+      if (!/^https?:\/\//i.test(url)) { alert('Geef een volledige URL (https://…).'); return; }
+      insertChip('embed', url);
+    });
   }
 
   // ── Track insert: opens the track-picker modal (P59)

@@ -397,6 +397,7 @@ router.get('/:slug', (req, res, next) => {
   let html = post.content || '';
   if (site.enable_audio_player !== 0) {
     html = AudioEmbedService.autoembed(html);
+    html = AudioEmbedService.embedMediaShortcodes(html);
     html = AudioEmbedService.embedExternalLinkShortcodes(html);
 
     // Fetch any tracks referenced by [[track:id]] in this post.
