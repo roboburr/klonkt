@@ -546,6 +546,18 @@
     if (!hasFullPlayer() && sheet.classList.contains('is-open')) closeSheet();
   });
 
+  // Geen dubbel geluid: zodra de gebruiker een ingesloten video/audio aanklikt
+  // (YouTube/Vimeo/SoundCloud/Spotify-iframe in een .folio-embed) gaat de focus
+  // naar dat iframe -> window 'blur'. Speelt onze speler dan? Pauzeer 'm.
+  window.addEventListener('blur', () => {
+    setTimeout(() => {
+      const el = document.activeElement;
+      if (el && el.tagName === 'IFRAME' && el.closest('.folio-embed') && audio.src && !audio.paused) {
+        pause();
+      }
+    }, 0);
+  });
+
   // Drag-down-to-close on touch devices.
   //
   // We set --pcms-drag-y as a CSS custom prop instead of writing
