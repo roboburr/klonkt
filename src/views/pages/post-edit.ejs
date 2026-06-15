@@ -8,11 +8,15 @@
 // All behavior (IDs, names, upload endpoints) is preserved — only layout
 // and styling changed.
 const _hasCover = !!post.cover_image_url;
+// In hub-modus moeten save/create/cancel de /user/<slug>/-prefix dragen, anders
+// valt de request terug op de primaire site (siteUrlBase leeg) en rendert de
+// post na opslaan headerless (bareChrome). In solo is _base leeg.
+const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '';
 %>
 <div class="container post-edit-page">
   <h1><%= isNew ? 'Nieuwe post' : 'Post bewerken' %></h1>
 
-  <form method="post" action="<%= isNew ? '/posts/create' : '/posts/' + post.slug + '/save' %>" class="post-edit-form">
+  <form method="post" action="<%= _base %><%= isNew ? '/posts/create' : '/posts/' + post.slug + '/save' %>" class="post-edit-form">
 
     <%# ── IDENTITY ─────────────────────────────────────────────── %>
     <section class="pe-card">
@@ -183,7 +187,7 @@ const _hasCover = !!post.cover_image_url;
 
     <%# ── ACTIONS (sticky at bottom) ──────────────────────────── %>
     <div class="pe-actions">
-      <a href="<%= isNew ? '/' : '/' + post.slug %>" class="pe-btn">Annuleren</a>
+      <a href="<%= _base %><%= isNew ? '/' : '/' + post.slug %>" class="pe-btn">Annuleren</a>
       <div class="pe-actions-spacer"></div>
       <% if (!isNew && post.status !== 'published') { %>
         <button type="submit" name="action" value="publish" class="pe-btn pe-btn-success">📤 Publish</button>
