@@ -232,76 +232,26 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
     </section>
   <% } %>
 
-  <%# ── Pinned navigation (only when current post is pinned) ───
-      Two card-style links: "Vorige vastgepinde" / "Volgende vastgepinde".
-      Edge-of-stack states show "← BOVENAAN — Nieuwste post" or the equivalent
-      for the bottom. Layout mirrors v9 exactly. %>
-  <% if (post.pinned) { %>
-    <nav class="post-pinned-nav" aria-label="Pinned navigation">
-      <%# LEFT card: post one step UP the pinned stack (towards #1).
-          Uses prevPinnedPost which now means "smaller rank". %>
-      <% if (prevPinnedPost) { %>
-        <a class="post-pinned-card post-pinned-card--prev" href="<%= _base %>/<%= prevPinnedPost.slug %>"
-           hx-get="<%= _base %>/<%= prevPinnedPost.slug %>?partial=1" hx-target="#pcms-main"
-           hx-push-url="<%= _base %>/<%= prevPinnedPost.slug %>" hx-indicator="#pcms-loading">
-          <span class="post-pinned-arrow" aria-hidden="true">←</span>
-          <span class="post-pinned-body">
-            <span class="post-pinned-label">📌 Vorige vastgepinde</span>
-            <span class="post-pinned-title"><%= prevPinnedPost.title %></span>
-            <span class="post-pinned-cta">Lees deze post →</span>
-          </span>
-        </a>
-      <% } else if (pinnedTopOfStack) { %>
-        <span class="post-pinned-card post-pinned-card--edge">
-          <span class="post-pinned-edge-label">— BOVENAAN —</span>
-          <span class="post-pinned-edge-title">Nieuwste post</span>
-        </span>
-      <% } %>
-
-      <%# RIGHT card: post one step DOWN the pinned stack (away from #1).
-          Uses nextPinnedPost which now means "larger rank". %>
-      <% if (nextPinnedPost) { %>
-        <a class="post-pinned-card post-pinned-card--next" href="<%= _base %>/<%= nextPinnedPost.slug %>"
-           hx-get="<%= _base %>/<%= nextPinnedPost.slug %>?partial=1" hx-target="#pcms-main"
-           hx-push-url="<%= _base %>/<%= nextPinnedPost.slug %>" hx-indicator="#pcms-loading">
-          <span class="post-pinned-arrow" aria-hidden="true">→</span>
-          <span class="post-pinned-body">
-            <span class="post-pinned-label">📌 Volgende vastgepinde</span>
-            <span class="post-pinned-title"><%= nextPinnedPost.title %></span>
-            <span class="post-pinned-cta">← Lees deze post</span>
-          </span>
-        </a>
-      <% } else if (pinnedBottomOfStack) { %>
-        <span class="post-pinned-card post-pinned-card--edge">
-          <span class="post-pinned-edge-label">— ONDERAAN —</span>
-          <span class="post-pinned-edge-title">Oudste post</span>
-        </span>
-      <% } %>
-    </nav>
-  <% } %>
-
-  <%# ── Chronological prev/next (kept for non-pinned posts) ──────
-      For pinned posts the pinned-nav above replaces this. Non-pinned
-      regular posts still get the simple older/newer pair. %>
-  <% if (!post.pinned && (prevPost || nextPost)) { %>
+  <%# ── Navigatie over ALLE posts (pinned + niet-pinned in de feed-volgorde) ──
+      Newer links (← omhoog in de lijst), Older rechts (→ omlaag). Vervangt de
+      vroegere pinned-only stack-navigatie: pinned posts zitten gewoon in de
+      doorlopende reeks. .post-nav-prev = linker kolom, .post-nav-next = rechter. %>
+  <% if (newerPost || olderPost) { %>
     <nav class="post-nav">
-      <%# Newer links, Older rechts (lijst nieuwste-eerst → naar rechts = ouder).
-          .post-nav-prev = linker kolom (links uitgelijnd), .post-nav-next =
-          rechter kolom (rechts uitgelijnd). %>
-      <% if (nextPost) { %>
-        <a class="post-nav-prev" href="<%= nextPost._urlBase || '' %>/<%= nextPost.slug %>"<% if (!nextPost._urlBase) { %>
-           hx-get="/<%= nextPost.slug %>?partial=1" hx-target="#pcms-main"
-           hx-push-url="/<%= nextPost.slug %>" hx-indicator="#pcms-loading"<% } %>>
+      <% if (newerPost) { %>
+        <a class="post-nav-prev" href="<%= newerPost._urlBase || '' %>/<%= newerPost.slug %>"<% if (!newerPost._urlBase) { %>
+           hx-get="/<%= newerPost.slug %>?partial=1" hx-target="#pcms-main"
+           hx-push-url="/<%= newerPost.slug %>" hx-indicator="#pcms-loading"<% } %>>
           <span class="post-nav-label">← Newer</span>
-          <span class="post-nav-title"><%= nextPost.title %></span>
+          <span class="post-nav-title"><%= newerPost.title %></span>
         </a>
       <% } else { %><span></span><% } %>
-      <% if (prevPost) { %>
-        <a class="post-nav-next" href="<%= prevPost._urlBase || '' %>/<%= prevPost.slug %>"<% if (!prevPost._urlBase) { %>
-           hx-get="/<%= prevPost.slug %>?partial=1" hx-target="#pcms-main"
-           hx-push-url="/<%= prevPost.slug %>" hx-indicator="#pcms-loading"<% } %>>
+      <% if (olderPost) { %>
+        <a class="post-nav-next" href="<%= olderPost._urlBase || '' %>/<%= olderPost.slug %>"<% if (!olderPost._urlBase) { %>
+           hx-get="/<%= olderPost.slug %>?partial=1" hx-target="#pcms-main"
+           hx-push-url="/<%= olderPost.slug %>" hx-indicator="#pcms-loading"<% } %>>
           <span class="post-nav-label">Older →</span>
-          <span class="post-nav-title"><%= prevPost.title %></span>
+          <span class="post-nav-title"><%= olderPost.title %></span>
         </a>
       <% } %>
     </nav>

@@ -506,33 +506,28 @@ router.get('/:slug', (req, res, next) => {
   // Per-post URL-basis: in hub wijst een link naar /user/<site-slug>/<post-slug>.
   const urlBaseFor = (p) => (isHub && p && p.site_slug) ? `/user/${p.site_slug}` : '';
 
-  const prevPost = isHub
+  // Newer/Older over ALLE posts, in de canonieke feed-volgorde — niet alleen de
+  // pinned-stack. Solo: binnen de site, pinned eerst op rank, dan op datum
+  // (zelfde volgorde als de homepage-feed). Hub: globaal op datum over alle
+  // sites. De vorige positie in de lijst = "Newer" (← omhoog), de volgende =
+  // "Older" (→ omlaag). Pinned posts zitten zo gewoon in de doorlopende reeks.
+  const ordered = isHub
     ? db.prepare(`
-        SELECT p.slug, p.title, s.slug AS site_slug
+        SELECT p.id, p.slug, p.title, s.slug AS site_slug
         FROM posts p JOIN sites s ON s.id = p.site_id
-        WHERE p.status = 'published' AND p.published_at < ? AND p.id != ?
-        ORDER BY p.published_at DESC LIMIT 1
-      `).get(post.published_at, post.id)
+        WHERE p.status = 'published'
+        ORDER BY p.published_at DESC
+      `).all()
     : db.prepare(`
-        SELECT slug, title FROM posts
-        WHERE site_id = ? AND status = 'published' AND published_at < ? AND id != ?
-        ORDER BY published_at DESC LIMIT 1
-      `).get(site.id, post.published_at, post.id);
-
-  const nextPost = isHub
-    ? db.prepare(`
-        SELECT p.slug, p.title, s.slug AS site_slug
-        FROM posts p JOIN sites s ON s.id = p.site_id
-        WHERE p.status = 'published' AND p.published_at > ? AND p.id != ?
-        ORDER BY p.published_at ASC LIMIT 1
-      `).get(post.published_at, post.id)
-    : db.prepare(`
-        SELECT slug, title FROM posts
-        WHERE site_id = ? AND status = 'published' AND published_at > ? AND id != ?
-        ORDER BY published_at ASC LIMIT 1
-      `).get(site.id, post.published_at, post.id);
-  if (prevPost) prevPost._urlBase = urlBaseFor(prevPost);
-  if (nextPost) nextPost._urlBase = urlBaseFor(nextPost);
+        SELECT id, slug, title FROM posts
+        WHERE site_id = ? AND status = 'published'
+        ORDER BY (pinned = 0) ASC, pinned ASC, published_at DESC
+      `).all(site.id);
+  const _idx = ordered.findIndex((p) => p.id === post.id);
+  const newerPost = _idx > 0 ? ordered[_idx - 1] : null;
+  const olderPost = (_idx >= 0 && _idx < ordered.length - 1) ? ordered[_idx + 1] : null;
+  if (newerPost) newerPost._urlBase = urlBaseFor(newerPost);
+  if (olderPost) olderPost._urlBase = urlBaseFor(olderPost);
 
   // ── Related posts: same-tag matching with recency fallback ─────
   // Fetch ~50 candidates, score by tag overlap, take top 3.
@@ -587,48 +582,11 @@ router.get('/:slug', (req, res, next) => {
   // Strip the internal _overlap field before sending to view
   relatedPosts = relatedPosts.map(({ _overlap, tags, ...rest }) => ({ ...rest, _urlBase: urlBaseFor(rest) }));
 
-  // ── Pinned navigation: prev/next pinned post ───────────────────
-  // Only meaningful if the current post is pinned. We order by
-  // published_at DESC (newest pinned first) — same as the homepage feed.
-  // Pinned navigation: prev/next pinned post by RANK (not by date).
-  // - prev (← back to) = post with smaller rank, i.e. higher in stack
-  // - next (→ forward) = post with larger rank, i.e. lower in stack
-  // BOVENAAN appears when current is rank 1 (no rank 0 above);
-  // ONDERAAN appears when current is the highest rank (no further down).
-  let prevPinnedPost = null;
-  let nextPinnedPost = null;
-  let pinnedTopOfStack = false;
-  let pinnedBottomOfStack = false;
-  if (post.pinned > 0) {
-    // The rank one step UP the stack (towards #1)
-    prevPinnedPost = db.prepare(`
-      SELECT slug, title FROM posts
-      WHERE site_id = ? AND status = 'published' AND pinned > 0
-        AND pinned < ? AND id != ?
-      ORDER BY pinned DESC LIMIT 1
-    `).get(site.id, post.pinned, post.id) || null;
-
-    // The rank one step DOWN the stack (away from #1)
-    nextPinnedPost = db.prepare(`
-      SELECT slug, title FROM posts
-      WHERE site_id = ? AND status = 'published' AND pinned > 0
-        AND pinned > ? AND id != ?
-      ORDER BY pinned ASC LIMIT 1
-    `).get(site.id, post.pinned, post.id) || null;
-
-    pinnedTopOfStack    = !prevPinnedPost;  // already rank #1 (or nothing higher)
-    pinnedBottomOfStack = !nextPinnedPost;  // nothing further down the stack
-  }
-
   renderPage(req, res, 'pages/post', {
     post,
-    prevPost,
-    nextPost,
+    newerPost,
+    olderPost,
     relatedPosts,
-    prevPinnedPost,
-    nextPinnedPost,
-    pinnedTopOfStack,
-    pinnedBottomOfStack,
     comments: topLevel,
     totalComments,
     pageTitle: post.title + ' - ' + site.title,
