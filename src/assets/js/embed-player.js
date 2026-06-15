@@ -259,6 +259,28 @@
       el.classList.add('pcms-embed-fallback');
       el.innerHTML = '';
       el.appendChild(iframe);
+
+      // Mutual exclusion óók voor de fallback-iframe. Een cross-origin iframe
+      // kunnen we niet via een API pauzeren, dus 'pauze' = herladen ZONDER
+      // autoplay (= stopt het geluid, speler blijft zichtbaar/herstartbaar).
+      // We registreren 'm als actief: nu (= gebruiker start de embed) pauzeert de
+      // site-speler/andere embeds; en als de site-speler later start, pauzeert de
+      // registry deze fallback.
+      self.pause = function () {
+        try {
+          const noAuto = fb.src
+            .replace(/([?&])(?:autoplay=1|auto_play=true)(&|$)/gi, '$1')
+            .replace(/[?&]$/, '');
+          if (iframe.src === noAuto) {
+            // src ongewijzigd (bv. Spotify zonder autoplay) → forceer een reload
+            iframe.src = 'about:blank';
+            setTimeout(() => { try { iframe.src = noAuto; } catch (e) {} }, 30);
+          } else {
+            iframe.src = noAuto;
+          }
+        } catch (e) {}
+      };
+      registry().setActive(self);
     }
 
     // Eerste interactie → adapter mounten + spelen. Daarna toggelt de knop.
