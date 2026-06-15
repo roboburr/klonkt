@@ -386,13 +386,11 @@ const _csrf = (typeof csrfToken !== 'undefined' && csrfToken) || '';
                     </span>
                     <input type="text" id="pli-cover" placeholder="https://… of upload" value="${esc(initial.cover)}" style="flex:1">
                   </div>
-                  ${isEdit ? `
                   <div class="pl-cover-upload-row">
                     <input type="file" id="pli-cover-file" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
                     <button type="button" class="pl-btn-small" id="pli-cover-pick">📷 Foto kiezen…</button>
                     <span class="pl-cover-status" id="pli-cover-status"></span>
-                  </div>` : `
-                  <small class="pl-cover-note">Upload van een afbeelding kan na het aanmaken van de playlist.</small>`}
+                  </div>
                 </div>
               </div>
               <div class="pl-section-title">
@@ -447,11 +445,11 @@ const _csrf = (typeof csrfToken !== 'undefined' && csrfToken) || '';
         : `<span class="pl-cover-empty">🎨</span>`;
     });
 
-    // ── Cover file upload (edit mode only) ────────────────────
-    // The upload widget only exists once a playlist has an id to attach to.
-    // In create mode the user types/pastes a URL, saves the playlist, then
-    // re-opens for upload. The route is the same as for tracks: returns
-    // { ok, url, cover_url }.
+    // ── Cover file upload (werkt in create ÉN edit) ───────────
+    // We uploaden naar het generieke image-endpoint (/posts/upload-image,
+    // requireAuth) dat een /media/-URL teruggeeft — dat heeft GEEN playlist-id
+    // nodig, dus uploaden kan ook al vóór het aanmaken. De URL belandt in het
+    // cover-veld en wordt bij 'Aanmaken'/'Opslaan' met de playlist meegestuurd.
     const coverFileInput = $('#pli-cover-file');
     const coverPickBtn   = $('#pli-cover-pick');
     const coverStatus    = $('#pli-cover-status');
@@ -469,15 +467,14 @@ const _csrf = (typeof csrfToken !== 'undefined' && csrfToken) || '';
         coverStatus.textContent = 'Uploaden…';
         coverStatus.className = 'pl-cover-status';
         const fd = new FormData();
-        fd.append('cover', file);
+        fd.append('image', file);
         try {
-          const r = await fetch(
-            `/admin/playlists/api/${encodeURIComponent(opts.id)}/cover`,
+          const r = await fetch('/posts/upload-image',
             { method: 'POST', body: fd, credentials: 'same-origin' }
           );
           const j = await r.json();
-          if (!r.ok || !j.ok) throw new Error(j.error || 'Upload mislukt');
-          const url = j.cover_url || j.url || '';
+          if (!r.ok || !j.url) throw new Error(j.error || 'Upload mislukt');
+          const url = j.url || '';
           coverEl.value = url;
           coverThumb.innerHTML = url
             ? `<img src="${esc(url)}" alt="">`
