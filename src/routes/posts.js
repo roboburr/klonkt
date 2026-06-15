@@ -500,28 +500,56 @@ router.get('/:slug', (req, res, next) => {
 
   // Prev / next chronological (kept for back-compat — "post-nav" feature
   // below the article still uses these as a simple linear navigation).
-  const prevPost = db.prepare(`
-    SELECT slug, title FROM posts
-    WHERE site_id = ? AND status = 'published' AND published_at < ? AND id != ?
-    ORDER BY published_at DESC LIMIT 1
-  `).get(site.id, post.published_at, post.id);
+  // Hub-modus: Gerelateerde posts + Newer/Older trekken uit ALLE users (alle
+  // sites), nieuwste->oudste. Solo-modus: binnen de huidige site (oud gedrag).
+  const isHub = res.locals.tenancy === 'hub';
+  // Per-post URL-basis: in hub wijst een link naar /user/<site-slug>/<post-slug>.
+  const urlBaseFor = (p) => (isHub && p && p.site_slug) ? `/user/${p.site_slug}` : '';
 
-  const nextPost = db.prepare(`
-    SELECT slug, title FROM posts
-    WHERE site_id = ? AND status = 'published' AND published_at > ? AND id != ?
-    ORDER BY published_at ASC LIMIT 1
-  `).get(site.id, post.published_at, post.id);
+  const prevPost = isHub
+    ? db.prepare(`
+        SELECT p.slug, p.title, s.slug AS site_slug
+        FROM posts p JOIN sites s ON s.id = p.site_id
+        WHERE p.status = 'published' AND p.published_at < ? AND p.id != ?
+        ORDER BY p.published_at DESC LIMIT 1
+      `).get(post.published_at, post.id)
+    : db.prepare(`
+        SELECT slug, title FROM posts
+        WHERE site_id = ? AND status = 'published' AND published_at < ? AND id != ?
+        ORDER BY published_at DESC LIMIT 1
+      `).get(site.id, post.published_at, post.id);
+
+  const nextPost = isHub
+    ? db.prepare(`
+        SELECT p.slug, p.title, s.slug AS site_slug
+        FROM posts p JOIN sites s ON s.id = p.site_id
+        WHERE p.status = 'published' AND p.published_at > ? AND p.id != ?
+        ORDER BY p.published_at ASC LIMIT 1
+      `).get(post.published_at, post.id)
+    : db.prepare(`
+        SELECT slug, title FROM posts
+        WHERE site_id = ? AND status = 'published' AND published_at > ? AND id != ?
+        ORDER BY published_at ASC LIMIT 1
+      `).get(site.id, post.published_at, post.id);
+  if (prevPost) prevPost._urlBase = urlBaseFor(prevPost);
+  if (nextPost) nextPost._urlBase = urlBaseFor(nextPost);
 
   // ── Related posts: same-tag matching with recency fallback ─────
   // Fetch ~50 candidates, score by tag overlap, take top 3.
   // Excluding self via `id != ?`.
-  const candidates = db.prepare(`
-    SELECT id, slug, title, cover_image_url, published_at, tags
-    FROM posts
-    WHERE site_id = ? AND status = 'published' AND id != ?
-    ORDER BY published_at DESC
-    LIMIT 50
-  `).all(site.id, post.id);
+  const candidates = isHub
+    ? db.prepare(`
+        SELECT p.id, p.slug, p.title, p.cover_image_url, p.published_at, p.tags, s.slug AS site_slug
+        FROM posts p JOIN sites s ON s.id = p.site_id
+        WHERE p.status = 'published' AND p.id != ?
+        ORDER BY p.published_at DESC LIMIT 50
+      `).all(post.id)
+    : db.prepare(`
+        SELECT id, slug, title, cover_image_url, published_at, tags
+        FROM posts
+        WHERE site_id = ? AND status = 'published' AND id != ?
+        ORDER BY published_at DESC LIMIT 50
+      `).all(site.id, post.id);
 
   // Parse tags JSON safely; missing/malformed → empty array.
   const parseTags = (raw) => {
@@ -557,7 +585,7 @@ router.get('/:slug', (req, res, next) => {
     relatedPosts = candidates.slice(0, 3);
   }
   // Strip the internal _overlap field before sending to view
-  relatedPosts = relatedPosts.map(({ _overlap, tags, ...rest }) => rest);
+  relatedPosts = relatedPosts.map(({ _overlap, tags, ...rest }) => ({ ...rest, _urlBase: urlBaseFor(rest) }));
 
   // ── Pinned navigation: prev/next pinned post ───────────────────
   // Only meaningful if the current post is pinned. We order by

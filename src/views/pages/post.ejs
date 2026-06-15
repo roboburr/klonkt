@@ -211,9 +211,9 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
       <ul class="post-related-grid">
         <% relatedPosts.forEach(function(rp) { %>
           <li class="post-related-card">
-            <a href="/<%= rp.slug %>"
+            <a href="<%= rp._urlBase || '' %>/<%= rp.slug %>"<% if (!rp._urlBase) { %>
                hx-get="/<%= rp.slug %>?partial=1" hx-target="#pcms-main"
-               hx-push-url="/<%= rp.slug %>" hx-indicator="#pcms-loading">
+               hx-push-url="/<%= rp.slug %>" hx-indicator="#pcms-loading"<% } %>>
               <% if (rp.cover_image_url) { %>
                 <span class="post-related-cover"
                       style="background-image: url('<%= rp.cover_image_url %>')"
@@ -241,9 +241,9 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
       <%# LEFT card: post one step UP the pinned stack (towards #1).
           Uses prevPinnedPost which now means "smaller rank". %>
       <% if (prevPinnedPost) { %>
-        <a class="post-pinned-card post-pinned-card--prev" href="/<%= prevPinnedPost.slug %>"
-           hx-get="/<%= prevPinnedPost.slug %>?partial=1" hx-target="#pcms-main"
-           hx-push-url="/<%= prevPinnedPost.slug %>" hx-indicator="#pcms-loading">
+        <a class="post-pinned-card post-pinned-card--prev" href="<%= _base %>/<%= prevPinnedPost.slug %>"
+           hx-get="<%= _base %>/<%= prevPinnedPost.slug %>?partial=1" hx-target="#pcms-main"
+           hx-push-url="<%= _base %>/<%= prevPinnedPost.slug %>" hx-indicator="#pcms-loading">
           <span class="post-pinned-arrow" aria-hidden="true">←</span>
           <span class="post-pinned-body">
             <span class="post-pinned-label">📌 Vorige vastgepinde</span>
@@ -261,9 +261,9 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
       <%# RIGHT card: post one step DOWN the pinned stack (away from #1).
           Uses nextPinnedPost which now means "larger rank". %>
       <% if (nextPinnedPost) { %>
-        <a class="post-pinned-card post-pinned-card--next" href="/<%= nextPinnedPost.slug %>"
-           hx-get="/<%= nextPinnedPost.slug %>?partial=1" hx-target="#pcms-main"
-           hx-push-url="/<%= nextPinnedPost.slug %>" hx-indicator="#pcms-loading">
+        <a class="post-pinned-card post-pinned-card--next" href="<%= _base %>/<%= nextPinnedPost.slug %>"
+           hx-get="<%= _base %>/<%= nextPinnedPost.slug %>?partial=1" hx-target="#pcms-main"
+           hx-push-url="<%= _base %>/<%= nextPinnedPost.slug %>" hx-indicator="#pcms-loading">
           <span class="post-pinned-arrow" aria-hidden="true">→</span>
           <span class="post-pinned-body">
             <span class="post-pinned-label">📌 Volgende vastgepinde</span>
@@ -286,17 +286,17 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
   <% if (!post.pinned && (prevPost || nextPost)) { %>
     <nav class="post-nav">
       <% if (prevPost) { %>
-        <a class="post-nav-prev" href="/<%= prevPost.slug %>"
+        <a class="post-nav-prev" href="<%= prevPost._urlBase || '' %>/<%= prevPost.slug %>"<% if (!prevPost._urlBase) { %>
            hx-get="/<%= prevPost.slug %>?partial=1" hx-target="#pcms-main"
-           hx-push-url="/<%= prevPost.slug %>" hx-indicator="#pcms-loading">
+           hx-push-url="/<%= prevPost.slug %>" hx-indicator="#pcms-loading"<% } %>>
           <span class="post-nav-label">← Older</span>
           <span class="post-nav-title"><%= prevPost.title %></span>
         </a>
       <% } else { %><span></span><% } %>
       <% if (nextPost) { %>
-        <a class="post-nav-next" href="/<%= nextPost.slug %>"
+        <a class="post-nav-next" href="<%= nextPost._urlBase || '' %>/<%= nextPost.slug %>"<% if (!nextPost._urlBase) { %>
            hx-get="/<%= nextPost.slug %>?partial=1" hx-target="#pcms-main"
-           hx-push-url="/<%= nextPost.slug %>" hx-indicator="#pcms-loading">
+           hx-push-url="/<%= nextPost.slug %>" hx-indicator="#pcms-loading"<% } %>>
           <span class="post-nav-label">Newer →</span>
           <span class="post-nav-title"><%= nextPost.title %></span>
         </a>
