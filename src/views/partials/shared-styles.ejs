@@ -62,6 +62,16 @@
    visible so the user keeps a consistent return-to-feed control. */
 .on-admin .view-switcher-wrap { display: none; }
 
+/* Op een losse post slaat de feed-weergave (Tijdlijn/Grid + 2/3/4 kolommen)
+   nergens op — er is geen feed om te schakelen. We laten 'm staan (geen layout-
+   sprong bij HTMX-navigatie) maar grijzen 'm uit + maken 'm onklikbaar.
+   Body-class wisselt client-side bij HTMX-nav, dus dit werkt ook zonder reload. */
+.on-post .view-switcher-wrap {
+  opacity: 0.4;
+  pointer-events: none;
+  user-select: none;
+}
+
 /* Spacing between switcher-bar and the page content below.
    .feed-timeline (used on home + archive + post-list pages) gets a top
    margin so the first post doesn't collide with the switcher's border.
