@@ -47,9 +47,10 @@ const _hasCover = !!post.cover_image_url;
         <div class="pe-cover-actions">
           <label class="pe-field">
             <span>Cover URL</span>
-            <input type="url" name="cover_image_url" id="cover-url-field"
+            <input type="text" name="cover_image_url" id="cover-url-field"
                    value="<%= post.cover_image_url || '' %>"
-                   placeholder="https://…  of upload met de knop">
+                   inputmode="url" autocapitalize="none" spellcheck="false"
+                   placeholder="/media/…  of https://…  (of upload met de knop)">
           </label>
           <div class="pe-cover-upload">
             <button type="button" class="pe-btn pe-btn-secondary" id="cover-upload-trigger">

@@ -406,8 +406,8 @@ body.te-modal-open { overflow: hidden; }
                       × Verwijder
                     </button>` : ''}
                   </div>
-                  <input type="url" id="te-cover-url"
-                         placeholder="of plak URL: https://…"
+                  <input type="text" id="te-cover-url" inputmode="url"
+                         placeholder="/media/… of https://…"
                          autocomplete="off" autocapitalize="none" spellcheck="false"
                          value="${esc(track.cover_url || '')}">
                   <div class="te-cover-status" id="te-cover-status"></div>
