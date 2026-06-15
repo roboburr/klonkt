@@ -15,10 +15,17 @@ class AudioEmbedService {
     if (!url || typeof url !== 'string') return null;
     url = url.trim();
 
+    // Alleen http(s)-URL's embedden. De provider-regexes hieronder zijn NIET
+    // verankerd, dus zonder deze check zou bv. `javascript:alert(1)//youtu.be/x`
+    // matchen en als embed-URL belanden (stored XSS via een [[embed:...]]-
+    // shortcode — die tekst gaat niet langs de HTML-sanitizer omdat 'ie in een
+    // text-node zit). De scheme-guard sluit javascript:/data:/vbscript: enz. uit.
+    if (!/^https?:\/\//i.test(url)) return null;
+
     // Spotify
     if (/open\.spotify\.com\/(track|album|playlist|episode|show)\/([A-Za-z0-9]+)/i.test(url)) {
       const match = url.match(/\/(track|album|playlist|episode|show)\/([A-Za-z0-9]+)/i);
-      return { provider: 'spotify', type: match[1], id: match[2] };
+      return { provider: 'spotify', type: match[1], id: match[2], url };
     }
 
     // Bandcamp
@@ -36,16 +43,17 @@ class AudioEmbedService {
       return { provider: 'applemusic', url };
     }
 
-    // YouTube
-    if (/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([A-Za-z0-9_-]{6,20})/i.test(url)) {
-      const match = url.match(/(?:v=|youtu\.be\/|embed\/)([A-Za-z0-9_-]{6,20})/i);
-      return { provider: 'youtube', id: match[1] };
+    // YouTube — video-id is altijd exact 11 tekens (lijnt uit met de client-side
+    // ytId() in embed-player.js, die ook {11} verwacht).
+    if (/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/|youtube\.com\/live\/)([A-Za-z0-9_-]{11})/i.test(url)) {
+      const match = url.match(/(?:v=|youtu\.be\/|embed\/|shorts\/|live\/)([A-Za-z0-9_-]{11})/i);
+      return { provider: 'youtube', id: match[1], url };
     }
 
     // Vimeo
     if (/vimeo\.com\/(?:video\/)?(\d+)/i.test(url)) {
       const match = url.match(/\d+/);
-      return { provider: 'vimeo', id: match[0] };
+      return { provider: 'vimeo', id: match[0], url };
     }
 
     return null;
@@ -53,21 +61,43 @@ class AudioEmbedService {
 
   static generateIframe(provider, config) {
     switch (provider) {
+      // Eigen custom-spelers (client-side via embed-player.js + de echte
+      // platform-API's). We renderen een placeholder met data-attributen i.p.v.
+      // het kale platform-iframe, zodat de embed in ÓNZE huisstijl verschijnt.
+      case 'youtube':
+        return this.embedPlaceholder('youtube', config.id, 'video',
+          config.url || `https://youtu.be/${config.id}`);
+      case 'soundcloud':
+        return this.embedPlaceholder('soundcloud', config.url, 'track', config.url);
       case 'spotify':
-        return this.spotifyIframe(config);
+        return this.embedPlaceholder('spotify', `spotify:${config.type}:${config.id}`,
+          config.type, config.url || `https://open.spotify.com/${config.type}/${config.id}`);
+      // Geen JS-API (Bandcamp/Apple) of niet-prioritair (Vimeo): blijven een
+      // iframe; mutual-exclusion loopt voor deze via de blur-fallback.
       case 'bandcamp':
         return this.bandcampIframe(config);
-      case 'soundcloud':
-        return this.soundcloudIframe(config);
       case 'applemusic':
         return this.applemusicIframe(config);
-      case 'youtube':
-        return this.youtubeIframe(config);
       case 'vimeo':
         return this.vimeoIframe(config);
       default:
         return null;
     }
+  }
+
+  /**
+   * Placeholder voor een eigen custom-speler. embed-player.js pikt
+   * .folio-embed[data-embed-provider] op en bouwt de kaart + speler client-side.
+   * ALLE waarden via escape() — post.content_html wordt ongeescaped uitgevoerd.
+   */
+  static embedPlaceholder(provider, ref, type, url) {
+    const attrs = [
+      `data-embed-provider="${this.escape(provider)}"`,
+      `data-embed-ref="${this.escape(ref)}"`,
+      type ? `data-embed-type="${this.escape(type)}"` : '',
+      `data-embed-url="${this.escape(url)}"`,
+    ].filter(Boolean).join(' ');
+    return `<div class="folio-embed folio-embed--${this.escape(provider)} pcms-embed pcms-embed-card pcms-embed-loading" ${attrs}></div>`;
   }
 
   static spotifyIframe({ type, id }) {

@@ -385,6 +385,7 @@
   }
   function close() {
     pause();
+    mediaRegistry().release(registrySelf);
     root.classList.add('audio-player-hidden');
     document.body.classList.remove('has-audio-player');
     closeSheet();
@@ -424,6 +425,31 @@
   }
 
   // ============================================================
+  // 4b. Mutual exclusion — gedeelde media-registry (zie embed-player.js).
+  // ============================================================
+  // Alle spelers (deze site-speler + de YouTube/SoundCloud/Spotify-embeds)
+  // registreren zich in window.pcmsMediaRegistry. Start er één, dan pauzeert de
+  // vorige. Dit is de precieze vervanger van de oude focus/blur-heuristiek voor
+  // de embeds met een echte JS-API. (De blur-fallback hieronder blijft staan
+  // voor iframe-only embeds zonder API: Bandcamp/Apple Music/Vimeo.)
+  function mediaRegistry() {
+    if (window.pcmsMediaRegistry) return window.pcmsMediaRegistry;
+    const r = {
+      _active: null,
+      setActive(player) {
+        if (this._active && this._active !== player && this._active.pause) {
+          try { this._active.pause(); } catch (e) {}
+        }
+        this._active = player;
+      },
+      release(player) { if (this._active === player) this._active = null; },
+    };
+    window.pcmsMediaRegistry = r;
+    return r;
+  }
+  const registrySelf = { pause() { try { audio.pause(); } catch (e) {} } };
+
+  // ============================================================
   // 5. Audio element events → UI sync
   // ============================================================
   // Error-counter voorkomt infinite-loop als ALLE tracks broken zijn.
@@ -433,6 +459,7 @@
     isPlaying = true;
     root.classList.add('is-playing');
     root.classList.remove('audio-needs-tap');  // verstop tap-hint
+    mediaRegistry().setActive(registrySelf);   // pauzeer eventueel spelende embeds
   });
   // Reset de error-teller pas bij ECHTE playback-start (`playing`), niet bij
   // het eager `play`-event. `play` vuurt vóór een eventuele netwerk-/decode-
@@ -546,14 +573,19 @@
     if (!hasFullPlayer() && sheet.classList.contains('is-open')) closeSheet();
   });
 
-  // Geen dubbel geluid: élke embed (YouTube/Vimeo/SoundCloud/Spotify/Apple Music/
-  // Bandcamp) is een iframe. Zodra de gebruiker er een aanklikt om af te spelen,
-  // gaat de focus naar dat iframe -> window 'blur'. Speelt onze speler dan?
-  // Pauzeer 'm. (Op de site zijn iframes per definitie embeds.)
+  // Vangnet voor mutual exclusion. Voor YouTube/SoundCloud/Spotify-embeds doet de
+  // registry dit al precies (echte play-events). Maar voor iframe-only embeds
+  // ZONDER JS-API (Bandcamp/Apple/Vimeo) én voor de iframe-FALLBACK (als een
+  // ad-blocker de player-API blokkeert) is er geen play-event: daar vangen we het
+  // af via focus. Klikt de gebruiker zo'n iframe aan → window 'blur' → pauzeer
+  // onze speler. (Voor de API-embeds is dit hooguit een onschadelijke dubbele
+  // pauze.)
   window.addEventListener('blur', () => {
     setTimeout(() => {
       const el = document.activeElement;
-      if (el && el.tagName === 'IFRAME' && audio.src && !audio.paused) {
+      // Alleen embed-iframes (binnen .folio-embed) pauzeren de speler — niet een
+      // willekeurig iframe (captcha/reclame/kaart) dat per ongeluk focus krijgt.
+      if (el && el.tagName === 'IFRAME' && el.closest('.folio-embed') && audio.src && !audio.paused) {
         pause();
       }
     }, 0);

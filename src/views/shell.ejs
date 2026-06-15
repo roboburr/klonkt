@@ -168,6 +168,8 @@ if (typeof post !== 'undefined' && post && post.slug) {
      anywhere (admin previews, post embeds, etc). The player itself is
      a singleton — see the script tag near </body>. -->
 <link rel="stylesheet" href="/assets/css/audio.css?v=5">
+<!-- Eigen custom media-embeds (YouTube/SoundCloud/Spotify) in huisstijl. -->
+<link rel="stylesheet" href="/assets/css/embed.css?v=1">
 
 <%- include('partials/shared-styles') %>
 
@@ -308,7 +310,10 @@ if (typeof post !== 'undefined' && post && post.slug) {
 
      ?v=N — cache-buster: bump bij elke audio-player.js wijziging zodat
      Cloudflare (max-age=1y) niet de oude versie blijft serveren. -->
-<script src="/assets/js/audio-player.js?v=13"></script>
+<script src="/assets/js/audio-player.js?v=15"></script>
+<!-- Eigen custom media-embeds (YouTube/SoundCloud/Spotify) via de echte
+     player-API's + gedeelde mutual-exclusion registry met de site-speler. -->
+<script src="/assets/js/embed-player.js?v=3" defer></script>
 <% if (site && site.enable_audio_player && audioTracks && audioTracks.length > 0) { %>
   <script>window.PCMS_SITE_TRACKS = <%- JSON.stringify(audioTracks) %>;</script>
 <% } %>

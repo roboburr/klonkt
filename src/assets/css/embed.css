@@ -1,0 +1,243 @@
+/* ============================================================
+ * embed.css — eigen, in-huisstijl media-embeds (embed-player.js)
+ * YouTube/SoundCloud = volledig eigen controls; Spotify = onze frame + hun UI.
+ * Gebruikt de site-tokens (--paper/--ink/--accent/--rule/--radius) → past zich
+ * automatisch aan elk thema (light/dark/varianten) aan.
+ * ============================================================ */
+
+.folio-embed.pcms-embed-card {
+  margin: 2rem 0;
+  border: 1px solid var(--rule, #e8e2d5);
+  border-radius: var(--radius, 8px);
+  background: var(--paper-2, #f2ede0);
+  overflow: hidden;
+  position: relative;
+}
+
+/* Placeholder vóór embed-player.js de kaart opbouwt (of als JS uitstaat). */
+.pcms-embed-card.pcms-embed-loading {
+  min-height: 64px;
+}
+/* Fallback-tekst zolang JS de kaart nog niet heeft opgebouwd (of als JS uitstaat).
+ * buildCard() haalt .pcms-embed-loading weg → deze ::after verdwijnt vanzelf. */
+.pcms-embed-card.pcms-embed-loading::after {
+  content: "Speler laden\2026";
+  display: block;
+  padding: 1.25rem 1.5rem;
+  color: var(--ink-faint, #a8a29e);
+  font-size: .85rem;
+  font-family: var(--font-mono, monospace);
+}
+
+/* ---- Video-stage (YouTube): 16:9 ---- */
+.pcms-embed-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+}
+.pcms-embed-stage .pcms-embed-mount,
+.pcms-embed-stage iframe {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  border: 0;
+}
+.pcms-embed-poster {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  background-size: cover;
+  background-position: center;
+  background-color: #000;
+  display: grid;
+  place-items: center;
+  transition: opacity var(--transition, 180ms);
+}
+.pcms-embed-card.is-mounted .pcms-embed-poster { display: none; }
+
+/* ---- Audio-layout (SoundCloud / Spotify-facade) ---- */
+.pcms-embed-audio {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  min-height: 96px;
+}
+.pcms-embed-art {
+  flex: 0 0 96px;
+  width: 96px;
+  height: 96px;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  background: var(--paper, #faf8f3) center / cover no-repeat;
+  display: grid;
+  place-items: center;
+  color: var(--ink, #1a1a1a);
+}
+.pcms-embed-art.has-art .pcms-embed-bigplay {
+  background: rgba(0,0,0,.45);
+  border-radius: 50%;
+}
+.pcms-embed-info {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: .2rem;
+  padding: .75rem 1rem;
+}
+.pcms-embed-info .pcms-embed-title {
+  font-weight: 600;
+  font-size: .95rem;
+  color: var(--ink, #1a1a1a);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pcms-embed-info .pcms-embed-sub {
+  font-size: .8rem;
+  color: var(--ink-muted, #6b6560);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* SoundCloud-iframe: functioneel maar onzichtbaar (we sturen via de Widget-API
+ * en tonen onze eigen balk). Off-screen i.p.v. display:none zodat de widget
+ * betrouwbaar initialiseert + audio blijft spelen. */
+.pcms-embed-card--soundcloud .pcms-embed-mount {
+  position: absolute;
+  left: -99999px;
+  top: 0;
+  width: 320px;
+  height: 60px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Spotify: hun iframe IS de speler → tonen. Onze facade (art+info) verdwijnt
+ * zodra de controller gemount is. */
+.pcms-embed-card--spotify .pcms-embed-mount { display: block; width: 100%; }
+.pcms-embed-card--spotify .pcms-embed-mount iframe {
+  width: 100% !important;
+  border: 0;
+  display: block;
+}
+.pcms-embed-card--spotify.is-mounted .pcms-embed-art,
+.pcms-embed-card--spotify.is-mounted .pcms-embed-info { display: none; }
+.pcms-embed-card--spotify:not(.is-mounted) .pcms-embed-mount { display: none; }
+
+/* ---- Grote play-knop (poster/art) ---- */
+.pcms-embed-bigplay {
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent, #c2410c);
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(0,0,0,.35);
+  transition: transform var(--transition, 180ms);
+}
+.pcms-embed-art .pcms-embed-bigplay { width: 44px; height: 44px; }
+.pcms-embed-bigplay svg { width: 42%; height: 42%; }
+.pcms-embed-poster:hover .pcms-embed-bigplay,
+.pcms-embed-art:hover .pcms-embed-bigplay { transform: scale(1.08); }
+
+/* ---- Onze controlebalk (YouTube/SoundCloud) ---- */
+.pcms-embed-bar {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  padding: .55rem .75rem;
+  border-top: 1px solid var(--rule, #e8e2d5);
+  background: var(--paper, #faf8f3);
+}
+.pcms-embed-pp {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  background: var(--accent, #c2410c);
+  color: #fff;
+  display: grid;
+  place-items: center;
+}
+.pcms-embed-pp svg { width: 18px; height: 18px; }
+.pcms-embed-cur, .pcms-embed-dur {
+  flex: 0 0 auto;
+  font-size: .75rem;
+  color: var(--ink-muted, #6b6560);
+  font-variant-numeric: tabular-nums;
+  min-width: 2.6em;
+  text-align: center;
+}
+.pcms-embed-seek {
+  position: relative;
+  flex: 1 1 auto;
+  height: 16px;
+  cursor: pointer;
+}
+.pcms-embed-seek::before {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: 50%;
+  transform: translateY(-50%);
+  height: 4px;
+  border-radius: 2px;
+  background: var(--rule-2, #d4ccb8);
+}
+.pcms-embed-seek-fill {
+  position: absolute;
+  left: 0; top: 50%;
+  transform: translateY(-50%);
+  height: 4px;
+  width: 0%;
+  border-radius: 2px;
+  background: var(--accent, #c2410c);
+  pointer-events: none;
+  z-index: 1;
+}
+.pcms-embed-badge {
+  flex: 0 0 auto;
+  font-size: .68rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--ink-faint, #a8a29e);
+  text-decoration: none;
+}
+.pcms-embed-badge:hover { color: var(--accent, #c2410c); }
+
+/* Provider-accent op de badge */
+.pcms-embed-card--youtube .pcms-embed-badge { color: #ff0033; }
+.pcms-embed-card--soundcloud .pcms-embed-badge { color: #ff5500; }
+
+/* ---- Spotify-frame-badge (geen eigen balk) ---- */
+.pcms-embed-frame-badge {
+  padding: .4rem .75rem;
+  border-top: 1px solid var(--rule, #e8e2d5);
+  background: var(--paper, #faf8f3);
+  font-size: .68rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.pcms-embed-frame-badge a { color: #1db954; text-decoration: none; }
+.pcms-embed-frame-badge a:hover { text-decoration: underline; }
+.pcms-embed-card--spotify.is-mounted .pcms-embed-frame-badge { display: none; }
+
+/* ---- Busy / error ---- */
+.pcms-embed-card.pcms-embed-busy { cursor: progress; }
+.pcms-embed-card.pcms-embed-error .pcms-embed-sub { color: #c0392b; }
+
+.pcms-embed-bigplay,
+.pcms-embed-pp,
+.pcms-embed-poster { -webkit-tap-highlight-color: transparent; }

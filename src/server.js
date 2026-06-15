@@ -64,7 +64,17 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: [
+        "'self'",
+        "'unsafe-inline'",
+        // Eigen custom-embeds (embed-player.js) laden de OFFICIELE player-API's
+        // van deze hosts. Zonder deze whitelist blokkeert de CSP ze stil (alleen
+        // een console-fout) en faalt de embed-speler.
+        "https://www.youtube.com",   // YouTube IFrame Player API (+ www-widgetapi.js)
+        "https://s.ytimg.com",       // YouTube player-assets
+        "https://w.soundcloud.com",  // SoundCloud Widget API (api.js)
+        "https://open.spotify.com",  // Spotify iFrame API
+      ],
       // Helmet's default zet script-src-attr op 'none', wat ALLE inline event-
       // handlers (onchange/onclick/onsubmit) blokkeert — daardoor deed o.a. de
       // avatar-upload (<input onchange="this.form.submit()">) en de rol-dropdown
@@ -87,6 +97,7 @@ app.use(helmet({
         "https://bandcamp.com",
         "https://embed.music.apple.com",
         "https://www.youtube-nocookie.com",
+        "https://www.youtube.com",   // YouTube IFrame API maakt soms een www.youtube.com-iframe
         "https://player.vimeo.com",
       ],
     },
