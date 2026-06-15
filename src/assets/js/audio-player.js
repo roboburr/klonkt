@@ -546,13 +546,14 @@
     if (!hasFullPlayer() && sheet.classList.contains('is-open')) closeSheet();
   });
 
-  // Geen dubbel geluid: zodra de gebruiker een ingesloten video/audio aanklikt
-  // (YouTube/Vimeo/SoundCloud/Spotify-iframe in een .folio-embed) gaat de focus
-  // naar dat iframe -> window 'blur'. Speelt onze speler dan? Pauzeer 'm.
+  // Geen dubbel geluid: élke embed (YouTube/Vimeo/SoundCloud/Spotify/Apple Music/
+  // Bandcamp) is een iframe. Zodra de gebruiker er een aanklikt om af te spelen,
+  // gaat de focus naar dat iframe -> window 'blur'. Speelt onze speler dan?
+  // Pauzeer 'm. (Op de site zijn iframes per definitie embeds.)
   window.addEventListener('blur', () => {
     setTimeout(() => {
       const el = document.activeElement;
-      if (el && el.tagName === 'IFRAME' && el.closest('.folio-embed') && audio.src && !audio.paused) {
+      if (el && el.tagName === 'IFRAME' && audio.src && !audio.paused) {
         pause();
       }
     }, 0);
