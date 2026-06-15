@@ -693,15 +693,66 @@
   };
 
   // ============================================================
-  // 10. Site-level pre-seed (window.PCMS_SITE_TRACKS)
+  // 10. Sessie-persistentie — speler "blijft" over page-navigaties heen
   // ============================================================
-  if (Array.isArray(window.PCMS_SITE_TRACKS) && window.PCMS_SITE_TRACKS.length) {
-    queue = window.PCMS_SITE_TRACKS.map(t => ({
-      url:    t.media_url || t.url,
-      title:  t.title  || 'Untitled',
-      artist: t.artist || '',
-      cover:  t.cover_url || t.cover || '',
-    }));
-    if (queue.length) loadTrack(0, false, true);  // metadata only — fetch on first play
+  // Een <audio> overleeft geen volledige page-load (en cross-context navigatie
+  // — bv. naar de headerloze hub-overview — is bewust full-nav). We bewaren de
+  // sessie in sessionStorage en herstellen + hervatten 'm op de volgende pagina:
+  // de speler staat er weer met dezelfde track op dezelfde positie. In Chrome
+  // (hoge media-engagement) speelt 'ie meteen door; staat de browser autoplay
+  // niet toe, dan staat 'ie klaar op die plek (één tik = verder).
+  const PLAYER_STATE_KEY = 'pcms-player-state';
+  let pendingSeek = 0;
+  function savePlayerState() {
+    try {
+      if (!queue.length) { sessionStorage.removeItem(PLAYER_STATE_KEY); return; }
+      sessionStorage.setItem(PLAYER_STATE_KEY, JSON.stringify({
+        queue, currentIndex, albumName,
+        time: audio.currentTime || 0,
+        playing: !!audio.src && !audio.paused,
+      }));
+    } catch (e) {}
+  }
+  window.addEventListener('pagehide', savePlayerState);
+  window.addEventListener('beforeunload', savePlayerState);
+  audio.addEventListener('play',  savePlayerState);
+  audio.addEventListener('pause', savePlayerState);
+  audio.addEventListener('ended', savePlayerState);
+  setInterval(() => { if (audio.src && !audio.paused) savePlayerState(); }, 5000);
+  // Herstelde positie toepassen zodra de track-metadata binnen is.
+  audio.addEventListener('loadedmetadata', () => {
+    if (pendingSeek > 0 && isFinite(audio.duration) && audio.duration > 0) {
+      try { audio.currentTime = Math.min(pendingSeek, audio.duration - 0.25); } catch (e) {}
+      pendingSeek = 0;
+    }
+  });
+  function restorePlayerState() {
+    let s = null;
+    try { s = JSON.parse(sessionStorage.getItem(PLAYER_STATE_KEY) || 'null'); } catch (e) { return false; }
+    if (!s || !Array.isArray(s.queue) || !s.queue.length) return false;
+    queue = s.queue;
+    albumName = s.albumName || '';
+    pendingSeek = s.time || 0;
+    const idx = Math.max(0, Math.min(s.currentIndex || 0, queue.length - 1));
+    // playing -> fetch + (poging tot) hervatten; gepauzeerd -> alleen metadata.
+    loadTrack(idx, !!s.playing, !s.playing);
+    return true;
+  }
+
+  // ============================================================
+  // 11. Site-level pre-seed (window.PCMS_SITE_TRACKS)
+  // ============================================================
+  // Een actieve sessie (restore) wint van de pagina-seed, zodat lopende muziek
+  // doorgaat i.p.v. vervangen te worden door de tracks van de nieuwe pagina.
+  if (!restorePlayerState()) {
+    if (Array.isArray(window.PCMS_SITE_TRACKS) && window.PCMS_SITE_TRACKS.length) {
+      queue = window.PCMS_SITE_TRACKS.map(t => ({
+        url:    t.media_url || t.url,
+        title:  t.title  || 'Untitled',
+        artist: t.artist || '',
+        cover:  t.cover_url || t.cover || '',
+      }));
+      if (queue.length) loadTrack(0, false, true);  // metadata only — fetch on first play
+    }
   }
 })();
