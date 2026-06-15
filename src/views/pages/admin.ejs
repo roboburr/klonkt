@@ -34,6 +34,25 @@
     <div class="stat-card"><div class="stat-num"><%= stats.published %></div><div class="stat-label">Gepubliceerd</div></div>
   </div>
 
+  <% if (typeof posts !== 'undefined' && posts && posts.length) { %>
+    <% var _drafts = posts.filter(function(p){ return p.isDraft; }).length; %>
+    <h2>Posts<% if (_drafts) { %> <span class="pl-draftcount"><%= _drafts %> concept<%= _drafts === 1 ? '' : 'en' %></span><% } %></h2>
+    <ul class="post-admin-list">
+      <% posts.forEach(function(p) { %>
+        <li class="pal-row<%= p.isDraft ? ' is-draft' : '' %>">
+          <a class="pal-title" href="<%= p.editUrl %>">
+            <% if (p.isDraft) { %><span class="pal-badge">Concept</span><% } %>
+            <span class="pal-name"><%= p.title || '(zonder titel)' %></span>
+          </a>
+          <span class="pal-actions">
+            <a class="pal-link" href="<%= p.editUrl %>">Bewerken</a>
+            <% if (!p.isDraft) { %><a class="pal-link" href="<%= p.viewUrl %>">Bekijk</a><% } %>
+          </span>
+        </li>
+      <% }); %>
+    </ul>
+  <% } %>
+
   <% if (sites && sites.length) { %>
     <h2>Sites</h2>
     <table class="admin-table">
@@ -80,6 +99,20 @@
 .admin-page h2 { font-family: var(--font-display, serif); font-size: 1.4rem; margin: 2rem 0 0.75rem; }
 .admin-tagline { color: var(--ink-muted); margin: 0 0 2rem; }
 .admin-tagline em { font-style: normal; opacity: 0.7; }
+
+/* Posts/concepten-lijst */
+.pl-draftcount { font-family: var(--font-ui, system-ui); font-size: 0.8rem; font-weight: 700; color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); padding: 0.1rem 0.55rem; border-radius: 99px; vertical-align: middle; }
+.post-admin-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.pal-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.7rem 0.9rem; border: 1px solid var(--rule); border-radius: 10px; background: var(--paper-2); transition: border-color 120ms; }
+.pal-row:hover { border-color: var(--accent); }
+.pal-row.is-draft { border-left: 3px solid var(--accent); }
+.pal-title { display: inline-flex; align-items: center; gap: 0.6rem; min-width: 0; color: var(--ink); text-decoration: none; font-weight: 600; }
+.pal-title:hover { color: var(--accent); }
+.pal-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pal-badge { flex-shrink: 0; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); padding: 0.1rem 0.5rem; border-radius: 99px; }
+.pal-actions { display: flex; gap: 0.75rem; flex-shrink: 0; }
+.pal-link { color: var(--ink-muted); font-size: 0.85rem; text-decoration: none; white-space: nowrap; }
+.pal-link:hover { color: var(--accent); text-decoration: underline; }
 
 /* Quick-links grid — mobile-first.
    auto-fit + minmax means: as many equal columns as fit, each at least 140px.

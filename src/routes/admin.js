@@ -12,6 +12,24 @@ import { getTenancy } from '../services/SettingsService.js';
 
 const router = express.Router();
 
+// Recente posts van één site, CONCEPTEN BOVENAAN, met mode-bewuste edit/view-URLs.
+// Lost op dat drafts (status != published) nergens terug te vinden waren: de
+// tijdlijn toont alleen gepubliceerde posts.
+function sitePosts(siteId, siteSlug, tenancy, limit = 60) {
+  const base = tenancy === 'hub' ? `/user/${siteSlug}` : '';
+  return db.prepare(`
+    SELECT slug, title, status, published_at, created_at, updated_at
+    FROM posts WHERE site_id = ?
+    ORDER BY (status != 'published') DESC, COALESCE(updated_at, published_at, created_at) DESC
+    LIMIT ?
+  `).all(siteId, limit).map((p) => ({
+    ...p,
+    isDraft: p.status !== 'published',
+    editUrl: `${base}/posts/${p.slug}/edit`,
+    viewUrl: `${base}/${p.slug}`,
+  }));
+}
+
 router.get('/', requireAuth, (req, res) => {
   const user = req.session.user;
 
@@ -34,15 +52,16 @@ router.get('/', requireAuth, (req, res) => {
       bodyClass: 'on-admin',
       mySite,
       mine,
+      posts: sitePosts(mySite.id, mySite.slug, 'hub'), // my-site is hub-only
     });
   }
 
   const tenancy = getTenancy();
 
   // De primaire/owner-site — in solo dé site, in hub de hoofdsite. Geeft de
-  // "Uiterlijk"-tegel z'n edit-link.
+  // "Uiterlijk"-tegel z'n edit-link + de posts/concepten-lijst.
   const primarySite = db.prepare(
-    'SELECT slug, title FROM sites ORDER BY created_at ASC LIMIT 1'
+    'SELECT id, slug, title FROM sites ORDER BY created_at ASC LIMIT 1'
   ).get() || null;
 
   const stats = {
@@ -70,6 +89,10 @@ router.get('/', requireAuth, (req, res) => {
     LIMIT 50
   `).all() : [];
 
+  // Posts/concepten van de primaire site (in solo = de site; in hub = de
+  // hoofdsite van de admin). Concepten staan bovenaan zodat ze vindbaar zijn.
+  const posts = primarySite ? sitePosts(primarySite.id, primarySite.slug, tenancy) : [];
+
   renderPage(req, res, 'pages/admin', {
     pageTitle: 'Beheer',
     bodyClass: 'on-admin',
@@ -77,6 +100,7 @@ router.get('/', requireAuth, (req, res) => {
     primarySite,
     stats,
     sites,
+    posts,
     users,
   });
 });
