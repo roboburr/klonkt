@@ -62,14 +62,20 @@
    visible so the user keeps a consistent return-to-feed control. */
 .on-admin .view-switcher-wrap { display: none; }
 
-/* Op een losse post slaat de feed-weergave (Tijdlijn/Grid + 2/3/4 kolommen)
-   nergens op — er is geen feed om te schakelen. We laten 'm staan (geen layout-
-   sprong bij HTMX-navigatie) maar grijzen 'm uit + maken 'm onklikbaar.
-   Body-class wisselt client-side bij HTMX-nav, dus dit werkt ook zonder reload. */
-.on-post .view-switcher-wrap {
-  opacity: 0.4;
-  pointer-events: none;
-  user-select: none;
+/* Op een losse post is er geen feed om te schakelen, dus geen knop hoort "actief"
+   (gekleurd) te ogen. De actieve staat zit in style.css op body[data-feed-view]
+   / body[data-grid-cols] (background:var(--ink)); we overrulen die SPECIFIEKER
+   via body.on-post zodat de knoppen neutraal/grijs worden — maar wél klikbaar
+   blijven (de klik-handler navigeert dan naar de feed in die weergave). De
+   body-class wisselt client-side bij HTMX-nav, dus dit werkt ook zonder reload. */
+body.on-post[data-feed-view="timeline"] .view-switch-btn[data-view="timeline"],
+body.on-post[data-feed-view="grid"] .view-switch-btn[data-view="grid"],
+body.on-post[data-grid-cols="2"] .grid-cols-btn[data-cols="2"],
+body.on-post[data-grid-cols="3"] .grid-cols-btn[data-cols="3"],
+body.on-post[data-grid-cols="4"] .grid-cols-btn[data-cols="4"] {
+  background: transparent;
+  color: var(--ink-muted, var(--ink-soft));
+  border-color: var(--rule);
 }
 
 /* Spacing between switcher-bar and the page content below.
