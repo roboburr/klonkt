@@ -1,6 +1,26 @@
-<div class="container cirkel-head">
+<div class="container cirkel-hero">
+  <span class="cirkel-badge" aria-hidden="true">
+    <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="32" y1="16" x2="17" y2="45"/>
+      <line x1="32" y1="16" x2="47" y2="45"/>
+      <line x1="17" y1="45" x2="47" y2="45"/>
+      <circle cx="32" cy="16" r="8" fill="currentColor" fill-opacity=".16"/>
+      <circle cx="17" cy="45" r="8" fill="currentColor" fill-opacity=".16"/>
+      <circle cx="47" cy="45" r="8" fill="currentColor" fill-opacity=".16"/>
+    </svg>
+  </span>
   <h1>Cirkel</h1>
   <p class="cirkel-sub">Wat er speelt bij de andere sites in mijn cirkel.</p>
+  <% if (typeof sites !== 'undefined' && sites && sites.length) { %>
+    <div class="cirkel-members">
+      <% sites.forEach(function(s){ %>
+        <% if (s.url) { %><a class="cirkel-member" href="<%= s.url %>" target="_blank" rel="noopener" title="<%= s.name %>"><% } else { %><span class="cirkel-member" title="<%= s.name %>"><% } %>
+          <span class="cirkel-avatar"<% if (s.avatar) { %> style="background-image:url('<%= s.avatar %>')"<% } %>><% if (!s.avatar) { %><%= (s.name || '?').charAt(0).toUpperCase() %><% } %></span>
+          <span class="cirkel-member-name"><%= s.name %></span>
+        <% if (s.url) { %></a><% } else { %></span><% } %>
+      <% }); %>
+    </div>
+  <% } %>
 </div>
 
 <% if (!posts.length) { %>
@@ -36,9 +56,22 @@
 <% } %>
 
 <style>
-.cirkel-head { margin-top: 2rem; }
-.cirkel-head h1 { font-family: var(--font-display, serif); font-size: 2rem; margin: 0 0 .25rem; }
-.cirkel-sub { color: var(--ink-muted); margin: 0 0 1.5rem; }
-.cirkel-empty { color: var(--ink-muted); }
+.cirkel-hero { text-align: center; max-width: 640px; margin: 2.5rem auto 2rem; }
+.cirkel-badge { display: block; width: 60px; height: 60px; margin: 0 auto .6rem; color: var(--accent); }
+.cirkel-badge svg { width: 100%; height: 100%; }
+.cirkel-hero h1 { font-family: var(--font-display, serif); font-size: 2.4rem; margin: 0 0 .3rem; }
+.cirkel-sub { color: var(--ink-muted); margin: 0 0 1.25rem; font-size: 1.02rem; }
+.cirkel-members { display: flex; flex-wrap: wrap; gap: .55rem; justify-content: center; }
+.cirkel-member { display: inline-flex; align-items: center; gap: .45rem;
+  padding: .28rem .8rem .28rem .3rem; border: 1px solid var(--rule); border-radius: 999px;
+  text-decoration: none; color: var(--ink); background: var(--paper-2);
+  transition: border-color .15s, transform .15s; }
+.cirkel-member:hover { border-color: var(--accent); transform: translateY(-1px); }
+.cirkel-avatar { width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+  background-size: cover; background-position: center; background-color: var(--accent);
+  color: #fff; display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: .82rem; }
+.cirkel-member-name { font-size: .9rem; font-weight: 600; }
+.cirkel-empty { color: var(--ink-muted); text-align: center; margin: 2rem auto; }
 .cirkel-empty a { color: var(--accent); }
 </style>

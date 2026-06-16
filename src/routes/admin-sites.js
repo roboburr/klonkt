@@ -118,7 +118,8 @@ function siteEditableFields() {
     require_login_to_comment: 0,
     enable_audio_player: 1,
     enable_prutter: 1,
-    feed_view_default: 'timeline',
+    comments_moderation_mode: 'moderate',
+    feed_view_default: 'grid',
     feed_view_switch: 1,
     show_search: 1,
     show_archive_link: 1,
@@ -190,8 +191,9 @@ router.post('/create', requireGod, (req, res) => {
     INSERT INTO sites (
       id, slug, title, description, tagline, owner_id,
       language, palette, accent, profile_photo,
-      is_public, robots_index, require_login_to_comment, enable_audio_player
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      is_public, robots_index, require_login_to_comment, enable_audio_player,
+      feed_view_default, comments_moderation_mode
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     siteId, slug,
     (f.title || slug).slice(0, 200),
@@ -206,6 +208,8 @@ router.post('/create', requireGod, (req, res) => {
     f.robots_index ? 1 : 0,
     f.require_login_to_comment ? 1 : 0,
     (f.enable_audio_player !== undefined ? (f.enable_audio_player ? 1 : 0) : 1),
+    f.feed_view_default === 'timeline' ? 'timeline' : 'grid',
+    f.comments_moderation_mode === 'trust' ? 'trust' : 'moderate',
   );
 
   // The site_members entry lets the god/owner show up in canAdminSite checks.

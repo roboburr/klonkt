@@ -57,7 +57,17 @@ router.get('/cirkel', (req, res, next) => {
     };
   });
 
-  renderPage(req, res, 'pages/circle-feed', { pageTitle: 'Cirkel', bodyClass: 'on-cirkel', posts });
+  // Sites in de cirkel (alleen succesvol gesyncte = proto-compatibel) — voor de
+  // grafische header met avatars.
+  const sites = db.prepare('SELECT name, url, avatar FROM remote_actors ORDER BY name')
+    .all()
+    .map((s) => ({
+      name: s.name || 'Onbekend',
+      url: safeUrl(s.url),
+      avatar: safeUrl(s.avatar),
+    }));
+
+  renderPage(req, res, 'pages/circle-feed', { pageTitle: 'Cirkel', bodyClass: 'on-cirkel', posts, sites });
 });
 
 // ── Losse remote-post (lokaal lezen) ─────────────────────────

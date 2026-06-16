@@ -43,7 +43,7 @@ export function initializeDatabase() {
   // Read-only/kijk-account: kan alles bekijken maar geen wijzigingen doen.
   ensureColumn('users', 'readonly', 'INTEGER DEFAULT 0');
   // Site-level moderation toggle. 'trust' = auto-approve, 'moderate' = pending until reviewed.
-  ensureColumn('sites', 'comments_moderation_mode', "TEXT DEFAULT 'trust'");
+  ensureColumn('sites', 'comments_moderation_mode', "TEXT DEFAULT 'moderate'");
   // Per-site Prutter toggle: when off, DM endpoints/UI are hidden for that site.
   ensureColumn('sites', 'enable_prutter', 'INTEGER DEFAULT 1');
   // Cirkels: mag deze site in cirkels van anderen verschijnen (surfacing opt-out).
@@ -61,7 +61,7 @@ export function initializeDatabase() {
   ensureColumn('sites', 'profile_name',    'TEXT');     // display name (falls back to title)
   ensureColumn('sites', 'profile_bio',     'TEXT');     // short bio for header
   ensureColumn('sites', 'profile_links',   'TEXT');     // JSON array [{platform, url}]
-  ensureColumn('sites', 'feed_view_default', "TEXT DEFAULT 'timeline'"); // timeline | grid
+  ensureColumn('sites', 'feed_view_default', "TEXT DEFAULT 'grid'"); // timeline | grid
   ensureColumn('sites', 'feed_view_switch',  'INTEGER DEFAULT 1');       // show switcher
   ensureColumn('sites', 'show_search',     'INTEGER DEFAULT 1');
   ensureColumn('sites', 'show_archive_link', 'INTEGER DEFAULT 1');
