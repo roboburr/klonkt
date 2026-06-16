@@ -1,5 +1,5 @@
 {
-  "name": "prutfolio",
+  "name": "klonkt",
   "version": "1.0.0-alpha.1",
   "description": "Klonkt — zelf-gehost multi-site muziek- & blogplatform met community, realtime en (later) E2EE DMs. Node + SQLite + htmx.",
   "type": "module",

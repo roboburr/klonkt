@@ -259,13 +259,16 @@ app.get('/manifest.webmanifest', (req, res) => {
   const scope = (base || '') + '/';
   const startUrl = (base || '') + '/?source=pwa';
 
-  // A stable identity per site so installs don't collide (Chromium uses `id`)
-  const idBase = site?.slug ? `prutfolio-${site.slug}` : 'prutfolio';
+  // A stable identity per site so installs don't collide (Chromium uses `id`).
+  // NB: een id-wissel orphant bestaande PWA-installs (er is geen migratie die een
+  // install over een id-verandering heen tilt) — wie een site al als PWA had,
+  // moet 'm één keer opnieuw installeren. Data blijft server-side, dus niets kwijt.
+  const idBase = site?.slug ? `klonkt-${site.slug}` : 'klonkt';
 
   res.set('Cache-Control', 'no-cache');
   res.json({
     id: idBase,
-    name: site?.title || 'Klonkt Hub Beta',
+    name: site?.title || 'Klonkt',
     short_name: (site?.title || 'Klonkt').slice(0, 12),
     description: site?.description || site?.tagline || '',
     scope,
