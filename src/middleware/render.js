@@ -94,15 +94,21 @@ export async function renderPage(req, res, viewName, data = {}) {
     const pageContent = await ejs.renderFile(viewPath, locals, { async: false });
 
     if (isPartial) {
-      // HTMX: just send the content. Set HX-Trigger for body class swap
-      res.setHeader('HX-Trigger-After-Settle', JSON.stringify({
+      // HTMX: just send the content. Set HX-Trigger for body class swap.
+      // HTTP-header values are Latin-1 only — a title with an em-dash, smart
+      // quote or emoji (e.g. "Welkom — gebouwd met Klonkt") would make
+      // setHeader throw ERR_INVALID_CHAR and 500 the partial, so the card
+      // looks "unclickable". Escape any non-ASCII to \uXXXX: the header stays
+      // ASCII-safe and remains valid JSON that htmx parses back unchanged.
+      const triggerJson = JSON.stringify({
         pcmsNav: { bodyClass: locals.bodyClass },
         pcmsPostSwap: data.post ? {
           title: data.post.title,
           slug: data.post.slug,
           pageTitle: locals.pageTitle,
         } : null,
-      }));
+      }).replace(/[-￿]/g, (ch) => '\\u' + ch.charCodeAt(0).toString(16).padStart(4, '0'));
+      res.setHeader('HX-Trigger-After-Settle', triggerJson);
       return res.send(pageContent);
     }
 
