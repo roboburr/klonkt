@@ -57,10 +57,15 @@ router.get('/cirkel', (req, res, next) => {
     };
   });
 
-  // Sites in de cirkel (alleen succesvol gesyncte = proto-compatibel) — voor de
-  // grafische header met avatars.
-  const sites = db.prepare('SELECT name, url, avatar FROM remote_actors ORDER BY name')
-    .all()
+  // Sites in de cirkel — alleen actieve links (outdated/error vallen weg, net als
+  // hun posts). Voor de grafische header met avatars.
+  const sites = db.prepare(`
+    SELECT a.name, a.url, a.avatar
+    FROM remote_actors a
+    JOIN circle_links l ON l.remote_actor_id = a.id
+    WHERE l.status = 'active'
+    ORDER BY a.name
+  `).all()
     .map((s) => ({
       name: s.name || 'Onbekend',
       url: safeUrl(s.url),

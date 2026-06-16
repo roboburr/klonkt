@@ -30,6 +30,11 @@ function baseOf(remoteUrl) {
 // Aparte status 'outdated' zodat de Beheer-UI er een nette "update vereist"-
 // melding van kan maken i.p.v. een generieke fout.
 function markOutdated(link, msg) {
+  // Gecachte posts van deze bron weghalen: we kunnen ze niet meer verifiëren of
+  // verversen (proto-mismatch), dus ze horen niet meer in de cirkel-feed.
+  if (link.remote_actor_id) {
+    try { db.prepare('DELETE FROM remote_posts WHERE actor_id = ?').run(link.remote_actor_id); } catch {}
+  }
   db.prepare("UPDATE circle_links SET status='outdated', last_error=?, last_synced=CURRENT_TIMESTAMP WHERE id=?")
     .run(String(msg).slice(0, 300), link.id);
   return { ok: false, outdated: true, link: link.remote_url, error: msg };
