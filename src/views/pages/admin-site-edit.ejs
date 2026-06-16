@@ -1,6 +1,6 @@
 <div class="container admin-site-edit-page">
   <p><a href="/admin" class="btn">&larr; Beheer</a></p>
-  <h1><%= isNew ? 'New site' : 'Uiterlijk: ' + site.title %></h1>
+  <h1><%= isNew ? 'Nieuwe site' : 'Uiterlijk: ' + site.title %></h1>
 
   <% if (typeof success !== 'undefined' && success) { %><div class="audio-flash audio-flash--ok"><%= success %></div><% } %>
   <% if (error) { %><div class="audio-flash audio-flash--err"><%= error %></div><% } %>
@@ -8,27 +8,27 @@
   <form method="post" action="<%= isNew ? '/admin/sites/create' : '/admin/sites/' + site.slug + '/save' %>" class="site-form">
 
     <fieldset>
-      <legend>Identity</legend>
+      <legend>Identiteit</legend>
       <label>
-        <span>Slug <% if (!isNew) { %><em>(immutable)</em><% } %></span>
+        <span>Slug <% if (!isNew) { %><em>(vast)</em><% } %></span>
         <input type="text" name="slug" value="<%= site.slug %>" required <% if (!isNew) { %>readonly<% } %>
                pattern="[a-z0-9_-]{2,40}"
                placeholder="bedrijf1">
       </label>
       <label>
-        <span>Title <small class="form-hint-inline">— shown in the header and as display name</small></span>
+        <span>Titel <small class="form-hint-inline">— getoond in de kop en als weergavenaam</small></span>
         <input type="text" name="title" value="<%= site.title || '' %>" required maxlength="200">
       </label>
       <label>
-        <span>Tagline <small class="form-hint-inline">— short one-liner</small></span>
+        <span>Tagline <small class="form-hint-inline">— korte oneliner</small></span>
         <input type="text" name="tagline" value="<%= site.tagline || '' %>" maxlength="200">
       </label>
       <label>
-        <span>Bio / description <small class="form-hint-inline">— shown in the profile header and used for SEO</small></span>
+        <span>Bio / omschrijving <small class="form-hint-inline">— getoond in de profielkop en gebruikt voor SEO</small></span>
         <textarea name="description" rows="3" maxlength="500"><%= site.description || '' %></textarea>
       </label>
       <label>
-        <span>Profile photo</span>
+        <span>Profielfoto</span>
         <div class="photo-picker" id="photo-picker">
           <div class="photo-thumb" id="photo-thumb" <%= site.profile_photo ? '' : 'data-empty' %>>
             <img id="photo-preview" src="<%= site.profile_photo || '' %>" alt="" <%= site.profile_photo ? '' : 'hidden' %>>
@@ -39,7 +39,7 @@
           <div class="photo-controls">
             <input type="text" name="profile_photo" id="photo-url" value="<%= site.profile_photo || '' %>" placeholder="/media/avatars/foo.jpg of https://…">
             <div class="photo-actions">
-              <button type="button" class="btn" id="photo-upload-trigger">📷 Upload</button>
+              <button type="button" class="btn" id="photo-upload-trigger">📷 Uploaden</button>
               <button type="button" class="btn" id="photo-clear" <%= site.profile_photo ? '' : 'hidden' %>>Verwijder</button>
               <small id="photo-status" class="form-hint photo-status"></small>
             </div>
@@ -48,24 +48,24 @@
         </div>
       </label>
       <label>
-        <span>Language (ISO code)</span>
+        <span>Taal (ISO-code)</span>
         <input type="text" name="language" value="<%= site.language || 'nl' %>" maxlength="8">
       </label>
       <label class="cb">
         <input type="checkbox" name="profile_enabled" value="1" <%= site.profile_enabled ? 'checked' : '' %>>
-        <span>Show profile header below the nav</span>
+        <span>Profielkop tonen onder de navigatie</span>
       </label>
     </fieldset>
 
     <fieldset>
-      <legend>Appearance</legend>
+      <legend>Vormgeving</legend>
 
       <%# ── Curated accent picker ───────────────────────────────────────
           Was a free-form <input type="color">; now a fixed set of 8 hand-
           picked colors that work in both light and dark themes. The hex is
           still what's stored in the DB — we just constrain WHICH hex. %>
       <fieldset class="accent-grid">
-        <legend>Accent color</legend>
+        <legend>Accentkleur</legend>
         <% const _curAccent = (site.accent || '#c2410c').toLowerCase(); %>
         <% accents.forEach(function(a) { %>
           <label class="accent-swatch" title="<%= a.name %>">
@@ -82,7 +82,7 @@
           their own preference yet. Logged-in users with users.theme set, and
           visitors with a localStorage override, still win over this default. %>
       <fieldset class="theme-default">
-        <legend>Default theme for new visitors</legend>
+        <legend>Standaardthema voor nieuwe bezoekers</legend>
         <% const td = site.theme_override || ''; %>
         <label class="cb">
           <input type="radio" name="theme_override" value=""      <%= td === ''      ? 'checked' : '' %>>
@@ -90,16 +90,16 @@
         </label>
         <label class="cb">
           <input type="radio" name="theme_override" value="light" <%= td === 'light' ? 'checked' : '' %>>
-          <span>Light</span>
+          <span>Licht</span>
         </label>
         <label class="cb">
           <input type="radio" name="theme_override" value="dark"  <%= td === 'dark'  ? 'checked' : '' %>>
-          <span>Dark</span>
+          <span>Donker</span>
         </label>
       </fieldset>
 
       <fieldset class="palette-grid">
-        <legend>Palette</legend>
+        <legend>Palet</legend>
         <% palettes.forEach(function(p) { %>
           <label class="palette-swatch">
             <input type="radio" name="palette" value="<%= p.key %>" <%= (site.palette || 'sage') === p.key ? 'checked' : '' %>>
@@ -120,29 +120,29 @@
     </fieldset>
 
     <fieldset>
-      <legend>Behaviour</legend>
+      <legend>Gedrag</legend>
       <label class="cb">
         <input type="checkbox" name="is_public" value="1" <%= site.is_public ? 'checked' : '' %>>
-        <span>Public site (uncheck for closed circle)</span>
+        <span>Publieke site (uitvinken voor een besloten kring)</span>
       </label>
       <label class="cb">
         <input type="checkbox" name="robots_index" value="1" <%= site.robots_index ? 'checked' : '' %>>
-        <span>Search engines may index (sitemap.xml is hidden if off)</span>
+        <span>Zoekmachines mogen indexeren (sitemap.xml is verborgen indien uit)</span>
       </label>
       <label class="cb">
         <input type="checkbox" name="require_login_to_comment" value="1" <%= site.require_login_to_comment ? 'checked' : '' %>>
-        <span>Require login to comment</span>
+        <span>Inloggen vereist om te reageren</span>
       </label>
       <label>
-        <span>Comment moderation</span>
+        <span>Reactie-moderatie</span>
         <select name="comments_moderation_mode">
-          <option value="trust"    <%= (site.comments_moderation_mode || 'trust') === 'trust'    ? 'selected' : '' %>>Trust mode (auto-approve)</option>
-          <option value="moderate" <%= site.comments_moderation_mode === 'moderate' ? 'selected' : '' %>>Moderate (queue for review)</option>
+          <option value="trust"    <%= (site.comments_moderation_mode || 'trust') === 'trust'    ? 'selected' : '' %>>Vertrouwen (automatisch goedkeuren)</option>
+          <option value="moderate" <%= site.comments_moderation_mode === 'moderate' ? 'selected' : '' %>>Modereren (eerst in de wachtrij)</option>
         </select>
       </label>
       <label class="cb">
         <input type="checkbox" name="enable_audio_player" value="1" <%= site.enable_audio_player ? 'checked' : '' %>>
-        <span>Enable audio player + embeds</span>
+        <span>Audiospeler + embeds inschakelen</span>
       </label>
       <%# Prutter is een Hub-only premium-functie — toggle alleen tonen in Hub-modus. %>
       <% if (typeof tenancy !== 'undefined' && tenancy === 'hub') { %>
@@ -154,8 +154,8 @@
     </fieldset>
 
     <fieldset class="profile-links-fieldset">
-      <legend>Social / streaming links</legend>
-      <p class="form-hint">Shown as branded icons on the profile header. Add as many as you like.</p>
+      <legend>Social / streaming-links</legend>
+      <p class="form-hint">Getoond als merk-iconen op de profielkop. Voeg er zoveel toe als je wilt.</p>
 
       <div id="profile-links-rows">
         <% (parsedLinks || []).forEach(function(l) { %>
@@ -183,50 +183,50 @@
         </div>
       </template>
 
-      <button type="button" id="profile-link-add" class="btn">+ Add link</button>
+      <button type="button" id="profile-link-add" class="btn">+ Link toevoegen</button>
     </fieldset>
 
     <fieldset>
-      <legend>Feed view</legend>
+      <legend>Feed-weergave</legend>
       <label>
-        <span>Default view for the homepage</span>
+        <span>Standaardweergave voor de homepage</span>
         <select name="feed_view_default">
-          <option value="timeline" <%= (site.feed_view_default || 'timeline') === 'timeline' ? 'selected' : '' %>>Timeline (chronological list)</option>
-          <option value="grid"     <%= site.feed_view_default === 'grid' ? 'selected' : '' %>>Grid (cards)</option>
+          <option value="timeline" <%= (site.feed_view_default || 'timeline') === 'timeline' ? 'selected' : '' %>>Tijdlijn (chronologische lijst)</option>
+          <option value="grid"     <%= site.feed_view_default === 'grid' ? 'selected' : '' %>>Grid (kaarten)</option>
         </select>
       </label>
       <label class="cb">
         <input type="checkbox" name="feed_view_switch" value="1" <%= site.feed_view_switch ? 'checked' : '' %>>
-        <span>Show timeline ↔ grid switcher above the feed</span>
+        <span>Tijdlijn ↔ grid-schakelaar boven de feed tonen</span>
       </label>
       <label class="cb">
         <input type="checkbox" name="show_search" value="1" <%= site.show_search ? 'checked' : '' %>>
-        <span>Show search button in nav</span>
+        <span>Zoekknop in de navigatie tonen</span>
       </label>
       <label class="cb">
         <input type="checkbox" name="show_archive_link" value="1" <%= site.show_archive_link ? 'checked' : '' %>>
-        <span>Show archive link in nav</span>
+        <span>Archief-link in de navigatie tonen</span>
       </label>
     </fieldset>
 
     <fieldset>
       <legend>SEO &amp; social</legend>
       <label>
-        <span>Title template (use {title} and {site})</span>
+        <span>Titel-sjabloon (gebruik {title} en {site})</span>
         <input type="text" name="title_template" value="<%= site.title_template || '{title} — {site}' %>" maxlength="200">
       </label>
       <label>
-        <span>Canonical base URL (for production HTTPS)</span>
-        <input type="text" name="canonical" value="<%= site.canonical || '' %>" placeholder="https://your-domain.com">
+        <span>Canonieke basis-URL (voor productie-HTTPS)</span>
+        <input type="text" name="canonical" value="<%= site.canonical || '' %>" placeholder="https://jouw-domein.com">
       </label>
       <label>
-        <span>Twitter handle (with @)</span>
-        <input type="text" name="twitter" value="<%= site.twitter || '' %>" placeholder="@yourname" maxlength="64">
+        <span>Twitter / X-handle (met @)</span>
+        <input type="text" name="twitter" value="<%= site.twitter || '' %>" placeholder="@jouwnaam" maxlength="64">
       </label>
       <details>
-        <summary>Search-engine verification</summary>
+        <summary>Zoekmachine-verificatie</summary>
         <label>
-          <span>Google site verification</span>
+          <span>Google site-verificatie</span>
           <input type="text" name="google_verification"    value="<%= site.google_verification    || '' %>" maxlength="200">
         </label>
         <label>
@@ -245,22 +245,22 @@
     </fieldset>
 
     <fieldset>
-      <legend>Custom CSS &amp; HTML <em>(optional)</em></legend>
+      <legend>Eigen CSS &amp; HTML <em>(optioneel)</em></legend>
       <label>
-        <span>Custom CSS (injected as &lt;style&gt; in &lt;head&gt;)</span>
+        <span>Eigen CSS (geïnjecteerd als &lt;style&gt; in &lt;head&gt;)</span>
         <textarea name="custom_css" rows="3" placeholder=".foo { color: red; }"><%= site.custom_css || '' %></textarea>
       </label>
       <label>
-        <span>Custom &lt;head&gt; HTML (analytics, extra metas)</span>
+        <span>Eigen &lt;head&gt;-HTML (analytics, extra meta&rsquo;s)</span>
         <textarea name="custom_head_html" rows="3" placeholder="<meta name=&quot;...&quot;>"><%= site.custom_head_html || '' %></textarea>
       </label>
       <label>
-        <span>Custom footer HTML</span>
+        <span>Eigen footer-HTML</span>
         <textarea name="custom_foot_html" rows="3"><%= site.custom_foot_html || '' %></textarea>
       </label>
     </fieldset>
 
-    <button type="submit" class="btn btn-primary"><%= isNew ? 'Create site' : 'Save changes' %></button>
+    <button type="submit" class="btn btn-primary"><%= isNew ? 'Site aanmaken' : 'Wijzigingen opslaan' %></button>
   </form>
 </div>
 
