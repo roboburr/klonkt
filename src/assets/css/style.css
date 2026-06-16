@@ -2365,9 +2365,8 @@ article table.post-table {
     flex-wrap: wrap;
 }
 
-/* Solo / Cirkel scope-toggle (alleen in circle-modus) — links in de bar */
+/* Solo / Cirkel scope-toggle (alleen in circle-modus) — centraal in de bar */
 .feed-scope { display: inline-flex; gap: .35rem; }
-.view-switcher-wrap .feed-scope { margin-right: auto; }
 .feed-scope-btn {
     display: inline-flex; align-items: center;
     padding: .35rem .85rem; min-height: 32px;
