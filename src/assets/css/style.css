@@ -2429,10 +2429,9 @@ body[data-grid-cols="4"] .grid-cols-btn[data-cols="4"] {
     border-color: var(--ink);
 }
 
-/* Desktop + grid-view → toon cols-picker (op home + archive) */
+/* Desktop + grid-view → toon cols-picker (op de home-feed; niet op archief) */
 @media (min-width: 600px) {
-    body.on-home[data-feed-view="grid"] .grid-cols-picker,
-    body.on-archive[data-feed-view="grid"] .grid-cols-picker {
+    body.on-home[data-feed-view="grid"] .grid-cols-picker {
         display: inline-flex;
     }
 }
