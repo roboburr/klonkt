@@ -155,7 +155,13 @@ const sessionMiddleware = session({
 app.use(sessionMiddleware);
 
 app.use('/assets', express.static(path.join(__dirname, 'assets'), { maxAge: isDev ? 0 : '1y' }));
-app.use('/media', express.static(process.env.MEDIA_PATH || './storage/media'));
+app.use('/media', express.static(process.env.MEDIA_PATH || './storage/media', {
+  // Publieke media (post-covers, avatars) moet door andere Klonkt-sites in hun
+  // CIRKEL cross-origin embedbaar zijn. Helmet zet standaard CORP=same-origin,
+  // wat die afbeeldingen in de browser blokkeert (bestand komt wél binnen, maar
+  // de browser weigert 'm te tonen). Voor /media dus expliciet cross-origin.
+  setHeaders: (res) => res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin'),
+}));
 
 // (Verwijderd) TWA / digital-asset-links — alleen nodig voor de APK/TWA-variant.
 // Klonkt is PWA-only; geen assetlinks.json meer.
