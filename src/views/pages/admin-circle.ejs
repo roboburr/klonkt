@@ -15,8 +15,11 @@
 
   <section class="set-card" style="margin-top:1rem">
     <h2>Mijn zichtbaarheid</h2>
-    <p class="set-help">Mag jouw site verschijnen in cirkels van anderen? (Toont je publieke
-      posts via <code>/.klonkt/outbox.json</code>.)</p>
+    <p class="set-help">Doe je mee aan cirkels? Dit maakt je <strong>al-publieke</strong> posts
+      ophaalbaar voor andere Klonkt-sites via een ondertekende feed
+      (<code>/.klonkt/outbox.json</code>). Het is een deelname-keuze, geen privacy-slot:
+      je posts blijven sowieso openbaar op je site, ook als dit uit staat. Wil je iets
+      afschermen, maak die post dan niet-publiek.</p>
     <form method="post" action="/admin/circle/allow" class="set-form">
       <label class="set-opt" style="align-items:center">
         <input type="checkbox" name="allow_circle" value="on" <%= allowCircle ? 'checked' : '' %>>
