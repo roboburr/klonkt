@@ -1,6 +1,7 @@
 /**
- * Publieke Cirkel-feed: /cirkel
- * Toont de gecachte publieke posts uit je cirkel als statische kaarten.
+ * Cirkel-feed + lokale lees-pagina.
+ *   GET /cirkel        -> overzicht (zelfde timeline/grid-view als de home)
+ *   GET /cirkel/:id    -> losse remote-post in eigen chrome (blijf op je site)
  * Alleen actief als tenancy === 'circle' (anders next() -> postsRoutes/404).
  * Zie docs/cirkels-v1-spec.md §5c.
  */
@@ -18,13 +19,18 @@ function safeUrl(u) {
 function safeJson(s) {
   try { return s ? JSON.parse(s) : []; } catch { return []; }
 }
+function mediaImage(media_json) {
+  const media = safeJson(media_json).map((m) => ({ ...m, url: safeUrl(m.url) })).filter((m) => m.url);
+  return media.find((m) => m.type === 'image') || null;
+}
 
+// ── Overzicht ────────────────────────────────────────────────
 router.get('/cirkel', (req, res, next) => {
   if (getTenancy() !== 'circle') return next();
 
   const rows = db.prepare(`
-    SELECT p.id, p.published, p.title, p.summary, p.url, p.media_json,
-           a.name AS actor_name, a.url AS actor_url, a.avatar AS actor_avatar
+    SELECT p.id, p.published, p.title, p.summary, p.media_json,
+           a.name AS actor_name
     FROM remote_posts p
     JOIN remote_actors a ON a.id = p.actor_id
     ORDER BY COALESCE(p.published, p.fetched_at) DESC
@@ -32,16 +38,12 @@ router.get('/cirkel', (req, res, next) => {
   `).all();
 
   const posts = rows.map((r) => {
-    const media = safeJson(r.media_json)
-      .map((m) => ({ ...m, url: safeUrl(m.url) }))
-      .filter((m) => m.url);
-    const image = media.find((m) => m.type === 'image') || null;
-    // Vorm de remote-post naar het lokale post-shape zodat post-card/post-tile
-    // (dezelfde timeline/grid-view als de home) 'm renderen. external_url maakt
-    // de partials extern-linkend (naar de bron) i.p.v. lokaal/htmx.
+    const image = mediaImage(r.media_json);
     return {
       id: r.id,
-      slug: encodeURIComponent(r.id),
+      // Lokale lees-pagina -> de kaart blijft op de eigen site (post-card linkt
+      // lokaal + htmx, GEEN external_url).
+      slug: 'cirkel/' + encodeURIComponent(r.id),
       title: r.title || '(zonder titel)',
       excerpt: r.summary || '',
       cover_image_url: image ? image.url : null,
@@ -51,13 +53,44 @@ router.get('/cirkel', (req, res, next) => {
       tags: '',
       pinned: 0,
       status: 'published',
-      external_url: safeUrl(r.url),
       source_name: r.actor_name || 'Onbekend',
-      source_url: safeUrl(r.actor_url),
     };
   });
 
   renderPage(req, res, 'pages/circle-feed', { pageTitle: 'Cirkel', bodyClass: 'on-cirkel', posts });
+});
+
+// ── Losse remote-post (lokaal lezen) ─────────────────────────
+router.get('/cirkel/:id', (req, res, next) => {
+  if (getTenancy() !== 'circle') return next();
+
+  const row = db.prepare(`
+    SELECT p.id, p.published, p.title, p.summary, p.url, p.media_json,
+           a.name AS actor_name, a.url AS actor_url, a.avatar AS actor_avatar
+    FROM remote_posts p
+    JOIN remote_actors a ON a.id = p.actor_id
+    WHERE p.id = ?
+  `).get(req.params.id);
+
+  if (!row) return next();
+
+  const image = mediaImage(row.media_json);
+  const post = {
+    title: row.title || '(zonder titel)',
+    body: row.summary || '',          // platte tekst (gesanitized bij ingest)
+    published: row.published,
+    image: image ? image.url : null,
+    sourceName: row.actor_name || 'Onbekend',
+    sourceUrl: safeUrl(row.actor_url),
+    sourceAvatar: safeUrl(row.actor_avatar),
+    originalUrl: safeUrl(row.url),
+  };
+
+  renderPage(req, res, 'pages/circle-post', {
+    pageTitle: post.title,
+    bodyClass: 'on-cirkel-post',
+    post,
+  });
 });
 
 export default router;

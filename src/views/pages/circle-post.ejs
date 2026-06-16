@@ -1,0 +1,46 @@
+<article class="container cirkel-post">
+  <p class="cirkel-post-back">
+    <a href="/cirkel" hx-get="/cirkel?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
+       hx-push-url="/cirkel" hx-indicator="#pcms-loading">&larr; Cirkel</a>
+  </p>
+
+  <header class="cirkel-post-head">
+    <div class="cirkel-post-src">
+      <% if (post.sourceAvatar) { %><img class="cirkel-post-avatar" src="<%= post.sourceAvatar %>" alt=""><% } %>
+      <span>via
+        <% if (post.sourceUrl) { %><a href="<%= post.sourceUrl %>" target="_blank" rel="noopener"><%= post.sourceName %></a>
+        <% } else { %><%= post.sourceName %><% } %>
+      </span>
+      <% if (post.published) { %><span class="cirkel-post-date">&middot; <%= post.published.slice(0, 10) %></span><% } %>
+    </div>
+    <h1 class="cirkel-post-title"><%= post.title %></h1>
+  </header>
+
+  <% if (post.image) { %>
+    <img class="cirkel-post-cover" src="<%= post.image %>" alt="" loading="lazy">
+  <% } %>
+
+  <div class="cirkel-post-body"><%= post.body %></div>
+
+  <% if (post.originalUrl) { %>
+    <p class="cirkel-post-readmore">
+      <a href="<%= post.originalUrl %>" target="_blank" rel="noopener">Lees verder bij <%= post.sourceName %> &rarr;</a>
+    </p>
+  <% } %>
+</article>
+
+<style>
+.cirkel-post { max-width: 720px; margin: 2rem auto; }
+.cirkel-post-back a { color: var(--ink-muted); text-decoration: none; font-size: .85rem; }
+.cirkel-post-back a:hover { color: var(--accent); }
+.cirkel-post-head { margin: 1rem 0 1.25rem; }
+.cirkel-post-src { display: flex; align-items: center; gap: .45rem; font-size: .85rem; color: var(--ink-muted); margin-bottom: .5rem; }
+.cirkel-post-src a { color: var(--ink-muted); }
+.cirkel-post-src a:hover { color: var(--accent); }
+.cirkel-post-avatar { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
+.cirkel-post-title { font-family: var(--font-display, serif); font-size: 1.9rem; line-height: 1.15; margin: 0; }
+.cirkel-post-cover { width: 100%; border-radius: var(--radius); margin: 0 0 1.5rem; display: block; }
+.cirkel-post-body { font-size: 1.05rem; line-height: 1.7; white-space: pre-wrap; color: var(--ink); }
+.cirkel-post-readmore { margin-top: 2rem; padding-top: 1.25rem; border-top: 1px solid var(--rule); }
+.cirkel-post-readmore a { color: var(--accent); text-decoration: none; font-weight: 600; }
+</style>
