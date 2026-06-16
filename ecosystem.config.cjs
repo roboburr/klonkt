@@ -12,13 +12,13 @@
  * Usage:
  *   pm2 start ecosystem.config.cjs --env production
  *   pm2 save && pm2 startup    # auto-start on boot
- *   pm2 logs prutcms
+ *   pm2 logs klonkt
  */
 
 module.exports = {
   apps: [
     {
-      name: 'prutcms',
+      name: 'klonkt',
       script: 'src/server.js',
       cwd: __dirname,
       exec_mode: 'fork',
@@ -28,7 +28,7 @@ module.exports = {
       max_memory_restart: '512M',   // restart if RSS exceeds this
       kill_timeout: 5000,           // give in-flight requests time to finish
 
-      // Logs go to ~/.pm2/logs/prutcms-out.log and -error.log by default.
+      // Logs go to ~/.pm2/logs/klonkt-out.log and -error.log by default.
       // Override here if you want them in the project dir:
       // out_file: './logs/out.log',
       // error_file: './logs/error.log',

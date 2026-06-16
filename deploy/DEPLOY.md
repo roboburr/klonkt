@@ -55,8 +55,8 @@ sudo ufw enable
 # (skip if you're already on a non-root user)
 
 # As your user:
-mkdir -p ~/prutcms
-cd ~/prutcms
+mkdir -p ~/klonkt
+cd ~/klonkt
 # Clone or rsync your code here. e.g. via git:
 # git clone <your-repo> .
 
@@ -86,11 +86,11 @@ SESSION_SECRET=<paste-strong-random-string>
 # AUDIO_SECRET=<paste-different-random-string>
 
 # Optional: override storage paths
-# DATABASE_PATH=/home/robin/prutcms/storage/database.sqlite
-# AUDIO_PATH=/home/robin/prutcms/storage/audio
-# AVATAR_PATH=/home/robin/prutcms/storage/media/avatars
-# COVER_PATH=/home/robin/prutcms/storage/media/audio-covers
-# MEDIA_PATH=/home/robin/prutcms/storage/media
+# DATABASE_PATH=/home/robin/klonkt/storage/database.sqlite
+# AUDIO_PATH=/home/robin/klonkt/storage/audio
+# AVATAR_PATH=/home/robin/klonkt/storage/media/avatars
+# COVER_PATH=/home/robin/klonkt/storage/media/audio-covers
+# MEDIA_PATH=/home/robin/klonkt/storage/media
 ```
 
 `chmod 600 .env` — keep it readable only by your user.
@@ -115,7 +115,7 @@ Check it's up:
 
 ```bash
 curl -I http://127.0.0.1:3000/   # expect 200 / 302
-pm2 logs prutcms                 # live logs; Ctrl-C to detach
+pm2 logs klonkt                 # live logs; Ctrl-C to detach
 ```
 
 Register your first user (becomes god) by visiting
@@ -127,9 +127,9 @@ Register your first user (becomes god) by visiting
 ## 6. nginx + SSL
 
 ```bash
-sudo cp deploy/nginx.conf.example /etc/nginx/sites-available/prutcms
-sudo $EDITOR /etc/nginx/sites-available/prutcms     # replace <YOUR-DOMAIN>
-sudo ln -s /etc/nginx/sites-available/prutcms /etc/nginx/sites-enabled/
+sudo cp deploy/nginx.conf.example /etc/nginx/sites-available/klonkt
+sudo $EDITOR /etc/nginx/sites-available/klonkt     # replace <YOUR-DOMAIN>
+sudo ln -s /etc/nginx/sites-available/klonkt /etc/nginx/sites-enabled/
 sudo rm -f /etc/nginx/sites-enabled/default
 sudo nginx -t
 sudo systemctl reload nginx
@@ -160,14 +160,14 @@ filter "WS" → see the `wss://YOUR-DOMAIN/ws/prutter` connection).
 
 ```bash
 chmod +x deploy/backup.sh
-mkdir -p ~/backups/prutcms ~/prutcms/logs
+mkdir -p ~/backups/klonkt ~/klonkt/logs
 
 # Test it once
 ./deploy/backup.sh
 
 # Schedule nightly at 03:00
 ( crontab -l 2>/dev/null ; \
-  echo "0 3 * * * /home/$USER/prutcms/deploy/backup.sh >> /home/$USER/prutcms/logs/backup.log 2>&1" \
+  echo "0 3 * * * /home/$USER/klonkt/deploy/backup.sh >> /home/$USER/klonkt/logs/backup.log 2>&1" \
 ) | crontab -
 
 crontab -l   # verify
@@ -180,10 +180,10 @@ Restore is a tar -xzf into a clean directory + `npm ci` + start.
 ## 8. Updating
 
 ```bash
-cd ~/prutcms
+cd ~/klonkt
 git pull
 npm ci --omit=dev
-pm2 reload prutcms     # zero-downtime within fork mode
+pm2 reload klonkt     # zero-downtime within fork mode
 ```
 
 The DB schema migrates automatically on boot (`ensureColumn` adds new columns
@@ -205,11 +205,11 @@ site won't navigate into another.
 
 | Symptom | Check |
 |---|---|
-| `❌ FATAL: SESSION_SECRET is required` | `.env` missing or unreadable. `pm2 stop prutcms && pm2 start ecosystem.config.cjs --env production`. |
+| `❌ FATAL: SESSION_SECRET is required` | `.env` missing or unreadable. `pm2 stop klonkt && pm2 start ecosystem.config.cjs --env production`. |
 | `❌ FATAL: SESSION_SECRET too weak for production` | Make it 32+ chars: `openssl rand -hex 32`. |
 | WS disconnects every minute | Check nginx `proxy_read_timeout` is ≥ 90s in `/ws/` block. |
 | Audio plays but seek stutters | nginx must have `proxy_buffering off` on `/audio/stream/`. |
-| 502 from nginx | `pm2 list` — is the app up? `pm2 logs prutcms --lines 100`. |
+| 502 from nginx | `pm2 list` — is the app up? `pm2 logs klonkt --lines 100`. |
 | HTMX 404s on `/assets/js/htmx.min.js` | `ls node_modules/htmx.org/dist/htmx.min.js` — if missing, `npm install htmx.org`. The boot-copy step needs the package. |
 
 ---
