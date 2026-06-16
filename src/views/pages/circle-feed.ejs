@@ -12,14 +12,21 @@
   <h1>Cirkel</h1>
   <p class="cirkel-sub">Wat er speelt bij de andere sites in mijn cirkel.</p>
   <% if (typeof sites !== 'undefined' && sites && sites.length) { %>
+    <% var _max = 6; var _more = sites.slice(_max); %>
     <div class="cirkel-members">
-      <% sites.forEach(function(s){ %>
+      <% sites.slice(0, _max).forEach(function(s){ %>
         <% if (s.url) { %><a class="cirkel-member" href="<%= s.url %>" target="_blank" rel="noopener" title="<%= s.name %>"><% } else { %><span class="cirkel-member" title="<%= s.name %>"><% } %>
           <span class="cirkel-avatar"<% if (s.avatar) { %> style="background-image:url('<%= s.avatar %>')"<% } %>><% if (!s.avatar) { %><%= (s.name || '?').charAt(0).toUpperCase() %><% } %></span>
           <span class="cirkel-member-name"><%= s.name %></span>
         <% if (s.url) { %></a><% } else { %></span><% } %>
       <% }); %>
+      <% if (_more.length) { %>
+        <span class="cirkel-member cirkel-member--more" title="<%= _more.map(function(s){ return s.name; }).join(', ') %>">+<%= _more.length %> meer</span>
+      <% } %>
     </div>
+    <% if (sites.length > _max) { %>
+      <p class="cirkel-count"><%= sites.length %> sites in je cirkel</p>
+    <% } %>
   <% } %>
 </div>
 
@@ -72,6 +79,9 @@
   color: #fff; display: inline-flex; align-items: center; justify-content: center;
   font-weight: 700; font-size: .82rem; }
 .cirkel-member-name { font-size: .9rem; font-weight: 600; }
+.cirkel-member--more { padding: .28rem .85rem; font-size: .85rem; font-weight: 700; color: var(--ink-muted); cursor: default; }
+.cirkel-member--more:hover { border-color: var(--rule); transform: none; }
+.cirkel-count { color: var(--ink-muted); font-size: .82rem; margin: .6rem 0 0; }
 .cirkel-empty { color: var(--ink-muted); text-align: center; margin: 2rem auto; }
 .cirkel-empty a { color: var(--accent); }
 </style>
