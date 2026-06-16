@@ -42,6 +42,7 @@ import feedRoutes from './routes/feed.js';
 import hubRoutes from './routes/hub.js';
 import artistsRoutes from './routes/artists.js';
 import postsRoutes from './routes/posts.js';
+import federationRoutes from './routes/federation.js';
 
 if (!process.env.SESSION_SECRET) {
   console.error('❌ FATAL: SESSION_SECRET is required');
@@ -164,6 +165,10 @@ initializeDatabase();
 // Singleton PrutterService — routes get it via req.app.locals.prutter.
 const prutter = new PrutterService(db);
 app.locals.prutter = prutter;
+
+// Cirkels-federatie: publieke, site-agnostische endpoints (/.klonkt/*).
+// Vóór resolveSite/theme — ze hebben geen site-context nodig.
+app.use(federationRoutes);
 
 app.use(resolveSite);
 app.use(loadAudioTracks);

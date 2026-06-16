@@ -34,9 +34,11 @@ export function setSetting(key, value) {
 }
 
 export function getTenancy() {
-  return getSetting('tenancy', 'solo') === 'hub' ? 'hub' : 'solo';
+  const v = getSetting('tenancy', 'solo');
+  return v === 'hub' ? 'hub' : v === 'circle' ? 'circle' : 'solo';
 }
 
 export function setTenancy(mode) {
-  setSetting('tenancy', mode === 'hub' ? 'hub' : 'solo');
+  const m = (mode === 'hub' || mode === 'circle') ? mode : 'solo';
+  setSetting('tenancy', m);
 }

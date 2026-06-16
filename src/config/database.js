@@ -105,6 +105,45 @@ export function initializeDatabase() {
     );
   `);
   db.prepare("INSERT OR IGNORE INTO app_settings (key, value) VALUES ('tenancy', 'solo')").run();
+
+  // ── Cirkels (federatie) ─────────────────────────────────────
+  // Decentrale, asymmetrische verbindingen tussen solo-instances.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS circle_links (
+      id TEXT PRIMARY KEY,
+      local_site_id TEXT NOT NULL,
+      remote_url TEXT NOT NULL,
+      remote_actor_id TEXT,
+      label TEXT,
+      status TEXT DEFAULT 'active',
+      added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      last_synced DATETIME,
+      last_error TEXT,
+      UNIQUE(local_site_id, remote_url),
+      FOREIGN KEY (local_site_id) REFERENCES sites(id)
+    );
+    CREATE TABLE IF NOT EXISTS remote_actors (
+      id TEXT PRIMARY KEY,
+      url TEXT UNIQUE NOT NULL,
+      name TEXT,
+      summary TEXT,
+      avatar TEXT,
+      public_key TEXT NOT NULL,
+      fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS remote_posts (
+      id TEXT PRIMARY KEY,
+      actor_id TEXT NOT NULL,
+      published DATETIME,
+      title TEXT,
+      summary TEXT,
+      url TEXT,
+      media_json TEXT,
+      raw_json TEXT,
+      fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (actor_id) REFERENCES remote_actors(id)
+    );
+  `);
 }
 
 function ensureColumn(table, column, definition) {
