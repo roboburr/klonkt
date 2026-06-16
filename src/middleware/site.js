@@ -20,7 +20,7 @@ export function resolveSite(req, res, next) {
   // site. In SOLO-mode bestaat er maar één site: we slaan die routing over en
   // pinnen altijd op de primaire site.
   if (tenancy === 'hub') {
-    // Een PrutFolio is bereikbaar via /user/:slug (canoniek) én /sites/:slug (legacy).
+    // Een Klonkt-site is bereikbaar via /user/:slug (canoniek) én /sites/:slug (legacy).
     const m = req.path.match(/^\/(sites|user)\/([a-zA-Z0-9_-]+)(\/.*)?$/);
     if (m) {
       const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(m[2]);

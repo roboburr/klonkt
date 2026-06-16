@@ -1,5 +1,5 @@
 /**
- * PrutCMS v10 Audio Player — v9 mini-player + Spotify-style sheet.
+ * Klonkt Audio Player — v9 mini-player + Spotify-style sheet.
  *
  * Two surfaces:
  *  1. .audio-player          — bottom strip: cover + meta + controls + progress + volume

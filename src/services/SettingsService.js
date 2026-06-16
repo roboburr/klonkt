@@ -1,7 +1,7 @@
 // Globale app-instellingen (key/value, gecached). Nu vooral de tenancy-modus.
 //
 //   tenancy = 'solo'  -> precies één site (de primaire/owner-site)
-//   tenancy = 'hub'   -> hoofdsite (bedrijf) + /user/, admin wijst PrutFolio's toe
+//   tenancy = 'hub'   -> hoofdsite (bedrijf) + /user/, admin wijst Klonkt-site's toe
 //
 // De cache wordt bij setSetting meteen ververst, dus een toggle in Beheer werkt
 // live zonder herstart.

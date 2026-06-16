@@ -1,4 +1,4 @@
-/* PrutFolio — Lenis smooth wheel scroll init (desktop only) */
+/* Klonkt — Lenis smooth wheel scroll init (desktop only) */
 (function () {
   if (typeof Lenis === "undefined") return;
   // Skip op touch/mobile — native momentum is beter dan JS lib

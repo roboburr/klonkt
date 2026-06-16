@@ -1,7 +1,7 @@
 /**
- * Hub-hoofdpagina — alleen in hub-modus. In plaats van de primaire PrutFolio te
+ * Hub-hoofdpagina — alleen in hub-modus. In plaats van de primaire Klonkt-site te
  * tonen, rendert '/' hier een bedrijfs-overview: de laatste posts van ALLE
- * gebruikers samengevat + een lijst van de PrutFolio's.
+ * gebruikers samengevat + een lijst van de Klonkt-site's.
  *
  * In solo-modus doet dit niets (next()) en rendert posts.js de enige site.
  */
@@ -47,7 +47,7 @@ router.get('/', (req, res, next) => {
   `).get() || null;
   const mainId = mainSite ? mainSite.id : '';
 
-  // Uitgelichte PrutFolio's voor de home-roster: meest-actief eerst (aantal
+  // Uitgelichte Klonkt-site's voor de home-roster: meest-actief eerst (aantal
   // gepubliceerde posts), dan nieuwste. Excl. de hoofdsite. Beperkt tot
   // HOME_ROSTER_LIMIT zodat de home schaalt — volledige lijst staat op /leden.
   const HOME_ROSTER_LIMIT = 24;

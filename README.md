@@ -1,12 +1,10 @@
 # Klonkt Hub Beta
 
 Persoonlijk multi-site platform met editorial-feel content + sociale community.
-Forked van **PrutCMS v9** (PHP, file-based) naar **Node + SQLite + htmx**.
+Gebouwd op **Node + SQLite + htmx** — licht, zelf-gehost, en van jou.
 
-> **Naam-uitleg.** "PrutCMS v9" is en blijft het file-based PHP-product. Klonkt Hub
-> (intern pakket `prutfolio`) is een nieuw product met andere DNA: het is geen
-> *publishing tool* maar een *persoonlijk canvas* — content, profiel, sociale
-> interactie en realtime in één.
+> **Wat het is.** Geen *publishing tool* maar een *persoonlijk canvas* — content,
+> profiel, sociale interactie en realtime in één.
 
 ## Filosofie
 
@@ -70,9 +68,10 @@ src/
 └── websocket/          # WS server for realtime (notifications, prutter, presence)
 ```
 
-## Migratie van PrutCMS v9
+## Import
 
-Importer is gepland voor v1.1. Pad: `posts/*.md` + `users.json` + `sites/*/config.json` → SQLite.
+Importer voor bestaande bestandsgebaseerde content is gepland voor v1.1.
+Pad: `posts/*.md` + `users.json` + `sites/*/config.json` → SQLite.
 
 ## License
 

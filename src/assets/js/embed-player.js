@@ -1,5 +1,5 @@
 /**
- * PrutCMS Embed Player — eigen, in-huisstijl media-embeds bovenop de ÉCHTE
+ * Klonkt Embed Player — eigen, in-huisstijl media-embeds bovenop de ÉCHTE
  * player-API's (YouTube IFrame API, SoundCloud Widget API, Spotify iFrame API).
  *
  * De server (AudioEmbedService) rendert per embed een placeholder:

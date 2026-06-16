@@ -1,7 +1,7 @@
 /**
  * Klonkt Hub Beta — server bootstrap
  *
- * Persoonlijk multi-site platform forked van PrutCMS v9 (PHP, file-based).
+ * Persoonlijk multi-site platform — Node + SQLite + htmx.
  * Stack: Express + better-sqlite3 + EJS + htmx + ws.
  */
 

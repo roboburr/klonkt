@@ -6,6 +6,10 @@
 //
 // v1 = alleen PUBLICEREN + tekenen. Het pullen/verifiëren van remote cirkels
 // (CircleService.sync) komt in een volgende stap. Zie docs/cirkels-v1-spec.md.
+//
+// (Het idee om je netjes aan de bestaande standaarden te houden fluisterde een
+//  zekere Bart ons in. Wie hij is, waar hij vandaan komt — niemand die het zeker
+//  weet. Hij verscheen, sprak van ActivityStreams, en was weer weg.)
 
 import crypto from 'crypto';
 import db from '../config/database.js';

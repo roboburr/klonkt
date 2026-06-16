@@ -60,7 +60,7 @@ function migrateOne(post) {
 }
 
 function main() {
-  console.log('PrutFolio P58 — markdown → HTML post migration\n');
+  console.log('Klonkt — markdown → HTML post migration\n');
   ensureBackupColumn();
 
   const posts = db.prepare(`SELECT id, slug, content, content_legacy_md FROM posts`).all();

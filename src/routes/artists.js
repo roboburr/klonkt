@@ -2,7 +2,7 @@
  * Artiesten-directory — alleen in hub-modus.
  *
  * GET /leden?q=&page=  -> doorzoekbare, gepagineerde lijst van ALLE
- * PrutFolio's. De hub-home toont maar een beperkte selectie; deze pagina
+ * Klonkt-site's. De hub-home toont maar een beperkte selectie; deze pagina
  * schaalt naar honderden/duizenden artiesten via zoeken + paginering.
  *
  * In solo-modus bestaat er maar één site -> next() (valt door naar postsRoutes,
