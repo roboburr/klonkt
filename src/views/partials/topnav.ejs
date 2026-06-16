@@ -105,7 +105,7 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
               <div class="udh-meta">
                 <span class="udh-name"><%= user.username %></span>
                 <% if (user.role === 'god') { %>
-                  <span class="udh-role">Admin</span>
+                  <span class="udh-role">God</span>
                 <% } else if (user.role === 'admin' || user.role === 'moderator') { %>
                   <span class="udh-role"><%= user.role.charAt(0).toUpperCase() + user.role.slice(1) %></span>
                 <% } %>
