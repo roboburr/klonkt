@@ -14,6 +14,10 @@ const _canPost     = !!(user && (typeof canMutate === 'undefined' || canMutate)
                         && permissions && permissions.canCreatePost && permissions.canCreatePost(user, site));
 const _hasPrutter  = !!(user && site && site.enable_prutter && (typeof tenancy !== 'undefined' && tenancy === 'hub') && (typeof premiumUnlocked === 'undefined' || premiumUnlocked));
 const _ownProfile  = user ? ('/users/' + user.username) : null;
+const _isHub       = (typeof tenancy !== 'undefined' && tenancy === 'hub');
+// Home gaat in hub-modus ALTIJD naar de hub-root (/), niet naar de sub-home van
+// een artiest. In solo/circle is _siteUrlBase leeg, dus dat blijft '/'.
+const _homeHref    = (_isHub ? '' : _siteUrlBase) + '/';
 
 // Strip site prefix for cleaner matching
 function _normalize(p) {
@@ -23,7 +27,8 @@ function _normalize(p) {
 const _p = _normalize(_path);
 
 let _active = null;
-if (_p === '/' || _p === '') _active = 'home';
+// In hub is Home alleen actief op de échte hub-root, niet op een artiest-sub-home.
+if (_isHub ? (_path === '/') : (_p === '/' || _p === '')) _active = 'home';
 else if (_p.indexOf('/search') === 0 || _p.indexOf('/tag/') === 0 || _p.indexOf('/type/') === 0) _active = 'search';
 else if (_p === '/posts/new' || /^\/posts\/[^/]+\/edit$/.test(_p)) _active = 'create';
 else if (_p.indexOf('/prutter') === 0) _active = 'prutter';
@@ -35,9 +40,8 @@ else if (_p.indexOf('/auth/login') === 0) _active = 'login';
 
   <!-- Home -->
   <a class="bottom-tab-item<%= _active === 'home' ? ' is-active' : '' %>"
-     href="<%= _siteUrlBase %>/"
-     hx-get="<%= _siteUrlBase %>/?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
-     hx-push-url="<%= _siteUrlBase %>/" hx-indicator="#pcms-loading"
+     href="<%= _homeHref %>"
+     <% if (!_isHub) { %>hx-get="<%= _homeHref %>?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="<%= _homeHref %>" hx-indicator="#pcms-loading"<% } %>
      aria-label="Home" <%= _active === 'home' ? 'aria-current="page"' : '' %>>
     <svg class="bottom-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
