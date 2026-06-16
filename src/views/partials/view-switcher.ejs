@@ -4,6 +4,17 @@
     HTMX-swapped content keeps working without rebinding. %>
 <div class="view-switcher-wrap">
   <div class="container">
+    <% if (typeof tenancy !== 'undefined' && tenancy === 'circle') {
+         var _onCirkel = (typeof bodyClass === 'string' && bodyClass.indexOf('on-cirkel') >= 0);
+         var _sb = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '';
+    %>
+    <div class="feed-scope" role="tablist" aria-label="Solo of cirkel">
+      <a class="feed-scope-btn<%= _onCirkel ? '' : ' is-active' %>" href="<%= _sb %>/"
+         role="tab" aria-selected="<%= _onCirkel ? 'false' : 'true' %>">Solo</a>
+      <a class="feed-scope-btn<%= _onCirkel ? ' is-active' : '' %>" href="<%= _sb %>/cirkel"
+         role="tab" aria-selected="<%= _onCirkel ? 'true' : 'false' %>">Cirkel</a>
+    </div>
+    <% } %>
     <div class="view-switcher" role="tablist" aria-label="Weergave">
       <button type="button" class="view-switch-btn" data-view="timeline" role="tab"
               aria-selected="<%= (typeof site !== 'undefined' && site && site.feed_view_default === 'grid') ? 'false' : 'true' %>">

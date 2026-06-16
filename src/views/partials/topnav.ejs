@@ -66,16 +66,6 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
         </a>
       <% } %>
 
-      <% if (typeof tenancy !== 'undefined' && tenancy === 'circle') { %>
-        <a class="nav-link" href="<%= _siteUrlBase %>/cirkel"
-           hx-get="<%= _siteUrlBase %>/cirkel?partial=1" hx-target="#pcms-main"
-           hx-swap="innerHTML" hx-push-url="<%= _siteUrlBase %>/cirkel"
-           hx-indicator="#pcms-loading">
-          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="9" r="3.2"/><circle cx="16.5" cy="15" r="3.2"/><path d="M10.6 10.9l3.3 2.4"/></svg>
-          <span class="nav-label">Cirkel</span>
-        </a>
-      <% } %>
-
       <% if (_hasSearch) { %>
         <button type="button" class="nav-btn" id="search-toggle" aria-label="Zoeken" title="Zoeken">
           <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>

@@ -56,17 +56,6 @@ else if (_p.indexOf('/auth/login') === 0) _active = 'login';
     <span class="bottom-tab-label">Zoek</span>
   </button>
 
-  <!-- Cirkel (alleen in circle-modus) -->
-  <% if (typeof tenancy !== 'undefined' && tenancy === 'circle') { %>
-    <a class="bottom-tab-item<%= _active === 'cirkel' ? ' is-active' : '' %>"
-       href="<%= _siteUrlBase %>/cirkel"
-       hx-get="<%= _siteUrlBase %>/cirkel?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
-       hx-push-url="<%= _siteUrlBase %>/cirkel" hx-indicator="#pcms-loading">
-      <svg class="bottom-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="9" r="3.2"/><circle cx="16.5" cy="15" r="3.2"/><path d="M10.6 10.9l3.3 2.4"/></svg>
-      <span class="bottom-tab-label">Cirkel</span>
-    </a>
-  <% } %>
-
   <!-- Plus (FAB-style, only when user can post) -->
   <% if (_canPost) { %>
     <a class="bottom-tab-item bottom-tab-fab<%= _active === 'create' ? ' is-active' : '' %>"

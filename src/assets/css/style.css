@@ -2074,13 +2074,15 @@ body.on-home[data-feed-view="grid"]    .pagination,
 body.on-home[data-feed-view="grid"]    .related-posts,
 body.on-home[data-feed-view="grid"]    .article-footer,
 body.on-archive[data-feed-view="grid"] .feed-timeline,
-body.on-archive[data-feed-view="grid"] .pagination {
+body.on-archive[data-feed-view="grid"] .pagination,
+body.on-cirkel[data-feed-view="grid"]  .feed-timeline {
     display: none !important;
 }
 /* Grid-sectie alleen zichtbaar op feed-pagina's in grid-mode */
 .feed-grid { display: none; }
 body.on-home[data-feed-view="grid"]    .feed-grid,
-body.on-archive[data-feed-view="grid"] .feed-grid { display: block; }
+body.on-archive[data-feed-view="grid"] .feed-grid,
+body.on-cirkel[data-feed-view="grid"]  .feed-grid { display: block; }
 
 /* -------- GRID VIEW TILES (Instagram-stijl) -------- */
 .feed-grid {
@@ -2362,6 +2364,19 @@ article table.post-table {
     gap: 1rem;
     flex-wrap: wrap;
 }
+
+/* Solo / Cirkel scope-toggle (alleen in circle-modus) — links in de bar */
+.feed-scope { display: inline-flex; gap: .35rem; }
+.view-switcher-wrap .feed-scope { margin-right: auto; }
+.feed-scope-btn {
+    display: inline-flex; align-items: center;
+    padding: .35rem .85rem; min-height: 32px;
+    background: transparent; border: 1px solid var(--rule); border-radius: 999px;
+    color: var(--ink-muted); font-family: var(--font-ui); font-size: .82rem;
+    text-decoration: none; cursor: pointer; transition: all .15s;
+}
+.feed-scope-btn:hover { color: var(--ink); border-color: var(--ink-muted); }
+.feed-scope-btn.is-active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
 
 .grid-cols-picker {
     display: none; /* default hidden — desktop + grid-active maakt 'm zichtbaar */
