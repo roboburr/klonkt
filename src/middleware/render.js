@@ -44,7 +44,7 @@ export async function renderPage(req, res, viewName, data = {}) {
   const userOwnsSite = !!(_u && _u.role !== 'god' &&
     db.prepare('SELECT 1 FROM sites WHERE owner_id = ? LIMIT 1').get(_u.id));
 
-  // De avatar van de SITE-EIGENAAR (niet de kijker!) — voor de PrutFolio-kop,
+  // De avatar van de SITE-EIGENAAR (niet de kijker!) — voor de Klonkt-site-kop,
   // zodat de artiest z'n eigen account-foto als sitefoto kan gebruiken.
   const _site = data.site || res.locals.site || null;
   const siteOwnerAvatar = (_site && _site.owner_id)
