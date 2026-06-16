@@ -124,6 +124,12 @@ app.use(bodyParser.json({ limit: '10mb' }));
 // cookies — sessions never persist past the redirect after login.
 if (!isDev) app.set('trust proxy', 1);
 
+// Schema aanmaken/bijwerken VÓÓR iets de DB aanraakt: de session-store doet
+// bij constructie al een query op de `sessions`-tabel, dus bij een verse
+// install moeten de tabellen eerst bestaan (anders: "no such table: sessions"
+// → crash-loop op de allereerste boot).
+initializeDatabase();
+
 // Session middleware extracted into a variable so the WebSocket upgrade
 // handler can reuse it (it needs req.session to authenticate sockets).
 const sessionMiddleware = session({
@@ -146,8 +152,6 @@ app.use('/media', express.static(process.env.MEDIA_PATH || './storage/media'));
 
 // (Verwijderd) TWA / digital-asset-links — alleen nodig voor de APK/TWA-variant.
 // Klonkt is PWA-only; geen assetlinks.json meer.
-
-initializeDatabase();
 
 // Cirkels: periodieke achtergrond-sync van remote instances (no-op tenzij tenancy='circle').
 startCircleSyncLoop();
