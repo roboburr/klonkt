@@ -8,6 +8,7 @@
 
 import express from 'express';
 import { buildActor, buildOutbox, signBody } from '../services/CircleFederation.js';
+import { getTenancy } from '../services/SettingsService.js';
 
 const router = express.Router();
 
@@ -17,6 +18,8 @@ function baseUrl(req) {
 }
 
 router.get('/.klonkt/actor.json', (req, res) => {
+  // Cirkels = solo-naar-solo; hubs publiceren geen federatie-actor.
+  if (getTenancy() === 'hub') return res.status(404).type('text/plain').send('Niet beschikbaar in hub-modus');
   const body = JSON.stringify(buildActor(baseUrl(req)), null, 2);
   res.type('application/activity+json; charset=utf-8');
   res.set('Cache-Control', 'public, max-age=300');
@@ -24,6 +27,7 @@ router.get('/.klonkt/actor.json', (req, res) => {
 });
 
 router.get('/.klonkt/outbox.json', (req, res) => {
+  if (getTenancy() === 'hub') return res.status(404).type('text/plain').send('Niet beschikbaar in hub-modus');
   const body = JSON.stringify(buildOutbox(baseUrl(req)), null, 2);
   res.type('application/activity+json; charset=utf-8');
   res.set('Cache-Control', 'public, max-age=300');
