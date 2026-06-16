@@ -103,11 +103,11 @@ export async function syncOne(link) {
   const remoteProto = Number(actor.klonkt && actor.klonkt.proto) || 1;
   if (remoteProto > KLONKT_PROTO) {
     return markOutdated(link,
-      `Jouw Klonkt (proto ${KLONKT_PROTO}) is ouder dan ${base} (proto ${remoteProto}). Werk je eigen instance bij om te blijven federeren.`);
+      `Deze site draait een nieuwere Klonkt (proto ${remoteProto}); jouw instance is proto ${KLONKT_PROTO}. Werk je eigen Klonkt bij om te blijven federeren.`);
   }
   if (remoteProto < MIN_PROTO) {
     return markOutdated(link,
-      `${base} draait een oudere Klonkt (proto ${remoteProto}; minimaal ${MIN_PROTO} vereist). Vraag ze te updaten.`);
+      `Draait een oudere Klonkt (proto ${remoteProto}; minimaal ${MIN_PROTO} vereist). Vraag ze te updaten.`);
   }
 
   // TOFU: een sleutelwissel vereist expliciete herbevestiging (anti-hijack)
