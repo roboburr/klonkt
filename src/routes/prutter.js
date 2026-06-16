@@ -18,6 +18,8 @@ import express from 'express';
 import db from '../config/database.js';
 import { renderPage } from '../middleware/render.js';
 import { requireAuth, isViewer } from '../middleware/auth.js';
+import { getTenancy } from '../services/SettingsService.js';
+import { premiumUnlocked } from '../services/PatreonService.js';
 import PermissionsService from '../services/PermissionsService.js';
 
 const router = express.Router();
@@ -30,9 +32,17 @@ function siteAllowsDM(req, res) {
   return site.enable_prutter !== 0;
 }
 
-// Middleware: require both auth + Prutter enabled
+// Middleware: Prutter = Hub-feature achter de premium-laag, plus login.
+//  - alleen in Hub-modus (DM tussen artiesten/leden van het collectief)
+//  - vergrendeld als de premium-laag aan staat maar Patreon niet gekoppeld is
+//    (premium uit = niet gegate → huidige gedrag, demo's blijven werken)
+//  - geen anonieme DMs
 function requirePrutter(req, res, next) {
   if (!siteAllowsDM(req, res)) return res.status(404).send('Prutter not enabled on this site');
+  if (getTenancy() !== 'hub') return res.status(404).send('Prutter is alleen beschikbaar in Hub-modus');
+  if (!premiumUnlocked()) {
+    return res.status(403).send('Prutter is een premium-functie — koppel Patreon in Beheer → Instellingen.');
+  }
   return requireAuth(req, res, next);
 }
 

@@ -81,6 +81,13 @@ export function isPremium() {
   return true;
 }
 
+// Is een premium-feature beschikbaar? True als de premium-laag UIT staat (dan is
+// niets gegate — huidige gedrag), of AAN én deze instance is entitled. False alleen
+// als premium aan staat maar er geen geldige Patreon-koppeling is (= betaalmuur).
+export function premiumUnlocked() {
+  return !premiumEnabled() || isPremium();
+}
+
 export function entitlementStatus() {
   return {
     enabled: premiumEnabled(),

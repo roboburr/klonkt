@@ -17,7 +17,7 @@ import db from '../config/database.js';
 import PermissionsService from '../services/PermissionsService.js';
 import { isViewer } from './auth.js';
 import { getSetting } from '../services/SettingsService.js';
-import { isPremium as isPremiumInstance, premiumEnabled } from '../services/PatreonService.js';
+import { isPremium as isPremiumInstance, premiumEnabled, premiumUnlocked } from '../services/PatreonService.js';
 import { PLATFORMS as PLATFORMS_CATALOG } from '../services/PlatformIcons.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -79,6 +79,7 @@ export async function renderPage(req, res, viewName, data = {}) {
     canMutate: !_isViewer,
     isPremium: isPremiumInstance(),
     premiumEnabled: premiumEnabled(),
+    premiumUnlocked: premiumUnlocked(),
     siteOwnerAvatar,
     site: _site,
     audioTracks: data.audioTracks || res.locals.audioTracks || [],
