@@ -384,7 +384,10 @@ if (typeof post !== 'undefined' && post && post.slug) {
   // the rest. Anywhere else (post detail, account, search, auth) we
   // navigate to home in the chosen view, so the switcher is never
   // a dead control.
-  var FEED_PAGE_CLASSES = ['on-home', 'on-archive', 'on-tag', 'on-type', 'on-user', 'on-cirkel'];
+  // NB: 'on-archive' staat hier bewust NIET tussen — op het archief is er geen
+  // in-place timeline/grid-toggle; een klik op de switcher springt terug naar de
+  // feed in de gekozen weergave (zie de !isFeedPage()-tak hieronder).
+  var FEED_PAGE_CLASSES = ['on-home', 'on-tag', 'on-type', 'on-user', 'on-cirkel'];
   function isFeedPage() {
     for (var i = 0; i < FEED_PAGE_CLASSES.length; i++) {
       if (body.classList.contains(FEED_PAGE_CLASSES[i])) return true;
