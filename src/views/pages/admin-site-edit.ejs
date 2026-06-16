@@ -399,6 +399,33 @@
 .site-form textarea { resize: vertical; min-height: 60px; font-family: var(--font-mono, monospace); font-size: 0.85rem; }
 .site-form input[readonly] { opacity: 0.6; cursor: not-allowed; background: var(--paper-2); }
 
+/* Selects: zelfde look als de inputs, met een eigen chevron i.p.v. de kale
+   native pijl. De geopende optielijst blijft door de browser gerenderd. */
+.site-form select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 0.55rem 2.2rem 0.55rem 0.85rem;
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  background-color: var(--paper);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.95rem;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.site-form select:hover { border-color: var(--ink-soft, #888); }
+.site-form select:focus,
+.site-form input[type="text"]:focus,
+.site-form textarea:focus {
+  outline: none;
+  border-color: var(--accent, #c2410c);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent, #c2410c) 22%, transparent);
+}
+
 /* Reuse the palette-swatch styles from account.ejs */
 .palette-swatch {
   display: flex; flex-direction: column; gap: 0.4rem;
