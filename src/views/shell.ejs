@@ -20,7 +20,7 @@ const isAdminPage  = bodyClass && bodyClass.indexOf('on-admin')   >= 0;
 // ── <title> via site.title_template ──────────────────────────────
 // Template: '{title} — {site}'. If pageTitle equals site.title (homepage) we
 // just use the site title alone, otherwise apply the template.
-const _siteTitle  = safeSite.title || 'PrutCMS';
+const _siteTitle  = safeSite.title || 'Klonkt';
 const _rawTitle   = pageTitle || _siteTitle;
 const _tpl        = safeSite.title_template || '{title} — {site}';
 const _finalTitle = (_rawTitle === _siteTitle)

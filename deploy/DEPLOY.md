@@ -1,4 +1,4 @@
-# PrutCMS v10 — Deployment Guide
+# Klonkt — Deployment Guide
 
 End-to-end production install on a fresh Ubuntu 22.04 / Debian 12 VPS
 (TransIP, Hetzner, etc.). Assumes a non-root user with sudo.
