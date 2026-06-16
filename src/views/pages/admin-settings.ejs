@@ -63,6 +63,43 @@
   </section>
   <% } %>
 
+  <%# Google-login voor luisteraars (reageren) — per-site eigen Google-client. %>
+  <section class="set-card" style="margin-top:1rem">
+    <h2>Google-login (luisteraars)</h2>
+    <p class="set-help">Laat bezoekers met Google inloggen om te reageren — met je <strong>eigen</strong>
+      Google Cloud-client. Maak er een aan op
+      <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">console.cloud.google.com</a>
+      (OAuth client-ID, type "Web application").
+      <% if (google && google.configured) { %><strong>Status: ingesteld&nbsp;✓</strong><% } else { %>Nog niet ingesteld.<% } %></p>
+
+    <% if (google && google.redirectUri) { %>
+      <p class="set-help" style="margin-bottom:.7rem">Zet deze <strong>exacte</strong> redirect-URI in je Google-client
+        (Authorized redirect URIs):<br><code style="user-select:all"><%= google.redirectUri %></code></p>
+    <% } else { %>
+      <p class="set-help" style="color:var(--accent)">Stel eerst <code>PUBLIC_BASE_URL</code> in — daar wordt de redirect-URI van afgeleid.</p>
+    <% } %>
+
+    <form method="post" action="/admin/settings/google" class="set-form">
+      <label class="set-field">
+        <span>Client ID</span>
+        <input type="text" name="google_client_id" value="<%= google ? google.clientId : '' %>" placeholder="123-abc.apps.googleusercontent.com" autocomplete="off">
+      </label>
+      <label class="set-field">
+        <span>Client Secret <% if (google && google.secretSet) { %><small style="font-weight:400">— ingesteld; leeg laten = ongewijzigd</small><% } %></span>
+        <input type="password" name="google_client_secret" placeholder="<%= (google && google.secretSet) ? '•••••••• (ingesteld)' : 'GOCSPX-…' %>" autocomplete="off">
+      </label>
+      <div style="display:flex; gap:.5rem; flex-wrap:wrap">
+        <button type="submit" class="btn btn-primary">Opslaan</button>
+        <% if (google && (google.clientId || google.secretSet)) { %>
+          <button type="submit" name="clear" value="1" class="btn">Loskoppelen</button>
+        <% } %>
+      </div>
+    </form>
+    <% if (typeof premiumEnabled !== 'undefined' && premiumEnabled && !(premium && premium.premium)) { %>
+      <p class="set-help" style="margin-top:.7rem; color:var(--accent)">Premium-laag staat aan zonder Patreon — de Google-knop blijft verborgen tot premium ontgrendeld is.</p>
+    <% } %>
+  </section>
+
   <% if (tenancy === 'hub') { %>
   <section class="set-card" style="margin-top:1rem">
     <h2>Hub-hoofdpagina</h2>

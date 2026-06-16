@@ -22,6 +22,7 @@ import { renderPage } from '../middleware/render.js';
 import { requireGod } from '../middleware/auth.js';
 import { getTenancy, setTenancy, getSetting, setSetting } from '../services/SettingsService.js';
 import { entitlementStatus, premiumUnlocked } from '../services/PatreonService.js';
+import { googleConfigured, redirectUri, currentClientId, clientSecretSet } from '../config/google.js';
 
 const router = express.Router();
 
@@ -75,6 +76,12 @@ router.get('/', requireGod, (req, res) => {
     hubHeroImage: getSetting('hub_hero_image') || '',
     hubHeroOverlay: clampOverlay(getSetting('hub_hero_overlay')),
     premium: entitlementStatus(),
+    google: {
+      configured: googleConfigured(),
+      redirectUri: redirectUri(),
+      clientId: currentClientId(),
+      secretSet: clientSecretSet(),
+    },
     success: req.query.success || null,
     error: req.query.error || null,
   });
@@ -126,6 +133,21 @@ router.post('/', requireGod, (req, res) => {
 
     res.redirect('/admin/settings?success=' + encodeURIComponent('Opgeslagen'));
   });
+});
+
+// Google-login (luisteraars) configureren — Client ID + Secret in app_settings.
+// De redirect-URI leiden we af van PUBLIC_BASE_URL (zie config/google.js).
+router.post('/google', requireGod, (req, res) => {
+  if (req.body.clear === '1') {
+    setSetting('google_client_id', '');
+    setSetting('google_client_secret', '');
+    return res.redirect('/admin/settings?success=' + encodeURIComponent('Google-login losgekoppeld'));
+  }
+  setSetting('google_client_id', (req.body.google_client_id || '').toString().trim());
+  // Secret alleen overschrijven als er een nieuwe waarde is ingevoerd (leeg = laat staan).
+  const secret = (req.body.google_client_secret || '').toString().trim();
+  if (secret) setSetting('google_client_secret', secret);
+  res.redirect('/admin/settings?success=' + encodeURIComponent('Google-login opgeslagen'));
 });
 
 export default router;
