@@ -2365,17 +2365,36 @@ article table.post-table {
     flex-wrap: wrap;
 }
 
-/* Solo / Cirkel scope-toggle (alleen in circle-modus) — centraal in de bar */
-.feed-scope { display: inline-flex; gap: .35rem; }
-.feed-scope-btn {
-    display: inline-flex; align-items: center;
-    padding: .35rem .85rem; min-height: 32px;
-    background: transparent; border: 1px solid var(--rule); border-radius: 999px;
-    color: var(--ink-muted); font-family: var(--font-ui); font-size: .82rem;
-    text-decoration: none; cursor: pointer; transition: all .15s;
+/* Solo / Cirkel scope-switcher (alleen in circle-modus) — segmented toggle, centraal.
+   Hoge specificiteit (+ !important op tekst) zodat 'ie globale link-stijlen wint. */
+.view-switcher-wrap .feed-scope {
+    display: inline-flex;
+    background: var(--paper-2);
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    padding: 3px;
 }
-.feed-scope-btn:hover { color: var(--ink); border-color: var(--ink-muted); }
-.feed-scope-btn.is-active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.view-switcher-wrap .feed-scope-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: .32rem .95rem;
+    min-height: 30px;
+    border: none !important;
+    border-radius: 999px !important;
+    background: transparent !important;
+    color: var(--ink-muted) !important;
+    font-family: var(--font-ui);
+    font-size: .82rem;
+    font-weight: 500 !important;
+    text-decoration: none !important;
+    cursor: pointer;
+    transition: all .15s;
+}
+.view-switcher-wrap .feed-scope-btn:hover { color: var(--ink) !important; }
+.view-switcher-wrap .feed-scope-btn.is-active {
+    background: var(--ink) !important;
+    color: var(--paper) !important;
+}
 
 .grid-cols-picker {
     display: none; /* default hidden — desktop + grid-active maakt 'm zichtbaar */
