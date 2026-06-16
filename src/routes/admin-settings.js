@@ -21,7 +21,7 @@ import { v4 as uuid } from 'uuid';
 import { renderPage } from '../middleware/render.js';
 import { requireGod } from '../middleware/auth.js';
 import { getTenancy, setTenancy, getSetting, setSetting } from '../services/SettingsService.js';
-import { entitlementStatus } from '../services/PatreonService.js';
+import { entitlementStatus, premiumUnlocked } from '../services/PatreonService.js';
 
 const router = express.Router();
 
@@ -89,6 +89,12 @@ router.post('/', requireGod, (req, res) => {
     }
 
     if (typeof req.body.tenancy !== 'undefined') {
+      // Hub-modus is een premium-feature: alleen naar hub schakelen als premium
+      // ontgrendeld is (premium-laag uit = vrij; aan = Patreon vereist). Al-hub
+      // blijven mag altijd, zodat een instance nooit vastloopt.
+      if (req.body.tenancy === 'hub' && !premiumUnlocked() && getTenancy() !== 'hub') {
+        return res.redirect('/admin/settings?error=' + encodeURIComponent('Hub-modus is een premium-functie — koppel Patreon in Beheer → Instellingen.'));
+      }
       setTenancy(req.body.tenancy); // valideert naar solo | hub | circle
     }
     if (typeof req.body.hub_title !== 'undefined') {

@@ -20,11 +20,13 @@
           <small>Geen gebruikers-directory, geen site-wissel. Bezoekers kunnen wel met Google inloggen om te reageren.</small>
         </span>
       </label>
+      <% var _hubLocked = (typeof premiumUnlocked !== 'undefined') && !premiumUnlocked && tenancy !== 'hub'; %>
       <label class="set-opt">
-        <input type="radio" name="tenancy" value="hub" <%= tenancy === 'hub' ? 'checked' : '' %>>
+        <input type="radio" name="tenancy" value="hub" <%= tenancy === 'hub' ? 'checked' : '' %> <%= _hubLocked ? 'disabled' : '' %>>
         <span>
           <strong>Hub</strong> — bedrijfssite met <code>/user/</code>.
-          <small>Jij (admin) wijst gebruikers een eigen Klonkt Hub toe. Gesloten cirkel: geen open registratie.</small>
+          <% if (_hubLocked) { %><span style="display:inline-block;font-size:.7rem;font-weight:700;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:.05rem .45rem;margin-left:.3rem;vertical-align:1px;">🔒 premium</span><% } %>
+          <small>Jij (admin) wijst gebruikers een eigen Klonkt Hub toe. Gesloten cirkel: geen open registratie.<% if (_hubLocked) { %> <em>Vereist premium — koppel Patreon in deze pagina.</em><% } %></small>
         </span>
       </label>
       <label class="set-opt">
