@@ -27,10 +27,11 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
       <% if (_isAdmin) { %>
         <a href="<%= _siteUrlBase %>/" class="nav-link nav-link-admin">← Terug naar site</a>
       <% } else if (typeof tenancy !== 'undefined' && tenancy === 'hub') { %>
-        <%# Hub: de brand is de hub-naam en gaat naar de hub-home (volledige nav, geen
-            HTMX, zodat de headerloze overview correct rendert). Eigen class want
-            .site-title is overal display:none. %>
-        <a class="nav-hub-home" href="/" aria-label="Home" title="Home">
+        <%# Hub: de brand gaat naar de hub-home via HTMX. De chrome wordt in hub-modus
+            altijd gerenderd en via body.on-hub (CSS) verborgen op de landing, dus htmx
+            kan schakelen zonder full-reload → de audioplayer blijft leven. %>
+        <a class="nav-hub-home" href="/" aria-label="Home" title="Home"
+           hx-get="/?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="/" hx-indicator="#pcms-loading">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
         </a>
       <% } else if (site) { %>

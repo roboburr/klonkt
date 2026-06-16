@@ -33,7 +33,9 @@
     <%# ── HOOFDPAGINA (label-/hoofdaccount — geen artiest) ──────────── %>
     <% if (mainSite) { %>
     <section class="hub-sec hub-sec-main">
-      <a class="hub-main-card" href="/user/<%= mainSite.slug %>">
+      <a class="hub-main-card" href="/user/<%= mainSite.slug %>"
+         hx-get="/user/<%= mainSite.slug %>?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
+         hx-push-url="/user/<%= mainSite.slug %>" hx-indicator="#pcms-loading">
         <% var _mAva = mainSite.profile_photo || mainSite.owner_avatar; %>
         <span class="hub-main-avatar"<% if (_mAva) { %> style="background-image:url('<%= _mAva %>')"<% } else { %> style="background:<%= mainSite.accent || 'var(--accent)' %>;color:#fff"<% } %>>
           <% if (!_mAva) { %><%= (mainSite.title || mainSite.slug).charAt(0).toUpperCase() %><% } %>
@@ -59,7 +61,9 @@
       </h2>
       <div class="roster">
         <% artists.forEach(function(a){ %>
-          <a class="roster-card" href="/user/<%= a.slug %>">
+          <a class="roster-card" href="/user/<%= a.slug %>"
+             hx-get="/user/<%= a.slug %>?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
+             hx-push-url="/user/<%= a.slug %>" hx-indicator="#pcms-loading">
             <% var _ava = a.profile_photo || a.owner_avatar; %>
             <span class="roster-avatar"<% if (_ava) { %> style="background-image:url('<%= _ava %>')"<% } else { %> style="background:<%= a.accent || 'var(--accent)' %>;color:#fff"<% } %>>
               <% if (!_ava) { %><%= (a.title || a.slug).charAt(0).toUpperCase() %><% } %>
@@ -84,7 +88,9 @@
       <h2 class="hub-sec-title">Laatste posts van onze leden.</h2>
       <div class="hub-feed">
         <% posts.forEach(function(p){ %>
-          <a class="feed-item" href="/user/<%= p.site_slug %>/<%= p.slug %>">
+          <a class="feed-item" href="/user/<%= p.site_slug %>/<%= p.slug %>"
+             hx-get="/user/<%= p.site_slug %>/<%= p.slug %>?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
+             hx-push-url="/user/<%= p.site_slug %>/<%= p.slug %>" hx-indicator="#pcms-loading">
             <% if (p.cover_image_url) { %>
               <span class="feed-cover" style="background-image:url('<%= p.cover_image_url %>')"></span>
             <% } %>

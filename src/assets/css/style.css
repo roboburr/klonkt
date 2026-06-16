@@ -2027,6 +2027,12 @@ body.search-open { overflow: hidden; }
        first post — without it the feed sits flush against the bar. */
     margin-bottom: 1.5rem;
 }
+/* Hub-landing (body.on-hub): verberg de site-chrome. In hub-modus staan masthead
+   + view-switcher altijd in de DOM (zodat htmx tussen hub-home en artiest-sites
+   kan schakelen zonder full-reload); hier toggelen we hun zichtbaarheid. De
+   hub-home heeft z'n eigen kop/nav in de content. */
+body.on-hub .masthead,
+body.on-hub .view-switcher-wrap { display: none !important; }
 .view-switcher {
     display: flex;
     justify-content: center;
