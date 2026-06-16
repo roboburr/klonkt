@@ -70,6 +70,7 @@ router.get('/', (req, res, next) => {
     tagline: getSetting('hub_tagline') || '',
     intro: getSetting('hub_intro') || '',
     heroImage: getSetting('hub_hero_image') || '',
+    heroOverlay: (() => { const v = parseInt(getSetting('hub_hero_overlay'), 10); return Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 45; })(),
   };
 
   renderPage(req, res, 'pages/hub-home', {

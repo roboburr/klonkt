@@ -37,7 +37,7 @@
       De openbare hub-pagina (<code>/</code>) is generiek — van geen enkele gebruiker.
       Hier stel je de naam en intro in. Jouw eigen Klonkt Hub blijft los bestaan onder <code>/user/</code>.
     </p>
-    <form method="post" action="/admin/settings" class="set-form">
+    <form method="post" action="/admin/settings" class="set-form" enctype="multipart/form-data">
       <label class="set-field">
         <span>Naam</span>
         <input type="text" name="hub_title" maxlength="80" value="<%= hubTitle %>" placeholder="bijv. Studio Noord">
@@ -54,6 +54,27 @@
         <span>Hero-afbeelding (URL) <small style="font-weight:400;color:var(--ink-muted)">— optioneel; achtergrond van de hero</small></span>
         <input type="text" name="hub_hero_image" maxlength="300" value="<%= hubHeroImage %>" placeholder="/media/... of https://...">
       </label>
+      <label class="set-field">
+        <span>…of upload een afbeelding <small style="font-weight:400;color:var(--ink-muted)">— jpg/png/webp/gif, max 5 MB; vervangt de URL hierboven</small></span>
+        <input type="file" name="hub_hero_file" accept="image/png,image/jpeg,image/webp,image/gif">
+      </label>
+      <label class="set-field">
+        <span>Donkere overlay <small style="font-weight:400;color:var(--ink-muted)">— maakt de hero donkerder zodat de tekst leesbaar blijft</small></span>
+        <span style="display:flex;align-items:center;gap:0.75rem">
+          <input type="range" name="hub_hero_overlay" min="0" max="100" step="5" value="<%= hubHeroOverlay %>" style="flex:1"
+            oninput="this.parentNode.querySelector('.ov-val').textContent=this.value+'%';var o=document.getElementById('hero-ov-preview');if(o)o.style.opacity=this.value/100">
+          <span class="ov-val" style="min-width:3.5ch;text-align:right;font-variant-numeric:tabular-nums"><%= hubHeroOverlay %>%</span>
+        </span>
+      </label>
+      <% if (hubHeroImage) { %>
+      <div class="set-field">
+        <span style="font-weight:400;color:var(--ink-muted);font-size:0.9rem">Voorbeeld (met overlay):</span>
+        <div style="position:relative;display:inline-block;margin-top:0.4rem;max-width:100%">
+          <img src="<%= hubHeroImage %>" alt="Hero-voorbeeld" style="display:block;max-width:100%;max-height:160px;border-radius:8px;border:1px solid var(--rule)">
+          <div id="hero-ov-preview" style="position:absolute;inset:0;background:#000;opacity:<%= (hubHeroOverlay/100).toFixed(2) %>;border-radius:8px;pointer-events:none"></div>
+        </div>
+      </div>
+      <% } %>
       <button type="submit" class="btn btn-primary">Opslaan</button>
     </form>
   </section>

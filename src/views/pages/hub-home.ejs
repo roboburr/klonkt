@@ -16,7 +16,7 @@
   </nav>
 
   <%# ── HERO (label) — de pagina begint hier, geen header erboven ────── %>
-  <header class="hub-hero<%= hub.heroImage ? ' has-img' : '' %>"<% if (hub.heroImage) { %> style="--hero-img:url('<%= hub.heroImage %>')"<% } %>>
+  <header class="hub-hero<%= hub.heroImage ? ' has-img' : '' %>"<% if (hub.heroImage) { %> style="--hero-img:url('<%= hub.heroImage %>'); --hero-ov:<%= ((hub.heroOverlay == null ? 45 : hub.heroOverlay)/100).toFixed(2) %>"<% } %>>
     <div class="hub-hero-inner container">
       <h1 class="hub-hero-title"><%= hub.title %></h1>
       <% if (hub.tagline) { %>
@@ -127,7 +127,7 @@
 }
 .hub-hero.has-img {
   background:
-    linear-gradient(180deg, rgba(0,0,0,.45) 0%, rgba(0,0,0,.55) 100%),
+    linear-gradient(rgba(0,0,0,var(--hero-ov,.45)), rgba(0,0,0,var(--hero-ov,.45))),
     var(--hero-img) center / cover no-repeat;
   border-bottom: 0;
   color: #fff;
