@@ -262,7 +262,7 @@ router.post('/:slug/save', requireSiteManagerBySlug, (req, res) => {
     UPDATE sites SET
       title = ?, description = ?, tagline = ?, language = ?,
       palette = ?, accent = ?, theme_override = ?, profile_photo = ?,
-      profile_enabled = ?, profile_name = ?, profile_bio = ?,
+      profile_enabled = ?,
       profile_links = ?,
       is_public = ?, robots_index = ?, require_login_to_comment = ?,
       enable_audio_player = ?, enable_prutter = ?,
@@ -285,8 +285,6 @@ router.post('/:slug/save', requireSiteManagerBySlug, (req, res) => {
     themeOverride,
     f.profile_photo || null,
     f.profile_enabled ? 1 : 0,
-    (f.profile_name || '').slice(0, 100) || null,
-    (f.profile_bio  || '').slice(0, 500) || null,
     profileLinksJson,
     f.is_public ? 1 : 0,
     f.robots_index ? 1 : 0,
