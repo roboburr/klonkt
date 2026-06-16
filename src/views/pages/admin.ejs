@@ -21,6 +21,9 @@
       <% if (primarySite) { %>
         <a href="/admin/sites/<%= primarySite.slug %>/edit" class="btn">🎨 Uiterlijk</a>
       <% } %>
+      <% if (tenancy === 'circle') { %>
+        <a href="/admin/circle" class="btn">🔗 Cirkel</a>
+      <% } %>
       <a href="/admin/settings" class="btn">⚙️ Instellingen</a>
     <% } %>
   </nav>
