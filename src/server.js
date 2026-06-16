@@ -16,6 +16,7 @@ import { fileURLToPath } from 'url';
 import http from 'http';
 import db, { initializeDatabase } from './config/database.js';
 import { SqliteSessionStore } from './services/SqliteSessionStore.js';
+import { ensurePrimarySite } from './services/ensurePrimarySite.js';
 import PrutterService from './services/PrutterService.js';
 import { WebSocketServer } from 'ws';
 
@@ -129,6 +130,10 @@ if (!isDev) app.set('trust proxy', 1);
 // install moeten de tabellen eerst bestaan (anders: "no such table: sessions"
 // → crash-loop op de allereerste boot).
 initializeDatabase();
+
+// Vangnet: garandeer dat er altijd een primaire site is (solo/hub/circle).
+// Idempotent — doet niets als er al een site is of nog geen beheerder.
+ensurePrimarySite();
 
 // Session middleware extracted into a variable so the WebSocket upgrade
 // handler can reuse it (it needs req.session to authenticate sockets).

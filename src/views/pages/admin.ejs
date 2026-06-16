@@ -20,6 +20,8 @@
       <a href="/admin/comments" class="btn">💬 Reacties</a>
       <% if (primarySite) { %>
         <a href="/admin/sites/<%= primarySite.slug %>/edit" class="btn">🎨 Uiterlijk</a>
+      <% } else { %>
+        <a href="/admin/sites/new" class="btn">🎨 Maak je site aan</a>
       <% } %>
       <% if (tenancy === 'circle') { %>
         <a href="/admin/circle" class="btn">🔗 Cirkel</a>
