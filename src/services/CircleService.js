@@ -30,6 +30,16 @@ function baseOf(remoteUrl) {
   return String(remoteUrl).replace(/\/+$/, '');
 }
 
+// AS Hashtag-array -> comma-separated tagnamen (zonder #), gesanitized.
+function extractTags(tag) {
+  if (!Array.isArray(tag)) return null;
+  const names = tag
+    .map((t) => String((t && t.name) || '').replace(/^#/, '').trim())
+    .filter(Boolean)
+    .slice(0, 12);
+  return names.length ? names.join(', ') : null;
+}
+
 // Bron buiten de cirkel zetten met een leesbare reden (geen stille mislukking).
 // Aparte status 'outdated' zodat de Beheer-UI er een nette "update vereist"-
 // melding van kan maken i.p.v. een generieke fout.
@@ -82,11 +92,12 @@ function stmts() {
         avatar=excluded.avatar, public_key=excluded.public_key, fetched_at=CURRENT_TIMESTAMP
     `),
     upsertPost: db.prepare(`
-      INSERT INTO remote_posts (id, actor_id, published, title, summary, url, media_json, raw_json, fetched_at)
-      VALUES (@id, @actor_id, @published, @title, @summary, @url, @media_json, @raw_json, CURRENT_TIMESTAMP)
+      INSERT INTO remote_posts (id, actor_id, published, title, summary, url, media_json, tags, raw_json, fetched_at)
+      VALUES (@id, @actor_id, @published, @title, @summary, @url, @media_json, @tags, @raw_json, CURRENT_TIMESTAMP)
       ON CONFLICT(id) DO UPDATE SET
         published=excluded.published, title=excluded.title, summary=excluded.summary,
-        url=excluded.url, media_json=excluded.media_json, raw_json=excluded.raw_json, fetched_at=CURRENT_TIMESTAMP
+        url=excluded.url, media_json=excluded.media_json, tags=excluded.tags,
+        raw_json=excluded.raw_json, fetched_at=CURRENT_TIMESTAMP
     `),
   };
   return _stmts;
@@ -168,6 +179,7 @@ export async function syncOne(link) {
       summary: stripHtml(obj.summary || obj.content).slice(0, 1000),
       url: obj.url || obj.id,
       media_json: media.length ? JSON.stringify(media) : null,
+      tags: extractTags(obj.tag),
       raw_json: JSON.stringify(obj).slice(0, 20000),
     });
     seen.add(obj.id);

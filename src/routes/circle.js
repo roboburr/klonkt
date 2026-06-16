@@ -29,7 +29,7 @@ router.get('/cirkel', (req, res, next) => {
   if (getTenancy() !== 'circle') return next();
 
   const rows = db.prepare(`
-    SELECT p.id, p.published, p.title, p.summary, p.media_json,
+    SELECT p.id, p.published, p.title, p.summary, p.media_json, p.tags,
            a.name AS actor_name
     FROM remote_posts p
     JOIN remote_actors a ON a.id = p.actor_id
@@ -50,7 +50,7 @@ router.get('/cirkel', (req, res, next) => {
       published_at: r.published,
       created_at: r.published,
       type: 'post',
-      tags: '',
+      tags: r.tags || '',
       pinned: 0,
       status: 'published',
       source_name: r.actor_name || 'Onbekend',
@@ -80,7 +80,7 @@ router.get('/cirkel/:id', (req, res, next) => {
   if (getTenancy() !== 'circle') return next();
 
   const row = db.prepare(`
-    SELECT p.id, p.published, p.title, p.summary, p.url, p.media_json,
+    SELECT p.id, p.published, p.title, p.summary, p.url, p.media_json, p.tags,
            a.name AS actor_name, a.url AS actor_url, a.avatar AS actor_avatar
     FROM remote_posts p
     JOIN remote_actors a ON a.id = p.actor_id
@@ -99,6 +99,8 @@ router.get('/cirkel/:id', (req, res, next) => {
     sourceUrl: safeUrl(row.actor_url),
     sourceAvatar: safeUrl(row.actor_avatar),
     originalUrl: safeUrl(row.url),
+    tags: (row.tags || '').split(',').map((t) => t.trim()).filter(Boolean),
+    sourceTagBase: safeUrl(row.actor_url) ? safeUrl(row.actor_url).replace(/\/+$/, '') : null,
   };
 
   renderPage(req, res, 'pages/circle-post', {

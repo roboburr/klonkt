@@ -84,6 +84,14 @@ function stripHtml(s) {
     .trim();
 }
 
+// Tags-kolom (JSON-array of comma-separated) -> nette string-array.
+function parseTags(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw.map((t) => String(t).trim()).filter(Boolean);
+  try { const j = JSON.parse(raw); if (Array.isArray(j)) return j.map((t) => String(t).trim()).filter(Boolean); } catch { /* geen JSON */ }
+  return String(raw).split(',').map((t) => t.trim()).filter(Boolean);
+}
+
 function iso(d) {
   const t = d ? new Date(d) : new Date();
   return isNaN(t.getTime()) ? new Date().toISOString() : t.toISOString();
@@ -135,7 +143,7 @@ export function buildOutbox(base) {
   if (!allowsCircle(site)) return empty;
 
   const rows = db.prepare(`
-    SELECT slug, title, excerpt, content, cover_image_url, published_at, created_at, type
+    SELECT slug, title, excerpt, content, cover_image_url, published_at, created_at, type, tags
     FROM posts
     WHERE site_id = ? AND status = 'published'
       AND (origin_server = 'local' OR origin_server IS NULL)
@@ -147,6 +155,7 @@ export function buildOutbox(base) {
     const url = `${base}/${p.slug}`;
     const published = iso(p.published_at || p.created_at);
     const summary = (p.excerpt || stripHtml(p.content)).slice(0, 500);
+    const tags = parseTags(p.tags).slice(0, 12);
     return {
       type: 'Create',
       id: `${url}#create`,
@@ -160,6 +169,8 @@ export function buildOutbox(base) {
         url,
         published,
         ...(p.cover_image_url ? { image: { type: 'Image', url: abs(base, p.cover_image_url) } } : {}),
+        // ActivityStreams: tags als Hashtag-objecten (href naar de bron-tagpagina).
+        ...(tags.length ? { tag: tags.map((t) => ({ type: 'Hashtag', name: '#' + String(t).replace(/^#/, ''), href: `${base}/tag/${encodeURIComponent(t)}` })) } : {}),
       },
     };
   });

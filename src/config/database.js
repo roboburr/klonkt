@@ -171,6 +171,9 @@ export function initializeDatabase() {
       FOREIGN KEY (actor_id) REFERENCES remote_actors(id)
     );
   `);
+
+  // Tags van de originele post — getoond in de cirkel (comma-separated string).
+  ensureColumn('remote_posts', 'tags', 'TEXT');
 }
 
 function ensureColumn(table, column, definition) {
