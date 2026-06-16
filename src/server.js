@@ -43,6 +43,7 @@ import hubRoutes from './routes/hub.js';
 import artistsRoutes from './routes/artists.js';
 import postsRoutes from './routes/posts.js';
 import federationRoutes from './routes/federation.js';
+import { startCircleSyncLoop } from './services/CircleService.js';
 
 if (!process.env.SESSION_SECRET) {
   console.error('❌ FATAL: SESSION_SECRET is required');
@@ -144,6 +145,9 @@ app.use('/media', express.static(process.env.MEDIA_PATH || './storage/media'));
 // Klonkt is PWA-only; geen assetlinks.json meer.
 
 initializeDatabase();
+
+// Cirkels: periodieke achtergrond-sync van remote instances (no-op tenzij tenancy='circle').
+startCircleSyncLoop();
 
 // Bundle HTMX: copy from node_modules into our own assets dir so we can serve
 // it locally (no third-party CDN). Idempotent — only copies if size differs.
