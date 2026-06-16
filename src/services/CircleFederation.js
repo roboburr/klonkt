@@ -15,6 +15,21 @@ import crypto from 'crypto';
 import db from '../config/database.js';
 import { getSetting, setSetting } from './SettingsService.js';
 
+// ── Protocol-versie (federatie) ───────────────────────────────
+// KLONKT_PROTO zit IN de ondertekende grondslag (zie signingInput): een instance
+// die niet op deze proto draait kan onze getekende outbox NIET verifiëren, en wij
+// de hare niet. Bijblijven is dus geen beleefde check die je wegpatcht, maar
+// cryptografisch afgedwongen — de enige manier om mee te doen is dezelfde proto
+// draaien (= de update). Bump KLONKT_PROTO bij elke release die federatie/security
+// raakt, en koppel een securityfix aan elke bump → outdated = buiten + onveilig.
+// MIN_PROTO = de laagste proto waarmee we nog federeren.
+export const KLONKT_PROTO = 2;
+export const MIN_PROTO = 2;
+
+function signingInput(proto, body) {
+  return `klonkt/proto/${proto}\n${body}`;
+}
+
 // ── Sleutelbeheer ─────────────────────────────────────────────
 // Per-instance Ed25519-keypair, eenmalig gegenereerd en in app_settings
 // bewaard. Privé = PKCS8-PEM (nooit serveren). Publiek = SPKI-DER base64
@@ -36,19 +51,20 @@ export function getPublicKeyB64() {
   return getKeys().pub;
 }
 
-/** Tekent een exacte body-string met de instance-privésleutel (Ed25519). */
-export function signBody(rawString) {
+/** Tekent een body-string, gebonden aan de protocol-versie (Ed25519). */
+export function signBody(rawString, proto = KLONKT_PROTO) {
   const key = crypto.createPrivateKey(getKeys().priv);
-  return crypto.sign(null, Buffer.from(rawString, 'utf8'), key).toString('base64');
+  return crypto.sign(null, Buffer.from(signingInput(proto, rawString), 'utf8'), key).toString('base64');
 }
 
-/** Verifieert een body tegen een SPKI-DER-base64 publieke sleutel (voor sync/tests). */
-export function verifyBody(rawString, sigB64, pubDerB64) {
+/** Verifieert een body tegen een SPKI-DER-base64 publieke sleutel, voor de gegeven
+ *  proto. Een mismatch in proto = mismatch in grondslag = ongeldige handtekening. */
+export function verifyBody(rawString, sigB64, pubDerB64, proto = KLONKT_PROTO) {
   try {
     const key = crypto.createPublicKey({
       key: Buffer.from(pubDerB64, 'base64'), format: 'der', type: 'spki',
     });
-    return crypto.verify(null, Buffer.from(rawString, 'utf8'), key, Buffer.from(sigB64, 'base64'));
+    return crypto.verify(null, Buffer.from(signingInput(proto, rawString), 'utf8'), key, Buffer.from(sigB64, 'base64'));
   } catch {
     return false;
   }
@@ -100,7 +116,7 @@ export function buildActor(base) {
       algorithm: 'ed25519',
       publicKeyBase64: getPublicKeyB64(),
     },
-    klonkt: { version: 1, allowCircle: allowsCircle(site) },
+    klonkt: { version: 1, proto: KLONKT_PROTO, allowCircle: allowsCircle(site) },
   };
 }
 
@@ -110,7 +126,7 @@ export function buildOutbox(base) {
   const id = `${base}/.klonkt/outbox.json`;
   const empty = {
     '@context': 'https://www.w3.org/ns/activitystreams',
-    type: 'OrderedCollection', id, totalItems: 0, orderedItems: [],
+    type: 'OrderedCollection', id, totalItems: 0, orderedItems: [], klonkt: { proto: KLONKT_PROTO },
   };
   if (!allowsCircle(site)) return empty;
 
@@ -147,5 +163,6 @@ export function buildOutbox(base) {
   return {
     '@context': 'https://www.w3.org/ns/activitystreams',
     type: 'OrderedCollection', id, totalItems: orderedItems.length, orderedItems,
+    klonkt: { proto: KLONKT_PROTO },
   };
 }

@@ -5,7 +5,7 @@
 // Alleen LEZEN van remote; nooit schrijven. Zie docs/cirkels-v1-spec.md §5b.
 
 import db from '../config/database.js';
-import { verifyBody } from './CircleFederation.js';
+import { verifyBody, KLONKT_PROTO, MIN_PROTO } from './CircleFederation.js';
 import { getTenancy } from './SettingsService.js';
 
 const FETCH_TIMEOUT_MS = 10000;
@@ -26,6 +26,15 @@ function baseOf(remoteUrl) {
   return String(remoteUrl).replace(/\/+$/, '');
 }
 
+// Bron buiten de cirkel zetten met een leesbare reden (geen stille mislukking).
+// Aparte status 'outdated' zodat de Beheer-UI er een nette "update vereist"-
+// melding van kan maken i.p.v. een generieke fout.
+function markOutdated(link, msg) {
+  db.prepare("UPDATE circle_links SET status='outdated', last_error=?, last_synced=CURRENT_TIMESTAMP WHERE id=?")
+    .run(String(msg).slice(0, 300), link.id);
+  return { ok: false, outdated: true, link: link.remote_url, error: msg };
+}
+
 // Robuuste, defensieve fetch: alleen https, timeout, body-cap, redirect-follow.
 async function fetchText(url) {
   if (!/^https:\/\//i.test(url)) throw new Error('alleen https toegestaan');
@@ -35,7 +44,11 @@ async function fetchText(url) {
     const res = await fetch(url, {
       signal: ac.signal,
       redirect: 'follow',
-      headers: { Accept: 'application/activity+json, application/json' },
+      headers: {
+        Accept: 'application/activity+json, application/json',
+        // Vertel de publisher onze proto → die kan ons met 426 weren als we te oud zijn.
+        'Klonkt-Proto': String(KLONKT_PROTO),
+      },
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const buf = Buffer.from(await res.arrayBuffer());
@@ -83,6 +96,20 @@ export async function syncOne(link) {
   if (!actorId || !pubKey) throw new Error('actor mist id/publicKey');
   if (originOf(actorId) !== originOf(actorUrl)) throw new Error('actor.id heeft andere origin dan de actor-URL');
 
+  // Protocol-versie-gate. De proto zit óók in de outbox-handtekening-grondslag,
+  // dus liegen in de (ongetekende) actor helpt niet: bij een echte mismatch faalt
+  // de verificatie verderop alsnog. Hier vooral voor een DUIDELIJKE melding +
+  // buitensluiten zonder stille mislukking.
+  const remoteProto = Number(actor.klonkt && actor.klonkt.proto) || 1;
+  if (remoteProto > KLONKT_PROTO) {
+    return markOutdated(link,
+      `Jouw Klonkt (proto ${KLONKT_PROTO}) is ouder dan ${base} (proto ${remoteProto}). Werk je eigen instance bij om te blijven federeren.`);
+  }
+  if (remoteProto < MIN_PROTO) {
+    return markOutdated(link,
+      `${base} draait een oudere Klonkt (proto ${remoteProto}; minimaal ${MIN_PROTO} vereist). Vraag ze te updaten.`);
+  }
+
   // TOFU: een sleutelwissel vereist expliciete herbevestiging (anti-hijack)
   const existing = db.prepare('SELECT public_key FROM remote_actors WHERE id = ?').get(actorId);
   if (existing && existing.public_key !== pubKey) {
@@ -103,7 +130,7 @@ export async function syncOne(link) {
   const o = await fetchText(outboxUrl);
   const sigHeader = o.headers.get('klonkt-signature') || '';
   const sig = (sigHeader.match(/ed25519=(.+)\s*$/) || [])[1];
-  if (!sig || !verifyBody(o.text, sig, pubKey)) {
+  if (!sig || !verifyBody(o.text, sig, pubKey, remoteProto)) {
     throw new Error('outbox-handtekening ongeldig of ontbreekt');
   }
   let outbox;
