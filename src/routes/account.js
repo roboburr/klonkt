@@ -67,9 +67,36 @@ router.get('/', requireAuth, (req, res) => {
     bodyClass: 'on-special',
     account,
     hasPassword,
+    editableSite: ownedSite(req.session.user),
     success: req.query.success || null,
     error: req.query.error || null,
   });
+});
+
+// De site die deze gebruiker mag bewerken vanuit z'n account: z'n eigen site
+// (owner_id), of voor een god de primaire site. Null als er niets is.
+function ownedSite(user) {
+  if (!user) return null;
+  let site = db.prepare('SELECT id, title, tagline, slug, owner_id FROM sites WHERE owner_id = ? ORDER BY created_at LIMIT 1').get(user.id);
+  if (!site && user.role === 'god') {
+    site = db.prepare('SELECT id, title, tagline, slug, owner_id FROM sites ORDER BY created_at LIMIT 1').get();
+  }
+  return site || null;
+}
+
+// ==================== UPDATE SITE-NAAM (eigenaar) ====================
+router.post('/site', requireAuth, (req, res) => {
+  const site = ownedSite(req.session.user);
+  if (!site) return res.redirect('/account?error=' + encodeURIComponent('Geen site om te bewerken.'));
+  if (site.owner_id !== req.session.user.id && req.session.user.role !== 'god') {
+    return res.redirect('/account?error=' + encodeURIComponent('Geen rechten om deze site te bewerken.'));
+  }
+  const title = (req.body.site_title || '').toString().slice(0, 200).trim();
+  if (!title) return res.redirect('/account?error=' + encodeURIComponent('Site-naam mag niet leeg zijn.'));
+  const tagline = (req.body.site_tagline || '').toString().slice(0, 200).trim();
+  db.prepare('UPDATE sites SET title = ?, tagline = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+    .run(title, tagline || null, site.id);
+  res.redirect('/account?success=' + encodeURIComponent('Site-naam bijgewerkt'));
 });
 
 // ==================== UPDATE BIO ====================

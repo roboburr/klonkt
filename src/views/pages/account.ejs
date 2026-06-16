@@ -85,6 +85,26 @@
     <% } %>
   </section>
 
+  <%# ── SITE (eigenaar mag de naam van z'n site aanpassen) ── %>
+  <% if (typeof editableSite !== 'undefined' && editableSite && canMutate) { %>
+  <section class="ax-card">
+    <div class="ax-card-title">Site</div>
+    <form action="/account/site" method="post" class="ax-form">
+      <label class="ax-field">
+        <span>Site-naam <small>— getoond in de kop van je site</small></span>
+        <input type="text" name="site_title" value="<%= editableSite.title || '' %>" maxlength="200" required>
+      </label>
+      <label class="ax-field">
+        <span>Tagline <small>— korte oneliner (optioneel)</small></span>
+        <input type="text" name="site_tagline" value="<%= editableSite.tagline || '' %>" maxlength="200">
+      </label>
+      <div class="ax-form-actions">
+        <button type="submit" class="ax-btn ax-btn-primary">Site opslaan</button>
+      </div>
+    </form>
+  </section>
+  <% } %>
+
   <%# ── WACHTWOORD ────────────────────────────────────────── %>
   <%# In kijker-modus geen wachtwoord-sectie (niets te wijzigen). %>
   <% if (canMutate) { %>
