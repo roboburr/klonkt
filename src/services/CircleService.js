@@ -1,0 +1,171 @@
+// CircleService.js — pull-kant van Cirkels (v1).
+//
+// Haalt per circle_link de remote actor + outbox op, verifieert de Ed25519-
+// handtekening, sanitiseert en cachet publieke posts in remote_actors/remote_posts.
+// Alleen LEZEN van remote; nooit schrijven. Zie docs/cirkels-v1-spec.md §5b.
+
+import db from '../config/database.js';
+import { verifyBody } from './CircleFederation.js';
+import { getTenancy } from './SettingsService.js';
+
+const FETCH_TIMEOUT_MS = 10000;
+const MAX_BODY_BYTES = 1024 * 1024; // 1 MB
+const MAX_ITEMS = 50;
+
+function stripHtml(s) {
+  return String(s || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+function iso(d) {
+  const t = d ? new Date(d) : null;
+  return t && !isNaN(t.getTime()) ? t.toISOString() : null;
+}
+function originOf(u) {
+  try { return new URL(u).origin; } catch { return null; }
+}
+function baseOf(remoteUrl) {
+  return String(remoteUrl).replace(/\/+$/, '');
+}
+
+// Robuuste, defensieve fetch: alleen https, timeout, body-cap, redirect-follow.
+async function fetchText(url) {
+  if (!/^https:\/\//i.test(url)) throw new Error('alleen https toegestaan');
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      signal: ac.signal,
+      redirect: 'follow',
+      headers: { Accept: 'application/activity+json, application/json' },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length > MAX_BODY_BYTES) throw new Error('body te groot');
+    return { text: buf.toString('utf8'), headers: res.headers, finalUrl: res.url };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+const upsertActor = db.prepare(`
+  INSERT INTO remote_actors (id, url, name, summary, avatar, public_key, fetched_at)
+  VALUES (@id, @url, @name, @summary, @avatar, @public_key, CURRENT_TIMESTAMP)
+  ON CONFLICT(id) DO UPDATE SET
+    url=excluded.url, name=excluded.name, summary=excluded.summary,
+    avatar=excluded.avatar, public_key=excluded.public_key, fetched_at=CURRENT_TIMESTAMP
+`);
+const upsertPost = db.prepare(`
+  INSERT INTO remote_posts (id, actor_id, published, title, summary, url, media_json, raw_json, fetched_at)
+  VALUES (@id, @actor_id, @published, @title, @summary, @url, @media_json, @raw_json, CURRENT_TIMESTAMP)
+  ON CONFLICT(id) DO UPDATE SET
+    published=excluded.published, title=excluded.title, summary=excluded.summary,
+    url=excluded.url, media_json=excluded.media_json, raw_json=excluded.raw_json, fetched_at=CURRENT_TIMESTAMP
+`);
+
+export async function syncOne(link) {
+  const base = baseOf(link.remote_url);
+
+  // 1. Actor ophalen + valideren
+  const actorUrl = `${base}/.klonkt/actor.json`;
+  const a = await fetchText(actorUrl);
+  let actor;
+  try { actor = JSON.parse(a.text); } catch { throw new Error('actor: ongeldige JSON'); }
+  const actorId = actor.id;
+  const pubKey = actor.publicKey && actor.publicKey.publicKeyBase64;
+  if (!actorId || !pubKey) throw new Error('actor mist id/publicKey');
+  if (originOf(actorId) !== originOf(actorUrl)) throw new Error('actor.id heeft andere origin dan de actor-URL');
+
+  // TOFU: een sleutelwissel vereist expliciete herbevestiging (anti-hijack)
+  const existing = db.prepare('SELECT public_key FROM remote_actors WHERE id = ?').get(actorId);
+  if (existing && existing.public_key !== pubKey) {
+    throw new Error('publieke sleutel gewijzigd — herbevestiging vereist (TOFU)');
+  }
+
+  upsertActor.run({
+    id: actorId,
+    url: actor.url || base,
+    name: actor.name || null,
+    summary: actor.summary || null,
+    avatar: (actor.icon && actor.icon.url) || null,
+    public_key: pubKey,
+  });
+
+  // 2. Outbox ophalen + handtekening verifiëren
+  const outboxUrl = actor.outbox || `${base}/.klonkt/outbox.json`;
+  const o = await fetchText(outboxUrl);
+  const sigHeader = o.headers.get('klonkt-signature') || '';
+  const sig = (sigHeader.match(/ed25519=(.+)\s*$/) || [])[1];
+  if (!sig || !verifyBody(o.text, sig, pubKey)) {
+    throw new Error('outbox-handtekening ongeldig of ontbreekt');
+  }
+  let outbox;
+  try { outbox = JSON.parse(o.text); } catch { throw new Error('outbox: ongeldige JSON'); }
+  const items = Array.isArray(outbox.orderedItems) ? outbox.orderedItems.slice(0, MAX_ITEMS) : [];
+
+  // 3. Objecten sanitizen + cachen (same-origin als de actor = anti-impersonatie)
+  const actorOrigin = originOf(actorId);
+  const seen = new Set();
+  for (const it of items) {
+    const obj = it && it.object;
+    if (!obj || !obj.id) continue;
+    if (originOf(obj.id) !== actorOrigin) continue;
+    const media = [];
+    if (obj.image && obj.image.url) media.push({ type: 'image', url: obj.image.url });
+    if (Array.isArray(obj.attachment)) {
+      for (const att of obj.attachment) {
+        if (att && att.url) media.push({ type: String(att.type || 'link').toLowerCase(), url: att.url, name: att.name, duration: att.duration });
+      }
+    }
+    upsertPost.run({
+      id: obj.id,
+      actor_id: actorId,
+      published: iso(obj.published || it.published),
+      title: stripHtml(obj.name).slice(0, 300) || '(zonder titel)',
+      summary: stripHtml(obj.summary || obj.content).slice(0, 1000),
+      url: obj.url || obj.id,
+      media_json: media.length ? JSON.stringify(media) : null,
+      raw_json: JSON.stringify(obj).slice(0, 20000),
+    });
+    seen.add(obj.id);
+  }
+
+  // 4. Pruning: posts die niet meer in de outbox staan opruimen
+  const known = db.prepare('SELECT id FROM remote_posts WHERE actor_id = ?').all(actorId).map((r) => r.id);
+  const stale = known.filter((id) => !seen.has(id));
+  if (stale.length) {
+    const del = db.prepare('DELETE FROM remote_posts WHERE id = ?');
+    db.transaction((ids) => ids.forEach((id) => del.run(id)))(stale);
+  }
+
+  db.prepare(
+    "UPDATE circle_links SET remote_actor_id=?, last_synced=CURRENT_TIMESTAMP, status='active', last_error=NULL WHERE id=?"
+  ).run(actorId, link.id);
+
+  return { ok: true, actorId, items: seen.size, pruned: stale.length };
+}
+
+export async function sync() {
+  if (getTenancy() !== 'circle') return { skipped: 'tenancy != circle' };
+  const links = db.prepare("SELECT * FROM circle_links WHERE status != 'paused'").all();
+  const results = [];
+  for (const link of links) {
+    try {
+      results.push(await syncOne(link));
+    } catch (e) {
+      const msg = String((e && e.message) || e).slice(0, 300);
+      db.prepare("UPDATE circle_links SET status='error', last_error=?, last_synced=CURRENT_TIMESTAMP WHERE id=?")
+        .run(msg, link.id);
+      results.push({ ok: false, link: link.remote_url, error: msg });
+    }
+  }
+  return { synced: results.length, results };
+}
+
+let _timer = null;
+/** Periodieke achtergrond-sync (gated op tenancy='circle' binnen sync()). */
+export function startCircleSyncLoop(intervalMs = 15 * 60 * 1000) {
+  if (_timer) return;
+  const run = () => { sync().catch((e) => console.error('[cirkels] sync-fout:', e.message)); };
+  setTimeout(run, 30 * 1000); // korte delay na boot
+  _timer = setInterval(run, intervalMs);
+  if (_timer.unref) _timer.unref();
+}

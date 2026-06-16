@@ -1,0 +1,147 @@
+// CircleFederation.js — eigen publicatie-kant van "Cirkels" (v1).
+//
+// Publiceert deze instance als een ActivityStreams-actor met een Ed25519-
+// sleutel, plus een outbox van publieke posts. De outbox wordt getekend zodat
+// consumenten (andere Klonkt-instances) de herkomst kunnen verifiëren.
+//
+// v1 = alleen PUBLICEREN + tekenen. Het pullen/verifiëren van remote cirkels
+// (CircleService.sync) komt in een volgende stap. Zie docs/cirkels-v1-spec.md.
+
+import crypto from 'crypto';
+import db from '../config/database.js';
+import { getSetting, setSetting } from './SettingsService.js';
+
+// ── Sleutelbeheer ─────────────────────────────────────────────
+// Per-instance Ed25519-keypair, eenmalig gegenereerd en in app_settings
+// bewaard. Privé = PKCS8-PEM (nooit serveren). Publiek = SPKI-DER base64
+// (gepubliceerd in de actor; round-trip via createPublicKey).
+function getKeys() {
+  let priv = getSetting('circle_privkey_pem', null);
+  let pub = getSetting('circle_pubkey_der_b64', null);
+  if (!priv || !pub) {
+    const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519');
+    priv = privateKey.export({ type: 'pkcs8', format: 'pem' });
+    pub = publicKey.export({ type: 'spki', format: 'der' }).toString('base64');
+    setSetting('circle_privkey_pem', priv);
+    setSetting('circle_pubkey_der_b64', pub);
+  }
+  return { priv, pub };
+}
+
+export function getPublicKeyB64() {
+  return getKeys().pub;
+}
+
+/** Tekent een exacte body-string met de instance-privésleutel (Ed25519). */
+export function signBody(rawString) {
+  const key = crypto.createPrivateKey(getKeys().priv);
+  return crypto.sign(null, Buffer.from(rawString, 'utf8'), key).toString('base64');
+}
+
+/** Verifieert een body tegen een SPKI-DER-base64 publieke sleutel (voor sync/tests). */
+export function verifyBody(rawString, sigB64, pubDerB64) {
+  try {
+    const key = crypto.createPublicKey({
+      key: Buffer.from(pubDerB64, 'base64'), format: 'der', type: 'spki',
+    });
+    return crypto.verify(null, Buffer.from(rawString, 'utf8'), key, Buffer.from(sigB64, 'base64'));
+  } catch {
+    return false;
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────────
+function primarySite() {
+  // Solo: de primaire/owner-site (eerst aangemaakt) — zelfde keuze als resolveSite.
+  return db.prepare('SELECT * FROM sites ORDER BY created_at ASC LIMIT 1').get();
+}
+
+function stripHtml(s) {
+  return String(s || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function iso(d) {
+  const t = d ? new Date(d) : new Date();
+  return isNaN(t.getTime()) ? new Date().toISOString() : t.toISOString();
+}
+
+function abs(base, u) {
+  if (!u) return u;
+  return /^https?:\/\//.test(u) ? u : `${base}${u.startsWith('/') ? '' : '/'}${u}`;
+}
+
+// allow_circle: een site mag in cirkels van anderen verschijnen. v1 koppelt dit
+// aan is_public (aparte expliciete flag volgt in de Beheer-UX-stap).
+function allowsCircle(site) {
+  return !!site && site.is_public !== 0 && site.allow_circle !== 0;
+}
+
+// ── Actor ─────────────────────────────────────────────────────
+export function buildActor(base) {
+  const site = primarySite();
+  const id = `${base}/.klonkt/actor.json`;
+  const icon = site && (site.profile_photo || site.og_image_default);
+  return {
+    '@context': ['https://www.w3.org/ns/activitystreams', 'https://schema.org/'],
+    type: 'Person',
+    id,
+    name: site ? (site.profile_name || site.title || 'Klonkt') : 'Klonkt',
+    summary: site ? (site.profile_bio || site.tagline || site.description || '') : '',
+    url: `${base}/`,
+    ...(icon ? { icon: { type: 'Image', url: abs(base, icon) } } : {}),
+    outbox: `${base}/.klonkt/outbox.json`,
+    publicKey: {
+      id: `${id}#key`,
+      owner: id,
+      algorithm: 'ed25519',
+      publicKeyBase64: getPublicKeyB64(),
+    },
+    klonkt: { version: 1, allowCircle: allowsCircle(site) },
+  };
+}
+
+// ── Outbox ────────────────────────────────────────────────────
+export function buildOutbox(base) {
+  const site = primarySite();
+  const id = `${base}/.klonkt/outbox.json`;
+  const empty = {
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    type: 'OrderedCollection', id, totalItems: 0, orderedItems: [],
+  };
+  if (!allowsCircle(site)) return empty;
+
+  const rows = db.prepare(`
+    SELECT slug, title, excerpt, content, cover_image_url, published_at, created_at, type
+    FROM posts
+    WHERE site_id = ? AND status = 'published'
+      AND (origin_server = 'local' OR origin_server IS NULL)
+    ORDER BY COALESCE(published_at, created_at) DESC
+    LIMIT 50
+  `).all(site.id);
+
+  const orderedItems = rows.map((p) => {
+    const url = `${base}/${p.slug}`;
+    const published = iso(p.published_at || p.created_at);
+    const summary = (p.excerpt || stripHtml(p.content)).slice(0, 500);
+    return {
+      type: 'Create',
+      id: `${url}#create`,
+      published,
+      actor: `${base}/.klonkt/actor.json`,
+      object: {
+        type: p.type === 'audio' ? 'Audio' : 'Article',
+        id: url,
+        name: p.title || '(zonder titel)',
+        summary,
+        url,
+        published,
+        ...(p.cover_image_url ? { image: { type: 'Image', url: abs(base, p.cover_image_url) } } : {}),
+      },
+    };
+  });
+
+  return {
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    type: 'OrderedCollection', id, totalItems: orderedItems.length, orderedItems,
+  };
+}

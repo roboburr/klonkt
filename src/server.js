@@ -42,6 +42,10 @@ import feedRoutes from './routes/feed.js';
 import hubRoutes from './routes/hub.js';
 import artistsRoutes from './routes/artists.js';
 import postsRoutes from './routes/posts.js';
+import federationRoutes from './routes/federation.js';
+import { startCircleSyncLoop } from './services/CircleService.js';
+import adminCircleRoutes from './routes/admin-circle.js';
+import circleRoutes from './routes/circle.js';
 
 if (!process.env.SESSION_SECRET) {
   console.error('❌ FATAL: SESSION_SECRET is required');
@@ -144,6 +148,9 @@ app.use('/media', express.static(process.env.MEDIA_PATH || './storage/media'));
 
 initializeDatabase();
 
+// Cirkels: periodieke achtergrond-sync van remote instances (no-op tenzij tenancy='circle').
+startCircleSyncLoop();
+
 // Bundle HTMX: copy from node_modules into our own assets dir so we can serve
 // it locally (no third-party CDN). Idempotent — only copies if size differs.
 (function ensureLocalHtmx() {
@@ -164,6 +171,10 @@ initializeDatabase();
 // Singleton PrutterService — routes get it via req.app.locals.prutter.
 const prutter = new PrutterService(db);
 app.locals.prutter = prutter;
+
+// Cirkels-federatie: publieke, site-agnostische endpoints (/.klonkt/*).
+// Vóór resolveSite/theme — ze hebben geen site-context nodig.
+app.use(federationRoutes);
 
 app.use(resolveSite);
 app.use(loadAudioTracks);
@@ -215,6 +226,7 @@ app.use('/admin/sites', adminSitesRoutes);
 app.use('/admin/users', adminUsersRoutes);
 app.use('/admin/comments', adminCommentsRoutes);
 app.use('/admin/settings', adminSettingsRoutes);
+app.use('/admin/circle', adminCircleRoutes);
 app.use('/admin', adminRoutes);
 app.use('/prutter', prutterRoutes);
 app.use('/audio', audioRoutes);
@@ -228,6 +240,7 @@ app.use('/', feedRoutes);
 app.use('/leden', artistsRoutes); // doorzoekbare leden-directory (alleen hub; solo: next())
 app.get('/artiesten', (req, res) => res.redirect(301, req.originalUrl.replace(/^\/artiesten/, '/leden'))); // oude URL -> /leden
 app.use('/', hubRoutes); // hub-overview op '/' (solo: next() -> postsRoutes)
+app.use('/', circleRoutes); // /cirkel-feed (solo/hub: next() -> postsRoutes)
 app.use('/', postsRoutes);
 
 app.get('/manifest.webmanifest', (req, res) => {

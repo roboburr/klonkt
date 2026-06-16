@@ -1,0 +1,65 @@
+<div class="container circle-page">
+  <header class="circle-head">
+    <h1>Cirkel</h1>
+    <p class="circle-sub">Wat er speelt bij de Klonkt-sites in jouw cirkel.</p>
+  </header>
+
+  <% if (!posts.length) { %>
+    <p class="circle-empty">Nog niets in je cirkel. Voeg sites toe via
+      <a href="/admin/circle">Beheer &rsaquo; Cirkel</a> en ververs ze.</p>
+  <% } else { %>
+    <div class="circle-grid">
+      <% posts.forEach(function(p){ %>
+        <article class="circle-card">
+          <% if (p.image) { %>
+            <a class="cc-cover" <% if (p.url) { %>href="<%= p.url %>" target="_blank" rel="noopener"<% } %>>
+              <img loading="lazy" src="<%= p.image %>" alt="">
+            </a>
+          <% } %>
+          <div class="cc-body">
+            <div class="cc-src">
+              <% if (p.actorAvatar) { %><img class="cc-avatar" src="<%= p.actorAvatar %>" alt=""><% } %>
+              <% if (p.actorUrl) { %>
+                <a href="<%= p.actorUrl %>" target="_blank" rel="noopener"><%= p.actorName %></a>
+              <% } else { %><span><%= p.actorName %></span><% } %>
+            </div>
+            <h2 class="cc-title">
+              <% if (p.url) { %><a href="<%= p.url %>" target="_blank" rel="noopener"><%= p.title %></a>
+              <% } else { %><%= p.title %><% } %>
+            </h2>
+            <% if (p.summary) { %><p class="cc-summary"><%= p.summary %></p><% } %>
+            <div class="cc-foot">
+              <% if (p.published) { %><span class="cc-date"><%= p.published.slice(0,10) %></span><% } %>
+              <% if (p.url) { %><a class="cc-link" href="<%= p.url %>" target="_blank" rel="noopener">Lees bij de bron &rarr;</a><% } %>
+            </div>
+          </div>
+        </article>
+      <% }); %>
+    </div>
+  <% } %>
+</div>
+
+<style>
+.circle-page { max-width: 1000px; margin: 2.5rem auto; padding: 0 1rem; }
+.circle-head h1 { font-family: var(--font-display, serif); font-size: 2rem; margin: 0 0 .25rem; }
+.circle-sub { color: var(--ink-muted); margin: 0 0 2rem; }
+.circle-empty { color: var(--ink-muted); }
+.circle-empty a { color: var(--accent); }
+.circle-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.1rem; }
+.circle-card { display: flex; flex-direction: column; border: 1px solid var(--rule); border-radius: 12px; overflow: hidden; background: var(--paper-2); }
+.cc-cover { display: block; aspect-ratio: 16/9; overflow: hidden; }
+.cc-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cc-body { padding: .9rem 1rem 1rem; display: flex; flex-direction: column; gap: .5rem; }
+.cc-src { display: flex; align-items: center; gap: .45rem; font-size: .8rem; color: var(--ink-muted); }
+.cc-src a { color: var(--ink-muted); text-decoration: none; }
+.cc-src a:hover { color: var(--accent); }
+.cc-avatar { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; }
+.cc-title { font-family: var(--font-display, serif); font-size: 1.15rem; margin: 0; line-height: 1.25; }
+.cc-title a { color: var(--ink); text-decoration: none; }
+.cc-title a:hover { color: var(--accent); }
+.cc-summary { margin: 0; font-size: .9rem; color: var(--ink-soft, var(--ink-muted)); line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.cc-foot { display: flex; justify-content: space-between; align-items: center; gap: .5rem; margin-top: auto; padding-top: .35rem; font-size: .78rem; }
+.cc-date { color: var(--ink-muted); }
+.cc-link { color: var(--accent); text-decoration: none; white-space: nowrap; }
+</style>
