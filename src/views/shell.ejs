@@ -384,7 +384,7 @@ if (typeof post !== 'undefined' && post && post.slug) {
   // the rest. Anywhere else (post detail, account, search, auth) we
   // navigate to home in the chosen view, so the switcher is never
   // a dead control.
-  var FEED_PAGE_CLASSES = ['on-home', 'on-archive', 'on-tag', 'on-type', 'on-user'];
+  var FEED_PAGE_CLASSES = ['on-home', 'on-archive', 'on-tag', 'on-type', 'on-user', 'on-cirkel'];
   function isFeedPage() {
     for (var i = 0; i < FEED_PAGE_CLASSES.length; i++) {
       if (body.classList.contains(FEED_PAGE_CLASSES[i])) return true;

@@ -36,20 +36,28 @@ router.get('/cirkel', (req, res, next) => {
       .map((m) => ({ ...m, url: safeUrl(m.url) }))
       .filter((m) => m.url);
     const image = media.find((m) => m.type === 'image') || null;
+    // Vorm de remote-post naar het lokale post-shape zodat post-card/post-tile
+    // (dezelfde timeline/grid-view als de home) 'm renderen. external_url maakt
+    // de partials extern-linkend (naar de bron) i.p.v. lokaal/htmx.
     return {
       id: r.id,
+      slug: encodeURIComponent(r.id),
       title: r.title || '(zonder titel)',
-      summary: r.summary || '',
-      url: safeUrl(r.url),
-      published: r.published,
-      actorName: r.actor_name || 'Onbekend',
-      actorUrl: safeUrl(r.actor_url),
-      actorAvatar: safeUrl(r.actor_avatar),
-      image: image ? image.url : null,
+      excerpt: r.summary || '',
+      cover_image_url: image ? image.url : null,
+      published_at: r.published,
+      created_at: r.published,
+      type: 'post',
+      tags: '',
+      pinned: 0,
+      status: 'published',
+      external_url: safeUrl(r.url),
+      source_name: r.actor_name || 'Onbekend',
+      source_url: safeUrl(r.actor_url),
     };
   });
 
-  renderPage(req, res, 'pages/circle-feed', { pageTitle: 'Cirkel', posts });
+  renderPage(req, res, 'pages/circle-feed', { pageTitle: 'Cirkel', bodyClass: 'on-cirkel', posts });
 });
 
 export default router;
