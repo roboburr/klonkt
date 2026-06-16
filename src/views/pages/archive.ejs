@@ -23,11 +23,17 @@ Object.keys(grouped).sort((a, b) => b - a).forEach(function(y) {
 
 <!-- ========== TIMELINE (year/month grouped) ========== -->
 <div class="container archive-page feed-timeline">
-  <h1>Archive</h1>
-  <p class="archive-meta"><%= totalPosts %> post<%= totalPosts !== 1 ? 's' : '' %></p>
+  <% var _archBase = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : ''; %>
+  <p class="archive-back-row">
+    <a href="<%= _archBase %>/" class="btn archive-back"
+       hx-get="<%= _archBase %>/?partial=1" hx-target="#pcms-main"
+       hx-push-url="<%= _archBase %>/" hx-indicator="#pcms-loading">&larr; Terug</a>
+  </p>
+  <h1>Archief</h1>
+  <p class="archive-meta"><%= totalPosts %> bericht<%= totalPosts !== 1 ? 'en' : '' %></p>
 
   <% if (totalPosts === 0) { %>
-    <p class="empty-state">No posts yet.</p>
+    <p class="empty-state">Nog geen berichten.</p>
   <% } %>
 
   <% Object.keys(grouped).sort((a,b) => b - a).forEach(year => { %>
@@ -67,6 +73,7 @@ Object.keys(grouped).sort((a, b) => b - a).forEach(function(y) {
 
 <style>
 .archive-page { max-width: 700px; margin: 2rem auto; padding: 0 1rem; }
+.archive-back-row { margin: 0 0 1rem; }
 .archive-page h1 { font-family: var(--font-display, serif); margin: 0 0 0.25rem; }
 .archive-meta { color: var(--ink-muted); margin-bottom: 2rem; }
 .archive-year { margin-bottom: 2.5rem; }

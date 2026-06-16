@@ -2054,9 +2054,11 @@ body.search-open { overflow: hidden; }
     color: var(--ink);
     border-color: var(--ink-muted);
 }
-/* Actieve state: puur afgeleid van body[data-feed-view]. Geen .is-active class meer. */
-body[data-feed-view="timeline"] .view-switch-btn[data-view="timeline"],
-body[data-feed-view="grid"] .view-switch-btn[data-view="grid"] {
+/* Actieve state: puur afgeleid van body[data-feed-view]. Geen .is-active class meer.
+   Niet op de Archive-pagina: daar is geen "huidige" timeline/grid-keuze, dus beide
+   knoppen blijven neutraal (grijs). */
+body[data-feed-view="timeline"]:not(.on-archive) .view-switch-btn[data-view="timeline"],
+body[data-feed-view="grid"]:not(.on-archive) .view-switch-btn[data-view="grid"] {
     background: var(--ink);
     color: var(--paper);
     border-color: var(--ink);
