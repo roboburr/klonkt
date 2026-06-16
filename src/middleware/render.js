@@ -9,6 +9,7 @@
  *   renderPage(req, res, 'pages/home', { posts, ...data })
  */
 
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import ejs from 'ejs';
@@ -20,6 +21,12 @@ import { PLATFORMS as PLATFORMS_CATALOG } from '../services/PlatformIcons.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const VIEWS_DIR = path.join(__dirname, '..', 'views');
+
+// App-versie (uit package.json) — getoond in de footer naast "Klonkt Beta".
+let APP_VERSION = '';
+try {
+  APP_VERSION = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8')).version || '';
+} catch { /* geen versie beschikbaar */ }
 
 const formatDate = (iso) => {
   if (!iso) return '';
@@ -79,7 +86,8 @@ export async function renderPage(req, res, viewName, data = {}) {
     permissions: PermissionsService,
     formatDate,
     formatDateTime,
-    pageTitle: data.pageTitle || (data.site && data.site.title) || 'Klonkt Hub Beta',
+    pageTitle: data.pageTitle || (data.site && data.site.title) || 'Klonkt Beta',
+    appVersion: APP_VERSION,
     bodyClass: data.bodyClass || 'on-home',
     socialDescr: data.socialDescr || '',
     socialImage: data.socialImage || '',

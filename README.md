@@ -1,4 +1,4 @@
-# Klonkt Hub Beta
+# Klonkt Beta
 
 Persoonlijk multi-site platform met editorial-feel content + sociale community.
 Gebouwd op **Node + SQLite + htmx** — licht, zelf-gehost, en van jou.

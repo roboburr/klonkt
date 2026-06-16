@@ -1,5 +1,5 @@
 /**
- * Klonkt Hub Beta — server bootstrap
+ * Klonkt Beta — server bootstrap
  *
  * Persoonlijk multi-site platform — Node + SQLite + htmx.
  * Stack: Express + better-sqlite3 + EJS + htmx + ws.
@@ -420,7 +420,7 @@ if (wsPing.unref) wsPing.unref();
 
 server.listen(PORT, () => {
   console.log('');
-  console.log('🪶 Klonkt Hub Beta');
+  console.log('🪶 Klonkt Beta');
   console.log(`   http://localhost:${PORT}`);
   console.log('');
   console.log(`   ✓ Security: Helmet, CSP, secure sessions`);

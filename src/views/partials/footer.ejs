@@ -4,7 +4,7 @@
       <span>© <%= new Date().getFullYear() %> <%= (site && site.title) || 'Klonkt' %></span>
     </div>
     <div class="footer-meta">
-      <span>Klonkt Hub Beta</span>
+      <span>Klonkt Beta<%= (typeof appVersion !== 'undefined' && appVersion) ? ' v' + appVersion : '' %></span>
       <%# Mobile-only theme toggle. On desktop the topnav has its own toggle
           so we hide this one to avoid two visible toggles at once. The same
           toggleTheme handler in topnav.ejs picks this button up by id. %>
