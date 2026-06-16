@@ -44,6 +44,8 @@ import artistsRoutes from './routes/artists.js';
 import postsRoutes from './routes/posts.js';
 import federationRoutes from './routes/federation.js';
 import { startCircleSyncLoop } from './services/CircleService.js';
+import adminCircleRoutes from './routes/admin-circle.js';
+import circleRoutes from './routes/circle.js';
 
 if (!process.env.SESSION_SECRET) {
   console.error('❌ FATAL: SESSION_SECRET is required');
@@ -224,6 +226,7 @@ app.use('/admin/sites', adminSitesRoutes);
 app.use('/admin/users', adminUsersRoutes);
 app.use('/admin/comments', adminCommentsRoutes);
 app.use('/admin/settings', adminSettingsRoutes);
+app.use('/admin/circle', adminCircleRoutes);
 app.use('/admin', adminRoutes);
 app.use('/prutter', prutterRoutes);
 app.use('/audio', audioRoutes);
@@ -237,6 +240,7 @@ app.use('/', feedRoutes);
 app.use('/leden', artistsRoutes); // doorzoekbare leden-directory (alleen hub; solo: next())
 app.get('/artiesten', (req, res) => res.redirect(301, req.originalUrl.replace(/^\/artiesten/, '/leden'))); // oude URL -> /leden
 app.use('/', hubRoutes); // hub-overview op '/' (solo: next() -> postsRoutes)
+app.use('/', circleRoutes); // /cirkel-feed (solo/hub: next() -> postsRoutes)
 app.use('/', postsRoutes);
 
 app.get('/manifest.webmanifest', (req, res) => {

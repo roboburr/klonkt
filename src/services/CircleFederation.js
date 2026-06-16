@@ -73,7 +73,7 @@ function abs(base, u) {
 // allow_circle: een site mag in cirkels van anderen verschijnen. v1 koppelt dit
 // aan is_public (aparte expliciete flag volgt in de Beheer-UX-stap).
 function allowsCircle(site) {
-  return !!site && site.is_public !== 0;
+  return !!site && site.is_public !== 0 && site.allow_circle !== 0;
 }
 
 // ── Actor ─────────────────────────────────────────────────────

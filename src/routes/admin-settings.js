@@ -32,7 +32,7 @@ router.get('/', requireGod, (req, res) => {
 
 router.post('/', requireGod, (req, res) => {
   if (typeof req.body.tenancy !== 'undefined') {
-    setTenancy(req.body.tenancy === 'hub' ? 'hub' : 'solo');
+    setTenancy(req.body.tenancy); // valideert naar solo | hub | circle
   }
   if (typeof req.body.hub_title !== 'undefined') {
     setSetting('hub_title', (req.body.hub_title || '').toString().slice(0, 80).trim());

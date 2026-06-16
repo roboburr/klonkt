@@ -26,6 +26,13 @@
           <small>Jij (admin) wijst gebruikers een eigen Klonkt Hub toe. Gesloten cirkel: geen open registratie.</small>
         </span>
       </label>
+      <label class="set-opt">
+        <input type="radio" name="tenancy" value="circle" <%= tenancy === 'circle' ? 'checked' : '' %>>
+        <span>
+          <strong>Cirkels</strong> &mdash; solo + federatie.
+          <small>E&eacute;n eigen site die de publieke posts van andere Klonkt-sites toont. Asymmetrisch: jij bepaalt wie in jouw cirkel zit.</small>
+        </span>
+      </label>
       <button type="submit" class="btn btn-primary">Opslaan</button>
     </form>
   </section>
@@ -56,6 +63,17 @@
       </label>
       <button type="submit" class="btn btn-primary">Opslaan</button>
     </form>
+  </section>
+  <% } %>
+
+  <% if (tenancy === 'circle') { %>
+  <section class="set-card" style="margin-top:1rem">
+    <h2>Cirkel</h2>
+    <p class="set-help">
+      Beheer welke andere Klonkt-sites je in je cirkel toont, en of jouw site in
+      cirkels van anderen mag verschijnen.
+    </p>
+    <p><a href="/admin/circle" class="btn btn-primary">Beheer je cirkel &rarr;</a></p>
   </section>
   <% } %>
 </div>

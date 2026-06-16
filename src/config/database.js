@@ -46,6 +46,8 @@ export function initializeDatabase() {
   ensureColumn('sites', 'comments_moderation_mode', "TEXT DEFAULT 'trust'");
   // Per-site Prutter toggle: when off, DM endpoints/UI are hidden for that site.
   ensureColumn('sites', 'enable_prutter', 'INTEGER DEFAULT 1');
+  // Cirkels: mag deze site in cirkels van anderen verschijnen (surfacing opt-out).
+  ensureColumn('sites', 'allow_circle', 'INTEGER DEFAULT 1');
 
   // v9 audit additions —————————————————————————————————————————
   // SEO/social columns the v9 template uses (most live in 001-init.sql already

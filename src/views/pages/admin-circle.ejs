@@ -1,0 +1,110 @@
+<div class="container admin-page">
+  <h1>Cirkel</h1>
+  <p><a href="/admin/settings" class="btn">&larr; Instellingen</a></p>
+
+  <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
+  <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+  <% if (tenancy !== 'circle') { %>
+    <section class="set-card">
+      <p class="set-help">De modus staat niet op <strong>Cirkels</strong>. Zet 'm aan bij
+        <a href="/admin/settings">Instellingen</a> om je cirkel-feed te tonen op <code>/cirkel</code>.
+        Je kunt hieronder al wel bronnen klaarzetten.</p>
+    </section>
+  <% } %>
+
+  <section class="set-card" style="margin-top:1rem">
+    <h2>Mijn zichtbaarheid</h2>
+    <p class="set-help">Mag jouw site verschijnen in cirkels van anderen? (Toont je publieke
+      posts via <code>/.klonkt/outbox.json</code>.)</p>
+    <form method="post" action="/admin/circle/allow" class="set-form">
+      <label class="set-opt" style="align-items:center">
+        <input type="checkbox" name="allow_circle" value="on" <%= allowCircle ? 'checked' : '' %>>
+        <span><strong>Toon mijn site in cirkels van anderen</strong></span>
+      </label>
+      <button type="submit" class="btn btn-primary">Opslaan</button>
+    </form>
+  </section>
+
+  <section class="set-card" style="margin-top:1rem">
+    <h2>Klonkt-site toevoegen</h2>
+    <p class="set-help">Plak de basis-URL van een andere Klonkt-site. Asymmetrisch: jij toont
+      hen, los van of zij jou tonen.</p>
+    <form method="post" action="/admin/circle/add" class="set-form">
+      <label class="set-field">
+        <span>URL</span>
+        <input type="url" name="remote_url" placeholder="https://artiest.klonkt.com" required>
+      </label>
+      <label class="set-field">
+        <span>Label <small style="font-weight:400">— optioneel</small></span>
+        <input type="text" name="label" maxlength="80" placeholder="bijv. Joost Klein">
+      </label>
+      <button type="submit" class="btn btn-primary">Toevoegen</button>
+    </form>
+  </section>
+
+  <section class="set-card" style="margin-top:1rem">
+    <h2>In mijn cirkel (<%= links.length %>)</h2>
+    <% if (!links.length) { %>
+      <p class="set-help">Nog geen bronnen. Voeg er hierboven een toe.</p>
+    <% } else { %>
+      <ul class="circ-list">
+        <% links.forEach(function(l){ %>
+          <li class="circ-item">
+            <div class="circ-main">
+              <strong><%= l.label || l.remote_url %></strong>
+              <small><%= l.remote_url %></small>
+              <small>
+                <% if (l.status === 'active') { %>
+                  <span class="circ-badge ok">&#10003; actief</span>
+                  <%= counts[l.id] || 0 %> posts
+                  <% if (l.last_synced) { %>&middot; laatst: <%= l.last_synced %><% } %>
+                <% } else if (l.status === 'error') { %>
+                  <span class="circ-badge err">&#9888; fout</span>
+                  <%= l.last_error || '' %>
+                <% } else { %>
+                  <span class="circ-badge">&#9208; gepauzeerd</span>
+                <% } %>
+              </small>
+            </div>
+            <div class="circ-actions">
+              <form method="post" action="/admin/circle/<%= l.id %>/sync" style="display:inline">
+                <button type="submit" class="btn">Verversen</button>
+              </form>
+              <form method="post" action="/admin/circle/<%= l.id %>/remove" style="display:inline"
+                    onsubmit="return confirm('Verwijderen uit je cirkel?')">
+                <button type="submit" class="btn btn-danger">Verwijder</button>
+              </form>
+            </div>
+          </li>
+        <% }); %>
+      </ul>
+    <% } %>
+  </section>
+</div>
+
+<style>
+.admin-page { max-width: 760px; margin: 3rem auto; padding: 0 1rem; }
+.admin-page h1 { font-family: var(--font-display, serif); font-size: 2rem; margin: 0 0 .25rem; }
+.set-card { background: var(--paper-2); border: 1px solid var(--rule); border-radius: 12px; padding: 1.25rem; }
+.set-card h2 { font-family: var(--font-display, serif); font-size: 1.25rem; margin: 0 0 .5rem; }
+.set-help { color: var(--ink-muted); font-size: .9rem; margin: 0 0 1rem; }
+.set-form { display: flex; flex-direction: column; gap: 1rem; }
+.set-opt { display: flex; gap: .75rem; align-items: flex-start; padding: .85rem 1rem; border: 1px solid var(--rule); border-radius: 8px; background: var(--paper); }
+.set-field { display: flex; flex-direction: column; gap: .3rem; }
+.set-field > span { font-size: .8rem; font-weight: 600; color: var(--ink-soft, var(--ink-muted)); }
+.set-field input { width: 100%; box-sizing: border-box; padding: .55rem .7rem; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper); color: var(--ink); font: inherit; }
+.set-form .btn, .circ-actions .btn { align-self: flex-start; }
+.circ-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .6rem; }
+.circ-item { display: flex; justify-content: space-between; gap: 1rem; align-items: center; padding: .75rem 1rem; border: 1px solid var(--rule); border-radius: 8px; background: var(--paper); flex-wrap: wrap; }
+.circ-main { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
+.circ-main small { color: var(--ink-muted); font-size: .78rem; word-break: break-all; }
+.circ-actions { display: flex; gap: .4rem; flex-shrink: 0; }
+.circ-badge { font-size: .72rem; font-weight: 700; padding: .1rem .45rem; border-radius: 20px; background: var(--rule); }
+.circ-badge.ok { background: #d1fae5; color: #065f46; }
+.circ-badge.err { background: #fee2e2; color: #991b1b; }
+.btn-danger { color: #991b1b; border-color: #fca5a5; }
+.alert { padding: .75rem 1rem; border-radius: 6px; margin-bottom: 1rem; }
+.alert-success { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+.alert-error { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+</style>
