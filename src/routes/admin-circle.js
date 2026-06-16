@@ -15,7 +15,7 @@ import { renderPage } from '../middleware/render.js';
 import { requireGod } from '../middleware/auth.js';
 import db from '../config/database.js';
 import { getTenancy } from '../services/SettingsService.js';
-import { syncOne } from '../services/CircleService.js';
+import { syncOne, sync } from '../services/CircleService.js';
 
 const router = express.Router();
 
@@ -91,6 +91,17 @@ router.post('/:id/sync', requireGod, async (req, res) => {
     db.prepare("UPDATE circle_links SET status='error', last_error=?, last_synced=CURRENT_TIMESTAMP WHERE id=?")
       .run(msg, link.id);
     res.redirect('/admin/circle?error=' + encodeURIComponent(msg));
+  }
+});
+
+// Alles in één keer verversen (handig "voor de zekerheid").
+router.post('/sync-all', requireGod, async (req, res) => {
+  try {
+    const r = await sync();
+    const n = (r && r.results) ? r.results.filter((x) => x && x.ok).length : 0;
+    res.redirect('/admin/circle?success=' + encodeURIComponent(`Cirkel gesynchroniseerd (${n} site(s) bijgewerkt)`));
+  } catch (e) {
+    res.redirect('/admin/circle?error=' + encodeURIComponent(String((e && e.message) || e).slice(0, 200)));
   }
 });
 

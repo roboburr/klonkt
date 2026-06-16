@@ -51,6 +51,9 @@
     <% if (!links.length) { %>
       <p class="set-help">Nog geen bronnen. Voeg er hierboven een toe.</p>
     <% } else { %>
+      <form method="post" action="/admin/circle/sync-all" style="margin:0 0 .9rem">
+        <button type="submit" class="btn">&#8635; Alles nu synchroniseren</button>
+      </form>
       <ul class="circ-list">
         <% links.forEach(function(l){ %>
           <li class="circ-item">

@@ -13,7 +13,11 @@ const MAX_BODY_BYTES = 1024 * 1024; // 1 MB
 const MAX_ITEMS = 50;
 
 function stripHtml(s) {
-  return String(s || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  return String(s || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\[\[[^\]]*\]\]/g, ' ')   // [[playlist:..]]/[[track:..]]/[[album:..]]-shortcodes weg
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 function iso(d) {
   const t = d ? new Date(d) : null;

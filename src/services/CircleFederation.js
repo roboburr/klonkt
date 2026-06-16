@@ -77,7 +77,11 @@ function primarySite() {
 }
 
 function stripHtml(s) {
-  return String(s || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  return String(s || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\[\[[^\]]*\]\]/g, ' ')   // [[playlist:..]]/[[track:..]]/[[album:..]]-shortcodes weg
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function iso(d) {
