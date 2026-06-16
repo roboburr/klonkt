@@ -62,11 +62,18 @@
                   <span class="circ-badge ok">&#10003; actief</span>
                   <%= counts[l.id] || 0 %> posts
                   <% if (l.last_synced) { %>&middot; laatst: <%= l.last_synced %><% } %>
+                <% } else if (l.status === 'outdated') { %>
+                  <span class="circ-badge err">&#8635; versie-mismatch</span>
+                  <%= l.last_error || 'Deze site draait een andere Klonkt-protocolversie — bijwerken nodig om te federeren.' %>
                 <% } else if (l.status === 'error') { %>
                   <span class="circ-badge err">&#9888; fout</span>
                   <%= l.last_error || '' %>
-                <% } else { %>
+                <% } else if (l.status === 'paused') { %>
                   <span class="circ-badge">&#9208; gepauzeerd</span>
+                <% } else { %>
+                  <%# Onbekende status: toon 'm rauw + eventuele reden i.p.v. stil "gepauzeerd". %>
+                  <span class="circ-badge"><%= l.status %></span>
+                  <%= l.last_error || '' %>
                 <% } %>
               </small>
             </div>
