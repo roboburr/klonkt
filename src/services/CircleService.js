@@ -46,20 +46,29 @@ async function fetchText(url) {
   }
 }
 
-const upsertActor = db.prepare(`
-  INSERT INTO remote_actors (id, url, name, summary, avatar, public_key, fetched_at)
-  VALUES (@id, @url, @name, @summary, @avatar, @public_key, CURRENT_TIMESTAMP)
-  ON CONFLICT(id) DO UPDATE SET
-    url=excluded.url, name=excluded.name, summary=excluded.summary,
-    avatar=excluded.avatar, public_key=excluded.public_key, fetched_at=CURRENT_TIMESTAMP
-`);
-const upsertPost = db.prepare(`
-  INSERT INTO remote_posts (id, actor_id, published, title, summary, url, media_json, raw_json, fetched_at)
-  VALUES (@id, @actor_id, @published, @title, @summary, @url, @media_json, @raw_json, CURRENT_TIMESTAMP)
-  ON CONFLICT(id) DO UPDATE SET
-    published=excluded.published, title=excluded.title, summary=excluded.summary,
-    url=excluded.url, media_json=excluded.media_json, raw_json=excluded.raw_json, fetched_at=CURRENT_TIMESTAMP
-`);
+// Lazy prepares — de tabellen bestaan pas ná initializeDatabase(); dit module
+// wordt geïmporteerd vóór die call, dus niet op module-niveau prepare'n.
+let _stmts = null;
+function stmts() {
+  if (_stmts) return _stmts;
+  _stmts = {
+    upsertActor: db.prepare(`
+      INSERT INTO remote_actors (id, url, name, summary, avatar, public_key, fetched_at)
+      VALUES (@id, @url, @name, @summary, @avatar, @public_key, CURRENT_TIMESTAMP)
+      ON CONFLICT(id) DO UPDATE SET
+        url=excluded.url, name=excluded.name, summary=excluded.summary,
+        avatar=excluded.avatar, public_key=excluded.public_key, fetched_at=CURRENT_TIMESTAMP
+    `),
+    upsertPost: db.prepare(`
+      INSERT INTO remote_posts (id, actor_id, published, title, summary, url, media_json, raw_json, fetched_at)
+      VALUES (@id, @actor_id, @published, @title, @summary, @url, @media_json, @raw_json, CURRENT_TIMESTAMP)
+      ON CONFLICT(id) DO UPDATE SET
+        published=excluded.published, title=excluded.title, summary=excluded.summary,
+        url=excluded.url, media_json=excluded.media_json, raw_json=excluded.raw_json, fetched_at=CURRENT_TIMESTAMP
+    `),
+  };
+  return _stmts;
+}
 
 export async function syncOne(link) {
   const base = baseOf(link.remote_url);
@@ -80,7 +89,7 @@ export async function syncOne(link) {
     throw new Error('publieke sleutel gewijzigd — herbevestiging vereist (TOFU)');
   }
 
-  upsertActor.run({
+  stmts().upsertActor.run({
     id: actorId,
     url: actor.url || base,
     name: actor.name || null,
@@ -115,7 +124,7 @@ export async function syncOne(link) {
         if (att && att.url) media.push({ type: String(att.type || 'link').toLowerCase(), url: att.url, name: att.name, duration: att.duration });
       }
     }
-    upsertPost.run({
+    stmts().upsertPost.run({
       id: obj.id,
       actor_id: actorId,
       published: iso(obj.published || it.published),
