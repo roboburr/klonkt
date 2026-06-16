@@ -1,0 +1,75 @@
+<div class="container admin-page">
+  <h1>Updates</h1>
+  <p><a href="/admin" class="btn">&larr; Beheer</a></p>
+
+  <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
+  <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+  <section class="set-card">
+    <h2>Versie van deze Klonkt</h2>
+
+    <div class="upd-row">
+      <span class="upd-label">App-versie</span>
+      <span class="upd-val"><%= appVersion || '—' %></span>
+    </div>
+    <div class="upd-row">
+      <span class="upd-label">Huidig</span>
+      <span class="upd-val">
+        <% if (currentSha) { %><code><%= currentSha %></code> <span class="upd-desc"><%= currentDesc %></span>
+        <% } else { %><em>onbekend (nog niet via de update-knop bijgewerkt)</em><% } %>
+      </span>
+    </div>
+    <div class="upd-row">
+      <span class="upd-label">Nieuwste</span>
+      <span class="upd-val">
+        <% if (latestSha) { %><code><%= latestSha %></code> <span class="upd-desc"><%= latestDesc %></span>
+        <% } else { %><em>kon de nieuwste versie niet ophalen</em><% } %>
+      </span>
+    </div>
+
+    <div class="upd-status">
+      <% if (!canCheck) { %>
+        <span class="upd-badge warn">&#9888; Geen update-bron bereikbaar</span>
+      <% } else if (upToDate) { %>
+        <span class="upd-badge ok">&#10003; Up-to-date</span>
+      <% } else { %>
+        <span class="upd-badge new">&#8635; Update beschikbaar<% if (behind) { %> (<%= behind %> commit<%= behind === '1' ? '' : 's' %> achter)<% } %></span>
+      <% } %>
+    </div>
+
+    <% if (canCheck) { %>
+    <form method="post" action="/admin/updates/run" class="set-form"
+          onsubmit="return confirm('De site wordt naar de nieuwste versie gebracht en herstart kort. Doorgaan?');">
+      <button type="submit" class="btn btn-primary">
+        <%= upToDate ? '↻ Opnieuw uitrollen' : '⬆ Nu bijwerken' %>
+      </button>
+    </form>
+    <% } %>
+
+    <p class="set-help" style="margin-top:1rem">
+      Bijwerken haalt de nieuwste code op en herstart deze site kort (~10s). Doe dit
+      rustig — er gaat niets verloren (je posts, instellingen en cirkel blijven staan).
+    </p>
+  </section>
+</div>
+
+<style>
+.admin-page { max-width: 700px; margin: 3rem auto; padding: 0 1rem; }
+.admin-page h1 { font-family: var(--font-display, serif); font-size: 2rem; margin: 0 0 .25rem; }
+.set-card { background: var(--paper-2); border: 1px solid var(--rule); border-radius: 12px; padding: 1.25rem; }
+.set-card h2 { font-family: var(--font-display, serif); font-size: 1.25rem; margin: 0 0 1rem; }
+.set-help { color: var(--ink-muted); font-size: .9rem; }
+.upd-row { display: flex; gap: 1rem; padding: .55rem 0; border-bottom: 1px solid var(--rule); align-items: baseline; }
+.upd-label { width: 90px; flex-shrink: 0; font-size: .8rem; font-weight: 600; color: var(--ink-muted); }
+.upd-val { font-size: .9rem; }
+.upd-val code { background: var(--paper); padding: .1rem .4rem; border-radius: 4px; font-size: .85em; }
+.upd-desc { color: var(--ink-muted); }
+.upd-status { margin: 1.1rem 0; }
+.upd-badge { font-size: .8rem; font-weight: 700; padding: .25rem .7rem; border-radius: 20px; }
+.upd-badge.ok { background: #d1fae5; color: #065f46; }
+.upd-badge.new { background: #fef3c7; color: #92400e; }
+.upd-badge.warn { background: #fee2e2; color: #991b1b; }
+.alert { padding: .75rem 1rem; border-radius: 6px; margin-bottom: 1rem; }
+.alert-success { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+.alert-error { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+</style>

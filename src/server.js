@@ -45,6 +45,7 @@ import postsRoutes from './routes/posts.js';
 import federationRoutes from './routes/federation.js';
 import { startCircleSyncLoop } from './services/CircleService.js';
 import adminCircleRoutes from './routes/admin-circle.js';
+import adminUpdatesRoutes from './routes/admin-updates.js';
 import circleRoutes from './routes/circle.js';
 
 if (!process.env.SESSION_SECRET) {
@@ -227,6 +228,7 @@ app.use('/admin/users', adminUsersRoutes);
 app.use('/admin/comments', adminCommentsRoutes);
 app.use('/admin/settings', adminSettingsRoutes);
 app.use('/admin/circle', adminCircleRoutes);
+app.use('/admin/updates', adminUpdatesRoutes);
 app.use('/admin', adminRoutes);
 app.use('/prutter', prutterRoutes);
 app.use('/audio', audioRoutes);
