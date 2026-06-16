@@ -43,6 +43,7 @@ class PermissionsService {
   static canCreatePost(user, site) {
     if (!user) return false;
     if (user.role === 'god') return true;
+    if (!site) return false; // geen site-context (bv. hub-landing) -> niets te posten
     if (user.id === site.owner_id) return true; // Site owner
     if (this.canAdminSite(user, site)) return true;
     return false;

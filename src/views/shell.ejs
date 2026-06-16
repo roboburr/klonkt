@@ -293,8 +293,10 @@ if (typeof post !== 'undefined' && post && post.slug) {
 
 <%- include('partials/footer') %>
 
-<!-- Mobile bottom-tab navigation (auto-hidden ≥768px) — niet op landing/auth -->
-<% if (!bareChrome) { %>
+<!-- Mobile bottom-tab navigation (auto-hidden ≥768px). Toont overal — óók op de
+     hub-landing (zodat mobiel altijd Home/Zoek/Inloggen heeft) — behalve op de
+     auth-focusschermen. -->
+<% if (!(typeof bodyClass === 'string' && bodyClass.indexOf('on-auth') >= 0)) { %>
 <%- include('partials/bottom-tab') %>
 <% } %>
 
