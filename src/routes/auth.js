@@ -7,6 +7,14 @@ import { renderPage } from '../middleware/render.js';
 import { loginLimiter, registerLimiter } from '../middleware/rate-limit.js';
 import { safeNext } from '../middleware/auth.js';
 import { googleConfigured, authorizeUrl, exchangeCode, fetchUserinfo } from '../config/google.js';
+import { premiumUnlocked } from '../services/PatreonService.js';
+
+// Fan-login (luisteraars inloggen met Google om te reageren) is een premium-
+// feature: beschikbaar als Google is ingesteld ÉN de premium-laag ontgrendeld is
+// (premium uit = vrij; aan = Patreon vereist).
+function fanLoginReady() {
+  return googleConfigured() && premiumUnlocked();
+}
 import { mailerConfigured, sendMail } from '../config/mailer.js';
 
 const router = express.Router();
@@ -46,7 +54,7 @@ router.get('/login', (req, res) => {
     error: null,
     success: req.query.success || null,
     username: '',
-    googleReady: googleConfigured(),
+    googleReady: fanLoginReady(),
     next,
   });
 });
@@ -59,7 +67,7 @@ router.post('/login', loginLimiter, (req, res) => {
     res.status(status);
     return renderPage(req, res, 'pages/auth-login', {
       pageTitle: 'Inloggen', bodyClass: 'on-special',
-      error, success: null, username: username || '', googleReady: googleConfigured(), next,
+      error, success: null, username: username || '', googleReady: fanLoginReady(), next,
     });
   };
 
@@ -225,8 +233,8 @@ router.post('/reset/:token', (req, res) => {
 // ==================== GOOGLE-LOGIN (luisteraars/reageerders) ====================
 // Per-instance, eigen Google-client. Geeft ALTIJD rol member — nooit beheer.
 router.get('/google', (req, res) => {
-  if (!googleConfigured()) {
-    return res.redirect('/auth/login?error=' + encodeURIComponent('Google-login is op deze site niet ingesteld.'));
+  if (!fanLoginReady()) {
+    return res.redirect('/auth/login?error=' + encodeURIComponent('Inloggen met Google is op deze site niet beschikbaar.'));
   }
   const state = crypto.randomBytes(16).toString('hex');
   req.session.oauthState = state;
@@ -247,6 +255,7 @@ function uniqueUsername(base) {
 
 router.get('/google/callback', async (req, res) => {
   const fail = (msg) => res.redirect('/auth/login?error=' + encodeURIComponent(msg));
+  if (!fanLoginReady()) return fail('Inloggen met Google is op deze site niet beschikbaar.');
   try {
     const { code, state } = req.query;
     if (!code || !state || state !== req.session.oauthState) return fail('Login afgebroken of ongeldige sessie.');
