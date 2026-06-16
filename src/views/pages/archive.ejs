@@ -1,27 +1,8 @@
-<%
-// Archive — chronological feed of all posts.
-//
-// Renders both a timeline view (year/month grouped link list) AND a grid
-// view (flat tiles) — same toggle pattern as home.ejs. The view-switcher
-// at the top lets the user pick. Body class is `on-archive`; the inline
-// <style> below adds an `.on-archive` clause to the existing home-only
-// feed toggle in style.css (cleaner than editing the global CSS).
-//
-// Flatten posts for grid mode: skip the year/month grouping (it doesn't
-// translate well to a tile grid). Newest-first order is preserved by the
-// route's SQL ORDER BY.
-const _flatPosts = [];
-Object.keys(grouped).sort((a, b) => b - a).forEach(function(y) {
-  Object.keys(grouped[y]).forEach(function(m) {
-    grouped[y][m].forEach(function(p) { _flatPosts.push(p); });
-  });
-});
-%>
+<%# Archief — altijd de chronologische jaar/maand-lijst. Het archief negeert
+    bewust de timeline/grid-keuze (geen grid-weergave): de view-switcher is hier
+    grijs en springt bij klik terug naar de feed. Zie de CSS in style.css. %>
 
-<%# View switcher used to be rendered here; now lives in shell.ejs above
-    #pcms-main, visible on every non-admin page. %>
-
-<!-- ========== TIMELINE (year/month grouped) ========== -->
+<!-- ========== TIJDLIJN (jaar/maand gegroepeerd) ========== -->
 <div class="container archive-page feed-timeline">
   <% var _archBase = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : ''; %>
   <p class="archive-back-row">
@@ -59,17 +40,6 @@ Object.keys(grouped).sort((a, b) => b - a).forEach(function(y) {
     </section>
   <% }); %>
 </div>
-
-<!-- ========== GRID (only visible when body[data-feed-view="grid"]) ========== -->
-<% if (_flatPosts.length > 0) { %>
-<section class="feed-grid container" aria-label="Grid-weergave">
-  <div class="grid-tiles">
-    <% _flatPosts.forEach(function(post) { %>
-      <%- include('../partials/post-tile', { post: post }) %>
-    <% }); %>
-  </div>
-</section>
-<% } %>
 
 <style>
 .archive-page { max-width: 700px; margin: 2rem auto; padding: 0 1rem; }

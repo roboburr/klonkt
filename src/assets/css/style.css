@@ -2066,24 +2066,21 @@ body[data-feed-view="grid"]:not(.on-archive) .view-switch-btn[data-view="grid"] 
 .view-switch-btn .icon { width: 1rem; height: 1rem; }
 
 /* -------- FEED TOGGLE VIA BODY --------
-   Grid-modus werkt op elke feed-pagina (home, archive). Op een post-pagina
-   is de feed-timeline article juist het hoofdonderwerp — daar moet 'ie
-   altijd zichtbaar zijn, dus de grid-toggle slaat alleen aan op
-   feed-pagina's (.on-home, .on-archive). Andere body-classes negeren de
+   Grid-modus werkt op de feed (home, cirkel). Het ARCHIEF negeert de grid-keuze
+   bewust: dat is altijd de chronologische jaar/maand-lijst (de switcher is daar
+   grijs en springt bij klik terug naar de feed). Post-pagina's tonen de
+   feed-timeline article sowieso altijd. Alle andere body-classes negeren
    data-feed-view en houden timeline visible. */
 body.on-home[data-feed-view="grid"]    .feed-timeline,
 body.on-home[data-feed-view="grid"]    .pagination,
 body.on-home[data-feed-view="grid"]    .related-posts,
 body.on-home[data-feed-view="grid"]    .article-footer,
-body.on-archive[data-feed-view="grid"] .feed-timeline,
-body.on-archive[data-feed-view="grid"] .pagination,
 body.on-cirkel[data-feed-view="grid"]  .feed-timeline {
     display: none !important;
 }
-/* Grid-sectie alleen zichtbaar op feed-pagina's in grid-mode */
+/* Grid-sectie alleen zichtbaar op de feed in grid-mode (NIET op archief) */
 .feed-grid { display: none; }
 body.on-home[data-feed-view="grid"]    .feed-grid,
-body.on-archive[data-feed-view="grid"] .feed-grid,
 body.on-cirkel[data-feed-view="grid"]  .feed-grid { display: block; }
 
 /* -------- GRID VIEW TILES (Instagram-stijl) -------- */
