@@ -28,6 +28,9 @@
       <% } %>
       <a href="/admin/settings" class="btn">⚙️ Instellingen</a>
     <% } %>
+    <% if (typeof premiumUnlocked === 'undefined' || premiumUnlocked) { %>
+      <a href="/admin/stats" class="btn">📊 Statistieken</a>
+    <% } %>
     <a href="/admin/updates" class="btn">🔄 Updates</a>
   </nav>
 

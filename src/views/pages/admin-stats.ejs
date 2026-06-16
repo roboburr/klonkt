@@ -1,0 +1,103 @@
+<div class="container stats-page">
+  <p><a href="/admin" class="btn">&larr; Beheer</a></p>
+  <h1>Statistieken</h1>
+  <p class="stats-note">Cookievrij gemeten — geen tracking-cookies, geen toestemmingsbanner.
+    Unieke bezoekers via een dagelijks roterende, anonieme hash (IP/browser worden niet bewaard).
+    Je eigen beheerder-bezoeken tellen niet mee.</p>
+
+  <% var s = stats; var _max = Math.max(1, ...s.series.map(function(d){ return d.pageviews; })); %>
+
+  <div class="stats-cards">
+    <div class="stat-card"><div class="stat-num"><%= s.totals.visitors %></div><div class="stat-label">Bezoekers (14d)</div></div>
+    <div class="stat-card"><div class="stat-num"><%= s.totals.pageviews %></div><div class="stat-label">Weergaven (14d)</div></div>
+    <div class="stat-card"><div class="stat-num"><%= s.totals.plays %></div><div class="stat-label">Plays (totaal)</div></div>
+    <div class="stat-card"><div class="stat-num"><%= s.totals.postViews %></div><div class="stat-label">Post-weergaven (totaal)</div></div>
+  </div>
+
+  <section class="stats-chart-wrap">
+    <div class="stats-chart-head">
+      <h2>Laatste 14 dagen</h2>
+      <div class="stats-legend">
+        <span class="lg lg-vis">Bezoekers</span>
+        <span class="lg lg-pv">Weergaven</span>
+      </div>
+    </div>
+    <div class="stats-chart">
+      <% s.series.forEach(function(d){
+           var pvPct = Math.round(d.pageviews / _max * 100);
+           var visPct = Math.round(d.visitors / _max * 100);
+      %>
+        <div class="sc-col" title="<%= d.day %> — <%= d.pageviews %> weergaven, <%= d.visitors %> bezoekers">
+          <div class="sc-bar">
+            <span class="sc-pv" style="height: <%= pvPct %>%"></span>
+            <span class="sc-vis" style="height: <%= visPct %>%"></span>
+          </div>
+          <span class="sc-day"><%= d.day.slice(8) %></span>
+        </div>
+      <% }); %>
+    </div>
+  </section>
+
+  <div class="stats-tops">
+    <section class="stats-top">
+      <h2>Populairste posts</h2>
+      <% if (!s.topPosts.length || s.topPosts[0].views === 0) { %>
+        <p class="stats-empty">Nog geen weergaven.</p>
+      <% } else { %>
+        <ol>
+          <% s.topPosts.forEach(function(p){ %>
+            <li><a href="/<%= p.slug %>"><%= p.title %></a><span class="stats-count"><%= p.views %></span></li>
+          <% }); %>
+        </ol>
+      <% } %>
+    </section>
+    <section class="stats-top">
+      <h2>Meest geluisterd</h2>
+      <% if (!s.topTracks.length || s.topTracks[0].plays === 0) { %>
+        <p class="stats-empty">Nog geen plays.</p>
+      <% } else { %>
+        <ol>
+          <% s.topTracks.forEach(function(t){ %>
+            <li><span><%= t.title %></span><span class="stats-count"><%= t.plays %></span></li>
+          <% }); %>
+        </ol>
+      <% } %>
+    </section>
+  </div>
+</div>
+
+<style>
+.stats-page { max-width: 820px; margin: 2.5rem auto; padding: 0 1rem; }
+.stats-page h1 { font-family: var(--font-display, serif); font-size: 2rem; margin: .5rem 0 .25rem; }
+.stats-note { color: var(--ink-muted); font-size: .85rem; margin: 0 0 1.5rem; max-width: 60ch; }
+.stats-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: .75rem; margin-bottom: 2rem; }
+.stat-card { background: var(--paper-2); border: 1px solid var(--rule); border-radius: 10px; padding: 1rem 1.1rem; }
+.stat-num { font-family: var(--font-display, serif); font-size: 1.9rem; line-height: 1; color: var(--accent); }
+.stat-label { color: var(--ink-muted); font-size: .82rem; margin-top: .35rem; }
+
+.stats-chart-wrap { background: var(--paper-2); border: 1px solid var(--rule); border-radius: 12px; padding: 1.1rem 1.2rem 1rem; margin-bottom: 2rem; }
+.stats-chart-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: .5rem; }
+.stats-chart-head h2 { font-size: 1.05rem; margin: 0; }
+.stats-legend { display: flex; gap: .9rem; font-size: .78rem; color: var(--ink-muted); }
+.lg::before { content: ""; display: inline-block; width: .7rem; height: .7rem; border-radius: 2px; margin-right: .3rem; vertical-align: -1px; }
+.lg-vis::before { background: var(--accent); }
+.lg-pv::before { background: color-mix(in srgb, var(--accent) 28%, transparent); }
+.stats-chart { display: flex; align-items: flex-end; gap: 3px; height: 160px; margin-top: 1rem; }
+.sc-col { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; }
+.sc-bar { position: relative; width: 70%; max-width: 26px; height: 140px; display: flex; align-items: flex-end; }
+.sc-pv, .sc-vis { position: absolute; bottom: 0; left: 0; width: 100%; border-radius: 3px 3px 0 0; min-height: 2px; }
+.sc-pv { background: color-mix(in srgb, var(--accent) 28%, transparent); }
+.sc-vis { background: var(--accent); }
+.sc-day { font-size: .68rem; color: var(--ink-muted); margin-top: .35rem; }
+
+.stats-tops { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; }
+@media (max-width: 560px) { .stats-tops { grid-template-columns: 1fr; } }
+.stats-top { background: var(--paper-2); border: 1px solid var(--rule); border-radius: 12px; padding: 1rem 1.2rem; }
+.stats-top h2 { font-size: 1.05rem; margin: 0 0 .6rem; }
+.stats-top ol { margin: 0; padding-left: 1.2rem; }
+.stats-top li { padding: .35rem 0; display: flex; justify-content: space-between; gap: .5rem; align-items: baseline; }
+.stats-top a { color: var(--ink); text-decoration: none; }
+.stats-top a:hover { color: var(--accent); }
+.stats-count { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
+.stats-empty { color: var(--ink-muted); font-size: .88rem; margin: 0; }
+</style>

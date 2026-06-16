@@ -27,6 +27,8 @@ import express from 'express';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import db from '../config/database.js';
+import { recordPlay } from '../services/StatsService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Audio files live OUTSIDE storage/media — the public /media static handler
@@ -88,6 +90,19 @@ router.get('/stream/:filename', (req, res) => {
   const mime = MIME[ext] || 'audio/mpeg';
   const total = stat.size;
   const range = req.headers.range;
+
+  // Statistieken: tel één play bij de initiële player-fetch (niet bij scrub/
+  // range-continuaties; replays binnen 24u komen uit de browsercache → geen
+  // dubbeltelling). Best-effort, mag nooit de stream breken.
+  if (req.get('X-Audio-Player') === '1' && (!range || /^bytes=0-/.test(range))) {
+    try {
+      const tr = db.prepare(`
+        SELECT t.id FROM audio_tracks t JOIN media m ON t.media_id = m.id
+        WHERE m.storage_path = ? OR m.storage_path LIKE ? LIMIT 1
+      `).get(filename, '%' + filename);
+      if (tr) recordPlay(tr.id);
+    } catch {}
+  }
 
   // Common headers
   res.setHeader('Content-Type', mime);

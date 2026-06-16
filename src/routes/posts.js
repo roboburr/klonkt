@@ -7,6 +7,7 @@ import multer from 'multer';
 import db from '../config/database.js';
 import { requireAuth } from '../middleware/auth.js';
 import { renderPage } from '../middleware/render.js';
+import { recordPageview, recordPostView } from '../services/StatsService.js';
 import PermissionsService from '../services/PermissionsService.js';
 import MarkdownService from '../services/MarkdownService.js';
 import HtmlSanitizerService from '../services/HtmlSanitizerService.js';
@@ -111,6 +112,8 @@ router.get('/', (req, res) => {
     ORDER BY p.published_at DESC
     LIMIT 30
   `).all(site.id);
+
+  recordPageview(site.id, req);
 
   renderPage(req, res, 'pages/home', {
     pinnedPosts,
@@ -390,6 +393,9 @@ router.get('/:slug', (req, res, next) => {
     const canEdit = req.session?.user && PermissionsService.canEditPost(req.session.user, post, site);
     if (!canEdit) return res.status(403).send('Not published');
   }
+
+  // Statistieken: tel de weergave (skipt beheerders + niet-gepubliceerd-eigen-preview).
+  if (post.status === 'published') recordPostView(post, req);
 
   // Render content. Content is now user-authored HTML (already sanitized on
   // save). The pipeline still adds autoembed iframes and shortcode embeds:

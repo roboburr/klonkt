@@ -48,6 +48,7 @@ import { startCircleSyncLoop } from './services/CircleService.js';
 import adminCircleRoutes from './routes/admin-circle.js';
 import adminUpdatesRoutes from './routes/admin-updates.js';
 import adminPatreonRoutes from './routes/admin-patreon.js';
+import adminStatsRoutes from './routes/admin-stats.js';
 import circleRoutes from './routes/circle.js';
 
 if (!process.env.SESSION_SECRET) {
@@ -240,6 +241,7 @@ app.use('/admin/settings', adminSettingsRoutes);
 app.use('/admin/circle', adminCircleRoutes);
 app.use('/admin/updates', adminUpdatesRoutes);
 app.use('/admin/patreon', adminPatreonRoutes);
+app.use('/admin/stats', adminStatsRoutes);
 app.use('/admin', adminRoutes);
 app.use('/prutter', prutterRoutes);
 app.use('/audio', audioRoutes);

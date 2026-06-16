@@ -70,6 +70,10 @@ export function initializeDatabase() {
   ensureColumn('posts', 'noindex', 'INTEGER DEFAULT 0');
   ensureColumn('posts', 'type',    "TEXT DEFAULT 'post'");  // post | foto | video | audio
 
+  // Statistieken (premium-module) — kale tellers, cookievrij.
+  ensureColumn('posts', 'view_count', 'INTEGER DEFAULT 0');         // weergaven per post
+  ensureColumn('audio_tracks', 'play_count', 'INTEGER DEFAULT 0');  // plays per track
+
   // Playlists (v9 feature) — first-class entity. CREATE IF NOT EXISTS is
   // idempotent so it's safe to run on every boot regardless of DB age.
   db.exec(`
@@ -107,6 +111,27 @@ export function initializeDatabase() {
     );
   `);
   db.prepare("INSERT OR IGNORE INTO app_settings (key, value) VALUES ('tenancy', 'solo')").run();
+
+  // ── Statistieken (premium) — cookievrij ─────────────────────
+  // stat_daily: per dag per site het aantal pageviews (kale teller).
+  // stat_visitor_day: per dag per site een rij per UNIEKE bezoeker-hash
+  //   (sha256 van IP+UA+dag-salt; de salt roteert dagelijks en wordt nooit
+  //   bewaard → geen persistente identifier, geen cookie, geen toestemming nodig).
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS stat_daily (
+      site_id TEXT NOT NULL,
+      day TEXT NOT NULL,
+      pageviews INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (site_id, day)
+    );
+    CREATE TABLE IF NOT EXISTS stat_visitor_day (
+      site_id TEXT NOT NULL,
+      day TEXT NOT NULL,
+      visitor_hash TEXT NOT NULL,
+      PRIMARY KEY (site_id, day, visitor_hash)
+    );
+    CREATE INDEX IF NOT EXISTS idx_stat_visitor_day ON stat_visitor_day(site_id, day);
+  `);
 
   // ── Cirkels (federatie) ─────────────────────────────────────
   // Decentrale, asymmetrische verbindingen tussen solo-instances.
