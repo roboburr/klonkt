@@ -21,6 +21,7 @@ import { v4 as uuid } from 'uuid';
 import { renderPage } from '../middleware/render.js';
 import { requireGod } from '../middleware/auth.js';
 import { getTenancy, setTenancy, getSetting, setSetting } from '../services/SettingsService.js';
+import { entitlementStatus } from '../services/PatreonService.js';
 
 const router = express.Router();
 
@@ -73,6 +74,7 @@ router.get('/', requireGod, (req, res) => {
     hubIntro: getSetting('hub_intro') || '',
     hubHeroImage: getSetting('hub_hero_image') || '',
     hubHeroOverlay: clampOverlay(getSetting('hub_hero_overlay')),
+    premium: entitlementStatus(),
     success: req.query.success || null,
     error: req.query.error || null,
   });

@@ -3,6 +3,7 @@
   <p><a href="/admin" class="btn">&larr; Beheer</a></p>
 
   <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
+  <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
 
   <section class="set-card">
     <h2>Modus</h2>
@@ -36,6 +37,28 @@
       <button type="submit" class="btn btn-primary">Opslaan</button>
     </form>
   </section>
+
+  <%# Premium (Patreon) — alleen zichtbaar als de self-hoster de premium-laag aanzet
+      (env KLONKT_PREMIUM_ENABLED=on). Standaard onzichtbaar; niets gegate. %>
+  <% if (premium && premium.enabled) { %>
+  <section class="set-card" style="margin-top:1rem">
+    <h2>Premium (Patreon)</h2>
+    <p class="set-help">Ontgrendel de premium-modules (Hub-modus, Statistieken, Fan-login)
+      met je <strong>$10-lifetime</strong> Patreon-steun. De app en alle updates blijven gratis.</p>
+    <% if (premium.premium) { %>
+      <p class="set-help"><strong>✓ Premium actief.</strong>
+        <% if (premium.supportCents) { %>Lifetime-steun: $<%= (premium.supportCents/100).toFixed(2) %>.<% } %></p>
+      <a href="/admin/patreon/disconnect" class="btn">Patreon ontkoppelen</a>
+    <% } else if (premium.connected) { %>
+      <p class="set-help">Patreon gekoppeld, maar nog geen $10 lifetime<% if (premium.supportCents) { %>
+        (nu $<%= (premium.supportCents/100).toFixed(2) %>)<% } %>. Steun de campagne en koppel opnieuw.</p>
+      <a href="/admin/patreon/connect" class="btn btn-primary">Opnieuw koppelen</a>
+    <% } else { %>
+      <p class="set-help">Nog niet gekoppeld.</p>
+      <a href="/admin/patreon/connect" class="btn btn-primary">Koppel Patreon</a>
+    <% } %>
+  </section>
+  <% } %>
 
   <% if (tenancy === 'hub') { %>
   <section class="set-card" style="margin-top:1rem">
