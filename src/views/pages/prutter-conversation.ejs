@@ -86,6 +86,11 @@
 </script>
 
 <style>
+/* De chat is position:fixed (los uit de flow) → de site-footer (met copyright,
+   versie én de "Installeer app"-knop) schemerde erdoorheen in het lege
+   berichtgebied. In de chat hoort die footer niet thuis: verbergen. */
+body:has(.prutter-conv-page) .site-footer { display: none; }
+
 /* ── Full-height chat-layout (mobile-first) ──────────────────────────────
    De pagina is FIXED gepind tussen de topnav (desktop) en de onderste balken
    (bottom-tab + audiospeler), zodat ALLEEN de thread scrollt — niet de hele
