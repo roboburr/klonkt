@@ -102,6 +102,15 @@
     padding-bottom: calc(72px + 80px + env(safe-area-inset-bottom, 0));
   }
 }
+/* Het auth/login-focusscherm rendert GEEN bottom-tab (zie shell.ejs), maar de body
+   houdt wel de has-bottom-tab-class → zonder dit zou de mini-player 56px boven de
+   onderrand zweven boven een niet-bestaande tab. Reset naar bottom:0 (alle breedtes;
+   op desktop is 't sowieso al 0). Robuuste class-selector — geen :has() in deze
+   kritieke regel. */
+body.on-auth .audio-player {
+  bottom: 0;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
 [data-theme="dark"] .audio-player {
   background: color-mix(in srgb, var(--paper, #1a1a1a) 92%, #fff);
   box-shadow: 0 -4px 20px rgba(0,0,0,.3);
