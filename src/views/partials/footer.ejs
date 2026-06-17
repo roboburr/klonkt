@@ -3,6 +3,12 @@
     <div>
       <span>© <%= new Date().getFullYear() %> <%= (site && site.title) || 'Klonkt' %></span>
     </div>
+    <%# Install-app knop — in de footer-rij (midden), bespaart een hele extra rij.
+        JS detecteert platform & opent een modal met PWA-install-stappen. %>
+    <button type="button" class="install-app-btn install-app-btn--footer" data-pcms-install-app>
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 20h14v-2H5v2zm7-18L5.33 9h3.84v6h5.66V9h3.84L12 2z" fill="currentColor"/></svg>
+      <span>Installeer app</span>
+    </button>
     <div class="footer-meta">
       <span>Klonkt Beta<%= (typeof appVersion !== 'undefined' && appVersion) ? ' v' + appVersion : '' %></span>
       <%# Mobile-only theme toggle. On desktop the topnav has its own toggle
@@ -19,14 +25,6 @@
     </div>
   </div>
 
-  <%# Install-app button. JS detects platform & opens a modal with PWA-install
-      steps (iOS share-sheet / Android Chrome / desktop). PWA only — geen APK. %>
-  <div class="site-footer-install container">
-    <button type="button" class="install-app-btn" data-pcms-install-app>
-      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 20h14v-2H5v2zm7-18L5.33 9h3.84v6h5.66V9h3.84L12 2z" fill="currentColor"/></svg>
-      <span>Installeer app</span>
-    </button>
-  </div>
 </footer>
 
 <style>
@@ -101,10 +99,18 @@ body.has-audio-player .site-footer {
   .footer-theme-toggle { display: inline-flex; }
 }
 
-/* Install-app button container — sits centered under the footer-inner row */
-.site-footer-install {
-  display: flex;
-  justify-content: center;
-  margin-top: 1.25rem;
+/* Compacte install-knop ín de footer-rij (midden) i.p.v. een grote losse CTA
+   op een eigen regel — bespaart verticale ruimte. */
+.install-app-btn--footer {
+  flex: 0 0 auto;
+  width: auto !important;          /* override de mobile .install-app-btn width:100% */
+  padding: 0.42rem 0.95rem;
+  font-size: 0.82rem;
+  gap: 0.4rem;
+}
+.install-app-btn--footer svg { width: 15px; height: 15px; }
+/* Op smal scherm: laat de drie items netjes centreren als ze wrappen. */
+@media (max-width: 600px) {
+  .site-footer-inner { justify-content: center; text-align: center; }
 }
 </style>

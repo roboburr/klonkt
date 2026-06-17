@@ -244,6 +244,26 @@ html {
 body {
     margin: 0;
 }
+
+/* ── Thema-scrollbar: slank, afgerond, subtiel — vervangt de standaard chunky
+   browser-scrollbar (met pijltjes) die niet bij het donkere thema past.
+   Werkt op de pagina én op interne scrollers (queue, chat-thread, dropdowns). ── */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--ink) 28%, transparent) transparent;
+}
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+    background-color: color-mix(in srgb, var(--ink) 24%, transparent);
+    border-radius: 999px;
+    border: 2px solid transparent;   /* transparante rand → optisch slanker (≈6px) */
+    background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+    background-color: color-mix(in srgb, var(--accent) 60%, var(--ink));
+}
+::-webkit-scrollbar-corner { background: transparent; }
 body:not(.admin) {
     min-height: 100dvh;
     background: var(--paper); color: var(--ink);
