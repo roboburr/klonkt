@@ -10,10 +10,14 @@
     <fieldset>
       <legend>Identiteit</legend>
       <label>
-        <span>Slug <% if (!isNew) { %><em>(vast)</em><% } %></span>
-        <input type="text" name="slug" value="<%= site.slug %>" required <% if (!isNew) { %>readonly<% } %>
-               pattern="[a-z0-9_-]{2,40}"
-               placeholder="bedrijf1">
+        <span>Slug (URL) <% if (!isNew) { %><em>(vast)</em><% } %></span>
+        <span class="slug-url">
+          <span class="slug-url-host" id="slug-host"
+                data-prefix="<%= (typeof tenancy !== 'undefined' && tenancy === 'hub') ? '/user/' : '/' %>">website.com/</span><input
+                type="text" name="slug" id="slug-input" class="slug-url-input" value="<%= site.slug %>" required <% if (!isNew) { %>readonly<% } %>
+                pattern="[a-z0-9_-]{2,40}" placeholder="jouwslug"
+                autocapitalize="none" autocorrect="off" spellcheck="false">
+        </span>
       </label>
       <label>
         <span>Titel <small class="form-hint-inline">— getoond in de kop en als weergavenaam</small></span>
@@ -266,6 +270,12 @@
 
 <script>
 (function() {
+  // Slug-URL-veld: toon de echte host als gedimde prefix (de slug zelf is
+  // gekleurd via CSS). Hub → host/user/<slug>, anders host/<slug>.
+  var sh = document.getElementById('slug-host');
+  if (sh) sh.textContent = location.host + (sh.dataset.prefix || '/');
+})();
+(function() {
   // Profile-links repeater: add row from <template>, remove on click.
   var rows = document.getElementById('profile-links-rows');
   var tpl  = document.getElementById('profile-link-template');
@@ -401,6 +411,33 @@
 .site-form input[type="color"] { padding: 0.2rem; height: 38px; }
 .site-form textarea { resize: vertical; min-height: 60px; font-family: var(--font-mono, monospace); font-size: 0.85rem; }
 .site-form input[readonly] { opacity: 0.6; cursor: not-allowed; background: var(--paper-2); }
+
+/* Slug als URL-veld: gedimde host-prefix + de slug zelf in de accentkleur. */
+.slug-url {
+  display: flex; align-items: stretch;
+  border: 1px solid var(--rule); border-radius: 5px;
+  background: var(--paper); overflow: hidden;
+  transition: border-color 120ms;
+}
+.slug-url:focus-within { border-color: var(--accent); }
+.slug-url-host {
+  display: inline-flex; align-items: center;
+  padding-left: 0.85rem;
+  color: var(--ink-muted, var(--ink-soft));
+  white-space: nowrap; user-select: none;
+  font-size: 0.95rem;
+}
+.site-form .slug-url-input {
+  flex: 1 1 auto; min-width: 0;
+  border: none !important; border-radius: 0 !important;
+  background: transparent !important;
+  color: var(--accent) !important; font-weight: 700;
+  padding: 0.55rem 0.85rem 0.55rem 0.1rem;
+}
+.site-form .slug-url-input:focus { outline: none; }
+.site-form .slug-url-input[readonly] {
+  opacity: 1; cursor: default; background: transparent !important;
+}
 
 /* Selects: zelfde look als de inputs, met een eigen chevron i.p.v. de kale
    native pijl. De geopende optielijst blijft door de browser gerenderd. */
