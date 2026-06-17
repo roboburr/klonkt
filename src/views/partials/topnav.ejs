@@ -363,9 +363,10 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
   position: absolute; top: calc(100% + .55rem); right: 0;
   min-width: 220px;
   padding: .35rem;
-  background: color-mix(in srgb, var(--paper) 92%, transparent);
-  backdrop-filter: blur(14px) saturate(180%);
-  -webkit-backdrop-filter: blur(14px) saturate(180%);
+  /* Frosted glass: bewust transparanter (was 92%) zodat de blur écht doorkomt. */
+  background: color-mix(in srgb, var(--paper) 66%, transparent);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
   border: 1px solid var(--rule);
   border-radius: 12px;
   box-shadow:
