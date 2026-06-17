@@ -232,14 +232,17 @@
 :root { --accent: #c2410c; --accent-soft: #ea580c; --accent-tint: #fef2e8; }
 
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
+html {
+    -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+    /* Horizontaal clippen op ROOT-niveau: dit propageert naar de viewport (geen
+       horizontale scroll) ZONDER position:fixed te breken — html is sowieso de
+       document-scroller. De body mag GEEN overflow-x krijgen, want dan zou die een
+       tweede scroll-container worden en zou de fixed bottom-tab meeschuiven. */
+    overflow-x: hidden;
+}
 body {
     margin: 0;
-    /* clip i.p.v. hidden: hidden zet overflow-y automatisch op 'auto' → de body
-       wordt een scroll-container → op mobiel schuift position:fixed (bottom-tab)
-       mee bij scrollen. clip clipt horizontaal zonder dat effect. */
-    overflow-x: hidden;   /* fallback oudere browsers */
-    overflow-x: clip;
 }
 body:not(.admin) {
     min-height: 100dvh;
@@ -903,13 +906,9 @@ body.has-audio-player .pcms-main { padding-bottom: 5.5rem; }
         font-size: .9rem;
     }
 
-    /* v9.3 — Forceer niets schuift horizontaal weg.
-       clip i.p.v. hidden: clipt zonder een scroll-container te maken, zodat
-       position:fixed (bottom-tab) niet meeschuift bij scrollen op mobiel. */
-    body, html {
-        overflow-x: hidden;   /* fallback iOS <16 */
-        overflow-x: clip;
-    }
+    /* v9.3 — horizontaal clippen gebeurt nu globaal op html (zie de html-regel
+       bovenaan). Hier bewust NIETS op body zetten: body als scroll-container zou
+       de fixed bottom-tab op mobiel laten meeschuiven. */
 }
 
 /* iPhone 4 / iPhone SE 1st gen / iPhone 5/5s (320px) — strakste niveau */
