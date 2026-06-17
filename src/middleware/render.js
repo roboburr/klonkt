@@ -112,8 +112,15 @@ export async function renderPage(req, res, viewName, data = {}) {
       // setHeader throw ERR_INVALID_CHAR and 500 the partial, so the card
       // looks "unclickable". Escape any non-ASCII to \uXXXX: the header stays
       // ASCII-safe and remains valid JSON that htmx parses back unchanged.
+      // Per-site accent + palette zitten in de shell-<head> (style#pcms-site-accent
+      // + html[data-palette]) en worden NIET mee-geswapt bij htmx-nav. Stuur ze mee
+      // zodat de client ze bijwerkt — anders erft een artiest de kleuren van de
+      // vorige pagina (bv. hub-paars i.p.v. eigen groen). Zelfde afleiding als shell.ejs.
+      const _navAccent = (_site && _site.accent && /^#[0-9a-fA-F]{6}$/.test(_site.accent))
+        ? _site.accent : '#c2410c';
+      const _navPalette = (_site && _site.palette) ? _site.palette : 'sage';
       const triggerJson = JSON.stringify({
-        pcmsNav: { bodyClass: locals.bodyClass },
+        pcmsNav: { bodyClass: locals.bodyClass, accent: _navAccent, palette: _navPalette },
         pcmsPostSwap: data.post ? {
           title: data.post.title,
           slug: data.post.slug,

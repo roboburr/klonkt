@@ -329,7 +329,23 @@ if (typeof post !== 'undefined' && post && post.slug) {
   var PAGE_CLASSES = ['on-home','on-post','on-special','on-archive','on-search','on-admin'];
 
   document.body.addEventListener('pcmsNav', function(ev) {
-    var next = ev.detail && ev.detail.bodyClass;
+    var d = ev.detail || {};
+    // Per-site accent + palette bijwerken (head wordt niet mee-geswapt bij htmx-nav,
+    // dus zonder dit erft een artiest de kleuren van de vorige pagina).
+    if (d.accent && /^#[0-9a-fA-F]{6}$/.test(d.accent)) {
+      var sa = document.getElementById('pcms-site-accent');
+      if (sa) {
+        sa.textContent =
+          ':root,[data-palette]{--accent:' + d.accent +
+          ';--accent-soft:color-mix(in srgb,' + d.accent + ' 80%,white)' +
+          ';--accent-tint:color-mix(in srgb,' + d.accent + ' 12%,transparent);}';
+      }
+    }
+    if (d.palette && /^[a-z0-9-]+$/i.test(d.palette)) {
+      document.documentElement.setAttribute('data-palette', d.palette);
+    }
+
+    var next = d.bodyClass;
     if (!next) return;
     // Server may send a multi-class string ("on-post extra"). Only the first
     // page-class is what we care about — strip and replace.
