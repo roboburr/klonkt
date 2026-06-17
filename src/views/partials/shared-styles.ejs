@@ -5,9 +5,9 @@
 .view-switcher-wrap {
   border-bottom: 1px solid var(--rule);
   background: var(--paper);
-  /* Breathing room: profile-header has padding-bottom 1.5rem already, so a
-     small additional margin-top gives the switcher its own visual layer. */
-  margin-top: 0.5rem;
+  /* Even veel lucht boven als onder de pill-balk (margin-bottom = 1.5rem in
+     style.css). Was 0.5rem → voelde scheef. */
+  margin-top: 1.5rem;
 }
 .view-switcher-wrap .container {
   display: flex; align-items: center; justify-content: center; gap: 0.75rem;
