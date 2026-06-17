@@ -5,9 +5,13 @@
     <div class="hub-nav-inner container">
       <% if (user) { %>
         <% if (typeof canSeeBeheer !== 'undefined' && canSeeBeheer) { %>
-          <a class="hub-nav-link" href="/admin">Beheer</a>
+          <a class="hub-nav-link" href="/admin"
+             hx-get="/admin?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
+             hx-push-url="/admin" hx-indicator="#pcms-loading">Beheer</a>
         <% } %>
-        <a class="hub-nav-link" href="/account"><%= user.username %></a>
+        <a class="hub-nav-link" href="/account"
+           hx-get="/account?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
+           hx-push-url="/account" hx-indicator="#pcms-loading"><%= user.username %></a>
         <a class="hub-nav-link" href="/auth/logout">Uitloggen</a>
       <% } else { %>
         <a class="hub-nav-link" href="/auth/login">Inloggen</a>

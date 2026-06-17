@@ -113,12 +113,16 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
               </div>
             </div>
             <div class="user-dropdown-list">
-              <a href="/account" role="menuitem" class="udi">
+              <a href="/account" role="menuitem" class="udi"
+                 hx-get="/account?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
+                 hx-push-url="/account" hx-indicator="#pcms-loading">
                 <svg class="udi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                 <span>Account</span>
               </a>
               <% if (typeof canSeeBeheer !== 'undefined' && canSeeBeheer) { %>
-                <a href="/admin" role="menuitem" class="udi">
+                <a href="/admin" role="menuitem" class="udi"
+                   hx-get="/admin?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
+                   hx-push-url="/admin" hx-indicator="#pcms-loading">
                   <svg class="udi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3h7v7H3z"/><path d="M14 3h7v7h-7z"/><path d="M14 14h7v7h-7z"/><path d="M3 14h7v7H3z"/></svg>
                   <span>Beheer</span>
                 </a>
