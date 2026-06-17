@@ -172,44 +172,35 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
 
 <script>
 (function() {
-  // Theme toggle (works for both mobile + desktop buttons)
+  // EÉN keer bedraden. Deze chrome (topnav) wordt bij htmx-navigatie out-of-band
+  // opnieuw ingevoegd → zonder deze guard zou dit script bij elke navigatie EXTRA
+  // listeners stapelen, waardoor de thema-toggle 2× (of vaker) vuurde = geen netto
+  // wisseling ("toggle werkt niet meer"). Alles hieronder is event-delegatie op
+  // body/document, dus het werkt ook voor knoppen die ná deze run (OOB) verschijnen.
+  if (window.__pcmsChromeWired) return;
+  window.__pcmsChromeWired = true;
+
   function toggleTheme() {
-    const cur = document.documentElement.getAttribute('data-theme') || 'dark';
-    const next = cur === 'dark' ? 'light' : 'dark';
+    var cur = document.documentElement.getAttribute('data-theme') || 'dark';
+    var next = cur === 'dark' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', next);
     try { localStorage.setItem('pcms-theme', next); } catch (e) {}
   }
-  // Theme toggle — event delegation so it works for ANY button with the
-  // matching ids, even ones rendered later in the page (footer is below
-  // topnav in source order, so getElementById would have returned null
-  // when this IIFE ran).
+  function overlay() { return document.getElementById('search-overlay'); }
+  function openSearch() { var o = overlay(); if (o) { o.hidden = false; var i = o.querySelector('input'); if (i) i.focus(); } }
+  function closeSearch() { var o = overlay(); if (o) o.hidden = true; }
+
   document.body.addEventListener('click', function(e) {
-    const btn = e.target.closest(
-      '#theme-toggle, #theme-toggle-mobile, #theme-toggle-footer'
-    );
-    if (btn) toggleTheme();
-  });
-
-  // Search overlay
-  const overlay = document.getElementById('search-overlay');
-  document.getElementById('search-toggle')?.addEventListener('click', function() {
-    if (overlay) {
-      overlay.hidden = false;
-      const inp = overlay.querySelector('input');
-      if (inp) inp.focus();
-    }
-  });
-  document.getElementById('search-close')?.addEventListener('click', function() {
-    if (overlay) overlay.hidden = true;
-  });
-  document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape' && overlay && !overlay.hidden) overlay.hidden = true;
-  });
-
-  // Close user dropdown on outside click
-  document.addEventListener('click', function(e) {
-    const open = document.querySelector('.user-menu[open]');
+    if (e.target.closest('#theme-toggle, #theme-toggle-mobile, #theme-toggle-footer')) { toggleTheme(); return; }
+    if (e.target.closest('#search-toggle')) { openSearch(); return; }
+    if (e.target.closest('#search-close')) { closeSearch(); return; }
+    // Gebruikersmenu sluiten bij klik erbuiten.
+    var open = document.querySelector('.user-menu[open]');
     if (open && !open.contains(e.target)) open.removeAttribute('open');
+  });
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') { var o = overlay(); if (o && !o.hidden) o.hidden = true; }
   });
 })();
 </script>
