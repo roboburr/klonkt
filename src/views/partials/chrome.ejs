@@ -1,0 +1,21 @@
+<%
+// Site-chrome (topnav + profielkop + view-switcher) in één vaste slot #pcms-chrome.
+//
+// Waarom een slot: bij htmx-navigatie verversen we deze hele chrome out-of-band
+// (oob=true), zodat de kop ALTIJD bij de nieuwe pagina/artiest hoort — terwijl de
+// audioplayer (los in document.body, buiten dit slot) blijft leven → geen
+// verspringen. Op de hub-landing (bareChrome) is het slot leeg: hero = de header.
+//
+// Wordt zowel door shell.ejs (oob niet gezet) als door render.js bij partials
+// (oob=true) gerenderd. bareChrome-logica staat hier zodat beide identiek zijn.
+var _isAdmin = typeof bodyClass === 'string' && bodyClass.indexOf('on-admin') >= 0;
+var bareChrome = (typeof bodyClass === 'string' && (bodyClass.indexOf('on-hub') >= 0 || bodyClass.indexOf('on-auth') >= 0))
+   || ((typeof tenancy !== 'undefined' && tenancy === 'hub') && !siteUrlBase && !_isAdmin);
+%>
+<div id="pcms-chrome"<% if (typeof oob !== 'undefined' && oob) { %> hx-swap-oob="true"<% } %>>
+<% if (!bareChrome) { %>
+  <%- include('topnav') %>
+  <%- include('profile-header') %>
+  <% if (!_isAdmin) { %><%- include('view-switcher') %><% } %>
+<% } %>
+</div>

@@ -121,7 +121,20 @@ export async function renderPage(req, res, viewName, data = {}) {
         } : null,
       }).replace(/[-￿]/g, (ch) => '\\u' + ch.charCodeAt(0).toString(16).padStart(4, '0'));
       res.setHeader('HX-Trigger-After-Settle', triggerJson);
-      return res.send(pageContent);
+      // Site-chrome out-of-band mee-renderen, zodat de kop (topnav/profielkop/
+      // view-switcher) bij navigatie ALTIJD bij de nieuwe pagina/artiest hoort —
+      // terwijl de audioplayer (los in document.body) blijft leven (geen
+      // verspringen). htmx vervangt #pcms-chrome via hx-swap-oob. Niet kritisch:
+      // faalt 't, dan blijft de oude chrome staan (geen crash).
+      let oobChrome = '';
+      try {
+        oobChrome = await ejs.renderFile(
+          path.join(VIEWS_DIR, 'partials', 'chrome.ejs'),
+          { ...locals, oob: true },
+          { async: false },
+        );
+      } catch (e) { /* chrome-OOB overslaan */ }
+      return res.send(pageContent + oobChrome);
     }
 
     // Full: wrap content in shell

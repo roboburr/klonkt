@@ -262,32 +262,12 @@ if (typeof post !== 'undefined' && post && post.slug) {
   </style>
 <% } %>
 
-<%# Geen shell-chrome (masthead/profile-header/view-switcher/bottom-tab) op:
-    - de hub-overview (on-hub): standalone landing, begint met de hero;
-    - auth-pagina's (on-auth): focus-schermen voor in-/uitloggen.
-    Die chrome hoort bij een Klonkt-site en verschijnt dus op /user/-pagina's. %>
-<% var _isHub  = (typeof tenancy !== 'undefined' && tenancy === 'hub'); %>
-<% var _onAuth = (typeof bodyClass === 'string' && bodyClass.indexOf('on-auth') >= 0); %>
-<% var bareChrome = (typeof bodyClass === 'string' && (bodyClass.indexOf('on-hub') >= 0 || bodyClass.indexOf('on-auth') >= 0))
-     || (_isHub && !siteUrlBase && !isAdminPage); %>
-<%# In HUB-modus de chrome ALTIJD renderen (CSS verbergt 'm op de hub-landing via
-    body.on-hub) zodat htmx tussen hub-home en artiest-sites kan schakelen zónder
-    full-reload → de audioplayer blijft leven, geen verspringen. profile-header
-    self-hidet als er geen site is. Solo/circle: ongewijzigd (!bareChrome). %>
-<% var renderChrome = _isHub ? !_onAuth : !bareChrome; %>
-
-<% if (renderChrome) { %>
-  <%- include('partials/topnav') %>
-  <%- include('partials/profile-header') %>
-<% } %>
-
-<%# View switcher — visible on every non-admin page. On feed pages
-    (home, archive, tag, type, user) it toggles the visual layout;
-    on non-feed pages (post, account, search, auth) it navigates to /
-    in the chosen view. Click logic is in shell.ejs at the bottom. %>
-<% if (!isAdminPage && renderChrome) { %>
-  <%- include('partials/view-switcher') %>
-<% } %>
+<%# Site-chrome (topnav + profielkop + view-switcher) in één vaste slot #pcms-chrome.
+    Bij htmx-navigatie wordt dit slot out-of-band ververst (zie chrome.ejs +
+    render.js), zodat de kop ALTIJD bij de nieuwe pagina/artiest hoort terwijl de
+    audioplayer (los in document.body) blijft leven → geen verspringen. Op de
+    hub-landing is het slot leeg: de hero is daar de header. %>
+<%- include('partials/chrome') %>
 
 <%# hx-history-elt scopes HTMX history snapshots to #pcms-main only, so
     when the user navigates back the switcher (which lives in the shell
@@ -359,10 +339,6 @@ if (typeof post !== 'undefined' && post && post.slug) {
     if (!firstClass) return;
     PAGE_CLASSES.forEach(function(c) { document.body.classList.remove(c); });
     document.body.classList.add(firstClass);
-    // 'on-hub' is een modifier náást de page-class: apart toggelen zodat de
-    // hub-chrome (topnav/view-switcher) via CSS mee-schakelt bij htmx-navigatie
-    // tussen hub-home (on-hub) en artiest-sites (geen on-hub).
-    document.body.classList.toggle('on-hub', /(^|\s)on-hub(\s|$)/.test(String(next)));
   });
 })();
 </script>
