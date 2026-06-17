@@ -824,14 +824,14 @@ body.tp-locked { overflow: hidden; touch-action: none; }
 }
 .pe-actions-spacer { flex: 1; }
 
-/* Alleen op mobiel staat de bottom-tab in beeld → daar de sticky footer eroverheen
-   tillen. Op desktop bestaat de bottom-tab niet (CSS-hidden), dus de balk hoort
-   gewoon op bottom:0 — anders zweeft 'ie 64px boven de onderrand. */
-@media (max-width: 767px) {
-  body.has-bottom-tab .pe-actions {
-    bottom: calc(56px + env(safe-area-inset-bottom, 0));
-  }
-}
+/* De editor is een focus-scherm: verberg de mobiele site-tabbalk (Home/Zoek/…)
+   zodat er niet twee balken onderaan stapelen (Opslaan-balk + tabbalk). De
+   Opslaan/Annuleren-balk wordt dan de enige onderbalk → gewoon op bottom:0,
+   geen tab-offset meer nodig. Op desktop is de tabbalk toch al verborgen. */
+body:has(.post-edit-page) .bottom-tab { display: none; }
+/* Audiospeler (indien aan het spelen) niet meer 56px optillen voor de nu-verborgen
+   tabbalk, anders zou die zweven boven de actiebalk. */
+body:has(.post-edit-page) .audio-player { bottom: 0; }
 </style>
 
 <script>
