@@ -5,15 +5,17 @@
 .view-switcher-wrap {
   border-bottom: 1px solid var(--rule);
   background: var(--paper);
-  /* Strakke ruimte (8px) tussen de profielkop-streep en de pills — bewust klein
-     zodat de pills aansluiten op de lijn. De grotere margin-bottom (1.5rem in
-     style.css) is lucht naar de feed; dat hoort niet symmetrisch te zijn. */
-  margin-top: 0.5rem;
+  /* Geen extra margin-top: de pill wordt zo gecentreerd tussen de profielkop-
+     streep (boven) en de eigen border (onder). De gelijke lucht boven/onder de
+     pill komt uit de symmetrische container-padding hieronder. De margin-bottom
+     (1.5rem in style.css) blijft lucht naar de feed. */
+  margin-top: 0;
 }
 .view-switcher-wrap .container {
   display: flex; align-items: center; justify-content: center; gap: 0.75rem;
-  /* Slimmer bar: was 0.4rem (≈12px total chrome above pill); now 0.25rem. */
-  padding: 0.25rem 1rem;
+  /* Symmetrische padding → even veel lucht boven als onder de pill (≈8px),
+     gecentreerd tussen de twee lijnen. */
+  padding: 0.5rem 1rem;
   max-width: 1200px; margin: 0 auto;
   flex-wrap: wrap;
 }
