@@ -44,6 +44,9 @@
 </div>
 
 <style>
+/* Geen site-footer in Prutter (ook niet op de inbox) — net als de chat. */
+body:has(.prutter-inbox-page) .site-footer { display: none; }
+
 .prutter-inbox-page { max-width: 720px; margin: 3rem auto; padding: 0 1rem; }
 .prutter-header h1 {
   font-family: var(--font-display, serif);
