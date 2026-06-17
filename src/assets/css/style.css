@@ -2023,8 +2023,9 @@ body.search-open { overflow: hidden; }
 .view-switcher-wrap {
     border-bottom: 1px solid var(--rule);
     background: var(--paper);
-    /* Bottom margin gives breathing room between the switcher bar and the
-       first post — without it the feed sits flush against the bar. */
+    /* Even veel lucht boven als onder de pill-balk (was scheef: ~8px boven /
+       24px onder). Symmetrisch oogt rustiger. */
+    margin-top: 1.5rem;
     margin-bottom: 1.5rem;
 }
 .view-switcher {
