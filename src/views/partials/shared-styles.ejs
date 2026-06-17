@@ -5,9 +5,10 @@
 .view-switcher-wrap {
   border-bottom: 1px solid var(--rule);
   background: var(--paper);
-  /* Even veel lucht boven als onder de pill-balk (margin-bottom = 1.5rem in
-     style.css). Was 0.5rem → voelde scheef. */
-  margin-top: 1.5rem;
+  /* Strakke ruimte (8px) tussen de profielkop-streep en de pills — bewust klein
+     zodat de pills aansluiten op de lijn. De grotere margin-bottom (1.5rem in
+     style.css) is lucht naar de feed; dat hoort niet symmetrisch te zijn. */
+  margin-top: 0.5rem;
 }
 .view-switcher-wrap .container {
   display: flex; align-items: center; justify-content: center; gap: 0.75rem;
