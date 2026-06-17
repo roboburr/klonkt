@@ -1,20 +1,20 @@
-<div class="container prutter-conv-page" data-conversation-id="<%= conversation.id %>" data-me="<%= user.id %>">
+<div class="prutter-conv-page" data-conversation-id="<%= conversation.id %>" data-me="<%= user.id %>">
   <header class="prutter-conv-header">
-    <p class="prutter-back"><a href="<%= siteUrlBase %>/prutter">&larr; Inbox</a></p>
-    <div class="prutter-conv-headline">
-      <div class="prutter-conv-avatar prutter-conv-avatar--lg">
-        <% if (other && other.avatar_url) { %>
-          <img src="<%= other.avatar_url %>" alt="">
-        <% } else { %>
-          <span><%= (other && other.username || '?').charAt(0).toUpperCase() %></span>
-        <% } %>
-      </div>
-      <div>
-        <h1><%= other ? other.username : 'Unknown' %></h1>
-        <% if (other) { %>
-          <p class="prutter-conv-sub"><a href="/users/<%= encodeURIComponent(other.username) %>">View profile</a></p>
-        <% } %>
-      </div>
+    <a class="prutter-back" href="<%= siteUrlBase %>/prutter" aria-label="Terug naar inbox" title="Inbox">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+    </a>
+    <div class="prutter-conv-avatar">
+      <% if (other && other.avatar_url) { %>
+        <img src="<%= other.avatar_url %>" alt="">
+      <% } else { %>
+        <span><%= (other && other.username || '?').charAt(0).toUpperCase() %></span>
+      <% } %>
+    </div>
+    <div class="prutter-conv-id">
+      <span class="prutter-conv-name"><%= other ? other.username : 'Onbekend' %></span>
+      <% if (other) { %>
+        <a class="prutter-conv-sub" href="/users/<%= encodeURIComponent(other.username) %>">Bekijk profiel</a>
+      <% } %>
     </div>
   </header>
 
@@ -34,8 +34,8 @@
         hx-target="#prutter-thread"
         hx-swap="beforeend"
         hx-on::after-request="this.querySelector('textarea').value=''; window.__prutterScroll && window.__prutterScroll();">
-    <textarea name="content" rows="2" maxlength="2000" placeholder="Type a message…" required></textarea>
-    <button type="submit" class="btn btn-primary">Send</button>
+    <textarea name="content" rows="1" maxlength="2000" placeholder="Bericht…" required></textarea>
+    <button type="submit" class="btn btn-primary">Stuur</button>
   </form>
 </div>
 
@@ -86,36 +86,77 @@
 </script>
 
 <style>
-.prutter-conv-page { max-width: 720px; margin: 2rem auto; padding: 0 1rem; display: flex; flex-direction: column; gap: 1rem; }
-.prutter-back { margin: 0; }
-.prutter-back a { color: var(--accent); text-decoration: none; }
-
-.prutter-conv-headline {
-  display: flex; align-items: center; gap: 0.85rem;
-  padding-bottom: 1rem; border-bottom: 1px solid var(--rule);
+/* ── Full-height chat-layout (mobile-first) ──────────────────────────────
+   De pagina is FIXED gepind tussen de topnav (desktop) en de onderste balken
+   (bottom-tab + audiospeler), zodat ALLEEN de thread scrollt — niet de hele
+   pagina. De offsets volgen de body-classes has-bottom-tab/has-audio-player,
+   dus de composer valt nooit achter een balk. */
+.prutter-conv-page {
+  position: fixed;
+  left: 0; right: 0;
+  top: 0;                 /* mobiel: masthead is verborgen → vanaf de top */
+  bottom: 0;
+  max-width: 760px; margin: 0 auto;
+  display: flex; flex-direction: column;
+  padding: 0.5rem 0.75rem;
+  z-index: 1;
 }
-.prutter-conv-headline h1 {
-  font-family: var(--font-display, serif);
-  font-size: 1.5rem; margin: 0;
+/* Desktop: de sticky masthead staat erboven → begin eronder. */
+@media (min-width: 768px) {
+  .prutter-conv-page { top: 64px; padding: 0.75rem 1rem; }
 }
-.prutter-conv-sub { margin: 0; font-size: 0.85rem; color: var(--ink-muted, var(--ink-soft)); }
-.prutter-conv-sub a { color: var(--accent); }
+/* Onderste vrije ruimte = de balken die de viewport-bodem overlappen. */
+@media (max-width: 767px) {
+  body.has-bottom-tab .prutter-conv-page { bottom: calc(56px + env(safe-area-inset-bottom, 0)); }
+}
+body.has-audio-player .prutter-conv-page { bottom: calc(76px + env(safe-area-inset-bottom, 0)); }
+@media (max-width: 767px) {
+  body.has-bottom-tab.has-audio-player .prutter-conv-page { bottom: calc(56px + 76px + env(safe-area-inset-bottom, 0)); }
+}
 
-.prutter-conv-avatar--lg { width: 56px; height: 56px; }
-.prutter-conv-avatar--lg span { font-size: 1.2rem; }
+/* Compacte chat-kop: terug-pijl + avatar + naam op één regel. */
+.prutter-conv-header {
+  flex: 0 0 auto;
+  display: flex; align-items: center; gap: 0.65rem;
+  padding-bottom: 0.6rem; margin-bottom: 0.5rem;
+  border-bottom: 1px solid var(--rule);
+}
+.prutter-back {
+  flex: 0 0 auto;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; border-radius: 8px;
+  color: var(--ink); text-decoration: none;
+}
+.prutter-back:hover { color: var(--accent); background: var(--paper-2); }
+.prutter-back svg { width: 20px; height: 20px; }
+.prutter-conv-avatar {
+  flex: 0 0 auto;
+  width: 40px; height: 40px; border-radius: 50%;
+  overflow: hidden; background: var(--paper-2);
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--accent); font-weight: 700;
+}
+.prutter-conv-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.prutter-conv-id { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+.prutter-conv-name {
+  font-family: var(--font-display, serif); font-size: 1.15rem; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.prutter-conv-sub { font-size: 0.78rem; color: var(--ink-muted, var(--ink-soft)); text-decoration: none; }
+.prutter-conv-sub:hover { color: var(--accent); }
 
+/* De ENIGE scroller. min-height:0 is cruciaal in een flex-kolom, anders
+   groeit de lijst i.p.v. te scrollen. */
 .prutter-thread {
-  list-style: none; padding: 0; margin: 0;
-  display: flex; flex-direction: column; gap: 0.5rem;
-  background: var(--paper-2);
-  border: 1px solid var(--rule);
-  border-radius: 8px;
-  padding: 1rem;
-  height: 60vh;
-  overflow-y: auto;
+  flex: 1 1 auto; min-height: 0;
+  list-style: none; margin: 0;
+  display: flex; flex-direction: column; gap: 0.4rem;
+  padding: 0.25rem 0.1rem 0.5rem;
+  overflow-y: auto; overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
-.prutter-msg { display: flex; flex-direction: column; max-width: 80%; }
+.prutter-msg { display: flex; flex-direction: column; max-width: 82%; }
 .prutter-msg-bubble {
   padding: 0.55rem 0.85rem;
   border-radius: 14px;
@@ -147,19 +188,23 @@
 .prutter-msg--mine .prutter-msg-time { padding-right: 0.5rem; }
 
 .prutter-composer {
+  flex: 0 0 auto;
   display: flex; gap: 0.5rem; align-items: flex-end;
-  padding-bottom: env(safe-area-inset-bottom, 0);
+  padding-top: 0.6rem; margin-top: 0.25rem;
+  border-top: 1px solid var(--rule);
 }
 .prutter-composer textarea {
   flex: 1;
-  padding: 0.6rem 0.85rem;
+  padding: 0.65rem 0.85rem;
   border: 1px solid var(--rule);
-  border-radius: 8px;
+  border-radius: 12px;
   background: var(--paper);
   color: var(--ink);
   font-family: inherit;
-  font-size: 0.95rem;
-  resize: vertical;
-  min-height: 44px;
+  font-size: 1rem;            /* ≥16px → iOS zoomt niet in bij focus */
+  line-height: 1.35;
+  resize: none;
+  min-height: 44px; max-height: 40vh;
 }
+.prutter-composer .btn { flex: 0 0 auto; min-height: 44px; }
 </style>

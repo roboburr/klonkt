@@ -7,15 +7,25 @@
 // verspringen. Op de hub-landing (bareChrome) is het slot leeg: hero = de header.
 //
 // Wordt zowel door shell.ejs (oob niet gezet) als door render.js bij partials
-// (oob=true) gerenderd. bareChrome-logica staat hier zodat beide identiek zijn.
-var _isAdmin = typeof bodyClass === 'string' && bodyClass.indexOf('on-admin') >= 0;
-var bareChrome = (typeof bodyClass === 'string' && (bodyClass.indexOf('on-hub') >= 0 || bodyClass.indexOf('on-auth') >= 0))
+// (oob=true) gerenderd. De logica staat hier zodat beide identiek zijn.
+//
+//   _isAuth     → focus-scherm (in/uitloggen): helemaal geen chrome.
+//   _headerless → hub-homepagina én de Prutter-chat: WÉL de mini topnav-balk,
+//                 GEEN profielkop (hub: hero = header; chat: full-height view).
+//   anders      → topnav + profielkop (+ view-switcher buiten admin).
+var _isAdmin   = typeof bodyClass === 'string' && bodyClass.indexOf('on-admin') >= 0;
+var _isAuth    = typeof bodyClass === 'string' && bodyClass.indexOf('on-auth') >= 0;
+var _isChat    = typeof bodyClass === 'string' && bodyClass.indexOf('on-chat') >= 0;
+var hubLanding = (typeof bodyClass === 'string' && bodyClass.indexOf('on-hub') >= 0)
    || ((typeof tenancy !== 'undefined' && tenancy === 'hub') && !siteUrlBase && !_isAdmin);
+var _headerless = hubLanding || _isChat;
 %>
 <div id="pcms-chrome"<% if (typeof oob !== 'undefined' && oob) { %> hx-swap-oob="true"<% } %>>
-<% if (!bareChrome) { %>
+<% if (!_isAuth) { %>
   <%- include('topnav') %>
-  <%- include('profile-header') %>
-  <% if (!_isAdmin) { %><%- include('view-switcher') %><% } %>
+  <% if (!_headerless) { %>
+    <%- include('profile-header') %>
+    <% if (!_isAdmin) { %><%- include('view-switcher') %><% } %>
+  <% } %>
 <% } %>
 </div>

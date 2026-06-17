@@ -418,6 +418,61 @@ if (typeof post !== 'undefined' && post && post.slug) {
 })();
 </script>
 
+<!-- Globale link-boost: alle interne navigatie-links lopen via htmx in #pcms-main,
+     zodat de audioplayer (los in document.body) blijft spelen i.p.v. te verspringen
+     bij een full page-load. Werkt overal — Beheer, Account, posts, sites — zonder
+     elke link los htmx te maken. Links die écht een volledige load nodig hebben
+     (uitloggen/auth, downloads, feeds, media, assets, bestanden) worden overgeslagen,
+     net als links die al hun eigen hx-* hebben. -->
+<script>
+(function () {
+  if (!window.htmx) return;
+  // Back/forward moet her-ophalen, zodat de OOB-site-chrome (kop) meekomt met de
+  // herstelde pagina — htmx' snapshot-cache zou anders een stale kop tonen.
+  try { window.htmx.config.historyCacheSize = 0; } catch (_) {}
+
+  function fullLoad(a, url) {
+    if (a.hasAttribute('download') || a.hasAttribute('data-full-load')) return true;
+    if (a.hasAttribute('hx-get') || a.hasAttribute('hx-post') || a.hasAttribute('hx-boost')) return true;
+    if (a.target && a.target !== '_self') return true;
+    if (a.getAttribute('rel') === 'external') return true;
+    var p = url.pathname;
+    // Sessie/security/oauth → volledige navigatie (cookies, redirects).
+    if (/^\/(logout|login|auth|oauth)(?:\/|$)/.test(p)) return true;
+    // Feeds, PWA, service-worker, statics, media-streams, downloads.
+    if (/^\/(feed|atom|sitemap|manifest|robots|sw\.js|assets|media|audio|uploads)(?:\/|\.|$)/.test(p)) return true;
+    if (/\.[a-z0-9]{2,5}$/i.test(p)) return true; // bestandsextensie → laat de browser 't halen
+    return false;
+  }
+
+  var lastPath = location.pathname + location.search;
+
+  document.addEventListener('click', function (e) {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    var a = e.target.closest('a[href]');
+    if (!a) return;
+    var href = a.getAttribute('href');
+    if (!href || href.charAt(0) === '#') return;
+    var url; try { url = new URL(a.href, location.href); } catch (_) { return; }
+    if (url.origin !== location.origin) return;
+    if (fullLoad(a, url)) return;
+    e.preventDefault();
+    var dest = url.pathname + url.search;
+    if (dest !== lastPath) history.pushState({ b: 1 }, '', dest);
+    lastPath = dest;
+    window.htmx.ajax('GET', dest, { target: '#pcms-main', swap: 'innerHTML' });
+    try { window.scrollTo(0, 0); } catch (_) {}
+  });
+
+  window.addEventListener('popstate', function () {
+    var here = location.pathname + location.search;
+    if (here === lastPath) return;
+    lastPath = here;
+    window.htmx.ajax('GET', here, { target: '#pcms-main', swap: 'innerHTML' });
+  });
+})();
+</script>
+
 <!-- PWA install prompt — show button when browser fires beforeinstallprompt -->
 <script>
 (function() {

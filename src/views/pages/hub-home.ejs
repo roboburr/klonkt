@@ -1,25 +1,7 @@
 <div class="hub<%= hub.heroImage ? ' hub--img' : '' %>">
 
-  <%# ── Minimale nav (alleen auth) — over de hero, geen brand/switcher ── %>
-  <nav class="hub-nav">
-    <div class="hub-nav-inner container">
-      <% if (user) { %>
-        <% if (typeof canSeeBeheer !== 'undefined' && canSeeBeheer) { %>
-          <a class="hub-nav-link" href="/admin"
-             hx-get="/admin?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
-             hx-push-url="/admin" hx-indicator="#pcms-loading">Beheer</a>
-        <% } %>
-        <a class="hub-nav-link" href="/account"
-           hx-get="/account?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
-           hx-push-url="/account" hx-indicator="#pcms-loading"><%= user.username %></a>
-        <a class="hub-nav-link" href="/auth/logout">Uitloggen</a>
-      <% } else { %>
-        <a class="hub-nav-link" href="/auth/login">Inloggen</a>
-      <% } %>
-    </div>
-  </nav>
-
-  <%# ── HERO (label) — de pagina begint hier, geen header erboven ────── %>
+  <%# ── HERO (label) — de mini topnav-balk staat erboven (chrome.ejs);
+        de hero zelf is de "grote" header van de hub-home ──────────────── %>
   <header class="hub-hero<%= hub.heroImage ? ' has-img' : '' %>"<% if (hub.heroImage) { %> style="--hero-img:url('<%= hub.heroImage %>'); --hero-ov:<%= ((hub.heroOverlay == null ? 45 : hub.heroOverlay)/100).toFixed(2) %>"<% } %>>
     <div class="hub-hero-inner container">
       <h1 class="hub-hero-title"><%= hub.title %></h1>

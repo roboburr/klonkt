@@ -111,7 +111,9 @@ router.get('/:id', requirePrutter, (req, res) => {
 
   renderPage(req, res, 'pages/prutter-conversation', {
     pageTitle: 'Prutter — ' + (other?.username || ''),
-    bodyClass: 'on-special',
+    // on-chat → full-height chat-view (geen artiest-profielkop, alleen de thread
+    // scrollt). Zie chrome.ejs (_headerless) + de page-CSS hieronder.
+    bodyClass: 'on-special on-chat',
     conversation: conv,
     other,
     messages,
