@@ -264,6 +264,11 @@ body {
     background-color: color-mix(in srgb, var(--accent) 60%, var(--ink));
 }
 ::-webkit-scrollbar-corner { background: transparent; }
+
+/* Login/auth = focus-scherm. Bij htmx-navigatie naar login blijft de bottom-tab
+   uit de vorige pagina in de DOM staan → hier verbergen zodat het login-scherm
+   net zo "kaal" is als bij een full-load (waar de tab niet eens gerenderd wordt). */
+body.on-auth .bottom-tab { display: none; }
 body:not(.admin) {
     min-height: 100dvh;
     background: var(--paper); color: var(--ink);

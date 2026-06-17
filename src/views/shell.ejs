@@ -162,7 +162,7 @@ if (typeof post !== 'undefined' && post && post.slug) {
 <link rel="preload" href="/assets/fonts/fraunces-latin-full-normal.woff2" as="font" type="font/woff2" crossorigin>
 
 <!-- v9 stylesheet (full palette system) -->
-<link rel="stylesheet" href="/assets/css/style.css?v=8">
+<link rel="stylesheet" href="/assets/css/style.css?v=9">
 
 <!-- Audio player styles: loaded on every page so the mini-player works
      anywhere (admin previews, post embeds, etc). The player itself is
@@ -324,9 +324,10 @@ if (typeof post !== 'undefined' && post && post.slug) {
      never collapses/expands when navigating home → post → home via HTMX. -->
 <script>
 (function() {
-  // The set of mutually-exclusive page-context body classes. When pcmsNav
-  // fires we strip ALL of these and apply just the one the server told us.
-  var PAGE_CLASSES = ['on-home','on-post','on-special','on-archive','on-search','on-admin'];
+  // De page-context body-classes. Bij pcmsNav strippen we ze allemaal en zetten
+  // we opnieuw wat de server stuurde. 'on-auth' staat erbij zodat het login-
+  // focusscherm óók via htmx z'n styling krijgt (geen chrome, geen tab, audio op 0).
+  var PAGE_CLASSES = ['on-home','on-post','on-special','on-archive','on-search','on-admin','on-auth'];
 
   document.body.addEventListener('pcmsNav', function(ev) {
     var d = ev.detail || {};
@@ -347,14 +348,16 @@ if (typeof post !== 'undefined' && post && post.slug) {
 
     var next = d.bodyClass;
     if (!next) return;
-    // Server may send a multi-class string ("on-post extra"). Only the first
-    // page-class is what we care about — strip and replace.
-    var firstClass = String(next).split(/\s+/).find(function(c) {
+    // De server kan meerdere page-classes sturen ("on-special on-auth"). Strip
+    // alle bekende en zet ALLE meegestuurde page-classes terug (niet alleen de
+    // eerste) — anders mist 'on-auth' bij htmx-nav en blijft het login-scherm
+    // de chrome/tab van de vorige pagina houden.
+    var matched = String(next).split(/\s+/).filter(function(c) {
       return PAGE_CLASSES.indexOf(c) >= 0;
     });
-    if (!firstClass) return;
+    if (!matched.length) return;
     PAGE_CLASSES.forEach(function(c) { document.body.classList.remove(c); });
-    document.body.classList.add(firstClass);
+    matched.forEach(function(c) { document.body.classList.add(c); });
   });
 })();
 </script>

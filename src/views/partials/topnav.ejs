@@ -146,7 +146,9 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
           </div>
         </details>
       <% } else { %>
-        <a class="nav-link" href="/auth/login">
+        <a class="nav-link" href="/auth/login"
+           hx-get="/auth/login?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
+           hx-push-url="/auth/login" hx-indicator="#pcms-loading">
           <span class="nav-label">Inloggen</span>
         </a>
       <% } %>
