@@ -235,7 +235,11 @@
 html { -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
 body {
     margin: 0;
-    overflow-x: hidden;
+    /* clip i.p.v. hidden: hidden zet overflow-y automatisch op 'auto' → de body
+       wordt een scroll-container → op mobiel schuift position:fixed (bottom-tab)
+       mee bij scrollen. clip clipt horizontaal zonder dat effect. */
+    overflow-x: hidden;   /* fallback oudere browsers */
+    overflow-x: clip;
 }
 body:not(.admin) {
     min-height: 100dvh;
@@ -899,9 +903,12 @@ body.has-audio-player .pcms-main { padding-bottom: 5.5rem; }
         font-size: .9rem;
     }
 
-    /* v9.3 — Forceer niets schuift horizontaal weg */
+    /* v9.3 — Forceer niets schuift horizontaal weg.
+       clip i.p.v. hidden: clipt zonder een scroll-container te maken, zodat
+       position:fixed (bottom-tab) niet meeschuift bij scrollen op mobiel. */
     body, html {
-        overflow-x: hidden;
+        overflow-x: hidden;   /* fallback iOS <16 */
+        overflow-x: clip;
     }
 }
 
