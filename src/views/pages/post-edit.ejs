@@ -155,10 +155,11 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
       <div class="pe-row pe-row-2">
         <label class="pe-field">
           <span>Status</span>
+          <% var _st = isNew ? 'published' : (post.status || 'draft'); %>
           <select name="status">
-            <option value="draft"     <%= post.status === 'draft'     ? 'selected' : '' %>>Draft</option>
-            <option value="published" <%= post.status === 'published' ? 'selected' : '' %>>Published</option>
-            <option value="archived"  <%= post.status === 'archived'  ? 'selected' : '' %>>Archived</option>
+            <option value="published" <%= _st === 'published' ? 'selected' : '' %>>Gepubliceerd</option>
+            <option value="draft"     <%= _st === 'draft'     ? 'selected' : '' %>>Concept</option>
+            <option value="archived"  <%= _st === 'archived'  ? 'selected' : '' %>>Gearchiveerd</option>
           </select>
         </label>
         <label class="pe-field">
@@ -173,14 +174,20 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
         </label>
       </div>
       <div class="pe-checkboxes">
-        <label class="pe-pinned-rank">
-          <span>📌 Pinned rank</span>
-          <input type="number" name="pinned" min="0" step="1"
-                 inputmode="numeric" pattern="[0-9]*"
-                 value="<%= post.pinned || 0 %>"
-                 title="0 = niet pinned. 1 = bovenaan, 2 = daaronder, etc.">
-          <small>0 = niet pinned · 1 = bovenaan · 2 daaronder · …</small>
-        </label>
+        <div class="pe-pin">
+          <label class="pe-checkbox">
+            <input type="checkbox" id="pin-toggle" <%= (Number(post.pinned) > 0) ? 'checked' : '' %>>
+            <span>📌 Vastpinnen bovenaan</span>
+          </label>
+          <input type="hidden" name="pinned" id="pin-rank" value="<%= post.pinned || 0 %>">
+          <div class="pe-pin-pos" id="pin-pos" <%= (Number(post.pinned) > 0) ? '' : 'hidden' %>>
+            <span class="pe-pin-steps">
+              <button type="button" class="pe-pin-btn" id="pin-up" aria-label="Hoger zetten">▲</button>
+              <button type="button" class="pe-pin-btn" id="pin-down" aria-label="Lager zetten">▼</button>
+            </span>
+            <span class="pe-pin-label" id="pin-label"></span>
+          </div>
+        </div>
         <label class="pe-checkbox">
           <input type="checkbox" name="noindex" value="1" <%= post.noindex ? 'checked' : '' %>>
           <span>🚫 noindex (verberg voor zoekmachines)</span>
@@ -785,31 +792,21 @@ body.tp-locked { overflow: hidden; touch-action: none; }
   accent-color: var(--accent);
 }
 
-/* Pinned rank: replaces the old boolean checkbox with a number input.
-   Stack the label / input / hint vertically — small footprint. */
-.pe-pinned-rank {
-  display: flex; flex-direction: column; gap: 0.25rem;
-  font-size: 0.95rem;
-  color: var(--ink);
+/* Vastpinnen: checkbox + ▲▼-stepper met beschrijving (i.p.v. een ruw rang-getal). */
+.pe-pin { display: flex; flex-direction: column; gap: 0.45rem; }
+.pe-pin-pos { display: flex; align-items: center; gap: 0.55rem; padding-left: 1.65rem; }
+.pe-pin-pos[hidden] { display: none; }
+.pe-pin-steps { display: inline-flex; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+.pe-pin-btn {
+  width: 30px; height: 28px; padding: 0;
+  border: none; background: var(--paper-2); color: var(--ink);
+  cursor: pointer; font-size: 0.68rem; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
 }
-.pe-pinned-rank input[type="number"] {
-  width: 80px;
-  padding: 0.4rem 0.6rem; min-height: 36px;
-  border: 1px solid var(--rule); border-radius: 6px;
-  background: var(--paper-2); color: var(--ink);
-  font-family: var(--font-ui, system-ui), sans-serif;
-  font-size: 0.95rem;
-  font-variant-numeric: tabular-nums;
-  -webkit-appearance: none; appearance: textfield;
-}
-.pe-pinned-rank input[type="number"]:focus {
-  outline: 2px solid var(--accent); outline-offset: -1px;
-  border-color: var(--accent);
-}
-.pe-pinned-rank small {
-  font-size: 0.78rem;
-  color: var(--ink-muted, var(--ink-soft));
-}
+.pe-pin-btn + .pe-pin-btn { border-left: 1px solid var(--rule); }
+.pe-pin-btn:hover { background: color-mix(in srgb, var(--accent) 14%, var(--paper-2)); color: var(--accent); }
+.pe-pin-btn:disabled { opacity: 0.35; cursor: default; }
+.pe-pin-label { font-size: 0.85rem; color: var(--accent); font-weight: 600; }
 
 /* ─── Sticky action footer ──────────────────────────────────────── */
 .pe-actions {
@@ -1379,3 +1376,35 @@ body.has-bottom-tab .pe-actions {
 <% if (typeof user !== 'undefined' && user) { %>
   <%- include('../partials/playlist-editor', { csrfToken: (typeof csrfToken !== 'undefined' ? csrfToken : '') }) %>
 <% } %>
+
+<script>
+(function () {
+  // Vastpinnen: checkbox toggelt het verborgen rang-veld (0 = niet gepind),
+  // ▲▼ verschuift de plek, met een leesbare beschrijving i.p.v. een ruw getal.
+  var toggle = document.getElementById('pin-toggle');
+  var rank   = document.getElementById('pin-rank');
+  var pos    = document.getElementById('pin-pos');
+  var label  = document.getElementById('pin-label');
+  var up     = document.getElementById('pin-up');    // hoger = lager getal (richting 1/bovenaan)
+  var down   = document.getElementById('pin-down');
+  if (!toggle || !rank || !pos) return;
+
+  function descr(n) {
+    n = Number(n) || 0;
+    if (n <= 1) return 'bovenaan';
+    return n + 'e van boven';
+  }
+  function render() {
+    var on = toggle.checked;
+    pos.hidden = !on;
+    if (on && Number(rank.value) < 1) rank.value = 1;
+    if (!on) rank.value = 0;
+    if (label) label.textContent = on ? descr(rank.value) : '';
+    if (up) up.disabled = Number(rank.value) <= 1;
+  }
+  toggle.addEventListener('change', render);
+  if (up)   up.addEventListener('click', function () { rank.value = Math.max(1, (Number(rank.value) || 1) - 1); render(); });
+  if (down) down.addEventListener('click', function () { rank.value = (Number(rank.value) || 0) + 1; render(); });
+  render();
+})();
+</script>
