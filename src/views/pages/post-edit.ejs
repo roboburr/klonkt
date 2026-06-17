@@ -824,10 +824,13 @@ body.tp-locked { overflow: hidden; touch-action: none; }
 }
 .pe-actions-spacer { flex: 1; }
 
-/* On a body that already has a fixed bottom-tab nav (mobile), nudge the
-   sticky footer up so it doesn't sit under it. The bottom-tab is ~64px tall. */
-body.has-bottom-tab .pe-actions {
-  bottom: 64px;
+/* Alleen op mobiel staat de bottom-tab in beeld → daar de sticky footer eroverheen
+   tillen. Op desktop bestaat de bottom-tab niet (CSS-hidden), dus de balk hoort
+   gewoon op bottom:0 — anders zweeft 'ie 64px boven de onderrand. */
+@media (max-width: 767px) {
+  body.has-bottom-tab .pe-actions {
+    bottom: calc(56px + env(safe-area-inset-bottom, 0));
+  }
 }
 </style>
 
