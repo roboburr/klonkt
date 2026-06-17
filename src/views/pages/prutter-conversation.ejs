@@ -27,13 +27,12 @@
     <% }); %>
   </ol>
 
-  <form class="prutter-composer"
+  <form class="prutter-composer" id="prutter-composer"
         method="post"
         action="<%= siteUrlBase %>/prutter/<%= conversation.id %>/send"
         hx-post="<%= siteUrlBase %>/prutter/<%= conversation.id %>/send"
         hx-target="#prutter-thread"
-        hx-swap="beforeend"
-        hx-on::after-request="this.querySelector('textarea').value=''; window.__prutterScroll && window.__prutterScroll();">
+        hx-swap="beforeend">
     <textarea name="content" rows="1" maxlength="2000" placeholder="Bericht…" required></textarea>
     <button type="submit" class="btn btn-primary">Stuur</button>
   </form>
@@ -81,6 +80,48 @@
     });
   } catch (e) {
     console.warn('Prutter WS unavailable:', e);
+  }
+
+  // ── Composer: invoer-gedrag + auto-groei + wissen na versturen ──────────
+  var form = document.getElementById('prutter-composer');
+  var ta = form ? form.querySelector('textarea') : null;
+  if (form && ta) {
+    var MAXH = function () { return Math.round(window.innerHeight * 0.4); };
+    function autoGrow() {
+      ta.style.height = 'auto';
+      ta.style.height = Math.min(ta.scrollHeight, MAXH()) + 'px';
+    }
+    function isTouch() {
+      return window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    }
+    function submit() {
+      if (!ta.value.trim()) return;
+      if (form.requestSubmit) form.requestSubmit();
+      else form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    }
+
+    ta.addEventListener('input', autoGrow);
+    ta.addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter' || e.isComposing) return;   // IME-invoer met rust laten
+      // Touch (mobiel/tablet): Enter = nieuwe regel, versturen via de Stuur-knop.
+      if (isTouch()) return;
+      // Desktop: Shift+Enter = nieuwe regel, gewone Enter = versturen.
+      if (e.shiftKey) return;
+      e.preventDefault();
+      submit();
+    });
+
+    // Wissen + terug naar één regel ná een geslaagde verzending.
+    form.addEventListener('htmx:afterRequest', function (e) {
+      if (e.detail && e.detail.successful) {
+        ta.value = '';
+        autoGrow();
+        scrollToBottom();
+        ta.focus();
+      }
+    });
+
+    autoGrow();
   }
 })();
 </script>
@@ -210,6 +251,7 @@ body.has-audio-player .prutter-conv-page { bottom: calc(76px + env(safe-area-ins
   line-height: 1.35;
   resize: none;
   min-height: 44px; max-height: 40vh;
+  overflow-y: auto;   /* scrollt intern zodra de auto-groei de max raakt */
 }
 .prutter-composer .btn { flex: 0 0 auto; min-height: 44px; }
 </style>
