@@ -363,10 +363,10 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
   position: absolute; top: calc(100% + .55rem); right: 0;
   min-width: 220px;
   padding: .35rem;
-  /* Frosted glass: bewust transparanter (was 92%) zodat de blur écht doorkomt. */
-  background: color-mix(in srgb, var(--paper) 66%, transparent);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  /* Frosted glass: transparant + zware blur zodat het frosted effect duidelijk is. */
+  background: color-mix(in srgb, var(--paper) 60%, transparent);
+  backdrop-filter: blur(34px) saturate(190%);
+  -webkit-backdrop-filter: blur(34px) saturate(190%);
   border: 1px solid var(--rule);
   border-radius: 12px;
   box-shadow:

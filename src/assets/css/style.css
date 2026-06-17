@@ -309,8 +309,10 @@ hr { border: 0; border-top: 1px solid var(--rule); margin: 3em auto; max-width: 
 .masthead {
     border-bottom: 1px solid var(--rule);
     padding: calc(1rem + var(--safe-top)) 0 1rem;
-    background: color-mix(in srgb, var(--paper) 88%, transparent);
-    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    /* GEEN backdrop-filter hier: een voorouder met backdrop-filter blokkeert de
+       frosted blur van het user-menu-dropdown eronder. Masthead is toch bijna
+       dekkend, dus solide bg i.p.v. blur. */
+    background: color-mix(in srgb, var(--paper) 94%, transparent);
     position: sticky; top: 0; z-index: 20;
 }
 .masthead-inner { display: flex; align-items: center; justify-content: flex-end; gap: 1.5rem; }
