@@ -269,11 +269,11 @@ if (typeof post !== 'undefined' && post && post.slug) {
     hub-landing is het slot leeg: de hero is daar de header. %>
 <%- include('partials/chrome') %>
 
-<%# hx-history-elt scopes HTMX history snapshots to #pcms-main only, so
-    when the user navigates back the switcher (which lives in the shell
-    OUTSIDE this element) keeps its place rather than being replaced
-    along with the rest of the body. %>
-<main id="pcms-main" class="pcms-main" hx-history-elt>
+<%# Geen hx-history-elt: htmx' eigen history staat uit (zie de link-boost).
+    Back/forward wordt door onze popstate-listener gedaan, die de partial
+    her-fetcht (incl. correcte OOB-chrome). Met hx-history-elt + htmx-history
+    aan dumpte htmx de partial ongefilterd hier → dubbele kop. %>
+<main id="pcms-main" class="pcms-main">
   <div id="pcms-loading" class="pcms-loading" aria-hidden="true"></div>
   <%- pageContent %>
 </main>
@@ -360,34 +360,10 @@ if (typeof post !== 'undefined' && post && post.slug) {
     matched.forEach(function(c) { document.body.classList.add(c); });
   });
 
-  // Back/forward: htmx herstelt alleen #pcms-main, maar NIET de OOB-chrome of de
-  // per-site accent/palette (die komen via de HX-Trigger-header, en een history-
-  // restore vuurt die niet). Zonder dit blijft de kleur van de vorige artiest
-  // hangen. We halen de partial opnieuw op en passen alleen die twee toe —
-  // #pcms-main is al hersteld, dus die laten we met rust.
-  document.body.addEventListener('htmx:historyRestore', function () {
-    var url = location.pathname + location.search;
-    var sep = url.indexOf('?') >= 0 ? '&' : '?';
-    fetch(url + sep + 'partial=1', { headers: { 'HX-Request': 'true' }, credentials: 'same-origin' })
-      .then(function (r) {
-        var trig = r.headers.get('HX-Trigger-After-Settle');
-        if (trig) {
-          try {
-            var nav = JSON.parse(trig).pcmsNav;
-            if (nav) document.body.dispatchEvent(new CustomEvent('pcmsNav', { detail: nav }));
-          } catch (e) { /* geen/ongeldige trigger */ }
-        }
-        return r.text();
-      })
-      .then(function (html) {
-        try {
-          var fresh = new DOMParser().parseFromString(html, 'text/html').querySelector('#pcms-chrome');
-          var cur = document.getElementById('pcms-chrome');
-          if (fresh && cur) cur.replaceWith(fresh);
-        } catch (e) { /* chrome-update overslaan */ }
-      })
-      .catch(function () { /* netwerkfout: laat staan */ });
-  });
+  // (Back/forward wordt afgehandeld door de popstate-listener in de link-boost
+  //  hieronder — die her-fetcht de partial via htmx.ajax, wat de OOB-chrome +
+  //  de pcmsNav-trigger (accent/palette/bodyClass) correct toepast. De vroegere
+  //  htmx:historyRestore-handler is vervallen nu htmx-history uitstaat.)
 })();
 </script>
 
@@ -475,9 +451,12 @@ if (typeof post !== 'undefined' && post && post.slug) {
 <script>
 (function () {
   if (!window.htmx) return;
-  // Back/forward moet her-ophalen, zodat de OOB-site-chrome (kop) meekomt met de
-  // herstelde pagina — htmx' snapshot-cache zou anders een stale kop tonen.
-  try { window.htmx.config.historyCacheSize = 0; } catch (_) {}
+  // htmx' EIGEN history-afhandeling volledig uitzetten. We doen back/forward zelf
+  // via de popstate-listener hieronder (htmx.ajax → verwerkt de OOB-chrome netjes).
+  // Lieten we htmx z'n gang gaan, dan herstelde 'ie #pcms-main door de partial
+  // (inclusief de <div id=pcms-chrome hx-swap-oob>) ONGEFILTERD in #pcms-main te
+  // dumpen → een tweede, geneste kop = de pagina dubbel. Eén mechanisme nu.
+  try { window.htmx.config.historyEnabled = false; } catch (_) {}
 
   function fullLoad(a, url) {
     if (a.hasAttribute('download') || a.hasAttribute('data-full-load')) return true;
