@@ -32,14 +32,19 @@ export function resolveSite(req, res, next) {
   // site. In SOLO-mode bestaat er maar één site: we slaan die routing over en
   // pinnen altijd op de primaire site.
   if (tenancy === 'hub') {
-    // Een Klonkt-site is bereikbaar via /user/:slug (canoniek) én /sites/:slug (legacy).
+    // Een Klonkt-site is canoniek bereikbaar via /user/:slug. /sites/:slug is een
+    // legacy-alias → 301 naar de canonieke vorm zodat er één URL-schema overblijft
+    // (behoudt pad + querystring; raakt /admin/sites NIET, dat begint met /admin/).
     const m = req.path.match(/^\/(sites|user)\/([a-zA-Z0-9_-]+)(\/.*)?$/);
     if (m) {
+      if (m[1] === 'sites') {
+        return res.redirect(301, req.originalUrl.replace(/^\/sites\//, '/user/'));
+      }
       const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(m[2]);
       if (site) {
         res.locals.site = site;
-        req.url = (m[3] || '/'); // strip /<prefix>/:slug zodat downstream de rest ziet
-        res.locals.siteUrlBase = `/${m[1]}/${m[2]}`;
+        req.url = (m[3] || '/'); // strip /user/:slug zodat downstream de rest ziet
+        res.locals.siteUrlBase = `/user/${m[2]}`;
         return next();
       }
     }

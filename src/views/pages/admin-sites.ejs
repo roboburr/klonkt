@@ -34,7 +34,7 @@
             <span class="ax-avatar ax-avatar-empty"><%= (s.title || s.slug || '?').charAt(0).toUpperCase() %></span>
             <div class="ax-site-meta">
               <div class="ax-site-name">
-                <a href="/sites/<%= s.slug %>"><%= s.title %></a>
+                <a href="/user/<%= s.slug %>"><%= s.title %></a>
                 <% if (s.is_primary) { %>
                   <span class="ax-pill ax-pill-primary" title="Hoofd-/labelsite van deze installatie">★ primair</span>
                 <% } %>
