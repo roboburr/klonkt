@@ -340,7 +340,7 @@ app.get('/sw.js', (req, res) => {
   res.set('Content-Type', 'application/javascript');
   res.set('Cache-Control', 'no-cache');
   res.send(`
-const CACHE_VERSION = 'pcms-v10-' + new Date().toISOString().split('T')[0];
+const CACHE_VERSION = 'pcms-v11-' + new Date().toISOString().split('T')[0];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE_VERSION).then(c => c.addAll(['/'])));
   self.skipWaiting();
@@ -351,9 +351,17 @@ self.addEventListener('activate', e => {
   )));
   self.clients.claim();
 });
+// ALLEEN navigaties (HTML-pagina's) onderscheppen, voor een offline-fallback.
+// Afbeeldingen, CSS, JS en /media NIET aanraken — laat de browser die native
+// afhandelen. Anders kon een mislukte netwerk-fetch terugvallen op een lege
+// cache-match (undefined) en zo een afbeelding "kapot" maken bij een gewone
+// refresh (hard reload omzeilt de SW en werkte daarom wél).
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
-  e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+  if (e.request.mode !== 'navigate') return; // alleen page-loads
+  e.respondWith(
+    fetch(e.request).catch(() => caches.match('/').then(r => r || Response.error()))
+  );
 });
   `);
 });
