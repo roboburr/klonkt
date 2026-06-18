@@ -225,39 +225,10 @@
       </label>
     </fieldset>
 
-    <fieldset>
+    <fieldset class="seo-pointer">
       <legend>SEO &amp; social</legend>
-      <label>
-        <span>Titel-sjabloon (gebruik {title} en {site})</span>
-        <input type="text" name="title_template" value="<%= site.title_template || '{title} — {site}' %>" maxlength="200">
-      </label>
-      <label>
-        <span>Canonieke basis-URL (voor productie-HTTPS)</span>
-        <input type="text" name="canonical" value="<%= site.canonical || '' %>" placeholder="https://jouw-domein.com">
-      </label>
-      <label>
-        <span>Twitter / X-handle (met @)</span>
-        <input type="text" name="twitter" value="<%= site.twitter || '' %>" placeholder="@jouwnaam" maxlength="64">
-      </label>
-      <details>
-        <summary>Zoekmachine-verificatie</summary>
-        <label>
-          <span>Google site-verificatie</span>
-          <input type="text" name="google_verification"    value="<%= site.google_verification    || '' %>" maxlength="200">
-        </label>
-        <label>
-          <span>Bing (msvalidate.01)</span>
-          <input type="text" name="bing_verification"      value="<%= site.bing_verification      || '' %>" maxlength="200">
-        </label>
-        <label>
-          <span>Pinterest (p:domain_verify)</span>
-          <input type="text" name="pinterest_verification" value="<%= site.pinterest_verification || '' %>" maxlength="200">
-        </label>
-        <label>
-          <span>Yandex</span>
-          <input type="text" name="yandex_verification"    value="<%= site.yandex_verification    || '' %>" maxlength="200">
-        </label>
-      </details>
+      <p>Titel-sjabloon, canonical, deel-afbeelding, verificatie-metas en meer staan
+        nu op een eigen pagina: <a href="/admin/seo">🔎 SEO &amp; vindbaarheid</a>.</p>
     </fieldset>
 
     <fieldset>

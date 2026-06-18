@@ -13,6 +13,7 @@
       <a href="/admin/audio" class="btn">🎵 Audio</a>
       <a href="/admin/playlists" class="btn">📃 Playlists</a>
       <a href="/admin/comments" class="btn">💬 Reacties</a>
+      <% if (primarySite) { %><a href="/admin/seo" class="btn">🔎 SEO</a><% } %>
       <a href="/admin/settings" class="btn">⚙️ Instellingen</a>
     <% } else { %>
       <a href="/posts/new" class="btn">✍️ Nieuwe post</a>
@@ -26,6 +27,7 @@
       <% if (tenancy === 'circle') { %>
         <a href="/admin/circle" class="btn">🔗 Cirkel</a>
       <% } %>
+      <% if (primarySite) { %><a href="/admin/seo" class="btn">🔎 SEO</a><% } %>
       <a href="/admin/settings" class="btn">⚙️ Instellingen</a>
     <% } %>
     <% if (typeof premiumUnlocked === 'undefined' || premiumUnlocked) { %>

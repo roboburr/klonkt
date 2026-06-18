@@ -1,0 +1,104 @@
+<div class="container admin-site-edit-page">
+  <p><a href="/admin" class="btn">&larr; Beheer</a></p>
+  <h1>SEO &amp; vindbaarheid</h1>
+  <p class="admin-tagline">Geavanceerde SEO van <strong><%= site.title %></strong> — hoe je site in zoekmachines en bij het delen op social media verschijnt.</p>
+
+  <% if (typeof success !== 'undefined' && success) { %><div class="audio-flash audio-flash--ok"><%= success %></div><% } %>
+  <% if (typeof error !== 'undefined' && error) { %><div class="audio-flash audio-flash--err"><%= error %></div><% } %>
+
+  <form method="post" action="/admin/seo" class="site-form">
+
+    <fieldset>
+      <legend>Indexeren</legend>
+      <label class="checkbox-row">
+        <input type="checkbox" name="robots_index" value="1" <%= site.robots_index ? 'checked' : '' %>>
+        <span>Zoekmachines mogen deze site indexeren <small class="form-hint-inline">— uit = <code>noindex</code> + sitemap.xml verborgen</small></span>
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Titel &amp; omschrijving</legend>
+      <label>
+        <span>Titel-sjabloon <small class="form-hint-inline">— gebruik <code>{title}</code> en <code>{site}</code></small></span>
+        <input type="text" name="title_template" value="<%= site.title_template || '{title} — {site}' %>" maxlength="200" placeholder="{title} — {site}">
+      </label>
+      <label>
+        <span>Standaard-omschrijving <small class="form-hint-inline">— meta description / og:description als een pagina er geen heeft</small></span>
+        <textarea name="default_description" rows="2" maxlength="500" placeholder="Korte omschrijving van je site (max ~160 tekens werkt het best)"><%= site.default_description || '' %></textarea>
+      </label>
+      <label>
+        <span>Canonieke basis-URL <small class="form-hint-inline">— de productie-HTTPS-URL, voorkomt dubbele-content-straf</small></span>
+        <input type="text" name="canonical" value="<%= site.canonical || '' %>" placeholder="https://jouw-domein.com" maxlength="200">
+      </label>
+      <label>
+        <span>Auteur <small class="form-hint-inline">— meta author-tag</small></span>
+        <input type="text" name="author" value="<%= site.author || '' %>" maxlength="120" placeholder="Jouw naam">
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Delen op social media</legend>
+      <label>
+        <span>Standaard deel-afbeelding (URL) <small class="form-hint-inline">— og:image / Twitter-card; ~1200×630px</small></span>
+        <input type="text" name="og_image_default" value="<%= site.og_image_default || '' %>" placeholder="https://jouw-domein.com/share.jpg" maxlength="500">
+      </label>
+      <label>
+        <span>Taal-locale <small class="form-hint-inline">— og:locale, bv. <code>nl_NL</code> of <code>en_US</code></small></span>
+        <input type="text" name="og_locale" value="<%= site.og_locale || '' %>" placeholder="nl_NL" maxlength="32">
+      </label>
+      <label>
+        <span>Twitter / X-handle <small class="form-hint-inline">— met @</small></span>
+        <input type="text" name="twitter" value="<%= site.twitter || '' %>" placeholder="@jouwnaam" maxlength="64">
+      </label>
+      <label>
+        <span>Facebook App-ID <small class="form-hint-inline">— fb:app_id (optioneel)</small></span>
+        <input type="text" name="facebook_app_id" value="<%= site.facebook_app_id || '' %>" maxlength="64">
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Uitgever (JSON-LD / rich results)</legend>
+      <label>
+        <span>Type</span>
+        <select name="schema_type">
+          <option value="Person" <%= site.schema_type === 'Organization' ? '' : 'selected' %>>Persoon</option>
+          <option value="Organization" <%= site.schema_type === 'Organization' ? 'selected' : '' %>>Organisatie / bedrijf</option>
+        </select>
+      </label>
+      <label>
+        <span>Naam <small class="form-hint-inline">— valt terug op de site-titel</small></span>
+        <input type="text" name="publisher_name" value="<%= site.publisher_name || '' %>" maxlength="200">
+      </label>
+      <label>
+        <span>URL</span>
+        <input type="text" name="publisher_url" value="<%= site.publisher_url || '' %>" placeholder="https://jouw-domein.com" maxlength="200">
+      </label>
+      <label>
+        <span>Logo (URL)</span>
+        <input type="text" name="publisher_logo" value="<%= site.publisher_logo || '' %>" placeholder="https://jouw-domein.com/logo.png" maxlength="500">
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Zoekmachine-verificatie</legend>
+      <label>
+        <span>Google site-verificatie</span>
+        <input type="text" name="google_verification" value="<%= site.google_verification || '' %>" maxlength="200">
+      </label>
+      <label>
+        <span>Bing <small class="form-hint-inline">— msvalidate.01</small></span>
+        <input type="text" name="bing_verification" value="<%= site.bing_verification || '' %>" maxlength="200">
+      </label>
+      <label>
+        <span>Pinterest <small class="form-hint-inline">— p:domain_verify</small></span>
+        <input type="text" name="pinterest_verification" value="<%= site.pinterest_verification || '' %>" maxlength="200">
+      </label>
+      <label>
+        <span>Yandex</span>
+        <input type="text" name="yandex_verification" value="<%= site.yandex_verification || '' %>" maxlength="200">
+      </label>
+    </fieldset>
+
+    <button type="submit" class="btn btn-primary">SEO opslaan</button>
+  </form>
+</div>

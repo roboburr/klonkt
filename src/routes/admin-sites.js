@@ -302,9 +302,6 @@ router.post('/:slug/save', requireSiteManagerBySlug, (req, res) => {
       comments_moderation_mode = ?,
       feed_view_default = ?, feed_view_switch = ?,
       show_search = ?, show_archive_link = ?,
-      title_template = ?, twitter = ?, canonical = ?,
-      google_verification = ?, bing_verification = ?,
-      pinterest_verification = ?, yandex_verification = ?,
       custom_css = ?, custom_head_html = ?, custom_foot_html = ?,
       updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
@@ -329,13 +326,6 @@ router.post('/:slug/save', requireSiteManagerBySlug, (req, res) => {
     f.feed_view_switch ? 1 : 0,
     f.show_search ? 1 : 0,
     f.show_archive_link ? 1 : 0,
-    (f.title_template || '{title} — {site}').slice(0, 200),
-    (f.twitter || '').slice(0, 64) || null,
-    (f.canonical || '').slice(0, 200) || null,
-    (f.google_verification    || '').slice(0, 200) || null,
-    (f.bing_verification      || '').slice(0, 200) || null,
-    (f.pinterest_verification || '').slice(0, 200) || null,
-    (f.yandex_verification    || '').slice(0, 200) || null,
     f.custom_css      || null,
     f.custom_head_html || null,
     f.custom_foot_html || null,
