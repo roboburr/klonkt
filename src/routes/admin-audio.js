@@ -36,8 +36,13 @@ fs.mkdirSync(COVER_DIR, { recursive: true });
 
 const ALLOWED_AUDIO_EXT = new Set(['.mp3', '.m4a', '.mp4', '.aac', '.oga', '.ogg', '.opus', '.flac', '.wav', '.webm']);
 const ALLOWED_COVER_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif']);
-const MAX_AUDIO_BYTES = 50 * 1024 * 1024;  // 50 MB
-const MAX_COVER_BYTES = 5 * 1024 * 1024;   // 5 MB
+const MAX_AUDIO_BYTES = 50 * 1024 * 1024;   // 50 MB — gecomprimeerde formaten (mp3/m4a/ogg/…)
+const MAX_WAV_BYTES   = 100 * 1024 * 1024;  // 100 MB — WAV is ongecomprimeerd, dus ruimer
+const MAX_COVER_BYTES = 5 * 1024 * 1024;    // 5 MB
+
+// Per-bestand bovengrens op basis van extensie. multer's globale limiet is de
+// hoogste (WAV); de echte controle per type gebeurt in de upload-handler.
+const audioByteLimitFor = (ext) => (ext.toLowerCase() === '.wav' ? MAX_WAV_BYTES : MAX_AUDIO_BYTES);
 
 // Multer routes audio + cover into separate dirs based on field name.
 const storage = multer.diskStorage({
@@ -52,7 +57,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: MAX_AUDIO_BYTES }, // upper bound — per-field check below
+  limits: { fileSize: MAX_WAV_BYTES }, // hoogste bovengrens (WAV) — per-type check in de handler
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
     if (file.fieldname === 'cover') {
@@ -92,6 +97,7 @@ router.get('/', requireGod, (req, res) => {
     error: req.query.error || null,
     success: req.query.success || null,
     maxBytesMb: Math.round(MAX_AUDIO_BYTES / 1024 / 1024),
+    maxWavMb: Math.round(MAX_WAV_BYTES / 1024 / 1024),
   });
 });
 
@@ -118,6 +124,16 @@ router.post('/upload', requireGod, (req, res) => {
       // Clean up any cover that snuck through without an audio file
       if (coverFile) try { fs.unlinkSync(coverFile.path); } catch {}
       return fail(400, 'missing audio file');
+    }
+
+    // Per-type audio size check. multer's globale limiet was de WAV-bovengrens
+    // (100MB); gecomprimeerde formaten blijven op 50MB.
+    const audioExt = path.extname(audioFile.originalname).toLowerCase();
+    const audioLimit = audioByteLimitFor(audioExt);
+    if (audioFile.size > audioLimit) {
+      try { fs.unlinkSync(audioFile.path); } catch {}
+      if (coverFile) try { fs.unlinkSync(coverFile.path); } catch {}
+      return fail(400, `audio te groot (max ${Math.round(audioLimit / 1024 / 1024)}MB voor ${audioExt || 'dit type'})`);
     }
 
     // Cover size check (multer's global limit was the audio upper bound)
