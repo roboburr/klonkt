@@ -151,9 +151,9 @@
       <% if (hubHeroImage) { %>
       <div class="set-field">
         <span style="font-weight:400;color:var(--ink-muted);font-size:0.9rem">Voorbeeld (met overlay):</span>
-        <div style="position:relative;display:inline-block;margin-top:0.4rem;max-width:100%">
-          <img src="<%= hubHeroImage %>" alt="Hero-voorbeeld" style="display:block;max-width:100%;max-height:160px;border-radius:8px;border:1px solid var(--rule)">
-          <div id="hero-ov-preview" style="position:absolute;inset:0;background:#000;opacity:<%= (hubHeroOverlay/100).toFixed(2) %>;border-radius:8px;pointer-events:none"></div>
+        <div style="position:relative;width:100%;aspect-ratio:16/7;margin-top:0.4rem;border-radius:8px;overflow:hidden;border:1px solid var(--rule);background:var(--paper-2)">
+          <img src="<%= hubHeroImage %>" alt="Hero-voorbeeld" style="display:block;width:100%;height:100%;object-fit:cover">
+          <div id="hero-ov-preview" style="position:absolute;inset:0;background:#000;opacity:<%= (hubHeroOverlay/100).toFixed(2) %>;pointer-events:none"></div>
         </div>
       </div>
       <% } %>
