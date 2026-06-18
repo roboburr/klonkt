@@ -136,6 +136,26 @@ function siteEditableFields() {
   };
 }
 
+/** Geldige user-id voor owner-toewijzing, of null bij leeg/onbekend. */
+function validOwnerId(raw) {
+  const id = (raw || '').toString().trim();
+  if (!id) return null;
+  return db.prepare('SELECT 1 FROM users WHERE id = ?').get(id) ? id : null;
+}
+
+/** Geef een user admin-rechten op een site (idempotent upsert). */
+function grantSiteAdmin(siteId, userId) {
+  db.prepare(`
+    INSERT INTO site_members (site_id, user_id, role) VALUES (?, ?, 'admin')
+    ON CONFLICT(site_id, user_id) DO UPDATE SET role = 'admin'
+  `).run(siteId, userId);
+}
+
+/** Kandidaat-owners voor het owner-keuzeveld (god-only). */
+function listOwnerCandidates() {
+  return db.prepare('SELECT id, username, role FROM users ORDER BY username').all();
+}
+
 // ==================== LIST ====================
 router.get('/', requireGod, (req, res) => {
   const sites = db.prepare(`
@@ -162,7 +182,8 @@ router.get('/new', requireGod, (req, res) => {
     pageTitle: 'New site',
     bodyClass: 'on-admin',
     isNew: true,
-    site: { slug: '', ...siteEditableFields() },
+    site: { slug: '', owner_id: req.session.user.id, ...siteEditableFields() },
+    users: listOwnerCandidates(),
     palettes: ThemeService.listPalettes(),
     accents: ThemeService.listAccents(),
     platforms: listPlatforms(),
@@ -186,6 +207,12 @@ router.post('/create', requireGod, (req, res) => {
   }
 
   const f = { ...siteEditableFields(), ...req.body };
+
+  // Owner: god mag de site aan een ANDERE gebruiker toewijzen — dit is de kern
+  // van hub-modus (elke gebruiker z'n eigen, zelf te beheren Klonkt). Leeg of
+  // ongeldig → de aanmakende god zelf.
+  const ownerId = validOwnerId(req.body.owner_id) || req.session.user.id;
+
   const siteId = uuid();
   db.prepare(`
     INSERT INTO sites (
@@ -199,7 +226,7 @@ router.post('/create', requireGod, (req, res) => {
     (f.title || slug).slice(0, 200),
     (f.description || '').slice(0, 500),
     (f.tagline || '').slice(0, 200),
-    req.session.user.id,
+    ownerId,
     f.language || 'nl',
     f.palette || 'sage',
     ThemeService.validateAccent(f.accent) || '#c2410c',
@@ -212,12 +239,11 @@ router.post('/create', requireGod, (req, res) => {
     f.comments_moderation_mode === 'trust' ? 'trust' : 'moderate',
   );
 
-  // The site_members entry lets the god/owner show up in canAdminSite checks.
-  db.prepare(`
-    INSERT INTO site_members (site_id, user_id, role) VALUES (?, ?, 'admin')
-  `).run(siteId, req.session.user.id);
+  // De OWNER (niet per se de aanmaker) krijgt een site_members-admin-rij → zo komt
+  // 'ie door canAdminSite + de requireSiteManager-gates en beheert 'ie z'n site.
+  grantSiteAdmin(siteId, ownerId);
 
-  res.redirect(`/admin/sites/${slug}/edit?success=` + encodeURIComponent('Site created'));
+  res.redirect(`/admin/sites/${slug}/edit?success=` + encodeURIComponent('Site aangemaakt'));
 });
 
 // ==================== EDIT (form) ====================
@@ -235,6 +261,7 @@ router.get('/:slug/edit', requireSiteManagerBySlug, (req, res) => {
     bodyClass: 'on-admin',
     isNew: false,
     site,
+    users: listOwnerCandidates(),
     palettes: ThemeService.listPalettes(),
     accents: ThemeService.listAccents(),
     platforms: listPlatforms(),
@@ -313,7 +340,17 @@ router.post('/:slug/save', requireSiteManagerBySlug, (req, res) => {
     site.id,
   );
 
-  res.redirect(`/admin/sites/${req.params.slug}/edit?success=` + encodeURIComponent('Saved'));
+  // Owner (her)toewijzen — ALLEEN god. Een site-owner die z'n eigen site bewerkt
+  // kan de eigenaar niet wijzigen (het veld wordt voor niet-god ook niet getoond).
+  if (req.session.user.role === 'god') {
+    const newOwner = validOwnerId(req.body.owner_id);
+    if (newOwner) {
+      db.prepare('UPDATE sites SET owner_id = ? WHERE id = ?').run(newOwner, site.id);
+      grantSiteAdmin(site.id, newOwner);
+    }
+  }
+
+  res.redirect(`/admin/sites/${req.params.slug}/edit?success=` + encodeURIComponent('Opgeslagen'));
 });
 
 // ==================== DELETE ====================

@@ -23,6 +23,18 @@
         <span>Titel <small class="form-hint-inline">— getoond in de kop en als weergavenaam</small></span>
         <input type="text" name="title" value="<%= site.title || '' %>" required maxlength="200">
       </label>
+      <%# Eigenaar (her)toewijzen — ALLEEN god. In hub-modus geef je zo elke
+          gebruiker z'n eigen, zelf te beheren Klonkt. Niet-god ziet dit niet. %>
+      <% if (user && user.role === 'god') { %>
+      <label>
+        <span>Eigenaar <small class="form-hint-inline">— wie deze Klonkt zelf mag beheren</small></span>
+        <select name="owner_id">
+          <% (typeof users !== 'undefined' ? users : []).forEach(function(u){ %>
+            <option value="<%= u.id %>" <%= (site.owner_id === u.id) ? 'selected' : '' %>><%= u.username %><%= u.role === 'god' ? ' (god)' : '' %></option>
+          <% }); %>
+        </select>
+      </label>
+      <% } %>
       <label>
         <span>Tagline <small class="form-hint-inline">— korte oneliner</small></span>
         <input type="text" name="tagline" value="<%= site.tagline || '' %>" maxlength="200">

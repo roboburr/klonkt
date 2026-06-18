@@ -3,6 +3,7 @@
  */
 
 import db from '../config/database.js';
+import PermissionsService from '../services/PermissionsService.js';
 
 /**
  * Validate a "next" URL for safe redirect after login.
@@ -64,7 +65,8 @@ export function requireSiteManager(req, res, next) {
   const u = req.session.user;
   if (u.role === 'god' || u.role === 'kijker') return next(); // kijker = alleen-lezen kijk-toegang
   const site = res.locals.site;
-  if (site && site.owner_id === u.id) return next();
+  // owner OF toegewezen mede-beheerder (site_members) — canAdminSite dekt beide.
+  if (site && PermissionsService.canAdminSite(u, site)) return next();
   return res.status(403).send('Geen toegang tot deze site.');
 }
 
@@ -73,7 +75,7 @@ export function requireSiteManagerBySlug(req, res, next) {
   if (!req.session?.user) return loginRedirect(req, res);
   const u = req.session.user;
   if (u.role === 'god' || u.role === 'kijker') return next(); // kijker = alleen-lezen kijk-toegang
-  const site = db.prepare('SELECT owner_id FROM sites WHERE slug = ?').get(req.params.slug);
-  if (site && site.owner_id === u.id) return next();
+  const site = db.prepare('SELECT id, owner_id FROM sites WHERE slug = ?').get(req.params.slug);
+  if (site && PermissionsService.canAdminSite(u, site)) return next();
   return res.status(403).send('Geen toegang tot deze site.');
 }

@@ -3,6 +3,8 @@
  * Used in templates to show/hide edit buttons, delete buttons, etc.
  */
 
+import db from '../config/database.js';
+
 class PermissionsService {
   /**
    * Check if user can edit a post
@@ -53,11 +55,15 @@ class PermissionsService {
    * Check if user can admin a site
    */
   static canAdminSite(user, site) {
-    if (!user) return false;
+    if (!user || !site) return false;
     if (user.role === 'god') return true;
     if (user.id === site.owner_id) return true;
-    // Check site_members table
-    return user.siteRoles && user.siteRoles[site.id] === 'admin';
+    // Toegewezen mede-beheerder (collaborator) via site_members. Dit werd
+    // voorheen via een nooit-gevulde user.siteRoles gelezen → dode code; nu
+    // direct op de tabel (paar checks per pagina, indexed = goedkoop).
+    return !!db.prepare(
+      "SELECT 1 FROM site_members WHERE site_id = ? AND user_id = ? AND role = 'admin' LIMIT 1"
+    ).get(site.id, user.id);
   }
 
   /**
