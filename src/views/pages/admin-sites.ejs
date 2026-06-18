@@ -35,6 +35,9 @@
             <div class="ax-site-meta">
               <div class="ax-site-name">
                 <a href="/sites/<%= s.slug %>"><%= s.title %></a>
+                <% if (s.is_primary) { %>
+                  <span class="ax-pill ax-pill-primary" title="Hoofd-/labelsite van deze installatie">★ primair</span>
+                <% } %>
                 <% if (s.is_public) { %>
                   <span class="ax-pill ax-pill-ok" title="Publiek zichtbaar">✓ public</span>
                 <% } else { %>
@@ -66,6 +69,12 @@
           </div>
 
           <div class="ax-site-controls">
+            <% if (!s.is_primary && (typeof canMutate === 'undefined' || canMutate)) { %>
+              <form method="post" action="/admin/sites/<%= s.slug %>/make-primary" style="margin:0;display:inline"
+                    onsubmit="return confirm('Deze site instellen als de primaire/hoofd-site?')">
+                <button type="submit" class="ax-icon-btn" aria-label="Maak primair" title="Maak primaire/hoofd-site">★</button>
+              </form>
+            <% } %>
             <a href="/admin/sites/<%= s.slug %>/edit" class="ax-icon-btn" aria-label="Bewerken" title="Bewerken">✎</a>
             <form method="post" action="/admin/sites/<%= s.slug %>/delete" class="ax-delete-form"
                   onsubmit="return confirm('Site verwijderen? Lukt alleen als er geen posts zijn.')">
@@ -196,6 +205,11 @@
 .ax-pill-ok {
   color: #2a9d5e;
   background: rgba(40,160,90,0.12);
+}
+.ax-pill-primary {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  font-weight: 600;
 }
 
 /* ─── Stats (2 mini-columns for sites) ────────────────────────── */

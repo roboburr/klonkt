@@ -160,11 +160,11 @@ function listOwnerCandidates() {
 router.get('/', requireGod, (req, res) => {
   const sites = db.prepare(`
     SELECT s.id, s.slug, s.title, s.description, s.created_at,
-           s.is_public, s.robots_index,
+           s.is_public, s.robots_index, s.is_primary,
            u.username AS owner_username,
            (SELECT COUNT(*) FROM posts WHERE site_id = s.id) AS post_count
     FROM sites s LEFT JOIN users u ON u.id = s.owner_id
-    ORDER BY s.created_at DESC
+    ORDER BY s.is_primary DESC, s.created_at DESC
   `).all();
 
   renderPage(req, res, 'pages/admin-sites', {
@@ -351,6 +351,19 @@ router.post('/:slug/save', requireSiteManagerBySlug, (req, res) => {
   }
 
   res.redirect(`/admin/sites/${req.params.slug}/edit?success=` + encodeURIComponent('Opgeslagen'));
+});
+
+// ==================== MAAK PRIMAIR ====================
+// God kiest welke site de primaire/hoofd-site is (de label-/bedrijfssite in hub;
+// in solo dé site). Precies één site is primair → eerst alles uit, dan deze aan.
+router.post('/:slug/make-primary', requireGod, (req, res) => {
+  const site = db.prepare('SELECT id FROM sites WHERE slug = ?').get(req.params.slug);
+  if (!site) return res.redirect('/admin/sites?error=Niet+gevonden');
+  db.transaction(() => {
+    db.prepare('UPDATE sites SET is_primary = 0').run();
+    db.prepare('UPDATE sites SET is_primary = 1 WHERE id = ?').run(site.id);
+  })();
+  res.redirect('/admin/sites?success=' + encodeURIComponent('Primaire site bijgewerkt'));
 });
 
 // ==================== DELETE ====================

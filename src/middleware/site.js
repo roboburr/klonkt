@@ -12,6 +12,18 @@
 import db from '../config/database.js';
 import { getTenancy } from '../services/SettingsService.js';
 
+/**
+ * De primaire/hoofd-site — ÉÉN bron van waarheid (vervangt de "oudste site ="
+ * hoofd"-aanname die voorheen los in resolveSite/hub/account/admin stond).
+ * Leest de expliciete is_primary-vlag; valt terug op de oudste als die (nog)
+ * nergens staat, zodat bestaand gedrag exact behouden blijft.
+ */
+export function getPrimarySite() {
+  return db.prepare('SELECT * FROM sites WHERE is_primary = 1 LIMIT 1').get()
+      || db.prepare('SELECT * FROM sites ORDER BY created_at ASC LIMIT 1').get()
+      || null;
+}
+
 export function resolveSite(req, res, next) {
   const tenancy = getTenancy();
   res.locals.tenancy = tenancy; // ook beschikbaar voor views
@@ -42,8 +54,8 @@ export function resolveSite(req, res, next) {
     }
   }
 
-  // Solo (of hub zonder match): de primaire/owner-site (eerste aangemaakte).
-  const defaultSite = db.prepare('SELECT * FROM sites ORDER BY created_at ASC LIMIT 1').get();
+  // Solo (of hub zonder match): pin op de primaire/hoofd-site.
+  const defaultSite = getPrimarySite();
   if (defaultSite) {
     res.locals.site = defaultSite;
     res.locals.siteUrlBase = '';

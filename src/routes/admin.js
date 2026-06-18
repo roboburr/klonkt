@@ -9,6 +9,7 @@ import db from '../config/database.js';
 import { renderPage } from '../middleware/render.js';
 import { requireAuth } from '../middleware/auth.js';
 import { getTenancy } from '../services/SettingsService.js';
+import { getPrimarySite } from '../middleware/site.js';
 
 const router = express.Router();
 
@@ -58,11 +59,9 @@ router.get('/', requireAuth, (req, res) => {
 
   const tenancy = getTenancy();
 
-  // De primaire/owner-site — in solo dé site, in hub de hoofdsite. Geeft de
+  // De primaire/hoofd-site — in solo dé site, in hub de hoofdsite. Geeft de
   // "Uiterlijk"-tegel z'n edit-link + de posts/concepten-lijst.
-  const primarySite = db.prepare(
-    'SELECT id, slug, title FROM sites ORDER BY created_at ASC LIMIT 1'
-  ).get() || null;
+  const primarySite = getPrimarySite();
 
   const stats = {
     users: db.prepare('SELECT COUNT(*) AS c FROM users').get().c,

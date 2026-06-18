@@ -20,6 +20,7 @@ import bcrypt from 'bcryptjs';
 import multer from 'multer';
 import { v4 as uuid } from 'uuid';
 import db from '../config/database.js';
+import { getPrimarySite } from '../middleware/site.js';
 import { renderPage } from '../middleware/render.js';
 import { requireAuth } from '../middleware/auth.js';
 
@@ -79,7 +80,7 @@ function ownedSite(user) {
   if (!user) return null;
   let site = db.prepare('SELECT id, title, tagline, slug, owner_id FROM sites WHERE owner_id = ? ORDER BY created_at LIMIT 1').get(user.id);
   if (!site && user.role === 'god') {
-    site = db.prepare('SELECT id, title, tagline, slug, owner_id FROM sites ORDER BY created_at LIMIT 1').get();
+    site = getPrimarySite(); // primaire/hoofd-site als fallback
   }
   return site || null;
 }

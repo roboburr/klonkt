@@ -49,6 +49,19 @@ export function initializeDatabase() {
   // Cirkels: mag deze site in cirkels van anderen verschijnen (surfacing opt-out).
   ensureColumn('sites', 'allow_circle', 'INTEGER DEFAULT 1');
 
+  // Eén EXPLICIETE primaire/hoofd-site (= de bedrijfs-/labelsite in hub-modus,
+  // de enige site in solo) i.p.v. de fragiele "oudste = hoofd"-conventie die op
+  // 4 plekken gedupliceerd stond. Backfill: markeer de oudste als er nog geen
+  // primaire site is, zodat bestaand gedrag exact behouden blijft.
+  ensureColumn('sites', 'is_primary', 'INTEGER DEFAULT 0');
+  try {
+    const hasPrimary = db.prepare('SELECT 1 FROM sites WHERE is_primary = 1 LIMIT 1').get();
+    if (!hasPrimary) {
+      const oldest = db.prepare('SELECT id FROM sites ORDER BY created_at ASC LIMIT 1').get();
+      if (oldest) db.prepare('UPDATE sites SET is_primary = 1 WHERE id = ?').run(oldest.id);
+    }
+  } catch (e) { /* sites-tabel nog leeg/afwezig bij verse init — ensurePrimarySite regelt 't */ }
+
   // v9 audit additions —————————————————————————————————————————
   // SEO/social columns the v9 template uses (most live in 001-init.sql already
   // for fresh DBs but ensureColumn is idempotent for existing DBs).

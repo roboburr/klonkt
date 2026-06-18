@@ -34,15 +34,15 @@ router.get('/', (req, res, next) => {
     LIMIT 24
   `).all();
 
-  // De hoofd-/labelsite (oudste = de bedrijfs-/hoofdaccount) is GEEN artiest;
-  // die tonen we apart bovenaan, niet in de Artiesten-roster.
+  // De hoofd-/labelsite (de expliciet primaire = de bedrijfs-/hoofdaccount) is
+  // GEEN artiest; die tonen we apart bovenaan, niet in de Artiesten-roster.
   const mainSite = db.prepare(`
     SELECT s.id, s.slug, s.title, s.tagline, s.profile_photo, s.accent,
            u.avatar_url AS owner_avatar,
            (SELECT COUNT(*) FROM posts WHERE site_id = s.id AND status = 'published') AS post_count
     FROM sites s
     LEFT JOIN users u ON u.id = s.owner_id
-    ORDER BY s.created_at ASC
+    WHERE s.is_primary = 1
     LIMIT 1
   `).get() || null;
   const mainId = mainSite ? mainSite.id : '';
