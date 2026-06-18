@@ -182,7 +182,9 @@ router.get('/new', requireGod, (req, res) => {
     pageTitle: 'New site',
     bodyClass: 'on-admin',
     isNew: true,
-    site: { slug: '', owner_id: req.session.user.id, ...siteEditableFields() },
+    // ?owner=<id> (vanaf de gebruikers-pagina: "geef deze user een Klonkt") wordt
+    // voorgeselecteerd; anders de aanmakende god.
+    site: { slug: '', owner_id: validOwnerId(req.query.owner) || req.session.user.id, ...siteEditableFields() },
     users: listOwnerCandidates(),
     palettes: ThemeService.listPalettes(),
     accents: ThemeService.listAccents(),

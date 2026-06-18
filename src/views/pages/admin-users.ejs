@@ -54,6 +54,12 @@
           </div>
 
           <div class="ax-user-controls">
+            <%# Hub: geef deze gebruiker een eigen, zelf te beheren Klonkt — opent het
+                nieuw-site-formulier met deze gebruiker al als eigenaar voorgeselecteerd. %>
+            <% if (typeof tenancy !== 'undefined' && tenancy === 'hub' && canMutate) { %>
+              <a href="/admin/sites/new?owner=<%= u.id %>" class="ax-icon-btn"
+                 aria-label="Nieuwe Klonkt voor <%= u.username %>" title="Nieuwe Klonkt voor deze gebruiker">＋🌐</a>
+            <% } %>
             <form method="post" action="/admin/users/<%= u.id %>/role" class="ax-role-form">
               <label class="ax-role">
                 <span>Rol</span>
