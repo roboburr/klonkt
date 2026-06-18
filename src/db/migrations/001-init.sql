@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS sites (
     is_public INTEGER DEFAULT 1,
     closed_circle_mode INTEGER DEFAULT 0,
     robots_index INTEGER DEFAULT 1,
-    require_login_to_comment INTEGER DEFAULT 0,
+    require_login_to_comment INTEGER DEFAULT 1,
     enable_audio_player INTEGER DEFAULT 1,
     profile_photo TEXT,
 

@@ -40,7 +40,7 @@ export function ensurePrimarySite() {
       language, palette, accent, profile_photo,
       is_public, robots_index, require_login_to_comment, enable_audio_player,
       feed_view_default, comments_moderation_mode, is_primary
-    ) VALUES (?, ?, ?, '', '', ?, 'nl', 'sage', '#c2410c', NULL, 1, 1, 0, 1, 'grid', 'moderate', 1)
+    ) VALUES (?, ?, ?, '', '', ?, 'nl', 'sage', '#c2410c', NULL, 1, 1, 1, 1, 'grid', 'moderate', 1)
   `).run(siteId, slug, defaultTitle(), owner.id);
 
   // site_members-entry zodat de owner door canAdminSite-checks komt.

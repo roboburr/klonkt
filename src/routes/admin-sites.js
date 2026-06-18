@@ -115,7 +115,7 @@ function siteEditableFields() {
     profile_bio: '',
     is_public: 1,
     robots_index: 1,
-    require_login_to_comment: 0,
+    require_login_to_comment: 1,
     enable_audio_player: 1,
     enable_prutter: 1,
     comments_moderation_mode: 'moderate',
