@@ -54,13 +54,16 @@ bd close <id>         # Complete work
 
 ## Build & Test
 
-_Add your build and test commands here_
-
 ```bash
-# Example:
-# npm install
-# npm test
+npm start          # productie: node src/server.js
+npm run dev        # watch-mode
+npm test           # unit-tests (ingebouwde node:test runner, geen extra deps)
 ```
+
+Tests staan in `test/*.test.js` en draaien tegen een in-memory SQLite
+(`DATABASE_PATH=':memory:'`), dus ze raken geen echte data. Dek nieuwe
+permissie-/tenancy-logica met tests — `PermissionsService.canAdminSite` was ooit
+stil kapot; zie `test/hub-permissions.test.js`.
 
 ## Architecture Overview
 
