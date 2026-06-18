@@ -561,7 +561,27 @@
   window.addEventListener('popstate', () => {
     if (sheet.classList.contains('is-open')) closeSheet(true);
   });
-  expandTrigger.addEventListener('click', openSheet);
+  // Mini-player-info aanklikken:
+  //  - DESKTOP (≥768px): spring naar de post waar de track vandaan komt (als bekend),
+  //    via htmx zodat de audio blijft spelen. Geen post bekend → val terug op de sheet.
+  //  - MOBIEL: altijd de uitgebreide speler-sheet openen (huidig gedrag).
+  function goToPost(url) {
+    if (window.htmx && url.charAt(0) === '/') {
+      try {
+        window.htmx.ajax('GET', url, { target: '#pcms-main', swap: 'innerHTML' });
+        history.pushState({}, '', url);
+        window.scrollTo(0, 0);
+        return;
+      } catch (e) { /* val terug op volledige navigatie */ }
+    }
+    location.href = url;
+  }
+  expandTrigger.addEventListener('click', () => {
+    const t = queue[currentIndex];
+    const isDesktop = window.matchMedia && window.matchMedia('(min-width: 768px)').matches;
+    if (isDesktop && t && t.postUrl) { goToPost(t.postUrl); return; }
+    openSheet();
+  });
   sheetClose.addEventListener('click', () => closeSheet());
   sheetBackdrop.addEventListener('click', () => closeSheet());
   document.addEventListener('keydown', (e) => {
@@ -662,6 +682,10 @@
     if (!btn) return;
     e.preventDefault();
     e.stopPropagation();
+    // De post waar je VANAF afspeelt = de pagina waar je nu bent (de embeds staan
+    // in de post-content). Bewaar 'm op de track(s) zodat de mini-player er op
+    // desktop naartoe kan springen — overleeft ook de sessionStorage-resume.
+    const postUrl = location.pathname + location.search;
     // Resolve metadata: button-first, then closest .post-audio-track wrapper
     // (only inline single-track widgets put the data on the wrapper).
     const wrapper = btn.closest('.post-audio-track');
@@ -675,6 +699,7 @@
       if (!album) { console.error('[pcms-audio] album not found:', albumId); return; }
       try {
         const tracks = JSON.parse(album.dataset.pcmsAlbum);
+        tracks.forEach((t) => { t.postUrl = postUrl; });
         // Start at the clicked track if we know its URL, else start at 0
         // (cover-btn and playall both want to start from the beginning).
         const startIdx = trackUrl ? tracks.findIndex(t => t.url === trackUrl) : 0;
@@ -683,11 +708,12 @@
     } else if (trackData) {
       try {
         const t = JSON.parse(trackData);
+        t.postUrl = postUrl;
         setQueue([t], 0);
       } catch(err) { console.error('[pcms-audio] bad track JSON', err, trackData); }
     } else if (trackUrl) {
       // Fallback: at minimum we have the signed URL
-      setQueue([{ url: trackUrl, title: 'Track', artist: '', cover: '' }], 0);
+      setQueue([{ url: trackUrl, title: 'Track', artist: '', cover: '', postUrl }], 0);
     } else {
       console.error('[pcms-audio] no track data or url on button or wrapper', btn);
     }
