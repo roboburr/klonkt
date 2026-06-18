@@ -1,11 +1,10 @@
 /**
  * Site middleware — resolve which site this request is for.
- * 
- * Resolution order:
- *   1. Path /sites/:slug → that site
- *   2. (Future) Subdomain bedrijf1.example.com → matching site
- *   3. Default site (first one in DB)
- * 
+ *
+ * Resolution order (hub-modus):
+ *   1. Pad /user/:slug → die site  (legacy /sites/:slug → 301 naar /user/)
+ *   2. Anders (solo, of hub-landing): de primaire/hoofd-site
+ *
  * Sets res.locals.site for all downstream handlers.
  */
 
@@ -28,9 +27,8 @@ export function resolveSite(req, res, next) {
   const tenancy = getTenancy();
   res.locals.tenancy = tenancy; // ook beschikbaar voor views
 
-  // In HUB-mode mapt /sites/:slug en (later) een subdomein naar een specifieke
-  // site. In SOLO-mode bestaat er maar één site: we slaan die routing over en
-  // pinnen altijd op de primaire site.
+  // In HUB-mode mapt /user/:slug naar een specifieke site. In SOLO-mode bestaat
+  // er maar één site: we slaan die routing over en pinnen op de primaire site.
   if (tenancy === 'hub') {
     // Een Klonkt-site is canoniek bereikbaar via /user/:slug. /sites/:slug is een
     // legacy-alias → 301 naar de canonieke vorm zodat er één URL-schema overblijft
@@ -48,15 +46,9 @@ export function resolveSite(req, res, next) {
         return next();
       }
     }
-    const host = req.get('host')?.toLowerCase().replace(/:\d+$/, '');
-    if (host) {
-      const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(host);
-      if (site) {
-        res.locals.site = site;
-        res.locals.siteUrlBase = '';
-        return next();
-      }
-    }
+    // (Verwijderd: een dode "slug == hostname"-subdomein-hack. Slugs mogen geen
+    // punten bevatten, dus die kon nooit matchen. Echte subdomein-routing zou de
+    // subdomein-LABEL tegen de slug matchen — een aparte feature, niet dit.)
   }
 
   // Solo (of hub zonder match): pin op de primaire/hoofd-site.
