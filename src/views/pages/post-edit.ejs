@@ -1049,6 +1049,49 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
     if (!url) return;
     execCmd('createLink', url);
   }
+  // De huidige selectie zit in een <blockquote> binnen de editor? Geef 'm terug.
+  function blockquoteAncestor() {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return null;
+    let node = sel.anchorNode;
+    while (node && node !== editor) {
+      if (node.nodeType === 1 && node.tagName === 'BLOCKQUOTE') return node;
+      node = node.parentNode;
+    }
+    return null;
+  }
+  // Echte toggle: execCommand('formatBlock','blockquote') zet 'm wél AAN maar
+  // krijgt 'm nooit meer UIT (browser-quirk). Staat de caret al in een quote →
+  // pak de wrapper uit; anders pas blockquote toe.
+  function toggleBlockquote() {
+    editor.focus();
+    const bq = blockquoteAncestor();
+    if (bq) {
+      const parent = bq.parentNode;
+      // Inhoud uit de quote halen, op z'n plek, en de lege wrapper verwijderen.
+      const ref = bq;
+      let firstMoved = null;
+      while (bq.firstChild) {
+        const child = bq.firstChild;
+        if (!firstMoved) firstMoved = child;
+        parent.insertBefore(child, ref);
+      }
+      parent.removeChild(bq);
+      // Caret terugzetten in de uitgepakte inhoud.
+      if (firstMoved) {
+        const sel = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(firstMoved.nodeType === 1 ? firstMoved : parent);
+        range.collapse(false);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    } else {
+      document.execCommand('formatBlock', false, 'blockquote');
+    }
+    updateToolbarState();
+    updateCharCount();
+  }
 
   if (toolbar) {
     toolbar.addEventListener('click', (e) => {
@@ -1059,6 +1102,7 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
       const arg = btn.dataset.arg || null;
       if (cmd === 'link-prompt') linkPrompt();
       else if (cmd === 'code-wrap') wrapCode();
+      else if (cmd === 'formatBlock' && arg === 'blockquote') toggleBlockquote();
       else execCmd(cmd, arg);
     });
   }
@@ -1072,6 +1116,9 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
       if (!btn) continue;
       try { btn.classList.toggle('is-active', document.queryCommandState(cmd)); } catch(_) {}
     }
+    // Quote-knop: actief als de caret in een <blockquote> staat (toggle-feedback).
+    const bqBtn = toolbar.querySelector('button[data-cmd="formatBlock"][data-arg="blockquote"]');
+    if (bqBtn) bqBtn.classList.toggle('is-active', !!blockquoteAncestor());
   }
   document.addEventListener('selectionchange', () => {
     if (document.activeElement === editor) updateToolbarState();
