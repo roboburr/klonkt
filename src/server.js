@@ -51,6 +51,7 @@ import adminUpdatesRoutes from './routes/admin-updates.js';
 import adminPatreonRoutes from './routes/admin-patreon.js';
 import adminStatsRoutes from './routes/admin-stats.js';
 import circleRoutes from './routes/circle.js';
+import epkRoutes from './routes/epk.js';
 
 if (!process.env.SESSION_SECRET) {
   console.error('❌ FATAL: SESSION_SECRET is required');
@@ -264,6 +265,7 @@ app.use('/leden', artistsRoutes); // doorzoekbare leden-directory (alleen hub; s
 app.get('/artiesten', (req, res) => res.redirect(301, req.originalUrl.replace(/^\/artiesten/, '/leden'))); // oude URL -> /leden
 app.use('/', hubRoutes); // hub-overview op '/' (solo: next() -> postsRoutes)
 app.use('/', circleRoutes); // /cirkel-feed (solo/hub: next() -> postsRoutes)
+app.use('/', epkRoutes); // /pers perskit (premium; niet-premium: next() -> 404)
 app.use('/', postsRoutes);
 
 app.get('/manifest.webmanifest', (req, res) => {
