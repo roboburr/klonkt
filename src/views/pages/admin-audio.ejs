@@ -101,9 +101,9 @@
               <% } %>
               <button type="button" class="ax-icon-btn" data-track-edit data-id="<%= t.id %>" aria-label="Bewerken" title="Bewerken">✎</button>
               <% if (typeof premiumUnlocked === 'undefined' || premiumUnlocked) { %>
-                <form action="/admin/audio/<%= t.id %>/downloadable" method="post" class="ax-track-delete" style="display:inline">
-                  <button type="submit" class="ax-icon-btn" aria-label="Download-voor-email" title="<%= t.downloadable ? 'Download-voor-email staat AAN — klik om uit te zetten' : 'Download-voor-email staat uit — klik om aan te zetten' %>" style="<%= t.downloadable ? 'color:var(--accent,#6b8f71)' : 'opacity:.5' %>">⬇</button>
-                </form>
+                <button type="button" class="ax-icon-btn" data-track-dl data-id="<%= t.id %>" data-on="<%= t.downloadable ? '1' : '0' %>"
+                        aria-label="Download-voor-email" title="<%= t.downloadable ? 'Download-voor-email staat AAN — klik om uit te zetten' : 'Download-voor-email staat uit — klik om aan te zetten' %>"
+                        style="<%= t.downloadable ? 'color:var(--accent,#6b8f71)' : 'opacity:.5' %>">⬇</button>
               <% } %>
               <form action="/admin/audio/<%= t.id %>/delete" method="post" onsubmit="return confirm('Track verwijderen?')" class="ax-track-delete">
                 <button type="submit" class="ax-icon-btn ax-icon-btn-danger" aria-label="Verwijderen" title="Verwijderen">🗑</button>
@@ -936,6 +936,33 @@
           }
         },
       });
+    });
+  });
+
+  // Download-voor-email toggle — AJAX (geen pagina-reload meer).
+  document.querySelectorAll('[data-track-dl]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (btn.disabled) return;
+      const want = btn.dataset.on === '1' ? 0 : 1;
+      btn.disabled = true;
+      try {
+        const res = await fetch('/admin/audio/api/' + btn.dataset.id, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ downloadable: !!want }),
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        btn.dataset.on = String(want);
+        btn.style.color = want ? 'var(--accent,#6b8f71)' : '';
+        btn.style.opacity = want ? '1' : '.5';
+        btn.title = want
+          ? 'Download-voor-email staat AAN — klik om uit te zetten'
+          : 'Download-voor-email staat uit — klik om aan te zetten';
+      } catch (e) {
+        alert('Kon niet wijzigen: ' + (e.message || e));
+      } finally {
+        btn.disabled = false;
+      }
     });
   });
 })();

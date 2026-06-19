@@ -51,7 +51,8 @@ router.get('/login', (req, res) => {
   renderPage(req, res, 'pages/auth-login', {
     pageTitle: 'Inloggen',
     bodyClass: 'on-special on-auth',
-    error: null,
+    error: req.query.error || null,
+    gerr: req.query.gerr || null, // foutcode voor een rijkere uitleg (bv. 'admin')
     success: req.query.success || null,
     username: '',
     googleReady: fanLoginReady(),
@@ -274,7 +275,8 @@ router.get('/google/callback', async (req, res) => {
       // Strikte scheiding: Google geeft nooit beheer. Hoort dit adres bij een
       // beheerder, dan moet diegene met wachtwoord inloggen (geen Google-bypass).
       if (user.role === 'god' || user.role === 'admin') {
-        return fail('Dit adres hoort bij een beheerder — log in met je wachtwoord.');
+        // Eigen, duidelijke uitleg-pagina (zie auth-login.ejs) i.p.v. een kale melding.
+        return res.redirect('/auth/login?gerr=admin');
       }
       // Bestaande luisteraar: koppel google_sub/avatar als die ontbreken; weiger
       // als al aan een ander Google-account gekoppeld.

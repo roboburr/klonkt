@@ -1,7 +1,19 @@
 <div class="container auth-page">
   <h1>Inloggen</h1>
   <% if (typeof success !== 'undefined' && success) { %><div class="alert alert-success"><%= success %></div><% } %>
-  <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+  <% if (typeof gerr !== 'undefined' && gerr === 'admin') { %>
+    <div class="auth-notice">
+      <div class="auth-notice-icon">🔐</div>
+      <h2 class="auth-notice-title">Dit is een beheerders-account</h2>
+      <p>Je logde in met Google, maar dit e-mailadres hoort bij de <strong>beheerder</strong> van deze site.
+         Inloggen met Google is alleen voor luisteraars/fans — beheerders gebruiken altijd hun wachtwoord
+         (zo kan een Google-login nooit per ongeluk beheerrechten geven).</p>
+      <ul class="auth-notice-list">
+        <li><strong>Ben je de beheerder?</strong> Log hieronder in met je <strong>gebruikersnaam + wachtwoord</strong>.</li>
+        <li><strong>Wil je als fan inloggen?</strong> Gebruik een <strong>ander Google-account</strong> (niet je beheerdersadres).</li>
+      </ul>
+    </div>
+  <% } else if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
 
   <form method="post" action="/auth/login" class="auth-form">
     <% if (typeof next !== 'undefined' && next) { %>
@@ -32,3 +44,12 @@
     </a>
   <% } %>
 </div>
+
+<style>
+  .auth-notice { border: 1px solid rgba(128,128,128,.28); border-radius: 14px; padding: 18px 20px; margin-bottom: 18px; background: rgba(128,128,128,.06); }
+  .auth-notice-icon { font-size: 26px; }
+  .auth-notice-title { font-size: 17px; margin: 4px 0 8px; }
+  .auth-notice p { margin: 0 0 10px; line-height: 1.55; opacity: .9; }
+  .auth-notice-list { margin: 0; padding-left: 18px; line-height: 1.6; }
+  .auth-notice-list li { margin: 4px 0; }
+</style>
