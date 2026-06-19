@@ -1,0 +1,38 @@
+<%
+  var ts = (typeof dlTracks !== 'undefined') ? dlTracks : [];
+%>
+<section class="dls">
+  <h1 class="dls-h1">Downloads</h1>
+  <p class="dls-sub">Gratis te downloaden — laat je e-mailadres achter en je krijgt het bestand.</p>
+
+  <% if (!ts.length) { %>
+    <p class="dls-empty">Er staan momenteel geen downloads klaar.</p>
+  <% } else { %>
+    <ul class="dls-list">
+      <% ts.forEach(function(t){ %>
+        <li class="dls-item">
+          <% if (t.cover_url) { %><span class="dls-cover" style="background-image:url('<%= t.cover_url %>')"></span><% } else { %><span class="dls-cover dls-cover-empty">♪</span><% } %>
+          <span class="dls-meta">
+            <span class="dls-title"><%= t.title %></span>
+            <% if (t.artist) { %><span class="dls-artist"><%= t.artist %></span><% } %>
+          </span>
+          <a class="dls-btn" href="<%= siteUrlBase %>/download/<%= t.id %>">⬇ Download</a>
+        </li>
+      <% }); %>
+    </ul>
+  <% } %>
+</section>
+
+<style>
+  .dls { max-width: 680px; margin: 0 auto; padding: 32px 18px 64px; }
+  .dls-h1 { font-size: clamp(26px,5vw,38px); margin: 0 0 8px; }
+  .dls-sub { opacity: .8; margin: 0 0 24px; }
+  .dls-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .dls-item { display: flex; align-items: center; gap: 14px; padding: 10px 12px; border: 1px solid rgba(128,128,128,.2); border-radius: 12px; }
+  .dls-cover { flex: 0 0 auto; width: 48px; height: 48px; border-radius: 8px; background-size: cover; background-position: center; display: grid; place-items: center; }
+  .dls-cover-empty { background: var(--accent,#6b8f71); color: #fff; opacity: .85; }
+  .dls-meta { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; }
+  .dls-title { font-weight: 600; }
+  .dls-artist { font-size: 12.5px; opacity: .65; }
+  .dls-btn { flex: 0 0 auto; padding: 9px 15px; border-radius: 999px; background: var(--accent,#6b8f71); color: #fff; text-decoration: none; font-weight: 600; font-size: 13.5px; }
+</style>

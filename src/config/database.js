@@ -86,6 +86,7 @@ export function initializeDatabase() {
   // Statistieken (premium-module) — kale tellers, cookievrij.
   ensureColumn('posts', 'view_count', 'INTEGER DEFAULT 0');         // weergaven per post
   ensureColumn('audio_tracks', 'play_count', 'INTEGER DEFAULT 0');  // plays per track
+  ensureColumn('audio_tracks', 'downloadable', 'INTEGER DEFAULT 0'); // download-voor-email (premium #2)
 
   // Playlists (v9 feature) — first-class entity. CREATE IF NOT EXISTS is
   // idempotent so it's safe to run on every boot regardless of DB age.

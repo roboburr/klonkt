@@ -1,0 +1,50 @@
+<%
+  var t = (typeof dlTrack !== 'undefined') ? dlTrack : {};
+  var st = (typeof dlState !== 'undefined') ? dlState : 'form';
+  var fileUrl = siteUrlBase + '/download/' + t.id + '/bestand';
+%>
+<section class="dl">
+  <div class="dl-card">
+    <div class="dl-head">
+      <% if (t.cover_url) { %><span class="dl-cover" style="background-image:url('<%= t.cover_url %>')"></span><% } else { %><span class="dl-cover dl-cover-empty">♪</span><% } %>
+      <div>
+        <div class="dl-title"><%= t.title %></div>
+        <% if (t.artist) { %><div class="dl-artist"><%= t.artist %></div><% } %>
+      </div>
+    </div>
+
+    <% if (st === 'ready') { %>
+      <h1 class="dl-h1">Bedankt! ⬇</h1>
+      <p class="dl-sub">Je download zou nu moeten starten. Gebeurt er niets?</p>
+      <p><a class="dl-go" href="<%= fileUrl %>">Download handmatig starten</a></p>
+      <script>
+        // Auto-start de download (zelfde-origin attachment-link).
+        setTimeout(function(){ try { window.location.href = <%- JSON.stringify(fileUrl) %>; } catch(e){} }, 600);
+      </script>
+    <% } else { %>
+      <h1 class="dl-h1">Download <%= t.title %></h1>
+      <p class="dl-sub">Laat je e-mailadres achter en je krijgt het bestand. Je komt dan ook op de nieuwsbrieflijst — uitschrijven kan altijd.</p>
+      <% if (typeof dlError !== 'undefined' && dlError) { %><p class="dl-err"><%= dlError %></p><% } %>
+      <form method="POST" action="<%= siteUrlBase %>/download/<%= t.id %>" class="dl-form">
+        <input type="email" name="email" required placeholder="jouw@email.nl" value="<%= (typeof dlPrefill!=='undefined')?dlPrefill:'' %>" autocomplete="email">
+        <button type="submit" class="dl-go">⬇ Download</button>
+      </form>
+    <% } %>
+  </div>
+</section>
+
+<style>
+  .dl { max-width: 520px; margin: 0 auto; padding: 48px 18px; }
+  .dl-card { border: 1px solid rgba(128,128,128,.2); border-radius: 18px; padding: 28px; }
+  .dl-head { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+  .dl-cover { width: 56px; height: 56px; border-radius: 10px; background-size: cover; background-position: center; display: grid; place-items: center; flex: 0 0 auto; }
+  .dl-cover-empty { background: var(--accent,#6b8f71); color: #fff; opacity: .85; }
+  .dl-title { font-weight: 700; font-size: 17px; }
+  .dl-artist { opacity: .65; font-size: 13px; }
+  .dl-h1 { font-size: clamp(22px,4.5vw,30px); margin: 0 0 8px; }
+  .dl-sub { opacity: .85; line-height: 1.55; margin: 0 0 18px; }
+  .dl-err { color: #c43c3c; margin: 0 0 12px; }
+  .dl-form { display: flex; gap: 10px; flex-wrap: wrap; }
+  .dl-form input { flex: 1 1 200px; padding: 12px 14px; border-radius: 10px; border: 1px solid rgba(128,128,128,.4); background: transparent; color: inherit; font-size: 15px; }
+  .dl-go { padding: 12px 20px; border-radius: 10px; border: none; background: var(--accent,#6b8f71); color: #fff; font-weight: 600; font-size: 15px; cursor: pointer; text-decoration: none; display: inline-block; }
+</style>

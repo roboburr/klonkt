@@ -100,6 +100,11 @@
                 </button>
               <% } %>
               <button type="button" class="ax-icon-btn" data-track-edit data-id="<%= t.id %>" aria-label="Bewerken" title="Bewerken">✎</button>
+              <% if (typeof premiumUnlocked === 'undefined' || premiumUnlocked) { %>
+                <form action="/admin/audio/<%= t.id %>/downloadable" method="post" class="ax-track-delete" style="display:inline">
+                  <button type="submit" class="ax-icon-btn" aria-label="Download-voor-email" title="<%= t.downloadable ? 'Download-voor-email staat AAN — klik om uit te zetten' : 'Download-voor-email staat uit — klik om aan te zetten' %>" style="<%= t.downloadable ? 'color:var(--accent,#6b8f71)' : 'opacity:.5' %>">⬇</button>
+                </form>
+              <% } %>
               <form action="/admin/audio/<%= t.id %>/delete" method="post" onsubmit="return confirm('Track verwijderen?')" class="ax-track-delete">
                 <button type="submit" class="ax-icon-btn ax-icon-btn-danger" aria-label="Verwijderen" title="Verwijderen">🗑</button>
               </form>

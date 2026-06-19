@@ -77,7 +77,7 @@ router.get('/', requireGod, (req, res) => {
 
   const rows = db.prepare(`
     SELECT t.id, t.title, t.artist, t.album, t.duration, t.cover_url,
-           t.position, t.created_at, m.filename, m.size, m.mime_type
+           t.position, t.created_at, t.downloadable, m.filename, m.size, m.mime_type
     FROM audio_tracks t
     LEFT JOIN media m ON m.id = t.media_id
     WHERE t.site_id = ?
@@ -240,6 +240,19 @@ router.post('/upload', requireGod, (req, res) => {
       size: transcoded.size,
     });
   });
+});
+
+// Download-voor-email per track aan/uit (premium #2). Zonder-JS toggle vanaf de
+// audio-beheerlijst → flip + terug.
+router.post('/:id/downloadable', requireGod, (req, res) => {
+  const site = res.locals.site;
+  if (!site) return res.status(404).send('Site required');
+  const row = db.prepare('SELECT downloadable FROM audio_tracks WHERE id = ? AND site_id = ?').get(req.params.id, site.id);
+  if (row) {
+    db.prepare('UPDATE audio_tracks SET downloadable = ? WHERE id = ? AND site_id = ?')
+      .run(row.downloadable ? 0 : 1, req.params.id, site.id);
+  }
+  res.redirect('/admin/audio');
 });
 
 router.post('/:id/delete', requireGod, (req, res) => {
@@ -410,6 +423,10 @@ router.post('/api/:id', requireGod, express.json(), (req, res) => {
       safe = raw;
     }
     fields.push('cover_url = ?'); values.push(safe);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'downloadable')) {
+    fields.push('downloadable = ?'); values.push(body.downloadable ? 1 : 0);
   }
 
   if (fields.length === 0) {
