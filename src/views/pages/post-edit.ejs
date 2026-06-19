@@ -1261,6 +1261,16 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
     }
   });
 
+  // Op mobiel/tablet (touch-apparaat = pointer:coarse) gebeurt typen ALTIJD
+  // fullscreen: zodra het schrijfveld focus krijgt, gaan we automatisch fullscreen.
+  // Eruit kan met de knop (⤡) of Escape; tik je weer in het veld → opnieuw fullscreen.
+  var isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  if (isTouch) {
+    editor.addEventListener('focus', function () {
+      if (editorFrame && !editorFrame.classList.contains('pe-fs')) toggleFullscreen();
+    });
+  }
+
   // Reflect bold/italic/list state on the toolbar buttons
   function updateToolbarState() {
     if (!toolbar) return;

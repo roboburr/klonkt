@@ -41,6 +41,9 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
   touch), zodat zichtbaar is of bv. vet aan of uit staat.
 
 ### Toegevoegd
+- Op **mobiel & tablet** (touch) gebeurt typen voortaan **altijd in volledig scherm**:
+  zodra je in het schrijfveld tikt, gaat de editor automatisch fullscreen. Eruit met
+  de knop (⤡) of Escape.
 - Schrijfvenster kan op **volledig scherm** (knop in de editor-toolbar, of Escape om
   terug te gaan) — fijn voor afleidingsvrij schrijven op mobiel. De opmaak-toolbar
   blijft daarbij altijd bovenaan in beeld, ook als het mobiele toetsenbord opent
