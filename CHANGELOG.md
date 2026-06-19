@@ -14,6 +14,8 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 ## [Unreleased]
 
 ### Opgelost
+- Fullscreen-editor: geen dubbele scrollbalk meer — in fullscreen scrollt alléén
+  het tekstveld; het frame en de pagina (html+body) erachter zijn vergrendeld.
 - Editor: het beeld verspringt niet meer bij het aanklikken van een opmaakknop.
   Op mobiel is het schrijfveld nu een begrensde scroll-box met de opmaak-toolbar
   STICKY bovenin: de tekst scrollt eronder, de toolbar blijft altijd in beeld, en

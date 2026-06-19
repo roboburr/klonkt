@@ -444,13 +444,16 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
   margin: 0; border-top: 0;
   height: 100dvh;
   background: var(--paper);
+  overflow: hidden;   /* alléén het tekstveld scrollt, niet het frame zelf */
 }
 /* In fullscreen vult het schrijfveld de resterende ruimte en scrollt het zelf
    (max-height: none overschrijft de mobiele box-begrenzing hieronder). */
 .pe-editor-frame.pe-fs .pe-editor {
   flex: 1 1 auto; min-height: 0; height: auto; max-height: none;
 }
-body.pe-fs-open { overflow: hidden; }
+/* Pagina vergrendelen achter het fullscreen-veld (html én body) → geen tweede,
+   verwarrende pagina-scrollbalk naast de scrollbalk van het tekstveld. */
+html.pe-fs-open, body.pe-fs-open { overflow: hidden; }
 
 /* Editor body — looks like prose, behaves like a textarea */
 .pe-editor {
@@ -1231,6 +1234,7 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
     if (!editorFrame) return;
     const on = editorFrame.classList.toggle('pe-fs');
     document.body.classList.toggle('pe-fs-open', on);
+    document.documentElement.classList.toggle('pe-fs-open', on);
     if (fsBtn) {
       fsBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
       fsBtn.title = on ? 'Verklein' : 'Volledig scherm';
