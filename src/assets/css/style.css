@@ -628,6 +628,13 @@ body.kb-open .bottom-tab,
 body.kb-open .audio-player { display: none !important; }
 body.kb-open .pcms-main { padding-bottom: 1rem; }
 
+/* Mobiel & tablet (touch): scrollbalken verbergen — scrollen blijft werken, alleen
+   de balk-UI is weg (geen verwarrende/dubbele balken). */
+@media (pointer: coarse) {
+  * { scrollbar-width: none; -ms-overflow-style: none; }
+  *::-webkit-scrollbar { width: 0; height: 0; display: none; }
+}
+
 /* ============================================================
    AUDIO PLAYER v7.1 — SVG iconen, thema-aware, geen emoji
    ============================================================ */

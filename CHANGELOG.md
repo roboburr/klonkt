@@ -14,6 +14,8 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 ## [Unreleased]
 
 ### Opgelost
+- Scrollbalken verborgen op mobiel & tablet (touch) — scrollen blijft werken,
+  alleen de balk-UI is weg (geen verwarrende/dubbele balken).
 - Fullscreen-editor: geen dubbele scrollbalk meer — in fullscreen scrollt alléén
   het tekstveld; het frame en de pagina (html+body) erachter zijn vergrendeld.
 - Editor: het beeld verspringt niet meer bij het aanklikken van een opmaakknop.
