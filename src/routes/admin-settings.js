@@ -138,6 +138,22 @@ router.post('/', requireGod, (req, res) => {
   });
 });
 
+// Google-login op een eigen Beheer-pagina (los van de algemene instellingen).
+router.get('/google', requireGod, (req, res) => {
+  renderPage(req, res, 'pages/admin-google', {
+    pageTitle: 'Google-login',
+    bodyClass: 'on-admin',
+    google: {
+      configured: googleConfigured(),
+      redirectUri: redirectUri(),
+      clientId: currentClientId(),
+      secretSet: clientSecretSet(),
+    },
+    success: req.query.success || null,
+    error: req.query.error || null,
+  });
+});
+
 // Google-login (luisteraars) configureren — Client ID + Secret in app_settings.
 // De redirect-URI leiden we af van PUBLIC_BASE_URL (zie config/google.js).
 router.post('/google', requireGod, (req, res) => {

@@ -1,0 +1,84 @@
+<div class="container admin-page">
+  <h1>Google-login</h1>
+  <p><a href="/admin/settings" class="btn">&larr; Instellingen</a></p>
+
+  <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
+  <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+  <section class="set-card">
+    <h2>Google-login (luisteraars)</h2>
+    <p class="set-help">Laat bezoekers met Google inloggen om te reageren — met je <strong>eigen</strong>
+      Google Cloud-client. Maak er een aan op
+      <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">console.cloud.google.com</a>
+      (OAuth client-ID, type "Web application").
+      <% if (google && google.configured) { %><strong>Status: ingesteld&nbsp;✓</strong><% } else { %>Nog niet ingesteld.<% } %></p>
+
+    <details class="set-google-guide">
+      <summary>Hoe stel ik dit in? (stap voor stap)</summary>
+      <ol class="set-google-steps">
+        <li>Ga naar de <a href="https://console.cloud.google.com/" target="_blank" rel="noopener">Google Cloud Console</a> en maak (of kies) een project.</li>
+        <li><strong>APIs &amp; Services → OAuth consent screen</strong>: User type <strong>External</strong>. Voeg de scopes <code>email</code>, <code>profile</code> en <code>openid</code> toe. (In testmodus: voeg jezelf toe als testgebruiker.)</li>
+        <li><strong>APIs &amp; Services → Credentials → Create credentials → OAuth client ID</strong>, type <strong>Web application</strong>.</li>
+        <li>Bij <strong>Authorized redirect URIs</strong>: plak de redirect-URI hieronder (moet <strong>exact</strong> matchen).</li>
+        <li>Kopieer de <strong>Client ID</strong> + <strong>Client Secret</strong> die je krijgt naar de velden hieronder en klik Opslaan.</li>
+      </ol>
+      <p class="set-help" style="margin:.5rem 0 0"><strong>Let op:</strong> je hoeft <strong>geen API's aan te zetten</strong> — "Google Cloud APIs", People API e.d. zijn <em>niet</em> nodig. Inloggen werkt via OpenID Connect (alleen het toestemmingsscherm + de OAuth-client).</p>
+    </details>
+
+    <% if (google && google.redirectUri) { %>
+      <p class="set-help" style="margin-bottom:.7rem">Zet deze <strong>exacte</strong> redirect-URI in je Google-client
+        (Authorized redirect URIs):<br><code style="user-select:all"><%= google.redirectUri %></code></p>
+    <% } else { %>
+      <p class="set-help" style="color:var(--accent)">Stel eerst <code>PUBLIC_BASE_URL</code> in — daar wordt de redirect-URI van afgeleid.</p>
+    <% } %>
+
+    <form method="post" action="/admin/settings/google" class="set-form">
+      <label class="set-field">
+        <span>Client ID</span>
+        <input type="text" name="google_client_id" value="<%= google ? google.clientId : '' %>" placeholder="123-abc.apps.googleusercontent.com" autocomplete="off">
+      </label>
+      <label class="set-field">
+        <span>Client Secret <% if (google && google.secretSet) { %><small style="font-weight:400">— ingesteld; leeg laten = ongewijzigd</small><% } %></span>
+        <input type="password" name="google_client_secret" placeholder="<%= (google && google.secretSet) ? '•••••••• (ingesteld)' : 'GOCSPX-…' %>" autocomplete="off">
+      </label>
+      <div class="set-actions">
+        <button type="submit" class="btn btn-primary">Opslaan</button>
+        <% if (google && (google.clientId || google.secretSet)) { %>
+          <button type="submit" name="clear" value="1" class="btn">Loskoppelen</button>
+        <% } %>
+      </div>
+    </form>
+    <% if (typeof premiumEnabled !== 'undefined' && premiumEnabled && !isPremium) { %>
+      <p class="set-help" style="margin-top:.7rem; color:var(--accent)">Premium-laag staat aan zonder Patreon — de Google-knop blijft verborgen tot premium ontgrendeld is.</p>
+    <% } %>
+  </section>
+</div>
+
+<style>
+.admin-page { max-width: 700px; margin: 3rem auto; padding: 0 1rem; }
+.admin-page h1 { font-family: var(--font-display, serif); font-size: 2rem; margin: 0 0 0.75rem; }
+.set-card { background: var(--paper-2); border: 1px solid var(--rule); border-radius: 12px; padding: 1.25rem; }
+.set-card h2 { font-family: var(--font-display, serif); font-size: 1.25rem; margin: 0 0 0.5rem; }
+.set-help { color: var(--ink-muted); font-size: 0.9rem; margin: 0 0 1.25rem; }
+.set-google-guide { margin: 0 0 1rem; border: 1px solid var(--rule); border-radius: 8px; background: var(--paper); }
+.set-google-guide > summary { cursor: pointer; padding: 0.6rem 0.85rem; font-size: 0.9rem; font-weight: 600; color: var(--accent); list-style: none; }
+.set-google-guide > summary::-webkit-details-marker { display: none; }
+.set-google-guide > summary::before { content: "▸ "; }
+.set-google-guide[open] > summary::before { content: "▾ "; }
+.set-google-steps { margin: 0; padding: 0 1rem 0.6rem 2rem; font-size: 0.88rem; color: var(--ink); line-height: 1.5; }
+.set-google-steps li { margin: 0.35rem 0; }
+.set-google-guide code { background: var(--paper-2); padding: 0.05rem 0.35rem; border-radius: 4px; font-size: 0.85em; }
+.set-google-guide .set-help { padding: 0 0.85rem; }
+.set-form { display: flex; flex-direction: column; gap: 1rem; max-width: 460px; }
+.set-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.25rem; }
+.set-field { display: flex; flex-direction: column; gap: 0.3rem; }
+.set-field > span { font-size: 0.8rem; font-weight: 600; color: var(--ink-soft, var(--ink-muted)); }
+.set-field input {
+  width: 100%; box-sizing: border-box; padding: 0.55rem 0.7rem;
+  border: 1px solid var(--rule); border-radius: 6px; background: var(--paper); color: var(--ink);
+  font: inherit; font-size: 0.95rem;
+}
+.set-field input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
+.alert { padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; }
+.alert-success { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+</style>
