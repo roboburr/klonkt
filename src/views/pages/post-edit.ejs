@@ -1075,13 +1075,30 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
   // ── Toolbar wiring
   // Houd de scrollpositie vast rond een edit-commando. execCommand/insert scrollt
   // standaard de caret in beeld → het beeld "verspringt" bij het aanklikken van een
-  // opmaakknop. Door de positie te bewaren en terug te zetten (sync + na 1 frame)
-  // blijft het beeld staan; de gebruiker scrollt zelf.
+  // opmaakknop. We leggen ALLE scrollbare voorouders (editor, frame, #pcms-main, …)
+  // + de pagina vast en zetten ze terug — sync én over een paar frames, want Chrome
+  // scrollt soms pas een frame later. De gebruiker scrollt zo zelf.
+  function scrollableAncestors(el) {
+    const list = [];
+    let node = el;
+    while (node && node !== document.body && node !== document.documentElement) {
+      const oy = getComputedStyle(node).overflowY;
+      if (oy === 'auto' || oy === 'scroll' || oy === 'overlay') list.push(node);
+      node = node.parentElement;
+    }
+    return list;
+  }
   function keepScroll(fn) {
-    const x = window.scrollX, y = window.scrollY, es = editor.scrollTop;
+    const wx = window.scrollX, wy = window.scrollY;
+    const anc = scrollableAncestors(editor).map(function (n) { return [n, n.scrollTop, n.scrollLeft]; });
+    const restore = function () {
+      window.scrollTo(wx, wy);
+      anc.forEach(function (e) { e[0].scrollTop = e[1]; e[0].scrollLeft = e[2]; });
+    };
     fn();
-    window.scrollTo(x, y); editor.scrollTop = es;
-    requestAnimationFrame(function () { window.scrollTo(x, y); editor.scrollTop = es; });
+    restore();
+    requestAnimationFrame(restore);
+    requestAnimationFrame(function () { requestAnimationFrame(restore); });
   }
   function execCmd(cmd, arg) {
     keepScroll(function () {
