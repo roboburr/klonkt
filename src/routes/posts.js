@@ -398,7 +398,7 @@ router.get('/:slug', (req, res, next) => {
   if (RESERVED_SLUGS.has(req.params.slug)) return next();
 
   const site = res.locals.site;
-  if (!site) return res.status(404).send('Site not found');
+  if (!site) return next(); // -> nette 404 catch-all
 
   const post = db.prepare(`
     SELECT p.*, u.username as author_username, u.avatar_url as author_avatar
@@ -406,7 +406,7 @@ router.get('/:slug', (req, res, next) => {
     WHERE p.site_id = ? AND p.slug = ?
   `).get(site.id, req.params.slug);
 
-  if (!post) return res.status(404).send('Post not found');
+  if (!post) return next(); // onbekende slug -> nette 404 catch-all
 
   // Permission to view: published OR (logged in + can edit)
   if (post.status !== 'published') {
