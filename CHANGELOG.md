@@ -41,6 +41,9 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
   touch), zodat zichtbaar is of bv. vet aan of uit staat.
 
 ### Toegevoegd
+- Tekstvelden (`<textarea>`) groeien nu site-breed mee met de inhoud i.p.v. intern
+  te scrollen (scroll-binnen-scroll was verwarrend). Het inline schrijfveld groeit
+  ook gewoon mee; typen op mobiel/tablet gaat sowieso fullscreen.
 - Op **mobiel & tablet** (touch) gebeurt typen voortaan **altijd in volledig scherm**:
   zodra je in het schrijfveld tikt, gaat de editor automatisch fullscreen. Eruit met
   de knop (⤡) of Escape.

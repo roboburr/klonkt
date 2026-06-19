@@ -551,6 +551,28 @@ if (typeof post !== 'undefined' && post && post.slug) {
 })();
 </script>
 
+<!-- Auto-resize: elk <textarea> groeit mee met de inhoud i.p.v. intern te scrollen
+     (scroll-binnen-scroll is verwarrend). Site-breed; ook na htmx-swaps. -->
+<script>
+(function () {
+  function autoSize(ta) {
+    if (!ta || ta.tagName !== 'TEXTAREA') return;
+    ta.style.overflowY = 'hidden';
+    ta.style.height = 'auto';
+    ta.style.height = ta.scrollHeight + 'px';
+  }
+  function sizeAll(root) {
+    (root || document).querySelectorAll('textarea').forEach(autoSize);
+  }
+  document.addEventListener('input', function (e) { autoSize(e.target); });
+  document.addEventListener('focusin', function (e) { autoSize(e.target); });
+  // Init + opnieuw na htmx-navigatie/partials.
+  sizeAll();
+  document.body.addEventListener('htmx:afterSettle', function () { sizeAll(); });
+  window.addEventListener('load', function () { sizeAll(); });
+})();
+</script>
+
 <!-- PWA install prompt — show button when browser fires beforeinstallprompt -->
 <script>
 (function() {
