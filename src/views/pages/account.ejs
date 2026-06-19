@@ -131,6 +131,21 @@
       </div>
     </form>
   </section>
+
+  <% if (typeof googleAvailable !== 'undefined' && googleAvailable) { %>
+  <section class="ax-card">
+    <div class="ax-card-title">Inloggen met Google</div>
+    <% if (typeof googleLinked !== 'undefined' && googleLinked) { %>
+      <p class="ax-tagline" style="margin:0 0 1rem">✓ Je Google-account is gekoppeld — je kunt ook met Google inloggen.</p>
+      <form action="/account/google/unlink" method="post">
+        <button type="submit" class="ax-btn">Google ontkoppelen</button>
+      </form>
+    <% } else { %>
+      <p class="ax-tagline" style="margin:0 0 1rem">Koppel je Google-account zodat je voortaan ook met één klik via Google kunt inloggen (naast je wachtwoord).</p>
+      <a href="/auth/google/link" class="ax-btn ax-btn-primary" data-full-load>Koppel Google-account</a>
+    <% } %>
+  </section>
+  <% } %>
   <% } else { %>
   <section class="ax-card">
     <div class="ax-card-title">Inloggen</div>

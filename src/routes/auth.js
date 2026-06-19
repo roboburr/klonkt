@@ -5,7 +5,7 @@ import { v4 as uuid } from 'uuid';
 import db from '../config/database.js';
 import { renderPage } from '../middleware/render.js';
 import { loginLimiter, registerLimiter } from '../middleware/rate-limit.js';
-import { safeNext } from '../middleware/auth.js';
+import { safeNext, requireAuth } from '../middleware/auth.js';
 import { googleConfigured, authorizeUrl, exchangeCode, fetchUserinfo } from '../config/google.js';
 import { premiumUnlocked } from '../services/PatreonService.js';
 
@@ -267,6 +267,21 @@ router.get('/google', (req, res) => {
   const state = crypto.randomBytes(16).toString('hex');
   req.session.oauthState = state;
   req.session.oauthNext = safeNext(req.query.next) || '';
+  delete req.session.oauthLink;
+  res.redirect(authorizeUrl(state));
+});
+
+// Google KOPPELEN aan het huidige (ingelogde) account — bv. een beheerder die
+// voortaan óók met Google wil inloggen. Vereist dat je al ingelogd bent (met
+// wachtwoord); de koppeling slaat de google_sub op het eigen account op.
+// Alleen googleConfigured() nodig (geen premium-gate — dit is geen fan-login).
+router.get('/google/link', requireAuth, (req, res) => {
+  if (!googleConfigured()) {
+    return res.redirect('/account?error=' + encodeURIComponent('Google-login is op deze site niet ingesteld.'));
+  }
+  const state = crypto.randomBytes(16).toString('hex');
+  req.session.oauthState = state;
+  req.session.oauthLink = true; // koppel-modus i.p.v. login-modus
   res.redirect(authorizeUrl(state));
 });
 
@@ -282,34 +297,56 @@ function uniqueUsername(base) {
 }
 
 router.get('/google/callback', async (req, res) => {
-  const fail = (code) => res.redirect('/auth/login?gerr=' + code);
-  if (!fanLoginReady()) return fail('unavailable');
+  const linking = !!req.session.oauthLink;
+  const failLogin = (code) => res.redirect('/auth/login?gerr=' + code);
+  const failLink = (msg) => res.redirect('/account?error=' + encodeURIComponent(msg));
+
   try {
     const { code, state } = req.query;
-    if (!code || !state || state !== req.session.oauthState) return fail('session');
-    const next = safeNext(req.session.oauthNext) || '';
-    delete req.session.oauthState;
-    delete req.session.oauthNext;
+    if (!code || !state || state !== req.session.oauthState) {
+      delete req.session.oauthState; delete req.session.oauthLink; delete req.session.oauthNext;
+      return linking ? failLink('Google-koppeling afgebroken of sessie verlopen. Probeer opnieuw.') : failLogin('session');
+    }
 
     const tok = await exchangeCode(String(code));
     const info = await fetchUserinfo(tok.access_token);
     const email = (info.email || '').trim().toLowerCase();
-    if (!email || info.email_verified === false) return fail('email');
+
+    // ── KOPPEL-MODUS: Google aan het huidige (ingelogde) account hangen ──
+    if (linking) {
+      delete req.session.oauthState; delete req.session.oauthLink;
+      if (!req.session.user) return failLogin('session');
+      if (!info.sub) return failLink('Google gaf geen account-id terug. Probeer opnieuw.');
+      if (info.email && info.email_verified === false) return failLink('Je Google-adres is niet geverifieerd.');
+      // Dit Google-account mag niet al aan een ANDER account hangen.
+      const other = db.prepare('SELECT id FROM users WHERE google_sub = ? AND id != ?').get(info.sub, req.session.user.id);
+      if (other) return failLink('Dit Google-account is al aan een andere gebruiker gekoppeld.');
+      db.prepare(`
+        UPDATE users SET google_sub = ?, avatar_url = COALESCE(avatar_url, ?),
+          updated_at = CURRENT_TIMESTAMP WHERE id = ?
+      `).run(info.sub, info.picture || null, req.session.user.id);
+      return res.redirect('/account?success=' + encodeURIComponent('Google-account gekoppeld — je kunt nu ook met Google inloggen.'));
+    }
+
+    // ── LOGIN-MODUS (luisteraars/fans + gekoppelde beheerder) ──
+    if (!fanLoginReady()) return failLogin('unavailable');
+    const next = safeNext(req.session.oauthNext) || '';
+    delete req.session.oauthState; delete req.session.oauthNext;
+    if (!email || info.email_verified === false) return failLogin('email');
 
     let user = db.prepare('SELECT * FROM users WHERE LOWER(email) = ?').get(email);
 
-    if (user) {
-      // Strikte scheiding: Google geeft nooit beheer. Hoort dit adres bij een
-      // beheerder, dan moet diegene met wachtwoord inloggen (geen Google-bypass).
-      if (user.role === 'god' || user.role === 'admin') {
-        // Eigen, duidelijke uitleg-pagina (zie auth-login.ejs) i.p.v. een kale melding.
-        return fail('admin');
+    if (user && (user.role === 'god' || user.role === 'admin')) {
+      // Beheerder mag ALLEEN met Google in als 'ie z'n Google expliciet gekoppeld
+      // heeft (matchende google_sub). Anders blijft gelden: Google = nooit beheer.
+      if (!(user.google_sub && info.sub && user.google_sub === info.sub)) {
+        return failLogin('admin');
       }
+      // gekoppeld + match → doorgaan met de eigen (beheer)rol.
+    } else if (user) {
       // Bestaande luisteraar: koppel google_sub/avatar als die ontbreken; weiger
       // als al aan een ander Google-account gekoppeld.
-      if (user.google_sub && info.sub && user.google_sub !== info.sub) {
-        return fail('linked');
-      }
+      if (user.google_sub && info.sub && user.google_sub !== info.sub) return failLogin('linked');
       db.prepare(`
         UPDATE users SET google_sub = COALESCE(google_sub, ?), avatar_url = COALESCE(avatar_url, ?),
           updated_at = CURRENT_TIMESTAMP WHERE id = ?
@@ -333,7 +370,10 @@ router.get('/google/callback', async (req, res) => {
     res.redirect(next || '/');
   } catch (e) {
     console.error('[auth/google/callback]', e.message);
-    fail('failed');
+    delete req.session.oauthState; delete req.session.oauthLink; delete req.session.oauthNext;
+    return linking
+      ? res.redirect('/account?error=' + encodeURIComponent('Google koppelen mislukt — probeer opnieuw.'))
+      : failLogin('failed');
   }
 });
 

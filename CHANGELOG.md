@@ -14,6 +14,11 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 ## [Unreleased]
 
 ### Toegevoegd
+- Beheerder kan z'n **Google-account koppelen** (Account → Inloggen met Google) en
+  daarna óók met Google inloggen. Veilig: koppelen kan alleen terwijl je met
+  wachtwoord bent ingelogd, en Google-login geeft alleen beheer als de exacte
+  gekoppelde Google-account (`google_sub`) matcht. Ontkoppelen kan zolang er een
+  wachtwoord is.
 - Posts liken / favorieten: ingelogde gebruikers kunnen een post liken met een ♥-knop
   (toont het aantal likes). Je gelikete posts staan op de nieuwe **Favorieten**-pagina
   (`/favorieten`, link in het accountmenu). Niet-ingelogd → de knop leidt naar de login.

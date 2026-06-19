@@ -23,6 +23,7 @@ import db from '../config/database.js';
 import { getPrimarySite } from '../middleware/site.js';
 import { renderPage } from '../middleware/render.js';
 import { requireAuth } from '../middleware/auth.js';
+import { googleConfigured } from '../config/google.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const AVATAR_DIR = path.resolve(
@@ -57,17 +58,20 @@ const router = express.Router();
 // ==================== GET account page ====================
 router.get('/', requireAuth, (req, res) => {
   const account = db.prepare(`
-    SELECT id, username, email, role, bio, avatar_url, created_at, password_hash
+    SELECT id, username, email, role, bio, avatar_url, created_at, password_hash, google_sub
     FROM users WHERE id = ?
   `).get(req.session.user.id);
   const hasPassword = !!(account && account.password_hash && account.password_hash !== '!google-oauth');
-  if (account) delete account.password_hash; // niet naar de view lekken
+  const googleLinked = !!(account && account.google_sub);
+  if (account) { delete account.password_hash; delete account.google_sub; } // niet naar de view lekken
 
   renderPage(req, res, 'pages/account', {
     pageTitle: 'Account',
     bodyClass: 'on-special',
     account,
     hasPassword,
+    googleLinked,
+    googleAvailable: googleConfigured(),
     editableSite: ownedSite(req.session.user),
     success: req.query.success || null,
     error: req.query.error || null,
@@ -141,6 +145,20 @@ router.post('/password', requireAuth, (req, res) => {
     .run(newHash, req.session.user.id);
 
   res.redirect('/account?success=' + encodeURIComponent('Wachtwoord gewijzigd'));
+});
+
+// Google-account ontkoppelen. Alleen toegestaan als er nog een wachtwoord is,
+// anders zou je jezelf buitensluiten (geen login-methode meer over).
+router.post('/google/unlink', requireAuth, (req, res) => {
+  const row = db.prepare('SELECT password_hash, google_sub FROM users WHERE id = ?').get(req.session.user.id);
+  if (!row || !row.google_sub) {
+    return res.redirect('/account?error=' + encodeURIComponent('Er is geen Google-account gekoppeld'));
+  }
+  if (!row.password_hash || row.password_hash === '!google-oauth') {
+    return res.redirect('/account?error=' + encodeURIComponent('Stel eerst een wachtwoord in — anders kun je niet meer inloggen.'));
+  }
+  db.prepare('UPDATE users SET google_sub = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(req.session.user.id);
+  res.redirect('/account?success=' + encodeURIComponent('Google-account ontkoppeld'));
 });
 
 // ==================== UPLOAD AVATAR ====================
