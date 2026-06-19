@@ -1,4 +1,4 @@
-<div class="fg-navwrap">
+<div class="container fg-navwrap">
   <%# Zelfde post-navigatie (Newer/Older) als op een gewone post, zodat een
       bezoeker op de fan-gate niet vastloopt maar verder kan bladeren. Zelfde
       maten als .post-page (720px / padding 0 1rem) zodat de nav pixel-gelijk is. %>
@@ -16,8 +16,9 @@
 </section>
 
 <style>
-  /* Identiek aan .post-page (post.ejs) zodat de post-nav exact gelijk uitlijnt. */
-  .fg-navwrap { max-width: 720px; margin: 0.5rem auto 0; padding: 0 1rem; }
+  /* EXACT dezelfde class-combinatie (.container + override) én waarden als
+     .post-page in post.ejs, zodat de post-nav cascade-identiek uitlijnt. */
+  .fg-navwrap { max-width: 720px; margin: 0.5rem auto 2rem; padding: 0 1rem; }
   .fg { max-width: 480px; margin: 0 auto; padding: 56px 18px; text-align: center; }
   .fg-card { border: 1px solid rgba(128,128,128,.2); border-radius: 18px; padding: 36px 28px; }
   .fg-lock { font-size: 40px; margin-bottom: 8px; }
