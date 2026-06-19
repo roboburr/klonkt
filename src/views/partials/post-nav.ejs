@@ -7,7 +7,7 @@
       <a class="post-nav-prev" href="<%= newerPost._urlBase || '' %>/<%= newerPost.slug %>"<% if (!newerPost._urlBase) { %>
          hx-get="/<%= newerPost.slug %>?partial=1" hx-target="#pcms-main"
          hx-push-url="/<%= newerPost.slug %>" hx-indicator="#pcms-loading"<% } %>>
-        <span class="post-nav-label">← Newer</span>
+        <span class="post-nav-label"><% if (newerPost.pinned) { %><span class="post-nav-pin" title="Vastgepind">📌</span> <% } %>← Newer</span>
         <span class="post-nav-title"><%= newerPost.title %></span>
       </a>
     <% } else { %>
@@ -20,7 +20,7 @@
       <a class="post-nav-next" href="<%= olderPost._urlBase || '' %>/<%= olderPost.slug %>"<% if (!olderPost._urlBase) { %>
          hx-get="/<%= olderPost.slug %>?partial=1" hx-target="#pcms-main"
          hx-push-url="/<%= olderPost.slug %>" hx-indicator="#pcms-loading"<% } %>>
-        <span class="post-nav-label">Older →</span>
+        <span class="post-nav-label">Older →<% if (olderPost.pinned) { %> <span class="post-nav-pin" title="Vastgepind">📌</span><% } %></span>
         <span class="post-nav-title"><%= olderPost.title %></span>
       </a>
     <% } else { %>
@@ -44,5 +44,6 @@
 .post-nav-next { text-align: right; align-items: flex-end; }
 .post-nav-label { font-size: 0.8rem; color: var(--ink-muted); margin-bottom: 0.25rem; }
 .post-nav-title { font-weight: 500; }
+.post-nav-pin { font-size: 0.85em; }
 @media (max-width: 600px) { .post-nav { grid-template-columns: 1fr; } }
 </style>

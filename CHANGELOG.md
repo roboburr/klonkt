@@ -14,6 +14,7 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 ## [Unreleased]
 
 ### Gewijzigd
+- Post-navigatie (Newer/Older) toont nu een 📌 als de gelinkte post vastgepind is.
 - De Newer/Older-postnavigatie staat nu óók op de fan-gate (login-wall van een
   fan-only post), zodat een bezoeker niet vastloopt maar verder kan bladeren.
   Nav verhuisd naar een gedeeld partial (`partials/post-nav.ejs`).

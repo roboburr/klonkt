@@ -400,13 +400,13 @@ function postNeighbors(site, post, isHub) {
   const urlBaseFor = (p) => (isHub && p && p.site_slug) ? `/user/${p.site_slug}` : '';
   const ordered = isHub
     ? db.prepare(`
-        SELECT p.id, p.slug, p.title, s.slug AS site_slug
+        SELECT p.id, p.slug, p.title, p.pinned, s.slug AS site_slug
         FROM posts p JOIN sites s ON s.id = p.site_id
         WHERE p.status = 'published'
         ORDER BY p.published_at DESC
       `).all()
     : db.prepare(`
-        SELECT id, slug, title FROM posts
+        SELECT id, slug, title, pinned FROM posts
         WHERE site_id = ? AND status = 'published'
         ORDER BY (pinned = 0) ASC, pinned ASC, published_at DESC
       `).all(site.id);
