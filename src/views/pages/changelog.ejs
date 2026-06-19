@@ -1,0 +1,40 @@
+<div class="container changelog-page">
+  <p><a href="<%= (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '' %>/" class="btn">&larr; Terug</a></p>
+  <h1>Wijzigingen</h1>
+  <p class="cl-meta">
+    App-versie <strong>v<%= appVersion %></strong>
+    <span class="cl-sep">·</span>
+    Federatie-proto <strong><%= proto %></strong>
+    <% if (typeof user !== 'undefined' && user && user.role === 'god') { %>
+      <span class="cl-sep">·</span> <a href="/admin/updates">Updates beheren</a>
+    <% } %>
+  </p>
+  <div class="changelog-body"><%- changelogHtml %></div>
+</div>
+
+<style>
+.changelog-page { max-width: 760px; margin: 3rem auto; padding: 0 1rem; }
+.changelog-page h1 { font-family: var(--font-display, serif); font-size: 2rem; margin: 0 0 0.4rem; }
+.cl-meta { color: var(--ink-muted); font-size: 0.9rem; margin: 0 0 1.75rem; }
+.cl-meta a { color: var(--accent); }
+.cl-sep { opacity: 0.5; margin: 0 0.2rem; }
+.changelog-body { color: var(--ink); line-height: 1.65; }
+.changelog-body h2 {
+  font-family: var(--font-display, serif); font-size: 1.3rem;
+  margin: 2rem 0 0.5rem; padding-top: 1.25rem; border-top: 1px solid var(--rule);
+}
+.changelog-body h2:first-of-type { border-top: none; padding-top: 0; margin-top: 1rem; }
+.changelog-body h3 { font-size: 1rem; margin: 1.1rem 0 0.4rem; color: var(--ink-soft, var(--ink-muted)); }
+.changelog-body ul { margin: 0.3rem 0 0.9rem; padding-left: 1.3rem; }
+.changelog-body li { margin: 0.25rem 0; }
+.changelog-body blockquote {
+  margin: 1rem 0; padding: 0.6rem 0.9rem;
+  border-left: 3px solid var(--accent); background: var(--paper-2);
+  border-radius: 0 8px 8px 0; font-size: 0.9rem; color: var(--ink-muted);
+}
+.changelog-body code {
+  background: var(--paper-2); padding: 0.05rem 0.35rem;
+  border-radius: 4px; font-size: 0.88em;
+}
+.changelog-body a { color: var(--accent); }
+</style>

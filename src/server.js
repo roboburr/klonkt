@@ -60,6 +60,7 @@ import linkbioRoutes from './routes/linkbio.js';
 import embedRoutes from './routes/embed.js';
 import showsRoutes from './routes/shows.js';
 import adminShowsRoutes from './routes/admin-shows.js';
+import changelogRoutes from './routes/changelog.js';
 
 if (!process.env.SESSION_SECRET) {
   console.error('❌ FATAL: SESSION_SECRET is required');
@@ -282,6 +283,7 @@ app.use('/', downloadRoutes); // /downloads + /download/:id download-voor-email 
 app.use('/', linkbioRoutes); // /links link-in-bio + klikstats (premium)
 app.use('/', embedRoutes); // /embed inbedbare audiospeler (premium)
 app.use('/', showsRoutes); // /shows agenda + notify-me (premium)
+app.use('/', changelogRoutes); // /changelog publieke release-/wijzigingen-pagina
 app.use('/', postsRoutes);
 
 app.get('/manifest.webmanifest', (req, res) => {
