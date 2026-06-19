@@ -1,17 +1,25 @@
 <div class="container auth-page">
   <h1>Inloggen</h1>
   <% if (typeof success !== 'undefined' && success) { %><div class="alert alert-success"><%= success %></div><% } %>
-  <% if (typeof gerr !== 'undefined' && gerr === 'admin') { %>
+  <%
+    var GMAP = {
+      admin: { icon: '🔐', title: 'Dit is een beheerders-account',
+        body: 'Je logde in met Google, maar dit e-mailadres hoort bij de beheerder van deze site. Inloggen met Google is alleen voor luisteraars/fans — beheerders gebruiken altijd hun wachtwoord (zo kan een Google-login nooit per ongeluk beheerrechten geven).',
+        list: ['<strong>Ben je de beheerder?</strong> Log hieronder in met je <strong>gebruikersnaam + wachtwoord</strong>.', '<strong>Wil je als fan inloggen?</strong> Gebruik een <strong>ander Google-account</strong> (niet je beheerdersadres).'] },
+      session: { icon: '⏱️', title: 'Login afgebroken', body: 'De Google-login is afgebroken of de sessie was verlopen. Probeer het gewoon opnieuw.' },
+      email: { icon: '✉️', title: 'Geen geverifieerd e-mailadres', body: 'Je Google-account heeft geen geverifieerd e-mailadres. Verifieer je adres bij Google, of log in met je wachtwoord.' },
+      linked: { icon: '🔗', title: 'Adres al gekoppeld', body: 'Dit e-mailadres is al aan een ander Google-account gekoppeld. Gebruik dat account, of neem contact op met de beheerder.' },
+      unavailable: { icon: '🚫', title: 'Google-login niet beschikbaar', body: 'Inloggen met Google is op deze site (nog) niet ingesteld. Log in met je gebruikersnaam en wachtwoord.' },
+      failed: { icon: '⚠️', title: 'Google-login mislukt', body: 'Er ging iets mis bij het inloggen met Google. Probeer het opnieuw.' },
+    };
+    var _g = (typeof gerr !== 'undefined' && gerr && GMAP[gerr]) ? GMAP[gerr] : null;
+  %>
+  <% if (_g) { %>
     <div class="auth-notice">
-      <div class="auth-notice-icon">🔐</div>
-      <h2 class="auth-notice-title">Dit is een beheerders-account</h2>
-      <p>Je logde in met Google, maar dit e-mailadres hoort bij de <strong>beheerder</strong> van deze site.
-         Inloggen met Google is alleen voor luisteraars/fans — beheerders gebruiken altijd hun wachtwoord
-         (zo kan een Google-login nooit per ongeluk beheerrechten geven).</p>
-      <ul class="auth-notice-list">
-        <li><strong>Ben je de beheerder?</strong> Log hieronder in met je <strong>gebruikersnaam + wachtwoord</strong>.</li>
-        <li><strong>Wil je als fan inloggen?</strong> Gebruik een <strong>ander Google-account</strong> (niet je beheerdersadres).</li>
-      </ul>
+      <div class="auth-notice-icon"><%= _g.icon %></div>
+      <h2 class="auth-notice-title"><%= _g.title %></h2>
+      <p><%= _g.body %></p>
+      <% if (_g.list) { %><ul class="auth-notice-list"><% _g.list.forEach(function(li){ %><li><%- li %></li><% }); %></ul><% } %>
     </div>
   <% } else if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
 

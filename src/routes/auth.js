@@ -235,7 +235,7 @@ router.post('/reset/:token', (req, res) => {
 // Per-instance, eigen Google-client. Geeft ALTIJD rol member — nooit beheer.
 router.get('/google', (req, res) => {
   if (!fanLoginReady()) {
-    return res.redirect('/auth/login?error=' + encodeURIComponent('Inloggen met Google is op deze site niet beschikbaar.'));
+    return res.redirect('/auth/login?gerr=unavailable');
   }
   const state = crypto.randomBytes(16).toString('hex');
   req.session.oauthState = state;
@@ -255,11 +255,11 @@ function uniqueUsername(base) {
 }
 
 router.get('/google/callback', async (req, res) => {
-  const fail = (msg) => res.redirect('/auth/login?error=' + encodeURIComponent(msg));
-  if (!fanLoginReady()) return fail('Inloggen met Google is op deze site niet beschikbaar.');
+  const fail = (code) => res.redirect('/auth/login?gerr=' + code);
+  if (!fanLoginReady()) return fail('unavailable');
   try {
     const { code, state } = req.query;
-    if (!code || !state || state !== req.session.oauthState) return fail('Login afgebroken of ongeldige sessie.');
+    if (!code || !state || state !== req.session.oauthState) return fail('session');
     const next = safeNext(req.session.oauthNext) || '';
     delete req.session.oauthState;
     delete req.session.oauthNext;
@@ -267,7 +267,7 @@ router.get('/google/callback', async (req, res) => {
     const tok = await exchangeCode(String(code));
     const info = await fetchUserinfo(tok.access_token);
     const email = (info.email || '').trim().toLowerCase();
-    if (!email || info.email_verified === false) return fail('Geen geverifieerd Google-e-mailadres.');
+    if (!email || info.email_verified === false) return fail('email');
 
     let user = db.prepare('SELECT * FROM users WHERE LOWER(email) = ?').get(email);
 
@@ -276,12 +276,12 @@ router.get('/google/callback', async (req, res) => {
       // beheerder, dan moet diegene met wachtwoord inloggen (geen Google-bypass).
       if (user.role === 'god' || user.role === 'admin') {
         // Eigen, duidelijke uitleg-pagina (zie auth-login.ejs) i.p.v. een kale melding.
-        return res.redirect('/auth/login?gerr=admin');
+        return fail('admin');
       }
       // Bestaande luisteraar: koppel google_sub/avatar als die ontbreken; weiger
       // als al aan een ander Google-account gekoppeld.
       if (user.google_sub && info.sub && user.google_sub !== info.sub) {
-        return fail('Dit e-mailadres is al aan een ander Google-account gekoppeld.');
+        return fail('linked');
       }
       db.prepare(`
         UPDATE users SET google_sub = COALESCE(google_sub, ?), avatar_url = COALESCE(avatar_url, ?),
@@ -306,7 +306,7 @@ router.get('/google/callback', async (req, res) => {
     res.redirect(next || '/');
   } catch (e) {
     console.error('[auth/google/callback]', e.message);
-    fail('Google-login mislukt. Probeer opnieuw.');
+    fail('failed');
   }
 });
 
