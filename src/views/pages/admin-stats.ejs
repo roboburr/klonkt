@@ -34,7 +34,8 @@
       </div>
     </div>
     <div class="stats-chart">
-      <% s.series.forEach(function(d){
+      <% var _step = s.days <= 14 ? 1 : (s.days <= 31 ? 4 : 10);
+         s.series.forEach(function(d, i){
            var pvPct = Math.round(d.pageviews / _max * 100);
            var visPct = Math.round(d.visitors / _max * 100);
       %>
@@ -43,7 +44,7 @@
             <span class="sc-pv" style="height: <%= pvPct %>%"></span>
             <span class="sc-vis" style="height: <%= visPct %>%"></span>
           </div>
-          <span class="sc-day"><%= d.day.slice(8) %></span>
+          <span class="sc-day"><%= (i % _step === 0) ? d.day.slice(8) : '' %></span>
         </div>
       <% }); %>
     </div>
@@ -115,9 +116,10 @@
 .lg::before { content: ""; display: inline-block; width: .7rem; height: .7rem; border-radius: 2px; margin-right: .3rem; vertical-align: -1px; }
 .lg-vis::before { background: var(--accent); }
 .lg-pv::before { background: color-mix(in srgb, var(--accent) 28%, transparent); }
-.stats-chart { display: flex; align-items: flex-end; gap: 3px; height: 160px; margin-top: 1rem; }
-.sc-col { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; }
-.sc-bar { position: relative; width: 70%; max-width: 26px; height: 140px; display: flex; align-items: flex-end; }
+.stats-chart { display: flex; align-items: flex-end; gap: 2px; height: 160px; margin-top: 1rem; overflow: hidden; }
+.sc-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; }
+.sc-bar { position: relative; width: 70%; max-width: 26px; min-width: 2px; height: 140px; display: flex; align-items: flex-end; }
+.sc-day { white-space: nowrap; }
 .sc-pv, .sc-vis { position: absolute; bottom: 0; left: 0; width: 100%; border-radius: 3px 3px 0 0; min-height: 2px; }
 .sc-pv { background: color-mix(in srgb, var(--accent) 28%, transparent); }
 .sc-vis { background: var(--accent); }
