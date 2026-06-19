@@ -468,12 +468,14 @@ body.pe-fs-open { overflow: hidden; }
   overflow-y: auto;
 }
 .pe-editor:focus { outline: none; }
-/* Mobiel: begrens het schrijfveld tot een box met EIGEN interne scroll. Zo blijft
-   de caret-scroll (die mobiel Chrome forceert bij een opmaak-commando) binnen de
-   box i.p.v. de hele pagina te laten verspringen. De toolbar staat er sticky boven.
-   In fullscreen vult het veld de hele pagina (regel hierboven wint via .pe-fs). */
+/* Mobiel: het FRAME is de scroll-box. De opmaak-toolbar plakt sticky aan de
+   bovenkant ervan en de tekst scrollt eronder → de toolbar blijft altijd in beeld
+   binnen de box, én de caret-scroll (die mobiel Chrome forceert) blijft binnen de
+   box i.p.v. de hele pagina te laten verspringen. Fullscreen (.pe-fs) is
+   uitgezonderd: daar scrollt het veld zelf en vult het de pagina. */
 @media (max-width: 768px) {
-  .pe-editor { min-height: 240px; max-height: 62vh; }
+  .pe-editor-frame:not(.pe-fs) { max-height: 70vh; overflow-y: auto; }
+  .pe-editor-frame:not(.pe-fs) .pe-editor { min-height: 240px; max-height: none; overflow: visible; }
 }
 .pe-editor.is-dragover {
   outline: 2px dashed var(--accent);

@@ -15,10 +15,11 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 
 ### Opgelost
 - Editor: het beeld verspringt niet meer bij het aanklikken van een opmaakknop.
-  Op mobiel heeft het schrijfveld nu een begrensde hoogte met eigen interne scroll
-  (een "box"), zodat de caret-scroll die mobiel Chrome forceert binnen de box blijft
-  i.p.v. de hele pagina te laten verspringen. De toolbar staat sticky erboven.
-  (Plus: scrollpositie wordt vastgehouden rond elk opmaak-commando.)
+  Op mobiel is het schrijfveld nu een begrensde scroll-box met de opmaak-toolbar
+  STICKY bovenin: de tekst scrollt eronder, de toolbar blijft altijd in beeld, en
+  de caret-scroll die mobiel Chrome forceert blijft binnen de box i.p.v. de hele
+  pagina te laten verspringen. (Plus: scrollpositie wordt vastgehouden rond elk
+  opmaak-commando.)
 - Post-editor op mobiel: de Opslaan/Annuleren-balk blijft nu net bóven het
   toetsenbord (sticky met dynamische bottom-offset = max van toetsenbord- en
   audiospeler-hoogte), i.p.v. erachter te vallen of midden in beeld te zweven.
