@@ -392,6 +392,8 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
   display: inline-flex; align-items: center; justify-content: center;
   width: 32px; height: 32px;
   padding: 0;
+  touch-action: manipulation; /* snappy taps op mobiel, geen dubbeltik-zoom */
+  -webkit-user-select: none; user-select: none;
   background: transparent;
   border: 1px solid transparent;
   border-radius: 6px;
@@ -1036,7 +1038,7 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
 
   // ── Toolbar wiring
   function execCmd(cmd, arg) {
-    editor.focus();
+    editor.focus({ preventScroll: true });
     document.execCommand(cmd, false, arg);
     updateToolbarState();
     updateCharCount();
@@ -1054,7 +1056,7 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
     range.collapse(true);
     sel.removeAllRanges();
     sel.addRange(range);
-    editor.focus();
+    editor.focus({ preventScroll: true });
   }
   function linkPrompt() {
     const url = window.prompt('Link URL (https://… of /pad)');
@@ -1076,7 +1078,7 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
   // krijgt 'm nooit meer UIT (browser-quirk). Staat de caret al in een quote →
   // pak de wrapper uit; anders pas blockquote toe.
   function toggleBlockquote() {
-    editor.focus();
+    editor.focus({ preventScroll: true });
     const bq = blockquoteAncestor();
     if (bq) {
       const parent = bq.parentNode;
@@ -1106,6 +1108,14 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
   }
 
   if (toolbar) {
+    // CRUCIAAL (mobiel + desktop): voorkom dat een toolbar-knop de focus/selectie
+    // uit het editor-veld steelt. Zonder dit raakt de selectie kwijt bij het tikken
+    // → execCommand werkt op een lege selectie (vet kan niet meer UIT) én de browser
+    // scrollt de caret opnieuw in beeld (de "sprong naar beneden"). preventDefault op
+    // mousedown houdt de focus in de editor; de click blijft gewoon vuren.
+    toolbar.addEventListener('mousedown', (e) => {
+      if (e.target.closest('button')) e.preventDefault();
+    });
     toolbar.addEventListener('click', (e) => {
       const btn = e.target.closest('button[data-cmd]');
       if (!btn) return;
@@ -1165,7 +1175,7 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
     try {
       const j = await uploadImage(file);
       const img = '<img src="' + j.url + '" alt="">';
-      editor.focus();
+      editor.focus({ preventScroll: true });
       document.execCommand('insertHTML', false, img);
       contentStatus.textContent = 'Ingevoegd ✓';
       setTimeout(() => { contentStatus.textContent = ''; }, 2000);
@@ -1203,7 +1213,7 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
 
   // ── Insert chip helpers (track / playlist)
   function insertChip(kind, value) {
-    editor.focus();
+    editor.focus({ preventScroll: true });
     const chip = makeChip(kind, value);
     // Insert at caret using the Selection API (execCommand insertNode)
     const sel = window.getSelection();

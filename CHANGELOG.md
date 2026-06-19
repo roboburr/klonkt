@@ -13,6 +13,13 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 
 ## [Unreleased]
 
+### Opgelost
+- Posts schrijven op mobiel: een opmaakknop (vet/cursief/…) stal de focus uit het
+  tekstveld → de selectie ging verloren (vet kon niet meer uitgezet worden) en de
+  pagina sprong naar beneden. De toolbar houdt de focus nu in de editor
+  (mousedown-preventDefault + focus zonder scroll), dus toggelen werkt en er is geen
+  sprong meer. Toolbar-taps zijn ook sneller (touch-action: manipulation).
+
 ### Toegevoegd
 - Beheerder kan z'n **Google-account koppelen** (Account → Inloggen met Google) en
   daarna óók met Google inloggen. Veilig: koppelen kan alleen terwijl je met
