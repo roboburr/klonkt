@@ -136,6 +136,10 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
              aria-label="Content"
              data-placeholder="Begin met schrijven…"></div>
 
+        <%# Sticky "tik om te bewerken"-hint (alleen zichtbaar op touch + niet-fullscreen
+            via CSS). Puur visueel (pointer-events:none); de tik op het veld opent fullscreen. %>
+        <div class="pe-edit-hint" aria-hidden="true">✎ Tik om te bewerken</div>
+
         <%# Hidden field is what actually submits to the server. The visible
             contenteditable's serialized HTML is copied here on submit. %>
         <input type="hidden" name="content" id="content-hidden" value="">
@@ -478,22 +482,22 @@ html.pe-fs-open, body.pe-fs-open { overflow: hidden; }
 .pe-editor-frame:not(.pe-fs) .pe-editor { overflow: visible; }
 
 /* Touch: het inline content-veld is geen tekstveld maar een tap-vlak → fullscreen
-   bewerken. Een duidelijke, GECENTREERDE "tik om te bewerken"-pill + dashed rand
-   maken dat onmiskenbaar. */
+   bewerken. Een "✎ Tik om te bewerken"-pill plakt sticky onderaan de container,
+   zodat de hint altijd in beeld is zonder midden in de tekst te staan. */
 .pe-editor.pe-tap-to-edit { cursor: pointer; }
+.pe-edit-hint { display: none; }
 @media (pointer: coarse) {
-  .pe-editor-frame:not(.pe-fs) { position: relative; }
-  .pe-editor-frame:not(.pe-fs) .pe-editor {
-    outline: 2px dashed color-mix(in srgb, var(--accent) 55%, transparent);
-    outline-offset: -6px;
-  }
-  .pe-editor-frame:not(.pe-fs)::after {
-    content: "✎ Tik om te bewerken";
-    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  .pe-editor-frame:not(.pe-fs) .pe-edit-hint {
+    display: block;
+    position: sticky;
+    bottom: 4.5rem;   /* boven de sticky Opslaan/Annuleren-balk */
+    width: max-content;
+    max-width: calc(100% - 2rem);
+    margin: .4rem auto;
     background: var(--accent); color: #fff;
-    font-size: 1rem; font-weight: 700; padding: .6rem 1.1rem; border-radius: 999px;
-    pointer-events: none; white-space: nowrap;
-    box-shadow: 0 6px 20px rgba(0,0,0,.4);
+    font-size: .9rem; font-weight: 700; padding: .5rem 1.1rem; border-radius: 999px;
+    box-shadow: 0 4px 14px rgba(0,0,0,.35);
+    pointer-events: none; text-align: center; white-space: nowrap;
   }
 }
 .pe-editor.is-dragover {
