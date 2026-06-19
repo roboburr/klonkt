@@ -72,7 +72,7 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
     <section class="pe-card pe-card-content">
       <div class="pe-section-title">
         Content
-        <small>Sleep een afbeelding om in te voegen · selecteer tekst om op te maken</small>
+        <small class="pe-content-hint">Sleep een afbeelding om in te voegen · selecteer tekst om op te maken</small>
       </div>
       <div class="pe-editor-frame">
         <div class="pe-toolbar" id="pe-toolbar" role="toolbar" aria-label="Format">
@@ -515,6 +515,8 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
     box-shadow: 0 4px 14px rgba(0,0,0,.35);
     pointer-events: none; text-align: center; white-space: nowrap;
   }
+  /* Niet relevant op touch (slepen/selecteren hoort bij inline-bewerken op desktop). */
+  .pe-content-hint { display: none; }
   /* Inline (niet-fullscreen) op touch: simpel houden — je bewerkt hier toch niet,
      dus geen opmaak-toolbar en geen losse rand. Alleen de content-preview + de
      "tik om te bewerken"-pill. De toolbar verschijnt pas in fullscreen. */
