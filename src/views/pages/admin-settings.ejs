@@ -40,6 +40,71 @@
     </form>
   </section>
 
+  <%# Modus-specifieke config — staat direct onder de Modus-kaart zodat 'ie bij
+      de gekozen modus hoort (Hub bij hub, Cirkel bij circle). %>
+  <% if (tenancy === 'hub') { %>
+  <section class="set-card set-card--mode" style="margin-top:1rem">
+    <h2>Hub-hoofdpagina</h2>
+    <p class="set-help">
+      De openbare hub-pagina (<code>/</code>) is generiek — van geen enkele gebruiker.
+      Hier stel je de naam en intro in. Jouw eigen Klonkt Hub blijft los bestaan onder <code>/user/</code>.
+    </p>
+    <form method="post" action="/admin/settings" class="set-form" enctype="multipart/form-data">
+      <label class="set-field">
+        <span>Naam</span>
+        <input type="text" name="hub_title" maxlength="80" value="<%= hubTitle %>" placeholder="bijv. Studio Noord">
+      </label>
+      <label class="set-field">
+        <span>Tagline</span>
+        <input type="text" name="hub_tagline" maxlength="120" value="<%= hubTagline %>" placeholder="bijv. Onafhankelijk muzieklabel">
+      </label>
+      <label class="set-field">
+        <span>Intro</span>
+        <textarea name="hub_intro" maxlength="400" rows="3" placeholder="Korte introtekst onder de titel."><%= hubIntro %></textarea>
+      </label>
+      <label class="set-field">
+        <span>Hero-afbeelding (URL) <small style="font-weight:400;color:var(--ink-muted)">— optioneel; achtergrond van de hero</small></span>
+        <input type="text" name="hub_hero_image" maxlength="300" value="<%= hubHeroImage %>" placeholder="/media/... of https://...">
+      </label>
+      <label class="set-field">
+        <span>…of upload een afbeelding <small style="font-weight:400;color:var(--ink-muted)">— jpg/png/webp/gif, max 5 MB; vervangt de URL hierboven</small></span>
+        <input type="file" name="hub_hero_file" accept="image/png,image/jpeg,image/webp,image/gif">
+      </label>
+      <label class="set-field">
+        <span>Donkere overlay <small style="font-weight:400;color:var(--ink-muted)">— maakt de hero donkerder zodat de tekst leesbaar blijft</small></span>
+        <span style="display:flex;align-items:center;gap:0.75rem">
+          <input type="range" name="hub_hero_overlay" min="0" max="100" step="5" value="<%= hubHeroOverlay %>" style="flex:1"
+            oninput="this.parentNode.querySelector('.ov-val').textContent=this.value+'%';var o=document.getElementById('hero-ov-preview');if(o)o.style.opacity=this.value/100">
+          <span class="ov-val" style="min-width:3.5ch;text-align:right;font-variant-numeric:tabular-nums"><%= hubHeroOverlay %>%</span>
+        </span>
+      </label>
+      <% if (hubHeroImage) { %>
+      <div class="set-field">
+        <span style="font-weight:400;color:var(--ink-muted);font-size:0.9rem">Voorbeeld (met overlay):</span>
+        <div style="position:relative;width:100%;aspect-ratio:16/7;margin-top:0.4rem;border-radius:8px;overflow:hidden;border:1px solid var(--rule);background:var(--paper-2)">
+          <img src="<%= hubHeroImage %>" alt="Hero-voorbeeld" style="display:block;width:100%;height:100%;object-fit:cover">
+          <div id="hero-ov-preview" style="position:absolute;inset:0;background:#000;opacity:<%= (hubHeroOverlay/100).toFixed(2) %>;pointer-events:none"></div>
+        </div>
+      </div>
+      <% } %>
+      <button type="submit" class="btn btn-primary">Opslaan</button>
+    </form>
+  </section>
+  <% } %>
+
+  <% if (tenancy === 'circle') { %>
+  <section class="set-card set-card--mode" style="margin-top:1rem">
+    <h2>🔗 Je cirkel</h2>
+    <p class="set-help">
+      Beheer welke andere Klonkt-sites je in je cirkel toont, en of jouw site in
+      cirkels van anderen mag verschijnen. Asymmetrisch: jij bepaalt wie je volgt.
+    </p>
+    <div class="set-actions">
+      <a href="/admin/circle" class="btn btn-primary">Beheer je cirkel &rarr;</a>
+    </div>
+  </section>
+  <% } %>
+
   <%# Premium (Patreon) — alleen zichtbaar als de self-hoster de premium-laag aanzet
       (env KLONKT_PREMIUM_ENABLED=on). Standaard onzichtbaar; niets gegate. %>
   <% if (premium && premium.enabled) { %>
@@ -167,66 +232,6 @@
     <% } %>
   </section>
 
-  <% if (tenancy === 'hub') { %>
-  <section class="set-card" style="margin-top:1rem">
-    <h2>Hub-hoofdpagina</h2>
-    <p class="set-help">
-      De openbare hub-pagina (<code>/</code>) is generiek — van geen enkele gebruiker.
-      Hier stel je de naam en intro in. Jouw eigen Klonkt Hub blijft los bestaan onder <code>/user/</code>.
-    </p>
-    <form method="post" action="/admin/settings" class="set-form" enctype="multipart/form-data">
-      <label class="set-field">
-        <span>Naam</span>
-        <input type="text" name="hub_title" maxlength="80" value="<%= hubTitle %>" placeholder="bijv. Studio Noord">
-      </label>
-      <label class="set-field">
-        <span>Tagline</span>
-        <input type="text" name="hub_tagline" maxlength="120" value="<%= hubTagline %>" placeholder="bijv. Onafhankelijk muzieklabel">
-      </label>
-      <label class="set-field">
-        <span>Intro</span>
-        <textarea name="hub_intro" maxlength="400" rows="3" placeholder="Korte introtekst onder de titel."><%= hubIntro %></textarea>
-      </label>
-      <label class="set-field">
-        <span>Hero-afbeelding (URL) <small style="font-weight:400;color:var(--ink-muted)">— optioneel; achtergrond van de hero</small></span>
-        <input type="text" name="hub_hero_image" maxlength="300" value="<%= hubHeroImage %>" placeholder="/media/... of https://...">
-      </label>
-      <label class="set-field">
-        <span>…of upload een afbeelding <small style="font-weight:400;color:var(--ink-muted)">— jpg/png/webp/gif, max 5 MB; vervangt de URL hierboven</small></span>
-        <input type="file" name="hub_hero_file" accept="image/png,image/jpeg,image/webp,image/gif">
-      </label>
-      <label class="set-field">
-        <span>Donkere overlay <small style="font-weight:400;color:var(--ink-muted)">— maakt de hero donkerder zodat de tekst leesbaar blijft</small></span>
-        <span style="display:flex;align-items:center;gap:0.75rem">
-          <input type="range" name="hub_hero_overlay" min="0" max="100" step="5" value="<%= hubHeroOverlay %>" style="flex:1"
-            oninput="this.parentNode.querySelector('.ov-val').textContent=this.value+'%';var o=document.getElementById('hero-ov-preview');if(o)o.style.opacity=this.value/100">
-          <span class="ov-val" style="min-width:3.5ch;text-align:right;font-variant-numeric:tabular-nums"><%= hubHeroOverlay %>%</span>
-        </span>
-      </label>
-      <% if (hubHeroImage) { %>
-      <div class="set-field">
-        <span style="font-weight:400;color:var(--ink-muted);font-size:0.9rem">Voorbeeld (met overlay):</span>
-        <div style="position:relative;width:100%;aspect-ratio:16/7;margin-top:0.4rem;border-radius:8px;overflow:hidden;border:1px solid var(--rule);background:var(--paper-2)">
-          <img src="<%= hubHeroImage %>" alt="Hero-voorbeeld" style="display:block;width:100%;height:100%;object-fit:cover">
-          <div id="hero-ov-preview" style="position:absolute;inset:0;background:#000;opacity:<%= (hubHeroOverlay/100).toFixed(2) %>;pointer-events:none"></div>
-        </div>
-      </div>
-      <% } %>
-      <button type="submit" class="btn btn-primary">Opslaan</button>
-    </form>
-  </section>
-  <% } %>
-
-  <% if (tenancy === 'circle') { %>
-  <section class="set-card" style="margin-top:1rem">
-    <h2>Cirkel</h2>
-    <p class="set-help">
-      Beheer welke andere Klonkt-sites je in je cirkel toont, en of jouw site in
-      cirkels van anderen mag verschijnen.
-    </p>
-    <p><a href="/admin/circle" class="btn btn-primary">Beheer je cirkel &rarr;</a></p>
-  </section>
-  <% } %>
 </div>
 
 <style>
@@ -235,6 +240,9 @@
 .admin-tagline { color: var(--ink-muted); margin: 0 0 2rem; }
 .admin-tagline a { color: var(--accent); }
 .set-card { background: var(--paper-2); border: 1px solid var(--rule); border-radius: 12px; padding: 1.25rem; }
+/* Modus-specifieke kaart (Hub/Cirkel): accent-rand links zodat 'ie zichtbaar bij
+   de gekozen modus hoort, direct onder de Modus-kaart. */
+.set-card--mode { border-left: 3px solid var(--accent); }
 .set-card h2 { font-family: var(--font-display, serif); font-size: 1.25rem; margin: 0 0 0.5rem; }
 .set-help { color: var(--ink-muted); font-size: 0.9rem; margin: 0 0 1.25rem; }
 /* Google-setup-gids (uitklapbaar) */
@@ -250,15 +258,15 @@
 .set-form { display: flex; flex-direction: column; gap: 1rem; max-width: 460px; }
 /* Kale <label>'s in een set-form krijgen dezelfde nette stacked-stijl als .set-field:
    label-tekst boven, input full-width. (.set-toggle = checkbox-rij, uitgezonderd.) */
-.set-form > label:not(.set-toggle) { display: flex; flex-direction: column; gap: 0.3rem; }
-.set-form > label:not(.set-toggle) > span { font-size: 0.8rem; font-weight: 600; color: var(--ink-soft, var(--ink-muted)); }
-.set-form > label:not(.set-toggle) > span small { font-weight: 400; }
-.set-form > label:not(.set-toggle) input {
+.set-form > label:not(.set-toggle):not(.set-opt) { display: flex; flex-direction: column; gap: 0.3rem; }
+.set-form > label:not(.set-toggle):not(.set-opt) > span { font-size: 0.8rem; font-weight: 600; color: var(--ink-soft, var(--ink-muted)); }
+.set-form > label:not(.set-toggle):not(.set-opt) > span small { font-weight: 400; }
+.set-form > label:not(.set-toggle):not(.set-opt) input {
   width: 100%; box-sizing: border-box; padding: 0.55rem 0.7rem;
   border: 1px solid var(--rule); border-radius: 6px; background: var(--paper); color: var(--ink);
   font: inherit; font-size: 0.95rem;
 }
-.set-form > label:not(.set-toggle) input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
+.set-form > label:not(.set-toggle):not(.set-opt) input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
 .set-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.25rem; }
 .set-opt { display: flex; gap: 0.75rem; align-items: flex-start; padding: 0.85rem 1rem; border: 1px solid var(--rule); border-radius: 8px; cursor: pointer; background: var(--paper); }
 .set-opt:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
