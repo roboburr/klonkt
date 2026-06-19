@@ -55,10 +55,11 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 - Tekstvelden (`<textarea>`) groeien nu site-breed mee met de inhoud i.p.v. intern
   te scrollen (scroll-binnen-scroll was verwarrend). Het inline schrijfveld groeit
   ook gewoon mee; typen op mobiel/tablet gaat sowieso fullscreen.
-- Op **mobiel & tablet** (touch) is het content-veld inline **niet meer typbaar** —
-  het is geen tekstveld maar een tap-vlak met een "✎ Tik om te bewerken"-pill. Eén
-  tik opent **volledig scherm**, waar het wél bewerkbaar is. Eruit met de knop (⤡)
-  of Escape. Zo kun je nooit per ongeluk inline typen.
+- Op **mobiel & tablet** (touch) gedraagt de inhoud zich als een post: inline is het
+  **niet typbaar** (tap-vlak met "✎ Tik om te bewerken"-pill). Eén tik opent een
+  **fullscreen schrijf-"pagina"** — met echte back-knop-ondersteuning, dus de
+  browser-back of de **"✓ Klaar"-knop** sluit 'm en je staat terug in het formulier
+  (alle velden intact), waarna je alles samen opslaat met de gewone Opslaan-knop.
 - Schrijfvenster kan op **volledig scherm** (knop in de editor-toolbar, of Escape om
   terug te gaan) — fijn voor afleidingsvrij schrijven op mobiel. De opmaak-toolbar
   blijft daarbij altijd bovenaan in beeld, ook als het mobiele toetsenbord opent

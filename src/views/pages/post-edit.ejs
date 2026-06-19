@@ -76,6 +76,7 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
       </div>
       <div class="pe-editor-frame">
         <div class="pe-toolbar" id="pe-toolbar" role="toolbar" aria-label="Format">
+          <button type="button" id="pe-fs-done" class="pe-fs-done" title="Klaar met bewerken">✓ Klaar</button>
           <button type="button" data-cmd="bold" title="Vet (Ctrl+B)" aria-label="Vet">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4h8a4 4 0 0 1 0 8H6z"/><path d="M6 12h9a4 4 0 0 1 0 8H6z"/></svg>
           </button>
@@ -459,6 +460,18 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
    hangen (bv. fullscreen verlaten via navigatie) en blokkeerde dan het scrollen van
    de hele pagina. Het fullscreen-frame (position:fixed, inset:0) dekt de pagina al
    af, en op touch zijn de scrollbalken verborgen → geen dubbele balk nodig. */
+
+/* "Klaar"-knop: alleen in fullscreen zichtbaar (links in de toolbar), duidelijke
+   accent-pill i.p.v. een vierkant icoontje. */
+.pe-fs-done { display: none; }
+.pe-editor-frame.pe-fs .pe-fs-done {
+  display: inline-flex; align-items: center;
+  width: auto !important; height: auto !important;
+  padding: .4rem .9rem !important; margin-right: .35rem;
+  background: var(--accent); color: #fff;
+  font-weight: 700; font-size: .9rem; border-radius: 999px;
+}
+.pe-editor-frame.pe-fs .pe-fs-done:hover { background: var(--accent); color: #fff; }
 
 /* Editor body — looks like prose, behaves like a textarea */
 .pe-editor {
@@ -1256,14 +1269,15 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
     editorFrame.style.top = '';
     editorFrame.style.height = '';
   }
-  function toggleFullscreen() {
+  function isFs() { return !!(editorFrame && editorFrame.classList.contains('pe-fs')); }
+  function applyFs(on) {
     if (!editorFrame) return;
-    const on = editorFrame.classList.toggle('pe-fs');
+    editorFrame.classList.toggle('pe-fs', on);
     document.body.classList.toggle('pe-fs-open', on);
     document.documentElement.classList.toggle('pe-fs-open', on);
     if (fsBtn) {
       fsBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
-      fsBtn.title = on ? 'Verklein' : 'Volledig scherm';
+      fsBtn.title = on ? 'Klaar' : 'Volledig scherm';
     }
     if (window.visualViewport) {
       if (on) {
@@ -1282,19 +1296,33 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
       editor.focus({ preventScroll: true });
     } else {
       if (isTouch) editor.blur();
-      // Bij verkleinen: naar de TOP van de content scrollen i.p.v. ergens onderaan
+      // Bij sluiten: naar de TOP van de content scrollen i.p.v. ergens onderaan
       // (footer) te blijven hangen.
       requestAnimationFrame(function () {
         try { editorFrame.scrollIntoView({ block: 'start' }); } catch (_) {}
       });
     }
   }
+  // De fullscreen schrijf-"pagina": openen pusht een history-state zodat de browser-
+  // back-knop (en de Klaar-knop) 'm sluit en je terug bent in het formulier — voelt
+  // als een aparte pagina, maar álle formuliervelden blijven intact (zelfde DOM).
+  function openFs() {
+    if (isFs()) return;
+    try { history.pushState({ peFs: true }, ''); } catch (_) {}
+    applyFs(true);
+  }
+  function closeFs() {
+    if (!isFs()) return;
+    if (history.state && history.state.peFs) history.back(); // → popstate sluit af
+    else applyFs(false);
+  }
+  function toggleFullscreen() { if (isFs()) closeFs(); else openFs(); }
+  window.addEventListener('popstate', function () { if (isFs()) applyFs(false); });
   if (fsBtn) fsBtn.addEventListener('click', toggleFullscreen);
+  var fsDoneBtn = document.getElementById('pe-fs-done');
+  if (fsDoneBtn) fsDoneBtn.addEventListener('click', closeFs);
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && editorFrame && editorFrame.classList.contains('pe-fs')) {
-      e.preventDefault();
-      toggleFullscreen();
-    }
+    if (e.key === 'Escape' && isFs()) { e.preventDefault(); closeFs(); }
   });
 
   // Op mobiel/tablet (touch): het content-veld is INLINE NIET bewerkbaar — het is
@@ -1305,7 +1333,7 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
     editor.classList.add('pe-tap-to-edit');
     editor.setAttribute('data-placeholder', 'Tik om te schrijven…');
     editor.addEventListener('click', function () {
-      if (editorFrame && !editorFrame.classList.contains('pe-fs')) toggleFullscreen();
+      if (!isFs()) openFs();
     });
   }
 
