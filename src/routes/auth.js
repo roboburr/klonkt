@@ -43,7 +43,11 @@ function isSetupMode() {
   return db.prepare('SELECT COUNT(*) AS c FROM users').get().c === 0;
 }
 
-// ==================== LOGIN (beheerder = wachtwoord) ====================
+// ==================== LOGIN ====================
+// Publieke loginpagina: voor BEZOEKERS alleen Google-login (luisteraars/fans).
+// De beheerders-login (wachtwoord) staat hier bewust NIET — die zit verborgen op
+// /auth/admin (zie hieronder), zodat de admin-login niet zichtbaar is op de plek
+// waar bezoekers heen worden gestuurd.
 router.get('/login', (req, res) => {
   const next = safeNext(req.query.next) || '';
   if (req.session.user) return res.redirect(next || '/');
@@ -55,7 +59,27 @@ router.get('/login', (req, res) => {
     gerr: req.query.gerr || null, // foutcode voor een rijkere uitleg (bv. 'admin')
     success: req.query.success || null,
     username: '',
+    adminLogin: false,
     googleReady: fanLoginReady(),
+    next,
+  });
+});
+
+// Verborgen beheerders-login (gebruikersnaam + wachtwoord). Nergens in de UI
+// gelinkt — de beheerder navigeert hier rechtstreeks naartoe (/auth/admin).
+router.get('/admin', (req, res) => {
+  const next = safeNext(req.query.next) || '';
+  if (req.session.user) return res.redirect(next || '/');
+  if (isSetupMode()) return res.redirect('/auth/register' + (next ? '?next=' + encodeURIComponent(next) : ''));
+  renderPage(req, res, 'pages/auth-login', {
+    pageTitle: 'Beheerder inloggen',
+    bodyClass: 'on-special on-auth',
+    error: req.query.error || null,
+    gerr: null,
+    success: req.query.success || null,
+    username: '',
+    adminLogin: true,
+    googleReady: false,
     next,
   });
 });
@@ -64,11 +88,14 @@ router.post('/login', loginLimiter, (req, res) => {
   const { username, password } = req.body;
   const next = safeNext(req.body.next) || '';
 
+  // Foutweergave op de (verborgen) beheerders-loginpagina: toon het wachtwoord-
+  // formulier opnieuw (adminLogin:true), niet de Google-only publieke pagina.
   const renderErr = (error, status = 400) => {
     res.status(status);
     return renderPage(req, res, 'pages/auth-login', {
-      pageTitle: 'Inloggen', bodyClass: 'on-special',
-      error, success: null, username: username || '', googleReady: fanLoginReady(), next,
+      pageTitle: 'Beheerder inloggen', bodyClass: 'on-special on-auth',
+      error, gerr: null, success: null, username: username || '',
+      adminLogin: true, googleReady: false, next,
     });
   };
 
@@ -228,7 +255,7 @@ router.post('/reset/:token', (req, res) => {
     UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL,
       updated_at = CURRENT_TIMESTAMP WHERE id = ?
   `).run(hash, row.id);
-  res.redirect('/auth/login?success=' + encodeURIComponent('Wachtwoord gereset — log nu in.'));
+  res.redirect('/auth/admin?success=' + encodeURIComponent('Wachtwoord gereset — log nu in.'));
 });
 
 // ==================== GOOGLE-LOGIN (luisteraars/reageerders) ====================
