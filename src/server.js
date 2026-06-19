@@ -56,6 +56,7 @@ import newsletterRoutes from './routes/newsletter.js';
 import adminNewsletterRoutes from './routes/admin-newsletter.js';
 import downloadRoutes from './routes/download.js';
 import linkbioRoutes from './routes/linkbio.js';
+import embedRoutes from './routes/embed.js';
 
 if (!process.env.SESSION_SECRET) {
   console.error('❌ FATAL: SESSION_SECRET is required');
@@ -274,6 +275,7 @@ app.use('/', epkRoutes); // /pers perskit (premium; niet-premium: next() -> 404)
 app.use('/', newsletterRoutes); // /nieuwsbrief in/uitschrijven (premium; niet-premium: next())
 app.use('/', downloadRoutes); // /downloads + /download/:id download-voor-email (premium)
 app.use('/', linkbioRoutes); // /links link-in-bio + klikstats (premium)
+app.use('/', embedRoutes); // /embed inbedbare audiospeler (premium)
 app.use('/', postsRoutes);
 
 app.get('/manifest.webmanifest', (req, res) => {

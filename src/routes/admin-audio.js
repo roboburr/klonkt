@@ -90,10 +90,13 @@ router.get('/', requireGod, (req, res) => {
     stream_url: t.filename ? audioUrl(t.filename) : null,
   }));
 
+  const base = (process.env.PUBLIC_BASE_URL || ('https://' + (req.get('host') || ''))).replace(/\/$/, '');
+  const embedUrl = base + (res.locals.siteUrlBase || '') + '/embed';
   renderPage(req, res, 'pages/admin-audio', {
     pageTitle: 'Audio tracks',
     bodyClass: 'on-admin',
     tracks,
+    embedUrl,
     error: req.query.error || null,
     success: req.query.success || null,
     maxBytesMb: Math.round(MAX_AUDIO_BYTES / 1024 / 1024),

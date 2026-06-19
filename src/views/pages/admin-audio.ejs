@@ -115,6 +115,15 @@
     <% } %>
   </section>
 
+  <% if ((typeof premiumUnlocked === 'undefined' || premiumUnlocked) && typeof embedUrl !== 'undefined') { %>
+    <section class="ax-section" style="margin-top:1.5rem">
+      <h2 style="margin:0 0 .4rem">🔊 Embedbare speler</h2>
+      <p style="opacity:.75;font-size:.9rem;margin:0 0 .6rem">Plak deze code op je eigen website/blog om je muziek met deze speler in te sluiten:</p>
+      <textarea readonly rows="3" onclick="this.select()" style="width:100%;font-family:monospace;font-size:12px;padding:10px;border-radius:8px;border:1px solid var(--rule);background:var(--paper-2);color:inherit;">&lt;iframe src="<%= embedUrl %>" width="100%" height="420" frameborder="0" loading="lazy" style="border-radius:12px"&gt;&lt;/iframe&gt;</textarea>
+      <p style="margin:.6rem 0 0"><a class="btn" href="<%= embedUrl %>" target="_blank">▶ Speler-voorbeeld openen</a></p>
+    </section>
+  <% } %>
+
 </div>
 
 <style>

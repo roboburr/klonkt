@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title><%= site.title %> — speler</title>
+<style>
+  :root { --ac: <%= (site && site.accent) ? site.accent : '#6b8f71' %>; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: #14161a; color: #f2f3f5; }
+  .ep { display: flex; flex-direction: column; height: 100vh; }
+  .ep-now { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid rgba(255,255,255,.08); }
+  .ep-play { flex: 0 0 auto; width: 44px; height: 44px; border-radius: 50%; border: none; background: var(--ac); color: #fff; font-size: 18px; cursor: pointer; display: grid; place-items: center; }
+  .ep-meta { flex: 1 1 auto; min-width: 0; }
+  .ep-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ep-artist { font-size: 12px; opacity: .6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ep-bar { height: 4px; background: rgba(255,255,255,.12); cursor: pointer; }
+  .ep-fill { height: 100%; width: 0; background: var(--ac); }
+  .ep-list { flex: 1 1 auto; overflow-y: auto; margin: 0; padding: 0; list-style: none; }
+  .ep-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,.05); }
+  .ep-item:hover { background: rgba(255,255,255,.05); }
+  .ep-item.on { color: var(--ac); }
+  .ep-num { width: 20px; text-align: right; opacity: .5; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .ep-it-title { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
+  .ep-dur { opacity: .5; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .ep-foot { padding: 8px 14px; font-size: 11px; opacity: .5; text-align: center; border-top: 1px solid rgba(255,255,255,.08); }
+  .ep-foot a { color: inherit; }
+  .ep-empty { padding: 24px; text-align: center; opacity: .6; }
+</style>
+</head>
+<body>
+<div class="ep">
+  <div class="ep-now">
+    <button class="ep-play" id="ep-play" aria-label="Afspelen">▶</button>
+    <div class="ep-meta">
+      <div class="ep-title" id="ep-title"><%= site.title %></div>
+      <div class="ep-artist" id="ep-artist">Selecteer een nummer</div>
+    </div>
+  </div>
+  <div class="ep-bar" id="ep-bar"><div class="ep-fill" id="ep-fill"></div></div>
+  <% if (!embedTracks.length) { %>
+    <div class="ep-empty">Geen nummers beschikbaar.</div>
+  <% } else { %>
+    <ul class="ep-list" id="ep-list">
+      <% embedTracks.forEach(function(t, i){ %>
+        <li class="ep-item" data-i="<%= i %>">
+          <span class="ep-num"><%= i+1 %></span>
+          <span class="ep-it-title"><%= t.title %><% if (t.artist) { %> — <span style="opacity:.6"><%= t.artist %></span><% } %></span>
+          <span class="ep-dur" data-dur="<%= t.duration || 0 %>"></span>
+        </li>
+      <% }); %>
+    </ul>
+  <% } %>
+  <div class="ep-foot">via <a href="<%= siteUrlBase %>/" target="_blank" rel="noopener"><%= site.title %></a> · Klonkt</div>
+</div>
+<audio id="ep-audio" preload="none" playsinline></audio>
+<script>
+(function(){
+  var TRACKS = <%- JSON.stringify(embedTracks) %>;
+  var audio = document.getElementById('ep-audio');
+  var playBtn = document.getElementById('ep-play');
+  var titleEl = document.getElementById('ep-title');
+  var artistEl = document.getElementById('ep-artist');
+  var fill = document.getElementById('ep-fill');
+  var bar = document.getElementById('ep-bar');
+  var list = document.getElementById('ep-list');
+  var cur = -1;
+  function fmt(s){ s = parseInt(s,10)||0; var m=Math.floor(s/60), x=s%60; return m+':'+String(x).padStart(2,'0'); }
+  // Vul de duur-labels.
+  document.querySelectorAll('.ep-dur').forEach(function(el){ var d=parseInt(el.getAttribute('data-dur'),10)||0; if(d) el.textContent=fmt(d); });
+  function mark(){ document.querySelectorAll('.ep-item').forEach(function(li){ li.classList.toggle('on', parseInt(li.getAttribute('data-i'),10)===cur); }); }
+  function load(i, play){
+    if(i<0||i>=TRACKS.length) return;
+    cur=i; var t=TRACKS[i];
+    titleEl.textContent=t.title||'Naamloos';
+    artistEl.textContent=t.artist||'';
+    audio.src=t.url;
+    mark();
+    if(play){ audio.play().catch(function(){}); }
+  }
+  playBtn.addEventListener('click', function(){
+    if(cur<0){ load(0, true); return; }
+    if(audio.paused) audio.play().catch(function(){}); else audio.pause();
+  });
+  if(list) list.addEventListener('click', function(e){
+    var li=e.target.closest('.ep-item'); if(!li) return;
+    load(parseInt(li.getAttribute('data-i'),10), true);
+  });
+  audio.addEventListener('play', function(){ playBtn.textContent='⏸'; });
+  audio.addEventListener('pause', function(){ playBtn.textContent='▶'; });
+  audio.addEventListener('timeupdate', function(){ if(audio.duration) fill.style.width=(audio.currentTime/audio.duration*100)+'%'; });
+  audio.addEventListener('ended', function(){ if(cur+1<TRACKS.length) load(cur+1, true); else { playBtn.textContent='▶'; fill.style.width='0'; } });
+  bar.addEventListener('click', function(e){ if(!audio.duration) return; var r=bar.getBoundingClientRect(); audio.currentTime=(e.clientX-r.left)/r.width*audio.duration; });
+})();
+</script>
+</body>
+</html>
