@@ -19,7 +19,9 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
   STICKY bovenin: de tekst scrollt eronder, de toolbar blijft altijd in beeld, en
   de caret-scroll die mobiel Chrome forceert blijft binnen de box i.p.v. de hele
   pagina te laten verspringen. (Plus: scrollpositie wordt vastgehouden rond elk
-  opmaak-commando.)
+  opmaak-commando.) `interactive-widget=resizes-content` weer verwijderd — dat liet
+  de pagina omhoog scrollen voor het toetsenbord en brak de kb-open-detectie; de
+  actiebalk + fullscreen regelen het toetsenbord via de visual viewport.
 - Post-editor op mobiel: de Opslaan/Annuleren-balk blijft nu net bóven het
   toetsenbord (sticky met dynamische bottom-offset = max van toetsenbord- en
   audiospeler-hoogte), i.p.v. erachter te vallen of midden in beeld te zweven.
