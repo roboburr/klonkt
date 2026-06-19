@@ -455,9 +455,10 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
 .pe-editor-frame.pe-fs .pe-editor {
   flex: 1 1 auto; min-height: 0; height: auto; max-height: none;
 }
-/* Pagina vergrendelen achter het fullscreen-veld (html én body) → geen tweede,
-   verwarrende pagina-scrollbalk naast de scrollbalk van het tekstveld. */
-html.pe-fs-open, body.pe-fs-open { overflow: hidden; }
+/* NB: bewust GEEN overflow:hidden op html/body in fullscreen — dat kon blijven
+   hangen (bv. fullscreen verlaten via navigatie) en blokkeerde dan het scrollen van
+   de hele pagina. Het fullscreen-frame (position:fixed, inset:0) dekt de pagina al
+   af, en op touch zijn de scrollbalken verborgen → geen dubbele balk nodig. */
 
 /* Editor body — looks like prose, behaves like a textarea */
 .pe-editor {

@@ -14,6 +14,9 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 ## [Unreleased]
 
 ### Opgelost
+- Kon niet scrollen op de bewerk-pagina: de fullscreen scroll-lock (overflow:hidden
+  op html/body) bleef hangen. Lock verwijderd — het fullscreen-frame dekt de pagina
+  al af en op touch zijn de scrollbalken verborgen.
 - Fullscreen verlaten scrolt nu naar de top van de content (i.p.v. door te springen
   naar de footer).
 - "Tik om te bewerken"-aanwijzing op touch is nu een pill die sticky onderaan de
