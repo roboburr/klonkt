@@ -1,0 +1,44 @@
+<%
+  var links = (typeof lbLinks !== 'undefined') ? lbLinks : [];
+  var _photo = (site && site.profile_photo) ? site.profile_photo : (typeof siteOwnerAvatar !== 'undefined' ? siteOwnerAvatar : '');
+  var _name = (site && (site.profile_name || site.title)) || '';
+  var _bio = (site && (site.profile_bio || site.tagline)) || '';
+%>
+<section class="lb">
+  <div class="lb-head">
+    <% if (_photo) { %><span class="lb-photo" style="background-image:url('<%= _photo %>')"></span><% } else { %><span class="lb-photo lb-photo-empty">♪</span><% } %>
+    <h1 class="lb-name"><%= _name %></h1>
+    <% if (_bio) { %><p class="lb-bio"><%= _bio %></p><% } %>
+  </div>
+
+  <% if (!links.length) { %>
+    <p class="lb-empty">Nog geen links ingesteld.</p>
+  <% } else { %>
+    <div class="lb-links">
+      <% links.forEach(function(l){ %>
+        <a class="lb-link" href="<%= siteUrlBase %>/links/go/<%= l.i %>" target="_blank" rel="noopener" <%= l.brand ? ('style="--lb-brand:' + l.brand + '"') : '' %>>
+          <% if (l.svg) { %><span class="lb-ico"><%- l.svg %></span><% } %>
+          <span class="lb-label"><%= l.label %></span>
+        </a>
+      <% }); %>
+    </div>
+  <% } %>
+
+  <p class="lb-foot"><a href="<%= siteUrlBase %>/">← naar de site</a></p>
+</section>
+
+<style>
+  .lb { max-width: 480px; margin: 0 auto; padding: 40px 18px 64px; text-align: center; }
+  .lb-photo { display: inline-block; width: 96px; height: 96px; border-radius: 50%; background-size: cover; background-position: center; margin-bottom: 14px; }
+  .lb-photo-empty { background: var(--accent,#6b8f71); color: #fff; display: grid; place-items: center; font-size: 36px; }
+  .lb-name { font-size: 24px; margin: 0 0 6px; }
+  .lb-bio { opacity: .8; margin: 0 0 26px; }
+  .lb-links { display: flex; flex-direction: column; gap: 12px; }
+  .lb-link { display: flex; align-items: center; gap: 12px; justify-content: center; padding: 14px 18px; border-radius: 14px; border: 1px solid rgba(128,128,128,.28); text-decoration: none; color: inherit; font-weight: 600; transition: transform .08s ease, border-color .15s ease; }
+  .lb-link:hover { transform: translateY(-1px); border-color: var(--lb-brand, var(--accent,#6b8f71)); }
+  .lb-ico { width: 22px; height: 22px; display: inline-flex; color: var(--lb-brand, currentColor); }
+  .lb-ico svg { width: 22px; height: 22px; }
+  .lb-empty { opacity: .7; }
+  .lb-foot { margin-top: 30px; font-size: 13px; opacity: .6; }
+  .lb-foot a { color: inherit; }
+</style>

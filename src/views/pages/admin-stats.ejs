@@ -64,6 +64,17 @@
       <% } %>
     </section>
   </div>
+
+  <% if (typeof linkClicks !== 'undefined' && linkClicks.length) { %>
+    <section class="stats-top" style="margin-top:1.2rem">
+      <h2>🔗 Link-in-bio klikken</h2>
+      <ol>
+        <% linkClicks.forEach(function(l){ %>
+          <li><a href="<%= l.url %>" target="_blank" rel="noopener"><%= l.url.replace(/^https?:\/\//,'').slice(0,48) %></a><span class="stats-count"><%= l.clicks %></span></li>
+        <% }); %>
+      </ol>
+    </section>
+  <% } %>
 </div>
 
 <style>

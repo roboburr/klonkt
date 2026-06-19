@@ -218,6 +218,18 @@ export function initializeDatabase() {
       recipient_count INTEGER DEFAULT 0
     );
   `);
+
+  // Link-in-bio klikstatistiek (premium #6). Per (site, url) een teller; de
+  // link-in-bio-pagina linkt via /links/go/:i dat de klik telt en doorstuurt.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS link_clicks (
+      site_id TEXT NOT NULL,
+      url TEXT NOT NULL,
+      clicks INTEGER DEFAULT 0,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (site_id, url)
+    );
+  `);
 }
 
 function ensureColumn(table, column, definition) {
