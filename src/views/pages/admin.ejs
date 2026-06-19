@@ -32,6 +32,8 @@
     <% } %>
     <% if (typeof premiumUnlocked === 'undefined' || premiumUnlocked) { %>
       <a href="/admin/stats" class="btn">📊 Statistieken</a>
+      <a href="/admin/newsletter" class="btn">✉️ Nieuwsbrief</a>
+      <% if (tenancy !== 'hub' && primarySite) { %><a href="/pers" class="btn" target="_blank">📰 Perskit</a><% } %>
     <% } %>
     <a href="/admin/updates" class="btn">🔄 Updates</a>
   </nav>

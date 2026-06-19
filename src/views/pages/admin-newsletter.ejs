@@ -1,0 +1,66 @@
+<%
+  var c = (typeof nlCounts !== 'undefined') ? nlCounts : { confirmed:0, pending:0, unsub:0 };
+  var msg = (typeof nlMsg !== 'undefined') ? nlMsg : '';
+  var msgKind = (typeof nlMsgKind !== 'undefined') ? nlMsgKind : '';
+  var hist = (typeof nlHistory !== 'undefined') ? nlHistory : [];
+  var smtp = (typeof nlSmtp !== 'undefined') ? nlSmtp : false;
+%>
+<section class="anl">
+  <h1>Nieuwsbrief</h1>
+
+  <% if (msg) { %><div class="anl-msg anl-<%= msgKind %>"><%= msg %></div><% } %>
+
+  <div class="anl-stats">
+    <div class="anl-stat"><span class="anl-n"><%= c.confirmed %></span><span class="anl-l">bevestigd</span></div>
+    <div class="anl-stat"><span class="anl-n"><%= c.pending %></span><span class="anl-l">in afwachting</span></div>
+    <div class="anl-stat"><span class="anl-n"><%= c.unsub %></span><span class="anl-l">uitgeschreven</span></div>
+  </div>
+
+  <% if (!smtp) { %>
+    <div class="anl-msg anl-warn">⚠ SMTP is nog niet ingesteld. Aanmeldingen worden wél verzameld, maar versturen kan pas als je SMTP-gegevens invult (<code>SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASS / SMTP_FROM</code> in <code>.env</code>).</div>
+  <% } %>
+
+  <p class="anl-share">Aanmeldlink om te delen: <a href="<%= nlSubscribeUrl %>"><%= nlSubscribeUrl %></a></p>
+
+  <form method="POST" action="<%= siteUrlBase %>/admin/newsletter/send" class="anl-form">
+    <label>Onderwerp
+      <input type="text" name="subject" required maxlength="200" value="<%= (typeof nlSubject!=='undefined')?nlSubject:'' %>" placeholder="Nieuwe single uit!">
+    </label>
+    <label>Bericht
+      <textarea name="body" rows="10" required placeholder="Schrijf je update…"><%= (typeof nlBody!=='undefined')?nlBody:'' %></textarea>
+    </label>
+    <button type="submit" class="anl-send" <%= smtp ? '' : 'disabled' %> onclick="return confirm('Nieuwsbrief versturen naar <%= c.confirmed %> bevestigde abonnee(s)?')">Versturen naar <%= c.confirmed %> abonnee(s)</button>
+  </form>
+
+  <% if (hist.length) { %>
+    <h2 class="anl-h2">Verstuurd</h2>
+    <ul class="anl-hist">
+      <% hist.forEach(function(h){ %>
+        <li><span class="anl-hist-subj"><%= h.subject %></span><span class="anl-hist-meta"><%= h.recipient_count %> ontvanger(s) · <%= formatDateTime ? formatDateTime(h.sent_at) : h.sent_at %></span></li>
+      <% }); %>
+    </ul>
+  <% } %>
+</section>
+
+<style>
+  .anl { max-width: 720px; margin: 0 auto; padding: 24px 18px 64px; }
+  .anl h1 { margin: 0 0 18px; }
+  .anl-msg { padding: 11px 14px; border-radius: 10px; margin-bottom: 16px; font-size: 14px; }
+  .anl-ok { background: rgba(60,160,90,.15); }
+  .anl-bad { background: rgba(200,60,60,.15); }
+  .anl-warn { background: rgba(210,160,40,.15); }
+  .anl-stats { display: flex; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
+  .anl-stat { flex: 1 1 100px; border: 1px solid rgba(128,128,128,.2); border-radius: 12px; padding: 14px; text-align: center; }
+  .anl-n { display: block; font-size: 28px; font-weight: 700; }
+  .anl-l { font-size: 12px; opacity: .65; text-transform: uppercase; letter-spacing: .06em; }
+  .anl-share { font-size: 13px; opacity: .8; margin: 0 0 20px; }
+  .anl-form { display: flex; flex-direction: column; gap: 14px; }
+  .anl-form label { display: flex; flex-direction: column; gap: 6px; font-weight: 600; font-size: 13.5px; }
+  .anl-form input, .anl-form textarea { padding: 11px 13px; border-radius: 10px; border: 1px solid rgba(128,128,128,.4); background: transparent; color: inherit; font: inherit; font-weight: 400; }
+  .anl-send { align-self: flex-start; padding: 11px 20px; border-radius: 10px; border: none; background: var(--accent, #6b8f71); color: #fff; font-weight: 600; cursor: pointer; }
+  .anl-send:disabled { opacity: .5; cursor: not-allowed; }
+  .anl-h2 { margin: 30px 0 12px; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; opacity: .6; }
+  .anl-hist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .anl-hist li { display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid rgba(128,128,128,.18); border-radius: 10px; flex-wrap: wrap; }
+  .anl-hist-meta { opacity: .6; font-size: 12.5px; }
+</style>

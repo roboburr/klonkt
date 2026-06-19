@@ -52,6 +52,8 @@ import adminPatreonRoutes from './routes/admin-patreon.js';
 import adminStatsRoutes from './routes/admin-stats.js';
 import circleRoutes from './routes/circle.js';
 import epkRoutes from './routes/epk.js';
+import newsletterRoutes from './routes/newsletter.js';
+import adminNewsletterRoutes from './routes/admin-newsletter.js';
 
 if (!process.env.SESSION_SECRET) {
   console.error('❌ FATAL: SESSION_SECRET is required');
@@ -251,6 +253,7 @@ app.use('/admin/circle', adminCircleRoutes);
 app.use('/admin/updates', adminUpdatesRoutes);
 app.use('/admin/patreon', adminPatreonRoutes);
 app.use('/admin/stats', adminStatsRoutes);
+app.use('/admin/newsletter', adminNewsletterRoutes);
 app.use('/admin', adminRoutes);
 app.use('/prutter', prutterRoutes);
 app.use('/audio', audioRoutes);
@@ -266,6 +269,7 @@ app.get('/artiesten', (req, res) => res.redirect(301, req.originalUrl.replace(/^
 app.use('/', hubRoutes); // hub-overview op '/' (solo: next() -> postsRoutes)
 app.use('/', circleRoutes); // /cirkel-feed (solo/hub: next() -> postsRoutes)
 app.use('/', epkRoutes); // /pers perskit (premium; niet-premium: next() -> 404)
+app.use('/', newsletterRoutes); // /nieuwsbrief in/uitschrijven (premium; niet-premium: next())
 app.use('/', postsRoutes);
 
 app.get('/manifest.webmanifest', (req, res) => {

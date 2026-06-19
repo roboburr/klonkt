@@ -187,6 +187,36 @@ export function initializeDatabase() {
 
   // Tags van de originele post — getoond in de cirkel (comma-separated string).
   ensureColumn('remote_posts', 'tags', 'TEXT');
+
+  // Nieuwsbrief / mailinglijst (premium). Abonnees per site; double opt-in als SMTP
+  // er is (status 'pending' tot bevestigd), anders single opt-in ('confirmed').
+  // 'unsub' = uitgeschreven. token = confirm/unsubscribe-sleutel (in de e-maillinks).
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS subscribers (
+      id TEXT PRIMARY KEY,
+      site_id TEXT NOT NULL,
+      email TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      source TEXT DEFAULT 'widget',
+      token TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      confirmed_at DATETIME,
+      UNIQUE(site_id, email)
+    );
+    CREATE INDEX IF NOT EXISTS idx_subscribers_site_status ON subscribers(site_id, status);
+  `);
+
+  // Verstuurde nieuwsbrieven (historie + aantallen).
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS newsletters (
+      id TEXT PRIMARY KEY,
+      site_id TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      body TEXT NOT NULL,
+      sent_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      recipient_count INTEGER DEFAULT 0
+    );
+  `);
 }
 
 function ensureColumn(table, column, definition) {

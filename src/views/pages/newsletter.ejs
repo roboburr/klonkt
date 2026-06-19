@@ -1,0 +1,54 @@
+<%
+  var _site = site || {};
+  var _title = _site.title || 'deze artiest';
+  var st = (typeof nlState !== 'undefined') ? nlState : 'form';
+%>
+<section class="nl">
+  <div class="nl-card">
+    <% if (st === 'form') { %>
+      <h1 class="nl-h1">Blijf op de hoogte</h1>
+      <p class="nl-sub">Schrijf je in voor de nieuwsbrief van <strong><%= _title %></strong> — nieuwe muziek, shows en updates, rechtstreeks in je inbox. Uitschrijven kan altijd met één klik.</p>
+      <form method="POST" action="<%= siteUrlBase %>/nieuwsbrief" class="nl-form">
+        <input type="email" name="email" required placeholder="jouw@email.nl" value="<%= (typeof nlPrefill !== 'undefined') ? nlPrefill : '' %>" autocomplete="email">
+        <button type="submit" class="nl-btn">Inschrijven</button>
+      </form>
+    <% } else if (st === 'check') { %>
+      <h1 class="nl-h1">Bijna klaar ✉</h1>
+      <p class="nl-sub">We hebben een bevestigingsmail gestuurd naar <strong><%= (typeof nlEmail!=='undefined')?nlEmail:'je adres' %></strong>. Klik op de link in die mail om je inschrijving te bevestigen.</p>
+    <% } else if (st === 'done') { %>
+      <h1 class="nl-h1">Je bent ingeschreven ✓</h1>
+      <p class="nl-sub">Bedankt — je staat op de lijst van <strong><%= _title %></strong>.</p>
+    <% } else if (st === 'confirmed') { %>
+      <h1 class="nl-h1">Inschrijving bevestigd ✓</h1>
+      <p class="nl-sub">Top! Je ontvangt voortaan de nieuwsbrief van <strong><%= _title %></strong>.</p>
+    <% } else if (st === 'unsubbed') { %>
+      <h1 class="nl-h1">Uitgeschreven</h1>
+      <p class="nl-sub">Je bent afgemeld. Je ontvangt geen nieuwsbrieven meer. Van gedachten veranderd? Je kunt je altijd opnieuw inschrijven.</p>
+    <% } else if (st === 'invalid') { %>
+      <h1 class="nl-h1">Ongeldig e-mailadres</h1>
+      <p class="nl-sub">Controleer je adres en probeer 't opnieuw.</p>
+      <p><a class="nl-btn nl-btn-ghost" href="<%= siteUrlBase %>/nieuwsbrief">← Terug</a></p>
+    <% } else if (st === 'smtperror') { %>
+      <h1 class="nl-h1">Even niet gelukt</h1>
+      <p class="nl-sub">De bevestigingsmail kon niet verstuurd worden. Probeer 't later nog eens.</p>
+    <% } else if (st === 'badtoken') { %>
+      <h1 class="nl-h1">Link ongeldig of verlopen</h1>
+      <p class="nl-sub">Deze link werkt niet meer. Schrijf je eventueel opnieuw in.</p>
+      <p><a class="nl-btn nl-btn-ghost" href="<%= siteUrlBase %>/nieuwsbrief">Naar inschrijven</a></p>
+    <% } else { %>
+      <h1 class="nl-h1">Er ging iets mis</h1>
+      <p class="nl-sub">Probeer 't later nog eens.</p>
+    <% } %>
+  </div>
+</section>
+
+<style>
+  .nl { max-width: 560px; margin: 0 auto; padding: 48px 18px; }
+  .nl-card { border: 1px solid rgba(128,128,128,.2); border-radius: 18px; padding: 32px 28px; }
+  .nl-h1 { font-size: clamp(24px, 5vw, 34px); margin: 0 0 10px; }
+  .nl-sub { font-size: 15.5px; line-height: 1.6; opacity: .85; margin: 0 0 20px; }
+  .nl-form { display: flex; gap: 10px; flex-wrap: wrap; }
+  .nl-form input { flex: 1 1 220px; padding: 12px 14px; border-radius: 10px; border: 1px solid rgba(128,128,128,.4); background: transparent; color: inherit; font-size: 15px; }
+  .nl-btn { padding: 12px 20px; border-radius: 10px; border: none; background: var(--accent, #6b8f71); color: #fff; font-weight: 600; font-size: 15px; cursor: pointer; text-decoration: none; display: inline-block; }
+  .nl-btn-ghost { background: transparent; color: inherit; border: 1px solid rgba(128,128,128,.4); }
+</style>
