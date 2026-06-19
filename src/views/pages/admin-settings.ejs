@@ -247,7 +247,19 @@
 .set-google-steps li { margin: 0.35rem 0; }
 .set-google-guide code { background: var(--paper-2); padding: 0.05rem 0.35rem; border-radius: 4px; font-size: 0.85em; }
 .set-google-guide .set-help { padding: 0 0.85rem; }
-.set-form { display: flex; flex-direction: column; gap: 1rem; }
+.set-form { display: flex; flex-direction: column; gap: 1rem; max-width: 460px; }
+/* Kale <label>'s in een set-form krijgen dezelfde nette stacked-stijl als .set-field:
+   label-tekst boven, input full-width. (.set-toggle = checkbox-rij, uitgezonderd.) */
+.set-form > label:not(.set-toggle) { display: flex; flex-direction: column; gap: 0.3rem; }
+.set-form > label:not(.set-toggle) > span { font-size: 0.8rem; font-weight: 600; color: var(--ink-soft, var(--ink-muted)); }
+.set-form > label:not(.set-toggle) > span small { font-weight: 400; }
+.set-form > label:not(.set-toggle) input {
+  width: 100%; box-sizing: border-box; padding: 0.55rem 0.7rem;
+  border: 1px solid var(--rule); border-radius: 6px; background: var(--paper); color: var(--ink);
+  font: inherit; font-size: 0.95rem;
+}
+.set-form > label:not(.set-toggle) input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
+.set-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.25rem; }
 .set-opt { display: flex; gap: 0.75rem; align-items: flex-start; padding: 0.85rem 1rem; border: 1px solid var(--rule); border-radius: 8px; cursor: pointer; background: var(--paper); }
 .set-opt:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
 .set-opt input { margin-top: 0.25rem; flex-shrink: 0; }
