@@ -1095,6 +1095,10 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
     return list;
   }
   function keepScroll(fn) {
+    // In fullscreen staat de pagina vast (body overflow:hidden) en mag het veld
+    // gewoon naar de caret scrollen — geen pagina-sprong mogelijk, dus niets fixen.
+    const frame = document.querySelector('.pe-editor-frame');
+    if (frame && frame.classList.contains('pe-fs')) { fn(); return; }
     const wx = window.scrollX, wy = window.scrollY;
     const anc = scrollableAncestors(editor).map(function (n) { return [n, n.scrollTop, n.scrollLeft]; });
     const restore = function () {
@@ -1103,12 +1107,7 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
     };
     fn();
     restore();
-    // Mobiel Chrome scrollt de caret ASYNCHROON in beeld (ná meerdere frames), ook
-    // bij een lege caret. Vang élke scroll de eerstvolgende ~350 ms af en zet 'm
-    // terug; daarna mag de gebruiker weer vrij scrollen.
-    const onScroll = function () { restore(); };
-    window.addEventListener('scroll', onScroll, true);
-    setTimeout(function () { window.removeEventListener('scroll', onScroll, true); }, 350);
+    requestAnimationFrame(restore);
   }
   function execCmd(cmd, arg) {
     keepScroll(function () {
@@ -1258,13 +1257,17 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
   });
 
   // Op mobiel/tablet (touch-apparaat = pointer:coarse) gebeurt typen ALTIJD
-  // fullscreen: zodra het schrijfveld focus krijgt, gaan we automatisch fullscreen.
-  // Eruit kan met de knop (⤡) of Escape; tik je weer in het veld → opnieuw fullscreen.
+  // fullscreen. We gaan fullscreen zowel bij focus ALS bij de eerste invoer
+  // (beforeinput) — zo kun je ook na het verlaten van fullscreen niet per ongeluk
+  // zonder fullscreen doortypen. Eruit kan met de knop (⤡) of Escape.
   var isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
   if (isTouch) {
-    editor.addEventListener('focus', function () {
+    var enterFs = function () {
       if (editorFrame && !editorFrame.classList.contains('pe-fs')) toggleFullscreen();
-    });
+    };
+    editor.addEventListener('focus', enterFs);
+    editor.addEventListener('beforeinput', enterFs);
+    editor.addEventListener('pointerup', enterFs);
   }
 
   // Reflect bold/italic/list state on the toolbar buttons
