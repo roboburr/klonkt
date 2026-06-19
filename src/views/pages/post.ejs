@@ -6,37 +6,8 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
 %>
 <article class="container post-page">
 
-  <%# Navigatie over ALLE posts — BOVEN de post (Newer links, Older rechts). %>
-  <% if (newerPost || olderPost) { %>
-    <nav class="post-nav post-nav--top">
-      <% if (newerPost) { %>
-        <a class="post-nav-prev" href="<%= newerPost._urlBase || '' %>/<%= newerPost.slug %>"<% if (!newerPost._urlBase) { %>
-           hx-get="/<%= newerPost.slug %>?partial=1" hx-target="#pcms-main"
-           hx-push-url="/<%= newerPost.slug %>" hx-indicator="#pcms-loading"<% } %>>
-          <span class="post-nav-label">← Newer</span>
-          <span class="post-nav-title"><%= newerPost.title %></span>
-        </a>
-      <% } else { %>
-        <div class="post-nav-prev is-empty" aria-hidden="true">
-          <span class="post-nav-label">← Newer</span>
-          <span class="post-nav-title">Nieuwste post</span>
-        </div>
-      <% } %>
-      <% if (olderPost) { %>
-        <a class="post-nav-next" href="<%= olderPost._urlBase || '' %>/<%= olderPost.slug %>"<% if (!olderPost._urlBase) { %>
-           hx-get="/<%= olderPost.slug %>?partial=1" hx-target="#pcms-main"
-           hx-push-url="/<%= olderPost.slug %>" hx-indicator="#pcms-loading"<% } %>>
-          <span class="post-nav-label">Older →</span>
-          <span class="post-nav-title"><%= olderPost.title %></span>
-        </a>
-      <% } else { %>
-        <div class="post-nav-next is-empty" aria-hidden="true">
-          <span class="post-nav-label">Older →</span>
-          <span class="post-nav-title">Oudste post</span>
-        </div>
-      <% } %>
-    </nav>
-  <% } %>
+  <%# Navigatie over ALLE posts — BOVEN de post (gedeeld partial). %>
+  <%- include('../partials/post-nav', { newerPost: newerPost, olderPost: olderPost }) %>
 
   <% if (post.cover_image_url) { %>
     <figure class="post-cover">
@@ -289,18 +260,6 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
 .tag { background: var(--paper-2); color: var(--ink-soft); padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.85rem; text-decoration: none; transition: background 120ms, color 120ms; }
 .tag:hover { background: var(--accent); color: white; }
 .post-actions { display: flex; gap: 0.5rem; margin: 2rem 0; padding: 1rem; background: var(--paper-2); border-radius: 6px; flex-wrap: wrap; }
-.post-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--rule); }
-/* Boven de post: geen lijn/gap erboven, maar een scheidingslijn ERONDER (naar de content). */
-.post-nav--top { margin-top: 0; padding-top: 0; border-top: 0; margin-bottom: 2rem; padding-bottom: 2rem; border-bottom: 1px solid var(--rule); }
-.post-nav-prev, .post-nav-next { display: flex; flex-direction: column; padding: 1rem; background: var(--paper-2); border-radius: 6px; text-decoration: none; color: var(--ink); }
-/* Lege plek (geen nieuwere/oudere post): zelfde kaart, uitgegrijsd + niet klikbaar,
-   zodat elke post dezelfde twee-kaarten-structuur houdt. */
-.post-nav-prev.is-empty, .post-nav-next.is-empty { opacity: 0.4; cursor: default; }
-.post-nav-prev.is-empty .post-nav-title, .post-nav-next.is-empty .post-nav-title { font-weight: 400; font-style: italic; color: var(--ink-muted); }
-.post-nav-next { text-align: right; align-items: flex-end; }
-.post-nav-label { font-size: 0.8rem; color: var(--ink-muted); margin-bottom: 0.25rem; }
-.post-nav-title { font-weight: 500; }
-@media (max-width: 600px) { .post-nav { grid-template-columns: 1fr; } }
 
 /* ============================================================
    Comments

@@ -14,6 +14,9 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 ## [Unreleased]
 
 ### Gewijzigd
+- De Newer/Older-postnavigatie staat nu óók op de fan-gate (login-wall van een
+  fan-only post), zodat een bezoeker niet vastloopt maar verder kan bladeren.
+  Nav verhuisd naar een gedeeld partial (`partials/post-nav.ejs`).
 - Login gesplitst: de publieke loginpagina (`/auth/login`) toont voor bezoekers nu
   **alleen** Google-login (luisteraars/fans). De beheerders-login (gebruikersnaam +
   wachtwoord) staat verborgen op `/auth/admin` (nergens gelinkt).

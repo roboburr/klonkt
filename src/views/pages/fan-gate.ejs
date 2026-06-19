@@ -1,3 +1,9 @@
+<div class="container">
+  <%# Zelfde post-navigatie (Newer/Older) als op een gewone post, zodat een
+      bezoeker op de fan-gate niet vastloopt maar verder kan bladeren. %>
+  <%- include('../partials/post-nav', { newerPost: (typeof newerPost !== 'undefined' ? newerPost : null), olderPost: (typeof olderPost !== 'undefined' ? olderPost : null) }) %>
+</div>
+
 <section class="fg">
   <div class="fg-card">
     <div class="fg-lock">🔒</div>

@@ -393,6 +393,31 @@ router.get('/archive', (req, res) => {
   });
 });
 
+// Newer/Older-buren over ALLE posts in feed-volgorde. Gedeeld door de volledige
+// post-render én de fan-gate (premium fan_only), zodat de navigatie overal gelijk
+// is. Solo: binnen de site (pinned eerst, dan datum). Hub: globaal op datum.
+function postNeighbors(site, post, isHub) {
+  const urlBaseFor = (p) => (isHub && p && p.site_slug) ? `/user/${p.site_slug}` : '';
+  const ordered = isHub
+    ? db.prepare(`
+        SELECT p.id, p.slug, p.title, s.slug AS site_slug
+        FROM posts p JOIN sites s ON s.id = p.site_id
+        WHERE p.status = 'published'
+        ORDER BY p.published_at DESC
+      `).all()
+    : db.prepare(`
+        SELECT id, slug, title FROM posts
+        WHERE site_id = ? AND status = 'published'
+        ORDER BY (pinned = 0) ASC, pinned ASC, published_at DESC
+      `).all(site.id);
+  const idx = ordered.findIndex((p) => p.id === post.id);
+  const newerPost = idx > 0 ? ordered[idx - 1] : null;
+  const olderPost = (idx >= 0 && idx < ordered.length - 1) ? ordered[idx + 1] : null;
+  if (newerPost) newerPost._urlBase = urlBaseFor(newerPost);
+  if (olderPost) olderPost._urlBase = urlBaseFor(olderPost);
+  return { newerPost, olderPost };
+}
+
 // ==================== VIEW POST (last route â€” catches /:slug) ====================
 router.get('/:slug', (req, res, next) => {
   if (RESERVED_SLUGS.has(req.params.slug)) return next();
@@ -418,11 +443,16 @@ router.get('/:slug', (req, res, next) => {
   // Anonieme bezoekers krijgen een nette login-gate i.p.v. de inhoud (de titel/
   // teaser mag elders wel als lokkertje verschijnen).
   if (post.fan_only && !(req.session && req.session.user)) {
+    // Zelfde Newer/Older-navigatie als op een gewone post, zodat de bezoeker op
+    // de fan-gate niet vastloopt maar verder kan bladeren.
+    const { newerPost, olderPost } = postNeighbors(site, post, res.locals.tenancy === 'hub');
     return renderPage(req, res, 'pages/fan-gate', {
       pageTitle: post.title || 'Alleen voor fans',
       bodyClass: 'on-special',
       fgTitle: post.title || '',
       fgNext: (res.locals.siteUrlBase || '') + '/' + post.slug,
+      newerPost,
+      olderPost,
     });
   }
 
@@ -544,28 +574,8 @@ router.get('/:slug', (req, res, next) => {
   // Per-post URL-basis: in hub wijst een link naar /user/<site-slug>/<post-slug>.
   const urlBaseFor = (p) => (isHub && p && p.site_slug) ? `/user/${p.site_slug}` : '';
 
-  // Newer/Older over ALLE posts, in de canonieke feed-volgorde — niet alleen de
-  // pinned-stack. Solo: binnen de site, pinned eerst op rank, dan op datum
-  // (zelfde volgorde als de homepage-feed). Hub: globaal op datum over alle
-  // sites. De vorige positie in de lijst = "Newer" (← omhoog), de volgende =
-  // "Older" (→ omlaag). Pinned posts zitten zo gewoon in de doorlopende reeks.
-  const ordered = isHub
-    ? db.prepare(`
-        SELECT p.id, p.slug, p.title, s.slug AS site_slug
-        FROM posts p JOIN sites s ON s.id = p.site_id
-        WHERE p.status = 'published'
-        ORDER BY p.published_at DESC
-      `).all()
-    : db.prepare(`
-        SELECT id, slug, title FROM posts
-        WHERE site_id = ? AND status = 'published'
-        ORDER BY (pinned = 0) ASC, pinned ASC, published_at DESC
-      `).all(site.id);
-  const _idx = ordered.findIndex((p) => p.id === post.id);
-  const newerPost = _idx > 0 ? ordered[_idx - 1] : null;
-  const olderPost = (_idx >= 0 && _idx < ordered.length - 1) ? ordered[_idx + 1] : null;
-  if (newerPost) newerPost._urlBase = urlBaseFor(newerPost);
-  if (olderPost) olderPost._urlBase = urlBaseFor(olderPost);
+  // Newer/Older over ALLE posts (gedeelde helper — ook door de fan-gate gebruikt).
+  const { newerPost, olderPost } = postNeighbors(site, post, isHub);
 
   // ── Related posts: same-tag matching with recency fallback ─────
   // Fetch ~50 candidates, score by tag overlap, take top 3.
