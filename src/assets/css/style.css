@@ -65,6 +65,20 @@
     color-scheme: light dark;
 }
 
+/* Native controls (datum/tijd-picker, scrollbars) het SITE-thema laten volgen i.p.v.
+   de OS-voorkeur, en de datum/tijd-velden de site-accentkleur geven. Zo staat de
+   ingebouwde kalender-popup in dark + accent (de popup zelf is een browser-widget,
+   dus fonts/randen blijven van de browser). */
+[data-theme="dark"] { color-scheme: dark; }
+[data-theme="light"] { color-scheme: light; }
+input[type="date"], input[type="time"], input[type="datetime-local"] { accent-color: var(--accent, #6b8f71); }
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator { cursor: pointer; opacity: .7; }
+input[type="date"]:hover::-webkit-calendar-picker-indicator,
+input[type="time"]:hover::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]:hover::-webkit-calendar-picker-indicator { opacity: 1; }
+
 /* ============================================================
    PALETTES — elk palette definieert alleen bg/tekst/rand shades.
    --accent wordt LOS ingesteld via de accent-kleur config (inline in template).
