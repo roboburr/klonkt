@@ -17,6 +17,8 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 - Post-navigatie (Newer/Older) houdt nu op elke post dezelfde twee-kaarten-structuur:
   ontbreekt er een nieuwere/oudere post, dan staat er een subtiele uitgegrijsde
   placeholder ("Nieuwste post" / "Oudste post") i.p.v. een lege plek.
+- Bij het openen van een gerelateerde/volgende post spring je nu naar boven van de
+  pagina (was: je bleef op de oude scrollpositie hangen).
 
 ## [1.0.0-beta.2] — 2026-06-19
 

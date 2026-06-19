@@ -514,6 +514,16 @@ if (typeof post !== 'undefined' && post && post.slug) {
       lastPath = u;
     } catch (_) {}
   });
+
+  // Spring naar boven na ELKE navigatie-swap van #pcms-main. De boost hierboven
+  // scrollt al, maar links met hun eigen hx-get (post-nav Newer/Older, post-kaarten)
+  // lopen NIET via de boost → zonder dit blijf je op de oude scrollpositie hangen
+  // bij het openen van een gerelateerde/volgende post. Alleen #pcms-main, zodat
+  // in-page swaps (comments e.d.) en de OOB-chrome-swap niet meescrollen.
+  document.body.addEventListener('htmx:afterSwap', function (evt) {
+    var t = evt.detail && evt.detail.target;
+    if (t && t.id === 'pcms-main') { try { window.scrollTo(0, 0); } catch (_) {} }
+  });
 })();
 </script>
 
