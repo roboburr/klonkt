@@ -86,6 +86,7 @@ export async function renderPage(req, res, viewName, data = {}) {
     siteUrlBase: res.locals.siteUrlBase || '',
     tenancy: res.locals.tenancy || 'solo',
     hubTitle: getSetting('hub_title') || '',
+    footerNewsletter: getSetting('footer_newsletter') === '1', // nieuwsbrief-aanmelding in footer (premium)
     platforms_catalog: PLATFORMS_CATALOG,
     permissions: PermissionsService,
     formatDate,

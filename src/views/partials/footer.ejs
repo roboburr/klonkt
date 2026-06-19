@@ -1,4 +1,13 @@
 <footer class="site-footer">
+  <% if (typeof footerNewsletter !== 'undefined' && footerNewsletter && (typeof premiumUnlocked === 'undefined' || premiumUnlocked) && typeof site !== 'undefined' && site) { %>
+    <div class="container footer-nl">
+      <span class="footer-nl-label">📬 Blijf op de hoogte</span>
+      <form method="post" action="<%= (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '' %>/nieuwsbrief" class="footer-nl-form">
+        <input type="email" name="email" required placeholder="jouw@email.nl" autocomplete="email" aria-label="E-mailadres">
+        <button type="submit">Inschrijven</button>
+      </form>
+    </div>
+  <% } %>
   <div class="container site-footer-inner">
     <div>
       <span>© <%= new Date().getFullYear() %> <%= (site && site.title) || 'Klonkt' %></span>
@@ -61,6 +70,22 @@ body.has-audio-player .site-footer {
     padding-bottom: calc(2rem + 56px + 72px + env(safe-area-inset-bottom, 0));
   }
 }
+.footer-nl {
+  max-width: 800px; margin: 0 auto 1.5rem; padding: 0 1rem;
+  display: flex; align-items: center; justify-content: center; gap: .8rem; flex-wrap: wrap;
+}
+.footer-nl-label { font-weight: 600; color: var(--ink); }
+.footer-nl-form { display: flex; gap: .5rem; flex-wrap: wrap; }
+.footer-nl-form input {
+  padding: .5rem .7rem; border-radius: 8px; border: 1px solid var(--rule);
+  background: var(--paper); color: var(--ink); font-size: .9rem; min-width: 200px;
+}
+.footer-nl-form button {
+  padding: .5rem 1rem; border-radius: 8px; border: none; cursor: pointer;
+  background: var(--accent); color: #fff; font-weight: 600; font-size: .9rem;
+}
+@media (max-width: 600px) { .footer-nl { flex-direction: column; } .footer-nl-form input { min-width: 0; flex: 1; } }
+
 .site-footer-inner {
   max-width: 800px;
   margin: 0 auto;

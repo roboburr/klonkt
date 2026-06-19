@@ -112,6 +112,21 @@
     <% } %>
   </section>
 
+  <%# Nieuwsbrief-aanmelding in de footer (premium). %>
+  <% if (typeof premiumUnlocked === 'undefined' || premiumUnlocked) { %>
+  <section class="set-card" style="margin-top:1rem">
+    <h2>Nieuwsbrief</h2>
+    <p class="set-help">Toon een <strong>aanmeldveld in de footer</strong> van je site zodat bezoekers zich op elke pagina kunnen inschrijven. (De volledige aanmeldpagina blijft op <code><%= (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '' %>/nieuwsbrief</code>.)</p>
+    <form method="post" action="/admin/settings/footer" class="set-form">
+      <label class="set-toggle" style="display:flex;align-items:center;gap:.6rem;cursor:pointer">
+        <input type="checkbox" name="footer_newsletter" value="1" <%= footerNewsletter ? 'checked' : '' %>>
+        <span>Aanmeldveld in de footer tonen</span>
+      </label>
+      <div class="set-actions"><button type="submit" class="btn btn-primary">Opslaan</button></div>
+    </form>
+  </section>
+  <% } %>
+
   <%# E-mail / SMTP — nodig voor nieuwsbrief versturen, notify-mails en wachtwoord-reset. %>
   <section class="set-card" style="margin-top:1rem">
     <h2>E-mail (SMTP)</h2>

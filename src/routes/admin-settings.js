@@ -84,6 +84,7 @@ router.get('/', requireGod, (req, res) => {
       secretSet: clientSecretSet(),
     },
     smtp: mailerStatus(),
+    footerNewsletter: getSetting('footer_newsletter') === '1',
     success: req.query.success || null,
     error: req.query.error || null,
   });
@@ -167,6 +168,12 @@ router.post('/smtp', requireGod, (req, res) => {
   const pass = (b.smtp_pass || '').toString();
   if (pass) setSetting('smtp_pass', pass);
   res.redirect('/admin/settings?success=' + encodeURIComponent('SMTP-instellingen opgeslagen'));
+});
+
+// Nieuwsbrief-aanmelding in de footer aan/uit.
+router.post('/footer', requireGod, (req, res) => {
+  setSetting('footer_newsletter', req.body.footer_newsletter ? '1' : '0');
+  res.redirect('/admin/settings?success=' + encodeURIComponent('Footer-instelling opgeslagen'));
 });
 
 // Testmail sturen naar een opgegeven adres (of de ingelogde gebruiker).
