@@ -22,7 +22,7 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
     <section class="pe-card">
       <label class="pe-field">
         <span>Titel</span>
-        <input type="text" name="title" value="<%= post.title %>" required autofocus>
+        <input type="text" name="title" value="<%= post.title %>" required>
       </label>
       <div class="pe-row pe-row-2">
         <label class="pe-field">
@@ -967,6 +967,15 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
   const form          = editor && editor.closest('form');
 
   if (!editor) return;
+
+  // Titel alleen automatisch focussen op desktop (muis/trackpad). Op touch zou
+  // dit meteen het toetsenbord openen bij het openen van de editor — niet gewenst.
+  try {
+    const titleInput = form && form.querySelector('input[name="title"]');
+    if (titleInput && window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+      titleInput.focus({ preventScroll: true });
+    }
+  } catch (_) {}
 
   // ── Shortcode chip rendering / serialization ────────────────────
   // Pattern matches [[track:UUID]] / [[album:any text]] / [[playlist:slug]]

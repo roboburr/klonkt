@@ -14,6 +14,8 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 ## [Unreleased]
 
 ### Opgelost
+- Post bewerken op mobiel opende niet meer meteen het toetsenbord: de titel kreeg
+  niet langer automatisch focus (`autofocus` weg). Op desktop focust de titel nog wel.
 - Posts schrijven op mobiel: een opmaakknop (vet/cursief/…) stal de focus uit het
   tekstveld → de selectie ging verloren (vet kon niet meer uitgezet worden) en de
   pagina sprong naar beneden. De toolbar houdt de focus nu in de editor
