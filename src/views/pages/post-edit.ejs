@@ -1097,8 +1097,12 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
     };
     fn();
     restore();
-    requestAnimationFrame(restore);
-    requestAnimationFrame(function () { requestAnimationFrame(restore); });
+    // Mobiel Chrome scrollt de caret ASYNCHROON in beeld (ná meerdere frames), ook
+    // bij een lege caret. Vang élke scroll de eerstvolgende ~350 ms af en zet 'm
+    // terug; daarna mag de gebruiker weer vrij scrollen.
+    const onScroll = function () { restore(); };
+    window.addEventListener('scroll', onScroll, true);
+    setTimeout(function () { window.removeEventListener('scroll', onScroll, true); }, 350);
   }
   function execCmd(cmd, arg) {
     keepScroll(function () {
