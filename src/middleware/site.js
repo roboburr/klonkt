@@ -10,6 +10,7 @@
 
 import db from '../config/database.js';
 import { getTenancy } from '../services/SettingsService.js';
+import { audioUrl } from '../services/AudioStreamService.js';
 
 /**
  * De primaire/hoofd-site — ÉÉN bron van waarheid (vervangt de "oudste site ="
@@ -75,14 +76,20 @@ export function loadAudioTracks(req, res, next) {
   }
 
   try {
-    res.locals.audioTracks = db.prepare(`
-      SELECT t.id, t.title, t.artist, t.duration, t.position,
-             m.url AS media_url
+    // m.filename = de kale bestandsnaam; de speelbare URL is de gated stream-route
+    // (audioUrl). De media-tabel heeft GEEN url-kolom — de oude query selecteerde
+    // m.url en faalde dus altijd stil (lege speler). Nu bouwen we de URL uit filename.
+    const rows = db.prepare(`
+      SELECT t.id, t.title, t.artist, t.duration, t.position, m.filename
       FROM audio_tracks t
       LEFT JOIN media m ON m.id = t.media_id
       WHERE t.site_id = ?
       ORDER BY t.position ASC, t.created_at ASC
     `).all(site.id);
+    res.locals.audioTracks = rows.map((r) => ({
+      id: r.id, title: r.title, artist: r.artist, duration: r.duration, position: r.position,
+      media_url: r.filename ? audioUrl(r.filename) : null,
+    }));
   } catch (e) {
     // media table might not be queryable in some test setups — fall back gracefully
     res.locals.audioTracks = [];
