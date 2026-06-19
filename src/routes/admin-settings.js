@@ -21,6 +21,7 @@ import { v4 as uuid } from 'uuid';
 import { renderPage } from '../middleware/render.js';
 import { requireGod } from '../middleware/auth.js';
 import { getTenancy, setTenancy, getSetting, setSetting } from '../services/SettingsService.js';
+import { mailerStatus, sendMail } from '../config/mailer.js';
 import { entitlementStatus, premiumUnlocked } from '../services/PatreonService.js';
 import { googleConfigured, redirectUri, currentClientId, clientSecretSet } from '../config/google.js';
 
@@ -82,6 +83,7 @@ router.get('/', requireGod, (req, res) => {
       clientId: currentClientId(),
       secretSet: clientSecretSet(),
     },
+    smtp: mailerStatus(),
     success: req.query.success || null,
     error: req.query.error || null,
   });
@@ -148,6 +150,42 @@ router.post('/google', requireGod, (req, res) => {
   const secret = (req.body.google_client_secret || '').toString().trim();
   if (secret) setSetting('google_client_secret', secret);
   res.redirect('/admin/settings?success=' + encodeURIComponent('Google-login opgeslagen'));
+});
+
+// ── SMTP / e-mail-instellingen ────────────────────────────────────
+router.post('/smtp', requireGod, (req, res) => {
+  const b = req.body || {};
+  if (b.clear === '1') {
+    ['smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from'].forEach((k) => setSetting(k, ''));
+    return res.redirect('/admin/settings?success=' + encodeURIComponent('SMTP-instellingen gewist'));
+  }
+  setSetting('smtp_host', (b.smtp_host || '').toString().trim());
+  setSetting('smtp_port', (b.smtp_port || '').toString().trim());
+  setSetting('smtp_user', (b.smtp_user || '').toString().trim());
+  setSetting('smtp_from', (b.smtp_from || '').toString().trim());
+  // Wachtwoord alleen overschrijven als er een nieuwe waarde is ingevoerd.
+  const pass = (b.smtp_pass || '').toString();
+  if (pass) setSetting('smtp_pass', pass);
+  res.redirect('/admin/settings?success=' + encodeURIComponent('SMTP-instellingen opgeslagen'));
+});
+
+// Testmail sturen naar een opgegeven adres (of de ingelogde gebruiker).
+router.post('/smtp/test', requireGod, async (req, res) => {
+  const to = ((req.body && req.body.to) || (req.session.user && req.session.user.email) || '').toString().trim();
+  if (!to || to.indexOf('@') === -1) {
+    return res.redirect('/admin/settings?error=' + encodeURIComponent('Geef een geldig test-e-mailadres op.'));
+  }
+  try {
+    await sendMail({
+      to,
+      subject: 'Klonkt — SMTP-test',
+      text: 'Gelukt! Je SMTP-instellingen werken. Dit is een testbericht van je Klonkt-site.',
+      html: '<p>Gelukt! Je <strong>SMTP-instellingen werken</strong>. Dit is een testbericht van je Klonkt-site.</p>',
+    });
+    res.redirect('/admin/settings?success=' + encodeURIComponent('Testmail verstuurd naar ' + to));
+  } catch (e) {
+    res.redirect('/admin/settings?error=' + encodeURIComponent('Testmail mislukt: ' + (e.message || e)));
+  }
 });
 
 export default router;

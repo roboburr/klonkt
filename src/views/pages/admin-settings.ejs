@@ -112,6 +112,46 @@
     <% } %>
   </section>
 
+  <%# E-mail / SMTP — nodig voor nieuwsbrief versturen, notify-mails en wachtwoord-reset. %>
+  <section class="set-card" style="margin-top:1rem">
+    <h2>E-mail (SMTP)</h2>
+    <p class="set-help">Nodig om de <strong>nieuwsbrief te versturen</strong>, <strong>show-notify</strong>-mails te sturen en wachtwoord-reset per mail te laten werken. Vul de gegevens van je mailprovider in (bv. je hostingmail, Gmail-app-wachtwoord, Brevo, Mailgun…).
+      <% if (smtp && smtp.configured) { %><br><strong>Status: ingesteld&nbsp;✓</strong><% if (smtp.fromEnv) { %> <small>(via .env)</small><% } %><% } else { %><br>Nog niet ingesteld — versturen werkt nog niet.<% } %></p>
+
+    <form method="post" action="/admin/settings/smtp" class="set-form">
+      <label><span>SMTP-host</span>
+        <input type="text" name="smtp_host" value="<%= smtp ? smtp.host : '' %>" placeholder="smtp.jouwprovider.nl" autocomplete="off">
+      </label>
+      <label><span>Poort <small style="font-weight:400">— 587 (STARTTLS) of 465 (SSL)</small></span>
+        <input type="text" name="smtp_port" value="<%= (smtp && smtp.port) ? smtp.port : '' %>" placeholder="587" autocomplete="off" inputmode="numeric">
+      </label>
+      <label><span>Gebruikersnaam</span>
+        <input type="text" name="smtp_user" value="<%= smtp ? smtp.user : '' %>" placeholder="jij@jouwprovider.nl" autocomplete="off">
+      </label>
+      <label><span>Wachtwoord <% if (smtp && smtp.passSet) { %><small style="font-weight:400">— ingesteld; leeg laten = ongewijzigd</small><% } %></span>
+        <input type="password" name="smtp_pass" placeholder="<%= (smtp && smtp.passSet) ? '•••••••• (ingesteld)' : 'app-wachtwoord' %>" autocomplete="off">
+      </label>
+      <label><span>Afzender <small style="font-weight:400">— optioneel; standaard = gebruikersnaam</small></span>
+        <input type="text" name="smtp_from" value="<%= smtp ? smtp.from : '' %>" placeholder="Jouw Naam &lt;jij@jouwprovider.nl&gt;" autocomplete="off">
+      </label>
+      <div class="set-actions">
+        <button type="submit" class="btn btn-primary">SMTP opslaan</button>
+        <% if (smtp && (smtp.host || smtp.passSet)) { %>
+          <button type="submit" name="clear" value="1" class="btn" formnovalidate>Wissen</button>
+        <% } %>
+      </div>
+    </form>
+
+    <% if (smtp && smtp.configured) { %>
+      <form method="post" action="/admin/settings/smtp/test" class="set-form" style="margin-top:.8rem">
+        <label><span>Testmail sturen naar</span>
+          <input type="email" name="to" placeholder="jij@email.nl" autocomplete="off">
+        </label>
+        <div class="set-actions"><button type="submit" class="btn">✉ Testmail sturen</button></div>
+      </form>
+    <% } %>
+  </section>
+
   <% if (tenancy === 'hub') { %>
   <section class="set-card" style="margin-top:1rem">
     <h2>Hub-hoofdpagina</h2>

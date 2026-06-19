@@ -1,37 +1,61 @@
-// E-mail versturen (wachtwoord-reset). Optioneel: alleen actief als de self-hoster
-// SMTP heeft ingesteld. Niet ingesteld? Dan valt de reset terug op de CLI
-// (`npm run reset-admin`) — zie README.
+// E-mail versturen (wachtwoord-reset, nieuwsbrief, notify). Optioneel: alleen actief
+// als SMTP is ingesteld — via Beheer → Instellingen (app_settings) OF env-vars.
 //
-// Config via env:
-//   SMTP_HOST, SMTP_PORT (default 587), SMTP_USER, SMTP_PASS
-//   SMTP_FROM (afzender; default = SMTP_USER)
+// Config-bron (in deze volgorde): app_settings (ingesteld in de UI), anders env:
+//   SMTP_HOST, SMTP_PORT (default 587), SMTP_USER, SMTP_PASS, SMTP_FROM (default = USER)
+// Niet ingesteld → versturen valt terug op CLI (reset-admin) / wordt overgeslagen.
 
 import nodemailer from 'nodemailer';
+import { getSetting } from '../services/SettingsService.js';
 
-const HOST = process.env.SMTP_HOST || '';
-const PORT = parseInt(process.env.SMTP_PORT || '587', 10);
-const USER = process.env.SMTP_USER || '';
-const PASS = process.env.SMTP_PASS || '';
-const FROM = process.env.SMTP_FROM || USER;
-
-export function mailerConfigured() {
-  return !!(HOST && USER && PASS);
+function cfg() {
+  const host = getSetting('smtp_host', '') || process.env.SMTP_HOST || '';
+  const port = parseInt(getSetting('smtp_port', '') || process.env.SMTP_PORT || '587', 10) || 587;
+  const user = getSetting('smtp_user', '') || process.env.SMTP_USER || '';
+  const pass = getSetting('smtp_pass', '') || process.env.SMTP_PASS || '';
+  const from = getSetting('smtp_from', '') || process.env.SMTP_FROM || user;
+  return { host, port, user, pass, from };
 }
 
-let _transport = null;
+export function mailerConfigured() {
+  const c = cfg();
+  return !!(c.host && c.user && c.pass);
+}
+
+// Status voor de UI (zonder het wachtwoord te lekken).
+export function mailerStatus() {
+  const c = cfg();
+  return {
+    configured: mailerConfigured(),
+    host: c.host,
+    port: c.port,
+    user: c.user,
+    from: c.from,
+    passSet: !!c.pass,
+    // bron: handig om te tonen dat env nog actief is
+    fromEnv: !getSetting('smtp_host', '') && !!process.env.SMTP_HOST,
+  };
+}
+
+// Transport cachen, maar herbouwen zodra de config wijzigt (UI-edit zonder herstart).
+let _transport = null, _key = null;
 function transport() {
-  if (!_transport) {
+  const c = cfg();
+  const key = [c.host, c.port, c.user, c.pass].join('|');
+  if (!_transport || _key !== key) {
     _transport = nodemailer.createTransport({
-      host: HOST,
-      port: PORT,
-      secure: PORT === 465, // 465 = impliciete TLS; 587 = STARTTLS
-      auth: { user: USER, pass: PASS },
+      host: c.host,
+      port: c.port,
+      secure: c.port === 465, // 465 = impliciete TLS; 587 = STARTTLS
+      auth: { user: c.user, pass: c.pass },
     });
+    _key = key;
   }
   return _transport;
 }
 
 export async function sendMail({ to, subject, text, html }) {
   if (!mailerConfigured()) throw new Error('SMTP niet geconfigureerd');
-  return transport().sendMail({ from: FROM, to, subject, text, html });
+  const c = cfg();
+  return transport().sendMail({ from: c.from, to, subject, text, html });
 }
