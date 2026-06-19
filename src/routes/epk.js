@@ -24,12 +24,13 @@ router.get('/pers', (req, res, next) => {
   const site = res.locals.site;
   if (!site) return next();
 
+  // Top 10 meest beluisterde nummers (op play_count), niet zomaar de eerste paar.
   const tracks = db.prepare(
-    `SELECT title, artist, duration, cover_url
+    `SELECT title, artist, duration, cover_url, COALESCE(play_count, 0) AS plays
        FROM audio_tracks
       WHERE site_id = ?
-      ORDER BY position ASC, created_at ASC
-      LIMIT 6`
+      ORDER BY plays DESC, position ASC, created_at ASC
+      LIMIT 10`
   ).all(site.id);
 
   const posts = db.prepare(
