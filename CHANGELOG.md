@@ -14,9 +14,10 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 ## [Unreleased]
 
 ### Opgelost
-- Post-editor op mobiel: de Opslaan/Annuleren-balk viel achter het toetsenbord
-  (sticky-bottom). De balk zweeft nu mee bóven het toetsenbord (positie via de
-  visual viewport), dus de knoppen blijven bereikbaar tijdens het typen.
+- Post-editor op mobiel: de Opslaan/Annuleren-balk blijft nu net bóven het
+  toetsenbord (sticky met dynamische bottom-offset = max van toetsenbord- en
+  audiospeler-hoogte), i.p.v. erachter te vallen of midden in beeld te zweven.
+  Viewport schaalt mee met het toetsenbord (`interactive-widget=resizes-content`).
 - Mobiel toetsenbord vs. layout (site-breed): zodra het toetsenbord opent tijdens
   het typen, verbergen de vaste onderbalken (bottom-tab + mini-speler) zich, zodat
   ze niet meer over het invoerveld zweven of het overlappen. Ze komen terug zodra
