@@ -445,9 +445,10 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
   height: 100dvh;
   background: var(--paper);
 }
-/* In fullscreen vult het schrijfveld de resterende ruimte en scrollt het zelf. */
+/* In fullscreen vult het schrijfveld de resterende ruimte en scrollt het zelf
+   (max-height: none overschrijft de mobiele box-begrenzing hieronder). */
 .pe-editor-frame.pe-fs .pe-editor {
-  flex: 1 1 auto; min-height: 0; height: auto;
+  flex: 1 1 auto; min-height: 0; height: auto; max-height: none;
 }
 body.pe-fs-open { overflow: hidden; }
 
@@ -467,6 +468,13 @@ body.pe-fs-open { overflow: hidden; }
   overflow-y: auto;
 }
 .pe-editor:focus { outline: none; }
+/* Mobiel: begrens het schrijfveld tot een box met EIGEN interne scroll. Zo blijft
+   de caret-scroll (die mobiel Chrome forceert bij een opmaak-commando) binnen de
+   box i.p.v. de hele pagina te laten verspringen. De toolbar staat er sticky boven.
+   In fullscreen vult het veld de hele pagina (regel hierboven wint via .pe-fs). */
+@media (max-width: 768px) {
+  .pe-editor { min-height: 240px; max-height: 62vh; }
+}
 .pe-editor.is-dragover {
   outline: 2px dashed var(--accent);
   outline-offset: -10px;
