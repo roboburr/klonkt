@@ -476,6 +476,20 @@ html.pe-fs-open, body.pe-fs-open { overflow: hidden; }
    typen sowieso fullscreen (zie JS), waar het veld de pagina vult en als enige
    scrollt. */
 .pe-editor-frame:not(.pe-fs) .pe-editor { overflow: visible; }
+
+/* Touch: het inline content-veld is geen tekstveld maar een tap-vlak → fullscreen
+   bewerken. Een duidelijke "tik om te bewerken"-pill maakt dat zichtbaar. */
+.pe-editor.pe-tap-to-edit { cursor: pointer; }
+@media (pointer: coarse) {
+  .pe-editor-frame:not(.pe-fs) { position: relative; }
+  .pe-editor-frame:not(.pe-fs)::after {
+    content: "✎ Tik om te bewerken";
+    position: absolute; right: .6rem; bottom: .6rem;
+    background: var(--accent); color: #fff;
+    font-size: .8rem; font-weight: 600; padding: .3rem .7rem; border-radius: 999px;
+    pointer-events: none; opacity: .92; box-shadow: 0 2px 8px rgba(0,0,0,.25);
+  }
+}
 .pe-editor.is-dragover {
   outline: 2px dashed var(--accent);
   outline-offset: -10px;
@@ -1213,6 +1227,7 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
   // ── Volledig-scherm schrijfmodus: het schrijfveld vult de hele pagina.
   const fsBtn = document.getElementById('pe-fullscreen-btn');
   const editorFrame = document.querySelector('.pe-editor-frame');
+  const isTouch = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
 
   // Op mobiel duwt het toetsenbord de zichtbare (visual) viewport omhoog terwijl
   // een position:fixed-frame aan de LAYOUT-viewport blijft hangen → de toolbar
@@ -1250,7 +1265,10 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
         clearFsViewport();
       }
     }
+    // Op touch is het veld inline NIET bewerkbaar; alleen in fullscreen wel.
+    if (isTouch) editor.setAttribute('contenteditable', on ? 'true' : 'false');
     if (on) editor.focus({ preventScroll: true });
+    else if (isTouch) editor.blur();
   }
   if (fsBtn) fsBtn.addEventListener('click', toggleFullscreen);
   document.addEventListener('keydown', (e) => {
@@ -1260,18 +1278,16 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
     }
   });
 
-  // Op mobiel/tablet (touch-apparaat = pointer:coarse) gebeurt typen ALTIJD
-  // fullscreen. We gaan fullscreen zowel bij focus ALS bij de eerste invoer
-  // (beforeinput) — zo kun je ook na het verlaten van fullscreen niet per ongeluk
-  // zonder fullscreen doortypen. Eruit kan met de knop (⤡) of Escape.
-  var isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  // Op mobiel/tablet (touch): het content-veld is INLINE NIET bewerkbaar — het is
+  // dan geen tekstveld. Eén tik → fullscreen, waar het wél bewerkbaar wordt
+  // (toggleFullscreen zet contenteditable aan/uit). Zo kun je nooit inline typen.
   if (isTouch) {
-    var enterFs = function () {
+    editor.setAttribute('contenteditable', 'false');
+    editor.classList.add('pe-tap-to-edit');
+    editor.setAttribute('data-placeholder', 'Tik om te schrijven…');
+    editor.addEventListener('click', function () {
       if (editorFrame && !editorFrame.classList.contains('pe-fs')) toggleFullscreen();
-    };
-    editor.addEventListener('focus', enterFs);
-    editor.addEventListener('beforeinput', enterFs);
-    editor.addEventListener('pointerup', enterFs);
+    });
   }
 
   // Reflect bold/italic/list state on the toolbar buttons
