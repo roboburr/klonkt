@@ -14,6 +14,10 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 ## [Unreleased]
 
 ### Opgelost
+- Mobiel toetsenbord vs. layout (site-breed): zodra het toetsenbord opent tijdens
+  het typen, verbergen de vaste onderbalken (bottom-tab + mini-speler) zich, zodat
+  ze niet meer over het invoerveld zweven of het overlappen. Ze komen terug zodra
+  het toetsenbord sluit. (Detectie via visualViewport → `body.kb-open`.)
 - Post bewerken op mobiel opende niet meer meteen het toetsenbord: de titel kreeg
   niet langer automatisch focus (`autofocus` weg). Op desktop focust de titel nog wel.
 - Posts schrijven op mobiel: een opmaakknop (vet/cursief/…) stal de focus uit het

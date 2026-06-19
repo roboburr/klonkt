@@ -162,7 +162,7 @@ if (typeof post !== 'undefined' && post && post.slug) {
 <link rel="preload" href="/assets/fonts/fraunces-latin-full-normal.woff2" as="font" type="font/woff2" crossorigin>
 
 <!-- v9 stylesheet (full palette system) -->
-<link rel="stylesheet" href="/assets/css/style.css?v=11">
+<link rel="stylesheet" href="/assets/css/style.css?v=12">
 
 <!-- Audio player styles: loaded on every page so the mini-player works
      anywhere (admin previews, post embeds, etc). The player itself is
@@ -524,6 +524,30 @@ if (typeof post !== 'undefined' && post && post.slug) {
     var t = evt.detail && evt.detail.target;
     if (t && t.id === 'pcms-main') { try { window.scrollTo(0, 0); } catch (_) {} }
   });
+})();
+</script>
+
+<!-- Mobiel toetsenbord vs. site-layout: zet body.kb-open zodra het toetsenbord
+     open is (visual viewport fors korter dan het venster) ÉN er een invoerveld
+     focus heeft. CSS verbergt dan de vaste onderbalken (bottom-tab + mini-speler)
+     zodat ze niet over het invoerveld zweven. -->
+<script>
+(function () {
+  var vv = window.visualViewport;
+  if (!vv) return;
+  function isField(el) {
+    if (!el) return false;
+    var t = el.tagName;
+    return t === 'INPUT' || t === 'TEXTAREA' || el.isContentEditable;
+  }
+  function update() {
+    var open = (window.innerHeight - vv.height) > 150 && isField(document.activeElement);
+    document.body.classList.toggle('kb-open', open);
+  }
+  vv.addEventListener('resize', update);
+  vv.addEventListener('scroll', update);
+  document.addEventListener('focusin', function () { setTimeout(update, 60); });
+  document.addEventListener('focusout', function () { setTimeout(update, 60); });
 })();
 </script>
 

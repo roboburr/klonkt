@@ -620,6 +620,14 @@ a.pagination-item.is-pinned:hover {
 .pcms-main { padding-bottom: 5.5rem; }
 body.has-audio-player .pcms-main { padding-bottom: 5.5rem; }
 
+/* Mobiel toetsenbord open (body.kb-open, gezet via visualViewport in shell.ejs):
+   verberg de vaste onderbalken — anders zweven de bottom-tab + mini-speler boven
+   het toetsenbord of overlappen ze het invoerveld. Ze komen terug zodra het
+   toetsenbord sluit. De extra clearance onderaan is dan ook niet meer nodig. */
+body.kb-open .bottom-tab,
+body.kb-open .audio-player { display: none !important; }
+body.kb-open .pcms-main { padding-bottom: 1rem; }
+
 /* ============================================================
    AUDIO PLAYER v7.1 — SVG iconen, thema-aware, geen emoji
    ============================================================ */
