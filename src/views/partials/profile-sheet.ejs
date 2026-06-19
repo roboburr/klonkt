@@ -55,6 +55,15 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
           <svg class="psi-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
         </a>
       </li>
+      <li role="none">
+        <a href="/favorieten" class="profile-sheet-item" role="menuitem" data-close-sheet
+           hx-get="/favorieten?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
+           hx-push-url="/favorieten" hx-indicator="#pcms-loading">
+          <svg class="psi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          <span class="psi-label">Favorieten</span>
+          <svg class="psi-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+        </a>
+      </li>
       <% if (typeof canSeeBeheer !== 'undefined' && canSeeBeheer) { %>
       <li role="none">
         <a href="/admin" class="profile-sheet-item" role="menuitem" data-close-sheet>

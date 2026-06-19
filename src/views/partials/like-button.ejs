@@ -1,0 +1,24 @@
+<%# Like-/favorietknop voor een post. Ingelogd → htmx-toggle (POST /posts/:id/like,
+    swap outerHTML met deze partial terug). Niet ingelogd → link naar login.
+    Verwacht: post (met .id), likedByMe, likeCount, loggedIn, loginNext. %>
+<%
+  var _liked = (typeof likedByMe !== 'undefined' && likedByMe);
+  var _cnt = (typeof likeCount !== 'undefined' && likeCount != null) ? likeCount : 0;
+  var _logged = (typeof loggedIn !== 'undefined' && loggedIn);
+%>
+<% if (_logged) { %>
+  <button type="button" class="like-btn<%= _liked ? ' is-liked' : '' %>"
+          hx-post="/posts/<%= post.id %>/like" hx-swap="outerHTML"
+          aria-pressed="<%= _liked ? 'true' : 'false' %>"
+          aria-label="<%= _liked ? 'Uit favorieten verwijderen' : 'Toevoegen aan favorieten' %>"
+          title="<%= _liked ? 'Uit favorieten verwijderen' : 'Toevoegen aan favorieten' %>">
+    <span class="like-heart" aria-hidden="true"><%= _liked ? '♥' : '♡' %></span>
+    <span class="like-count"><%= _cnt %></span>
+  </button>
+<% } else { %>
+  <a class="like-btn" href="/auth/login?next=<%= encodeURIComponent((typeof loginNext !== 'undefined' && loginNext) ? loginNext : '/') %>"
+     title="Log in om deze post te liken">
+    <span class="like-heart" aria-hidden="true">♡</span>
+    <span class="like-count"><%= _cnt %></span>
+  </a>
+<% } %>

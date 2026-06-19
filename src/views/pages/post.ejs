@@ -30,6 +30,11 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
         <span class="status-badge status-<%= post.status %>"><%= post.status %></span>
       <% } %>
     </div>
+    <% if (post.status === 'published') { %>
+      <div class="post-like-row">
+        <%- include('../partials/like-button', { post: post, likedByMe: (typeof likedByMe !== 'undefined' && likedByMe), likeCount: (typeof likeCount !== 'undefined' ? likeCount : 0), loggedIn: !!user, loginNext: _base + '/' + post.slug }) %>
+      </div>
+    <% } %>
   </header>
 
   <div class="post-content">
@@ -249,6 +254,18 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
 .author:hover { color: var(--accent); }
 .post-content { font-family: var(--font-body, serif); font-size: 1.1rem; line-height: 1.7; color: var(--ink); }
 .post-content p { margin: 1.2em 0; }
+.post-like-row { margin-top: 1rem; }
+.like-btn {
+  display: inline-flex; align-items: center; gap: 0.45rem;
+  padding: 0.4rem 0.85rem; border: 1px solid var(--rule); border-radius: 999px;
+  background: var(--paper-2); color: var(--ink); font: inherit; font-size: 0.95rem;
+  cursor: pointer; text-decoration: none; transition: border-color 120ms, color 120ms, background 120ms;
+}
+.like-btn:hover { border-color: var(--accent); }
+.like-btn .like-heart { font-size: 1.1rem; line-height: 1; }
+.like-btn.is-liked { border-color: var(--accent); color: var(--accent); }
+.like-btn.is-liked .like-heart { color: var(--accent); }
+.like-btn .like-count { font-variant-numeric: tabular-nums; }
 .post-content h2 { font-family: var(--font-display, serif); font-size: 1.6rem; margin: 2rem 0 1rem; }
 .post-content h3 { font-family: var(--font-display, serif); font-size: 1.3rem; margin: 1.5rem 0 0.75rem; }
 .post-content a { color: var(--accent); }

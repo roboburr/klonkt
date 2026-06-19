@@ -13,6 +13,11 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 
 ## [Unreleased]
 
+### Toegevoegd
+- Posts liken / favorieten: ingelogde gebruikers kunnen een post liken met een ♥-knop
+  (toont het aantal likes). Je gelikete posts staan op de nieuwe **Favorieten**-pagina
+  (`/favorieten`, link in het accountmenu). Niet-ingelogd → de knop leidt naar de login.
+
 ### Gewijzigd
 - Post-navigatie (Newer/Older) toont nu een 📌 als de gelinkte post vastgepind is.
 - De Newer/Older-postnavigatie staat nu óók op de fan-gate (login-wall van een

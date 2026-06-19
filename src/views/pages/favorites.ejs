@@ -1,0 +1,21 @@
+<div class="container favorites-page">
+  <h1>Favorieten</h1>
+  <p class="fav-sub">Posts die je hebt geliket. Tik op het ♥ bij een post om 'm hier te bewaren.</p>
+
+  <% if (!posts || !posts.length) { %>
+    <p class="fav-empty">Je hebt nog geen favorieten. Open een post en tik op het hartje ♡.</p>
+  <% } else { %>
+    <ul class="post-list">
+      <% posts.forEach(function(p){ %>
+        <%- include('../partials/post-card', { post: p, siteUrlBase: (p._urlBase || '') }) %>
+      <% }); %>
+    </ul>
+  <% } %>
+</div>
+
+<style>
+  .favorites-page { max-width: 760px; margin: 3rem auto; padding: 0 1rem; }
+  .favorites-page h1 { font-family: var(--font-display, serif); font-size: 2rem; margin: 0 0 0.3rem; }
+  .fav-sub { color: var(--ink-muted); margin: 0 0 2rem; }
+  .fav-empty { color: var(--ink-muted); padding: 2rem 0; }
+</style>

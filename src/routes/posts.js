@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
+import ejs from 'ejs';
 import db from '../config/database.js';
 import { requireAuth } from '../middleware/auth.js';
 import { renderPage } from '../middleware/render.js';
@@ -62,7 +63,7 @@ const RESERVED_SLUGS = new Set([
   'auth', 'admin', 'login', 'register', 'logout',
   'archive', 'search', 'account', 'sites', 'comments',
   'posts', 'media', 'audio', 'prutter', 'forum',
-  'tag', 'type', 'user', 'users', 'artiesten', 'leden', 'feed.xml', 'atom.xml', 'sitemap.xml',
+  'tag', 'type', 'user', 'users', 'artiesten', 'leden', 'favorieten', 'feed.xml', 'atom.xml', 'sitemap.xml',
   'manifest.webmanifest', 'sw.js', 'favicon.ico', 'favicon.svg', 'assets',
 ]);
 
@@ -393,6 +394,58 @@ router.get('/archive', (req, res) => {
   });
 });
 
+// Pad naar de like-knop-partial (voor de htmx-toggle re-render).
+const LIKE_PARTIAL = path.join(__dirname, '..', 'views', 'partials', 'like-button.ejs');
+
+// ==================== LIKE / FAVORIET ====================
+// Een ingelogde gebruiker (geen kijker — de globale guard blokkeert non-GET voor
+// kijkers) togglet een like op een gepubliceerde post. Geeft de her-gerenderde
+// knop terug (htmx outerHTML-swap).
+router.post('/posts/:id/like', requireAuth, (req, res) => {
+  const userId = req.session.user.id;
+  const post = db.prepare('SELECT id, status FROM posts WHERE id = ?').get(req.params.id);
+  if (!post) return res.status(404).send('Post niet gevonden');
+  if (post.status !== 'published') return res.status(403).send('Niet beschikbaar');
+
+  const exists = db.prepare('SELECT 1 FROM post_likes WHERE post_id = ? AND user_id = ?').get(post.id, userId);
+  if (exists) {
+    db.prepare('DELETE FROM post_likes WHERE post_id = ? AND user_id = ?').run(post.id, userId);
+  } else {
+    db.prepare('INSERT OR IGNORE INTO post_likes (post_id, user_id) VALUES (?, ?)').run(post.id, userId);
+  }
+  const likeCount = db.prepare('SELECT COUNT(*) AS c FROM post_likes WHERE post_id = ?').get(post.id).c;
+
+  const html = ejs.render(fs.readFileSync(LIKE_PARTIAL, 'utf8'), {
+    post: { id: post.id }, likedByMe: !exists, likeCount, loggedIn: true, loginNext: '/',
+  });
+  res.send(html);
+});
+
+// Favorieten = de posts die de ingelogde gebruiker likete. Solo: binnen de
+// huidige site. Hub: over alle sites (met juiste /user/<slug>-links).
+router.get('/favorieten', requireAuth, (req, res) => {
+  const userId = req.session.user.id;
+  const isHub = res.locals.tenancy === 'hub';
+  const site = res.locals.site;
+  const rows = isHub
+    ? db.prepare(`
+        SELECT p.id, p.slug, p.title, p.excerpt, p.cover_image_url, p.published_at,
+               p.tags, p.type, p.pinned, p.status, s.slug AS site_slug
+        FROM post_likes pl JOIN posts p ON p.id = pl.post_id JOIN sites s ON s.id = p.site_id
+        WHERE pl.user_id = ? AND p.status = 'published'
+        ORDER BY pl.created_at DESC
+      `).all(userId)
+    : db.prepare(`
+        SELECT p.id, p.slug, p.title, p.excerpt, p.cover_image_url, p.published_at,
+               p.tags, p.type, p.pinned, p.status
+        FROM post_likes pl JOIN posts p ON p.id = pl.post_id
+        WHERE pl.user_id = ? AND p.site_id = ? AND p.status = 'published'
+        ORDER BY pl.created_at DESC
+      `).all(userId, site ? site.id : '');
+  const posts = rows.map((p) => ({ ...p, _urlBase: (isHub && p.site_slug) ? `/user/${p.site_slug}` : '' }));
+  renderPage(req, res, 'pages/favorites', { posts, pageTitle: 'Favorieten', bodyClass: 'on-favorites' });
+});
+
 // Newer/Older-buren over ALLE posts in feed-volgorde. Gedeeld door de volledige
 // post-render én de fan-gate (premium fan_only), zodat de navigatie overal gelijk
 // is. Solo: binnen de site (pinned eerst, dan datum). Hub: globaal op datum.
@@ -630,6 +683,11 @@ router.get('/:slug', (req, res, next) => {
   // Strip the internal _overlap field before sending to view
   relatedPosts = relatedPosts.map(({ _overlap, tags, ...rest }) => ({ ...rest, _urlBase: urlBaseFor(rest) }));
 
+  // Likes / favorieten: aantal + of de ingelogde gebruiker deze post likete.
+  const likeCount = db.prepare('SELECT COUNT(*) AS c FROM post_likes WHERE post_id = ?').get(post.id).c;
+  const likedByMe = !!(req.session?.user &&
+    db.prepare('SELECT 1 FROM post_likes WHERE post_id = ? AND user_id = ?').get(post.id, req.session.user.id));
+
   renderPage(req, res, 'pages/post', {
     post,
     newerPost,
@@ -637,6 +695,8 @@ router.get('/:slug', (req, res, next) => {
     relatedPosts,
     comments: topLevel,
     totalComments,
+    likeCount,
+    likedByMe,
     pageTitle: post.title + ' - ' + site.title,
     socialDescr: post.excerpt || '',
     socialImage: post.cover_image_url || '',

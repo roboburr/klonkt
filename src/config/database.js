@@ -255,6 +255,20 @@ export function initializeDatabase() {
       PRIMARY KEY (site_id, url)
     );
   `);
+
+  // Likes / favorieten: een ingelogde gebruiker kan een post liken. De set van
+  // posts die een gebruiker likte = z'n favorieten (/favorieten-pagina). Eén rij
+  // per (post, user); uniek zodat liken idempotent is.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS post_likes (
+      post_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (post_id, user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_post_likes_user ON post_likes(user_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_post_likes_post ON post_likes(post_id);
+  `);
 }
 
 function ensureColumn(table, column, definition) {
