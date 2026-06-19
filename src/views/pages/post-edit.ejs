@@ -513,6 +513,12 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
     box-shadow: 0 4px 14px rgba(0,0,0,.35);
     pointer-events: none; text-align: center; white-space: nowrap;
   }
+  /* Inline (niet-fullscreen) op touch: simpel houden — je bewerkt hier toch niet,
+     dus geen opmaak-toolbar en geen losse rand. Alleen de content-preview + de
+     "tik om te bewerken"-pill. De toolbar verschijnt pas in fullscreen. */
+  .pe-editor-frame:not(.pe-fs) .pe-toolbar { display: none; }
+  .pe-editor-frame:not(.pe-fs) { border-top: 0; }
+  .pe-editor-frame:not(.pe-fs) .pe-editor { min-height: 8rem; }
 }
 .pe-editor.is-dragover {
   outline: 2px dashed var(--accent);

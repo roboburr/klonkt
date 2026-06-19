@@ -14,6 +14,8 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 ## [Unreleased]
 
 ### Opgelost
+- Inline content-layout op touch versimpeld: geen opmaak-toolbar/rand meer inline
+  (je bewerkt toch fullscreen) — alleen de content-preview + de tik-om-te-bewerken-pill.
 - Kon niet scrollen op de bewerk-pagina: de fullscreen scroll-lock (overflow:hidden
   op html/body) bleef hangen. Lock verwijderd — het fullscreen-frame dekt de pagina
   al af en op touch zijn de scrollbalken verborgen.
