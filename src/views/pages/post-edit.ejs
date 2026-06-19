@@ -404,16 +404,23 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
   transition: background var(--transition), color var(--transition), border-color var(--transition);
   -webkit-tap-highlight-color: transparent;
 }
-.pe-toolbar button:hover {
-  background: var(--paper-2);
-  color: var(--accent);
+/* Hover alleen op echte hover-apparaten — op touch blijft :hover anders "plakken"
+   na een tik, waardoor de actief/inactief-staat onleesbaar wordt. */
+@media (hover: hover) {
+  .pe-toolbar button:hover {
+    background: var(--paper-2);
+    color: var(--accent);
+  }
 }
 .pe-toolbar button:active { transform: scale(.94); }
+/* Actieve opmaak = onmiskenbaar gevuld met de accentkleur. Zo is op mobiel
+   meteen duidelijk dat bv. vet AAN staat (tik nogmaals = uit). */
 .pe-toolbar button.is-active {
-  background: color-mix(in srgb, var(--accent) 14%, var(--paper-2));
-  color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
 }
+.pe-toolbar button.is-active svg { color: #fff; }
 .pe-toolbar button svg { width: 16px; height: 16px; }
 .pe-toolbar button.pe-tb-text { font-family: var(--font-display, serif); font-weight: 700; }
 .pe-toolbar-sep {

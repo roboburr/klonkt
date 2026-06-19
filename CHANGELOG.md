@@ -18,7 +18,9 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
   tekstveld → de selectie ging verloren (vet kon niet meer uitgezet worden) en de
   pagina sprong naar beneden. De toolbar houdt de focus nu in de editor
   (mousedown-preventDefault + focus zonder scroll), dus toggelen werkt en er is geen
-  sprong meer. Toolbar-taps zijn ook sneller (touch-action: manipulation).
+  sprong meer. Toolbar-taps zijn ook sneller (touch-action: manipulation). Actieve
+  opmaak is nu duidelijk gevuld met de accentkleur (en :hover plakt niet meer op
+  touch), zodat zichtbaar is of bv. vet aan of uit staat.
 
 ### Toegevoegd
 - Beheerder kan z'n **Google-account koppelen** (Account → Inloggen met Google) en
