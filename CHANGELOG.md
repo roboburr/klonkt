@@ -14,6 +14,9 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 ## [Unreleased]
 
 ### Opgelost
+- Editor: het beeld verspringt niet meer bij het aanklikken van een opmaakknop.
+  `execCommand` scrollde de caret in beeld; de scrollpositie wordt nu vastgehouden
+  rond elk opmaak-commando, zodat je zelf scrollt.
 - Post-editor op mobiel: de Opslaan/Annuleren-balk blijft nu net bóven het
   toetsenbord (sticky met dynamische bottom-offset = max van toetsenbord- en
   audiospeler-hoogte), i.p.v. erachter te vallen of midden in beeld te zweven.

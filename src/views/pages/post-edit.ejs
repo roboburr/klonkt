@@ -1073,26 +1073,40 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
   editor.addEventListener('input', updateCharCount);
 
   // ── Toolbar wiring
+  // Houd de scrollpositie vast rond een edit-commando. execCommand/insert scrollt
+  // standaard de caret in beeld → het beeld "verspringt" bij het aanklikken van een
+  // opmaakknop. Door de positie te bewaren en terug te zetten (sync + na 1 frame)
+  // blijft het beeld staan; de gebruiker scrollt zelf.
+  function keepScroll(fn) {
+    const x = window.scrollX, y = window.scrollY, es = editor.scrollTop;
+    fn();
+    window.scrollTo(x, y); editor.scrollTop = es;
+    requestAnimationFrame(function () { window.scrollTo(x, y); editor.scrollTop = es; });
+  }
   function execCmd(cmd, arg) {
-    editor.focus({ preventScroll: true });
-    document.execCommand(cmd, false, arg);
+    keepScroll(function () {
+      editor.focus({ preventScroll: true });
+      document.execCommand(cmd, false, arg);
+    });
     updateToolbarState();
     updateCharCount();
   }
   function wrapCode() {
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
-    const range = sel.getRangeAt(0);
-    const code = document.createElement('code');
-    code.textContent = sel.toString();
-    range.deleteContents();
-    range.insertNode(code);
-    // Move caret after the new node
-    range.setStartAfter(code);
-    range.collapse(true);
-    sel.removeAllRanges();
-    sel.addRange(range);
-    editor.focus({ preventScroll: true });
+    keepScroll(function () {
+      const range = sel.getRangeAt(0);
+      const code = document.createElement('code');
+      code.textContent = sel.toString();
+      range.deleteContents();
+      range.insertNode(code);
+      // Move caret after the new node
+      range.setStartAfter(code);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      editor.focus({ preventScroll: true });
+    });
   }
   function linkPrompt() {
     const url = window.prompt('Link URL (https://… of /pad)');
@@ -1114,31 +1128,33 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
   // krijgt 'm nooit meer UIT (browser-quirk). Staat de caret al in een quote →
   // pak de wrapper uit; anders pas blockquote toe.
   function toggleBlockquote() {
-    editor.focus({ preventScroll: true });
-    const bq = blockquoteAncestor();
-    if (bq) {
-      const parent = bq.parentNode;
-      // Inhoud uit de quote halen, op z'n plek, en de lege wrapper verwijderen.
-      const ref = bq;
-      let firstMoved = null;
-      while (bq.firstChild) {
-        const child = bq.firstChild;
-        if (!firstMoved) firstMoved = child;
-        parent.insertBefore(child, ref);
+    keepScroll(function () {
+      editor.focus({ preventScroll: true });
+      const bq = blockquoteAncestor();
+      if (bq) {
+        const parent = bq.parentNode;
+        // Inhoud uit de quote halen, op z'n plek, en de lege wrapper verwijderen.
+        const ref = bq;
+        let firstMoved = null;
+        while (bq.firstChild) {
+          const child = bq.firstChild;
+          if (!firstMoved) firstMoved = child;
+          parent.insertBefore(child, ref);
+        }
+        parent.removeChild(bq);
+        // Caret terugzetten in de uitgepakte inhoud.
+        if (firstMoved) {
+          const sel = window.getSelection();
+          const range = document.createRange();
+          range.selectNodeContents(firstMoved.nodeType === 1 ? firstMoved : parent);
+          range.collapse(false);
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+      } else {
+        document.execCommand('formatBlock', false, 'blockquote');
       }
-      parent.removeChild(bq);
-      // Caret terugzetten in de uitgepakte inhoud.
-      if (firstMoved) {
-        const sel = window.getSelection();
-        const range = document.createRange();
-        range.selectNodeContents(firstMoved.nodeType === 1 ? firstMoved : parent);
-        range.collapse(false);
-        sel.removeAllRanges();
-        sel.addRange(range);
-      }
-    } else {
-      document.execCommand('formatBlock', false, 'blockquote');
-    }
+    });
     updateToolbarState();
     updateCharCount();
   }
