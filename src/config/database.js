@@ -145,6 +145,12 @@ export function initializeDatabase() {
       PRIMARY KEY (site_id, day, visitor_hash)
     );
     CREATE INDEX IF NOT EXISTS idx_stat_visitor_day ON stat_visitor_day(site_id, day);
+    CREATE TABLE IF NOT EXISTS stat_referrer (
+      site_id TEXT NOT NULL,
+      host TEXT NOT NULL,
+      count INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (site_id, host)
+    );
   `);
 
   // ── Cirkels (federatie) ─────────────────────────────────────

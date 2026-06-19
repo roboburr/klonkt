@@ -8,15 +8,26 @@
   <% var s = stats; var _max = Math.max(1, ...s.series.map(function(d){ return d.pageviews; })); %>
 
   <div class="stats-cards">
-    <div class="stat-card"><div class="stat-num"><%= s.totals.visitors %></div><div class="stat-label">Bezoekers (14d)</div></div>
-    <div class="stat-card"><div class="stat-num"><%= s.totals.pageviews %></div><div class="stat-label">Weergaven (14d)</div></div>
+    <div class="stat-card"><div class="stat-num"><%= s.totals.visitors %></div><div class="stat-label">Bezoekers (<%= s.days %>d)</div></div>
+    <div class="stat-card"><div class="stat-num"><%= s.totals.pageviews %></div><div class="stat-label">Weergaven (<%= s.days %>d)</div></div>
     <div class="stat-card"><div class="stat-num"><%= s.totals.plays %></div><div class="stat-label">Plays (totaal)</div></div>
     <div class="stat-card"><div class="stat-num"><%= s.totals.postViews %></div><div class="stat-label">Post-weergaven (totaal)</div></div>
   </div>
 
+  <% if (typeof s.allTime !== 'undefined') { %>
+    <p class="stats-note">All-time: <strong><%= s.allTime.pageviews %></strong> weergaven · <strong><%= s.allTime.visitorDays %></strong> bezoeker-dagen.</p>
+  <% } %>
+
+  <div class="stats-period">
+    Periode:
+    <% [7,14,30,90].forEach(function(n){ %>
+      <a href="/admin/stats?days=<%= n %>" class="<%= s.days === n ? 'is-on' : '' %>"><%= n %>d</a>
+    <% }); %>
+  </div>
+
   <section class="stats-chart-wrap">
     <div class="stats-chart-head">
-      <h2>Laatste 14 dagen</h2>
+      <h2>Laatste <%= s.days %> dagen</h2>
       <div class="stats-legend">
         <span class="lg lg-vis">Bezoekers</span>
         <span class="lg lg-pv">Weergaven</span>
@@ -65,6 +76,17 @@
     </section>
   </div>
 
+  <% if (typeof s.referrers !== 'undefined' && s.referrers.length) { %>
+    <section class="stats-top" style="margin-top:1.2rem">
+      <h2>🌐 Bronnen (waar bezoekers vandaan komen)</h2>
+      <ol>
+        <% s.referrers.forEach(function(r){ %>
+          <li><span><%= r.host %></span><span class="stats-count"><%= r.n %></span></li>
+        <% }); %>
+      </ol>
+    </section>
+  <% } %>
+
   <% if (typeof linkClicks !== 'undefined' && linkClicks.length) { %>
     <section class="stats-top" style="margin-top:1.2rem">
       <h2>🔗 Link-in-bio klikken</h2>
@@ -111,4 +133,7 @@
 .stats-top a:hover { color: var(--accent); }
 .stats-count { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
 .stats-empty { color: var(--ink-muted); font-size: .88rem; margin: 0; }
+.stats-period { margin: .2rem 0 1.2rem; font-size: .9rem; color: var(--ink-muted); }
+.stats-period a { display: inline-block; margin-left: .4rem; padding: .2rem .6rem; border: 1px solid var(--rule); border-radius: 999px; text-decoration: none; color: var(--ink); }
+.stats-period a.is-on { background: var(--accent); color: #fff; border-color: var(--accent); }
 </style>

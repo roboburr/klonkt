@@ -30,10 +30,11 @@ router.get('/', requireGod, (req, res) => {
       ).all(res.locals.site.id);
     } catch { linkClicks = []; }
   }
+  const days = [7, 14, 30, 90].includes(parseInt(req.query.days, 10)) ? parseInt(req.query.days, 10) : 14;
   renderPage(req, res, 'pages/admin-stats', {
     pageTitle: 'Statistieken',
     bodyClass: 'on-admin',
-    stats: getStats(14),
+    stats: getStats(days),
     linkClicks,
   });
 });

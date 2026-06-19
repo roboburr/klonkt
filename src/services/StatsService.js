@@ -57,8 +57,26 @@ function stmts() {
     addVisitor: db.prepare('INSERT OR IGNORE INTO stat_visitor_day (site_id, day, visitor_hash) VALUES (?, ?, ?)'),
     bumpPost: db.prepare('UPDATE posts SET view_count = COALESCE(view_count, 0) + 1 WHERE id = ?'),
     bumpTrack: db.prepare('UPDATE audio_tracks SET play_count = COALESCE(play_count, 0) + 1 WHERE id = ?'),
+    bumpReferrer: db.prepare(`
+      INSERT INTO stat_referrer (site_id, host, count) VALUES (?, ?, 1)
+      ON CONFLICT(site_id, host) DO UPDATE SET count = count + 1
+    `),
   };
   return _s;
+}
+
+// Externe referrer-host uit de Referer-header (pro-stats #5). Lege/eigen-site/
+// ongeldige referrers worden overgeslagen → alleen echte externe bronnen tellen.
+function recordReferrer(siteId, req) {
+  try {
+    const ref = req && req.headers && (req.headers.referer || req.headers.referrer);
+    if (!ref) return;
+    const host = new URL(ref).host.replace(/^www\./, '').toLowerCase();
+    if (!host) return;
+    const own = ((req.headers && req.headers.host) || '').replace(/^www\./, '').toLowerCase();
+    if (host === own) return; // interne navigatie telt niet als bron
+    stmts().bumpReferrer.run(siteId, host.slice(0, 120));
+  } catch { /* geen geldige referrer-URL → overslaan */ }
 }
 
 export function recordPageview(siteId, req) {
@@ -67,6 +85,7 @@ export function recordPageview(siteId, req) {
     const d = today();
     stmts().bumpDaily.run(siteId, d);
     stmts().addVisitor.run(siteId, d, visitorHash(req));
+    recordReferrer(siteId, req);
   } catch { /* statistieken mogen nooit een request breken */ }
 }
 
@@ -85,6 +104,7 @@ export function recordPlay(trackId) {
 
 // Instance-brede statistieken (solo = de site, hub = alle sites samen).
 export function getStats(days = 14) {
+  days = [7, 14, 30, 90].includes(Number(days)) ? Number(days) : 14;
   const pvMap = Object.fromEntries(
     db.prepare('SELECT day, SUM(pageviews) AS pv FROM stat_daily GROUP BY day').all().map((r) => [r.day, r.pv]),
   );
@@ -112,5 +132,17 @@ export function getStats(days = 14) {
     SELECT title, COALESCE(play_count, 0) AS plays FROM audio_tracks
     ORDER BY play_count DESC LIMIT 5
   `).all();
-  return { totals, series, topPosts, topTracks, days };
+  // Top externe bronnen (pro #5) — instance-breed geaggregeerd per host.
+  let referrers = [];
+  try {
+    referrers = db.prepare(
+      'SELECT host, SUM(count) AS n FROM stat_referrer GROUP BY host ORDER BY n DESC LIMIT 10'
+    ).all();
+  } catch { referrers = []; }
+  // All-time totalen (cookieloze unieke bezoekers = som van dag-uniques).
+  const allTime = {
+    pageviews: db.prepare('SELECT COALESCE(SUM(pageviews),0) AS n FROM stat_daily').get().n,
+    visitorDays: db.prepare('SELECT COUNT(*) AS n FROM stat_visitor_day').get().n,
+  };
+  return { totals, series, topPosts, topTracks, referrers, allTime, days };
 }
