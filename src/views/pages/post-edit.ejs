@@ -873,6 +873,16 @@ body:has(.post-edit-page) .bottom-tab { display: none; }
 /* Audiospeler (indien aan het spelen) niet meer 56px optillen voor de nu-verborgen
    tabbalk, anders zou die zweven boven de actiebalk. */
 body:has(.post-edit-page) .audio-player { bottom: 0; }
+
+/* Toetsenbord open op mobiel: de Opslaan/Annuleren-balk zweeft mee boven het
+   toetsenbord (top wordt via JS o.b.v. de visual viewport gezet). Sticky bottom
+   valt anders achter het toetsenbord → knoppen uit beeld. */
+body.kb-open .pe-actions {
+  position: fixed;
+  left: 0; right: 0;
+  margin: 0;
+  z-index: 1001;
+}
 </style>
 
 <script>
@@ -1566,21 +1576,33 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
 })();
 
 (function () {
-  // De Opslaan/Annuleren-balk boven de audiospeler houden als er iets speelt
-  // (anders dekt de fixed speler, z-index 1000, de sticky balk af). De echte
-  // speler-hoogte wordt gelezen, dus het klopt op elk formaat (de speler krimpt
-  // op smalle schermen). Geen speler → balk gewoon op bottom:0 (CSS).
+  // De Opslaan/Annuleren-balk goed positioneren in twee situaties:
+  //  1) Toetsenbord open (body.kb-open): balk FIXED pinnen aan de onderkant van de
+  //     ZICHTBARE viewport (boven het toetsenbord) — anders valt de sticky-bottom
+  //     balk achter het toetsenbord en zijn Opslaan/Annuleren uit beeld.
+  //  2) Audiospeler speelt: balk net boven de fixed speler houden (z-index 1000).
   var bar = document.querySelector('.pe-actions');
   if (!bar) return;
-  function fit() {
+  var vv = window.visualViewport;
+  function fitAudio() {
     var ap = document.querySelector('.audio-player');
     var playing = document.body.classList.contains('has-audio-player') &&
                   ap && getComputedStyle(ap).display !== 'none';
     bar.style.bottom = playing ? Math.round(ap.getBoundingClientRect().height) + 'px' : '';
   }
-  fit();
-  window.addEventListener('resize', fit);
-  // De speler verschijnt/verdwijnt via een body-class → daarop reageren.
-  try { new MutationObserver(fit).observe(document.body, { attributes: true, attributeFilter: ['class'] }); } catch (_) {}
+  function position() {
+    if (document.body.classList.contains('kb-open') && vv) {
+      bar.style.bottom = '';
+      bar.style.top = Math.round(vv.offsetTop + vv.height - bar.offsetHeight) + 'px';
+    } else {
+      bar.style.top = '';
+      fitAudio();
+    }
+  }
+  position();
+  window.addEventListener('resize', position);
+  if (vv) { vv.addEventListener('resize', position); vv.addEventListener('scroll', position); }
+  // kb-open + has-audio-player wisselen via een body-class → daarop reageren.
+  try { new MutationObserver(position).observe(document.body, { attributes: true, attributeFilter: ['class'] }); } catch (_) {}
 })();
 </script>
