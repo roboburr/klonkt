@@ -227,6 +227,23 @@ export function initializeDatabase() {
     );
   `);
 
+  // Show-agenda (premium #8): tourdata/optredens per site.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS shows (
+      id TEXT PRIMARY KEY,
+      site_id TEXT NOT NULL,
+      date TEXT NOT NULL,
+      time TEXT,
+      city TEXT NOT NULL,
+      venue TEXT,
+      country TEXT,
+      ticket_url TEXT,
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_shows_site_date ON shows(site_id, date);
+  `);
+
   // Link-in-bio klikstatistiek (premium #6). Per (site, url) een teller; de
   // link-in-bio-pagina linkt via /links/go/:i dat de klik telt en doorstuurt.
   db.exec(`

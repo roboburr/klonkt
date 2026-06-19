@@ -1,0 +1,66 @@
+<%
+  var ss = (typeof shows !== 'undefined') ? shows : [];
+  var msg = (typeof msg !== 'undefined') ? msg : '';
+  var smtp = (typeof smtp !== 'undefined') ? smtp : false;
+  var nc = (typeof notifyCount !== 'undefined') ? notifyCount : 0;
+%>
+<section class="ash">
+  <p><a href="/admin" class="btn">&larr; Beheer</a></p>
+  <h1>Agenda</h1>
+
+  <% if (msg) { %><div class="ash-msg ash-<%= (typeof msgKind!=='undefined')?msgKind:'' %>"><%= msg %></div><% } %>
+
+  <p class="ash-note"><strong><%= nc %></strong> abonnee(s) voor show-aankondigingen.
+    <% if (!smtp) { %><br>⚠ SMTP niet ingesteld — shows worden opgeslagen, maar notify-mails kunnen pas verstuurd worden zodra je SMTP invult.<% } %></p>
+
+  <form method="POST" action="<%= siteUrlBase %>/admin/shows" class="ash-form">
+    <div class="ash-grid">
+      <label>Datum<input type="date" name="date" required></label>
+      <label>Tijd (optioneel)<input type="time" name="time"></label>
+      <label>Plaats<input type="text" name="city" required placeholder="Amsterdam"></label>
+      <label>Land (optioneel)<input type="text" name="country" placeholder="NL"></label>
+      <label class="ash-wide">Locatie/zaal (optioneel)<input type="text" name="venue" placeholder="Paradiso"></label>
+      <label class="ash-wide">Ticket-URL (optioneel)<input type="url" name="ticket_url" placeholder="https://..."></label>
+      <label class="ash-wide">Notitie (optioneel)<input type="text" name="notes" placeholder="Support: ..."></label>
+    </div>
+    <label class="ash-check"><input type="checkbox" name="notify" value="1" <%= smtp ? '' : 'disabled' %>> Abonnees per e-mail op de hoogte brengen<%= smtp ? '' : ' (SMTP vereist)' %></label>
+    <button type="submit" class="ash-add">+ Show toevoegen</button>
+  </form>
+
+  <% if (ss.length) { %>
+    <ul class="ash-list">
+      <% ss.forEach(function(s){ %>
+        <li class="ash-item">
+          <span class="ash-when"><%= s.date %><% if (s.time) { %> <%= s.time %><% } %></span>
+          <span class="ash-where"><%= s.city %><% if (s.venue) { %> — <%= s.venue %><% } %></span>
+          <form method="POST" action="<%= siteUrlBase %>/admin/shows/<%= s.id %>/delete" onsubmit="return confirm('Show verwijderen?')" style="margin:0">
+            <button type="submit" class="ash-del">🗑</button>
+          </form>
+        </li>
+      <% }); %>
+    </ul>
+  <% } else { %>
+    <p class="ash-empty">Nog geen shows.</p>
+  <% } %>
+</section>
+
+<style>
+  .ash { max-width: 680px; margin: 0 auto; padding: 24px 18px 64px; }
+  .ash h1 { margin: .4rem 0 14px; }
+  .ash-msg { padding: 10px 14px; border-radius: 10px; margin-bottom: 14px; }
+  .ash-ok { background: rgba(60,160,90,.15); } .ash-bad { background: rgba(200,60,60,.15); }
+  .ash-note { font-size: 13px; opacity: .8; margin: 0 0 18px; }
+  .ash-form { border: 1px solid rgba(128,128,128,.2); border-radius: 14px; padding: 16px; margin-bottom: 24px; }
+  .ash-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .ash-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; font-weight: 600; }
+  .ash-grid .ash-wide { grid-column: 1 / -1; }
+  .ash-grid input { padding: 9px 11px; border-radius: 8px; border: 1px solid rgba(128,128,128,.4); background: transparent; color: inherit; font: inherit; font-weight: 400; }
+  .ash-check { display: flex; align-items: center; gap: 8px; margin: 12px 0; font-size: 13.5px; }
+  .ash-add { padding: 10px 18px; border-radius: 10px; border: none; background: var(--accent,#6b8f71); color: #fff; font-weight: 600; cursor: pointer; }
+  .ash-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .ash-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid rgba(128,128,128,.18); border-radius: 10px; }
+  .ash-when { font-variant-numeric: tabular-nums; font-weight: 600; flex: 0 0 auto; }
+  .ash-where { flex: 1 1 auto; opacity: .85; }
+  .ash-del { background: none; border: none; cursor: pointer; font-size: 16px; opacity: .6; }
+  .ash-empty { opacity: .7; }
+</style>

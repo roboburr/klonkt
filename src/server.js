@@ -58,6 +58,8 @@ import adminNewsletterRoutes from './routes/admin-newsletter.js';
 import downloadRoutes from './routes/download.js';
 import linkbioRoutes from './routes/linkbio.js';
 import embedRoutes from './routes/embed.js';
+import showsRoutes from './routes/shows.js';
+import adminShowsRoutes from './routes/admin-shows.js';
 
 if (!process.env.SESSION_SECRET) {
   console.error('❌ FATAL: SESSION_SECRET is required');
@@ -259,6 +261,7 @@ app.use('/admin/updates', adminUpdatesRoutes);
 app.use('/admin/patreon', adminPatreonRoutes);
 app.use('/admin/stats', adminStatsRoutes);
 app.use('/admin/newsletter', adminNewsletterRoutes);
+app.use('/admin/shows', adminShowsRoutes);
 app.use('/admin', adminRoutes);
 app.use('/prutter', prutterRoutes);
 app.use('/audio', audioRoutes);
@@ -278,6 +281,7 @@ app.use('/', newsletterRoutes); // /nieuwsbrief in/uitschrijven (premium; niet-p
 app.use('/', downloadRoutes); // /downloads + /download/:id download-voor-email (premium)
 app.use('/', linkbioRoutes); // /links link-in-bio + klikstats (premium)
 app.use('/', embedRoutes); // /embed inbedbare audiospeler (premium)
+app.use('/', showsRoutes); // /shows agenda + notify-me (premium)
 app.use('/', postsRoutes);
 
 app.get('/manifest.webmanifest', (req, res) => {

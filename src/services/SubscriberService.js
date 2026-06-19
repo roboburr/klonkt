@@ -68,8 +68,12 @@ export function unsubscribe(token) {
   return true;
 }
 
-/** Bevestigde abonnees (email + token) voor een site — voor het versturen. */
-export function confirmedFor(siteId) {
+/** Bevestigde abonnees (email + token) voor een site — voor het versturen.
+ * Optioneel filteren op bron (bv. 'notify' voor show-aankondigingen). */
+export function confirmedFor(siteId, source) {
+  if (source) {
+    return db.prepare("SELECT email, token FROM subscribers WHERE site_id = ? AND status = 'confirmed' AND source = ?").all(siteId, source);
+  }
   return db.prepare("SELECT email, token FROM subscribers WHERE site_id = ? AND status = 'confirmed'").all(siteId);
 }
 
