@@ -295,6 +295,12 @@ h3 { font-size: 1.375rem; margin: 1.25rem 0 .3rem; }
 p { margin: 0 0 .85em; text-wrap: pretty; hyphens: auto; }
 a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--rule-2); text-underline-offset: 3px; transition: color var(--transition), text-decoration-color var(--transition); }
 a:hover { color: var(--accent); text-decoration-color: var(--accent); }
+/* Knop-ankers houden hun eigen tekstkleur bij hover. Zonder dit overschrijft de
+   globale a:hover{color:accent} de knop-tekst → die wordt dezelfde kleur als de
+   accent-achtergrond en valt weg (vooral op sites met een felle accent). */
+a.btn:hover, a.epk-btn:hover { color: var(--ink); }
+a.btn-primary:hover, a.btn-danger:hover, a.btn-success:hover, a.button:hover,
+a.epk-btn-primary:hover, a.dls-btn:hover, a.sh-tix:hover, a.dl-go:hover { color: #fff; text-decoration-color: currentColor; }
 a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; text-decoration: none; }
 blockquote { margin: 2em 0; padding: .25em 0 .25em 1.25em; border-left: 2px solid var(--accent); font-family: var(--font-display); font-style: italic; font-size: 1.15em; color: var(--ink-soft); }
 code { font-family: var(--font-mono); font-size: .9em; padding: .15em .4em; background: var(--paper-2); border: 1px solid var(--rule); border-radius: 4px; }
