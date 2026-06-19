@@ -153,6 +153,7 @@ router.post('/posts/create', requireAuth, (req, res) => {
   }
 
   const { title, slug, content, excerpt, status, pinned, cover_image_url, tags, noindex, type } = req.body;
+  const fanOnly = req.body.fan_only ? 1 : 0;
 
   // Content arrives as user-authored HTML from the WYSIWYG editor — sanitize
   // before storage. Shortcode text tokens like [[track:UUID]] live in text
@@ -176,21 +177,30 @@ router.post('/posts/create', requireAuth, (req, res) => {
   const finalType = validTypes.has(type) ? type : 'post';
   const postId = uuid();
   const now = new Date().toISOString();
-  const finalStatus = status || 'draft';
-  const publishedAt = finalStatus === 'published' ? now : null;
+  let finalStatus = status || 'draft';
+  let publishedAt = finalStatus === 'published' ? now : null;
+  // Release-planning: gepubliceerd + een toekomstige publish_at -> 'scheduled'
+  // (de Scheduler zet 'm live op het moment zelf). Verleden/leeg -> meteen live.
+  let publishAt = null;
+  const pa = Date.parse(req.body.publish_at || '');
+  if (finalStatus === 'published' && Number.isFinite(pa) && pa > Date.now()) {
+    finalStatus = 'scheduled';
+    publishAt = new Date(pa).toISOString();
+    publishedAt = null;
+  }
 
   db.prepare(`
     INSERT INTO posts (
       id, site_id, slug, author_id, title, content, excerpt,
-      status, cover_image_url, pinned, tags, type, noindex,
+      status, cover_image_url, pinned, tags, type, noindex, fan_only, publish_at,
       created_at, updated_at, published_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     postId, site.id, finalSlug, req.session.user.id,
     title || finalSlug, cleanContent, excerpt || '',
     finalStatus, cover_image_url || null, parsePinnedRank(pinned),
     JSON.stringify((tags || '').split(',').map(t => t.trim()).filter(Boolean)),
-    finalType, noindex ? 1 : 0,
+    finalType, noindex ? 1 : 0, fanOnly, publishAt,
     now, now, publishedAt
   );
 
@@ -254,6 +264,7 @@ router.post('/posts/:slug/save', requireAuth, (req, res) => {
   }
 
   const { title, content, excerpt, status, pinned, cover_image_url, tags, noindex, type } = req.body;
+  const fanOnly = req.body.fan_only ? 1 : 0;
   const newSlug = req.body.slug;
   const action = req.body.action || 'save';
   const validTypes = new Set(['post', 'foto', 'video', 'audio']);
@@ -280,18 +291,27 @@ router.post('/posts/:slug/save', requireAuth, (req, res) => {
     if (!publishedAt) publishedAt = now;
   }
 
+  // Release-planning: gepubliceerd + toekomstige publish_at -> 'scheduled'.
+  let publishAt = null;
+  const pa = Date.parse(req.body.publish_at || '');
+  if (finalStatus === 'published' && Number.isFinite(pa) && pa > Date.now()) {
+    finalStatus = 'scheduled';
+    publishAt = new Date(pa).toISOString();
+    publishedAt = null;
+  }
+
   db.prepare(`
     UPDATE posts SET
       title = ?, content = ?, excerpt = ?, status = ?,
       cover_image_url = ?, pinned = ?, tags = ?,
-      type = ?, noindex = ?,
+      type = ?, noindex = ?, fan_only = ?, publish_at = ?,
       slug = ?, published_at = ?, updated_at = ?
     WHERE id = ?
   `).run(
     title, cleanContent, excerpt, finalStatus,
     cover_image_url || null, parsePinnedRank(pinned),
     JSON.stringify((tags || '').split(',').map(t => t.trim()).filter(Boolean)),
-    finalType, noindex ? 1 : 0,
+    finalType, noindex ? 1 : 0, fanOnly, publishAt,
     finalSlug, publishedAt, now, post.id
   );
 
@@ -392,6 +412,18 @@ router.get('/:slug', (req, res, next) => {
   if (post.status !== 'published') {
     const canEdit = req.session?.user && PermissionsService.canEditPost(req.session.user, post, site);
     if (!canEdit) return res.status(403).send('Not published');
+  }
+
+  // Fan-only preview (premium #3): volledige inhoud alleen voor ingelogde fans.
+  // Anonieme bezoekers krijgen een nette login-gate i.p.v. de inhoud (de titel/
+  // teaser mag elders wel als lokkertje verschijnen).
+  if (post.fan_only && !(req.session && req.session.user)) {
+    return renderPage(req, res, 'pages/fan-gate', {
+      pageTitle: post.title || 'Alleen voor fans',
+      bodyClass: 'on-special',
+      fgTitle: post.title || '',
+      fgNext: (res.locals.siteUrlBase || '') + '/' + post.slug,
+    });
   }
 
   // Statistieken: tel de weergave (skipt beheerders + niet-gepubliceerd-eigen-preview).

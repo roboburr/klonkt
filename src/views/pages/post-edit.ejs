@@ -192,6 +192,17 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
           <input type="checkbox" name="noindex" value="1" <%= post.noindex ? 'checked' : '' %>>
           <span>🚫 noindex (verberg voor zoekmachines)</span>
         </label>
+        <% if (typeof premiumUnlocked === 'undefined' || premiumUnlocked) { %>
+          <label class="pe-checkbox">
+            <input type="checkbox" name="fan_only" value="1" <%= post.fan_only ? 'checked' : '' %>>
+            <span>🔒 Alleen voor ingelogde fans</span>
+          </label>
+          <div style="margin-top:8px">
+            <label style="display:block;font-size:12.5px;opacity:.8;margin-bottom:4px">📅 Publiceren op (laat leeg = direct)</label>
+            <input type="datetime-local" name="publish_at" value="<%= post.publish_at ? String(post.publish_at).replace(' ','T').slice(0,16) : '' %>" style="padding:8px 10px;border-radius:8px;border:1px solid var(--rule,rgba(128,128,128,.4));background:transparent;color:inherit">
+            <% if (post.status === 'scheduled' && post.publish_at) { %><div style="font-size:12px;opacity:.7;margin-top:4px">⏳ Ingepland voor <%= post.publish_at %></div><% } %>
+          </div>
+        <% } %>
       </div>
     </section>
 

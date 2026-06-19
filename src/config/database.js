@@ -81,6 +81,8 @@ export function initializeDatabase() {
 
   // Per-post noindex + type
   ensureColumn('posts', 'noindex', 'INTEGER DEFAULT 0');
+  ensureColumn('posts', 'publish_at', 'DATETIME');         // release-planning (premium #3): geplande go-live
+  ensureColumn('posts', 'fan_only', 'INTEGER DEFAULT 0');  // fan-only preview (premium #3)
   ensureColumn('posts', 'type',    "TEXT DEFAULT 'post'");  // post | foto | video | audio
 
   // Statistieken (premium-module) — kale tellers, cookievrij.

@@ -1,0 +1,19 @@
+<section class="fg">
+  <div class="fg-card">
+    <div class="fg-lock">🔒</div>
+    <h1 class="fg-h1">Alleen voor fans</h1>
+    <% if (typeof fgTitle !== 'undefined' && fgTitle) { %><p class="fg-which">"<%= fgTitle %>"</p><% } %>
+    <p class="fg-sub">Dit is exclusief voor ingelogde fans. Log in om het te bekijken.</p>
+    <p><a class="fg-btn" href="/auth/login?next=<%= encodeURIComponent(fgNext || '/') %>">Inloggen / aanmelden</a></p>
+  </div>
+</section>
+
+<style>
+  .fg { max-width: 480px; margin: 0 auto; padding: 56px 18px; text-align: center; }
+  .fg-card { border: 1px solid rgba(128,128,128,.2); border-radius: 18px; padding: 36px 28px; }
+  .fg-lock { font-size: 40px; margin-bottom: 8px; }
+  .fg-h1 { font-size: 26px; margin: 0 0 6px; }
+  .fg-which { font-style: italic; opacity: .8; margin: 0 0 12px; }
+  .fg-sub { opacity: .85; line-height: 1.6; margin: 0 0 20px; }
+  .fg-btn { display: inline-block; padding: 12px 22px; border-radius: 10px; background: var(--accent,#6b8f71); color: #fff; text-decoration: none; font-weight: 600; }
+</style>
