@@ -122,6 +122,10 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
           <button type="button" data-cmd="removeFormat" title="Wis opmaak" aria-label="Wis opmaak">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M5 5l14 14" stroke-linecap="round"/></svg>
           </button>
+          <button type="button" id="pe-fullscreen-btn" title="Volledig scherm" aria-label="Volledig scherm" aria-pressed="false">
+            <svg class="fs-icon-expand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+            <svg class="fs-icon-compress" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+          </button>
         </div>
 
         <div id="content-editor"
@@ -430,6 +434,22 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
   flex-shrink: 0;
 }
 .pe-toolbar-spacer { flex: 1; }
+
+/* ─── Volledig-scherm schrijfmodus ─── */
+.fs-icon-compress { display: none; }
+.pe-editor-frame.pe-fs .fs-icon-expand { display: none; }
+.pe-editor-frame.pe-fs .fs-icon-compress { display: inline; }
+.pe-editor-frame.pe-fs {
+  position: fixed; inset: 0; z-index: 1000;
+  margin: 0; border-top: 0;
+  height: 100dvh;
+  background: var(--paper);
+}
+/* In fullscreen vult het schrijfveld de resterende ruimte en scrollt het zelf. */
+.pe-editor-frame.pe-fs .pe-editor {
+  flex: 1 1 auto; min-height: 0; height: auto;
+}
+body.pe-fs-open { overflow: hidden; }
 
 /* Editor body — looks like prose, behaves like a textarea */
 .pe-editor {
@@ -1135,6 +1155,27 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
       else execCmd(cmd, arg);
     });
   }
+
+  // ── Volledig-scherm schrijfmodus: het schrijfveld vult de hele pagina.
+  const fsBtn = document.getElementById('pe-fullscreen-btn');
+  const editorFrame = document.querySelector('.pe-editor-frame');
+  function toggleFullscreen() {
+    if (!editorFrame) return;
+    const on = editorFrame.classList.toggle('pe-fs');
+    document.body.classList.toggle('pe-fs-open', on);
+    if (fsBtn) {
+      fsBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      fsBtn.title = on ? 'Verklein' : 'Volledig scherm';
+    }
+    if (on) editor.focus({ preventScroll: true });
+  }
+  if (fsBtn) fsBtn.addEventListener('click', toggleFullscreen);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && editorFrame && editorFrame.classList.contains('pe-fs')) {
+      e.preventDefault();
+      toggleFullscreen();
+    }
+  });
 
   // Reflect bold/italic/list state on the toolbar buttons
   function updateToolbarState() {

@@ -23,6 +23,8 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
   touch), zodat zichtbaar is of bv. vet aan of uit staat.
 
 ### Toegevoegd
+- Schrijfvenster kan op **volledig scherm** (knop in de editor-toolbar, of Escape om
+  terug te gaan) — fijn voor afleidingsvrij schrijven op mobiel.
 - Beheerder kan z'n **Google-account koppelen** (Account → Inloggen met Google) en
   daarna óók met Google inloggen. Veilig: koppelen kan alleen terwijl je met
   wachtwoord bent ingelogd, en Google-login geeft alleen beheer als de exacte
