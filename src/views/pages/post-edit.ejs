@@ -1159,6 +1159,23 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
   // ── Volledig-scherm schrijfmodus: het schrijfveld vult de hele pagina.
   const fsBtn = document.getElementById('pe-fullscreen-btn');
   const editorFrame = document.querySelector('.pe-editor-frame');
+
+  // Op mobiel duwt het toetsenbord de zichtbare (visual) viewport omhoog terwijl
+  // een position:fixed-frame aan de LAYOUT-viewport blijft hangen → de toolbar
+  // schuift uit beeld. Houd het fullscreen-frame daarom gelijk aan de visual
+  // viewport (top + hoogte), zodat de toolbar altijd bovenaan zichtbaar blijft.
+  function syncFsViewport() {
+    if (!editorFrame || !editorFrame.classList.contains('pe-fs')) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    editorFrame.style.top = vv.offsetTop + 'px';
+    editorFrame.style.height = vv.height + 'px';
+  }
+  function clearFsViewport() {
+    if (!editorFrame) return;
+    editorFrame.style.top = '';
+    editorFrame.style.height = '';
+  }
   function toggleFullscreen() {
     if (!editorFrame) return;
     const on = editorFrame.classList.toggle('pe-fs');
@@ -1166,6 +1183,17 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
     if (fsBtn) {
       fsBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
       fsBtn.title = on ? 'Verklein' : 'Volledig scherm';
+    }
+    if (window.visualViewport) {
+      if (on) {
+        window.visualViewport.addEventListener('resize', syncFsViewport);
+        window.visualViewport.addEventListener('scroll', syncFsViewport);
+        syncFsViewport();
+      } else {
+        window.visualViewport.removeEventListener('resize', syncFsViewport);
+        window.visualViewport.removeEventListener('scroll', syncFsViewport);
+        clearFsViewport();
+      }
     }
     if (on) editor.focus({ preventScroll: true });
   }
