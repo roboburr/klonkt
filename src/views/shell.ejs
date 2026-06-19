@@ -497,6 +497,21 @@ if (typeof post !== 'undefined' && post && post.slug) {
     lastPath = here;
     window.htmx.ajax('GET', here, { target: '#pcms-main', swap: 'innerHTML' });
   });
+
+  // Links MÉT eigen hx-get + hx-push-url (post-card/post-tile/topnav/…) lopen NIET
+  // via de boost hierboven, en hx-push-url is een no-op nu htmx-history uitstaat.
+  // Doe daarom de adresbalk-update hier zelf zodra htmx swapt. Programmatische
+  // htmx.ajax-calls (boost/popstate) hebben geen elt met hx-push-url → geen dubbel.
+  document.body.addEventListener('htmx:beforeSwap', function (evt) {
+    try {
+      var elt = evt.detail && evt.detail.elt;
+      if (!elt || !elt.getAttribute) return;
+      var u = elt.getAttribute('hx-push-url');
+      if (!u || u === 'false') return;
+      if (u !== lastPath) history.pushState({ b: 1 }, '', u);
+      lastPath = u;
+    } catch (_) {}
+  });
 })();
 </script>
 
