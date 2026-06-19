@@ -396,13 +396,17 @@ app.use((err, req, res, next) => {
 });
 
 app.use((req, res) => {
-  res.status(404).send(`
-    <div style="font-family:system-ui;max-width:500px;margin:4rem auto;text-align:center;padding:2rem;">
-      <h1 style="font-size:5rem;margin:0;color:#c33;">404</h1>
-      <p>Not found</p>
-      <a href="/" style="color:#c2410c;">← Home</a>
-    </div>
-  `);
+  res.status(404);
+  // Nette, mobielvriendelijke 404 via de shell (viewport + nav + huisstijl).
+  // Valt terug op kale HTML als het renderen onverhoopt faalt.
+  try {
+    return renderPage(req, res, 'pages/404', {
+      pageTitle: '404 — niet gevonden',
+      bodyClass: 'on-special on-404',
+    });
+  } catch (e) {
+    return res.send('<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><div style="font-family:system-ui;max-width:500px;margin:4rem auto;text-align:center;padding:2rem"><h1 style="font-size:4rem;margin:0">404</h1><p>Pagina niet gevonden</p><a href="/">← Home</a></div>');
+  }
 });
 
 // ==================== WebSocket: Prutter real-time ====================

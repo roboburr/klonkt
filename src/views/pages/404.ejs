@@ -1,0 +1,22 @@
+<section class="nf">
+  <div class="nf-code">404</div>
+  <h1 class="nf-title">Pagina niet gevonden</h1>
+  <p class="nf-sub">Deze pagina bestaat niet (meer). Misschien is de link verouderd of verkeerd getypt.</p>
+  <div class="nf-actions">
+    <a class="nf-btn nf-btn-primary" href="<%= (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '' %>/">← Naar de homepagina</a>
+    <% if (typeof site !== 'undefined' && site && site.show_archive_link !== 0) { %>
+      <a class="nf-btn" href="<%= (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '' %>/archive">Archief</a>
+    <% } %>
+  </div>
+</section>
+
+<style>
+  .nf { max-width: 540px; margin: 0 auto; padding: 12vh 20px 64px; text-align: center; }
+  .nf-code { font-size: clamp(72px, 22vw, 140px); font-weight: 800; line-height: .9; color: var(--accent, #6b8f71); opacity: .9; letter-spacing: -.03em; }
+  .nf-title { font-size: clamp(22px, 6vw, 32px); margin: .4rem 0 .6rem; }
+  .nf-sub { opacity: .8; line-height: 1.6; margin: 0 auto 1.6rem; max-width: 36ch; }
+  .nf-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .nf-btn { display: inline-block; padding: 12px 20px; border-radius: 999px; text-decoration: none; font-weight: 600; font-size: 15px; border: 1px solid rgba(128,128,128,.35); color: inherit; }
+  .nf-btn-primary { background: var(--accent, #6b8f71); border-color: var(--accent, #6b8f71); color: #fff; }
+  @media (max-width: 420px) { .nf-actions { flex-direction: column; } .nf-btn { width: 100%; } }
+</style>
