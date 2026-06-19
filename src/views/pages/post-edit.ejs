@@ -463,7 +463,9 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
 
 /* "Klaar"-knop: alleen in fullscreen zichtbaar (links in de toolbar), duidelijke
    accent-pill i.p.v. een vierkant icoontje. */
-.pe-fs-done { display: none; }
+/* Verberg-regel specifieker dan ".pe-toolbar button" (anders wint die en zie je
+   de Klaar-knop ook inline als kleine knop). Alleen in fullscreen tonen → groot. */
+.pe-toolbar button.pe-fs-done { display: none; }
 .pe-editor-frame.pe-fs .pe-fs-done {
   display: inline-flex; align-items: center; gap: .35rem;
   width: auto !important; height: auto !important; min-height: 40px;
