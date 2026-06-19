@@ -13,7 +13,10 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 
 ## [Unreleased]
 
-_Nog niets in voorbereiding._
+### Gewijzigd
+- Post-navigatie (Newer/Older) houdt nu op elke post dezelfde twee-kaarten-structuur:
+  ontbreekt er een nieuwere/oudere post, dan staat er een subtiele uitgegrijsde
+  placeholder ("Nieuwste post" / "Oudste post") i.p.v. een lege plek.
 
 ## [1.0.0-beta.2] — 2026-06-19
 

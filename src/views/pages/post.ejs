@@ -16,7 +16,12 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
           <span class="post-nav-label">← Newer</span>
           <span class="post-nav-title"><%= newerPost.title %></span>
         </a>
-      <% } else { %><span></span><% } %>
+      <% } else { %>
+        <div class="post-nav-prev is-empty" aria-hidden="true">
+          <span class="post-nav-label">← Newer</span>
+          <span class="post-nav-title">Nieuwste post</span>
+        </div>
+      <% } %>
       <% if (olderPost) { %>
         <a class="post-nav-next" href="<%= olderPost._urlBase || '' %>/<%= olderPost.slug %>"<% if (!olderPost._urlBase) { %>
            hx-get="/<%= olderPost.slug %>?partial=1" hx-target="#pcms-main"
@@ -24,6 +29,11 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
           <span class="post-nav-label">Older →</span>
           <span class="post-nav-title"><%= olderPost.title %></span>
         </a>
+      <% } else { %>
+        <div class="post-nav-next is-empty" aria-hidden="true">
+          <span class="post-nav-label">Older →</span>
+          <span class="post-nav-title">Oudste post</span>
+        </div>
       <% } %>
     </nav>
   <% } %>
@@ -283,6 +293,10 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
 /* Boven de post: geen lijn/gap erboven, maar een scheidingslijn ERONDER (naar de content). */
 .post-nav--top { margin-top: 0; padding-top: 0; border-top: 0; margin-bottom: 2rem; padding-bottom: 2rem; border-bottom: 1px solid var(--rule); }
 .post-nav-prev, .post-nav-next { display: flex; flex-direction: column; padding: 1rem; background: var(--paper-2); border-radius: 6px; text-decoration: none; color: var(--ink); }
+/* Lege plek (geen nieuwere/oudere post): zelfde kaart, uitgegrijsd + niet klikbaar,
+   zodat elke post dezelfde twee-kaarten-structuur houdt. */
+.post-nav-prev.is-empty, .post-nav-next.is-empty { opacity: 0.4; cursor: default; }
+.post-nav-prev.is-empty .post-nav-title, .post-nav-next.is-empty .post-nav-title { font-weight: 400; font-style: italic; color: var(--ink-muted); }
 .post-nav-next { text-align: right; align-items: flex-end; }
 .post-nav-label { font-size: 0.8rem; color: var(--ink-muted); margin-bottom: 0.25rem; }
 .post-nav-title { font-weight: 500; }
