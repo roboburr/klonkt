@@ -14,6 +14,10 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 ## [Unreleased]
 
 ### Opgelost
+- Fullscreen verlaten scrolt nu naar de top van de content (i.p.v. door te springen
+  naar de footer).
+- "Tik om te bewerken"-aanwijzing op touch duidelijker: gecentreerde pill + dashed
+  rand om het content-veld.
 - Scrollbalken verborgen op mobiel & tablet (touch) — scrollen blijft werken,
   alleen de balk-UI is weg (geen verwarrende/dubbele balken).
 - Fullscreen-editor: geen dubbele scrollbalk meer — in fullscreen scrollt alléén

@@ -478,16 +478,22 @@ html.pe-fs-open, body.pe-fs-open { overflow: hidden; }
 .pe-editor-frame:not(.pe-fs) .pe-editor { overflow: visible; }
 
 /* Touch: het inline content-veld is geen tekstveld maar een tap-vlak → fullscreen
-   bewerken. Een duidelijke "tik om te bewerken"-pill maakt dat zichtbaar. */
+   bewerken. Een duidelijke, GECENTREERDE "tik om te bewerken"-pill + dashed rand
+   maken dat onmiskenbaar. */
 .pe-editor.pe-tap-to-edit { cursor: pointer; }
 @media (pointer: coarse) {
   .pe-editor-frame:not(.pe-fs) { position: relative; }
+  .pe-editor-frame:not(.pe-fs) .pe-editor {
+    outline: 2px dashed color-mix(in srgb, var(--accent) 55%, transparent);
+    outline-offset: -6px;
+  }
   .pe-editor-frame:not(.pe-fs)::after {
     content: "✎ Tik om te bewerken";
-    position: absolute; right: .6rem; bottom: .6rem;
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
     background: var(--accent); color: #fff;
-    font-size: .8rem; font-weight: 600; padding: .3rem .7rem; border-radius: 999px;
-    pointer-events: none; opacity: .92; box-shadow: 0 2px 8px rgba(0,0,0,.25);
+    font-size: 1rem; font-weight: 700; padding: .6rem 1.1rem; border-radius: 999px;
+    pointer-events: none; white-space: nowrap;
+    box-shadow: 0 6px 20px rgba(0,0,0,.4);
   }
 }
 .pe-editor.is-dragover {
@@ -1267,8 +1273,16 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
     }
     // Op touch is het veld inline NIET bewerkbaar; alleen in fullscreen wel.
     if (isTouch) editor.setAttribute('contenteditable', on ? 'true' : 'false');
-    if (on) editor.focus({ preventScroll: true });
-    else if (isTouch) editor.blur();
+    if (on) {
+      editor.focus({ preventScroll: true });
+    } else {
+      if (isTouch) editor.blur();
+      // Bij verkleinen: naar de TOP van de content scrollen i.p.v. ergens onderaan
+      // (footer) te blijven hangen.
+      requestAnimationFrame(function () {
+        try { editorFrame.scrollIntoView({ block: 'start' }); } catch (_) {}
+      });
+    }
   }
   if (fsBtn) fsBtn.addEventListener('click', toggleFullscreen);
   document.addEventListener('keydown', (e) => {
