@@ -68,6 +68,15 @@ router.post('/add', requireGod, async (req, res) => {
     await syncOne(link);
     return res.redirect('/admin/circle?success=' + encodeURIComponent('Toegevoegd en gesynchroniseerd ✓'));
   } catch (e) {
+    const msg = String((e && e.message) || e);
+    // 404 = geen cirkel-endpoint. Hubs federeren bewust NIET (hun /.klonkt/actor.json
+    // geeft 404), net als losse niet-Klonkt-sites. Niet toevoegen: rol de insert terug
+    // zodat er geen dode "fout"-rij in de cirkel blijft staan.
+    if (/\b404\b/.test(msg)) {
+      db.prepare('DELETE FROM circle_links WHERE id = ?').run(id);
+      return res.redirect('/admin/circle?error=' + encodeURIComponent('Niet toegevoegd: deze site doet niet mee aan cirkels. Een hub kan geen cirkel-partner zijn (en losse/niet-Klonkt-sites ook niet).'));
+    }
+    // Andere (mogelijk tijdelijke) fout → link blijft staan; later "Verversen".
     return res.redirect('/admin/circle?success=' + encodeURIComponent('Toegevoegd — synchroniseren mislukte (klik "Verversen" om opnieuw te proberen)'));
   }
 });
