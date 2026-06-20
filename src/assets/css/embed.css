@@ -194,6 +194,26 @@
   min-width: 2.6em;
   text-align: center;
 }
+/* Volume: mute-knop + compacte schuif (alleen YT/SC — eigen controls). */
+.pcms-embed-mute {
+  flex: 0 0 auto;
+  width: 28px; height: 28px;
+  border: 0; background: none; padding: 0;
+  color: var(--ink-muted, #6b6560);
+  cursor: pointer;
+  display: grid; place-items: center;
+}
+.pcms-embed-mute svg { width: 18px; height: 18px; }
+.pcms-embed-vol {
+  flex: 0 0 auto;
+  width: 64px;
+  cursor: pointer;
+  accent-color: var(--accent, #c2410c);
+}
+@media (max-width: 480px) {
+  /* Smal scherm: schuif weg, alleen de mute-knop houden (ruimte). */
+  .pcms-embed-vol { display: none; }
+}
 .pcms-embed-seek {
   position: relative;
   flex: 1 1 auto;

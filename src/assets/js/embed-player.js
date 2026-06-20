@@ -147,6 +147,8 @@
   const ICON = {
     play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4l12 8-12 8z" fill="currentColor"/></svg>',
     pause: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h4v16H7zM13 4h4v16h-4z" fill="currentColor"/></svg>',
+    volume: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9H3z" fill="currentColor"/><path d="M16 8a5 5 0 010 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+    muted: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9H3z" fill="currentColor"/><path d="M16 9l5 6M21 9l-5 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
   };
   const LABEL = { youtube: 'YouTube', soundcloud: 'SoundCloud', spotify: 'Spotify' };
 
@@ -201,6 +203,8 @@
             + `<span class="pcms-embed-cur mono">0:00</span>`
             + `<div class="pcms-embed-seek" role="slider" aria-label="Voortgang" tabindex="0"><div class="pcms-embed-seek-fill"></div></div>`
             + `<span class="pcms-embed-dur mono">0:00</span>`
+            + `<button type="button" class="pcms-embed-mute" aria-label="Dempen">${ICON.volume}</button>`
+            + `<input type="range" class="pcms-embed-vol" min="0" max="100" value="100" aria-label="Volume">`
             + `<a class="pcms-embed-badge" href="${escAttr(safeHref(url))}" target="_blank" rel="noopener">${LABEL[provider] || provider}</a>`
             + `</div>`
           : `<div class="pcms-embed-frame-badge"><a href="${escAttr(safeHref(url))}" target="_blank" rel="noopener">via ${LABEL[provider] || provider}</a></div>`);
@@ -213,6 +217,10 @@
     const seekFill = el.querySelector('.pcms-embed-seek-fill');
     const posterBtn = el.querySelector('.pcms-embed-poster, .pcms-embed-art');
     const subEl = el.querySelector('.pcms-embed-sub');
+    const volEl = el.querySelector('.pcms-embed-vol');
+    const muteBtn = el.querySelector('.pcms-embed-mute');
+    let vol = 100;       // huidige volume 0-100 (wordt op de adapter toegepast)
+    let preMuteVol = 100;
 
     function setPlayingUI(on) {
       playing = on;
@@ -296,6 +304,7 @@
       el.classList.add('pcms-embed-busy');
       try {
         adapter = await MOUNTERS[provider](mountEl, { ref, url }, hooks);
+        if (el._pcmsApplyVol) el._pcmsApplyVol();  // onthouden volume toepassen
         // is-mounted: CSS verbergt de poster (video) of de Spotify-facade en
         // toont de echte speler. Voor SoundCloud blijft onze kaart+balk staan en
         // blijft het (functionele) iframe off-screen verborgen.
@@ -318,6 +327,20 @@
       const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
       adapter.seek(ratio * dur);
     });
+    // Volume: schuif zet vol (0-100) en past 'm toe op de adapter (YT/SC hebben
+    // setVolume). De waarde wordt onthouden en na het mounten opnieuw toegepast.
+    function applyVol() {
+      if (adapter && adapter.setVolume) { try { adapter.setVolume(vol); } catch (e) {} }
+      if (muteBtn) muteBtn.innerHTML = vol === 0 ? ICON.muted : ICON.volume;
+      if (volEl && String(volEl.value) !== String(vol)) volEl.value = vol;
+      el.classList.toggle('is-muted', vol === 0);
+    }
+    if (volEl) volEl.addEventListener('input', () => { vol = parseInt(volEl.value, 10) || 0; if (vol > 0) preMuteVol = vol; applyVol(); });
+    if (muteBtn) muteBtn.addEventListener('click', () => {
+      if (vol > 0) { preMuteVol = vol; vol = 0; } else { vol = preMuteVol || 100; }
+      applyVol();
+    });
+    el._pcmsApplyVol = applyVol;  // door ensureMountedAndPlay aangeroepen na mount
   }
 
   function escAttr(s) {
@@ -351,6 +374,7 @@
                 play() { try { player.playVideo(); } catch (e) {} },
                 pause() { try { player.pauseVideo(); } catch (e) {} },
                 seek(sec) { try { player.seekTo(sec, true); } catch (e) {} },
+                setVolume(pct) { try { if (pct <= 0) player.mute(); else { player.unMute(); player.setVolume(pct); } } catch (e) {} },
                 destroy() {
                   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
                   try { player.destroy(); } catch (e) {}
@@ -410,6 +434,7 @@
             play() { widget.play(); },
             pause() { widget.pause(); },
             seek(sec) { widget.seekTo(sec * 1000); },
+            setVolume(pct) { try { widget.setVolume(pct); } catch (e) {} },
             destroy() {
               try { ['READY', 'PLAY', 'PAUSE', 'FINISH', 'PLAY_PROGRESS', 'ERROR'].forEach((k) => E[k] && widget.unbind(E[k])); } catch (e) {}
               try { iframe.remove(); } catch (e) {}
