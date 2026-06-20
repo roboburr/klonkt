@@ -161,6 +161,12 @@
     const url = el.dataset.embedUrl || '';
     if (!provider) return;
 
+    // Audio-only YouTube met een afspeellijst (?list=…) → album-kaart met tracklijst.
+    if (provider === 'youtube' && el.dataset.embedMode === 'audio') {
+      const lm = url.match(/[?&]list=([A-Za-z0-9_-]+)/);
+      if (lm) { try { buildYtAlbum(el, lm[1]); } catch (e) { console.error('[pcms-embed] yt-album faalde', e); } return; }
+    }
+
     el.classList.add('pcms-embed-card', 'pcms-embed-card--' + provider);
     el.classList.remove('pcms-embed-loading');
 
@@ -380,6 +386,89 @@
 
   function escAttr(s) {
     return String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  // Haal de video-IDs van een YouTube-afspeellijst op via een verborgen,
+  // tijdelijke speler (cuePlaylist → getPlaylist). Geen API-key nodig.
+  function ytPlaylistIds(listId) {
+    return ytApi().then((YT) => new Promise((resolve) => {
+      if (!YT || !YT.Player) { resolve([]); return; }
+      const host = document.createElement('div');
+      host.style.cssText = 'position:absolute;left:-99999px;top:0;width:320px;height:180px;opacity:0;pointer-events:none';
+      const mount = document.createElement('div'); host.appendChild(mount); document.body.appendChild(host);
+      let done = false;
+      const finish = (ids) => { if (done) return; done = true; try { p.destroy(); } catch (e) {} try { host.remove(); } catch (e) {} resolve(ids || []); };
+      const p = new YT.Player(mount, {
+        host: 'https://www.youtube-nocookie.com', playerVars: { playsinline: 1 },
+        events: { onReady: () => {
+          try { p.cuePlaylist({ list: listId }); } catch (e) {}
+          setTimeout(() => { let ids = []; try { ids = p.getPlaylist() || []; } catch (e) {} finish(ids); }, 2500);
+        } },
+      });
+      setTimeout(() => finish([]), 9000);
+    }));
+  }
+
+  // Render een audio-only YouTube-AFSPEELLIJST als album-kaart (zelfde stijl als
+  // de eigen albums) met tracklijst; afspelen loopt via de site-audiospeler.
+  async function buildYtAlbum(el, listId) {
+    el.className = 'folio-embed pcms-ytalbum';  // geen losse card-chrome; .post-album stuurt de stijl
+    const thumb = (id) => `https://i.ytimg.com/vi/${id}/mqdefault.jpg`;
+    el.innerHTML = ''
+      + '<div class="post-album">'
+      +   '<div class="post-album-header">'
+      +     '<button type="button" class="post-album-cover-btn" aria-label="Album afspelen">'
+      +       '<img class="post-album-cover-img" src="" alt="">'
+      +       '<span class="post-album-play-overlay" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 4l12 8-12 8z"/></svg></span>'
+      +     '</button>'
+      +     '<div class="post-album-info">'
+      +       '<h3 class="post-album-title">Album laden…</h3>'
+      +       '<p class="post-album-artist"></p>'
+      +       '<p class="post-album-count">YouTube</p>'
+      +     '</div>'
+      +   '</div>'
+      +   '<ol class="post-album-tracks"><li class="pcms-ytalbum-msg">Tracks laden…</li></ol>'
+      + '</div>';
+    const coverImg = el.querySelector('.post-album-cover-img');
+    const titleEl = el.querySelector('.post-album-title');
+    const countEl = el.querySelector('.post-album-count');
+    const olEl = el.querySelector('.post-album-tracks');
+    const coverBtn = el.querySelector('.post-album-cover-btn');
+
+    // Albumnaam via de oEmbed-proxy (playlist-url).
+    fetch('/audio/yt-title?url=' + encodeURIComponent('https://www.youtube.com/playlist?list=' + listId))
+      .then((r) => (r.ok ? r.json() : null)).then((d) => { if (d && d.title) titleEl.textContent = d.title; }).catch(() => {});
+
+    let ids = [];
+    try { ids = await ytPlaylistIds(listId); } catch (e) { ids = []; }
+    if (!ids.length) { olEl.innerHTML = '<li class="pcms-ytalbum-msg">Kon de afspeellijst niet laden.</li>'; return; }
+    countEl.textContent = ids.length + ' track' + (ids.length === 1 ? '' : 's');
+    if (coverImg) coverImg.src = thumb(ids[0]);
+
+    olEl.innerHTML = ids.map((id, i) =>
+      `<li class="post-album-track-compact" id="track-${id}" data-yt-id="${id}" data-yt-index="${i}">`
+      + `<button type="button" class="pat-row" aria-label="Speel track ${i + 1}">`
+      +   `<span class="pat-cover" style="background-image:url('${thumb(id)}')" aria-hidden="true"></span>`
+      +   `<span class="pat-meta"><span class="pat-title">Track ${i + 1}</span><span class="pat-artist"></span></span>`
+      +   `<span class="pat-duration pat-duration-empty">—:—</span>`
+      + `</button></li>`
+    ).join('');
+
+    // Tracktitels lazy invullen (oEmbed-proxy per video).
+    ids.forEach((id, i) => {
+      fetch('/audio/yt-title?url=' + encodeURIComponent('https://www.youtube.com/watch?v=' + id))
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => { if (d && d.title) { const tt = olEl.querySelector(`[data-yt-index="${i}"] .pat-title`); if (tt) tt.textContent = d.title; } })
+        .catch(() => {});
+    });
+
+    function playAt(i) {
+      if (!(window.pcmsAudioPlayer && window.pcmsAudioPlayer.playYouTube)) return;
+      const tt = (olEl.querySelector(`[data-yt-index="${i}"] .pat-title`) || {}).textContent || '';
+      window.pcmsAudioPlayer.playYouTube({ list: listId, index: i, title: tt, cover: thumb(ids[i]), postUrl: location.pathname + location.search });
+    }
+    coverBtn.addEventListener('click', () => playAt(0));
+    olEl.addEventListener('click', (e) => { const li = e.target.closest('[data-yt-index]'); if (li) playAt(parseInt(li.dataset.ytIndex, 10) || 0); });
   }
 
   // ============================================================

@@ -340,7 +340,10 @@
     } else if (s === 2) {
       isPlaying = false; root.classList.remove('is-playing'); stopYTTick();
     } else if (s === 0) {
-      stopYTTick(); next();
+      stopYTTick();
+      // Bij een afspeellijst regelt YouTube zelf het doorschakelen → niet dubbel.
+      const t = queue[currentIndex];
+      if (!(t && t.ytList)) next();
     }
   }
 
@@ -355,10 +358,16 @@
 
   function pullYTMeta() {
     try {
-      const t = queue[currentIndex]; if (!t || !t.yt || !ytPlayer.getVideoData) return;
-      const vd = ytPlayer.getVideoData();
-      if (vd && vd.title && (!t.title || t.title === 'YouTube')) {
-        t.title = vd.title; titleEl.textContent = vd.title; sheetTitle.textContent = vd.title; renderQueue(); markPlaying(t.id);
+      const t = queue[currentIndex]; if (!t || (!t.yt && !t.ytList) || !ytPlayer.getVideoData) return;
+      const vd = ytPlayer.getVideoData() || {};
+      // Bij een afspeellijst wisselt de titel per nummer → altijd bijwerken.
+      if (vd.title && (t.ytList || !t.title || t.title === 'YouTube')) {
+        titleEl.textContent = vd.title; sheetTitle.textContent = vd.title;
+        if (!t.ytList) t.title = vd.title;
+      }
+      if (vd.video_id) {
+        setYtCover(vd.video_id);
+        markPlaying(vd.video_id);  // licht de bijbehorende album-rij op (id="track-<videoId>")
       }
     } catch (e) {}
   }
@@ -394,8 +403,8 @@
 
     if (metaOnly) return;
 
-    // YouTube-bron → verborgen YT-speler i.p.v. de blob-<audio>.
-    if (t.yt) {
+    // YouTube-bron (los nummer óf afspeellijst/album) → verborgen YT-speler.
+    if (t.yt || t.ytList) {
       ytMode = true;
       try { audio.pause(); } catch (e) {}
       loadSeq++; dropPreload();
@@ -407,7 +416,12 @@
         root.classList.remove('audio-loading');
         if (!p) { onLoadError(new Error('YT API niet beschikbaar'), loadSeq); return; }
         try {
-          if (autoplay) p.loadVideoById(t.yt); else p.cueVideoById(t.yt);
+          if (t.ytList) {
+            const idx = t.ytIndex || 0;
+            if (autoplay) p.loadPlaylist({ list: t.ytList, index: idx }); else p.cuePlaylist({ list: t.ytList, index: idx });
+          } else {
+            if (autoplay) p.loadVideoById(t.yt); else p.cueVideoById(t.yt);
+          }
           p.setVolume(audio.muted ? 0 : Math.round(audio.volume * 100));
         } catch (e) {}
       });
@@ -499,10 +513,14 @@
   function pause()      { if (ytMode) { try { ytPlayer && ytPlayer.pauseVideo(); } catch (e) {} return; } audio.pause(); }
   function togglePlay() { if (ytMode) { isPlaying ? pause() : play(); return; } audio.paused ? play() : pause(); }
   function next() {
+    const t = queue[currentIndex];
+    if (t && t.ytList && ytPlayer && ytMode) { try { ytPlayer.nextVideo(); } catch (e) {} return; }
     if (!queue.length) return;
     loadTrack((currentIndex + 1) % queue.length, true);
   }
   function prev() {
+    const t = queue[currentIndex];
+    if (t && t.ytList && ytPlayer && ytMode) { try { ytPlayer.previousVideo(); } catch (e) {} return; }
     if (!queue.length) return;
     loadTrack(currentIndex === 0 ? queue.length - 1 : currentIndex - 1, true);
   }
@@ -915,24 +933,32 @@
   // de embed-speler aangeroepen voor een audio-only YouTube-embed. Zo verschijnt
   // 'ie in de onderbalk én speelt 'ie door bij navigeren.
   function playYouTube(opts) {
-    if (!opts || !opts.id) return;
+    if (!opts || (!opts.id && !opts.list)) return;
     setQueue([{
-      yt: opts.id,
+      yt: opts.id || null,
+      ytList: opts.list || null,     // YouTube-afspeellijst/album (OLAK…/PL…)
+      ytIndex: opts.index || 0,      // startindex binnen de lijst
       title: opts.title || 'YouTube',
       artist: opts.artist || '',
       cover: opts.cover || '',
       postUrl: opts.postUrl || '',
     }], 0);
-    // Upgrade de cover async naar de scherpe maxresdefault (ook 16:9, geen balken)
-    // als die bestaat. Async → de user-gesture voor afspelen blijft intact; de
-    // direct gezette mqdefault toont al meteen een balkloze cover.
+    // De scherpe cover + echte titel komen via pullYTMeta() zodra het nummer speelt.
+  }
+
+  // Zet de bar-cover op de thumbnail van een video (mqdefault = balkloos), en
+  // upgrade async naar de scherpe maxresdefault als die bestaat.
+  function setYtCover(videoId) {
+    if (!videoId) return;
+    const mq = 'https://i.ytimg.com/vi/' + videoId + '/mqdefault.jpg';
+    setCoverImage(cover, mq); setCoverImage(sheetCover, mq);
     try {
-      const maxres = 'https://i.ytimg.com/vi/' + opts.id + '/maxresdefault.jpg';
+      const maxres = 'https://i.ytimg.com/vi/' + videoId + '/maxresdefault.jpg';
       const im = new Image();
       im.onload = () => {
-        if (im.naturalWidth <= 120) return;  // 120x90 = YouTube-placeholder (geen maxres)
-        const t = queue[currentIndex];
-        if (t && t.yt === opts.id) { t.cover = maxres; setCoverImage(cover, maxres); setCoverImage(sheetCover, maxres); }
+        if (im.naturalWidth <= 120) return;
+        const cur = ytPlayer && ytPlayer.getVideoData ? (ytPlayer.getVideoData() || {}).video_id : null;
+        if (cur === videoId) { setCoverImage(cover, maxres); setCoverImage(sheetCover, maxres); }
       };
       im.src = maxres;
     } catch (e) {}
