@@ -114,10 +114,10 @@
 .pat-noplay svg { width: 18px; height: 18px; }
 /* Cover-thumbnail op een link-only track (i.p.v. het muzieknootje). */
 .pat-noplay--cover {
-  width: 44px; height: 44px; flex: 0 0 44px;
-  border-radius: 6px;
+  width: 64px; height: 64px; flex: 0 0 64px;
+  border-radius: 8px;
   background-size: cover; background-position: center;
-  margin: 0 .35rem;
+  margin: 0 .5rem 0 0;
 }
 .pat-row.pat-static { cursor: default; }
 
