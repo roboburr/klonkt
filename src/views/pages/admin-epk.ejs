@@ -35,6 +35,7 @@
             <% allTracks.forEach(function(t){ %>
               <label class="epk-pick-item">
                 <input type="checkbox" name="epk_tracks" value="<%= t.id %>" <%= chosenTracks.indexOf(t.id) >= 0 ? 'checked' : '' %>>
+                <span class="epk-box" aria-hidden="true">✓</span>
                 <span class="epk-pick-title"><%= t.title || '(zonder titel)' %></span>
                 <% if (t.artist) { %><span class="epk-pick-artist"><%= t.artist %></span><% } %>
               </label>
@@ -71,14 +72,21 @@
   .admin-page .epk-track-pick { display: flex; flex-direction: column; gap: 2px; max-height: 300px; overflow-y: auto; border: 1px solid var(--rule); border-radius: 8px; padding: 4px; }
   .admin-page .epk-pick-item { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.6rem; border-radius: 6px; cursor: pointer; border: 1px solid transparent; }
   .admin-page .epk-pick-item:hover { background: var(--paper); }
-  .admin-page .epk-pick-item input { width: 18px; height: 18px; flex: 0 0 auto; accent-color: var(--accent); cursor: pointer; }
-  /* Duidelijk aangevinkt: accent-tint + rand + balkje links. */
-  .admin-page .epk-pick-item:has(input:checked) {
-    background: color-mix(in srgb, var(--accent) 16%, transparent);
-    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
-    box-shadow: inset 3px 0 0 var(--accent);
+  /* Native checkbox verbergen; we tekenen een eigen, duidelijk vakje (.epk-box). */
+  .admin-page .epk-pick-item input { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
+  .admin-page .epk-box {
+    flex: 0 0 auto; width: 20px; height: 20px;
+    border: 2px solid var(--rule); border-radius: 5px;
+    display: grid; place-items: center;
+    color: transparent; font-size: 13px; font-weight: 900; line-height: 1;
   }
-  .admin-page .epk-pick-item input:disabled { opacity: .4; }
+  .admin-page .epk-pick-item:has(input:checked) .epk-box { background: var(--accent); border-color: var(--accent); color: #fff; }
+  /* Aangevinkte rij ook getint. */
+  .admin-page .epk-pick-item:has(input:checked) {
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  .admin-page .epk-pick-item:has(input:disabled) { opacity: .45; cursor: not-allowed; }
   .admin-page .epk-pick-title { font-weight: 600; }
   .admin-page .epk-pick-artist { color: var(--ink-muted, var(--ink-soft)); font-size: 0.85rem; }
   .admin-page .epk-pick-item input:disabled ~ .epk-pick-title { opacity: 0.45; }
