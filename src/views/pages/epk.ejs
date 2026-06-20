@@ -10,7 +10,7 @@
   <header class="epk-hero">
     <% if (_photo) { %><div class="epk-photo"><img src="<%= _photo %>" alt="<%= site.title %>"></div><% } %>
     <div class="epk-hero-text">
-      <div class="epk-kicker">Perskit</div>
+      <div class="epk-kicker">Perskit<% if (typeof user !== 'undefined' && user && user.role === 'god') { %> <a class="epk-edit-link" href="/admin/epk">✎ Bewerken</a><% } %></div>
       <h1 class="epk-title"><%= site.title %></h1>
       <% if (epkBio) { %><p class="epk-bio"><%= epkBio %></p><% } %>
       <div class="epk-actions">
@@ -68,6 +68,8 @@
   .epk-photo img { width: 190px; height: 190px; object-fit: cover; border-radius: 18px; box-shadow: 0 8px 30px rgba(0,0,0,.18); }
   .epk-hero-text { flex: 1 1 280px; min-width: 240px; }
   .epk-kicker { text-transform: uppercase; letter-spacing: .14em; font-size: 12px; font-weight: 700; color: var(--epk-accent); margin-bottom: 6px; }
+  .epk-edit-link { text-transform: none; letter-spacing: normal; font-weight: 600; font-size: 12px; margin-left: 8px; padding: 2px 8px; border: 1px solid rgba(128,128,128,.4); border-radius: 999px; color: inherit; opacity: .8; text-decoration: none; }
+  .epk-edit-link:hover { opacity: 1; border-color: var(--epk-accent); color: var(--epk-accent); }
   .epk-title { font-size: clamp(30px, 6vw, 52px); line-height: 1.05; margin: 0 0 12px; }
   .epk-bio { font-size: 16px; line-height: 1.6; opacity: .9; margin: 0 0 18px; max-width: 52ch; }
   .epk-actions { display: flex; gap: 10px; flex-wrap: wrap; }
