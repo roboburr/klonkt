@@ -591,7 +591,18 @@
   expandTrigger.addEventListener('click', () => {
     const t = queue[currentIndex];
     const isDesktop = window.matchMedia && window.matchMedia('(min-width: 768px)').matches;
-    if (isDesktop && t && t.postUrl) { goToPost(t.postUrl, t.id); return; }
+    if (isDesktop && t) {
+      // 1) Track speelde vanuit een post → die URL kennen we al.
+      if (t.postUrl) { goToPost(t.postUrl, t.id); return; }
+      // 2) Site-brede track (geen postUrl) → zoek de post op via de track-id.
+      if (t.id) {
+        fetch('/audio/track/' + encodeURIComponent(t.id) + '/post')
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d) => { if (d && d.url) goToPost(d.url, t.id); else openSheet(); })
+          .catch(() => openSheet());
+        return;
+      }
+    }
     openSheet();
   });
   sheetClose.addEventListener('click', () => closeSheet());
@@ -830,6 +841,7 @@
   if (!restorePlayerState()) {
     if (Array.isArray(window.PCMS_SITE_TRACKS) && window.PCMS_SITE_TRACKS.length) {
       queue = window.PCMS_SITE_TRACKS.map(t => ({
+        id:     t.id || null,
         url:    t.media_url || t.url,
         title:  t.title  || 'Untitled',
         artist: t.artist || '',
