@@ -288,102 +288,6 @@
     if (t) markPlaying(t.id);
   });
 
-  // ============================================================
-  // 4a. YouTube-backend — speelt YT-AUDIO via een verborgen IFrame-speler in de
-  // (persistente) speler-root. Zo speelt YouTube net als de site-tracks door bij
-  // htmx-navigatie en is 't bedienbaar in de onderbalk. Video wordt niet getoond.
-  // ============================================================
-  let ytMode = false, ytPlayer = null, ytReady = false, ytApiLoading = null, ytTick = null;
-
-  function loadYTApi() {
-    if (window.YT && window.YT.Player) return Promise.resolve(window.YT);
-    if (ytApiLoading) return ytApiLoading;
-    ytApiLoading = new Promise((resolve) => {
-      const prev = window.onYouTubeIframeAPIReady;
-      window.onYouTubeIframeAPIReady = function () { if (prev) { try { prev(); } catch (e) {} } resolve(window.YT); };
-      if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
-        const s = document.createElement('script'); s.src = 'https://www.youtube.com/iframe_api'; s.async = true; document.head.appendChild(s);
-      }
-      setTimeout(() => { if (window.YT && window.YT.Player) resolve(window.YT); }, 8000);
-    });
-    return ytApiLoading;
-  }
-
-  function ensureYT() {
-    if (ytPlayer) return Promise.resolve(ytPlayer);
-    return loadYTApi().then((YT) => new Promise((resolve) => {
-      if (!YT || !YT.Player) { resolve(null); return; }
-      let host = document.getElementById('pcms-yt-host');
-      if (!host) {
-        host = document.createElement('div'); host.id = 'pcms-yt-host';
-        const m = document.createElement('div'); m.id = 'pcms-yt-mount'; host.appendChild(m);
-        root.appendChild(host);
-      }
-      ytPlayer = new YT.Player('pcms-yt-mount', {
-        host: 'https://www.youtube-nocookie.com',
-        playerVars: { controls: 0, playsinline: 1, rel: 0, modestbranding: 1, iv_load_policy: 3, origin: window.location.origin },
-        events: {
-          onReady: () => { ytReady = true; try { ytPlayer.setVolume(audio.muted ? 0 : Math.round(audio.volume * 100)); } catch (e) {} resolve(ytPlayer); },
-          onStateChange: onYTState,
-        },
-      });
-      setTimeout(() => resolve(ytPlayer), 8000);
-    }));
-  }
-
-  function onYTState(e) {
-    if (!ytMode) return;
-    const s = e.data;  // 1 playing, 2 paused, 0 ended
-    if (s === 1) {
-      isPlaying = true; root.classList.add('is-playing'); root.classList.remove('audio-needs-tap');
-      // We startten gedempt (autoplay-policy) → nu 't speelt het geluid terugzetten,
-      // tenzij de gebruiker zelf gedempt heeft.
-      try { if (!audio.muted) { ytPlayer.unMute(); ytPlayer.setVolume(Math.round(audio.volume * 100)); } } catch (e) {}
-      mediaRegistry().setActive(registrySelf); startYTTick(); pullYTMeta();
-    } else if (s === 2) {
-      isPlaying = false; root.classList.remove('is-playing'); stopYTTick();
-    } else if (s === 0) {
-      stopYTTick();
-      // Bij een afspeellijst regelt YouTube zelf het doorschakelen → niet dubbel.
-      const t = queue[currentIndex];
-      if (!(t && t.ytList)) next();
-    }
-  }
-
-  function startYTTick() {
-    if (ytTick) return;
-    ytTick = setInterval(() => {
-      if (!ytPlayer || !ytMode) return;
-      try { updateProgressUI(ytPlayer.getCurrentTime() || 0, ytPlayer.getDuration() || 0); } catch (e) {}
-    }, 250);
-  }
-  function stopYTTick() { if (ytTick) { clearInterval(ytTick); ytTick = null; } }
-
-  function pullYTMeta() {
-    try {
-      const t = queue[currentIndex]; if (!t || (!t.yt && !t.ytList) || !ytPlayer.getVideoData) return;
-      const vd = ytPlayer.getVideoData() || {};
-      // Bij een afspeellijst wisselt de titel per nummer → altijd bijwerken.
-      if (vd.title && (t.ytList || !t.title || t.title === 'YouTube')) {
-        titleEl.textContent = vd.title; sheetTitle.textContent = vd.title;
-        if (!t.ytList) t.title = vd.title;
-      }
-      if (vd.video_id) {
-        setYtCover(vd.video_id);
-        markPlaying(vd.video_id);  // licht de bijbehorende album-rij op (id="track-<videoId>")
-      }
-    } catch (e) {}
-  }
-
-  // Gedeelde voortgang-UI (beide backends). Audio gebruikt 'timeupdate', YT de tick.
-  function updateProgressUI(cur, dur) {
-    if (!dur || isNaN(dur)) return;
-    const pct = Math.max(0, Math.min(100, (cur / dur) * 100));
-    seekFill.style.width = pct + '%'; sheetSeekFill.style.width = pct + '%';
-    currentEl.textContent = formatTime(cur); totalEl.textContent = formatTime(dur);
-    sheetCurrent.textContent = formatTime(cur); sheetTotal.textContent = formatTime(dur);
-  }
-
   function loadTrack(index, autoplay, metaOnly) {
     if (!queue[index]) {
       console.warn('[pcms-audio] loadTrack: no track at index', index);
@@ -391,10 +295,16 @@
     }
     currentIndex = index;
     const t = queue[index];
-    // Metadata + chrome update synchronously (geldt voor beide backends).
-    titleEl.textContent  = t.title  || (t.yt ? 'YouTube' : 'Untitled');
+    if (!t.url) {
+      console.error('[pcms-audio] track has no url', t);
+      return;
+    }
+    console.log('[pcms-audio] loading', t.title, t.url, metaOnly ? '(meta only)' : '');
+    // Metadata + chrome update synchronously so the UI reacts instantly while
+    // the bytes download.
+    titleEl.textContent  = t.title  || 'Untitled';
     artistEl.textContent = t.artist || '';
-    sheetTitle.textContent  = t.title  || (t.yt ? 'YouTube' : 'Untitled');
+    sheetTitle.textContent  = t.title  || 'Untitled';
     sheetArtist.textContent = t.artist || '';
     sheetAlbum.textContent  = albumName || '';
     setCoverImage(cover,      t.cover);
@@ -405,43 +315,6 @@
     markPlaying(t.id);
 
     if (metaOnly) return;
-
-    // YouTube-bron (los nummer óf afspeellijst/album) → verborgen YT-speler.
-    if (t.yt || t.ytList) {
-      ytMode = true;
-      try { audio.pause(); } catch (e) {}
-      loadSeq++; dropPreload();
-      updateProgressUI(0, 1); currentEl.textContent = '0:00'; totalEl.textContent = '0:00';
-      seekFill.style.width = '0%'; sheetSeekFill.style.width = '0%';
-      root.classList.add('audio-loading');
-      ensureYT().then((p) => {
-        if (queue[currentIndex] !== t) return;  // inmiddels andere track gekozen
-        root.classList.remove('audio-loading');
-        if (!p) { onLoadError(new Error('YT API niet beschikbaar'), loadSeq); return; }
-        try {
-          // Gedempt starten = autoplay is ALTIJD toegestaan (YouTube blokkeert
-          // anders het geluid). onYTState ontdempt zodra 't echt speelt.
-          if (autoplay) { try { p.mute(); } catch (e) {} }
-          if (t.ytList) {
-            const idx = t.ytIndex || 0;
-            // listType:'playlist' is vereist voor de object-vorm; zonder dit laadt
-            // (en speelt) de afspeellijst niet betrouwbaar.
-            if (autoplay) p.loadPlaylist({ listType: 'playlist', list: t.ytList, index: idx });
-            else p.cuePlaylist({ listType: 'playlist', list: t.ytList, index: idx });
-          } else {
-            if (autoplay) p.loadVideoById(t.yt); else p.cueVideoById(t.yt);
-          }
-          p.setVolume(audio.muted ? 0 : Math.round(audio.volume * 100));
-        } catch (e) {}
-      });
-      return;
-    }
-
-    // Normale blob-audio track.
-    ytMode = false;
-    stopYTTick();
-    try { if (ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo(); } catch (e) {}
-    if (!t.url) { console.error('[pcms-audio] track has no url', t); return; }
 
     const mySeq = ++loadSeq;
 
@@ -493,11 +366,6 @@
   }
 
   function play() {
-    if (ytMode) {
-      if (ytPlayer && ytReady) { try { ytPlayer.playVideo(); } catch (e) {} }
-      else if (queue[currentIndex]) loadTrack(currentIndex, true);
-      return;
-    }
     if (!audio.src) {
       // Nothing fetched yet (pre-seed showed metadata only, or a load is still
       // in flight). Kick off the blob load for the current track and autoplay.
@@ -519,17 +387,13 @@
       });
     }
   }
-  function pause()      { if (ytMode) { try { ytPlayer && ytPlayer.pauseVideo(); } catch (e) {} return; } audio.pause(); }
-  function togglePlay() { if (ytMode) { isPlaying ? pause() : play(); return; } audio.paused ? play() : pause(); }
+  function pause()      { audio.pause(); }
+  function togglePlay() { audio.paused ? play() : pause(); }
   function next() {
-    const t = queue[currentIndex];
-    if (t && t.ytList && ytPlayer && ytMode) { try { ytPlayer.nextVideo(); } catch (e) {} return; }
     if (!queue.length) return;
     loadTrack((currentIndex + 1) % queue.length, true);
   }
   function prev() {
-    const t = queue[currentIndex];
-    if (t && t.ytList && ytPlayer && ytMode) { try { ytPlayer.previousVideo(); } catch (e) {} return; }
     if (!queue.length) return;
     loadTrack(currentIndex === 0 ? queue.length - 1 : currentIndex - 1, true);
   }
@@ -539,8 +403,6 @@
     root.classList.add('audio-player-hidden');
     document.body.classList.remove('has-audio-player');
     closeSheet();
-    ytMode = false; stopYTTick();
-    try { if (ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo(); } catch (e) {}
     queue = [];
     albumName = '';
     loadSeq++;  // cancel any in-flight load
@@ -599,7 +461,7 @@
     window.pcmsMediaRegistry = r;
     return r;
   }
-  const registrySelf = { pause() { try { audio.pause(); } catch (e) {} try { if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo(); } catch (e) {} } };
+  const registrySelf = { pause() { try { audio.pause(); } catch (e) {} } };
 
   // ============================================================
   // 5. Audio element events → UI sync
@@ -635,8 +497,14 @@
   audio.addEventListener('stalled', () => console.warn('[pcms-audio] stalled at', audio.currentTime));
   audio.addEventListener('volumechange', () => { root.classList.toggle('is-muted', audio.muted || audio.volume === 0); });
   audio.addEventListener('timeupdate', () => {
-    if (ytMode) return;  // YT-voortgang loopt via de tick
-    updateProgressUI(audio.currentTime, audio.duration);
+    if (!audio.duration || isNaN(audio.duration)) return;
+    const pct = (audio.currentTime / audio.duration) * 100;
+    seekFill.style.width = pct + '%';
+    sheetSeekFill.style.width = pct + '%';
+    currentEl.textContent  = formatTime(audio.currentTime);
+    totalEl.textContent    = formatTime(audio.duration);
+    sheetCurrent.textContent = formatTime(audio.currentTime);
+    sheetTotal.textContent   = formatTime(audio.duration);
   });
 
   function formatTime(s) {
@@ -647,13 +515,9 @@
 
   function attachSeek(seekEl) {
     seekEl.addEventListener('click', (e) => {
+      if (!audio.duration) return;
       const rect = seekEl.getBoundingClientRect();
       const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-      if (ytMode) {
-        try { const d = ytPlayer.getDuration() || 0; if (d) ytPlayer.seekTo(ratio * d, true); } catch (e2) {}
-        return;
-      }
-      if (!audio.duration) return;
       audio.currentTime = ratio * audio.duration;
     });
   }
@@ -662,16 +526,10 @@
 
   audio.volume = 0.8;
   volumeSlider.addEventListener('input', () => {
-    const v = parseInt(volumeSlider.value, 10) || 0;
-    audio.volume = v / 100;
-    if (v > 0) audio.muted = false;
-    if (ytPlayer) { try { ytPlayer.setVolume(v); if (v > 0 && ytPlayer.unMute) ytPlayer.unMute(); } catch (e) {} }
+    audio.volume = volumeSlider.value / 100;
+    if (volumeSlider.value > 0) audio.muted = false;
   });
-  muteBtn.addEventListener('click', () => {
-    audio.muted = !audio.muted;
-    if (ytPlayer) { try { audio.muted ? ytPlayer.mute() : ytPlayer.unMute(); } catch (e) {} }
-    root.classList.toggle('is-muted', audio.muted);
-  });
+  muteBtn.addEventListener('click', () => { audio.muted = !audio.muted; });
 
   // ============================================================
   // 6. Control wiring
@@ -938,62 +796,8 @@
   // ============================================================
   // 9. Public API
   // ============================================================
-  // Speel een YouTube-bron als AUDIO af in deze (persistente) site-speler — door
-  // de embed-speler aangeroepen voor een audio-only YouTube-embed. Zo verschijnt
-  // 'ie in de onderbalk én speelt 'ie door bij navigeren.
-  function playYouTube(opts) {
-    if (!opts || (!opts.id && !opts.list)) return;
-    setQueue([{
-      yt: opts.id || null,
-      ytList: opts.list || null,     // YouTube-afspeellijst/album (OLAK…/PL…)
-      ytIndex: opts.index || 0,      // startindex binnen de lijst
-      title: opts.title || 'YouTube',
-      artist: opts.artist || '',
-      cover: opts.cover || '',
-      postUrl: opts.postUrl || '',
-    }], 0);
-    // De scherpe cover + echte titel komen via pullYTMeta() zodra het nummer speelt.
-  }
-
-  // Zet de bar-cover op de thumbnail van een video (mqdefault = balkloos), en
-  // upgrade async naar de scherpe maxresdefault als die bestaat.
-  function setYtCover(videoId) {
-    if (!videoId) return;
-    const mq = 'https://i.ytimg.com/vi/' + videoId + '/mqdefault.jpg';
-    setCoverImage(cover, mq); setCoverImage(sheetCover, mq);
-    try {
-      const maxres = 'https://i.ytimg.com/vi/' + videoId + '/maxresdefault.jpg';
-      const im = new Image();
-      im.onload = () => {
-        if (im.naturalWidth <= 120) return;
-        const cur = ytPlayer && ytPlayer.getVideoData ? (ytPlayer.getVideoData() || {}).video_id : null;
-        if (cur === videoId) { setCoverImage(cover, maxres); setCoverImage(sheetCover, maxres); }
-      };
-      im.src = maxres;
-    } catch (e) {}
-  }
-
-  // Speel een YouTube-AFSPEELLIJST af door 'm te expanderen naar onze eigen queue
-  // van losse YouTube-tracks (elk via loadVideoById = bewezen betrouwbaar; next/
-  // prev/ended lopen via onze queue). items = [{yt,title,cover,postUrl}, …].
-  function playYouTubeList(items, startIndex) {
-    if (!Array.isArray(items) || !items.length) return;
-    setQueue(items.map((it) => ({
-      yt: it.yt,
-      title: it.title || 'YouTube',
-      artist: it.artist || '',
-      cover: it.cover || '',
-      postUrl: it.postUrl || '',
-    })), startIndex || 0);
-  }
-
-  // Maak de verborgen YT-speler vast aan (zonder iets te spelen), zodat 'ie bij de
-  // eerste klik al klaar staat → loadVideoById valt dan binnen de user-gesture en
-  // YouTube's autoplay-policy blokkeert het niet.
-  function prewarmYouTube() { try { ensureYT(); } catch (e) {} }
-
   window.pcmsAudioPlayer = {
-    setQueue, play, pause, next, prev, close, openSheet, closeSheet, playYouTube, playYouTubeList, prewarmYouTube,
+    setQueue, play, pause, next, prev, close, openSheet, closeSheet,
     isPlaying: () => isPlaying,
     currentTrack: () => queue[currentIndex] || null,
   };

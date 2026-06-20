@@ -66,7 +66,7 @@ class AudioEmbedService {
       // het kale platform-iframe, zodat de embed in ÓNZE huisstijl verschijnt.
       case 'youtube':
         return this.embedPlaceholder('youtube', config.id, 'video',
-          config.url || `https://youtu.be/${config.id}`, config.mode);
+          config.url || `https://youtu.be/${config.id}`);
       case 'soundcloud':
         return this.embedPlaceholder('soundcloud', config.url, 'track', config.url);
       case 'spotify':
@@ -90,12 +90,11 @@ class AudioEmbedService {
    * .folio-embed[data-embed-provider] op en bouwt de kaart + speler client-side.
    * ALLE waarden via escape() — post.content_html wordt ongeescaped uitgevoerd.
    */
-  static embedPlaceholder(provider, ref, type, url, mode) {
+  static embedPlaceholder(provider, ref, type, url) {
     const attrs = [
       `data-embed-provider="${this.escape(provider)}"`,
       `data-embed-ref="${this.escape(ref)}"`,
       type ? `data-embed-type="${this.escape(type)}"` : '',
-      mode ? `data-embed-mode="${this.escape(mode)}"` : '',
       `data-embed-url="${this.escape(url)}"`,
     ].filter(Boolean).join(' ');
     return `<div class="folio-embed folio-embed--${this.escape(provider)} pcms-embed pcms-embed-card pcms-embed-loading" ${attrs}></div>`;
@@ -227,19 +226,13 @@ class AudioEmbedService {
    */
   static embedMediaShortcodes(html) {
     if (!html) return html;
-    return html.replace(/\[\[embed:([^\]]+)\]\]/gi, (match, rawSpec) => {
-      // Optionele modus-prefix: [[embed:audio:URL]] = alleen-audio speler,
-      // [[embed:video:URL]] / [[embed:URL]] = normaal (video waar van toepassing).
-      let spec = rawSpec.trim();
-      let mode = null;
-      const mm = spec.match(/^(audio|video):(.+)$/i);
-      if (mm) { mode = mm[1].toLowerCase(); spec = mm[2].trim(); }
-      const url = spec.replace(/&amp;/g, '&');
+    return html.replace(/\[\[embed:([^\]]+)\]\]/gi, (match, rawUrl) => {
+      const url = rawUrl.trim().replace(/&amp;/g, '&');
       const detected = this.detectProvider(url);
       if (!detected) {
         return `<div class="post-embed-missing"><em>Embed: niet-ondersteunde of ongeldige URL.</em></div>`;
       }
-      return this.generateIframe(detected.provider, { ...detected, mode }) || match;
+      return this.generateIframe(detected.provider, detected) || match;
     });
   }
 
