@@ -2181,11 +2181,23 @@ body.on-cirkel[data-feed-view="grid"]  .feed-grid { display: block; }
     inset: 0;
     padding: .6rem;
     display: flex;
-    align-items: flex-end;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: flex-start;
     background: linear-gradient(to top, rgba(0,0,0,.65) 0%, rgba(0,0,0,0) 50%);
     opacity: 0;
     transition: opacity .2s;
     pointer-events: none; /* klik moet naar de <a> eronder gaan, niet naar de overlay */
+}
+/* Bron-site (cirkel-feed): toont bij hover "van <site>" onder de titel. */
+.grid-tile-overlay-src {
+    color: #fff; opacity: .85;
+    font-size: .72rem; margin-top: .2rem;
+    display: inline-flex; align-items: center;
+}
+.grid-tile-overlay-src::before { content: "⛓"; margin-right: .25rem; font-size: .9em; }
+.grid-tile-gradient-src {
+    margin-top: .3rem; font-size: .72rem; opacity: .8;
 }
 .grid-tile-overlay strong {
     color: #fff;

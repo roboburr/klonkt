@@ -6,6 +6,7 @@ const _tileHue = ((post.id || post.slug || '0').charCodeAt(0) * 7) % 360;
 const _isPinned = !!post.pinned;
 const _hasCover = !!post.cover_image_url;
 const _typeLabel = (post.type && post.type !== 'post') ? post.type : '';
+const _src = post.source_name || '';   // bron-site (cirkel-feed: van welke site komt deze post)
 const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '';
 const _external = post.external_url || null;
 const _href = _external || (_base + '/' + post.slug);
@@ -26,8 +27,10 @@ const _ext = !!_external;
   <% if (_hasCover) { %>
     <div class="grid-tile-overlay">
       <strong><%= post.title || '(untitled)' %></strong>
+      <% if (_src) { %><span class="grid-tile-overlay-src">van <%= _src %></span><% } %>
     </div>
   <% } else { %>
     <span class="grid-tile-title"><%= post.title || '(untitled)' %></span>
+    <% if (_src) { %><span class="grid-tile-gradient-src">van <%= _src %></span><% } %>
   <% } %>
 </a>
