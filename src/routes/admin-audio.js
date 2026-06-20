@@ -393,6 +393,24 @@ router.get('/api/albums', requireGod, (req, res) => {
 });
 
 /** GET /admin/audio/api/:id — single track with all metadata */
+// Maak een track ZONDER audiobestand (alleen titel + open-in links). Verschijnt
+// in albums/playlists in de lijst, met open-in-iconen maar zonder afspeelknop.
+router.post('/create-link', requireGod, express.json(), (req, res) => {
+  const site = res.locals.site;
+  if (!site) return res.status(404).json({ error: 'Site required' });
+  const trackId = uuid();
+  const title = ((req.body && req.body.title) || 'Nieuwe track').toString().trim().slice(0, 200) || 'Nieuwe track';
+  try {
+    db.prepare(`
+      INSERT INTO audio_tracks (id, site_id, title, media_id, position)
+      VALUES (?, ?, ?, NULL, COALESCE((SELECT MAX(position) + 1 FROM audio_tracks WHERE site_id = ?), 0))
+    `).run(trackId, site.id, title, site.id);
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+  res.json({ ok: true, id: trackId });
+});
+
 router.get('/api/:id', requireGod, (req, res) => {
   const site = res.locals.site;
   if (!site) return res.status(404).json({ error: 'Site required' });

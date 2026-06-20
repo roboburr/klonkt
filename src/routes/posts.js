@@ -536,7 +536,7 @@ router.get('/:slug', (req, res, next) => {
       const byId = new Map(rows.map(r => [r.id, r]));
       html = AudioEmbedService.embedTrackShortcodes(html, (id) => {
         const r = byId.get(id);
-        if (!r || !r.filename) return null;
+        if (!r) return null;
         return {
           id: r.id,
           title: r.title,
@@ -547,7 +547,7 @@ router.get('/:slug', (req, res, next) => {
           link_spotify: r.link_spotify || '',
           link_youtube: r.link_youtube || '',
           link_soundcloud: r.link_soundcloud || '',
-          url: audioUrl(r.filename),
+          url: r.filename ? audioUrl(r.filename) : '',  // '' = link-only track
         };
       });
     }
@@ -565,11 +565,11 @@ router.get('/:slug', (req, res, next) => {
       `).all(site.id, ...albumNames);
       const byAlbum = new Map();
       for (const r of albumRows) {
-        if (!r.filename) continue;
+        // Link-only tracks (geen bestand) blijven in het album-overzicht (url '').
         if (!byAlbum.has(r.album)) byAlbum.set(r.album, []);
         byAlbum.get(r.album).push({
           id: r.id,
-          url: audioUrl(r.filename),
+          url: r.filename ? audioUrl(r.filename) : '',
           title: r.title || 'Untitled',
           artist: r.artist || '',
           cover: r.cover_url || '',

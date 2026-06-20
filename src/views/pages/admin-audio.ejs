@@ -61,8 +61,12 @@
 
   <%# ── TRACK LIST ─────────────────────────────────────────── %>
   <section class="ax-card">
-    <div class="ax-card-title">
+    <div class="ax-card-title" style="display:flex;align-items:center;gap:.5rem">
       Tracks <span class="ax-count"><%= tracks.length %></span>
+      <button type="button" class="ax-btn ax-btn-secondary" id="add-link-track-btn"
+              style="margin-left:auto;font-size:.85rem" title="Een track zonder audiobestand — alleen titel + open-in links">
+        + Track zonder audio
+      </button>
     </div>
 
     <% if (!tracks.length) { %>
@@ -888,6 +892,29 @@
       } catch (_) { /* fall through — selection still works */ }
     });
   });
+
+  // ── "+ Track zonder audio": maak een link-only stub + open de editor ──
+  const addLinkBtn = document.getElementById('add-link-track-btn');
+  if (addLinkBtn) {
+    addLinkBtn.addEventListener('click', async () => {
+      addLinkBtn.disabled = true;
+      try {
+        const r = await fetch('/admin/audio/create-link', {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: 'Nieuwe track' }),
+        });
+        const j = await r.json();
+        if (!r.ok || !j.ok) throw new Error(j.error || 'Aanmaken mislukt');
+        if (typeof window.openTrackEditor !== 'function') { location.reload(); return; }
+        window.openTrackEditor({ id: j.id, onSaved: () => location.reload() });
+      } catch (err) {
+        alert('Track aanmaken mislukt: ' + err.message);
+      } finally {
+        addLinkBtn.disabled = false;
+      }
+    });
+  }
 
   // ── Wire all "Edit" buttons to the track-editor modal ─────────
   // After save we patch the row in-place rather than reloading,

@@ -103,7 +103,7 @@ class PlaylistService {
     `).all(id);
 
     const mappedTracks = tracks
-      .filter(t => t.filename)  // skip orphaned references
+      // Link-only tracks (geen media-bestand) blijven in de lijst staan met url ''.
       .map(t => ({
         id: t.id,
         title: t.title || 'Untitled',
@@ -113,7 +113,7 @@ class PlaylistService {
         link_spotify: t.link_spotify || '',
         link_youtube: t.link_youtube || '',
         link_soundcloud: t.link_soundcloud || '',
-        url: urlFor ? urlFor(t.filename) : null,
+        url: (t.filename && urlFor) ? urlFor(t.filename) : '',
       }));
     // Geen eigen cover? Val terug op de eerste track-cover, zodat de kaart niet leeg is.
     const fallbackCover = (mappedTracks.find(t => t.cover) || {}).cover || '';

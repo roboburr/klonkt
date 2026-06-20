@@ -105,6 +105,15 @@
 .pat-link--youtube    { color: #FF0000; }
 .pat-link--soundcloud { color: #FF5500; }
 
+/* Link-only tracks (geen audiobestand): plek van de afspeelknop = stil muziek-icoon. */
+.pat-noplay {
+  display: inline-flex; align-items: center; justify-content: center;
+  flex: 0 0 38px; width: 38px; align-self: center;
+  color: var(--ink-faint, #a8a29e);
+}
+.pat-noplay svg { width: 18px; height: 18px; }
+.pat-row.pat-static { cursor: default; }
+
 /* ============================================================
    Mini player (bottom strip) — v9 style
    ============================================================ */

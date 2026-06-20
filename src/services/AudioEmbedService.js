@@ -269,7 +269,22 @@ class AudioEmbedService {
     if (!html || typeof trackLookup !== 'function') return html;
     return html.replace(/\[\[track:([A-Za-z0-9_-]+)\]\]/g, (match, id) => {
       const t = trackLookup(id);
-      if (!t || !t.url) return match;
+      if (!t) return match;
+      const titleH0 = this.escape(t.title || 'Untitled');
+      const artistH0 = this.escape(t.artist || '');
+      const creditBits0 = [this.escape(t.credit || ''), this.escape(t.license || '')].filter(Boolean).join(' · ');
+      // Link-only track (geen audiobestand): geen afspeelknop, wel info + open-in.
+      if (!t.url) {
+        return `<div class="post-audio-track post-audio-track--static" id="track-${id}">
+  <span class="pat-noplay" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></span>
+  <div class="pat-info">
+    <div class="pat-title">${titleH0}</div>
+    ${artistH0 ? `<div class="pat-artist">${artistH0}</div>` : ''}
+    ${creditBits0 ? `<div class="pat-credit">${creditBits0}</div>` : ''}
+  </div>
+  ${this.openInLinks(t)}
+</div>`;
+      }
       const trackJson = JSON.stringify({
         id,
         url: t.url,
@@ -317,7 +332,9 @@ class AudioEmbedService {
 
       // Stable DOM id for this rendering — used as data-pcms-album-id on tracks
       const albumDomId = 'album-' + Math.random().toString(36).slice(2, 10);
-      const albumJson = JSON.stringify(album.tracks)
+      // Alleen afspeelbare tracks (met url) in de queue; link-only tracks staan
+      // wel in de lijst maar niet in de afspeel-JSON.
+      const albumJson = JSON.stringify(album.tracks.filter((t) => t.url))
         .replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/</g, '&lt;');
       const titleH = this.escape(album.title || name);
       const artistH = this.escape(album.artist || '');
@@ -326,6 +343,17 @@ class AudioEmbedService {
       const trackItems = album.tracks.map((t, i) => {
         const tTitle = this.escape(t.title || ('Track ' + (i + 1)));
         const tArtist = this.escape(t.artist || '');
+        // Link-only track: geen afspeelknop, wel nummer + info + open-in.
+        if (!t.url) {
+          return `    <li class="post-audio-track post-audio-track--static"${t.id ? ` id="track-${t.id}"` : ''}>
+      <span class="pat-track-num">${i + 1}.</span>
+      <div class="pat-info">
+        <div class="pat-title">${tTitle}</div>
+        ${tArtist && tArtist !== artistH ? `<div class="pat-artist">${tArtist}</div>` : ''}
+      </div>
+      ${this.openInLinks(t)}
+    </li>`;
+        }
         const tUrl = this.escape(t.url);
         return `    <li class="post-audio-track"${t.id ? ` id="track-${t.id}" data-pcms-track-id="${t.id}"` : ''} data-pcms-track-url="${tUrl}" data-pcms-album-id="${albumDomId}">
       <button type="button" class="pat-play" aria-label="Play ${tTitle}">
@@ -403,7 +431,9 @@ ${trackItems}
 
       // Audio-player.js reads data-pcms-album for queue. Same shape as
       // embedAlbumShortcodes — keep both in sync.
-      const tracksData = pl.tracks.map(t => ({
+      // Alleen afspeelbare tracks in de queue; link-only tracks staan wel in de
+      // lijst maar niet in de afspeel-JSON.
+      const tracksData = pl.tracks.filter(t => t.url).map(t => ({
         id:     t.id,
         url:    t.url,
         title:  t.title,
@@ -425,7 +455,7 @@ ${trackItems}
         else metaParts.push(`${Math.max(1, m)} min`);
       }
       const metaLine = this.escape(metaParts.join(' · '));
-      const firstUrl = this.escape(pl.tracks[0].url);
+      const firstUrl = this.escape((pl.tracks.find(t => t.url) || {}).url || '');
 
       // Track items — playlist-kind shows per-track cover thumbs, album-kind shows numbers
       const trackItems = pl.tracks.map((t, i) => {
@@ -444,6 +474,20 @@ ${trackItems}
           ? `<span class="pat-cover" style="background-image:url(${this.escape(t.cover)})" aria-hidden="true"></span>`
           : `<span class="pat-num">${i + 1}</span>`;
 
+        // Link-only track: geen klikbare afspeel-rij (statische div), wel open-in.
+        if (!t.url) {
+          return `    <li class="post-album-track-compact post-album-track-compact--static"${t.id ? ` id="track-${t.id}"` : ''}>
+      <div class="pat-row pat-static">
+        ${leader}
+        <span class="pat-meta">
+          <span class="pat-title">${tTitleH}</span>
+          ${showArtist ? `<span class="pat-artist">${tArtistH}</span>` : ''}
+        </span>
+        ${durHtml}
+      </div>
+      ${this.openInLinks(t)}
+    </li>`;
+        }
         const trackBase = String(t.url).split('?')[0];
         return `    <li class="post-album-track-compact"${t.id ? ` id="track-${t.id}" data-pcms-track-id="${t.id}"` : ''}>
       <button type="button" class="pat-row"
