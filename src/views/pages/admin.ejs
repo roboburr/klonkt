@@ -1,10 +1,4 @@
 <div class="container admin-page">
-  <% if (typeof langs !== 'undefined' && langs && langs.length > 1) { %>
-    <select class="footer-lang" style="float:right;margin-left:1rem" aria-label="<%= t('nav.language') %>"
-            onchange="location.href='/lang/'+this.value+'?r='+encodeURIComponent(location.pathname+location.search)">
-      <% langs.forEach(function(l){ %><option value="<%= l.code %>"<%= l.active ? ' selected' : '' %>><%= l.name %></option><% }); %>
-    </select>
-  <% } %>
   <h1><%= t('admin.title') %></h1>
   <% if (tenancy === 'hub') { %>
     <p class="admin-tagline"><%= t('admin.tagline_hub') %></p>

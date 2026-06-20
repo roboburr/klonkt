@@ -115,6 +115,8 @@ body.has-audio-player .site-footer {
 .footer-lang:hover { border-color: var(--accent); }
 /* Open dropdown-opties leesbaar (anders wit-op-wit op dark mode). */
 .footer-lang option { background: var(--paper); color: var(--ink); }
+/* Op desktop staat de taalkeuze in de header-nav → footer-versie verbergen. */
+@media (min-width: 768px) { .footer-lang { display: none; } }
 .footer-version { color: inherit; text-decoration: none; }
 .footer-version:hover { color: var(--accent); text-decoration: underline; }
 .pcms-main { min-height: 50vh; }

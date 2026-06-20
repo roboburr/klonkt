@@ -1502,6 +1502,16 @@ body.audio-is-loading .audio-sheet-play::after {
     .pagination { flex-direction: column; gap: .5rem; }
     .pagination-item { width: 100%; }
 }
+
+/* Taal-keuze in de header-nav (NL/EN/DE). Past bij de pill-knoppen ernaast. */
+.nav-lang {
+    background: transparent; color: var(--ink);
+    border: 1px solid var(--rule); border-radius: 999px;
+    padding: .35rem .5rem; font-size: .8rem; font-weight: 600;
+    font-family: inherit; cursor: pointer; line-height: 1;
+}
+.nav-lang:hover { border-color: var(--accent); }
+.nav-lang option { background: var(--paper); color: var(--ink); }
 @media (max-width: 400px) {
     .masthead { padding: calc(.5rem + var(--safe-top)) 0 .5rem; }
     .masthead-inner { gap: .25rem; }
