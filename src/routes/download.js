@@ -19,8 +19,22 @@ import db from '../config/database.js';
 import { renderPage } from '../middleware/render.js';
 import { premiumUnlocked } from '../services/PatreonService.js';
 import { addSubscriber } from '../services/SubscriberService.js';
+import { postNeighbors } from './posts.js';
 
 const router = express.Router();
+
+// Als er een echte (gepinde) post met slug 'downloads' bestaat, hangt de
+// downloads-lijst feitelijk aan die post. Dan tonen we óók de Newer/Older-postnav,
+// zodat de bezoeker net als bij een post verder kan bladeren.
+function downloadsPostNav(req, res) {
+  const site = res.locals.site;
+  if (!site) return {};
+  const post = db.prepare(
+    "SELECT id, slug, pinned FROM posts WHERE site_id = ? AND slug = 'downloads' AND status = 'published'"
+  ).get(site.id);
+  if (!post) return {};
+  try { return postNeighbors(site, post, res.locals.tenancy === 'hub'); } catch (e) { return {}; }
+}
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const AUDIO_DIR = path.resolve(process.env.AUDIO_PATH || path.join(__dirname, '..', '..', 'storage', 'audio'));
 
@@ -49,10 +63,13 @@ router.get('/downloads', (req, res, next) => {
     `SELECT id, title, artist, cover_url FROM audio_tracks
       WHERE site_id = ? AND downloadable = 1 ORDER BY position ASC, created_at ASC`
   ).all(site.id);
+  const nav = downloadsPostNav(req, res);
   renderPage(req, res, 'pages/downloads', {
     pageTitle: 'Downloads — ' + (site.title || ''),
     bodyClass: 'on-downloads',
     dlTracks: tracks,
+    newerPost: nav.newerPost || null,
+    olderPost: nav.olderPost || null,
   });
 });
 

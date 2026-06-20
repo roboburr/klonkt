@@ -717,3 +717,4 @@ router.get('/:slug', (req, res, next) => {
 });
 
 export default router;
+export { postNeighbors };

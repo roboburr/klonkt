@@ -2,6 +2,7 @@
   var ts = (typeof dlTracks !== 'undefined') ? dlTracks : [];
 %>
 <section class="dls">
+  <%- include('../partials/post-nav', { newerPost: (typeof newerPost !== 'undefined' ? newerPost : null), olderPost: (typeof olderPost !== 'undefined' ? olderPost : null) }) %>
   <h1 class="dls-h1">Downloads</h1>
   <p class="dls-sub">Gratis te downloaden — laat je e-mailadres achter en je krijgt het bestand.</p>
 

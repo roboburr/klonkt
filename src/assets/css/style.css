@@ -612,6 +612,17 @@ a.pagination-item.is-pinned:hover {
 .post-image--right { text-align: right; }
 .post-image--right img { margin-left: auto; margin-right: 0; }
 
+/* Afbeeldingen in de post-tekst vullen ALTIJD de containerbreedte en houden hun
+   natuurlijke (niet-bijgesneden) hoogte — geen vaste hoogte / geen crop. */
+.post-content img {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    border-radius: 6px;
+    margin: 1.4em auto;
+}
+
 /* Mini-player + bottom-tab clearance: applied to .pcms-main so the footer
    is NOT pushed below the viewport bottom. The bars are position:fixed so
    they overlap whatever they sit on top of; the padding ensures the last
