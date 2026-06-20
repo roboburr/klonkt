@@ -297,7 +297,7 @@ class AudioEmbedService {
         const tTitle = this.escape(t.title || ('Track ' + (i + 1)));
         const tArtist = this.escape(t.artist || '');
         const tUrl = this.escape(t.url);
-        return `    <li class="post-audio-track" data-pcms-track-url="${tUrl}" data-pcms-album-id="${albumDomId}">
+        return `    <li class="post-audio-track"${t.id ? ` id="track-${t.id}" data-pcms-track-id="${t.id}"` : ''} data-pcms-track-url="${tUrl}" data-pcms-album-id="${albumDomId}">
       <button type="button" class="pat-play" aria-label="Play ${tTitle}">
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 4l12 8-12 8z"/></svg>
       </button>
@@ -413,7 +413,7 @@ ${trackItems}
           : `<span class="pat-num">${i + 1}</span>`;
 
         const trackBase = String(t.url).split('?')[0];
-        return `    <li class="post-album-track-compact">
+        return `    <li class="post-album-track-compact"${t.id ? ` id="track-${t.id}" data-pcms-track-id="${t.id}"` : ''}>
       <button type="button" class="pat-row"
               data-pcms-track-url="${tUrl}"
               data-pcms-album-id="${albumDomId}"

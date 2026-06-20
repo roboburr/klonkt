@@ -2820,8 +2820,10 @@ body:not(.has-audio-player) #pcms-audio-player.is-hidden {
     background: color-mix(in srgb, var(--accent, #c2410c) 5%, var(--paper-2, transparent));
 }
 /* Korte highlight wanneer je via de mini-speler naar deze track springt. */
-.post-audio-track.pat-flash {
+.post-audio-track.pat-flash,
+.post-album-track-compact.pat-flash {
     animation: patFlash 1.6s ease-out;
+    border-radius: 8px;
 }
 @keyframes patFlash {
     0%, 30% { border-color: var(--accent, #c2410c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #c2410c) 35%, transparent); }

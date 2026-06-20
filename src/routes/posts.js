@@ -561,6 +561,7 @@ router.get('/:slug', (req, res, next) => {
         if (!r.filename) continue;
         if (!byAlbum.has(r.album)) byAlbum.set(r.album, []);
         byAlbum.get(r.album).push({
+          id: r.id,
           url: audioUrl(r.filename),
           title: r.title || 'Untitled',
           artist: r.artist || '',
