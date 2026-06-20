@@ -50,6 +50,8 @@
 }
 .vs-agenda:hover { color: var(--ink); }
 .vs-agenda.is-active { background: var(--paper); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+/* Op de agendapagina is Agenda het actieve item → Tijdlijn/Grid grijs (inactief). */
+body.on-shows .view-switch-btn[aria-selected="true"] { background: transparent; color: var(--ink-muted, var(--ink-soft)); box-shadow: none; }
 
 .grid-cols-picker {
   display: none;     /* desktop-only, see media query */
