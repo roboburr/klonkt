@@ -20,9 +20,12 @@ var hubLanding = (typeof bodyClass === 'string' && bodyClass.indexOf('on-hub') >
    || ((typeof tenancy !== 'undefined' && tenancy === 'hub') && !siteUrlBase && !_isAdmin);
 // Zelfstandige premium-feature-pagina's hebben hun eigen kop → geen profielkop/
 // switcher, wél de topnav (Robin 2026-06-18: "bovenste weg, behoud de nav").
-// NB: on-shows (agenda) hoort hier NIET bij — daar willen we de volledige chrome
-// (profielkop + de Tijdlijn/Grid-pill met Agenda actief) juist BEHOUDEN.
+// NB: on-shows (agenda) én on-downloads (de downloads-LIJST) horen hier NIET bij —
+// die willen de volledige chrome (profielkop + pill) behouden. De downloads-lijst is
+// vaak gepind en prominent, dus hij mag niet kaal zijn. De losse e-mail-capture
+// (/download/:id → on-download) blijft wél een focus-pagina zonder kop.
 var _featurePage = typeof bodyClass === 'string' &&
+  bodyClass.indexOf('on-downloads') < 0 &&
   ['on-epk', 'on-download', 'on-linkbio', 'on-newsletter'].some(function (c) { return bodyClass.indexOf(c) >= 0; });
 var _headerless = hubLanding || _isChat || _featurePage;
 %>
