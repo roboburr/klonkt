@@ -289,6 +289,10 @@
     async function ensureMountedAndPlay() {
       if (mounted) { if (adapter) adapter.play(); return; }
       mounted = true;
+      // Spotify: hun speler is toch niet te skinnen (besturing-only) én de
+      // iFrame-API-bundle initialiseert in de praktijk vaak niet (CDN-gating/503)
+      // → niet op de API wachten, meteen het kale Spotify-iframe tonen. Instant.
+      if (provider === 'spotify') { renderFallback(); return; }
       el.classList.add('pcms-embed-busy');
       try {
         adapter = await MOUNTERS[provider](mountEl, { ref, url }, hooks);
