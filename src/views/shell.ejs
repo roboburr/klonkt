@@ -162,7 +162,7 @@ if (typeof post !== 'undefined' && post && post.slug) {
 <link rel="preload" href="/assets/fonts/fraunces-latin-full-normal.woff2" as="font" type="font/woff2" crossorigin>
 
 <!-- v9 stylesheet (full palette system) -->
-<link rel="stylesheet" href="/assets/css/style.css?v=14">
+<link rel="stylesheet" href="/assets/css/style.css?v=15">
 
 <!-- Audio player styles: loaded on every page so the mini-player works
      anywhere (admin previews, post embeds, etc). The player itself is
@@ -548,6 +548,19 @@ if (typeof post !== 'undefined' && post && post.slug) {
   vv.addEventListener('scroll', update);
   document.addEventListener('focusin', function () { setTimeout(update, 60); });
   document.addEventListener('focusout', function () { setTimeout(update, 60); });
+})();
+</script>
+
+<!-- Afbeeldingen lastiger op te slaan: rechtsklik-menu + slepen blokkeren op <img>.
+     Frictie, geen echte beveiliging (DevTools/screenshot blijven kunnen). -->
+<script>
+(function () {
+  document.addEventListener('contextmenu', function (e) {
+    if (e.target && e.target.tagName === 'IMG') e.preventDefault();
+  });
+  document.addEventListener('dragstart', function (e) {
+    if (e.target && e.target.tagName === 'IMG') e.preventDefault();
+  });
 })();
 </script>
 

@@ -635,6 +635,12 @@ body.kb-open .pcms-main { padding-bottom: 1rem; }
   *::-webkit-scrollbar { width: 0; height: 0; display: none; }
 }
 
+/* Afbeeldingen lastiger op te slaan (frictie, geen echte beveiliging): geen
+   sleep-naar-bureaublad, geen iOS long-press-bewaarmenu. Rechtsklik wordt in JS
+   geblokkeerd (zie shell.ejs). Covers/hero zijn al CSS-achtergronden = niet via
+   "afbeelding opslaan" te pakken. */
+img { -webkit-user-drag: none; -khtml-user-drag: none; -moz-user-drag: none; user-drag: none; -webkit-touch-callout: none; }
+
 /* ============================================================
    AUDIO PLAYER v7.1 — SVG iconen, thema-aware, geen emoji
    ============================================================ */
