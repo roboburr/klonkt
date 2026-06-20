@@ -241,6 +241,82 @@ input[type="datetime-local"]:hover::-webkit-calendar-picker-indicator { opacity:
     --rule: #3d2c16; --rule-2: #523d1f;
 }
 
+/* ── ROSE ── zacht roze → wijnrood ── */
+[data-palette="rose"] {
+    --paper: #fdf2f4; --paper-2: #f8dde3;
+    --ink: #2e1419; --ink-soft: #4d242c; --ink-muted: #7a4651; --ink-faint: #b3838d;
+    --rule: #f0c9d1; --rule-2: #e0a3af;
+}
+@media (prefers-color-scheme: dark) {
+    [data-palette="rose"]:not([data-theme="light"]) {
+        --paper: #1f0a0f; --paper-2: #33141c;
+        --ink: #fce4ea; --ink-soft: #f0bcc8; --ink-muted: #c98f9d; --ink-faint: #8a6470;
+        --rule: #4a1f2c; --rule-2: #5e2d3a;
+    }
+}
+[data-theme="dark"][data-palette="rose"] {
+    --paper: #1f0a0f; --paper-2: #33141c;
+    --ink: #fce4ea; --ink-soft: #f0bcc8; --ink-muted: #c98f9d; --ink-faint: #8a6470;
+    --rule: #4a1f2c; --rule-2: #5e2d3a;
+}
+
+/* ── SLATE ── koel grijsblauw → antraciet ── */
+[data-palette="slate"] {
+    --paper: #f4f6f8; --paper-2: #e2e8ee;
+    --ink: #1a232e; --ink-soft: #2e3c4d; --ink-muted: #56657a; --ink-faint: #93a1b3;
+    --rule: #cdd6e0; --rule-2: #aebbc9;
+}
+@media (prefers-color-scheme: dark) {
+    [data-palette="slate"]:not([data-theme="light"]) {
+        --paper: #0d1117; --paper-2: #1a2029;
+        --ink: #e6edf3; --ink-soft: #c2cdd9; --ink-muted: #8b98a8; --ink-faint: #5a6675;
+        --rule: #283039; --rule-2: #3a444f;
+    }
+}
+[data-theme="dark"][data-palette="slate"] {
+    --paper: #0d1117; --paper-2: #1a2029;
+    --ink: #e6edf3; --ink-soft: #c2cdd9; --ink-muted: #8b98a8; --ink-faint: #5a6675;
+    --rule: #283039; --rule-2: #3a444f;
+}
+
+/* ── MINT ── fris mintgroen → diep teal ── */
+[data-palette="mint"] {
+    --paper: #effaf5; --paper-2: #d6f0e4;
+    --ink: #0f2e22; --ink-soft: #1d4a39; --ink-muted: #468066; --ink-faint: #82b3a0;
+    --rule: #c0e6d6; --rule-2: #9ad3bd;
+}
+@media (prefers-color-scheme: dark) {
+    [data-palette="mint"]:not([data-theme="light"]) {
+        --paper: #06201a; --paper-2: #0f3329;
+        --ink: #d6f5e9; --ink-soft: #aee0cd; --ink-muted: #79b59f; --ink-faint: #4e8270;
+        --rule: #1c4a3c; --rule-2: #2a5e4d;
+    }
+}
+[data-theme="dark"][data-palette="mint"] {
+    --paper: #06201a; --paper-2: #0f3329;
+    --ink: #d6f5e9; --ink-soft: #aee0cd; --ink-muted: #79b59f; --ink-faint: #4e8270;
+    --rule: #1c4a3c; --rule-2: #2a5e4d;
+}
+
+/* ── LILAC ── zacht lila → donker violet ── */
+[data-palette="lilac"] {
+    --paper: #faf4fb; --paper-2: #f0e0f3;
+    --ink: #2a1830; --ink-soft: #46294f; --ink-muted: #7a5685; --ink-faint: #b393bd;
+    --rule: #e6cdec; --rule-2: #d4abdd;
+}
+@media (prefers-color-scheme: dark) {
+    [data-palette="lilac"]:not([data-theme="light"]) {
+        --paper: #170a1c; --paper-2: #281433;
+        --ink: #f3e2f7; --ink-soft: #dabce4; --ink-muted: #b088c0; --ink-faint: #7a5a88;
+        --rule: #3d1f4a; --rule-2: #4f2b5e;
+    }
+}
+[data-theme="dark"][data-palette="lilac"] {
+    --paper: #170a1c; --paper-2: #281433;
+    --ink: #f3e2f7; --ink-soft: #dabce4; --ink-muted: #b088c0; --ink-faint: #7a5a88;
+    --rule: #3d1f4a; --rule-2: #4f2b5e;
+}
+
 /* Accent-tint wordt berekend uit --accent, zodat hij meegaat bij elke accent-keuze.
    Wordt in template inline gezet; hier alleen een fallback. */
 :root { --accent: #c2410c; --accent-soft: #ea580c; --accent-tint: #fef2e8; }

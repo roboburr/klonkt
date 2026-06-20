@@ -15,6 +15,8 @@
  */
 
 class ThemeService {
+  // Paper/ink komen 1-op-1 uit de [data-palette]-CSS in style.css (= wat ECHT
+  // wordt toegepast); de accent-stip is een representatieve kleur per palet.
   static PALETTES = {
     sage: {
       name: 'Sage',
@@ -24,37 +26,57 @@ class ThemeService {
     paper: {
       name: 'Paper',
       light: { paper: '#ffffff', ink: '#09090b', accent: '#000000' },
-      dark: { paper: '#09090b', ink: '#fafafa', accent: '#ffffff' }
+      dark: { paper: '#0a0a0a', ink: '#fafafa', accent: '#ffffff' }
     },
     ocean: {
       name: 'Ocean',
-      light: { paper: '#f0f9ff', ink: '#0c2d48', accent: '#0369a1' },
-      dark: { paper: '#001f3f', ink: '#e0f2fe', accent: '#06b6d4' }
+      light: { paper: '#f0f6fb', ink: '#0f1e2e', accent: '#0369a1' },
+      dark: { paper: '#0a1929', ink: '#e0f2fe', accent: '#38bdf8' }
     },
     forest: {
       name: 'Forest',
-      light: { paper: '#f0fdf4', ink: '#15803d', accent: '#16a34a' },
-      dark: { paper: '#052e16', ink: '#dcfce7', accent: '#22c55e' }
+      light: { paper: '#f2f6ed', ink: '#1a2e15', accent: '#4d7c2a' },
+      dark: { paper: '#0d1f12', ink: '#dcf2d0', accent: '#6fae3f' }
     },
     stone: {
       name: 'Stone',
-      light: { paper: '#f5f5f5', ink: '#262626', accent: '#737373' },
-      dark: { paper: '#1f1f1f', ink: '#e5e5e5', accent: '#a3a3a3' }
+      light: { paper: '#f5f0e8', ink: '#2b2218', accent: '#8a6a45' },
+      dark: { paper: '#1a130b', ink: '#f5e9d5', accent: '#b89366' }
     },
     midnight: {
       name: 'Midnight',
-      light: { paper: '#f8fafc', ink: '#1e293b', accent: '#3b82f6' },
-      dark: { paper: '#0f172a', ink: '#f1f5f9', accent: '#60a5fa' }
+      light: { paper: '#f3f1f8', ink: '#1e1a2e', accent: '#7c5cbf' },
+      dark: { paper: '#0f0a1f', ink: '#e9def7', accent: '#9d88e0' }
     },
     sunset: {
       name: 'Sunset',
-      light: { paper: '#fef3c7', ink: '#92400e', accent: '#f97316' },
-      dark: { paper: '#5a1f08', ink: '#fef3c7', accent: '#fb923c' }
+      light: { paper: '#fdf4f3', ink: '#2e1618', accent: '#d6477f' },
+      dark: { paper: '#1f0a14', ink: '#fce7f3', accent: '#f06fa3' }
     },
     cream: {
       name: 'Cream',
-      light: { paper: '#fffbf0', ink: '#78350f', accent: '#d97706' },
-      dark: { paper: '#3f2305', ink: '#fffbf0', accent: '#f59e0b' }
+      light: { paper: '#fefaf0', ink: '#2a1f0f', accent: '#d97706' },
+      dark: { paper: '#1a1208', ink: '#fef3d6', accent: '#f0a93a' }
+    },
+    rose: {
+      name: 'Rose',
+      light: { paper: '#fdf2f4', ink: '#2e1419', accent: '#e11d6b' },
+      dark: { paper: '#1f0a0f', ink: '#fce4ea', accent: '#f06b9a' }
+    },
+    slate: {
+      name: 'Slate',
+      light: { paper: '#f4f6f8', ink: '#1a232e', accent: '#475569' },
+      dark: { paper: '#0d1117', ink: '#e6edf3', accent: '#8b98a8' }
+    },
+    mint: {
+      name: 'Mint',
+      light: { paper: '#effaf5', ink: '#0f2e22', accent: '#0d9488' },
+      dark: { paper: '#06201a', ink: '#d6f5e9', accent: '#2dd4bf' }
+    },
+    lilac: {
+      name: 'Lilac',
+      light: { paper: '#faf4fb', ink: '#2a1830', accent: '#a855f7' },
+      dark: { paper: '#170a1c', ink: '#f3e2f7', accent: '#c084fc' }
     }
   };
 
@@ -72,6 +94,10 @@ class ThemeService {
     { key: 'gold',    name: 'Goud',    color: '#d97706' },
     { key: 'crimson', name: 'Karmijn', color: '#ef2840' },
     { key: 'indigo',  name: 'Indigo',  color: '#6366f1' },
+    { key: 'teal',    name: 'Turquoise', color: '#0d9488' },
+    { key: 'pink',    name: 'Roze',    color: '#ec4899' },
+    { key: 'violet',  name: 'Violet',  color: '#7c3aed' },
+    { key: 'sky',     name: 'Hemelsblauw', color: '#0ea5e9' },
   ];
 
   static listAccents() {
