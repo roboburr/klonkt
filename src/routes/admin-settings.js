@@ -24,6 +24,7 @@ import { getTenancy, setTenancy, getSetting, setSetting } from '../services/Sett
 import { mailerStatus, sendMail } from '../config/mailer.js';
 import { entitlementStatus, premiumUnlocked } from '../services/PatreonService.js';
 import { googleConfigured, redirectUri, currentClientId, clientSecretSet } from '../config/google.js';
+import { toWebp } from '../services/ImageWebpService.js';
 
 const router = express.Router();
 
@@ -119,7 +120,7 @@ router.post('/', requireGod, (req, res) => {
 
     // Hero: een geüploade afbeelding wint; anders het URL-tekstveld.
     if (req.file) {
-      const newUrl = `/media/hero/${req.file.filename}`;
+      const newUrl = `/media/hero/${toWebp(req.file)}`;
       // Ruim een vorige geüploade hero op (alleen als die uit onze hero-map kwam).
       const old = getSetting('hub_hero_image') || '';
       if (old.startsWith('/media/hero/')) {

@@ -24,6 +24,7 @@ import { renderPage } from '../middleware/render.js';
 import { requireGod, requireAuth, requireSiteManagerBySlug } from '../middleware/auth.js';
 import ThemeService from '../services/ThemeService.js';
 import { listPlatforms, PLATFORMS } from '../services/PlatformIcons.js';
+import { toWebp } from '../services/ImageWebpService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -87,7 +88,7 @@ router.post('/upload-photo', requireAuth, (req, res) => {
     if (!req.file) return res.status(400).json({ ok: false, error: 'Geen bestand ontvangen' });
     res.json({
       ok: true,
-      url: `/media/avatars/${req.file.filename}`,
+      url: `/media/avatars/${toWebp(req.file)}`,
       size: req.file.size,
       mime: req.file.mimetype,
     });

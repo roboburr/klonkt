@@ -15,6 +15,7 @@ import HtmlSanitizerService from '../services/HtmlSanitizerService.js';
 import AudioEmbedService from '../services/AudioEmbedService.js';
 import PlaylistService from '../services/PlaylistService.js';
 import { audioUrl } from '../services/AudioStreamService.js';
+import { toWebp } from '../services/ImageWebpService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const POST_IMAGES_DIR = path.resolve(
@@ -54,7 +55,7 @@ router.post('/posts/upload-image', requireAuth, (req, res) => {
   imageUpload.single('image')(req, res, (err) => {
     if (err) return res.status(400).json({ error: err.message });
     if (!req.file) return res.status(400).json({ error: 'No file' });
-    const url = '/media/post-images/' + req.file.filename;
+    const url = '/media/post-images/' + toWebp(req.file);
     res.json({ url, size: req.file.size, mime: req.file.mimetype });
   });
 });

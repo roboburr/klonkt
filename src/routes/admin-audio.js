@@ -17,6 +17,7 @@ import { fileURLToPath } from 'url';
 import { v4 as uuid } from 'uuid';
 import db from '../config/database.js';
 import { renderPage } from '../middleware/render.js';
+import { toWebp } from '../services/ImageWebpService.js';
 import { requireGod } from '../middleware/auth.js';
 import { transcodeToMp3 } from '../services/AudioTranscoder.js';
 import { audioUrl } from '../services/AudioStreamService.js';
@@ -477,7 +478,7 @@ router.post('/api/:id/cover', requireGod, (req, res) => {
       return res.status(413).json({ error: 'Te groot (max 5 MB)' });
     }
 
-    const newUrl = `/media/audio-covers/${file.filename}`;
+    const newUrl = `/media/audio-covers/${toWebp(file)}`;
     try {
       db.prepare('UPDATE audio_tracks SET cover_url = ? WHERE id = ? AND site_id = ?')
         .run(newUrl, req.params.id, site.id);

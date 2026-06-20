@@ -24,6 +24,7 @@ import { getPrimarySite } from '../middleware/site.js';
 import { renderPage } from '../middleware/render.js';
 import { requireAuth } from '../middleware/auth.js';
 import { googleConfigured } from '../config/google.js';
+import { toWebp } from '../services/ImageWebpService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const AVATAR_DIR = path.resolve(
@@ -189,7 +190,7 @@ router.post('/avatar', requireAuth, (req, res) => {
       return res.redirect('/account?error=' + encodeURIComponent('No file uploaded'));
     }
 
-    const url = `/media/avatars/${req.file.filename}`;
+    const url = `/media/avatars/${toWebp(req.file)}`;
 
     // Remove the old avatar file (if it lives in our avatar dir)
     const old = db.prepare('SELECT avatar_url FROM users WHERE id = ?').get(req.session.user.id)?.avatar_url;
