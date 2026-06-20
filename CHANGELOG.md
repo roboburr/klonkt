@@ -54,6 +54,13 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
   touch), zodat zichtbaar is of bv. vet aan of uit staat.
 
 ### Toegevoegd
+- Afbeeldingen → **WebP**: nieuwe uploads (post-afbeeldingen/cover, avatar, site-foto,
+  hub-hero, audio-cover) worden automatisch naar WebP omgezet (kleiner); bestaande
+  afbeeldingen zijn in één keer omgezet en alle verwijzingen bijgewerkt.
+- Afbeeldingen zijn **lastiger op te slaan** (rechtsklik-"opslaan" + slepen
+  geblokkeerd) — frictie, geen waterdichte beveiliging.
+- Mini-speler (desktop): klik op de spelende track → **spring naar de post én scroll
+  naar die track** (met highlight); werkt ook voor site-brede tracks via een lookup.
 - Tekstvelden (`<textarea>`) groeien nu site-breed mee met de inhoud i.p.v. intern
   te scrollen (scroll-binnen-scroll was verwarrend). Het inline schrijfveld groeit
   ook gewoon mee; typen op mobiel/tablet gaat sowieso fullscreen.
