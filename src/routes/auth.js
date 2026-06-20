@@ -334,32 +334,39 @@ router.get('/google/callback', async (req, res) => {
     delete req.session.oauthState; delete req.session.oauthNext;
     if (!email || info.email_verified === false) return failLogin('email');
 
-    let user = db.prepare('SELECT * FROM users WHERE LOWER(email) = ?').get(email);
+    // Zoek EERST op de gekoppelde Google-account (google_sub). Een sub-match is het
+    // expliciete koppel-bewijs → log in met de eigen rol, OOK als het Google-
+    // mailadres afwijkt van het account-mailadres (bv. een beheerder die een ander
+    // Gmail koppelt). Daarna pas op e-mail.
+    let user = info.sub ? db.prepare('SELECT * FROM users WHERE google_sub = ?').get(info.sub) : null;
 
-    if (user && (user.role === 'god' || user.role === 'admin')) {
-      // Beheerder mag ALLEEN met Google in als 'ie z'n Google expliciet gekoppeld
-      // heeft (matchende google_sub). Anders blijft gelden: Google = nooit beheer.
-      if (!(user.google_sub && info.sub && user.google_sub === info.sub)) {
-        return failLogin('admin');
-      }
-      // gekoppeld + match → doorgaan met de eigen (beheer)rol.
-    } else if (user) {
-      // Bestaande luisteraar: koppel google_sub/avatar als die ontbreken; weiger
-      // als al aan een ander Google-account gekoppeld.
-      if (user.google_sub && info.sub && user.google_sub !== info.sub) return failLogin('linked');
+    if (user) {
+      // Gekoppeld account gevonden → eigen rol behouden. Avatar bijwerken indien leeg.
       db.prepare(`
-        UPDATE users SET google_sub = COALESCE(google_sub, ?), avatar_url = COALESCE(avatar_url, ?),
-          updated_at = CURRENT_TIMESTAMP WHERE id = ?
-      `).run(info.sub || null, info.picture || null, user.id);
+        UPDATE users SET avatar_url = COALESCE(avatar_url, ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?
+      `).run(info.picture || null, user.id);
     } else {
-      // Nieuwe luisteraar — altijd member.
-      const userId = uuid();
-      const username = uniqueUsername(info.name || email.split('@')[0]);
-      db.prepare(`
-        INSERT INTO users (id, username, email, password_hash, role, avatar_url, theme, palette, google_sub)
-        VALUES (?, ?, ?, '!google-oauth', 'member', ?, 'dark', 'sage', ?)
-      `).run(userId, username, info.email || email, info.picture || null, info.sub || null);
-      user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+      user = db.prepare('SELECT * FROM users WHERE LOWER(email) = ?').get(email);
+      if (user && (user.role === 'god' || user.role === 'admin')) {
+        // Beheerder gevonden op e-mail maar ZONDER gekoppelde sub → Google geeft
+        // nooit beheer. Eerst koppelen via Account → Inloggen met Google.
+        return failLogin('admin');
+      } else if (user) {
+        // Bestaande luisteraar: koppel google_sub/avatar als die ontbreken.
+        db.prepare(`
+          UPDATE users SET google_sub = COALESCE(google_sub, ?), avatar_url = COALESCE(avatar_url, ?),
+            updated_at = CURRENT_TIMESTAMP WHERE id = ?
+        `).run(info.sub || null, info.picture || null, user.id);
+      } else {
+        // Nieuwe luisteraar — altijd member.
+        const userId = uuid();
+        const username = uniqueUsername(info.name || email.split('@')[0]);
+        db.prepare(`
+          INSERT INTO users (id, username, email, password_hash, role, avatar_url, theme, palette, google_sub)
+          VALUES (?, ?, ?, '!google-oauth', 'member', ?, 'dark', 'sage', ?)
+        `).run(userId, username, info.email || email, info.picture || null, info.sub || null);
+        user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+      }
     }
 
     req.session.user = {
