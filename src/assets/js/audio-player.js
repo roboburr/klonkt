@@ -418,7 +418,10 @@
         try {
           if (t.ytList) {
             const idx = t.ytIndex || 0;
-            if (autoplay) p.loadPlaylist({ list: t.ytList, index: idx }); else p.cuePlaylist({ list: t.ytList, index: idx });
+            // listType:'playlist' is vereist voor de object-vorm; zonder dit laadt
+            // (en speelt) de afspeellijst niet betrouwbaar.
+            if (autoplay) p.loadPlaylist({ listType: 'playlist', list: t.ytList, index: idx });
+            else p.cuePlaylist({ listType: 'playlist', list: t.ytList, index: idx });
           } else {
             if (autoplay) p.loadVideoById(t.yt); else p.cueVideoById(t.yt);
           }

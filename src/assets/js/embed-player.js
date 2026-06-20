@@ -401,7 +401,7 @@
       const p = new YT.Player(mount, {
         host: 'https://www.youtube-nocookie.com', playerVars: { playsinline: 1 },
         events: { onReady: () => {
-          try { p.cuePlaylist({ list: listId }); } catch (e) {}
+          try { p.cuePlaylist({ listType: 'playlist', list: listId }); } catch (e) {}
           setTimeout(() => { let ids = []; try { ids = p.getPlaylist() || []; } catch (e) {} finish(ids); }, 2500);
         } },
       });
