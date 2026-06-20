@@ -17,6 +17,7 @@ import { requireSiteManager } from '../middleware/auth.js';
 import { premiumUnlocked } from '../services/PatreonService.js';
 import { mailerConfigured, sendMail } from '../config/mailer.js';
 import { confirmedFor, counts } from '../services/SubscriberService.js';
+import { getSetting, setSetting } from '../services/SettingsService.js';
 
 const router = express.Router();
 
@@ -35,6 +36,7 @@ function render(req, res, extra = {}) {
   renderPage(req, res, 'pages/admin-shows', {
     pageTitle: 'Agenda', bodyClass: 'on-admin',
     shows, smtp: mailerConfigured(), notifyCount: confirmedFor(site.id, 'notify').length,
+    agendaEnabled: getSetting('agenda_enabled') === '1',
     ...extra,
   });
 }
@@ -80,6 +82,12 @@ router.post('/', requireSiteManager, premiumGate, async (req, res) => {
     }
   }
   render(req, res, { msg: 'Show toegevoegd.' + (sent ? (' Notify gestuurd naar ' + sent + ' abonnee(s).') : ''), msgKind: 'ok' });
+});
+
+router.post('/toggle', requireSiteManager, premiumGate, (req, res) => {
+  // Agenda tonen op de site (Agenda-knop in de pill + /shows-pagina).
+  setSetting('agenda_enabled', req.body.enabled ? '1' : '0');
+  res.redirect((res.locals.siteUrlBase || '') + '/admin/shows');
 });
 
 router.post('/:id/delete', requireSiteManager, premiumGate, (req, res) => {

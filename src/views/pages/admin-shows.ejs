@@ -10,6 +10,16 @@
 
   <% if (msg) { %><div class="ash-msg ash-<%= (typeof msgKind!=='undefined')?msgKind:'' %>"><%= msg %></div><% } %>
 
+  <% var agOn = (typeof agendaEnabled !== 'undefined') && agendaEnabled; %>
+  <form method="POST" action="<%= siteUrlBase %>/admin/shows/toggle" style="margin:0 0 14px">
+    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:600">
+      <input type="checkbox" name="enabled" value="1" <%= agOn ? 'checked' : '' %> onchange="this.form.submit()" style="width:18px;height:18px;accent-color:var(--accent)">
+      <span>Agenda tonen op de site <small style="font-weight:400;opacity:.7">(Agenda-knop in de balk + de agendapagina)</small></span>
+    </label>
+    <noscript><button type="submit" class="btn">Opslaan</button></noscript>
+  </form>
+  <% if (!agOn) { %><div class="ash-msg">De agenda staat nu <strong>uit</strong> — bezoekers zien geen Agenda-knop en de agendapagina is niet bereikbaar. Zet 'm aan om je evenementen te tonen.</div><% } %>
+
   <p class="ash-note"><strong><%= nc %></strong> abonnee(s) voor evenement-aankondigingen.
     <% if (!smtp) { %><br>⚠ SMTP niet ingesteld — evenementen worden opgeslagen, maar notify-mails kunnen pas verstuurd worden zodra je SMTP invult.<% } %></p>
 

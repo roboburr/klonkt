@@ -15,8 +15,12 @@ import { renderPage } from '../middleware/render.js';
 import { premiumUnlocked } from '../services/PatreonService.js';
 import { mailerConfigured, sendMail } from '../config/mailer.js';
 import { addSubscriber } from '../services/SubscriberService.js';
+import { getSetting } from '../services/SettingsService.js';
 
 const router = express.Router();
+
+// Agenda is opt-in: pas bereikbaar als de beheerder 'm heeft ingeschakeld.
+function agendaOn() { return getSetting('agenda_enabled') === '1'; }
 
 function esc(s) { return String(s || '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 function fullUrl(req, p) {
@@ -29,7 +33,7 @@ function upcoming(siteId) {
 }
 
 router.get('/shows', (req, res, next) => {
-  if (!premiumUnlocked()) return next();
+  if (!premiumUnlocked() || !agendaOn()) return next();
   const site = res.locals.site;
   if (!site) return next();
   renderPage(req, res, 'pages/shows', {
@@ -41,7 +45,7 @@ router.get('/shows', (req, res, next) => {
 });
 
 router.post('/shows/notify', async (req, res, next) => {
-  if (!premiumUnlocked()) return next();
+  if (!premiumUnlocked() || !agendaOn()) return next();
   const site = res.locals.site;
   if (!site) return next();
   const email = (req.body.email || '').trim();

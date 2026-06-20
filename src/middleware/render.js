@@ -93,6 +93,7 @@ export async function renderPage(req, res, viewName, data = {}) {
     tenancy: res.locals.tenancy || 'solo',
     hubTitle: getSetting('hub_title') || '',
     footerNewsletter: getSetting('footer_newsletter') === '1', // nieuwsbrief-aanmelding in footer (premium)
+    agendaEnabled: getSetting('agenda_enabled') === '1', // Agenda/evenementen tonen in de pill (premium, opt-in)
     platforms_catalog: PLATFORMS_CATALOG,
     permissions: PermissionsService,
     formatDate,
