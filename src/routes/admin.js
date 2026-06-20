@@ -104,4 +104,14 @@ router.get('/', requireAuth, (req, res) => {
   });
 });
 
+// Handleiding — doorzoekbare uitleg van alle Beheer-functies. Zichtbaar voor wie
+// het Beheer mag zien (ingelogd); puur statische hulptekst, niets gevoeligs.
+router.get('/handleiding', requireAuth, (req, res) => {
+  renderPage(req, res, 'pages/admin-help', {
+    pageTitle: 'Handleiding',
+    bodyClass: 'on-admin',
+    tenancy: getTenancy(),
+  });
+});
+
 export default router;
