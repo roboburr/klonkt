@@ -25,6 +25,24 @@
                placeholder="bv. pers@jouwdomein.nl of een boekingslink"
                value="<%= epkContact %>">
       </label>
+
+      <div class="set-field">
+        <span>Nummers op de perskit <small>(kies er max <%= maxEpkTracks %>; laat leeg voor automatisch de top <%= maxEpkTracks %> meest beluisterd)</small></span>
+        <% if (!allTracks.length) { %>
+          <p class="set-help" style="margin:0">Nog geen nummers — voeg eerst audio toe in Beheer → Audio.</p>
+        <% } else { %>
+          <div class="epk-track-pick" data-max="<%= maxEpkTracks %>">
+            <% allTracks.forEach(function(t){ %>
+              <label class="epk-pick-item">
+                <input type="checkbox" name="epk_tracks" value="<%= t.id %>" <%= chosenTracks.indexOf(t.id) >= 0 ? 'checked' : '' %>>
+                <span class="epk-pick-title"><%= t.title || '(zonder titel)' %></span>
+                <% if (t.artist) { %><span class="epk-pick-artist"><%= t.artist %></span><% } %>
+              </label>
+            <% }); %>
+          </div>
+        <% } %>
+      </div>
+
       <button type="submit" class="btn btn-primary">Opslaan</button>
     </form>
   </section>
@@ -50,4 +68,25 @@
   .admin-page .set-field input:focus,
   .admin-page .set-field textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
   .admin-page .set-form .btn { align-self: flex-start; }
+  .admin-page .epk-track-pick { display: flex; flex-direction: column; gap: 2px; max-height: 300px; overflow-y: auto; border: 1px solid var(--rule); border-radius: 8px; padding: 4px; }
+  .admin-page .epk-pick-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.45rem 0.5rem; border-radius: 6px; cursor: pointer; }
+  .admin-page .epk-pick-item:hover { background: var(--paper); }
+  .admin-page .epk-pick-item input { width: auto; flex: 0 0 auto; }
+  .admin-page .epk-pick-title { font-weight: 600; }
+  .admin-page .epk-pick-artist { color: var(--ink-muted, var(--ink-soft)); font-size: 0.85rem; }
+  .admin-page .epk-pick-item input:disabled ~ .epk-pick-title { opacity: 0.45; }
 </style>
+<script>
+(function () {
+  var box = document.querySelector('.epk-track-pick');
+  if (!box) return;
+  var max = parseInt(box.dataset.max, 10) || 5;
+  function sync() {
+    var checks = box.querySelectorAll('input[type=checkbox]');
+    var n = box.querySelectorAll('input[type=checkbox]:checked').length;
+    checks.forEach(function (c) { c.disabled = (!c.checked && n >= max); });
+  }
+  box.addEventListener('change', sync);
+  sync();
+})();
+</script>

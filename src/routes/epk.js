@@ -24,14 +24,32 @@ router.get('/pers', (req, res, next) => {
   const site = res.locals.site;
   if (!site) return next();
 
-  // Top 10 meest beluisterde nummers (op play_count), niet zomaar de eerste paar.
-  const tracks = db.prepare(
-    `SELECT title, artist, duration, cover_url, COALESCE(play_count, 0) AS plays
-       FROM audio_tracks
-      WHERE site_id = ?
-      ORDER BY plays DESC, position ASC, created_at ASC
-      LIMIT 10`
-  ).all(site.id);
+  // Nummers op de perskit: een door de admin GEKOZEN selectie (max 5, in eigen
+  // volgorde) als die is ingesteld; anders automatisch de top 5 meest beluisterde.
+  let chosenIds = [];
+  try {
+    const raw = JSON.parse(getSetting('epk_tracks_' + site.id, '') || '[]');
+    if (Array.isArray(raw)) chosenIds = raw.filter((x) => typeof x === 'string').slice(0, 5);
+  } catch (e) { /* ongeldige JSON → val terug op top */ }
+
+  let tracks;
+  if (chosenIds.length) {
+    const ph = chosenIds.map(() => '?').join(',');
+    const rows = db.prepare(
+      `SELECT id, title, artist, duration, cover_url, COALESCE(play_count, 0) AS plays
+         FROM audio_tracks WHERE site_id = ? AND id IN (${ph})`
+    ).all(site.id, ...chosenIds);
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    tracks = chosenIds.map((id) => byId.get(id)).filter(Boolean);  // behoud gekozen volgorde
+  } else {
+    tracks = db.prepare(
+      `SELECT title, artist, duration, cover_url, COALESCE(play_count, 0) AS plays
+         FROM audio_tracks
+        WHERE site_id = ?
+        ORDER BY plays DESC, position ASC, created_at ASC
+        LIMIT 5`
+    ).all(site.id);
+  }
 
   const posts = db.prepare(
     `SELECT slug, title, created_at
