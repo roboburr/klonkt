@@ -29,3 +29,25 @@
     </form>
   </section>
 </div>
+
+<style>
+  .admin-page .set-card { background: var(--paper-2); border: 1px solid var(--rule); border-radius: 12px; padding: 1.25rem; margin-top: 1rem; }
+  .admin-page .set-card h2 { font-family: var(--font-display, serif); font-size: 1.25rem; margin: 0 0 0.5rem; }
+  .admin-page .set-help { font-size: 0.85rem; color: var(--ink-soft, var(--ink-muted)); line-height: 1.5; margin: 0 0 1rem; max-width: 60ch; }
+  .admin-page .set-form { display: flex; flex-direction: column; gap: 1rem; max-width: 520px; }
+  .admin-page .set-field { display: flex; flex-direction: column; gap: 0.3rem; }
+  .admin-page .set-field > span { font-size: 0.8rem; font-weight: 600; color: var(--ink-soft, var(--ink-muted)); }
+  .admin-page .set-field input,
+  .admin-page .set-field textarea {
+    width: 100%; box-sizing: border-box;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--rule); border-radius: 6px;
+    background: var(--paper); color: var(--ink);
+    font-family: var(--font-ui, system-ui), sans-serif; font-size: 0.95rem;
+    -webkit-appearance: none; appearance: none;
+  }
+  .admin-page .set-field textarea { resize: vertical; line-height: 1.5; }
+  .admin-page .set-field input:focus,
+  .admin-page .set-field textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
+  .admin-page .set-form .btn { align-self: flex-start; }
+</style>
