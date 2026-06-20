@@ -336,6 +336,9 @@
     const s = e.data;  // 1 playing, 2 paused, 0 ended
     if (s === 1) {
       isPlaying = true; root.classList.add('is-playing'); root.classList.remove('audio-needs-tap');
+      // We startten gedempt (autoplay-policy) → nu 't speelt het geluid terugzetten,
+      // tenzij de gebruiker zelf gedempt heeft.
+      try { if (!audio.muted) { ytPlayer.unMute(); ytPlayer.setVolume(Math.round(audio.volume * 100)); } } catch (e) {}
       mediaRegistry().setActive(registrySelf); startYTTick(); pullYTMeta();
     } else if (s === 2) {
       isPlaying = false; root.classList.remove('is-playing'); stopYTTick();
@@ -416,6 +419,9 @@
         root.classList.remove('audio-loading');
         if (!p) { onLoadError(new Error('YT API niet beschikbaar'), loadSeq); return; }
         try {
+          // Gedempt starten = autoplay is ALTIJD toegestaan (YouTube blokkeert
+          // anders het geluid). onYTState ontdempt zodra 't echt speelt.
+          if (autoplay) { try { p.mute(); } catch (e) {} }
           if (t.ytList) {
             const idx = t.ytIndex || 0;
             // listType:'playlist' is vereist voor de object-vorm; zonder dit laadt
