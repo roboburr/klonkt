@@ -169,7 +169,7 @@ if (typeof post !== 'undefined' && post && post.slug) {
      a singleton — see the script tag near </body>. -->
 <link rel="stylesheet" href="/assets/css/audio.css?v=6">
 <!-- Eigen custom media-embeds (YouTube/SoundCloud/Spotify) in huisstijl. -->
-<link rel="stylesheet" href="/assets/css/embed.css?v=4">
+<link rel="stylesheet" href="/assets/css/embed.css?v=5">
 
 <%- include('partials/shared-styles') %>
 
@@ -302,7 +302,7 @@ if (typeof post !== 'undefined' && post && post.slug) {
 <script src="/assets/js/audio-player.js?v=20"></script>
 <!-- Eigen custom media-embeds (YouTube/SoundCloud/Spotify) via de echte
      player-API's + gedeelde mutual-exclusion registry met de site-speler. -->
-<script src="/assets/js/embed-player.js?v=7" defer></script>
+<script src="/assets/js/embed-player.js?v=8" defer></script>
 <% if (site && site.enable_audio_player && audioTracks && audioTracks.length > 0) { %>
   <script>window.PCMS_SITE_TRACKS = <%- JSON.stringify(audioTracks) %>;</script>
 <% } %>

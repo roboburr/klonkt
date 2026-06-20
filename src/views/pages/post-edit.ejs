@@ -1462,7 +1462,13 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
       if (!raw) return;
       const url = raw.trim();
       if (!/^https?:\/\//i.test(url)) { alert('Geef een volledige URL (https://…).'); return; }
-      insertChip('embed', url);
+      // YouTube: keuze audio-only (alleen geluid) of video.
+      let val = url;
+      if (/(youtube\.com|youtu\.be)/i.test(url)) {
+        const audioOnly = window.confirm('YouTube — alleen audio afspelen?\n\nOK = audio-only speler (geen video)\nAnnuleren = video');
+        if (audioOnly) val = 'audio:' + url;
+      }
+      insertChip('embed', val);
     });
   }
 

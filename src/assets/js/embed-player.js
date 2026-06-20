@@ -182,7 +182,12 @@
     let dur = 0;
 
     // --- UI ophangen (verschilt per provider-type) ---
-    const isVideo = provider === 'youtube';
+    // Audio-only YouTube (data-embed-mode="audio"): render als audio-kaart met
+    // onze controls; de YT-speler draait verborgen (off-screen) en levert alleen
+    // het geluid. Video blijft de default.
+    const audioOnly = provider === 'youtube' && el.dataset.embedMode === 'audio';
+    if (audioOnly) el.classList.add('pcms-embed-audio-mode');
+    const isVideo = provider === 'youtube' && !audioOnly;
     const custom = provider === 'youtube' || provider === 'soundcloud'; // eigen controls
     const poster = provider === 'youtube'
       ? `https://i.ytimg.com/vi/${ytId(ref, url)}/hqdefault.jpg` : '';
@@ -221,6 +226,11 @@
     const muteBtn = el.querySelector('.pcms-embed-mute');
     let vol = 100;       // huidige volume 0-100 (wordt op de adapter toegepast)
     let preMuteVol = 100;
+    // Audio-only YouTube: zet de thumbnail als albumhoes op de audio-kaart.
+    if (audioOnly && poster) {
+      const art0 = el.querySelector('.pcms-embed-art');
+      if (art0) { art0.style.backgroundImage = `url('${poster}')`; art0.classList.add('has-art'); }
+    }
 
     function setPlayingUI(on) {
       playing = on;
@@ -368,8 +378,11 @@
           },
           events: {
             onReady() {
-              let d = 0; try { d = player.getDuration() || 0; } catch (e) {}
-              hooks.onReady({ duration: d });
+              let d = 0; const meta = {};
+              try { d = player.getDuration() || 0; } catch (e) {}
+              try { const vd = player.getVideoData(); if (vd && vd.title) meta.title = vd.title; } catch (e) {}
+              meta.duration = d;
+              hooks.onReady(meta);
               resolve({
                 play() { try { player.playVideo(); } catch (e) {} },
                 pause() { try { player.pauseVideo(); } catch (e) {} },

@@ -121,6 +121,17 @@
   opacity: 0;
   pointer-events: none;
 }
+/* Audio-only YouTube: de YT-speler draait verborgen (off-screen) maar moet een
+ * echte grootte houden, anders pauzeert de browser 'm. Alleen het geluid telt. */
+.pcms-embed-card--youtube.pcms-embed-audio-mode .pcms-embed-mount {
+  position: absolute;
+  left: -99999px;
+  top: 0;
+  width: 320px;
+  height: 180px;
+  opacity: 0;
+  pointer-events: none;
+}
 
 /* Spotify: hun iframe IS de speler → tonen. Onze facade (art+info) verdwijnt
  * zodra de controller gemount is. */
