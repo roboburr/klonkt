@@ -464,8 +464,12 @@ if (typeof post !== 'undefined' && post && post.slug) {
     if (a.target && a.target !== '_self') return true;
     if (a.getAttribute('rel') === 'external') return true;
     var p = url.pathname;
-    // Sessie/security/oauth → volledige navigatie (cookies, redirects).
-    if (/^\/(logout|login|auth|oauth)(?:\/|$)/.test(p)) return true;
+    // Sessie/redirect-acties → volledige navigatie (cookies, Google-redirect).
+    // Maar de auth-FORMULIERpagina's (/auth/admin, /auth/login, /auth/register,
+    // /auth/reset…) mogen wél via htmx, zodat de audiospeler blijft doorspelen
+    // i.p.v. te herstarten/verspringen bij een volledige page-load.
+    if (/^\/(logout|oauth)(?:\/|$)/.test(p)) return true;
+    if (/^\/auth\/(logout|google)(?:\/|$)/.test(p)) return true;
     // Feeds, PWA, service-worker, statics, media-streams, downloads.
     if (/^\/(feed|atom|sitemap|manifest|robots|sw\.js|assets|media|audio|uploads)(?:\/|\.|$)/.test(p)) return true;
     if (/\.[a-z0-9]{2,5}$/i.test(p)) return true; // bestandsextensie → laat de browser 't halen
