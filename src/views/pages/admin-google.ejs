@@ -26,8 +26,17 @@
     </details>
 
     <% if (google && google.redirectUri) { %>
-      <p class="set-help" style="margin-bottom:.7rem">Zet deze <strong>exacte</strong> redirect-URI in je Google-client
-        (Authorized redirect URIs):<br><code style="user-select:all"><%= google.redirectUri %></code></p>
+      <div class="set-redirect">
+        <div class="set-redirect-label">Redirect-URI — kopieer deze en plak 'm in Google</div>
+        <code class="set-redirect-url" style="user-select:all"><%= google.redirectUri %></code>
+        <ol class="set-redirect-steps">
+          <li>Ga naar <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Google Cloud Console → APIs &amp; Services → Credentials</a>.</li>
+          <li>Open jouw <strong>OAuth client-ID</strong> (type "Web application").</li>
+          <li>Onder <strong>Authorized redirect URIs</strong> → klik <strong>+ ADD URI</strong> en plak de regel hierboven.</li>
+          <li>Klik <strong>Save</strong> en wacht ~1 minuut.</li>
+        </ol>
+        <p class="set-redirect-warn">Moet <strong>exact</strong> kloppen: <code>https://</code> (geen <code>http</code>), juiste domein, en <strong>geen</strong> schuine streep aan het eind. Anders krijg je <em>"Error 400: redirect_uri_mismatch"</em>.</p>
+      </div>
     <% } else { %>
       <p class="set-help" style="color:var(--accent)">Stel eerst <code>PUBLIC_BASE_URL</code> in — daar wordt de redirect-URI van afgeleid.</p>
     <% } %>
@@ -81,4 +90,12 @@
 .set-field input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
 .alert { padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; }
 .alert-success { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+.set-redirect { border: 1px solid var(--accent); border-radius: 10px; padding: 1rem; margin: 0 0 1.25rem; background: var(--paper); }
+.set-redirect-label { font-weight: 700; font-size: 0.9rem; margin-bottom: 0.5rem; }
+.set-redirect-url { display: block; padding: 0.6rem 0.8rem; background: var(--paper-2); border: 1px dashed var(--rule); border-radius: 6px; font-size: 0.9rem; word-break: break-all; }
+.set-redirect-steps { margin: 0.85rem 0 0; padding-left: 1.3rem; font-size: 0.9rem; line-height: 1.55; color: var(--ink); }
+.set-redirect-steps li { margin: 0.3rem 0; }
+.set-redirect-steps a { color: var(--accent); }
+.set-redirect-warn { margin: 0.85rem 0 0; font-size: 0.85rem; color: var(--ink-muted); }
+.set-redirect-warn code { background: var(--paper-2); padding: 0.05rem 0.35rem; border-radius: 4px; }
 </style>
