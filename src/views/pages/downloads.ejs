@@ -1,14 +1,17 @@
 <%
   var ts = (typeof dlTracks !== 'undefined') ? dlTracks : [];
+  // NB: de loop hieronder gebruikt 't' als track-variabele, die de vertaal-t()
+  // overschaduwt. Daarom het knoplabel hier al ophalen.
+  var _dlBtn = t('downloads.btn');
 %>
 <article class="container post-page">
   <%- include('../partials/post-nav', { newerPost: (typeof newerPost !== 'undefined' ? newerPost : null), olderPost: (typeof olderPost !== 'undefined' ? olderPost : null) }) %>
   <section class="dls">
-  <h1 class="dls-h1">Downloads</h1>
-  <p class="dls-sub">Gratis te downloaden — laat je e-mailadres achter en je krijgt het bestand.</p>
+  <h1 class="dls-h1"><%= t('downloads.title') %></h1>
+  <p class="dls-sub"><%= t('downloads.sub') %></p>
 
   <% if (!ts.length) { %>
-    <p class="dls-empty">Er staan momenteel geen downloads klaar.</p>
+    <p class="dls-empty"><%= t('downloads.empty') %></p>
   <% } else { %>
     <ul class="dls-list">
       <% ts.forEach(function(t){ %>
@@ -18,7 +21,7 @@
             <span class="dls-title"><%= t.title %></span>
             <% if (t.artist) { %><span class="dls-artist"><%= t.artist %></span><% } %>
           </span>
-          <a class="dls-btn" href="<%= siteUrlBase %>/download/<%= t.id %>">⬇ Download</a>
+          <a class="dls-btn" href="<%= siteUrlBase %>/download/<%= t.id %>"><%= _dlBtn %></a>
         </li>
       <% }); %>
     </ul>

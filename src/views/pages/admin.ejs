@@ -1,70 +1,76 @@
 <div class="container admin-page">
-  <h1>Beheer</h1>
+  <% if (typeof langs !== 'undefined' && langs && langs.length > 1) { %>
+    <select class="footer-lang" style="float:right;margin-left:1rem" aria-label="<%= t('nav.language') %>"
+            onchange="location.href='/lang/'+this.value+'?r='+encodeURIComponent(location.pathname+location.search)">
+      <% langs.forEach(function(l){ %><option value="<%= l.code %>"<%= l.active ? ' selected' : '' %>><%= l.name %></option><% }); %>
+    </select>
+  <% } %>
+  <h1><%= t('admin.title') %></h1>
   <% if (tenancy === 'hub') { %>
-    <p class="admin-tagline">Hub-modus — bedrijfssite met gebruikers, elk hun eigen Klonkt Hub.</p>
+    <p class="admin-tagline"><%= t('admin.tagline_hub') %></p>
   <% } else { %>
-    <p class="admin-tagline">Solo-modus — jouw site.</p>
+    <p class="admin-tagline"><%= t('admin.tagline_solo') %></p>
   <% } %>
 
   <nav class="admin-quick-links" aria-label="Beheer-snelkoppelingen">
     <% if (tenancy === 'hub') { %>
-      <a href="/admin/sites" class="btn">🌐 Sites</a>
-      <a href="/admin/users" class="btn">👥 Gebruikers</a>
-      <a href="/admin/audio" class="btn">🎵 Audio</a>
-      <a href="/admin/playlists" class="btn">📃 Playlists</a>
-      <a href="/admin/comments" class="btn">💬 Reacties</a>
-      <% if (primarySite) { %><a href="/admin/seo" class="btn">🔎 SEO</a><% } %>
-      <a href="/admin/settings" class="btn">⚙️ Instellingen</a>
+      <a href="/admin/sites" class="btn"><%= t('admin.b_sites') %></a>
+      <a href="/admin/users" class="btn"><%= t('admin.b_users') %></a>
+      <a href="/admin/audio" class="btn"><%= t('admin.b_audio') %></a>
+      <a href="/admin/playlists" class="btn"><%= t('admin.b_playlists') %></a>
+      <a href="/admin/comments" class="btn"><%= t('admin.b_comments') %></a>
+      <% if (primarySite) { %><a href="/admin/seo" class="btn"><%= t('admin.b_seo') %></a><% } %>
+      <a href="/admin/settings" class="btn"><%= t('admin.b_settings') %></a>
     <% } else { %>
-      <a href="/posts/new" class="btn">✍️ Nieuwe post</a>
-      <a href="/admin/audio" class="btn">🎵 Audio</a>
-      <a href="/admin/comments" class="btn">💬 Reacties</a>
+      <a href="/posts/new" class="btn"><%= t('admin.b_newpost') %></a>
+      <a href="/admin/audio" class="btn"><%= t('admin.b_audio') %></a>
+      <a href="/admin/comments" class="btn"><%= t('admin.b_comments') %></a>
       <% if (primarySite) { %>
-        <a href="/admin/sites/<%= primarySite.slug %>/edit" class="btn">🎨 Uiterlijk</a>
+        <a href="/admin/sites/<%= primarySite.slug %>/edit" class="btn"><%= t('admin.b_look') %></a>
       <% } else { %>
-        <a href="/admin/sites/new" class="btn">🎨 Maak je site aan</a>
+        <a href="/admin/sites/new" class="btn"><%= t('admin.b_makesite') %></a>
       <% } %>
       <% if (tenancy === 'circle') { %>
-        <a href="/admin/circle" class="btn">🔗 Cirkel</a>
+        <a href="/admin/circle" class="btn"><%= t('admin.b_circle') %></a>
       <% } %>
-      <% if (primarySite) { %><a href="/admin/seo" class="btn">🔎 SEO</a><% } %>
-      <a href="/admin/settings" class="btn">⚙️ Instellingen</a>
+      <% if (primarySite) { %><a href="/admin/seo" class="btn"><%= t('admin.b_seo') %></a><% } %>
+      <a href="/admin/settings" class="btn"><%= t('admin.b_settings') %></a>
     <% } %>
     <% if (typeof premiumUnlocked === 'undefined' || premiumUnlocked) { %>
-      <a href="/admin/stats" class="btn">📊 Statistieken</a>
-      <a href="/admin/newsletter" class="btn">✉️ Nieuwsbrief</a>
-      <% if (tenancy !== 'hub' && primarySite) { %><a href="/pers" class="btn" target="_blank">📰 Perskit</a><% } %>
-      <% if (tenancy !== 'hub' && primarySite) { %><a href="/downloads" class="btn" target="_blank">⬇ Downloads</a><% } %>
-      <% if (tenancy !== 'hub' && primarySite) { %><a href="/links" class="btn" target="_blank">🔗 Link-in-bio</a><% } %>
-      <a href="/admin/shows" class="btn">📅 Agenda</a>
+      <a href="/admin/stats" class="btn"><%= t('admin.b_stats') %></a>
+      <a href="/admin/newsletter" class="btn"><%= t('admin.b_newsletter') %></a>
+      <% if (tenancy !== 'hub' && primarySite) { %><a href="/pers" class="btn" target="_blank"><%= t('admin.b_perskit') %></a><% } %>
+      <% if (tenancy !== 'hub' && primarySite) { %><a href="/downloads" class="btn" target="_blank"><%= t('admin.b_downloads') %></a><% } %>
+      <% if (tenancy !== 'hub' && primarySite) { %><a href="/links" class="btn" target="_blank"><%= t('admin.b_linkbio') %></a><% } %>
+      <a href="/admin/shows" class="btn"><%= t('admin.b_agenda') %></a>
     <% } %>
-    <a href="/admin/settings/google" class="btn">🔑 Google</a>
-    <a href="/admin/updates" class="btn">🔄 Updates</a>
-    <a href="/admin/handleiding" class="btn">📖 Handleiding</a>
+    <a href="/admin/settings/google" class="btn"><%= t('admin.b_google') %></a>
+    <a href="/admin/updates" class="btn"><%= t('admin.b_updates') %></a>
+    <a href="/admin/handleiding" class="btn"><%= t('admin.b_help') %></a>
   </nav>
 
   <div class="admin-stats">
     <% if (tenancy === 'hub') { %>
-      <div class="stat-card"><div class="stat-num"><%= stats.users %></div><div class="stat-label">Gebruikers</div></div>
-      <div class="stat-card"><div class="stat-num"><%= stats.sites %></div><div class="stat-label">Sites</div></div>
+      <div class="stat-card"><div class="stat-num"><%= stats.users %></div><div class="stat-label"><%= t('admin.st_users') %></div></div>
+      <div class="stat-card"><div class="stat-num"><%= stats.sites %></div><div class="stat-label"><%= t('admin.st_sites') %></div></div>
     <% } %>
-    <div class="stat-card"><div class="stat-num"><%= stats.posts %></div><div class="stat-label">Posts</div></div>
-    <div class="stat-card"><div class="stat-num"><%= stats.published %></div><div class="stat-label">Gepubliceerd</div></div>
+    <div class="stat-card"><div class="stat-num"><%= stats.posts %></div><div class="stat-label"><%= t('admin.st_posts') %></div></div>
+    <div class="stat-card"><div class="stat-num"><%= stats.published %></div><div class="stat-label"><%= t('admin.st_published') %></div></div>
   </div>
 
   <% if (typeof posts !== 'undefined' && posts && posts.length) { %>
     <% var _drafts = posts.filter(function(p){ return p.isDraft; }).length; %>
-    <h2>Posts<% if (_drafts) { %> <span class="pl-draftcount"><%= _drafts %> concept<%= _drafts === 1 ? '' : 'en' %></span><% } %></h2>
+    <h2><%= t('admin.sec_posts') %><% if (_drafts) { %> <span class="pl-draftcount"><%= _drafts %> <%= t('admin.draft').toLowerCase() %><%= _drafts === 1 ? '' : 's' %></span><% } %></h2>
     <ul class="post-admin-list">
       <% posts.forEach(function(p) { %>
         <li class="pal-row<%= p.isDraft ? ' is-draft' : '' %>">
           <a class="pal-title" href="<%= p.editUrl %>">
-            <% if (p.isDraft) { %><span class="pal-badge">Concept</span><% } %>
+            <% if (p.isDraft) { %><span class="pal-badge"><%= t('admin.draft') %></span><% } %>
             <span class="pal-name"><%= p.title || '(zonder titel)' %></span>
           </a>
           <span class="pal-actions">
-            <a class="pal-link" href="<%= p.editUrl %>">Bewerken</a>
-            <% if (!p.isDraft) { %><a class="pal-link" href="<%= p.viewUrl %>">Bekijk</a><% } %>
+            <a class="pal-link" href="<%= p.editUrl %>"><%= t('admin.edit') %></a>
+            <% if (!p.isDraft) { %><a class="pal-link" href="<%= p.viewUrl %>"><%= t('admin.view') %></a><% } %>
           </span>
         </li>
       <% }); %>
@@ -72,10 +78,10 @@
   <% } %>
 
   <% if (sites && sites.length) { %>
-    <h2>Sites</h2>
+    <h2><%= t('admin.sec_sites') %></h2>
     <table class="admin-table">
       <thead>
-        <tr><th>Slug</th><th>Title</th><th>Owner</th><th>Created</th></tr>
+        <tr><th><%= t('admin.th_slug') %></th><th><%= t('admin.th_title') %></th><th><%= t('admin.th_owner') %></th><th><%= t('admin.th_created') %></th></tr>
       </thead>
       <tbody>
         <% sites.forEach(function(s) { %>
@@ -91,10 +97,10 @@
   <% } %>
 
   <% if (users && users.length) { %>
-    <h2>Users</h2>
+    <h2><%= t('admin.sec_users') %></h2>
     <table class="admin-table">
       <thead>
-        <tr><th>Username</th><th>Email</th><th>Role</th><th>Joined</th></tr>
+        <tr><th><%= t('admin.th_username') %></th><th><%= t('admin.th_email') %></th><th><%= t('admin.th_role') %></th><th><%= t('admin.th_joined') %></th></tr>
       </thead>
       <tbody>
         <% users.forEach(function(u) { %>

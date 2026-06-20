@@ -3,14 +3,14 @@
   var st = (typeof notifyState !== 'undefined') ? notifyState : null;
 %>
 <section class="sh">
-  <h1 class="sh-h1">Agenda</h1>
+  <h1 class="sh-h1"><%= t('agenda.title') %></h1>
 
-  <% if (st === 'done') { %><div class="sh-msg">✓ Je staat op de lijst — je hoort het zodra er een evenement wordt aangekondigd.</div>
-  <% } else if (st === 'check') { %><div class="sh-msg">✉ Check je mail om je aanmelding te bevestigen.</div>
+  <% if (st === 'done') { %><div class="sh-msg"><%= t('agenda.msg_done') %></div>
+  <% } else if (st === 'check') { %><div class="sh-msg"><%= t('agenda.msg_check') %></div>
   <% } else if (st === 'error') { %><div class="sh-msg sh-bad"><%= (typeof notifyMsg!=='undefined')?notifyMsg:'Er ging iets mis.' %></div><% } %>
 
   <% if (!ss.length) { %>
-    <p class="sh-empty">Geen aangekondigde evenementen op dit moment.</p>
+    <p class="sh-empty"><%= t('agenda.empty') %></p>
   <% } else { %>
     <ul class="sh-list">
       <% ss.forEach(function(s){ %>
@@ -24,7 +24,7 @@
             <% if (s.venue) { %><span class="sh-venue"><%= s.venue %><% if (s.time) { %> · <%= s.time %><% } %></span><% } else if (s.time) { %><span class="sh-venue"><%= s.time %></span><% } %>
             <% if (s.notes) { %><span class="sh-notes"><%= s.notes %></span><% } %>
           </span>
-          <% if (s.ticket_url) { %><a class="sh-tix" href="<%= s.ticket_url %>" target="_blank" rel="noopener">Tickets</a><% } %>
+          <% if (s.ticket_url) { %><a class="sh-tix" href="<%= s.ticket_url %>" target="_blank" rel="noopener"><%= t('agenda.tickets') %></a><% } %>
         </li>
       <% }); %>
     </ul>
@@ -32,11 +32,11 @@
 
   <% if (!(typeof footerNewsletter !== 'undefined' && footerNewsletter)) { %>
   <div class="sh-notify">
-    <h2 class="sh-h2">Mis geen evenement</h2>
-    <p class="sh-sub">Laat je e-mail achter en je krijgt een seintje bij een nieuw evenement. Uitschrijven kan altijd.</p>
+    <h2 class="sh-h2"><%= t('agenda.notify_h') %></h2>
+    <p class="sh-sub"><%= t('agenda.notify_sub') %></p>
     <form method="POST" action="<%= siteUrlBase %>/shows/notify" class="sh-form">
-      <input type="email" name="email" required placeholder="jouw@email.nl" autocomplete="email">
-      <button type="submit" class="sh-btn">Houd me op de hoogte</button>
+      <input type="email" name="email" required placeholder="<%= t('common.email_placeholder') %>" autocomplete="email">
+      <button type="submit" class="sh-btn"><%= t('agenda.notify_btn') %></button>
     </form>
   </div>
   <% } %>
