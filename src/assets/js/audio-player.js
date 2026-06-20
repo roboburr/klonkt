@@ -863,7 +863,10 @@
         artist: t.artist || '',
         cover:  t.cover_url || t.cover || '',
       }));
-      if (queue.length) loadTrack(0, false, true);  // metadata only — fetch on first play
+      // Queue alleen klaarzetten — de speler-balk verschijnt PAS bij de eerste
+      // audio-klik (een .post-audio-track of de mini-speler-play roept setQueue/
+      // loadTrack → die toont de balk). Geen pre-seed-balk meer op page-load.
+      currentIndex = 0;
     }
   }
 })();
