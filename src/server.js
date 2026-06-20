@@ -45,6 +45,7 @@ import feedRoutes from './routes/feed.js';
 import hubRoutes from './routes/hub.js';
 import artistsRoutes from './routes/artists.js';
 import postsRoutes from './routes/posts.js';
+import langRoutes from './routes/lang.js';
 import federationRoutes from './routes/federation.js';
 import { startCircleSyncLoop } from './services/CircleService.js';
 import adminCircleRoutes from './routes/admin-circle.js';
@@ -287,6 +288,7 @@ app.use('/', linkbioRoutes); // /links link-in-bio + klikstats (premium)
 app.use('/', embedRoutes); // /embed inbedbare audiospeler (premium)
 app.use('/', showsRoutes); // /shows agenda + notify-me (premium)
 app.use('/', changelogRoutes); // /changelog publieke release-/wijzigingen-pagina
+app.use('/', langRoutes); // /lang/:code — interface-taal kiezen (vóór de catch-all)
 app.use('/', postsRoutes);
 
 app.get('/manifest.webmanifest', (req, res) => {

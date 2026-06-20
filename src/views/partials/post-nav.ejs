@@ -7,26 +7,26 @@
       <a class="post-nav-prev" href="<%= newerPost._urlBase || '' %>/<%= newerPost.slug %>"<% if (!newerPost._urlBase) { %>
          hx-get="/<%= newerPost.slug %>?partial=1" hx-target="#pcms-main"
          hx-push-url="/<%= newerPost.slug %>" hx-indicator="#pcms-loading"<% } %>>
-        <span class="post-nav-label"><% if (newerPost.pinned) { %><span class="post-nav-pin" title="Vastgepind">📌</span> <% } %>← Newer</span>
+        <span class="post-nav-label"><% if (newerPost.pinned) { %><span class="post-nav-pin" title="Vastgepind">📌</span> <% } %>← <%= t('postnav.newer') %></span>
         <span class="post-nav-title"><%= newerPost.title %></span>
       </a>
     <% } else { %>
       <div class="post-nav-prev is-empty" aria-hidden="true">
         <span class="post-nav-label">← Newer</span>
-        <span class="post-nav-title">Nieuwste post</span>
+        <span class="post-nav-title"><%= t('postnav.newest') %></span>
       </div>
     <% } %>
     <% if (olderPost) { %>
       <a class="post-nav-next" href="<%= olderPost._urlBase || '' %>/<%= olderPost.slug %>"<% if (!olderPost._urlBase) { %>
          hx-get="/<%= olderPost.slug %>?partial=1" hx-target="#pcms-main"
          hx-push-url="/<%= olderPost.slug %>" hx-indicator="#pcms-loading"<% } %>>
-        <span class="post-nav-label">Older →<% if (olderPost.pinned) { %> <span class="post-nav-pin" title="Vastgepind">📌</span><% } %></span>
+        <span class="post-nav-label"><%= t('postnav.older') %> →<% if (olderPost.pinned) { %> <span class="post-nav-pin" title="Vastgepind">📌</span><% } %></span>
         <span class="post-nav-title"><%= olderPost.title %></span>
       </a>
     <% } else { %>
       <div class="post-nav-next is-empty" aria-hidden="true">
         <span class="post-nav-label">Older →</span>
-        <span class="post-nav-title">Oudste post</span>
+        <span class="post-nav-title"><%= t('postnav.oldest') %></span>
       </div>
     <% } %>
   </nav>

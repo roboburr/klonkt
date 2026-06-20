@@ -19,6 +19,7 @@ import { isViewer } from './auth.js';
 import { getSetting } from '../services/SettingsService.js';
 import { isPremium as isPremiumInstance, premiumEnabled, premiumUnlocked } from '../services/PatreonService.js';
 import { PLATFORMS as PLATFORMS_CATALOG } from '../services/PlatformIcons.js';
+import { t as i18nT, resolveLang, SUPPORTED as LANGS, LANG_NAMES } from '../services/i18n.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const VIEWS_DIR = path.join(__dirname, '..', 'views');
@@ -76,9 +77,15 @@ export async function renderPage(req, res, viewName, data = {}) {
   const _role = _u ? _u.role : null;
   const canSeeBeheer = !!(_u && (_role === 'god' || _role === 'admin' || _role === 'kijker' || userOwnsSite));
 
+  // Interface-taal (bezoeker-instelbaar): sessie-keuze → browser-taal → nl.
+  const _lang = resolveLang(req);
+
   // Common locals
   const locals = {
     user: _u,
+    lang: _lang,
+    t: (key, vars) => i18nT(_lang, key, vars),
+    langs: LANGS.map((c) => ({ code: c, name: LANG_NAMES[c], active: c === _lang })),
     userOwnsSite,
     canSeeBeheer,
     isViewer: _isViewer,

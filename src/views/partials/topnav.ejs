@@ -25,7 +25,7 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
     <!-- Brand block (always visible) -->
     <div class="masthead-brand">
       <% if (_isAdmin) { %>
-        <a href="<%= _siteUrlBase %>/" class="nav-link nav-link-admin">← Terug naar site</a>
+        <a href="<%= _siteUrlBase %>/" class="nav-link nav-link-admin"><%= t('nav.back_to_site') %></a>
       <% } else if (typeof tenancy !== 'undefined' && tenancy === 'hub') { %>
         <%# Hub: de brand gaat naar de hub-home via HTMX. De chrome wordt in hub-modus
             altijd gerenderd en via body.on-hub (CSS) verborgen op de landing, dus htmx
@@ -63,7 +63,7 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
            hx-swap="innerHTML" hx-push-url="<%= _siteUrlBase %>/archive"
            hx-indicator="#pcms-loading">
           <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8v13H3V8"/><rect x="1" y="3" width="22" height="5" rx="1"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
-          <span class="nav-label">Archief</span>
+          <span class="nav-label"><%= t('nav.archive') %></span>
         </a>
       <% } %>
 
@@ -117,20 +117,20 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
                  hx-get="/account?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
                  hx-push-url="/account" hx-indicator="#pcms-loading">
                 <svg class="udi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                <span>Account</span>
+                <span><%= t('nav.account') %></span>
               </a>
               <a href="/favorieten" role="menuitem" class="udi"
                  hx-get="/favorieten?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
                  hx-push-url="/favorieten" hx-indicator="#pcms-loading">
                 <svg class="udi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-                <span>Favorieten</span>
+                <span><%= t('nav.favorites') %></span>
               </a>
               <% if (typeof canSeeBeheer !== 'undefined' && canSeeBeheer) { %>
                 <a href="/admin" role="menuitem" class="udi"
                    hx-get="/admin?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
                    hx-push-url="/admin" hx-indicator="#pcms-loading">
                   <svg class="udi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3h7v7H3z"/><path d="M14 3h7v7h-7z"/><path d="M14 14h7v7h-7z"/><path d="M3 14h7v7H3z"/></svg>
-                  <span>Beheer</span>
+                  <span><%= t('nav.admin') %></span>
                 </a>
               <% } %>
               <% if (_canPost) { %>
@@ -138,7 +138,7 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
                    hx-get="<%= _siteUrlBase %>/posts/new?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
                    hx-push-url="<%= _siteUrlBase %>/posts/new" hx-indicator="#pcms-loading">
                   <svg class="udi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
-                  <span>Nieuwe post</span>
+                  <span><%= t('nav.new_post') %></span>
                 </a>
               <% } %>
             </div>
@@ -146,7 +146,7 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
             <div class="user-dropdown-list">
               <a href="/auth/logout" role="menuitem" class="udi udi-danger">
                 <svg class="udi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-                <span>Uitloggen</span>
+                <span><%= t('nav.logout') %></span>
               </a>
             </div>
           </div>
@@ -155,7 +155,7 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
         <a class="nav-link" href="/auth/login"
            hx-get="/auth/login?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
            hx-push-url="/auth/login" hx-indicator="#pcms-loading">
-          <span class="nav-label">Inloggen</span>
+          <span class="nav-label"><%= t('nav.login') %></span>
         </a>
       <% } %>
 
