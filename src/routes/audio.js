@@ -157,4 +157,30 @@ router.get('/track/:id/post', (req, res) => {
   res.json({ url });
 });
 
+// Same-origin proxy voor de YouTube-titel (oEmbed). YouTube's oEmbed stuurt geen
+// CORS-header, dus de browser kan 'm niet direct fetchen — wij halen 'm server-
+// side op (geen CORS) en cachen 't. Gebruikt door de audio-only YT-embed om de
+// echte videotitel te tonen i.p.v. "YouTube".
+const ytTitleCache = new Map();
+router.get('/yt-title', async (req, res) => {
+  const url = String(req.query.url || '');
+  if (!/^https:\/\/(www\.)?(youtube\.com|youtu\.be|youtube-nocookie\.com)\//i.test(url)) {
+    return res.status(400).json({ error: 'bad url' });
+  }
+  if (ytTitleCache.has(url)) return res.json({ title: ytTitleCache.get(url) });
+  try {
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 6000);
+    const r = await fetch('https://www.youtube.com/oembed?format=json&url=' + encodeURIComponent(url), { signal: ac.signal });
+    clearTimeout(timer);
+    if (!r.ok) { ytTitleCache.set(url, ''); return res.json({ title: '' }); }
+    const d = await r.json();
+    const title = (d && d.title) ? String(d.title).slice(0, 200) : '';
+    ytTitleCache.set(url, title);
+    res.json({ title });
+  } catch (e) {
+    res.status(502).json({ error: 'fetch failed' });
+  }
+});
+
 export default router;
