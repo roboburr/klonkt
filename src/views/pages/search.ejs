@@ -1,43 +1,82 @@
 <% const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : ''; %>
+<% const _tracks = (typeof tracks !== 'undefined' && tracks) ? tracks : []; %>
 <div class="container search-page">
-  <h1>Search</h1>
+  <h1>Zoeken</h1>
 
   <form method="get" action="<%= _base %>/search" class="search-page-form">
     <input
       type="search"
       name="q"
       value="<%= query %>"
-      placeholder="Search posts…"
+      placeholder="Zoek posts en nummers…"
       autocomplete="off"
       autofocus
-      aria-label="Search query">
-    <button type="submit" class="btn btn-primary">Search</button>
+      aria-label="Zoekopdracht">
+    <button type="submit" class="btn btn-primary">Zoek</button>
   </form>
 
   <% if (queryError) { %>
-    <p class="search-error">Couldn't run that query. Try a simpler term.</p>
+    <p class="search-error">Kon die zoekopdracht niet uitvoeren. Probeer een eenvoudiger term.</p>
   <% } %>
 
   <% if (query && !queryError) { %>
     <p class="search-meta">
-      <%= total %> result<%= total === 1 ? '' : 's' %> for &ldquo;<%= query %>&rdquo;
+      <%= total %> resulta<%= total === 1 ? 'at' : 'ten' %> voor &ldquo;<%= query %>&rdquo;
     </p>
   <% } %>
 
+  <% if (_tracks.length) { %>
+    <h2 class="search-section-title">Nummers</h2>
+    <div class="search-tracks">
+      <% _tracks.forEach(function(t) {
+           const tj = JSON.stringify({ id: t.id, url: t.url, title: t.title, artist: t.artist || '', cover: t.cover || '' })
+             .replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/</g, '&lt;'); %>
+        <div class="post-audio-track search-track" id="track-<%= t.id %>"
+             data-pcms-track-id="<%= t.id %>" data-pcms-track-url="<%= t.url %>"
+             data-pcms-track='<%- tj %>'>
+          <button type="button" class="pat-play" aria-label="Speel <%= t.title %>">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 4l12 8-12 8z"/></svg>
+          </button>
+          <% if (t.cover) { %>
+            <span class="search-track-cover" style="background-image:url('<%= t.cover %>')" aria-hidden="true"></span>
+          <% } %>
+          <div class="pat-info">
+            <div class="pat-title"><%= t.title %></div>
+            <% if (t.artist || t.album) { %>
+              <div class="pat-artist">
+                <%= t.artist %><% if (t.artist && t.album) { %> &middot; <% } %><%= t.album %>
+              </div>
+            <% } %>
+          </div>
+          <% if (t.postUrl) { %>
+            <a class="search-track-link"
+               href="<%= t.postUrl %>"
+               hx-get="<%= t.postUrl %>?partial=1"
+               hx-target="#pcms-main"
+               hx-swap="innerHTML"
+               hx-push-url="<%= t.postUrl %>"
+               aria-label="Open in post">in post →</a>
+          <% } %>
+        </div>
+      <% }); %>
+    </div>
+  <% } %>
+
   <% if (results && results.length) { %>
+    <% if (_tracks.length) { %><h2 class="search-section-title">Posts</h2><% } %>
     <ol class="search-results">
       <% results.forEach(function(r) { %>
         <li class="search-result">
-          <h2 class="search-result-title">
-            <a href="/<%= r.slug %>"
-               hx-get="/<%= r.slug %>?partial=1"
+          <h3 class="search-result-title">
+            <a href="<%= _base %>/<%= r.slug %>"
+               hx-get="<%= _base %>/<%= r.slug %>?partial=1"
                hx-target="#pcms-main"
                hx-swap="innerHTML"
-               hx-push-url="/<%= r.slug %>"
+               hx-push-url="<%= _base %>/<%= r.slug %>"
                hx-indicator="#pcms-loading">
-              <%= r.title || '(untitled)' %>
+              <%= r.title || '(zonder titel)' %>
             </a>
-          </h2>
+          </h3>
           <p class="search-result-meta">
             <%= r.author_username %>
             <% if (r.published_at) { %> &middot; <%= formatDate(r.published_at) %><% } %>
@@ -46,8 +85,10 @@
         </li>
       <% }); %>
     </ol>
-  <% } else if (query && !queryError) { %>
-    <p class="search-empty">No posts found.</p>
+  <% } %>
+
+  <% if (query && !queryError && !results.length && !_tracks.length) { %>
+    <p class="search-empty">Niets gevonden.</p>
   <% } %>
 </div>
 
@@ -79,6 +120,14 @@
   font-size: 0.9rem;
   margin: 0 0 1rem;
 }
+.search-section-title {
+  font-family: var(--font-display, serif);
+  font-size: 1.1rem;
+  margin: 1.75rem 0 0.75rem;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
 .search-error {
   background: rgba(200, 60, 60, 0.15);
   color: #c33;
@@ -92,11 +141,39 @@
   margin: 3rem 0;
 }
 
+/* Nummer-resultaten */
+.search-tracks { display: flex; flex-direction: column; gap: 0.25rem; }
+.search-track.post-audio-track {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: 8px;
+}
+.search-track .search-track-cover {
+  width: 38px; height: 38px;
+  flex: 0 0 38px;
+  border-radius: 5px;
+  background-size: cover;
+  background-position: center;
+  background-color: var(--paper-2);
+}
+.search-track .pat-info { flex: 1; min-width: 0; }
+.search-track .pat-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.search-track .pat-artist { font-size: 0.82rem; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.search-track-link {
+  flex: 0 0 auto;
+  font-size: 0.82rem;
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.search-track-link:hover { text-decoration: underline; }
+
 .search-results {
   list-style: none;
   margin: 0;
   padding: 0;
-  counter-reset: search-result;
 }
 .search-result {
   padding: 1rem 0;

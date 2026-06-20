@@ -13,7 +13,24 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 
 ## [Unreleased]
 
+### Toegevoegd
+- Zoeken doorzoekt nu ook **nummers** (op titel, artiest én album), niet alleen posts.
+  Gevonden nummers zijn direct afspeelbaar in de resultatenlijst, met een
+  "in post →"-link naar de post/album/playlist waarin het nummer voorkomt.
+- Posts-zoek gebruikt nu **prefix-matching**: typ "astr" en je vindt "astra"
+  (elk woord als prefix, AND tussen de woorden) — fijner zoeken-terwijl-je-typt.
+
 ### Opgelost
+- Mini-speler: spring + scroll naar de spelende track werkt nu ook vanuit een
+  **album of playlist** (de track-id zat niet in de afspeel-queue).
+- De track die nu speelt krijgt een **blijvende highlight** in de post.
+- Lege **album/playlist-covers** hersteld (een gemiste verwijzing in de
+  WebP-conversie) + ze vallen nu terug op de cover van de eerste track.
+- Kapotte **avatar/profielfoto** in de kop na de WebP-conversie: de viewer-avatar
+  (en rol) wordt nu vers uit de database gelezen, dus een oude sessie herstelt
+  zichzelf zonder opnieuw inloggen.
+
+### Opgelost (eerder)
 - Inline content-layout op touch versimpeld: geen opmaak-toolbar/rand meer inline
   (je bewerkt toch fullscreen) — alleen de content-preview + de tik-om-te-bewerken-pill.
 - Kon niet scrollen op de bewerk-pagina: de fullscreen scroll-lock (overflow:hidden
