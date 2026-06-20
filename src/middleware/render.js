@@ -48,7 +48,13 @@ export async function renderPage(req, res, viewName, data = {}) {
 
   // Bezit deze (niet-god) user een eigen site? Bepaalt of 'ie een "Beheer"-
   // ingang ziet (artiest-zelfbeheer). god ziet beheer sowieso (op rol).
-  const _u = req.session?.user || null;
+  let _u = req.session?.user || null;
+  // Ververs avatar + rol uit de DB zodat een stale sessie (bv. na een
+  // avatar-wijziging of rolwissel) zichzelf herstelt zonder opnieuw inloggen.
+  if (_u && _u.id) {
+    const _fresh = db.prepare('SELECT avatar_url, role FROM users WHERE id = ?').get(_u.id);
+    if (_fresh) _u = { ..._u, avatar_url: _fresh.avatar_url, role: _fresh.role };
+  }
   const userOwnsSite = !!(_u && _u.role !== 'god' &&
     db.prepare('SELECT 1 FROM sites WHERE owner_id = ? LIMIT 1').get(_u.id));
 
