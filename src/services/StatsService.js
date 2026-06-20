@@ -44,6 +44,15 @@ function isOperator(req) {
   return !!(u && (u.role === 'god' || u.role === 'admin'));
 }
 
+// Bekende bots/crawlers + link-preview-fetchers + scripts overslaan, zodat ze de
+// weergaven/bezoeker-dagen niet opblazen. Geen UA = vrijwel altijd geautomatiseerd.
+const BOT_RE = /bot|crawl|spider|slurp|mediapartners|bingpreview|facebookexternalhit|whatsapp|telegram|discord|twitter|linkedin|embedly|pinterest|redditbot|applebot|petalbot|yandex|baidu|duckduckbot|semrush|ahrefs|mj12|dotbot|uptimerobot|pingdom|statuscake|headless|lighthouse|gptbot|claude|ccbot|perplexity|bytespider|amazonbot|googleother|google-read-aloud|python-requests|scrapy|curl|wget|axios|node-fetch|go-http|java\/|okhttp|libwww|httpclient/i;
+function isBot(req) {
+  const ua = (req && req.headers && req.headers['user-agent']) || '';
+  if (!ua) return true;          // lege UA = script/bot
+  return BOT_RE.test(ua);
+}
+
 // Lazy prepares — tabellen bestaan pas ná initializeDatabase(); dit module wordt
 // geïmporteerd vóór die call.
 let _s = null;
@@ -80,7 +89,7 @@ function recordReferrer(siteId, req) {
 }
 
 export function recordPageview(siteId, req) {
-  if (!siteId || isOperator(req)) return;
+  if (!siteId || isOperator(req) || isBot(req)) return;
   try {
     const d = today();
     stmts().bumpDaily.run(siteId, d);
@@ -90,7 +99,7 @@ export function recordPageview(siteId, req) {
 }
 
 export function recordPostView(post, req) {
-  if (!post || !post.id || isOperator(req)) return;
+  if (!post || !post.id || isOperator(req) || isBot(req)) return;
   try {
     stmts().bumpPost.run(post.id);
     recordPageview(post.site_id, req);

@@ -2,13 +2,13 @@
   <p><a href="/admin" class="btn">&larr; Beheer</a></p>
   <h1>Statistieken</h1>
   <p class="stats-note">Cookievrij gemeten — geen tracking-cookies, geen toestemmingsbanner.
-    Unieke bezoekers via een dagelijks roterende, anonieme hash (IP/browser worden niet bewaard).
-    Je eigen beheerder-bezoeken tellen niet mee.</p>
+    Bezoekers worden per dag geteld via een dagelijks roterende, anonieme hash (IP/browser worden
+    niet bewaard). Je eigen beheerder-bezoeken en bekende bots/crawlers tellen niet mee.</p>
 
   <% var s = stats; var _max = Math.max(1, ...s.series.map(function(d){ return d.pageviews; })); %>
 
   <div class="stats-cards">
-    <div class="stat-card"><div class="stat-num"><%= s.totals.visitors %></div><div class="stat-label">Bezoekers (<%= s.days %>d)</div></div>
+    <div class="stat-card"><div class="stat-num"><%= s.totals.visitors %></div><div class="stat-label">Bezoeker-dagen (<%= s.days %>d)</div></div>
     <div class="stat-card"><div class="stat-num"><%= s.totals.pageviews %></div><div class="stat-label">Weergaven (<%= s.days %>d)</div></div>
     <div class="stat-card"><div class="stat-num"><%= s.totals.plays %></div><div class="stat-label">Plays (totaal)</div></div>
     <div class="stat-card"><div class="stat-num"><%= s.totals.postViews %></div><div class="stat-label">Post-weergaven (totaal)</div></div>
@@ -17,6 +17,17 @@
   <% if (typeof s.allTime !== 'undefined') { %>
     <p class="stats-note">All-time: <strong><%= s.allTime.pageviews %></strong> weergaven · <strong><%= s.allTime.visitorDays %></strong> bezoeker-dagen.</p>
   <% } %>
+
+  <details class="stats-help">
+    <summary>Wat betekenen deze cijfers?</summary>
+    <ul>
+      <li><strong>Bezoeker-dagen</strong> — het aantal unieke bezoekers <em>per dag, bij elkaar opgeteld</em>. Eén persoon die 5 dagen langskomt = 5 bezoeker-dagen. Cookieloos kan er niet over dagen heen geteld worden, dus dit is géén aantal unieke personen — het echte aantal mensen ligt (vaak fors) lager.</li>
+      <li><strong>Weergaven</strong> — hoe vaak de home/feed of een post geladen is (ook bij klikken binnen de site). Andere pagina's (agenda, downloads, links) tellen hier niet in mee.</li>
+      <li><strong>Plays</strong> — totaal aantal keren dat een track is gestart.</li>
+      <li><strong>Post-weergaven</strong> — totaal over alle posts samen.</li>
+    </ul>
+    <p>Beheerder-bezoeken en bekende bots/crawlers worden overgeslagen. Het ruwe IP wordt nooit bewaard. Goed voor trends; neem absolute aantallen met een korrel zout.</p>
+  </details>
 
   <div class="stats-period">
     Periode:
@@ -29,7 +40,7 @@
     <div class="stats-chart-head">
       <h2>Laatste <%= s.days %> dagen</h2>
       <div class="stats-legend">
-        <span class="lg lg-vis">Bezoekers</span>
+        <span class="lg lg-vis">Bezoeker-dagen</span>
         <span class="lg lg-pv">Weergaven</span>
       </div>
     </div>
@@ -39,7 +50,7 @@
            var pvPct = Math.round(d.pageviews / _max * 100);
            var visPct = Math.round(d.visitors / _max * 100);
       %>
-        <div class="sc-col" title="<%= d.day %> — <%= d.pageviews %> weergaven, <%= d.visitors %> bezoekers">
+        <div class="sc-col" title="<%= d.day %> — <%= d.pageviews %> weergaven, <%= d.visitors %> bezoeker-dagen">
           <div class="sc-bar">
             <span class="sc-pv" style="height: <%= pvPct %>%"></span>
             <span class="sc-vis" style="height: <%= visPct %>%"></span>
