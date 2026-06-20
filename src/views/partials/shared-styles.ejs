@@ -49,8 +49,9 @@
   transition: color 120ms;
 }
 .vs-agenda:hover { color: var(--ink); }
-/* Op de agendapagina = helder/wit (geen pilletje, past bij de losse-link-look). */
-body.on-shows .vs-agenda { color: var(--ink); font-weight: 600; }
+/* Actief (op de agendapagina) = helder/wit. Element-class (in de OOB-gerenderde
+   chrome) i.p.v. body-class-CSS → werkt betrouwbaar ook na htmx-navigatie. */
+.vs-agenda.is-active { color: var(--ink); font-weight: 600; }
 
 .grid-cols-picker {
   display: none;     /* desktop-only, see media query */
@@ -96,27 +97,6 @@ body.on-post[data-grid-cols="4"] .grid-cols-btn[data-cols="4"] {
   border-color: var(--rule);
 }
 
-/* Op de agenda- én downloads-pagina is ALLES behalve de Agenda-pill neutraal/grijs
-   (je bent daar niet in een feed-weergave). !important + body.on-X (betrouwbaar
-   gezet/gestript via PAGE_CLASSES) → overrult de feed-active-regel ZONDER naar de
-   feed te lekken (de selector matcht alleen op die pagina's). */
-body.on-shows .view-switch-btn,
-body.on-downloads .view-switch-btn {
-  background: transparent !important;
-  color: var(--ink-muted, var(--ink-soft)) !important;
-  border-color: var(--rule) !important;
-}
-body.on-shows .feed-scope-btn.is-active,
-body.on-downloads .feed-scope-btn.is-active {
-  background: transparent !important;
-  color: var(--ink-muted, var(--ink-soft)) !important;
-}
-body.on-shows .grid-cols-btn.is-active,
-body.on-downloads .grid-cols-btn.is-active {
-  background: var(--paper-2) !important;
-  color: var(--ink-muted, var(--ink-soft)) !important;
-  border-color: var(--rule) !important;
-}
 
 /* Spacing between switcher-bar and the page content below.
    .feed-timeline (used on home + archive + post-list pages) gets a top

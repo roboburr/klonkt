@@ -2,13 +2,21 @@
     Mounted in shell.ejs once, visible on every non-admin page. Click
     handlers are wired in shell.ejs via event-delegation on document so
     HTMX-swapped content keeps working without rebinding. %>
+<%
+  var _bc = (typeof bodyClass === 'string') ? bodyClass : '';
+  var _onShows = _bc.indexOf('on-shows') >= 0;
+  // Pagina's zonder actieve feed-weergave → niets in de pill is 'actief' (Solo/Cirkel
+  // + Tijdlijn/Grid grijs). Alleen Agenda krijgt z'n eigen is-active op de agenda.
+  var _neutral = ['on-shows','on-downloads','on-post','on-epk','on-linkbio','on-newsletter','on-archive']
+                   .some(function(c){ return _bc.indexOf(c) >= 0; });
+%>
 <div class="view-switcher-wrap">
   <div class="container">
     <% if (typeof premiumUnlocked !== 'undefined' && premiumUnlocked && typeof agendaEnabled !== 'undefined' && agendaEnabled) {
          var _sbA = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '';
     %>
     <div class="agenda-pill">
-      <a class="vs-agenda" href="<%= _sbA %>/shows" aria-label="Agenda — evenementen">
+      <a class="vs-agenda<%= _onShows ? ' is-active' : '' %>" href="<%= _sbA %>/shows" aria-label="Agenda — evenementen">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
         <span>Agenda</span>
       </a>
@@ -19,10 +27,10 @@
          var _sb = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '';
     %>
     <div class="feed-scope" role="tablist" aria-label="Solo of cirkel">
-      <a class="feed-scope-btn<%= _onCirkel ? '' : ' is-active' %>" href="<%= _sb %>/"
-         role="tab" aria-selected="<%= _onCirkel ? 'false' : 'true' %>">Solo</a>
-      <a class="feed-scope-btn<%= _onCirkel ? ' is-active' : '' %>" href="<%= _sb %>/cirkel"
-         role="tab" aria-selected="<%= _onCirkel ? 'true' : 'false' %>">Cirkel</a>
+      <a class="feed-scope-btn<%= (!_neutral && !_onCirkel) ? ' is-active' : '' %>" href="<%= _sb %>/"
+         role="tab" aria-selected="<%= (!_neutral && !_onCirkel) ? 'true' : 'false' %>">Solo</a>
+      <a class="feed-scope-btn<%= (!_neutral && _onCirkel) ? ' is-active' : '' %>" href="<%= _sb %>/cirkel"
+         role="tab" aria-selected="<%= (!_neutral && _onCirkel) ? 'true' : 'false' %>">Cirkel</a>
     </div>
     <% } %>
     <div class="view-switcher" role="tablist" aria-label="Weergave">
@@ -37,10 +45,12 @@
         <span>Grid</span>
       </button>
     </div>
+    <% if (!_neutral) { %>
     <div class="grid-cols-picker" aria-label="Aantal kolommen">
       <button type="button" class="grid-cols-btn" data-cols="2" title="2 kolommen">2</button>
       <button type="button" class="grid-cols-btn" data-cols="3" title="3 kolommen">3</button>
       <button type="button" class="grid-cols-btn" data-cols="4" title="4 kolommen">4</button>
     </div>
+    <% } %>
   </div>
 </div>
