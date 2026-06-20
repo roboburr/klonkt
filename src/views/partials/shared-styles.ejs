@@ -50,8 +50,6 @@
 }
 .vs-agenda:hover { color: var(--ink); }
 .vs-agenda.is-active { background: var(--paper); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.06); }
-/* Op de agendapagina is Agenda het actieve item → Tijdlijn/Grid grijs (inactief). */
-body.on-shows .view-switch-btn[aria-selected="true"] { background: transparent; color: var(--ink-muted, var(--ink-soft)); box-shadow: none; }
 
 .grid-cols-picker {
   display: none;     /* desktop-only, see media query */
@@ -91,7 +89,13 @@ body.on-post[data-feed-view="timeline"] .view-switch-btn[data-view="timeline"],
 body.on-post[data-feed-view="grid"] .view-switch-btn[data-view="grid"],
 body.on-post[data-grid-cols="2"] .grid-cols-btn[data-cols="2"],
 body.on-post[data-grid-cols="3"] .grid-cols-btn[data-cols="3"],
-body.on-post[data-grid-cols="4"] .grid-cols-btn[data-cols="4"] {
+body.on-post[data-grid-cols="4"] .grid-cols-btn[data-cols="4"],
+/* Op de agendapagina is Agenda het actieve item → Tijdlijn/Grid (+cols) grijs. */
+body.on-shows[data-feed-view="timeline"] .view-switch-btn[data-view="timeline"],
+body.on-shows[data-feed-view="grid"] .view-switch-btn[data-view="grid"],
+body.on-shows[data-grid-cols="2"] .grid-cols-btn[data-cols="2"],
+body.on-shows[data-grid-cols="3"] .grid-cols-btn[data-cols="3"],
+body.on-shows[data-grid-cols="4"] .grid-cols-btn[data-cols="4"] {
   background: transparent;
   color: var(--ink-muted, var(--ink-soft));
   border-color: var(--rule);
