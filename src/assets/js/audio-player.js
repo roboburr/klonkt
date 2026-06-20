@@ -923,6 +923,19 @@
       cover: opts.cover || '',
       postUrl: opts.postUrl || '',
     }], 0);
+    // Upgrade de cover async naar de scherpe maxresdefault (ook 16:9, geen balken)
+    // als die bestaat. Async → de user-gesture voor afspelen blijft intact; de
+    // direct gezette mqdefault toont al meteen een balkloze cover.
+    try {
+      const maxres = 'https://i.ytimg.com/vi/' + opts.id + '/maxresdefault.jpg';
+      const im = new Image();
+      im.onload = () => {
+        if (im.naturalWidth <= 120) return;  // 120x90 = YouTube-placeholder (geen maxres)
+        const t = queue[currentIndex];
+        if (t && t.yt === opts.id) { t.cover = maxres; setCoverImage(cover, maxres); setCoverImage(sheetCover, maxres); }
+      };
+      im.src = maxres;
+    } catch (e) {}
   }
 
   window.pcmsAudioPlayer = {

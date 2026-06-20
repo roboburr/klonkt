@@ -192,6 +192,10 @@
     const custom = (provider === 'youtube' || provider === 'soundcloud') && !audioOnly;
     const poster = provider === 'youtube'
       ? `https://i.ytimg.com/vi/${ytId(ref, url)}/hqdefault.jpg` : '';
+    // 16:9-thumbnail ZONDER zwarte balken (mqdefault) voor de vierkante cover —
+    // hqdefault is 4:3 met letterbox en vult een vierkant niet schoon.
+    const ytThumb = provider === 'youtube'
+      ? `https://i.ytimg.com/vi/${ytId(ref, url)}/mqdefault.jpg` : '';
 
     el.innerHTML = ''
       + (isVideo
@@ -228,9 +232,9 @@
     let vol = 100;       // huidige volume 0-100 (wordt op de adapter toegepast)
     let preMuteVol = 100;
     // Audio-only YouTube: zet de thumbnail als albumhoes op de audio-kaart.
-    if (audioOnly && poster) {
+    if (audioOnly && ytThumb) {
       const art0 = el.querySelector('.pcms-embed-art');
-      if (art0) { art0.style.backgroundImage = `url('${poster}')`; art0.classList.add('has-art'); }
+      if (art0) { art0.style.backgroundImage = `url('${ytThumb}')`; art0.classList.add('has-art'); }
     }
 
     function setPlayingUI(on) {
@@ -309,7 +313,7 @@
       // Audio-only YouTube → speel via de site-audiospeler (onderbalk): zichtbaar
       // én doorspelen bij navigeren. De inline-kaart is enkel de launcher.
       if (audioOnly && window.pcmsAudioPlayer && typeof window.pcmsAudioPlayer.playYouTube === 'function') {
-        window.pcmsAudioPlayer.playYouTube({ id: ytId(ref, url), cover: poster, postUrl: location.pathname + location.search });
+        window.pcmsAudioPlayer.playYouTube({ id: ytId(ref, url), cover: ytThumb, postUrl: location.pathname + location.search });
         el.classList.add('pcms-embed-elsewhere');
         return;
       }
