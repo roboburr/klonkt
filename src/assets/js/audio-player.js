@@ -981,8 +981,13 @@
     })), startIndex || 0);
   }
 
+  // Maak de verborgen YT-speler vast aan (zonder iets te spelen), zodat 'ie bij de
+  // eerste klik al klaar staat → loadVideoById valt dan binnen de user-gesture en
+  // YouTube's autoplay-policy blokkeert het niet.
+  function prewarmYouTube() { try { ensureYT(); } catch (e) {} }
+
   window.pcmsAudioPlayer = {
-    setQueue, play, pause, next, prev, close, openSheet, closeSheet, playYouTube, playYouTubeList,
+    setQueue, play, pause, next, prev, close, openSheet, closeSheet, playYouTube, playYouTubeList, prewarmYouTube,
     isPlaying: () => isPlaying,
     currentTrack: () => queue[currentIndex] || null,
   };

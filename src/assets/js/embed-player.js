@@ -242,6 +242,8 @@
     if (audioOnly && ytThumb) {
       const art0 = el.querySelector('.pcms-embed-art');
       if (art0) { art0.style.backgroundImage = `url('${ytThumb}')`; art0.classList.add('has-art'); }
+      // Speler vast aanmaken → eerste klik valt binnen de user-gesture (autoplay).
+      if (window.pcmsAudioPlayer && window.pcmsAudioPlayer.prewarmYouTube) window.pcmsAudioPlayer.prewarmYouTube();
       // Haal de echte titel op (server-proxy, want YT-oEmbed heeft geen CORS) en
       // toon 'm i.p.v. "YouTube".
       fetch('/audio/yt-title?url=' + encodeURIComponent(url))
@@ -444,6 +446,8 @@
     if (!ids.length) { olEl.innerHTML = '<li class="pcms-ytalbum-msg">Kon de afspeellijst niet laden.</li>'; return; }
     countEl.textContent = ids.length + ' track' + (ids.length === 1 ? '' : 's');
     if (coverImg) coverImg.src = thumb(ids[0]);
+    // Speler vast aanmaken → eerste klik valt binnen de user-gesture (autoplay).
+    if (window.pcmsAudioPlayer && window.pcmsAudioPlayer.prewarmYouTube) window.pcmsAudioPlayer.prewarmYouTube();
 
     olEl.innerHTML = ids.map((id, i) =>
       `<li class="post-album-track-compact" id="track-${id}" data-yt-id="${id}" data-yt-index="${i}">`
