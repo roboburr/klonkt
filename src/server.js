@@ -92,7 +92,8 @@ app.use(helmet({
         "https://www.youtube.com",   // YouTube IFrame Player API (+ www-widgetapi.js)
         "https://s.ytimg.com",       // YouTube player-assets
         "https://w.soundcloud.com",  // SoundCloud Widget API (api.js)
-        "https://open.spotify.com",  // Spotify iFrame API
+        "https://open.spotify.com",  // Spotify iFrame API (loader)
+        "https://*.spotifycdn.com",  // Spotify iFrame API (echte bundle: embed-cdn.spotifycdn.com)
       ],
       // Helmet's default zet script-src-attr op 'none', wat ALLE inline event-
       // handlers (onchange/onclick/onsubmit) blokkeert — daardoor deed o.a. de
@@ -102,7 +103,7 @@ app.use(helmet({
       scriptSrcAttr: ["'unsafe-inline'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "wss:", "ws:"],
+      connectSrc: ["'self'", "wss:", "ws:", "https://*.spotifycdn.com", "https://*.scdn.co"],
       // blob: is required for the audio player — it fetch()es track bytes and
       // plays from a blob: object URL (Spotify-style). Without blob: here the
       // CSP silently blocks <audio>.src = blob:… → the player fires 'error' and

@@ -100,7 +100,9 @@
         resolve(IFrameAPI);
       };
       loadScript('https://open.spotify.com/embed/iframe-api/v1').catch(reject);
-      setTimeout(() => reject(new Error('Spotify API timeout')), API_TIMEOUT);
+      // Korter dan API_TIMEOUT: Spotify's bundle initialiseert snel óf helemaal
+      // niet (CDN 503 / origin-gating). Niet 8s wachten vóór de iframe-fallback.
+      setTimeout(() => reject(new Error('Spotify API timeout')), 4000);
     });
     return scripts.sp;
   }
