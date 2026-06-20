@@ -60,6 +60,7 @@ import linkbioRoutes from './routes/linkbio.js';
 import embedRoutes from './routes/embed.js';
 import showsRoutes from './routes/shows.js';
 import adminShowsRoutes from './routes/admin-shows.js';
+import adminEpkRoutes from './routes/admin-epk.js';
 import changelogRoutes from './routes/changelog.js';
 
 if (!process.env.SESSION_SECRET) {
@@ -264,6 +265,7 @@ app.use('/admin/patreon', adminPatreonRoutes);
 app.use('/admin/stats', adminStatsRoutes);
 app.use('/admin/newsletter', adminNewsletterRoutes);
 app.use('/admin/shows', adminShowsRoutes);
+app.use('/admin/epk', adminEpkRoutes);
 app.use('/admin', adminRoutes);
 app.use('/prutter', prutterRoutes);
 app.use('/audio', audioRoutes);

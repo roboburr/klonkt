@@ -33,7 +33,7 @@
     <% if (typeof premiumUnlocked === 'undefined' || premiumUnlocked) { %>
       <a href="/admin/stats" class="btn">📊 Statistieken</a>
       <a href="/admin/newsletter" class="btn">✉️ Nieuwsbrief</a>
-      <% if (tenancy !== 'hub' && primarySite) { %><a href="/pers" class="btn" target="_blank">📰 Perskit</a><% } %>
+      <% if (tenancy !== 'hub' && primarySite) { %><a href="/admin/epk" class="btn">📰 Perskit bewerken</a> <a href="/pers" class="btn" target="_blank">👁 Bekijk perskit</a><% } %>
       <% if (tenancy !== 'hub' && primarySite) { %><a href="/downloads" class="btn" target="_blank">⬇ Downloads</a><% } %>
       <% if (tenancy !== 'hub' && primarySite) { %><a href="/links" class="btn" target="_blank">🔗 Link-in-bio</a><% } %>
       <a href="/admin/shows" class="btn">📅 Agenda</a>

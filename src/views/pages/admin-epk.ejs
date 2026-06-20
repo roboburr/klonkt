@@ -1,0 +1,31 @@
+<div class="container admin-page">
+  <h1>Perskit bewerken</h1>
+  <p><a href="/admin" class="btn">&larr; Beheer</a> <a href="/pers" class="btn" target="_blank" rel="noopener">📰 Bekijk perskit</a></p>
+
+  <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
+
+  <section class="set-card">
+    <h2>Tekst</h2>
+    <p class="set-help">
+      De perskit (<code>/pers</code>) toont je sitenaam + foto, deze bio en contact,
+      plus automatisch je meest beluisterde nummers en recente posts. Laat de bio
+      leeg om de site-tagline te gebruiken; laat contact leeg om niets te tonen
+      (je login-mail wordt nooit automatisch getoond).
+    </p>
+
+    <form method="post" action="/admin/epk" class="set-form">
+      <label class="set-field">
+        <span>Pers-bio</span>
+        <textarea name="epk_bio" rows="5" maxlength="1000"
+                  placeholder="Korte beschrijving van jou/het project voor pers &amp; boekers."><%= epkBio %></textarea>
+      </label>
+      <label class="set-field">
+        <span>Pers-contact</span>
+        <input type="text" name="epk_contact" maxlength="300"
+               placeholder="bv. pers@jouwdomein.nl of een boekingslink"
+               value="<%= epkContact %>">
+      </label>
+      <button type="submit" class="btn btn-primary">Opslaan</button>
+    </form>
+  </section>
+</div>
