@@ -2537,11 +2537,12 @@ body[data-grid-cols="4"] .grid-cols-btn[data-cols="4"] {
     }
 }
 
-/* Kolom-overrides op desktop. Mobiel negeert dit (staat vast op 2). */
+/* Kolom-overrides op desktop. Mobiel negeert dit (staat vast op 2). Geldt op ELKE
+   feed met grid (home én cirkel/tag/type/user) — scope op .feed-grid .grid-tiles. */
 @media (min-width: 600px) {
-    body.on-home[data-grid-cols="2"] .grid-tiles { grid-template-columns: repeat(2, 1fr); }
-    body.on-home[data-grid-cols="3"] .grid-tiles { grid-template-columns: repeat(3, 1fr); }
-    body.on-home[data-grid-cols="4"] .grid-tiles { grid-template-columns: repeat(4, 1fr); }
+    body[data-grid-cols="2"] .feed-grid .grid-tiles { grid-template-columns: repeat(2, 1fr); }
+    body[data-grid-cols="3"] .feed-grid .grid-tiles { grid-template-columns: repeat(3, 1fr); }
+    body[data-grid-cols="4"] .feed-grid .grid-tiles { grid-template-columns: repeat(4, 1fr); }
 }
 
 /* Gradient-tile: iets meer contrast voor light + dark mode zodat titel altijd leesbaar is */
