@@ -37,8 +37,9 @@
 .view-switch-btn:hover { color: var(--ink); }
 .view-switch-btn[aria-selected="true"] { background: var(--paper); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.06); }
 
-/* Agenda-link (evenementen) als eerste item IN de Tijdlijn/Grid-pill —
-   exact dezelfde maatvoering als .view-switch-btn, maar het is een nav-link. */
+/* Agenda = een EIGEN pill (los van Tijdlijn/Grid, zodat de feed-toggle nooit
+   verstoord raakt). Zelfde look als de view-switcher-pill. Zichtbaar in alle modi. */
+.agenda-pill { display: inline-flex; background: var(--paper-2); border: 1px solid var(--rule); border-radius: 999px; padding: 0.15rem; }
 .vs-agenda {
   display: inline-flex; align-items: center; gap: 0.35rem;
   padding: 0.35rem 0.85rem;
@@ -49,9 +50,8 @@
   transition: background 120ms, color 120ms;
 }
 .vs-agenda:hover { color: var(--ink); }
-/* Agenda actief op de agendapagina = wit pilletje (zelfde look als de andere
-   actieve pill-knoppen: lichte achtergrond, donkere tekst). */
-.vs-agenda.is-active { background: var(--ink); color: var(--paper); }
+/* Op de agendapagina = wit pilletje (zelfde actieve look als Tijdlijn/Grid). */
+body.on-shows .vs-agenda { background: var(--ink); color: var(--paper); }
 
 .grid-cols-picker {
   display: none;     /* desktop-only, see media query */
@@ -91,28 +91,10 @@ body.on-post[data-feed-view="timeline"] .view-switch-btn[data-view="timeline"],
 body.on-post[data-feed-view="grid"] .view-switch-btn[data-view="grid"],
 body.on-post[data-grid-cols="2"] .grid-cols-btn[data-cols="2"],
 body.on-post[data-grid-cols="3"] .grid-cols-btn[data-cols="3"],
-body.on-post[data-grid-cols="4"] .grid-cols-btn[data-cols="4"],
-/* Op de agenda- én downloads-pagina is er geen actieve feed-weergave → Tijdlijn/
-   Grid (+cols) grijs. (Agenda blijft via .vs-agenda.is-active wél gemarkeerd.) */
-body.on-shows[data-feed-view="timeline"] .view-switch-btn[data-view="timeline"],
-body.on-shows[data-feed-view="grid"] .view-switch-btn[data-view="grid"],
-body.on-shows[data-grid-cols="2"] .grid-cols-btn[data-cols="2"],
-body.on-shows[data-grid-cols="3"] .grid-cols-btn[data-cols="3"],
-body.on-shows[data-grid-cols="4"] .grid-cols-btn[data-cols="4"],
-body.on-downloads[data-feed-view="timeline"] .view-switch-btn[data-view="timeline"],
-body.on-downloads[data-feed-view="grid"] .view-switch-btn[data-view="grid"],
-body.on-downloads[data-grid-cols="2"] .grid-cols-btn[data-cols="2"],
-body.on-downloads[data-grid-cols="3"] .grid-cols-btn[data-cols="3"],
-body.on-downloads[data-grid-cols="4"] .grid-cols-btn[data-cols="4"] {
+body.on-post[data-grid-cols="4"] .grid-cols-btn[data-cols="4"] {
   background: transparent;
   color: var(--ink-muted, var(--ink-soft));
   border-color: var(--rule);
-}
-/* Solo/Cirkel ook neutraal op agenda/downloads (base-regel gebruikt !important). */
-body.on-shows .view-switcher-wrap .feed-scope-btn.is-active,
-body.on-downloads .view-switcher-wrap .feed-scope-btn.is-active {
-  background: transparent !important;
-  color: var(--ink-muted, var(--ink-soft)) !important;
 }
 
 /* Spacing between switcher-bar and the page content below.
