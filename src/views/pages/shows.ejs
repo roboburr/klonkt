@@ -30,6 +30,7 @@
     </ul>
   <% } %>
 
+  <% if (!(typeof footerNewsletter !== 'undefined' && footerNewsletter)) { %>
   <div class="sh-notify">
     <h2 class="sh-h2">Mis geen evenement</h2>
     <p class="sh-sub">Laat je e-mail achter en je krijgt een seintje bij een nieuw evenement. Uitschrijven kan altijd.</p>
@@ -38,6 +39,7 @@
       <button type="submit" class="sh-btn">Houd me op de hoogte</button>
     </form>
   </div>
+  <% } %>
 </section>
 
 <style>

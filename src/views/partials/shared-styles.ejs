@@ -39,19 +39,18 @@
 
 /* Agenda = een EIGEN pill (los van Tijdlijn/Grid, zodat de feed-toggle nooit
    verstoord raakt). Zelfde look als de view-switcher-pill. Zichtbaar in alle modi. */
-.agenda-pill { display: inline-flex; background: var(--paper-2); border: 1px solid var(--rule); border-radius: 999px; padding: 0.15rem; }
+.agenda-pill { display: inline-flex; align-items: center; }   /* geen box — losse icoon+tekst link */
 .vs-agenda {
-  display: inline-flex; align-items: center; gap: 0.35rem;
-  padding: 0.35rem 0.85rem;
-  border-radius: 999px;
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.35rem 0.5rem;
   color: var(--ink-muted, var(--ink-soft));
   text-decoration: none;
-  font-size: 0.85rem; font-family: inherit;
-  transition: background 120ms, color 120ms;
+  font-size: 0.9rem; font-family: inherit;
+  transition: color 120ms;
 }
 .vs-agenda:hover { color: var(--ink); }
-/* Op de agendapagina = wit pilletje (zelfde actieve look als Tijdlijn/Grid). */
-body.on-shows .vs-agenda { background: var(--ink); color: var(--paper); }
+/* Op de agendapagina = helder/wit (geen pilletje, past bij de losse-link-look). */
+body.on-shows .vs-agenda { color: var(--ink); font-weight: 600; }
 
 .grid-cols-picker {
   display: none;     /* desktop-only, see media query */
@@ -95,6 +94,28 @@ body.on-post[data-grid-cols="4"] .grid-cols-btn[data-cols="4"] {
   background: transparent;
   color: var(--ink-muted, var(--ink-soft));
   border-color: var(--rule);
+}
+
+/* Op de agenda- én downloads-pagina is ALLES behalve de Agenda-pill neutraal/grijs
+   (je bent daar niet in een feed-weergave). !important + body.on-X (betrouwbaar
+   gezet/gestript via PAGE_CLASSES) → overrult de feed-active-regel ZONDER naar de
+   feed te lekken (de selector matcht alleen op die pagina's). */
+body.on-shows .view-switch-btn,
+body.on-downloads .view-switch-btn {
+  background: transparent !important;
+  color: var(--ink-muted, var(--ink-soft)) !important;
+  border-color: var(--rule) !important;
+}
+body.on-shows .feed-scope-btn.is-active,
+body.on-downloads .feed-scope-btn.is-active {
+  background: transparent !important;
+  color: var(--ink-muted, var(--ink-soft)) !important;
+}
+body.on-shows .grid-cols-btn.is-active,
+body.on-downloads .grid-cols-btn.is-active {
+  background: var(--paper-2) !important;
+  color: var(--ink-muted, var(--ink-soft)) !important;
+  border-color: var(--rule) !important;
 }
 
 /* Spacing between switcher-bar and the page content below.
