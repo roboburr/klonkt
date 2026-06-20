@@ -967,8 +967,22 @@
     } catch (e) {}
   }
 
+  // Speel een YouTube-AFSPEELLIJST af door 'm te expanderen naar onze eigen queue
+  // van losse YouTube-tracks (elk via loadVideoById = bewezen betrouwbaar; next/
+  // prev/ended lopen via onze queue). items = [{yt,title,cover,postUrl}, …].
+  function playYouTubeList(items, startIndex) {
+    if (!Array.isArray(items) || !items.length) return;
+    setQueue(items.map((it) => ({
+      yt: it.yt,
+      title: it.title || 'YouTube',
+      artist: it.artist || '',
+      cover: it.cover || '',
+      postUrl: it.postUrl || '',
+    })), startIndex || 0);
+  }
+
   window.pcmsAudioPlayer = {
-    setQueue, play, pause, next, prev, close, openSheet, closeSheet, playYouTube,
+    setQueue, play, pause, next, prev, close, openSheet, closeSheet, playYouTube, playYouTubeList,
     isPlaying: () => isPlaying,
     currentTrack: () => queue[currentIndex] || null,
   };

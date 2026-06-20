@@ -463,9 +463,15 @@
     });
 
     function playAt(i) {
-      if (!(window.pcmsAudioPlayer && window.pcmsAudioPlayer.playYouTube)) return;
-      const tt = (olEl.querySelector(`[data-yt-index="${i}"] .pat-title`) || {}).textContent || '';
-      window.pcmsAudioPlayer.playYouTube({ list: listId, index: i, title: tt, cover: thumb(ids[i]), postUrl: location.pathname + location.search });
+      if (!(window.pcmsAudioPlayer && window.pcmsAudioPlayer.playYouTubeList)) return;
+      // Expandeer naar losse YT-tracks (betrouwbaarder dan loadPlaylist).
+      const items = ids.map((id, j) => ({
+        yt: id,
+        title: (olEl.querySelector(`[data-yt-index="${j}"] .pat-title`) || {}).textContent || ('Track ' + (j + 1)),
+        cover: thumb(id),
+        postUrl: location.pathname + location.search,
+      }));
+      window.pcmsAudioPlayer.playYouTubeList(items, i);
     }
     coverBtn.addEventListener('click', () => playAt(0));
     olEl.addEventListener('click', (e) => { const li = e.target.closest('[data-yt-index]'); if (li) playAt(parseInt(li.dataset.ytIndex, 10) || 0); });
