@@ -47,7 +47,7 @@ router.get('/', requireGod, (req, res) => {
   });
 });
 
-router.post('/add', requireGod, (req, res) => {
+router.post('/add', requireGod, async (req, res) => {
   const site = primarySite();
   if (!site) return res.redirect('/admin/circle?error=' + encodeURIComponent('Geen site gevonden'));
   const url = (req.body.remote_url || '').toString().trim().replace(/\/+$/, '');
@@ -55,13 +55,21 @@ router.post('/add', requireGod, (req, res) => {
     return res.redirect('/admin/circle?error=' + encodeURIComponent('Voer een geldige https-URL in'));
   }
   const label = (req.body.label || '').toString().slice(0, 80).trim() || null;
+  const id = crypto.randomUUID();
   try {
     db.prepare("INSERT INTO circle_links (id, local_site_id, remote_url, label, status) VALUES (?, ?, ?, ?, 'active')")
-      .run(crypto.randomUUID(), site.id, url, label);
+      .run(id, site.id, url, label);
   } catch (e) {
     return res.redirect('/admin/circle?error=' + encodeURIComponent('Deze site staat al in je cirkel'));
   }
-  res.redirect('/admin/circle?success=' + encodeURIComponent('Toegevoegd — klik "Verversen" om op te halen'));
+  // Meteen ophalen i.p.v. wachten op de 15-min-loop.
+  try {
+    const link = db.prepare('SELECT * FROM circle_links WHERE id = ?').get(id);
+    await syncOne(link);
+    return res.redirect('/admin/circle?success=' + encodeURIComponent('Toegevoegd en gesynchroniseerd ✓'));
+  } catch (e) {
+    return res.redirect('/admin/circle?success=' + encodeURIComponent('Toegevoegd — synchroniseren mislukte (klik "Verversen" om opnieuw te proberen)'));
+  }
 });
 
 router.post('/:id/remove', requireGod, (req, res) => {
