@@ -20,8 +20,10 @@ var hubLanding = (typeof bodyClass === 'string' && bodyClass.indexOf('on-hub') >
    || ((typeof tenancy !== 'undefined' && tenancy === 'hub') && !siteUrlBase && !_isAdmin);
 // Zelfstandige premium-feature-pagina's hebben hun eigen kop → geen profielkop/
 // switcher, wél de topnav (Robin 2026-06-18: "bovenste weg, behoud de nav").
+// NB: on-shows (agenda) hoort hier NIET bij — daar willen we de volledige chrome
+// (profielkop + de Tijdlijn/Grid-pill met Agenda actief) juist BEHOUDEN.
 var _featurePage = typeof bodyClass === 'string' &&
-  ['on-epk', 'on-download', 'on-linkbio', 'on-shows', 'on-newsletter'].some(function (c) { return bodyClass.indexOf(c) >= 0; });
+  ['on-epk', 'on-download', 'on-linkbio', 'on-newsletter'].some(function (c) { return bodyClass.indexOf(c) >= 0; });
 var _headerless = hubLanding || _isChat || _featurePage;
 %>
 <div id="pcms-chrome"<% if (typeof oob !== 'undefined' && oob) { %> hx-swap-oob="true"<% } %>>
