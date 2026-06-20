@@ -550,9 +550,9 @@ a.pagination-item.is-pinned:hover {
 .post-cover img {
     display: block;
     width: 100%;
-    height: auto;
-    max-height: 50vh;
-    object-fit: cover;
+    height: auto;        /* volledige (niet-bijgesneden) hoogte */
+    /* geen max-height/object-fit: cover meer → de hele afbeelding toont,
+       volle containerbreedte, zijkanten gerespecteerd. */
 }
 .post-title { font-size: clamp(1.6rem, 4vw, 2.6rem); line-height: 1.15; margin: 0 0 .5rem; letter-spacing: -.02em; }
 
