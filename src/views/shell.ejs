@@ -327,7 +327,9 @@ if (typeof post !== 'undefined' && post && post.slug) {
   // De page-context body-classes. Bij pcmsNav strippen we ze allemaal en zetten
   // we opnieuw wat de server stuurde. 'on-auth' staat erbij zodat het login-
   // focusscherm óók via htmx z'n styling krijgt (geen chrome, geen tab, audio op 0).
-  var PAGE_CLASSES = ['on-home','on-post','on-special','on-archive','on-search','on-admin','on-auth'];
+  var PAGE_CLASSES = ['on-home','on-post','on-special','on-archive','on-search','on-admin','on-auth',
+    'on-shows','on-downloads','on-download','on-epk','on-linkbio','on-newsletter',
+    'on-tag','on-type','on-user','on-cirkel','on-hub','on-chat'];
 
   document.body.addEventListener('pcmsNav', function(ev) {
     var d = ev.detail || {};
