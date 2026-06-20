@@ -84,6 +84,9 @@
   .auth-notice-list { margin: 0; padding-left: 18px; line-height: 1.6; }
   .auth-notice-list li { margin: 4px 0; }
   .auth-sub { color: var(--ink-muted); margin: 0 0 1rem; text-align: center; }
+  /* Google-knop is wit → tekst altijd donker houden, ook op hover (de globale
+     a.btn:hover-regel maakt 'm anders bijna-wit op wit = onleesbaar). */
+  a.btn-google, a.btn-google:hover { color: #1f1f1f; }
   .auth-admin-box {
     display: flex; align-items: center; gap: .75rem;
     margin-top: 1.25rem; padding: .8rem 1rem;
