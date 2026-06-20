@@ -396,8 +396,12 @@ if (typeof post !== 'undefined' && post && post.slug) {
     });
   }
   syncAria();
-  // Re-sync after HTMX brings in new content (e.g. navigating back to home)
-  document.body.addEventListener('htmx:afterSettle', syncAria);
+  // Re-sync after HTMX brings in new content (e.g. navigating back to home).
+  // pcmsNav vuurt ná de body-class-update (zie de pcmsNav-listener hierboven), dus
+  // dáár weet syncAria de juiste pagina-class — los van de afterSettle-timing.
+  // Een vertraagde herhaling wint eventuele resterende races (OOB-chrome-swap).
+  document.body.addEventListener('htmx:afterSettle', function(){ syncAria(); setTimeout(syncAria, 60); });
+  document.body.addEventListener('pcmsNav', function(){ syncAria(); setTimeout(syncAria, 60); });
 
   // Pages where the body actually has a feed to toggle. On these the
   // click stays put — it just flips body[data-feed-view] and CSS does
