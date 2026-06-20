@@ -10,7 +10,31 @@
  * </figure>
  */
 
+// "Open in"-iconen (brand-gekleurd via CSS .pat-link--*).
+const OPEN_IN_SVG = {
+  spotify: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm4.6 14.42a.62.62 0 01-.86.21c-2.35-1.44-5.3-1.76-8.79-.96a.62.62 0 11-.28-1.21c3.8-.87 7.07-.5 9.71 1.11.3.18.39.57.22.85zm1.23-2.73a.78.78 0 01-1.07.26c-2.69-1.66-6.79-2.14-9.97-1.17a.78.78 0 11-.45-1.49c3.63-1.1 8.15-.56 11.24 1.33.36.22.48.7.25 1.07zm.1-2.85C14.66 8.95 9.4 8.78 6.3 9.72a.93.93 0 11-.54-1.79c3.56-1.08 9.37-.87 13.07 1.33a.94.94 0 01-.96 1.61z"/></svg>',
+  youtube: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M23 7.1a3 3 0 00-2.1-2.12C19.04 4.5 12 4.5 12 4.5s-7.04 0-8.9.48A3 3 0 001 7.1 31.2 31.2 0 00.5 12 31.2 31.2 0 001 16.9a3 3 0 002.1 2.12c1.86.48 8.9.48 8.9.48s7.04 0 8.9-.48A3 3 0 0023 16.9 31.2 31.2 0 0023.5 12 31.2 31.2 0 0023 7.1zM9.75 15.5v-7l6 3.5-6 3.5z"/></svg>',
+  soundcloud: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 14v4M7.5 11v7M11 9v9"/><path d="M14.5 9.5V18h4a3 3 0 100-6 4 4 0 00-4-2.5z"/></svg>',
+};
+
 class AudioEmbedService {
+  // Kleine "open in"-links voor een track (Spotify/YouTube/SoundCloud). De hrefs
+  // zijn server-side al gevalideerd (alleen https + juiste host). Geeft '' als er
+  // geen links zijn. Wordt naast de play-knop gezet (buiten de knop → geen
+  // conflict met afspelen).
+  static openInLinks(t) {
+    if (!t) return '';
+    const out = [];
+    const add = (url, key, label) => {
+      if (!url) return;
+      out.push(`<a class="pat-link pat-link--${key}" href="${this.escape(url)}" target="_blank" rel="noopener noreferrer" title="Open in ${label}" aria-label="Open in ${label}">${OPEN_IN_SVG[key]}</a>`);
+    };
+    add(t.link_spotify, 'spotify', 'Spotify');
+    add(t.link_youtube, 'youtube', 'YouTube');
+    add(t.link_soundcloud, 'soundcloud', 'SoundCloud');
+    return out.length ? `<span class="pat-links">${out.join('')}</span>` : '';
+  }
+
   static detectProvider(url) {
     if (!url || typeof url !== 'string') return null;
     url = url.trim();
@@ -272,6 +296,7 @@ class AudioEmbedService {
     ${artistH ? `<div class="pat-artist">${artistH}</div>` : ''}
     ${creditBits ? `<div class="pat-credit">${creditBits}</div>` : ''}
   </div>
+  ${this.openInLinks(t)}
 </div>`;
     });
   }
@@ -311,6 +336,7 @@ class AudioEmbedService {
         <div class="pat-title">${tTitle}</div>
         ${tArtist && tArtist !== artistH ? `<div class="pat-artist">${tArtist}</div>` : ''}
       </div>
+      ${this.openInLinks(t)}
     </li>`;
       }).join('\n');
 
@@ -432,6 +458,7 @@ ${trackItems}
         </span>
         ${durHtml}
       </button>
+      ${this.openInLinks(t)}
     </li>`;
       }).join('\n');
 

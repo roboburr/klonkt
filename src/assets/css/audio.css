@@ -82,6 +82,29 @@
   text-overflow: ellipsis;
 }
 
+/* "Open in" Spotify/YouTube/SoundCloud — kleine brand-iconen per track. */
+.pat-links {
+  display: inline-flex; align-items: center; gap: 0.1rem;
+  flex: 0 0 auto;
+}
+/* Single + album-rij (.post-audio-track is flex) → duw de links naar rechts. */
+.post-audio-track .pat-links { margin-left: auto; padding-right: 0.5rem; }
+/* Playlist-rij: de li flex maken zodat de links naast de afspeel-rij passen. */
+.post-album-track-compact { display: flex; align-items: center; }
+.post-album-track-compact .pat-row { flex: 1 1 auto; min-width: 0; }
+.post-album-track-compact .pat-links { padding-right: 0.6rem; }
+.pat-link {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px;
+  opacity: 0.75;
+  transition: opacity 120ms, transform 120ms;
+}
+.pat-link svg { width: 17px; height: 17px; }
+.pat-link:hover { opacity: 1; transform: scale(1.12); }
+.pat-link--spotify    { color: #1DB954; }
+.pat-link--youtube    { color: #FF0000; }
+.pat-link--soundcloud { color: #FF5500; }
+
 /* ============================================================
    Mini player (bottom strip) — v9 style
    ============================================================ */

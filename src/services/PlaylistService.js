@@ -93,7 +93,8 @@ class PlaylistService {
     // Pull tracks via junction, in order. LEFT JOIN media so we can resolve
     // filenames (only tracks with a media file are playable).
     const tracks = db.prepare(`
-      SELECT t.id, t.title, t.artist, t.duration, t.cover_url, m.filename
+      SELECT t.id, t.title, t.artist, t.duration, t.cover_url,
+             t.link_spotify, t.link_youtube, t.link_soundcloud, m.filename
       FROM playlist_tracks pt
       JOIN audio_tracks t   ON t.id = pt.track_id
       LEFT JOIN media m     ON m.id = t.media_id
@@ -109,6 +110,9 @@ class PlaylistService {
         artist: t.artist || p.artist || '',
         cover: t.cover_url || p.cover_url || '',
         duration: t.duration || 0,
+        link_spotify: t.link_spotify || '',
+        link_youtube: t.link_youtube || '',
+        link_soundcloud: t.link_soundcloud || '',
         url: urlFor ? urlFor(t.filename) : null,
       }));
     // Geen eigen cover? Val terug op de eerste track-cover, zodat de kaart niet leeg is.

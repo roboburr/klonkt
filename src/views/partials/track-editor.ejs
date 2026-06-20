@@ -429,6 +429,16 @@ body.te-modal-open { overflow: hidden; }
             </div>
 
             <div class="te-field">
+              <span>Open in <small>(links naar dezelfde track elders)</small></span>
+              <input type="url" id="te-link-spotify" inputmode="url" autocomplete="off" spellcheck="false"
+                     placeholder="Spotify-URL (https://open.spotify.com/…)" value="${esc(track.link_spotify || '')}">
+              <input type="url" id="te-link-youtube" inputmode="url" autocomplete="off" spellcheck="false"
+                     placeholder="YouTube-URL (https://youtu.be/…)" value="${esc(track.link_youtube || '')}">
+              <input type="url" id="te-link-soundcloud" inputmode="url" autocomplete="off" spellcheck="false"
+                     placeholder="SoundCloud-URL (https://soundcloud.com/…)" value="${esc(track.link_soundcloud || '')}">
+            </div>
+
+            <div class="te-field">
               <span>Cover</span>
               <div class="te-cover-row">
                 <div class="te-cover-thumb" id="te-cover-thumb" tabindex="0" role="button"
@@ -663,6 +673,9 @@ body.te-modal-open { overflow: hidden; }
           album:  $('#te-album').value.trim() || null,
           credit:  $('#te-credit').value.trim() || null,
           license: $('#te-license').value.trim() || null,
+          link_spotify:    $('#te-link-spotify').value.trim() || null,
+          link_youtube:    $('#te-link-youtube').value.trim() || null,
+          link_soundcloud: $('#te-link-soundcloud').value.trim() || null,
           duration: $('#te-duration').value ? Number($('#te-duration').value) : null,
           cover_url: urlInput.value.trim() || null,
         });

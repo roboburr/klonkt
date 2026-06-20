@@ -72,6 +72,23 @@ const upload = multer({
 
 const router = express.Router();
 
+// "Open in"-platformlinks per track: alleen https + de juiste host accepteren
+// (href komt ongeescaped in de view → scheme/host-guard tegen misbruik).
+const LINK_DOMAINS = {
+  spotify: ['spotify.com'],
+  youtube: ['youtube.com', 'youtu.be', 'music.youtube.com'],
+  soundcloud: ['soundcloud.com'],
+};
+function platformLink(url, domains) {
+  const u = String(url || '').trim();
+  if (!u || !/^https:\/\//i.test(u)) return null;
+  try {
+    const h = new URL(u).hostname.toLowerCase();
+    if (domains.some((d) => h === d || h.endsWith('.' + d))) return u;
+  } catch (e) { /* ongeldige URL */ }
+  return null;
+}
+
 router.get('/', requireGod, (req, res) => {
   const site = res.locals.site;
   if (!site) return res.status(404).send('Site required');
@@ -171,6 +188,9 @@ router.post('/upload', requireGod, (req, res) => {
     // DB in als de ID3-tags van de mp3 (copyright + comment).
     const finalCredit  = (req.body.credit  || '').trim() || finalArtist || null;
     const finalLicense = (req.body.license || '').trim() || null;
+    const finalLinkSpotify    = platformLink(req.body.link_spotify, LINK_DOMAINS.spotify);
+    const finalLinkYoutube    = platformLink(req.body.link_youtube, LINK_DOMAINS.youtube);
+    const finalLinkSoundcloud = platformLink(req.body.link_soundcloud, LINK_DOMAINS.soundcloud);
 
     console.log('[admin-audio] upload received:', {
       original: audioFile.originalname,
@@ -221,8 +241,8 @@ router.post('/upload', requireGod, (req, res) => {
 
       console.log('[admin-audio] inserting audio_tracks row (duration=' + finalDuration + ')');
       db.prepare(`
-        INSERT INTO audio_tracks (id, site_id, title, artist, album, duration, cover_url, credit, license, media_id, position)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(
+        INSERT INTO audio_tracks (id, site_id, title, artist, album, duration, cover_url, credit, license, link_spotify, link_youtube, link_soundcloud, media_id, position)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(
           (SELECT MAX(position) + 1 FROM audio_tracks WHERE site_id = ?),
           0
         ))
@@ -232,6 +252,7 @@ router.post('/upload', requireGod, (req, res) => {
         finalDuration,
         coverUrl,
         finalCredit, finalLicense,
+        finalLinkSpotify, finalLinkYoutube, finalLinkSoundcloud,
         mediaId, site.id
       );
       console.log('[admin-audio] DB inserts OK — track', trackId);
@@ -377,7 +398,8 @@ router.get('/api/:id', requireGod, (req, res) => {
   if (!site) return res.status(404).json({ error: 'Site required' });
   const t = db.prepare(`
     SELECT t.id, t.title, t.artist, t.album, t.duration, t.cover_url,
-           t.credit, t.license, t.position, t.created_at, m.filename
+           t.credit, t.license, t.link_spotify, t.link_youtube, t.link_soundcloud,
+           t.position, t.created_at, m.filename
     FROM audio_tracks t LEFT JOIN media m ON m.id = t.media_id
     WHERE t.id = ? AND t.site_id = ?
   `).get(req.params.id, site.id);
@@ -444,6 +466,15 @@ router.post('/api/:id', requireGod, express.json(), async (req, res) => {
   }
   if (Object.prototype.hasOwnProperty.call(body, 'license')) {
     fields.push('license = ?'); values.push(String(body.license || '').trim() || null);
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'link_spotify')) {
+    fields.push('link_spotify = ?'); values.push(platformLink(body.link_spotify, LINK_DOMAINS.spotify));
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'link_youtube')) {
+    fields.push('link_youtube = ?'); values.push(platformLink(body.link_youtube, LINK_DOMAINS.youtube));
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'link_soundcloud')) {
+    fields.push('link_soundcloud = ?'); values.push(platformLink(body.link_soundcloud, LINK_DOMAINS.soundcloud));
   }
 
   if (fields.length === 0) {

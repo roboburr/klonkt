@@ -528,7 +528,8 @@ router.get('/:slug', (req, res, next) => {
     if (trackIds.length) {
       const placeholders = trackIds.map(() => '?').join(',');
       const rows = db.prepare(`
-        SELECT t.id, t.title, t.artist, t.cover_url, t.credit, t.license, m.filename
+        SELECT t.id, t.title, t.artist, t.cover_url, t.credit, t.license,
+               t.link_spotify, t.link_youtube, t.link_soundcloud, m.filename
         FROM audio_tracks t LEFT JOIN media m ON m.id = t.media_id
         WHERE t.site_id = ? AND t.id IN (${placeholders})
       `).all(site.id, ...trackIds);
@@ -543,6 +544,9 @@ router.get('/:slug', (req, res, next) => {
           cover: r.cover_url,
           credit: r.credit || '',
           license: r.license || '',
+          link_spotify: r.link_spotify || '',
+          link_youtube: r.link_youtube || '',
+          link_soundcloud: r.link_soundcloud || '',
           url: audioUrl(r.filename),
         };
       });
@@ -553,7 +557,8 @@ router.get('/:slug', (req, res, next) => {
     if (albumNames.length) {
       const placeholders = albumNames.map(() => '?').join(',');
       const albumRows = db.prepare(`
-        SELECT t.id, t.title, t.artist, t.album, t.cover_url, t.position, m.filename
+        SELECT t.id, t.title, t.artist, t.album, t.cover_url, t.position,
+               t.link_spotify, t.link_youtube, t.link_soundcloud, m.filename
         FROM audio_tracks t LEFT JOIN media m ON m.id = t.media_id
         WHERE t.site_id = ? AND t.album IN (${placeholders})
         ORDER BY t.position ASC, t.created_at ASC
@@ -568,6 +573,9 @@ router.get('/:slug', (req, res, next) => {
           title: r.title || 'Untitled',
           artist: r.artist || '',
           cover: r.cover_url || '',
+          link_spotify: r.link_spotify || '',
+          link_youtube: r.link_youtube || '',
+          link_soundcloud: r.link_soundcloud || '',
         });
       }
       html = AudioEmbedService.embedAlbumShortcodes(html, (name) => {
