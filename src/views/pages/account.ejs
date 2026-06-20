@@ -68,11 +68,15 @@
     <% if (canMutate) { %>
       <form action="/account/profile" method="post" class="ax-form ax-form-bio">
         <label class="ax-field">
+          <span>E-mailadres</span>
+          <input type="email" name="email" value="<%= account.email || '' %>" maxlength="254" autocomplete="email" placeholder="jij@email.nl">
+        </label>
+        <label class="ax-field">
           <span>Bio</span>
           <textarea name="bio" rows="3" maxlength="500" placeholder="Een korte regel over jezelf"><%= account.bio || '' %></textarea>
         </label>
         <div class="ax-form-actions">
-          <button type="submit" class="ax-btn ax-btn-primary">Bio opslaan</button>
+          <button type="submit" class="ax-btn ax-btn-primary">Opslaan</button>
         </div>
       </form>
     <% } else { %>

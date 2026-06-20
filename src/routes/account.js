@@ -107,9 +107,27 @@ router.post('/site', requireAuth, (req, res) => {
 // ==================== UPDATE BIO ====================
 router.post('/profile', requireAuth, (req, res) => {
   const bio = (req.body.bio || '').toString().slice(0, 500).trim();
+
+  // E-mail (optioneel mee te wijzigen). Validatie: geldig formaat + niet al door
+  // een ander account in gebruik. E-mail is het login-/reset-anker, dus uniek.
+  const email = (req.body.email || '').toString().trim();
+  if (email) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
+      return res.redirect('/account?error=' + encodeURIComponent('Voer een geldig e-mailadres in.'));
+    }
+    const taken = db.prepare('SELECT 1 FROM users WHERE LOWER(email) = LOWER(?) AND id != ?')
+      .get(email, req.session.user.id);
+    if (taken) {
+      return res.redirect('/account?error=' + encodeURIComponent('Dit e-mailadres is al in gebruik.'));
+    }
+    db.prepare('UPDATE users SET email = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+      .run(email, req.session.user.id);
+    req.session.user.email = email; // sessie bijwerken zodat de UI klopt
+  }
+
   db.prepare('UPDATE users SET bio = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
     .run(bio || null, req.session.user.id);
-  res.redirect('/account?success=' + encodeURIComponent('Profile updated'));
+  res.redirect('/account?success=' + encodeURIComponent('Profiel bijgewerkt'));
 });
 
 // P57 — /preferences route removed. Per-user theme/palette was a multi-tenant
