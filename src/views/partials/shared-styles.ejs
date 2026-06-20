@@ -37,6 +37,20 @@
 .view-switch-btn:hover { color: var(--ink); }
 .view-switch-btn[aria-selected="true"] { background: var(--paper); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.06); }
 
+/* Agenda-link (evenementen) links in de switcher-balk. */
+.vs-agenda {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  margin-right: auto;            /* naar links; Tijdlijn/Grid blijven rechts */
+  padding: 0.35rem 0.85rem;
+  border: 1px solid var(--rule); border-radius: 999px;
+  background: var(--paper-2); color: var(--ink-muted, var(--ink-soft));
+  text-decoration: none; font-size: 0.85rem; font-weight: 600;
+  transition: background 120ms, color 120ms, border-color 120ms;
+}
+.vs-agenda:hover { color: var(--ink); border-color: var(--accent); }
+.vs-agenda svg { opacity: .85; }
+@media (max-width: 560px) { .vs-agenda { margin-right: 0; } }
+
 .grid-cols-picker {
   display: none;     /* desktop-only, see media query */
   gap: 0.2rem;

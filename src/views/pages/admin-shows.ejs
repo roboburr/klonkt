@@ -10,8 +10,8 @@
 
   <% if (msg) { %><div class="ash-msg ash-<%= (typeof msgKind!=='undefined')?msgKind:'' %>"><%= msg %></div><% } %>
 
-  <p class="ash-note"><strong><%= nc %></strong> abonnee(s) voor show-aankondigingen.
-    <% if (!smtp) { %><br>⚠ SMTP niet ingesteld — shows worden opgeslagen, maar notify-mails kunnen pas verstuurd worden zodra je SMTP invult.<% } %></p>
+  <p class="ash-note"><strong><%= nc %></strong> abonnee(s) voor evenement-aankondigingen.
+    <% if (!smtp) { %><br>⚠ SMTP niet ingesteld — evenementen worden opgeslagen, maar notify-mails kunnen pas verstuurd worden zodra je SMTP invult.<% } %></p>
 
   <form method="POST" action="<%= siteUrlBase %>/admin/shows" class="ash-form">
     <div class="ash-grid">
@@ -24,7 +24,7 @@
       <label class="ash-wide">Notitie (optioneel)<input type="text" name="notes" placeholder="Support: ..."></label>
     </div>
     <label class="ash-check"><input type="checkbox" name="notify" value="1" <%= smtp ? '' : 'disabled' %>> Abonnees per e-mail op de hoogte brengen<%= smtp ? '' : ' (SMTP vereist)' %></label>
-    <button type="submit" class="ash-add">+ Show toevoegen</button>
+    <button type="submit" class="ash-add">+ Evenement toevoegen</button>
   </form>
 
   <% if (ss.length) { %>
@@ -33,14 +33,14 @@
         <li class="ash-item">
           <span class="ash-when"><%= s.date %><% if (s.time) { %> <%= s.time %><% } %></span>
           <span class="ash-where"><%= s.city %><% if (s.venue) { %> — <%= s.venue %><% } %></span>
-          <form method="POST" action="<%= siteUrlBase %>/admin/shows/<%= s.id %>/delete" onsubmit="return confirm('Show verwijderen?')" style="margin:0">
+          <form method="POST" action="<%= siteUrlBase %>/admin/shows/<%= s.id %>/delete" onsubmit="return confirm('Evenement verwijderen??')" style="margin:0">
             <button type="submit" class="ash-del">🗑</button>
           </form>
         </li>
       <% }); %>
     </ul>
   <% } else { %>
-    <p class="ash-empty">Nog geen shows.</p>
+    <p class="ash-empty">Nog geen evenementen.</p>
   <% } %>
 </section>
 

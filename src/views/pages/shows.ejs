@@ -5,12 +5,12 @@
 <section class="sh">
   <h1 class="sh-h1">Agenda</h1>
 
-  <% if (st === 'done') { %><div class="sh-msg">✓ Je staat op de lijst — je hoort het zodra er een show wordt aangekondigd.</div>
+  <% if (st === 'done') { %><div class="sh-msg">✓ Je staat op de lijst — je hoort het zodra er een evenement wordt aangekondigd.</div>
   <% } else if (st === 'check') { %><div class="sh-msg">✉ Check je mail om je aanmelding te bevestigen.</div>
   <% } else if (st === 'error') { %><div class="sh-msg sh-bad"><%= (typeof notifyMsg!=='undefined')?notifyMsg:'Er ging iets mis.' %></div><% } %>
 
   <% if (!ss.length) { %>
-    <p class="sh-empty">Geen aangekondigde shows op dit moment.</p>
+    <p class="sh-empty">Geen aangekondigde evenementen op dit moment.</p>
   <% } else { %>
     <ul class="sh-list">
       <% ss.forEach(function(s){ %>
@@ -31,8 +31,8 @@
   <% } %>
 
   <div class="sh-notify">
-    <h2 class="sh-h2">Mis geen show</h2>
-    <p class="sh-sub">Laat je e-mail achter en je krijgt een seintje bij een nieuwe show. Uitschrijven kan altijd.</p>
+    <h2 class="sh-h2">Mis geen evenement</h2>
+    <p class="sh-sub">Laat je e-mail achter en je krijgt een seintje bij een nieuw evenement. Uitschrijven kan altijd.</p>
     <form method="POST" action="<%= siteUrlBase %>/shows/notify" class="sh-form">
       <input type="email" name="email" required placeholder="jouw@email.nl" autocomplete="email">
       <button type="submit" class="sh-btn">Houd me op de hoogte</button>
