@@ -66,7 +66,9 @@ router.get('/downloads', (req, res, next) => {
   const nav = downloadsPostNav(req, res);
   renderPage(req, res, 'pages/downloads', {
     pageTitle: 'Downloads — ' + (site.title || ''),
-    bodyClass: 'on-downloads',
+    // on-special = compacte profielkop (zoals op een post); on-downloads = pill grijs
+    // + feature-route-gedrag. Samen → downloads ziet er net zo uit als een post.
+    bodyClass: 'on-downloads on-special',
     dlTracks: tracks,
     newerPost: nav.newerPost || null,
     olderPost: nav.olderPost || null,
