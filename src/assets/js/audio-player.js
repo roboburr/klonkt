@@ -604,8 +604,10 @@
   }
   expandTrigger.addEventListener('click', () => {
     const t = queue[currentIndex];
-    const isDesktop = window.matchMedia && window.matchMedia('(min-width: 768px)').matches;
-    if (isDesktop && t) {
+    // Alleen op échte desktop (≥1200, geen full-player) springen we naar de post.
+    // Tablet + telefoon hebben een full-player → open die (zoals mobiel).
+    const jumpToPost = !hasFullPlayer();
+    if (jumpToPost && t) {
       // 1) Track speelde vanuit een post → die URL kennen we al.
       if (t.postUrl) { goToPost(t.postUrl, t.id); return; }
       // 2) Site-brede track (geen postUrl) → zoek de post op via de track-id.

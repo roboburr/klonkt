@@ -38,6 +38,22 @@ function likeArg(q) {
   return '%' + q.replace(/[%_\\]/g, '\\$&') + '%';
 }
 
+// Maak de FTS-snippet leesbaar: shortcodes ([[...]]) en markdown-tekens eruit.
+// De <mark>…</mark>-highlights van FTS blijven staan. Valt terug op de excerpt
+// (geëscaped) als er na het schoonmaken niets leesbaars overblijft.
+function cleanSnippet(html, excerpt) {
+  const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const s = (html || '')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')   // markdown-afbeeldingen
+    .replace(/\[\[[^\]]*?\]\]/g, ' ')         // shortcodes (incl. <mark> erin)
+    .replace(/\[\[|\]\]/g, ' ')               // losse haakjes door truncatie
+    .replace(/[#>*_`~]+/g, ' ')               // markdown-opmaaktekens
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!s || /^[…\s]*$/.test(s)) return esc((excerpt || '').slice(0, 160));
+  return s;
+}
+
 router.get('/', (req, res) => {
   const site = res.locals.site;
   const rawQ = (req.query.q || '').toString().trim();
@@ -84,6 +100,7 @@ router.get('/', (req, res) => {
         ORDER BY score ASC
         LIMIT 50
       `).all(ftsQuery, site.id);
+      results = results.map((r) => ({ ...r, snippet: cleanSnippet(r.snippet, r.excerpt) }));
     } catch (err) {
       queryError = err.message;
     }
