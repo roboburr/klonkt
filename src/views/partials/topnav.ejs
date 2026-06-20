@@ -81,11 +81,22 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
         <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
       </button>
 
-      <% if (typeof langs !== 'undefined' && langs && langs.length > 1) { %>
-        <select class="nav-lang" aria-label="<%= t('nav.language') %>" title="<%= t('nav.language') %>"
-                onchange="location.href='/lang/'+this.value+'?r='+encodeURIComponent(location.pathname+location.search)">
-          <% langs.forEach(function(l){ %><option value="<%= l.code %>"<%= l.active ? ' selected' : '' %>><%= l.code.toUpperCase() %></option><% }); %>
-        </select>
+      <% if (typeof langs !== 'undefined' && langs && langs.length > 1) {
+           var _curLang = (langs.find(function(l){ return l.active; }) || { code: 'nl' }).code;
+           var _langR = (typeof currentPath !== 'undefined' && currentPath) ? currentPath : '/';
+      %>
+        <details class="lang-menu">
+          <summary class="nav-btn lang-toggle" aria-label="<%= t('nav.language') %>" title="<%= t('nav.language') %>">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            <span class="lang-code"><%= _curLang.toUpperCase() %></span>
+            <svg class="lang-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+          </summary>
+          <div class="lang-dropdown" role="menu">
+            <% langs.forEach(function(l){ %>
+              <a class="lang-item<%= l.active ? ' is-active' : '' %>" role="menuitem" href="/lang/<%= l.code %>?r=<%= encodeURIComponent(_langR) %>"><span class="lang-item-code"><%= l.code.toUpperCase() %></span><%= l.name %></a>
+            <% }); %>
+          </div>
+        </details>
       <% } %>
 
       <% if (_hasPrutter) { %>
@@ -209,9 +220,10 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
     if (e.target.closest('#theme-toggle, #theme-toggle-mobile, #theme-toggle-footer')) { toggleTheme(); return; }
     if (e.target.closest('#search-toggle')) { openSearch(); return; }
     if (e.target.closest('#search-close')) { closeSearch(); return; }
-    // Gebruikersmenu sluiten bij klik erbuiten.
-    var open = document.querySelector('.user-menu[open]');
-    if (open && !open.contains(e.target)) open.removeAttribute('open');
+    // Open dropdowns (gebruikersmenu + taalkeuze) sluiten bij klik erbuiten.
+    document.querySelectorAll('.user-menu[open], .lang-menu[open]').forEach(function(d) {
+      if (!d.contains(e.target)) d.removeAttribute('open');
+    });
   });
 
   document.addEventListener('keydown', function(e) {

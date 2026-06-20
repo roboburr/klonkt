@@ -1503,15 +1503,38 @@ body.audio-is-loading .audio-sheet-play::after {
     .pagination-item { width: 100%; }
 }
 
-/* Taal-keuze in de header-nav (NL/EN/DE). Past bij de pill-knoppen ernaast. */
-.nav-lang {
-    background: transparent; color: var(--ink);
-    border: 1px solid var(--rule); border-radius: 999px;
-    padding: .35rem .5rem; font-size: .8rem; font-weight: 600;
-    font-family: inherit; cursor: pointer; line-height: 1;
+/* Taal-keuze in de header-nav (NL/EN/DE) — eigen gestylede dropdown. */
+.lang-menu { position: relative; }
+.lang-menu > summary {
+    list-style: none; cursor: pointer;
+    display: inline-flex; align-items: center; gap: .3rem;
+    padding: .35rem .55rem; border-radius: 999px;
+    border: 1px solid var(--rule); background: transparent; color: var(--ink);
 }
-.nav-lang:hover { border-color: var(--accent); }
-.nav-lang option { background: var(--paper); color: var(--ink); }
+.lang-menu > summary::-webkit-details-marker { display: none; }
+.lang-menu > summary:hover { border-color: var(--accent); }
+.lang-toggle .lang-code { font-size: .8rem; font-weight: 700; letter-spacing: .02em; }
+.lang-toggle .icon { width: 16px; height: 16px; opacity: .8; }
+.lang-caret { width: 12px; height: 12px; opacity: .7; transition: transform .15s; }
+.lang-menu[open] .lang-caret { transform: rotate(180deg); }
+.lang-dropdown {
+    position: absolute; top: calc(100% + 8px); right: 0;
+    min-width: 170px; z-index: 60;
+    background: var(--paper); border: 1px solid var(--rule);
+    border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.22);
+    padding: .35rem; display: flex; flex-direction: column;
+}
+.lang-item {
+    display: flex; align-items: center; gap: .6rem;
+    padding: .5rem .65rem; border-radius: 8px;
+    color: var(--ink); text-decoration: none; font-size: .9rem;
+}
+.lang-item:hover { background: var(--paper-2); }
+.lang-item.is-active { color: var(--accent); font-weight: 600; }
+.lang-item-code {
+    font-size: .7rem; font-weight: 700; opacity: .6;
+    min-width: 1.6em;
+}
 @media (max-width: 400px) {
     .masthead { padding: calc(.5rem + var(--safe-top)) 0 .5rem; }
     .masthead-inner { gap: .25rem; }
