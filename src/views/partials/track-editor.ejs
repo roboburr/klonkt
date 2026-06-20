@@ -194,6 +194,19 @@ const _csrf = (typeof csrfToken !== 'undefined' && csrfToken) || '';
   border-color: var(--accent);
 }
 
+/* ── Credit-veld met ©-invoegknop ──────────────────────────── */
+.te-credit-row { display: flex; gap: 0.4rem; align-items: stretch; }
+.te-credit-row input { flex: 1; min-width: 0; }
+.te-sym-btn {
+  flex: 0 0 auto;
+  width: 44px; min-height: 44px;
+  border: 1px solid var(--rule); border-radius: 6px;
+  background: var(--paper-2); color: var(--ink);
+  font-size: 1.1rem; cursor: pointer;
+  transition: border-color 120ms, background 120ms;
+}
+.te-sym-btn:hover { border-color: var(--accent); }
+
 /* ── Cover field with thumb + button + URL ─────────────────── */
 .te-cover-row {
   display: grid;
@@ -388,10 +401,14 @@ body.te-modal-open { overflow: hidden; }
             <div class="te-row te-row-2">
               <label class="te-field">
                 <span>Eigenaar / credit <small>(copyright-houder)</small></span>
-                <input type="text" id="te-credit" maxlength="200"
-                       autocomplete="off" spellcheck="false"
-                       placeholder="bv. © 2025 Mara Vos"
-                       value="${esc(track.credit || '')}">
+                <div class="te-credit-row">
+                  <input type="text" id="te-credit" maxlength="200"
+                         autocomplete="off" spellcheck="false"
+                         placeholder="bv. © 2025 Mara Vos"
+                         value="${esc(track.credit || '')}">
+                  <button type="button" class="te-sym-btn" id="te-credit-copyr"
+                          title="© invoegen" aria-label="Copyright-teken invoegen">©</button>
+                </div>
               </label>
               <label class="te-field">
                 <span>Licentie</span>
@@ -607,6 +624,22 @@ body.te-modal-open { overflow: hidden; }
         urlInput.value = '';
         setThumb('');
         removeBtn.remove();
+      });
+    }
+
+    // ── ©-teken invoegen in het credit-veld ─────────────────
+    const copyrBtn = $('#te-credit-copyr');
+    if (copyrBtn) {
+      copyrBtn.addEventListener('click', () => {
+        const inp = $('#te-credit');
+        if (!inp) return;
+        const sym = '© ';
+        const start = inp.selectionStart != null ? inp.selectionStart : inp.value.length;
+        const end = inp.selectionEnd != null ? inp.selectionEnd : inp.value.length;
+        inp.value = inp.value.slice(0, start) + sym + inp.value.slice(end);
+        inp.focus();
+        const pos = start + sym.length;
+        try { inp.setSelectionRange(pos, pos); } catch (e) {}
       });
     }
 
