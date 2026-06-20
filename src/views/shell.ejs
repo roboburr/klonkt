@@ -477,6 +477,15 @@ if (typeof post !== 'undefined' && post && post.slug) {
   }
 
   var lastPath = location.pathname + location.search;
+  var navTimer = null;
+
+  // Eén plek voor alle programmatische navigatie-swaps. Annuleert eerst een nog
+  // lopende request op #pcms-main (anti-race: bij snel klikken/terug-gaan kan een
+  // trage oude response anders een nieuwe pagina overschrijven → "kale content").
+  function doNav(dest) {
+    try { window.htmx.trigger('#pcms-main', 'htmx:abort'); } catch (_) {}
+    window.htmx.ajax('GET', dest, { target: '#pcms-main', swap: 'innerHTML' });
+  }
 
   document.addEventListener('click', function (e) {
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
@@ -491,7 +500,8 @@ if (typeof post !== 'undefined' && post && post.slug) {
     var dest = url.pathname + url.search;
     if (dest !== lastPath) history.pushState({ b: 1 }, '', dest);
     lastPath = dest;
-    window.htmx.ajax('GET', dest, { target: '#pcms-main', swap: 'innerHTML' });
+    if (navTimer) { clearTimeout(navTimer); navTimer = null; }
+    doNav(dest);
     try { window.scrollTo(0, 0); } catch (_) {}
   });
 
@@ -499,7 +509,13 @@ if (typeof post !== 'undefined' && post && post.slug) {
     var here = location.pathname + location.search;
     if (here === lastPath) return;
     lastPath = here;
-    window.htmx.ajax('GET', here, { target: '#pcms-main', swap: 'innerHTML' });
+    // Debounce: bij heel snel/herhaald terug-vooruit niet elke tussenpagina ophalen,
+    // alleen de LAATSTE bestemming. Voorkomt overlappende swaps ("kale content").
+    if (navTimer) clearTimeout(navTimer);
+    navTimer = setTimeout(function () {
+      navTimer = null;
+      doNav(location.pathname + location.search);
+    }, 90);
   });
 
   // Links MÉT eigen hx-get + hx-push-url (post-card/post-tile/topnav/…) lopen NIET
