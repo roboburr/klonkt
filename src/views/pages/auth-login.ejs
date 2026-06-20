@@ -62,6 +62,18 @@
   <% } else { %>
     <div class="alert">Inloggen met Google is op deze site nog niet ingesteld.</div>
   <% } %>
+
+  <% if (!_admin) { %>
+    <%# Klikbare box voor de beheerder → naar de verborgen wachtwoord-login. %>
+    <a class="auth-admin-box" href="/auth/admin<%= (typeof next !== 'undefined' && next) ? '?next=' + encodeURIComponent(next) : '' %>">
+      <span class="auth-admin-box-icon" aria-hidden="true">🔑</span>
+      <span class="auth-admin-box-text">
+        <strong>Beheerder?</strong>
+        <small>Log in met gebruikersnaam &amp; wachtwoord</small>
+      </span>
+      <span class="auth-admin-box-arrow" aria-hidden="true">&rarr;</span>
+    </a>
+  <% } %>
 </div>
 
 <style>
@@ -72,4 +84,16 @@
   .auth-notice-list { margin: 0; padding-left: 18px; line-height: 1.6; }
   .auth-notice-list li { margin: 4px 0; }
   .auth-sub { color: var(--ink-muted); margin: 0 0 1rem; }
+  .auth-admin-box {
+    display: flex; align-items: center; gap: .75rem;
+    margin-top: 1.25rem; padding: .8rem 1rem;
+    border: 1px solid var(--rule); border-radius: 12px;
+    background: var(--paper-2); color: var(--ink); text-decoration: none;
+    transition: border-color 120ms, background 120ms;
+  }
+  .auth-admin-box:hover { border-color: var(--accent); background: var(--paper); }
+  .auth-admin-box-icon { font-size: 1.3rem; }
+  .auth-admin-box-text { display: flex; flex-direction: column; line-height: 1.3; flex: 1; }
+  .auth-admin-box-text small { color: var(--ink-muted); font-size: .8rem; }
+  .auth-admin-box-arrow { color: var(--ink-muted); font-size: 1.1rem; }
 </style>
