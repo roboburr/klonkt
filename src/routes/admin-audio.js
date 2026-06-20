@@ -19,7 +19,7 @@ import db from '../config/database.js';
 import { renderPage } from '../middleware/render.js';
 import { toWebp } from '../services/ImageWebpService.js';
 import { requireGod } from '../middleware/auth.js';
-import { transcodeToMp3 } from '../services/AudioTranscoder.js';
+import { transcodeToMp3, retagMp3 } from '../services/AudioTranscoder.js';
 import { audioUrl } from '../services/AudioStreamService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -167,6 +167,10 @@ router.post('/upload', requireGod, (req, res) => {
     const finalTitle  = title?.trim() || fallbackTitle;
     const finalArtist = artist?.trim() || null;
     const finalAlbum  = album?.trim() || null;
+    // Eigenaarschap/licentie. credit valt terug op de artiest; deze gaan zowel de
+    // DB in als de ID3-tags van de mp3 (copyright + comment).
+    const finalCredit  = (req.body.credit  || '').trim() || finalArtist || null;
+    const finalLicense = (req.body.license || '').trim() || null;
 
     console.log('[admin-audio] upload received:', {
       original: audioFile.originalname,
@@ -185,6 +189,8 @@ router.post('/upload', requireGod, (req, res) => {
           title: finalTitle,
           artist: finalArtist || undefined,
           album: finalAlbum || undefined,
+          copyright: finalCredit || undefined,
+          comment: finalLicense || undefined,
         },
       });
       console.log('[admin-audio] transcode OK:', transcoded);
@@ -215,8 +221,8 @@ router.post('/upload', requireGod, (req, res) => {
 
       console.log('[admin-audio] inserting audio_tracks row (duration=' + finalDuration + ')');
       db.prepare(`
-        INSERT INTO audio_tracks (id, site_id, title, artist, album, duration, cover_url, media_id, position)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, COALESCE(
+        INSERT INTO audio_tracks (id, site_id, title, artist, album, duration, cover_url, credit, license, media_id, position)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(
           (SELECT MAX(position) + 1 FROM audio_tracks WHERE site_id = ?),
           0
         ))
@@ -225,6 +231,7 @@ router.post('/upload', requireGod, (req, res) => {
         finalTitle, finalArtist, finalAlbum,
         finalDuration,
         coverUrl,
+        finalCredit, finalLicense,
         mediaId, site.id
       );
       console.log('[admin-audio] DB inserts OK — track', trackId);
@@ -370,7 +377,7 @@ router.get('/api/:id', requireGod, (req, res) => {
   if (!site) return res.status(404).json({ error: 'Site required' });
   const t = db.prepare(`
     SELECT t.id, t.title, t.artist, t.album, t.duration, t.cover_url,
-           t.position, t.created_at, m.filename
+           t.credit, t.license, t.position, t.created_at, m.filename
     FROM audio_tracks t LEFT JOIN media m ON m.id = t.media_id
     WHERE t.id = ? AND t.site_id = ?
   `).get(req.params.id, site.id);
@@ -387,7 +394,7 @@ router.get('/api/:id', requireGod, (req, res) => {
  * fields are stored as NULL so the audio embed renderer's `t.artist || ''`
  * fallback keeps working.
  */
-router.post('/api/:id', requireGod, express.json(), (req, res) => {
+router.post('/api/:id', requireGod, express.json(), async (req, res) => {
   const site = res.locals.site;
   if (!site) return res.status(404).json({ error: 'Site required' });
 
@@ -432,6 +439,12 @@ router.post('/api/:id', requireGod, express.json(), (req, res) => {
   if (Object.prototype.hasOwnProperty.call(body, 'downloadable')) {
     fields.push('downloadable = ?'); values.push(body.downloadable ? 1 : 0);
   }
+  if (Object.prototype.hasOwnProperty.call(body, 'credit')) {
+    fields.push('credit = ?'); values.push(String(body.credit || '').trim() || null);
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'license')) {
+    fields.push('license = ?'); values.push(String(body.license || '').trim() || null);
+  }
 
   if (fields.length === 0) {
     return res.status(400).json({ error: 'Niks om te updaten' });
@@ -444,12 +457,31 @@ router.post('/api/:id', requireGod, express.json(), (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 
-  // Return fresh row so the caller can update its UI without reloading
+  // Verse rij + (als tag-velden wijzigden) de mp3 her-taggen, zodat de eigenaar/
+  // licentie ook IN het bestand staat (ID3) en meereist bij een download.
   const fresh = db.prepare(`
-    SELECT id, title, artist, album, duration, cover_url
-    FROM audio_tracks WHERE id = ? AND site_id = ?
+    SELECT t.id, t.title, t.artist, t.album, t.duration, t.cover_url, t.credit, t.license, m.storage_path
+    FROM audio_tracks t LEFT JOIN media m ON m.id = t.media_id
+    WHERE t.id = ? AND t.site_id = ?
   `).get(req.params.id, site.id);
-  res.json({ ok: true, track: fresh });
+
+  const tagsChanged = ['title', 'artist', 'album', 'credit', 'license']
+    .some((f) => Object.prototype.hasOwnProperty.call(body, f));
+  if (fresh && fresh.storage_path && tagsChanged) {
+    try {
+      await retagMp3({ filePath: fresh.storage_path, tags: {
+        title: fresh.title || undefined,
+        artist: fresh.artist || undefined,
+        album: fresh.album || undefined,
+        copyright: fresh.credit || undefined,
+        comment: fresh.license || undefined,
+      } });
+    } catch (e) {
+      console.warn('[admin-audio] ID3 her-taggen mislukt (DB is wel bijgewerkt):', e.message);
+    }
+  }
+  const { storage_path, ...trackOut } = fresh || {};
+  res.json({ ok: true, track: trackOut });
 });
 
 /**

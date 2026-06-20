@@ -385,6 +385,32 @@ body.te-modal-open { overflow: hidden; }
                      value="${track.duration || ''}" placeholder="auto">
             </label>
 
+            <div class="te-row te-row-2">
+              <label class="te-field">
+                <span>Eigenaar / credit <small>(copyright-houder)</small></span>
+                <input type="text" id="te-credit" maxlength="200"
+                       autocomplete="off" spellcheck="false"
+                       placeholder="bv. © 2025 Robin Genis"
+                       value="${esc(track.credit || '')}">
+              </label>
+              <label class="te-field">
+                <span>Licentie</span>
+                <input type="text" id="te-license" maxlength="120"
+                       autocomplete="off" spellcheck="false" list="te-license-list"
+                       placeholder="Alle rechten voorbehouden"
+                       value="${esc(track.license || '')}">
+                <datalist id="te-license-list">
+                  <option value="Alle rechten voorbehouden"></option>
+                  <option value="CC BY 4.0"></option>
+                  <option value="CC BY-SA 4.0"></option>
+                  <option value="CC BY-NC 4.0"></option>
+                  <option value="CC BY-NC-SA 4.0"></option>
+                  <option value="CC BY-ND 4.0"></option>
+                  <option value="CC0 1.0 (publiek domein)"></option>
+                </datalist>
+              </label>
+            </div>
+
             <div class="te-field">
               <span>Cover</span>
               <div class="te-cover-row">
@@ -602,6 +628,8 @@ body.te-modal-open { overflow: hidden; }
           title,
           artist: $('#te-artist').value.trim() || null,
           album:  $('#te-album').value.trim() || null,
+          credit:  $('#te-credit').value.trim() || null,
+          license: $('#te-license').value.trim() || null,
           duration: $('#te-duration').value ? Number($('#te-duration').value) : null,
           cover_url: urlInput.value.trim() || null,
         });

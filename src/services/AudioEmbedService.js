@@ -252,10 +252,14 @@ class AudioEmbedService {
         title: t.title || 'Untitled',
         artist: t.artist || '',
         cover: t.cover || '',
+        credit: t.credit || '',
+        license: t.license || '',
       });
       const titleH = this.escape(t.title || 'Untitled');
       const artistH = this.escape(t.artist || '');
       const urlH = this.escape(t.url);
+      // Zichtbare eigenaar/licentie-regel onder de track.
+      const creditBits = [this.escape(t.credit || ''), this.escape(t.license || '')].filter(Boolean).join(' · ');
       const dataAttr = trackJson
         .replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/</g, '&lt;');
       // id="track-<id>" = anker zodat de mini-speler hierheen kan scrollen.
@@ -266,6 +270,7 @@ class AudioEmbedService {
   <div class="pat-info">
     <div class="pat-title">${titleH}</div>
     ${artistH ? `<div class="pat-artist">${artistH}</div>` : ''}
+    ${creditBits ? `<div class="pat-credit">${creditBits}</div>` : ''}
   </div>
 </div>`;
     });

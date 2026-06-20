@@ -89,6 +89,8 @@ export function initializeDatabase() {
   ensureColumn('posts', 'view_count', 'INTEGER DEFAULT 0');         // weergaven per post
   ensureColumn('audio_tracks', 'play_count', 'INTEGER DEFAULT 0');  // plays per track
   ensureColumn('audio_tracks', 'downloadable', 'INTEGER DEFAULT 0'); // download-voor-email (premium #2)
+  ensureColumn('audio_tracks', 'credit', 'TEXT');   // eigenaar/credit (copyright-houder)
+  ensureColumn('audio_tracks', 'license', 'TEXT');  // licentie (bv. "CC BY 4.0", "Alle rechten voorbehouden")
 
   // Playlists (v9 feature) — first-class entity. CREATE IF NOT EXISTS is
   // idempotent so it's safe to run on every boot regardless of DB age.

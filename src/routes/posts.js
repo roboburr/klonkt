@@ -528,7 +528,7 @@ router.get('/:slug', (req, res, next) => {
     if (trackIds.length) {
       const placeholders = trackIds.map(() => '?').join(',');
       const rows = db.prepare(`
-        SELECT t.id, t.title, t.artist, t.cover_url, m.filename
+        SELECT t.id, t.title, t.artist, t.cover_url, t.credit, t.license, m.filename
         FROM audio_tracks t LEFT JOIN media m ON m.id = t.media_id
         WHERE t.site_id = ? AND t.id IN (${placeholders})
       `).all(site.id, ...trackIds);
@@ -541,6 +541,8 @@ router.get('/:slug', (req, res, next) => {
           title: r.title,
           artist: r.artist,
           cover: r.cover_url,
+          credit: r.credit || '',
+          license: r.license || '',
           url: audioUrl(r.filename),
         };
       });

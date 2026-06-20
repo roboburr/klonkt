@@ -72,6 +72,15 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Eigenaar/credit · licentie — subtiele regel onder de track. */
+.post-audio-track .pat-credit {
+  font-size: 0.72rem;
+  color: var(--ink-faint, var(--ink-soft));
+  margin-top: 0.1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 /* ============================================================
    Mini player (bottom strip) — v9 style

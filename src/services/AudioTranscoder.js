@@ -137,6 +137,45 @@ export async function transcodeToMp3({ inputPath, outputDir, outputBaseName, tag
 }
 
 /**
+ * Herschrijf de ID3-tags van een BESTAANDE mp3 zonder her-encoden (`-c copy`).
+ * Gebruikt bij het bewerken van track-metadata (titel/artiest/album/credit/licentie)
+ * zodat de eigendomsinfo in het bestand zelf meereist bij een download.
+ * ffmpeg kan niet in-place editen → schrijf naar tmp en hernoem atomisch terug.
+ */
+export async function retagMp3({ filePath, tags = {} }) {
+  if (!filePath) throw new Error('retagMp3: filePath required');
+  await stat(filePath); // throws als 't bestand mist
+  const dir = path.dirname(filePath);
+  const base = path.basename(filePath, path.extname(filePath));
+  const tmpPath = path.join(dir, `${base}.retag-${process.pid}.mp3`);
+  try {
+    await new Promise((resolve, reject) => {
+      const cmd = ffmpeg(filePath)
+        .audioCodec('copy')        // geen her-encode → snel, geen kwaliteitsverlies
+        .format('mp3')
+        .outputOptions('-id3v2_version', '3')
+        .outputOptions('-map_metadata', '-1')
+        .outputOptions('-vn');
+      if (tags.title)     cmd.outputOptions('-metadata', `title=${tags.title}`);
+      if (tags.artist)    cmd.outputOptions('-metadata', `artist=${tags.artist}`);
+      if (tags.album)     cmd.outputOptions('-metadata', `album=${tags.album}`);
+      if (tags.copyright) cmd.outputOptions('-metadata', `copyright=${tags.copyright}`);
+      if (tags.comment)   cmd.outputOptions('-metadata', `comment=${tags.comment}`);
+      cmd.on('error', (err, so, se) => reject(new Error(((err && err.message) || 'ffmpeg') + (se ? ' | ' + se : ''))))
+         .on('end', () => resolve())
+         .save(tmpPath);
+    });
+    const s = await stat(tmpPath);
+    if (s.size === 0) throw new Error('retag output is leeg');
+    await rename(tmpPath, filePath);
+    return { filePath, size: s.size };
+  } catch (err) {
+    try { await unlink(tmpPath); } catch { /* tmp bestaat mogelijk niet */ }
+    throw err;
+  }
+}
+
+/**
  * Run a single ffmpeg pass: input -> tmp output.
  * Returns a promise that resolves when ffmpeg exits cleanly, rejects otherwise.
  */
@@ -166,9 +205,11 @@ function runFfmpeg({ inputPath, tmpPath, tags }) {
     // them as a single string fluent-ffmpeg splits on whitespace, which
     // breaks any value containing a space (e.g. "Test Artist" gets parsed
     // as a separate output filename).
-    if (tags.title)  cmd.outputOptions('-metadata', `title=${tags.title}`);
-    if (tags.artist) cmd.outputOptions('-metadata', `artist=${tags.artist}`);
-    if (tags.album)  cmd.outputOptions('-metadata', `album=${tags.album}`);
+    if (tags.title)     cmd.outputOptions('-metadata', `title=${tags.title}`);
+    if (tags.artist)    cmd.outputOptions('-metadata', `artist=${tags.artist}`);
+    if (tags.album)     cmd.outputOptions('-metadata', `album=${tags.album}`);
+    if (tags.copyright) cmd.outputOptions('-metadata', `copyright=${tags.copyright}`); // ID3 TCOP — eigenaar/credit
+    if (tags.comment)   cmd.outputOptions('-metadata', `comment=${tags.comment}`);     // ID3 COMM — licentie
 
     cmd
       // codecData geeft de duur van de INPUT als "HH:MM:SS.xx" — zo bepalen we
