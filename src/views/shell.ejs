@@ -383,8 +383,13 @@ if (typeof post !== 'undefined' && post && post.slug) {
   } catch (e) {}
 
   function syncAria() {
+    // Alleen op een feed-pagina hoort Tijdlijn/Grid 'actief' (wit) te zijn; op
+    // agenda/downloads/post/etc. beide grijs. Inline feed-check (FEED_PAGE_CLASSES
+    // staat verderop, maar deze functie draait al bij init).
+    var _feedC = ['on-home','on-tag','on-type','on-user','on-cirkel'];
+    var _onFeed = _feedC.some(function(c){ return body.classList.contains(c); });
     document.querySelectorAll('.view-switch-btn').forEach(function(b) {
-      b.setAttribute('aria-selected', b.dataset.view === body.dataset.feedView ? 'true' : 'false');
+      b.setAttribute('aria-selected', (_onFeed && b.dataset.view === body.dataset.feedView) ? 'true' : 'false');
     });
     document.querySelectorAll('.grid-cols-btn').forEach(function(b) {
       b.classList.toggle('is-active', b.dataset.cols === body.dataset.gridCols);

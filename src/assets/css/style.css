@@ -2132,12 +2132,10 @@ body.search-open { overflow: hidden; }
 /* Actieve state: puur afgeleid van body[data-feed-view]. Geen .is-active class meer.
    Niet op de Archive-pagina: daar is geen "huidige" timeline/grid-keuze, dus beide
    knoppen blijven neutraal (grijs). */
-body[data-feed-view="timeline"]:not(.on-archive):not(.on-shows):not(.on-downloads) .view-switch-btn[data-view="timeline"],
-body[data-feed-view="grid"]:not(.on-archive):not(.on-shows):not(.on-downloads) .view-switch-btn[data-view="grid"] {
-    background: var(--ink);
-    color: var(--paper);
-    border-color: var(--ink);
-}
+/* Actieve Tijdlijn/Grid-state wordt nu gestuurd via [aria-selected="true"] (gezet
+   door syncAria, die óók op htmx:afterSettle draait) i.p.v. body[data-feed-view].
+   Reden: body-class/attribuut-CSS pakte niet betrouwbaar na een htmx-OOB-swap;
+   een element-attribuut wel. De witte active-regel staat in shared-styles. */
 .view-switch-btn .icon { width: 1rem; height: 1rem; }
 
 /* -------- FEED TOGGLE VIA BODY --------
