@@ -101,23 +101,26 @@ class PlaylistService {
       ORDER BY pt.position ASC
     `).all(id);
 
+    const mappedTracks = tracks
+      .filter(t => t.filename)  // skip orphaned references
+      .map(t => ({
+        id: t.id,
+        title: t.title || 'Untitled',
+        artist: t.artist || p.artist || '',
+        cover: t.cover_url || p.cover_url || '',
+        duration: t.duration || 0,
+        url: urlFor ? urlFor(t.filename) : null,
+      }));
+    // Geen eigen cover? Val terug op de eerste track-cover, zodat de kaart niet leeg is.
+    const fallbackCover = (mappedTracks.find(t => t.cover) || {}).cover || '';
     return {
       id: p.id,
       title: p.title,
       artist: p.artist || '',
       year: p.year || 0,
-      cover: p.cover_url || '',
+      cover: p.cover_url || fallbackCover,
       kind: (p.kind === 'playlist') ? 'playlist' : 'album',
-      tracks: tracks
-        .filter(t => t.filename)  // skip orphaned references
-        .map(t => ({
-          id: t.id,
-          title: t.title || 'Untitled',
-          artist: t.artist || p.artist || '',
-          cover: t.cover_url || p.cover_url || '',
-          duration: t.duration || 0,
-          url: urlFor ? urlFor(t.filename) : null,
-        })),
+      tracks: mappedTracks,
     };
   }
 
