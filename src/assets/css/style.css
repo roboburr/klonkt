@@ -331,6 +331,10 @@ hr { border: 0; border-top: 1px solid var(--rule); margin: 3em auto; max-width: 
    ademruimte geven zonder uitwaaieren. Grid apart geregeld. */
 .container { max-width: 42rem; margin-inline: auto; padding-inline: clamp(1.25rem, 4vw, 2rem); }
 
+/* Post-/leesbreedte. Globaal (was eerder alleen inline in post.ejs) zodat de
+   downloads-pagina (zelfde .container.post-page) exact dezelfde breedte krijgt. */
+.post-page { max-width: 720px; margin: 0.5rem auto 2rem; padding: 0 1rem; }
+
 /* Laptop / Full HD — 1440px viewport of groter */
 @media (min-width: 1440px) {
     .container { max-width: 56rem; }
