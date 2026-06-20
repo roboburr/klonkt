@@ -188,7 +188,8 @@
     const audioOnly = provider === 'youtube' && el.dataset.embedMode === 'audio';
     if (audioOnly) el.classList.add('pcms-embed-audio-mode');
     const isVideo = provider === 'youtube' && !audioOnly;
-    const custom = provider === 'youtube' || provider === 'soundcloud'; // eigen controls
+    // Audio-only YT speelt via de site-onderbalk → geen eigen in-kaart controlebar.
+    const custom = (provider === 'youtube' || provider === 'soundcloud') && !audioOnly;
     const poster = provider === 'youtube'
       ? `https://i.ytimg.com/vi/${ytId(ref, url)}/hqdefault.jpg` : '';
 
@@ -305,6 +306,13 @@
 
     // Eerste interactie → adapter mounten + spelen. Daarna toggelt de knop.
     async function ensureMountedAndPlay() {
+      // Audio-only YouTube → speel via de site-audiospeler (onderbalk): zichtbaar
+      // én doorspelen bij navigeren. De inline-kaart is enkel de launcher.
+      if (audioOnly && window.pcmsAudioPlayer && typeof window.pcmsAudioPlayer.playYouTube === 'function') {
+        window.pcmsAudioPlayer.playYouTube({ id: ytId(ref, url), cover: poster, postUrl: location.pathname + location.search });
+        el.classList.add('pcms-embed-elsewhere');
+        return;
+      }
       if (mounted) { if (adapter) adapter.play(); return; }
       mounted = true;
       // Spotify: hun speler is toch niet te skinnen (besturing-only) én de

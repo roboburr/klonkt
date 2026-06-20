@@ -121,6 +121,26 @@
   opacity: 0;
   pointer-events: none;
 }
+/* Verborgen YouTube-audio-speler ván de site-audiospeler (onderbalk). Off-screen
+ * met echte grootte zodat de browser 'm niet pauzeert; alleen het geluid telt. */
+#pcms-yt-host {
+  position: absolute;
+  left: -99999px;
+  top: 0;
+  width: 320px;
+  height: 180px;
+  opacity: 0;
+  pointer-events: none;
+}
+/* Audio-only embed-kaart die nu via de onderbalk speelt = launcher-hint. */
+.pcms-embed-elsewhere { opacity: .9; }
+.pcms-embed-elsewhere .pcms-embed-title::after {
+  content: ' — speelt in de speler ↓';
+  font-weight: normal;
+  opacity: .6;
+  font-size: .85em;
+}
+
 /* Audio-only YouTube: de YT-speler draait verborgen (off-screen) maar moet een
  * echte grootte houden, anders pauzeert de browser 'm. Alleen het geluid telt. */
 .pcms-embed-card--youtube.pcms-embed-audio-mode .pcms-embed-mount {
