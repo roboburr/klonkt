@@ -275,8 +275,12 @@ class AudioEmbedService {
       const creditBits0 = [this.escape(t.credit || ''), this.escape(t.license || '')].filter(Boolean).join(' · ');
       // Link-only track (geen audiobestand): geen afspeelknop, wel info + open-in.
       if (!t.url) {
+        const coverH0 = this.escape(t.cover || '');
+        const leader0 = coverH0
+          ? `<span class="pat-noplay pat-noplay--cover" style="background-image:url('${coverH0}')" aria-hidden="true"></span>`
+          : `<span class="pat-noplay" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></span>`;
         return `<div class="post-audio-track post-audio-track--static" id="track-${id}">
-  <span class="pat-noplay" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></span>
+  ${leader0}
   <div class="pat-info">
     <div class="pat-title">${titleH0}</div>
     ${artistH0 ? `<div class="pat-artist">${artistH0}</div>` : ''}

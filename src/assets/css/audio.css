@@ -112,6 +112,13 @@
   color: var(--ink-faint, #a8a29e);
 }
 .pat-noplay svg { width: 18px; height: 18px; }
+/* Cover-thumbnail op een link-only track (i.p.v. het muzieknootje). */
+.pat-noplay--cover {
+  width: 44px; height: 44px; flex: 0 0 44px;
+  border-radius: 6px;
+  background-size: cover; background-position: center;
+  margin: 0 .35rem;
+}
 .pat-row.pat-static { cursor: default; }
 
 /* ============================================================
