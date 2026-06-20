@@ -275,6 +275,19 @@
   // metaOnly: show the track in the UI but DON'T download its bytes yet.
   // Used by the site pre-seed so opening a page doesn't auto-download audio;
   // the blob is fetched lazily on the first play().
+  // Markeer de huidige track persistent (blijvende highlight zolang 'ie actief is).
+  function markPlaying(trackId) {
+    document.querySelectorAll('.pat-playing').forEach((e) => e.classList.remove('pat-playing'));
+    if (!trackId) return;
+    const el = document.getElementById('track-' + trackId);
+    if (el) el.classList.add('pat-playing');
+  }
+  // Na een htmx-navigatie is de post-DOM vervangen → highlight opnieuw zetten.
+  document.body.addEventListener('htmx:afterSettle', () => {
+    const t = queue[currentIndex];
+    if (t) markPlaying(t.id);
+  });
+
   function loadTrack(index, autoplay, metaOnly) {
     if (!queue[index]) {
       console.warn('[pcms-audio] loadTrack: no track at index', index);
@@ -299,6 +312,7 @@
     root.classList.remove('audio-player-hidden');
     document.body.classList.add('has-audio-player');
     renderQueue();
+    markPlaying(t.id);
 
     if (metaOnly) return;
 

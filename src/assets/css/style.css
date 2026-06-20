@@ -2825,6 +2825,13 @@ body:not(.has-audio-player) #pcms-audio-player.is-hidden {
     animation: patFlash 1.6s ease-out;
     border-radius: 8px;
 }
+/* Blijvende highlight op de track die NU actief is in de speler. */
+.post-audio-track.pat-playing,
+.post-album-track-compact.pat-playing {
+    background: color-mix(in srgb, var(--accent, #c2410c) 12%, var(--paper-2, transparent));
+    box-shadow: inset 3px 0 0 0 var(--accent, #c2410c);
+    border-radius: 8px;
+}
 @keyframes patFlash {
     0%, 30% { border-color: var(--accent, #c2410c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #c2410c) 35%, transparent); }
     100% { box-shadow: 0 0 0 0 transparent; }
