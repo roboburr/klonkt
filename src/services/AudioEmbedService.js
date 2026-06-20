@@ -373,6 +373,7 @@ ${trackItems}
       // Audio-player.js reads data-pcms-album for queue. Same shape as
       // embedAlbumShortcodes — keep both in sync.
       const tracksData = pl.tracks.map(t => ({
+        id:     t.id,
         url:    t.url,
         title:  t.title,
         artist: t.artist || pl.artist || '',
