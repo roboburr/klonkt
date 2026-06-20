@@ -565,21 +565,33 @@
   //  - DESKTOP (≥768px): spring naar de post waar de track vandaan komt (als bekend),
   //    via htmx zodat de audio blijft spelen. Geen post bekend → val terug op de sheet.
   //  - MOBIEL: altijd de uitgebreide speler-sheet openen (huidig gedrag).
-  function goToPost(url) {
+  function scrollToTrack(trackId) {
+    if (!trackId) { window.scrollTo(0, 0); return; }
+    const el = document.getElementById('track-' + trackId);
+    if (!el) { window.scrollTo(0, 0); return; }
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    el.classList.add('pat-flash');
+    setTimeout(() => el.classList.remove('pat-flash'), 1600);
+  }
+  function goToPost(url, trackId) {
+    const hash = trackId ? ('#track-' + trackId) : '';
     if (window.htmx && url.charAt(0) === '/') {
       try {
-        window.htmx.ajax('GET', url, { target: '#pcms-main', swap: 'innerHTML' });
-        history.pushState({}, '', url);
-        window.scrollTo(0, 0);
+        const p = window.htmx.ajax('GET', url, { target: '#pcms-main', swap: 'innerHTML' });
+        history.pushState({}, '', url + hash);
+        // Na de swap naar de track scrollen (klein uitstel zodat de globale
+        // afterSwap-top-scroll eerst is geweest); val terug op top als niet gevonden.
+        const go = () => setTimeout(() => scrollToTrack(trackId), 60);
+        if (p && typeof p.then === 'function') p.then(go); else setTimeout(go, 150);
         return;
       } catch (e) { /* val terug op volledige navigatie */ }
     }
-    location.href = url;
+    location.href = url + hash;
   }
   expandTrigger.addEventListener('click', () => {
     const t = queue[currentIndex];
     const isDesktop = window.matchMedia && window.matchMedia('(min-width: 768px)').matches;
-    if (isDesktop && t && t.postUrl) { goToPost(t.postUrl); return; }
+    if (isDesktop && t && t.postUrl) { goToPost(t.postUrl, t.id); return; }
     openSheet();
   });
   sheetClose.addEventListener('click', () => closeSheet());

@@ -247,6 +247,7 @@ class AudioEmbedService {
       const t = trackLookup(id);
       if (!t || !t.url) return match;
       const trackJson = JSON.stringify({
+        id,
         url: t.url,
         title: t.title || 'Untitled',
         artist: t.artist || '',
@@ -257,7 +258,8 @@ class AudioEmbedService {
       const urlH = this.escape(t.url);
       const dataAttr = trackJson
         .replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/</g, '&lt;');
-      return `<div class="post-audio-track" data-pcms-track-url="${urlH}" data-pcms-track='${dataAttr}'>
+      // id="track-<id>" = anker zodat de mini-speler hierheen kan scrollen.
+      return `<div class="post-audio-track" id="track-${id}" data-pcms-track-id="${id}" data-pcms-track-url="${urlH}" data-pcms-track='${dataAttr}'>
   <button type="button" class="pat-play" aria-label="Play ${titleH}">
     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 4l12 8-12 8z"/></svg>
   </button>
