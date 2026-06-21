@@ -115,7 +115,7 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
                   <button type="button" class="comment-reply-btn" data-reply-to="<%= c.id %>"><%= t('comments.reply') %></button>
                 <% } %>
                 <% if (user && permissions.canDeleteComment(user, c, site)) { %>
-                  <form method="post" action="<%= _base %>/comments/<%= c.id %>/delete" style="display:inline" onsubmit="return confirm('<%= t('comments.delete_confirm') %>')">
+                  <form method="post" action="<%= _base %>/comments/<%= c.id %>/delete" onsubmit="return confirm('<%= t('comments.delete_confirm') %>')">
                     <button type="submit" class="comment-delete-btn"><%= t('comments.delete') %></button>
                   </form>
                 <% } %>
@@ -157,7 +157,7 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
                             <button type="button" class="comment-reply-btn" data-reply-to="<%= r.id %>"><%= t('comments.reply') %></button>
                           <% } %>
                           <% if (user && permissions.canDeleteComment(user, r, site)) { %>
-                            <form method="post" action="<%= _base %>/comments/<%= r.id %>/delete" style="display:inline" onsubmit="return confirm('<%= t('comments.delete_confirm') %>')">
+                            <form method="post" action="<%= _base %>/comments/<%= r.id %>/delete" onsubmit="return confirm('<%= t('comments.delete_confirm') %>')">
                               <button type="submit" class="comment-delete-btn"><%= t('comments.delete') %></button>
                             </form>
                           <% } %>
@@ -430,6 +430,12 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
 }
 .comment-form button { align-self: flex-start; }
 .comment-reply-form-actions { display: flex; gap: 0.5rem; }
+/* Reply-formulier pas tonen NA klik op REPLY. De display:flex hierboven overschreef
+   anders het [hidden]-attribuut → formulier stond altijd open. */
+.comment-reply-form[hidden] { display: none; }
+/* DELETE-knop zit in een <form>; display:contents laat 'm als directe flex-sibling
+   van REPLY meedoen → pixel-perfecte uitlijning + gelijke gap. */
+.comment-actions form { display: contents; }
 
 .comments-login-cta { margin-top: 1.5rem; text-align: center; }
 
