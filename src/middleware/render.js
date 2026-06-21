@@ -30,17 +30,19 @@ try {
   APP_VERSION = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8')).version || '';
 } catch { /* geen versie beschikbaar */ }
 
+// Site-tijdzone (Beheer → Instellingen). Leeg = server-default (UTC). Wordt
+// toegepast op álle server-side geformatteerde datums zodat ze in de zone van
+// de site staan i.p.v. UTC.
+const siteTimezone = () => getSetting('timezone') || undefined;
+
 const formatDate = (iso) => {
   if (!iso) return '';
-  const d = new Date(iso);
-  const months = ['januari','februari','maart','april','mei','juni','juli','augustus','september','oktober','november','december'];
-  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+  return new Date(iso).toLocaleDateString('nl-NL', { timeZone: siteTimezone(), day: 'numeric', month: 'long', year: 'numeric' });
 };
 
 const formatDateTime = (iso) => {
   if (!iso) return '';
-  const d = new Date(iso);
-  return d.toLocaleString('nl-NL', { dateStyle: 'medium', timeStyle: 'short' });
+  return new Date(iso).toLocaleString('nl-NL', { timeZone: siteTimezone(), dateStyle: 'medium', timeStyle: 'short' });
 };
 
 export async function renderPage(req, res, viewName, data = {}) {
@@ -90,6 +92,7 @@ export async function renderPage(req, res, viewName, data = {}) {
     lang: _lang,
     t: (key, vars) => i18nT(_lang, key, vars),
     langs: LANGS.map((c) => ({ code: c, name: LANG_NAMES[c], active: c === _lang })),
+    timezone: getSetting('timezone') || '',
     userOwnsSite,
     canSeeBeheer,
     isViewer: _isViewer,

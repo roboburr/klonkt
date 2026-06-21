@@ -976,6 +976,9 @@ const DICT = {
     'aset.default_lang': 'Standaardtaal voor bezoekers',
     'aset.default_lang_hint': 'Wat nieuwe bezoekers zien voordat ze zelf een taal kiezen. Een ingelogde gebruiker met een eigen voorkeur ziet díe.',
     'aset.default_lang_auto': 'Automatisch (browser-taal)',
+    'aset.timezone': 'Tijdzone',
+    'aset.timezone_hint': 'In welke tijdzone datums en geplande publicaties worden getoond en opgeslagen. Automatisch = serverstandaard (UTC).',
+    'aset.timezone_auto': 'Automatisch (UTC)',
   },
   en: {
     'nav.back_to_site': '← Back to site',
@@ -1935,6 +1938,9 @@ const DICT = {
     'aset.default_lang': 'Default language for visitors',
     'aset.default_lang_hint': 'What new visitors see before they pick a language themselves. A logged-in user with their own preference sees that instead.',
     'aset.default_lang_auto': 'Automatic (browser language)',
+    'aset.timezone': 'Timezone',
+    'aset.timezone_hint': 'The timezone used to show and schedule dates and planned posts. Automatic = server default (UTC).',
+    'aset.timezone_auto': 'Automatic (UTC)',
   },
   de: {
     'nav.back_to_site': '← Zurück zur Seite',
@@ -2894,6 +2900,9 @@ const DICT = {
     'aset.default_lang': 'Standardsprache für Besucher',
     'aset.default_lang_hint': 'Was neue Besucher sehen, bevor sie selbst eine Sprache wählen. Ein angemeldeter Benutzer mit eigener Voreinstellung sieht diese.',
     'aset.default_lang_auto': 'Automatisch (Browsersprache)',
+    'aset.timezone': 'Zeitzone',
+    'aset.timezone_hint': 'Die Zeitzone, in der Datumsangaben und geplante Veröffentlichungen angezeigt und gespeichert werden. Automatisch = Server-Standard (UTC).',
+    'aset.timezone_auto': 'Automatisch (UTC)',
   },
 };
 

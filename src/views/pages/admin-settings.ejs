@@ -57,6 +57,26 @@
     </form>
   </section>
 
+  <%# ── Tijdzone ── %>
+  <section class="set-card" style="margin-top:1rem">
+    <h2><%= t('aset.timezone') %></h2>
+    <p class="set-help"><%= t('aset.timezone_hint') %></p>
+    <form method="post" action="/admin/settings" class="set-form">
+      <label class="set-field">
+        <span><%= t('aset.timezone') %></span>
+        <select name="timezone">
+          <option value=""<%= !timezone ? ' selected' : '' %>><%= t('aset.timezone_auto') %></option>
+          <%
+            var _tz = ['Europe/Amsterdam','Europe/Brussels','Europe/Berlin','Europe/Paris','Europe/London','Europe/Madrid','Europe/Rome','Europe/Lisbon','Europe/Warsaw','Europe/Athens','UTC','America/New_York','America/Chicago','America/Los_Angeles','America/Sao_Paulo','Asia/Tokyo','Asia/Dubai','Australia/Sydney'];
+            if (timezone && _tz.indexOf(timezone) < 0) _tz.unshift(timezone);
+          %>
+          <% _tz.forEach(function(z){ %><option value="<%= z %>"<%= timezone === z ? ' selected' : '' %>><%= z %></option><% }); %>
+        </select>
+      </label>
+      <button type="submit" class="btn btn-primary"><%= t('aset.save') %></button>
+    </form>
+  </section>
+
   <%# Modus-specifieke config — staat direct onder de Modus-kaart zodat 'ie bij
       de gekozen modus hoort (Hub bij hub, Cirkel bij circle). %>
   <% if (tenancy === 'hub') { %>

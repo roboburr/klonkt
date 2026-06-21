@@ -115,6 +115,14 @@ router.post('/', requireGod, (req, res) => {
       const dl = (req.body.default_lang || '').toString().toLowerCase();
       setSetting('default_lang', SUPPORTED.includes(dl) ? dl : '');
     }
+    if (typeof req.body.timezone !== 'undefined') {
+      // Site-tijdzone (IANA, bv. Europe/Amsterdam). Leeg = server-default (UTC).
+      // Valideer met Intl zodat een onzin-waarde nooit de datum-rendering breekt.
+      const tz = (req.body.timezone || '').toString().trim();
+      let valid = '';
+      if (tz) { try { Intl.DateTimeFormat('en-US', { timeZone: tz }); valid = tz; } catch { valid = ''; } }
+      setSetting('timezone', valid);
+    }
     if (typeof req.body.hub_title !== 'undefined') {
       setSetting('hub_title', (req.body.hub_title || '').toString().slice(0, 80).trim());
     }

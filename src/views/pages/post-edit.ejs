@@ -224,23 +224,39 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
               var box = document.getElementById('pe-sched-fields');
               if (!cb || !box) return;
               var inp = document.getElementById('pe-publish-at');
+              var SITE_TZ = '<%= timezone || '' %>'; // ingestelde site-tijdzone; leeg = browser-lokaal
               var pad = function (n) { return String(n).padStart(2, '0'); };
-              // Prefill: opgeslagen UTC → lokale datetime-local-waarde (zodat je je
-              // eigen tijdzone ziet, niet UTC).
-              if (inp && inp.dataset.iso) {
-                var d0 = new Date(inp.dataset.iso);
-                if (!isNaN(d0)) inp.value = d0.getFullYear() + '-' + pad(d0.getMonth() + 1) + '-' + pad(d0.getDate()) + 'T' + pad(d0.getHours()) + ':' + pad(d0.getMinutes());
+              // Offset (ms) tussen een tijdzone en UTC op een bepaald moment.
+              function tzOffset(date, tz) {
+                var f = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                var p = {}; f.formatToParts(date).forEach(function (x) { p[x.type] = x.value; });
+                return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - date.getTime();
               }
-              // "Ingepland voor" in leesbare lokale tijd i.p.v. ruwe UTC-ISO.
+              // datetime-local "wandtijd" (in de site-zone) → UTC Date.
+              function wallToUtc(wall) {
+                if (!SITE_TZ) return new Date(wall);
+                var guess = new Date(wall + ':00Z').getTime();
+                return new Date(guess - tzOffset(new Date(guess), SITE_TZ));
+              }
+              // UTC-ISO → "YYYY-MM-DDTHH:MM" wandtijd in de site-zone.
+              function utcToWall(iso) {
+                var d = new Date(iso); if (isNaN(d)) return '';
+                if (!SITE_TZ) return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+                var f = new Intl.DateTimeFormat('en-CA', { timeZone: SITE_TZ, hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+                var p = {}; f.formatToParts(d).forEach(function (x) { p[x.type] = x.value; });
+                return p.year + '-' + p.month + '-' + p.day + 'T' + p.hour + ':' + p.minute;
+              }
+              // Prefill: opgeslagen UTC → wandtijd in de site-zone.
+              if (inp && inp.dataset.iso) inp.value = utcToWall(inp.dataset.iso);
+              // "Ingepland voor" in leesbare tijd van de site-zone.
               var when = document.getElementById('pe-sched-when');
               if (when && when.dataset.iso) {
                 var dw = new Date(when.dataset.iso);
-                if (!isNaN(dw)) when.textContent = '⏳ ' + when.dataset.label + ' ' + dw.toLocaleString();
+                if (!isNaN(dw)) when.textContent = '⏳ ' + when.dataset.label + ' ' + dw.toLocaleString(undefined, SITE_TZ ? { timeZone: SITE_TZ } : undefined);
               }
               function sync() { box.style.display = cb.checked ? '' : 'none'; if (inp) inp.disabled = !cb.checked; }
               cb.addEventListener('change', sync); sync();
-              // Bij opslaan: lokale invoer → UTC-ISO via een hidden veld, zodat de
-              // server de juiste tijd opslaat (datetime-local heeft geen tijdzone).
+              // Bij opslaan: wandtijd in de site-zone → UTC-ISO via een hidden veld.
               var form = cb.closest('form');
               if (form) {
                 form.addEventListener('submit', function () {
@@ -248,7 +264,7 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
                   var old = form.querySelector('input[data-pa-utc]');
                   if (old) old.remove();
                   if (cb.checked && inp && inp.value) {
-                    var d2 = new Date(inp.value); // geïnterpreteerd in browser-tijdzone
+                    var d2 = wallToUtc(inp.value);
                     if (!isNaN(d2)) {
                       var h = document.createElement('input');
                       h.type = 'hidden'; h.name = 'publish_at'; h.setAttribute('data-pa-utc', '');
