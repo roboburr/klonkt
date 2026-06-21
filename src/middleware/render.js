@@ -53,8 +53,8 @@ export async function renderPage(req, res, viewName, data = {}) {
   // Ververs avatar + rol uit de DB zodat een stale sessie (bv. na een
   // avatar-wijziging of rolwissel) zichzelf herstelt zonder opnieuw inloggen.
   if (_u && _u.id) {
-    const _fresh = db.prepare('SELECT avatar_url, role FROM users WHERE id = ?').get(_u.id);
-    if (_fresh) _u = { ..._u, avatar_url: _fresh.avatar_url, role: _fresh.role };
+    const _fresh = db.prepare('SELECT avatar_url, role, lang FROM users WHERE id = ?').get(_u.id);
+    if (_fresh) _u = { ..._u, avatar_url: _fresh.avatar_url, role: _fresh.role, lang: _fresh.lang };
   }
   const userOwnsSite = !!(_u && _u.role !== 'god' &&
     db.prepare('SELECT 1 FROM sites WHERE owner_id = ? LIMIT 1').get(_u.id));
@@ -77,8 +77,12 @@ export async function renderPage(req, res, viewName, data = {}) {
   const _role = _u ? _u.role : null;
   const canSeeBeheer = !!(_u && (_role === 'god' || _role === 'admin' || _role === 'kijker' || userOwnsSite));
 
-  // Interface-taal (bezoeker-instelbaar): sessie-keuze → browser-taal → nl.
-  const _lang = resolveLang(req);
+  // Interface-taal: sessie-keuze (deze sessie) → eigen voorkeur van de ingelogde
+  // gebruiker (users.lang) → admin-ingestelde standaard (Beheer) → env → browser → nl.
+  const _lang = resolveLang(req, {
+    userLang: _u && _u.lang,
+    defaultLang: getSetting('default_lang'),
+  });
 
   // Common locals
   const locals = {

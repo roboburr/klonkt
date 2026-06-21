@@ -42,6 +42,8 @@ export function initializeDatabase() {
   ensureColumn('users', 'google_sub', 'TEXT');
   // Read-only/kijk-account: kan alles bekijken maar geen wijzigingen doen.
   ensureColumn('users', 'readonly', 'INTEGER DEFAULT 0');
+  // Persoonlijke interface-taal (nl|en|de). Null = volg de standaard (site/env/browser).
+  ensureColumn('users', 'lang', 'TEXT');
   // Site-level moderation toggle. 'trust' = auto-approve, 'moderate' = pending until reviewed.
   ensureColumn('sites', 'comments_moderation_mode', "TEXT DEFAULT 'moderate'");
   // Per-site Prutter toggle: when off, DM endpoints/UI are hidden for that site.

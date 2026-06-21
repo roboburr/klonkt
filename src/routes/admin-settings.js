@@ -21,6 +21,7 @@ import { v4 as uuid } from 'uuid';
 import { renderPage } from '../middleware/render.js';
 import { requireGod } from '../middleware/auth.js';
 import { getTenancy, setTenancy, getSetting, setSetting } from '../services/SettingsService.js';
+import { SUPPORTED } from '../services/i18n.js';
 import { mailerStatus, sendMail } from '../config/mailer.js';
 import { entitlementStatus, premiumUnlocked } from '../services/PatreonService.js';
 import { googleConfigured, redirectUri, currentClientId, clientSecretSet } from '../config/google.js';
@@ -77,6 +78,7 @@ router.get('/', requireGod, (req, res) => {
     hubIntro: getSetting('hub_intro') || '',
     hubHeroImage: getSetting('hub_hero_image') || '',
     hubHeroOverlay: clampOverlay(getSetting('hub_hero_overlay')),
+    defaultLang: getSetting('default_lang') || '',
     premium: entitlementStatus(),
     google: {
       configured: googleConfigured(),
@@ -107,6 +109,11 @@ router.post('/', requireGod, (req, res) => {
         return res.redirect('/admin/settings?error=' + encodeURIComponent('Hub-modus is een premium-functie — koppel Patreon in Beheer → Instellingen.'));
       }
       setTenancy(req.body.tenancy); // valideert naar solo | hub | circle
+    }
+    if (typeof req.body.default_lang !== 'undefined') {
+      // Standaardtaal voor bezoekers (leeg = volg env/browser). Valideert tegen NL/EN/DE.
+      const dl = (req.body.default_lang || '').toString().toLowerCase();
+      setSetting('default_lang', SUPPORTED.includes(dl) ? dl : '');
     }
     if (typeof req.body.hub_title !== 'undefined') {
       setSetting('hub_title', (req.body.hub_title || '').toString().slice(0, 80).trim());

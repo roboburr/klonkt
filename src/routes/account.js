@@ -25,6 +25,7 @@ import { renderPage } from '../middleware/render.js';
 import { requireAuth } from '../middleware/auth.js';
 import { googleConfigured } from '../config/google.js';
 import { toWebp } from '../services/ImageWebpService.js';
+import { SUPPORTED } from '../services/i18n.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const AVATAR_DIR = path.resolve(
@@ -59,7 +60,7 @@ const router = express.Router();
 // ==================== GET account page ====================
 router.get('/', requireAuth, (req, res) => {
   const account = db.prepare(`
-    SELECT id, username, email, role, bio, avatar_url, created_at, password_hash, google_sub
+    SELECT id, username, email, role, bio, avatar_url, created_at, password_hash, google_sub, lang
     FROM users WHERE id = ?
   `).get(req.session.user.id);
   const hasPassword = !!(account && account.password_hash && account.password_hash !== '!google-oauth');
@@ -77,6 +78,19 @@ router.get('/', requireAuth, (req, res) => {
     success: req.query.success || null,
     error: req.query.error || null,
   });
+});
+
+// ==================== PERSOONLIJKE INTERFACE-TAAL ====================
+// Slaat de taalkeuze op het account op (reist mee over apparaten/sessies) én
+// zet 'm meteen in de sessie zodat 't direct effect heeft.
+router.post('/lang', requireAuth, (req, res) => {
+  const code = SUPPORTED.includes(req.body.lang) ? req.body.lang : null;
+  if (code) {
+    db.prepare('UPDATE users SET lang = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(code, req.session.user.id);
+    req.session.user.lang = code;
+    req.session.lang = code;
+  }
+  res.redirect('/account?success=' + encodeURIComponent('Taal opgeslagen'));
 });
 
 // De site die deze gebruiker mag bewerken vanuit z'n account: z'n eigen site

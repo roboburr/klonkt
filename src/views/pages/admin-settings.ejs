@@ -39,6 +39,24 @@
     </form>
   </section>
 
+  <%# ── Standaardtaal voor bezoekers ── %>
+  <section class="set-card" style="margin-top:1rem">
+    <h2><%= t('aset.default_lang') %></h2>
+    <p class="set-help"><%= t('aset.default_lang_hint') %></p>
+    <form method="post" action="/admin/settings" class="set-form">
+      <label class="set-field">
+        <span><%= t('aset.default_lang') %></span>
+        <select name="default_lang">
+          <option value=""<%= !defaultLang ? ' selected' : '' %>><%= t('aset.default_lang_auto') %></option>
+          <% langs.forEach(function(l){ %>
+            <option value="<%= l.code %>"<%= defaultLang === l.code ? ' selected' : '' %>><%= l.name %></option>
+          <% }); %>
+        </select>
+      </label>
+      <button type="submit" class="btn btn-primary"><%= t('aset.save') %></button>
+    </form>
+  </section>
+
   <%# Modus-specifieke config — staat direct onder de Modus-kaart zodat 'ie bij
       de gekozen modus hoort (Hub bij hub, Cirkel bij circle). %>
   <% if (tenancy === 'hub') { %>

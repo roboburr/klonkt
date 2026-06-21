@@ -89,6 +89,26 @@
     <% } %>
   </section>
 
+  <%# ── PERSOONLIJKE TAAL ───────────────────────────────────── %>
+  <% if (canMutate) { %>
+  <section class="ax-card">
+    <div class="ax-card-title"><%= t('acct.lang_label') %></div>
+    <form action="/account/lang" method="post" class="ax-form">
+      <label class="ax-field">
+        <span><%= t('acct.lang_label') %> <small><%= t('acct.lang_hint') %></small></span>
+        <select name="lang">
+          <% langs.forEach(function(l){ var sel = (account && account.lang) ? (account.lang === l.code) : l.active; %>
+            <option value="<%= l.code %>"<%= sel ? ' selected' : '' %>><%= l.name %></option>
+          <% }); %>
+        </select>
+      </label>
+      <div class="ax-form-actions">
+        <button type="submit" class="ax-btn ax-btn-primary"><%= t('acct.save') %></button>
+      </div>
+    </form>
+  </section>
+  <% } %>
+
   <%# ── SITE (eigenaar mag de naam van z'n site aanpassen) ── %>
   <% if (typeof editableSite !== 'undefined' && editableSite && canMutate) { %>
   <section class="ax-card">

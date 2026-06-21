@@ -963,6 +963,11 @@ const DICT = {
     'prcv.view_profile': 'Bekijk profiel',
     'prcv.placeholder': 'Bericht…',
     'prcv.send': 'Stuur',
+    'acct.lang_label': 'Taal',
+    'acct.lang_hint': '— jouw persoonlijke interface-taal; reist mee over apparaten en sessies.',
+    'aset.default_lang': 'Standaardtaal voor bezoekers',
+    'aset.default_lang_hint': 'Wat nieuwe bezoekers zien voordat ze zelf een taal kiezen. Een ingelogde gebruiker met een eigen voorkeur ziet díe.',
+    'aset.default_lang_auto': 'Automatisch (browser-taal)',
   },
   en: {
     'nav.back_to_site': '← Back to site',
@@ -1909,6 +1914,11 @@ const DICT = {
     'prcv.view_profile': 'View profile',
     'prcv.placeholder': 'Message…',
     'prcv.send': 'Send',
+    'acct.lang_label': 'Language',
+    'acct.lang_hint': '— your personal interface language; travels with you across devices and sessions.',
+    'aset.default_lang': 'Default language for visitors',
+    'aset.default_lang_hint': 'What new visitors see before they pick a language themselves. A logged-in user with their own preference sees that instead.',
+    'aset.default_lang_auto': 'Automatic (browser language)',
   },
   de: {
     'nav.back_to_site': '← Zurück zur Seite',
@@ -2855,6 +2865,11 @@ const DICT = {
     'prcv.view_profile': 'Profil ansehen',
     'prcv.placeholder': 'Nachricht…',
     'prcv.send': 'Senden',
+    'acct.lang_label': 'Sprache',
+    'acct.lang_hint': '— deine persönliche Interface-Sprache; reist mit dir über Geräte und Sitzungen.',
+    'aset.default_lang': 'Standardsprache für Besucher',
+    'aset.default_lang_hint': 'Was neue Besucher sehen, bevor sie selbst eine Sprache wählen. Ein angemeldeter Benutzer mit eigener Voreinstellung sieht diese.',
+    'aset.default_lang_auto': 'Automatisch (Browsersprache)',
   },
 };
 
@@ -2868,11 +2883,15 @@ export function t(lang, key, vars) {
 
 // Bepaal de taal voor dit request: expliciete sessie-keuze → instance-standaard
 // (env KLONKT_DEFAULT_LANG, bv. 'de' voor een Duitse site) → browser-taal → nl.
-export function resolveLang(req) {
+export function resolveLang(req, opts = {}) {
   const s = req && req.session && req.session.lang;
-  if (s && SUPPORTED.includes(s)) return s;            // bezoeker koos zelf
+  if (s && SUPPORTED.includes(s)) return s;             // bezoeker koos zelf (deze sessie)
+  const u = (opts.userLang || '').toLowerCase();
+  if (SUPPORTED.includes(u)) return u;                  // ingelogde gebruiker: eigen voorkeur
+  const d = (opts.defaultLang || '').toLowerCase();
+  if (SUPPORTED.includes(d)) return d;                  // admin-ingestelde standaard (Beheer/DB)
   const envDefault = (process.env.KLONKT_DEFAULT_LANG || '').toLowerCase();
-  if (SUPPORTED.includes(envDefault)) return envDefault; // per-instance standaard
+  if (SUPPORTED.includes(envDefault)) return envDefault; // per-instance standaard (env)
   const al = ((req && req.headers && req.headers['accept-language']) || '').toLowerCase();
   const first = al.split(',')[0].trim().slice(0, 2);
   if (SUPPORTED.includes(first)) return first;          // browser-voorkeur
