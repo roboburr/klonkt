@@ -63,15 +63,17 @@ class ThemeService {
       light: { paper: '#fdf2f4', ink: '#2e1419', accent: '#e11d6b' },
       dark: { paper: '#1f0a0f', ink: '#fce4ea', accent: '#f06b9a' }
     },
+    // key blijft 'slate' (DB-veilig), maar omgekleurd naar warm Goud — minder blauw.
     slate: {
-      name: 'Slate',
-      light: { paper: '#f4f6f8', ink: '#1a232e', accent: '#475569' },
-      dark: { paper: '#0d1117', ink: '#e6edf3', accent: '#8b98a8' }
+      name: 'Goud',
+      light: { paper: '#fdf8ea', ink: '#2a2410', accent: '#b8860b' },
+      dark: { paper: '#1a1608', ink: '#f7eecd', accent: '#d4a72c' }
     },
+    // key blijft 'mint' (DB-veilig), maar omgekleurd naar warm Terracotta — minder groen.
     mint: {
-      name: 'Mint',
-      light: { paper: '#effaf5', ink: '#0f2e22', accent: '#0d9488' },
-      dark: { paper: '#06201a', ink: '#d6f5e9', accent: '#2dd4bf' }
+      name: 'Terracotta',
+      light: { paper: '#faf2ee', ink: '#2e1a12', accent: '#c2410c' },
+      dark: { paper: '#1f120c', ink: '#f7e6da', accent: '#e8783f' }
     },
     lilac: {
       name: 'Lilac',
@@ -85,19 +87,21 @@ class ThemeService {
    * hex picker. Keeps the brand consistent and avoids unreadable combinations.
    * Each color works against both light and dark themes.
    */
+  // Evenwichtig over het kleurenwiel — minder groen/blauw (4 van de 12),
+  // meer warme + paars/roze variatie. Allemaal leesbaar op licht én donker.
   static ACCENTS = [
-    { key: 'orange',  name: 'Oranje',  color: '#c2410c' },
-    { key: 'sage',    name: 'Salie',   color: '#5a8a5a' },
-    { key: 'ocean',   name: 'Oceaan',  color: '#0369a1' },
-    { key: 'forest',  name: 'Bos',     color: '#16a34a' },
-    { key: 'plum',    name: 'Pruim',   color: '#9d3a78' },
-    { key: 'gold',    name: 'Goud',    color: '#d97706' },
-    { key: 'crimson', name: 'Karmijn', color: '#ef2840' },
-    { key: 'indigo',  name: 'Indigo',  color: '#6366f1' },
+    { key: 'red',     name: 'Rood',      color: '#dc2626' },
+    { key: 'orange',  name: 'Oranje',    color: '#ea580c' },
+    { key: 'amber',   name: 'Amber',     color: '#d97706' },
+    { key: 'gold',    name: 'Goud',      color: '#ca8a04' },
+    { key: 'forest',  name: 'Groen',     color: '#16a34a' },
     { key: 'teal',    name: 'Turquoise', color: '#0d9488' },
-    { key: 'pink',    name: 'Roze',    color: '#ec4899' },
-    { key: 'violet',  name: 'Violet',  color: '#7c3aed' },
-    { key: 'sky',     name: 'Hemelsblauw', color: '#0ea5e9' },
+    { key: 'ocean',   name: 'Blauw',     color: '#2563eb' },
+    { key: 'indigo',  name: 'Indigo',    color: '#4f46e5' },
+    { key: 'violet',  name: 'Violet',    color: '#7c3aed' },
+    { key: 'plum',    name: 'Magenta',   color: '#c026d3' },
+    { key: 'pink',    name: 'Roze',      color: '#db2777' },
+    { key: 'brown',   name: 'Bruin',     color: '#9a3412' },
   ];
 
   static listAccents() {

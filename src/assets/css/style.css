@@ -260,42 +260,42 @@ input[type="datetime-local"]:hover::-webkit-calendar-picker-indicator { opacity:
     --rule: #4a1f2c; --rule-2: #5e2d3a;
 }
 
-/* ── SLATE ── koel grijsblauw → antraciet ── */
+/* ── GOUD ── warm goudgeel → diep amber ── (key blijft 'slate' voor DB-compat) */
 [data-palette="slate"] {
-    --paper: #f4f6f8; --paper-2: #e2e8ee;
-    --ink: #1a232e; --ink-soft: #2e3c4d; --ink-muted: #56657a; --ink-faint: #93a1b3;
-    --rule: #cdd6e0; --rule-2: #aebbc9;
+    --paper: #fdf8ea; --paper-2: #f5ebcc;
+    --ink: #2a2410; --ink-soft: #4a3f1c; --ink-muted: #7a6c3e; --ink-faint: #b3a474;
+    --rule: #ece0bf; --rule-2: #ddca94;
 }
 @media (prefers-color-scheme: dark) {
     [data-palette="slate"]:not([data-theme="light"]) {
-        --paper: #0d1117; --paper-2: #1a2029;
-        --ink: #e6edf3; --ink-soft: #c2cdd9; --ink-muted: #8b98a8; --ink-faint: #5a6675;
-        --rule: #283039; --rule-2: #3a444f;
+        --paper: #1a1608; --paper-2: #2a2410;
+        --ink: #f7eecd; --ink-soft: #e0d29f; --ink-muted: #b3a06a; --ink-faint: #7a6c3e;
+        --rule: #4a3f1c; --rule-2: #5e5028;
     }
 }
 [data-theme="dark"][data-palette="slate"] {
-    --paper: #0d1117; --paper-2: #1a2029;
-    --ink: #e6edf3; --ink-soft: #c2cdd9; --ink-muted: #8b98a8; --ink-faint: #5a6675;
-    --rule: #283039; --rule-2: #3a444f;
+    --paper: #1a1608; --paper-2: #2a2410;
+    --ink: #f7eecd; --ink-soft: #e0d29f; --ink-muted: #b3a06a; --ink-faint: #7a6c3e;
+    --rule: #4a3f1c; --rule-2: #5e5028;
 }
 
-/* ── MINT ── fris mintgroen → diep teal ── */
+/* ── TERRACOTTA ── warme klei → diep brick ── (key blijft 'mint' voor DB-compat) */
 [data-palette="mint"] {
-    --paper: #effaf5; --paper-2: #d6f0e4;
-    --ink: #0f2e22; --ink-soft: #1d4a39; --ink-muted: #468066; --ink-faint: #82b3a0;
-    --rule: #c0e6d6; --rule-2: #9ad3bd;
+    --paper: #faf2ee; --paper-2: #f2ddd0;
+    --ink: #2e1a12; --ink-soft: #4a2c1e; --ink-muted: #7a5544; --ink-faint: #b3917e;
+    --rule: #eccdbb; --rule-2: #ddb49d;
 }
 @media (prefers-color-scheme: dark) {
     [data-palette="mint"]:not([data-theme="light"]) {
-        --paper: #06201a; --paper-2: #0f3329;
-        --ink: #d6f5e9; --ink-soft: #aee0cd; --ink-muted: #79b59f; --ink-faint: #4e8270;
-        --rule: #1c4a3c; --rule-2: #2a5e4d;
+        --paper: #1f120c; --paper-2: #2e1c13;
+        --ink: #f7e6da; --ink-soft: #e0c3b0; --ink-muted: #b3917c; --ink-faint: #7a5544;
+        --rule: #4a2c1e; --rule-2: #5e3a28;
     }
 }
 [data-theme="dark"][data-palette="mint"] {
-    --paper: #06201a; --paper-2: #0f3329;
-    --ink: #d6f5e9; --ink-soft: #aee0cd; --ink-muted: #79b59f; --ink-faint: #4e8270;
-    --rule: #1c4a3c; --rule-2: #2a5e4d;
+    --paper: #1f120c; --paper-2: #2e1c13;
+    --ink: #f7e6da; --ink-soft: #e0c3b0; --ink-muted: #b3917c; --ink-faint: #7a5544;
+    --rule: #4a2c1e; --rule-2: #5e3a28;
 }
 
 /* ── LILAC ── zacht lila → donker violet ── */
