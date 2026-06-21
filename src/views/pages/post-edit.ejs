@@ -946,6 +946,38 @@ body:has(.post-edit-page) .bottom-tab { display: none; }
 /* Audiospeler (indien aan het spelen) niet meer 56px optillen voor de nu-verborgen
    tabbalk, anders zou die zweven boven de actiebalk. */
 body:has(.post-edit-page) .audio-player { bottom: 0; }
+
+/* ── Afbeeldings-editor (draaien / bijsnijden / spiegelen) ── */
+.imed-backdrop {
+  position: fixed; inset: 0; z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,.62); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  padding: 14px;
+}
+.imed-modal {
+  display: flex; flex-direction: column; gap: 12px;
+  width: 100%; max-width: 640px; max-height: 92vh;
+  background: var(--paper, #fff); color: var(--ink, #111);
+  border: 1px solid var(--rule, rgba(128,128,128,.3)); border-radius: 14px;
+  padding: 14px; box-sizing: border-box;
+}
+.imed-stage {
+  flex: 1 1 auto; min-height: 0;
+  background: var(--paper-2, rgba(128,128,128,.08)); border-radius: 10px; overflow: hidden;
+}
+/* Cropper heeft een blok-img met begrensde hoogte nodig. */
+.imed-stage img { display: block; max-width: 100%; }
+.imed-stage .cropper-container { max-height: 64vh; }
+.imed-tools {
+  display: flex; flex-wrap: wrap; gap: 6px; justify-content: center;
+}
+.imed-tools button {
+  width: 42px; height: 42px; font-size: 18px; line-height: 1;
+  border: 1px solid var(--rule, rgba(128,128,128,.4)); border-radius: 10px;
+  background: var(--paper-2, transparent); color: inherit; cursor: pointer;
+}
+.imed-tools button:hover { border-color: var(--accent); }
+.imed-actions { display: flex; gap: 8px; justify-content: flex-end; }
 </style>
 
 <script>
@@ -968,6 +1000,103 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
       throw new Error(j.error || ('Upload failed (' + res.status + ')'));
     }
     return await res.json();   // {url, size, mime}
+  }
+
+  // ── Afbeeldings-editor (draaien / bijsnijden / spiegelen) ──────────
+  // Lazy-load Cropper.js (lokaal gevendord) pas bij het eerste gebruik.
+  let _cropperReady = null;
+  function ensureCropper() {
+    if (window.Cropper) return Promise.resolve();
+    if (_cropperReady) return _cropperReady;
+    _cropperReady = new Promise((resolve, reject) => {
+      if (!document.querySelector('link[data-cropper-css]')) {
+        const l = document.createElement('link');
+        l.rel = 'stylesheet'; l.href = '/assets/vendor/cropper.min.css'; l.setAttribute('data-cropper-css', '');
+        document.head.appendChild(l);
+      }
+      const s = document.createElement('script');
+      s.src = '/assets/vendor/cropper.min.js';
+      s.onload = () => resolve();
+      s.onerror = () => reject(new Error('cropper load failed'));
+      document.head.appendChild(s);
+    });
+    return _cropperReady;
+  }
+
+  // Opent de editor voor een gekozen bestand; resolved met een bewerkt File,
+  // of null als de gebruiker annuleert. Animatie-GIF's worden niet door de
+  // canvas-editor gehaald (zouden statisch worden) — die uploaden direct.
+  async function openImageEditor(file) {
+    if (!file || !file.type || !file.type.startsWith('image/')) return file;
+    if (file.type === 'image/gif') return file; // behoud animatie
+    try { await ensureCropper(); } catch (_) { return file; } // editor onbeschikbaar → direct uploaden
+
+    return new Promise((resolve) => {
+      const back = document.createElement('div');
+      back.className = 'imed-backdrop';
+      back.innerHTML =
+        '<div class="imed-modal" role="dialog" aria-modal="true" aria-label="<%= t('imed.title') %>">' +
+          '<div class="imed-stage"><img alt=""></div>' +
+          '<div class="imed-tools">' +
+            '<button type="button" data-act="rl" title="<%= t('imed.rotate_left') %>">⟲</button>' +
+            '<button type="button" data-act="rr" title="<%= t('imed.rotate_right') %>">⟳</button>' +
+            '<button type="button" data-act="fh" title="<%= t('imed.flip_h') %>">⇆</button>' +
+            '<button type="button" data-act="fv" title="<%= t('imed.flip_v') %>">⇅</button>' +
+            '<button type="button" data-act="zi" title="<%= t('imed.zoom_in') %>">＋</button>' +
+            '<button type="button" data-act="zo" title="<%= t('imed.zoom_out') %>">－</button>' +
+            '<button type="button" data-act="reset" title="<%= t('imed.reset') %>">↺</button>' +
+          '</div>' +
+          '<div class="imed-actions">' +
+            '<button type="button" data-act="cancel" class="pe-btn pe-btn-secondary"><%= t('imed.cancel') %></button>' +
+            '<button type="button" data-act="apply" class="pe-btn pe-btn-primary"><%= t('imed.apply') %></button>' +
+          '</div>' +
+        '</div>';
+      document.body.appendChild(back);
+      const img = back.querySelector('img');
+      const url = URL.createObjectURL(file);
+      let cropper = null, sx = 1, sy = 1;
+
+      function cleanup() {
+        try { if (cropper) cropper.destroy(); } catch (_) {}
+        URL.revokeObjectURL(url);
+        back.remove();
+        document.removeEventListener('keydown', onKey);
+      }
+      function onKey(e) { if (e.key === 'Escape') { cleanup(); resolve(null); } }
+      document.addEventListener('keydown', onKey);
+
+      img.onload = () => {
+        cropper = new Cropper(img, { viewMode: 1, autoCropArea: 1, background: false, responsive: true });
+      };
+      img.src = url;
+
+      back.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-act]');
+        if (e.target === back) { cleanup(); resolve(null); return; }
+        if (!btn || !cropper) return;
+        const a = btn.getAttribute('data-act');
+        if (a === 'rl') cropper.rotate(-90);
+        else if (a === 'rr') cropper.rotate(90);
+        else if (a === 'fh') { sx = -sx; cropper.scaleX(sx); }
+        else if (a === 'fv') { sy = -sy; cropper.scaleY(sy); }
+        else if (a === 'zi') cropper.zoom(0.1);
+        else if (a === 'zo') cropper.zoom(-0.1);
+        else if (a === 'reset') { sx = 1; sy = 1; cropper.reset(); }
+        else if (a === 'cancel') { cleanup(); resolve(null); }
+        else if (a === 'apply') {
+          const canvas = cropper.getCroppedCanvas({ maxWidth: 3000, maxHeight: 3000, imageSmoothingEnabled: true, imageSmoothingQuality: 'high' });
+          const png = (file.type === 'image/png' || file.type === 'image/webp');
+          const mime = png ? 'image/png' : 'image/jpeg';
+          const ext = png ? '.png' : '.jpg';
+          canvas.toBlob((blob) => {
+            cleanup();
+            if (!blob) { resolve(file); return; }
+            const base = (file.name || 'afbeelding').replace(/\.[^.]+$/, '');
+            resolve(new File([blob], base + ext, { type: mime }));
+          }, mime, 0.92);
+        }
+      });
+    });
   }
 
   function showCoverPreview(url) {
@@ -997,10 +1126,13 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
   if (coverField) {
     coverField.addEventListener('change', async () => {
       if (!coverField.files[0]) return;
+      const edited = await openImageEditor(coverField.files[0]);
+      coverField.value = '';
+      if (!edited) return; // geannuleerd
       coverStatus.classList.remove('is-error');
       coverStatus.textContent = '<%= t('pedit.js_uploading') %>';
       try {
-        const j = await uploadImage(coverField.files[0]);
+        const j = await uploadImage(edited);
         coverUrl.value = j.url;
         showCoverPreview(j.url);
         coverStatus.textContent = '<%= t('pedit.js_uploaded') %> ✓';
@@ -1404,10 +1536,12 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
 
   // ── Image upload (button + drag-drop into the editor)
   async function uploadAndInsertImage(file) {
+    const edited = await openImageEditor(file);
+    if (!edited) return; // geannuleerd
     contentStatus.classList.remove('is-error');
     contentStatus.textContent = '<%= t('pedit.js_uploading') %>';
     try {
-      const j = await uploadImage(file);
+      const j = await uploadImage(edited);
       const img = '<img src="' + j.url + '" alt="">';
       editor.focus({ preventScroll: true });
       document.execCommand('insertHTML', false, img);
