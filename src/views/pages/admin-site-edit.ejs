@@ -559,9 +559,17 @@
   .photo-picker { flex-direction: row; align-items: flex-start; gap: 1rem; }
   .photo-controls { gap: .55rem; }
 }
+/* Mobiel-eerst: platform-keuze op een eigen regel (volle breedte), daaronder de
+   URL-input + verwijderknop. Voorkomt horizontale overflow op telefoons (de vaste
+   160px-kolom + niet-krimpbare input liepen samen ~447px > schermbreedte). */
 .profile-link-row {
-  display: grid; grid-template-columns: 160px 1fr auto; gap: 0.5rem; margin-bottom: 0.5rem;
+  display: grid; grid-template-columns: 1fr auto; gap: 0.5rem; margin-bottom: 0.5rem;
 }
-.profile-link-row select { padding: 0.45rem 0.6rem; }
+.profile-link-row select { padding: 0.45rem 0.6rem; grid-column: 1 / -1; }
+.profile-link-row input { min-width: 0; }
+@media (min-width: 520px) {
+  .profile-link-row { grid-template-columns: 160px 1fr auto; }
+  .profile-link-row select { grid-column: auto; }
+}
 .profile-links-fieldset details > label { margin-top: 0.4rem; }
 </style>
