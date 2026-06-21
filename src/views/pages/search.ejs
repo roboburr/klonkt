@@ -1,32 +1,32 @@
 <% const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : ''; %>
 <% const _tracks = (typeof tracks !== 'undefined' && tracks) ? tracks : []; %>
 <div class="container search-page">
-  <h1>Zoeken</h1>
+  <h1><%= t('nav.search') %></h1>
 
   <form method="get" action="<%= _base %>/search" class="search-page-form">
     <input
       type="search"
       name="q"
       value="<%= query %>"
-      placeholder="Zoek posts en nummers…"
+      placeholder="<%= t('search.placeholder') %>"
       autocomplete="off"
       autofocus
-      aria-label="Zoekopdracht">
-    <button type="submit" class="btn btn-primary">Zoek</button>
+      aria-label="<%= t('nav.search') %>">
+    <button type="submit" class="btn btn-primary"><%= t('search.button') %></button>
   </form>
 
   <% if (queryError) { %>
-    <p class="search-error">Kon die zoekopdracht niet uitvoeren. Probeer een eenvoudiger term.</p>
+    <p class="search-error"><%= t('search.error') %></p>
   <% } %>
 
   <% if (query && !queryError) { %>
     <p class="search-meta">
-      <%= total %> resulta<%= total === 1 ? 'at' : 'ten' %> voor &ldquo;<%= query %>&rdquo;
+      <%= t(total === 1 ? 'search.results_one' : 'search.results_other', { n: total, q: query }) %>
     </p>
   <% } %>
 
   <% if (_tracks.length) { %>
-    <h2 class="search-section-title">Nummers</h2>
+    <h2 class="search-section-title"><%= t('search.section_tracks') %></h2>
     <div class="search-tracks">
       <% _tracks.forEach(function(t) {
            const tj = JSON.stringify({ id: t.id, url: t.url, title: t.title, artist: t.artist || '', cover: t.cover || '' })
@@ -55,7 +55,7 @@
                hx-target="#pcms-main"
                hx-swap="innerHTML"
                hx-push-url="<%= t.postUrl %>"
-               aria-label="Open in post">in post →</a>
+               aria-label="<%= t('search.in_post') %>"><%= t('search.in_post') %></a>
           <% } %>
         </div>
       <% }); %>
@@ -63,7 +63,7 @@
   <% } %>
 
   <% if (results && results.length) { %>
-    <% if (_tracks.length) { %><h2 class="search-section-title">Posts</h2><% } %>
+    <% if (_tracks.length) { %><h2 class="search-section-title"><%= t('search.section_posts') %></h2><% } %>
     <ol class="search-results">
       <% results.forEach(function(r) { %>
         <li class="search-result">
@@ -88,7 +88,7 @@
   <% } %>
 
   <% if (query && !queryError && !results.length && !_tracks.length) { %>
-    <p class="search-empty">Niets gevonden.</p>
+    <p class="search-empty"><%= t('search.empty') %></p>
   <% } %>
 </div>
 

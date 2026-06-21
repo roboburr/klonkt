@@ -74,7 +74,7 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
   <!-- Comments -->
   <section class="post-comments" id="comments">
     <h2 class="comments-heading">
-      <%= totalComments %> comment<%= totalComments === 1 ? '' : 's' %>
+      <%= t(totalComments === 1 ? 'comments.heading_one' : 'comments.heading_other', { n: totalComments }) %>
     </h2>
 
     <% if (typeof currentPath === 'string' && currentPath && currentPath.indexOf('/' + post.slug) === 0) { %>
@@ -85,14 +85,14 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
         if (location.search.indexOf('pending=1') !== -1) {
           var s = document.createElement('div');
           s.className = 'comments-pending-flash';
-          s.textContent = 'Your comment is awaiting moderation. It will appear once an admin approves it.';
+          s.textContent = <%- JSON.stringify(t('comments.pending')) %>;
           document.currentScript.parentNode.insertBefore(s, document.currentScript);
         }
       })();
     </script>
 
     <% if (!comments || !comments.length) { %>
-      <p class="comments-empty">No comments yet.<% if (!user) { %> <a href="/auth/login?next=<%= encodeURIComponent(_base + '/' + post.slug + '#comments') %>">Log in</a> to start the conversation.<% } %></p>
+      <p class="comments-empty"><%= t('comments.empty') %><% if (!user) { %> <a href="/auth/login?next=<%= encodeURIComponent(_base + '/' + post.slug + '#comments') %>"><%= t('nav.login') %></a> <%= t('comments.to_start') %><% } %></p>
     <% } else { %>
       <ol class="comments-list">
         <% comments.forEach(function(c) { %>
@@ -112,11 +112,11 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
               <div class="comment-content"><%= c.content %></div>
               <div class="comment-actions">
                 <% if (user && canMutate) { %>
-                  <button type="button" class="comment-reply-btn" data-reply-to="<%= c.id %>">Reply</button>
+                  <button type="button" class="comment-reply-btn" data-reply-to="<%= c.id %>"><%= t('comments.reply') %></button>
                 <% } %>
                 <% if (user && permissions.canDeleteComment(user, c, site)) { %>
-                  <form method="post" action="<%= _base %>/comments/<%= c.id %>/delete" style="display:inline" onsubmit="return confirm('Delete this comment?')">
-                    <button type="submit" class="comment-delete-btn">Delete</button>
+                  <form method="post" action="<%= _base %>/comments/<%= c.id %>/delete" style="display:inline" onsubmit="return confirm('<%= t('comments.delete_confirm') %>')">
+                    <button type="submit" class="comment-delete-btn"><%= t('comments.delete') %></button>
                   </form>
                 <% } %>
               </div>
@@ -126,10 +126,10 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
                 <form method="post" action="<%= _base %>/comments" class="comment-reply-form" hidden data-reply-form-for="<%= c.id %>">
                   <input type="hidden" name="post_slug" value="<%= post.slug %>">
                   <input type="hidden" name="parent_comment_id" value="<%= c.id %>">
-                  <textarea name="content" rows="3" maxlength="4000" placeholder="Reply to <%= c.author_username %>…" required></textarea>
+                  <textarea name="content" rows="3" maxlength="4000" placeholder="<%= t('comments.reply_to', { name: c.author_username }) %>" required></textarea>
                   <div class="comment-reply-form-actions">
-                    <button type="submit" class="btn btn-primary">Reply</button>
-                    <button type="button" class="btn comment-cancel-reply">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><%= t('comments.reply') %></button>
+                    <button type="button" class="btn comment-cancel-reply"><%= t('comments.cancel') %></button>
                   </div>
                 </form>
               <% } %>
@@ -154,8 +154,8 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
                         <div class="comment-content"><%= r.content %></div>
                         <div class="comment-actions">
                           <% if (user && permissions.canDeleteComment(user, r, site)) { %>
-                            <form method="post" action="<%= _base %>/comments/<%= r.id %>/delete" style="display:inline" onsubmit="return confirm('Delete this comment?')">
-                              <button type="submit" class="comment-delete-btn">Delete</button>
+                            <form method="post" action="<%= _base %>/comments/<%= r.id %>/delete" style="display:inline" onsubmit="return confirm('<%= t('comments.delete_confirm') %>')">
+                              <button type="submit" class="comment-delete-btn"><%= t('comments.delete') %></button>
                             </form>
                           <% } %>
                         </div>
@@ -175,14 +175,14 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
       <form method="post" action="<%= _base %>/comments" class="comment-form">
         <input type="hidden" name="post_slug" value="<%= post.slug %>">
         <label class="comment-form-label">
-          <span>Add a comment as <strong><%= user.username %></strong></span>
-          <textarea name="content" rows="3" maxlength="4000" placeholder="Share your thoughts…" required></textarea>
+          <span><%= t('comments.add_as') %> <strong><%= user.username %></strong></span>
+          <textarea name="content" rows="3" maxlength="4000" placeholder="<%= t('comments.placeholder') %>" required></textarea>
         </label>
-        <button type="submit" class="btn btn-primary">Post comment</button>
+        <button type="submit" class="btn btn-primary"><%= t('comments.post') %></button>
       </form>
     <% } else if (!user) { %>
       <p class="comments-login-cta">
-        <a href="/auth/login?next=<%= encodeURIComponent(_base + '/' + post.slug + '#comments') %>" class="btn">Log in to comment</a>
+        <a href="/auth/login?next=<%= encodeURIComponent(_base + '/' + post.slug + '#comments') %>" class="btn"><%= t('comments.login_to_comment') %></a>
       </p>
     <% } else { %>
       <p class="comments-login-cta" style="color:var(--ink-muted)">👁️ Kijker-modus — reageren is uitgeschakeld.</p>
@@ -216,7 +216,7 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
       to most-recent if there's no tag overlap. %>
   <% if (relatedPosts && relatedPosts.length > 0) { %>
     <section class="post-related" aria-labelledby="related-heading">
-      <h2 class="post-related-heading" id="related-heading">Gerelateerde posts</h2>
+      <h2 class="post-related-heading" id="related-heading"><%= t('related.title') %></h2>
       <ul class="post-related-grid">
         <% relatedPosts.forEach(function(rp) { %>
           <li class="post-related-card">

@@ -17,7 +17,7 @@
   </button>
 <% } else { %>
   <a class="like-btn" href="/auth/login?next=<%= encodeURIComponent((typeof loginNext !== 'undefined' && loginNext) ? loginNext : '/') %>"
-     title="Log in om deze post te liken">
+     title="<%= t('like.login_title') %>">
     <span class="like-heart" aria-hidden="true">♡</span>
     <span class="like-count"><%= _cnt %></span>
   </a>
