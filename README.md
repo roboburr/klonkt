@@ -8,7 +8,7 @@ Gebouwd op **Node + SQLite + htmx** — licht, zelf-gehost, en van jou.
 
 ## Filosofie
 
-- **Editorial feel.** Magazine-typografie (Fraunces + Literata + Plus Jakarta), royale spacing, 8 paletten waaronder Sage / Paper / Ocean / Forest / Stone / Midnight / Sunset / Cream. Light + dark per palette.
+- **Editorial feel.** Magazine-typografie (Fraunces + Literata + Plus Jakarta), royale spacing, 12 paletten (o.a. Sage, Paper, Ocean, Forest, Stone, Midnight, Sunset, Cream, Rose, Goud, Terracotta, Lilac). Light + dark per palette.
 - **App-feel waar het telt.** Geen full page reloads — htmx swaps + (binnenkort) View Transitions. Voelt als app, niet als website.
 - **Server-rendered.** Geen build step, geen SPA-tax. EJS + htmx + minimale Alpine.
 - **Realtime ingebouwd.** WebSocket server zit in `src/websocket/`. SSE als alternatief beschikbaar.
@@ -25,17 +25,61 @@ Gebouwd op **Node + SQLite + htmx** — licht, zelf-gehost, en van jou.
 | **1.4 — bottom-tab nav** | Native-app-stijl navigatie op mobiel, sidebar op desktop | ⚪ |
 | **2.0 — E2EE DMs** | MLS protocol via `@openmls/openmls`, single-device first | ⚪ apart project |
 
-## Quick start
+## Zelf hosten
+
+Klonkt is een **Node-app** (geen PHP) — draai 'm op een VPS, in Docker of op een
+Node-hostingplatform. **Niet** op klassieke shared PHP-hosting. De database
+(SQLite) maakt zichzelf aan bij de eerste start; er is geen los installatiescript.
+
+### Optie A — Docker (aanbevolen)
+
+Alles (Node, ffmpeg, cwebp) zit in het image; je hoeft alleen Docker te hebben.
 
 ```bash
-npm install
+git clone <repo-url> klonkt && cd klonkt
 cp .env.example .env
-# zet SESSION_SECRET op iets random (>=32 chars in production)
-npm run migrate
-npm run dev
+# vul in .env minimaal in: SESSION_SECRET (>=32 random tekens) + PUBLIC_BASE_URL
+docker compose up -d
 ```
 
-Open http://localhost:3000
+De app draait nu op poort 3000. Alle data (database + geüploade media/audio)
+blijft bewaard in het `klonkt-data`-volume, ook na een update. Updaten:
+
+```bash
+git pull && docker compose up -d --build
+```
+
+### Optie B — direct met Node (Node 20+)
+
+```bash
+git clone <repo-url> klonkt && cd klonkt
+npm ci
+cp .env.example .env        # SESSION_SECRET + PUBLIC_BASE_URL invullen
+npm start                   # database wordt bij de eerste start aangemaakt
+```
+
+Open http://localhost:3000. Voor productie: zet 'm achter een procesmanager
+(pm2/systemd) zodat 'ie aanblijft. `cwebp` is optioneel (Debian/Ubuntu:
+`apt install webp`) voor WebP-afbeeldingen — ontbreekt 'ie, dan wordt het
+origineel bewaard. (`npm run dev` = watch-mode voor ontwikkeling.)
+
+### HTTPS (productie)
+
+Zet een reverse-proxy vóór de app voor TLS. Met **Caddy** (automatisch
+Let's Encrypt) volstaat één blok:
+
+```caddy
+jouwdomein.nl {
+    reverse_proxy localhost:3000
+    encode gzip zstd
+}
+```
+
+### Eerste keer
+
+Open je site en ga naar **`/auth/register`** — de **eerste gebruiker wordt
+automatisch beheerder**; daarna sluit registratie zich. Wachtwoord kwijt?
+`npm run reset-admin` (in Docker: `docker compose exec klonkt npm run reset-admin`).
 
 ## Stack
 

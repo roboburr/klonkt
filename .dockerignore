@@ -1,0 +1,16 @@
+# Build-context schoon houden — deze horen NIET in het image
+node_modules
+npm-debug.log*
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+storage
+.beads
+test
+*.md
+Dockerfile
+docker-compose.yml
+.dockerignore
+.github

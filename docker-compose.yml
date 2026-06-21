@@ -1,0 +1,28 @@
+# Klonkt — zelf-host met Docker Compose.
+#
+#   1. cp .env.example .env   en vul SESSION_SECRET + PUBLIC_BASE_URL in
+#   2. docker compose up -d
+#   3. open je site en maak via /auth/register je beheerdersaccount aan
+#
+# Standaard luistert de app op poort 3000. Zet er een reverse-proxy (Caddy/
+# nginx) vóór voor HTTPS op je domein — zie README.
+services:
+  klonkt:
+    build: .
+    image: klonkt:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # In de container draait 'ie altijd op 3000 en in productie-modus,
+      # ongeacht wat er in .env staat.
+      NODE_ENV: production
+      PORT: "3000"
+    ports:
+      # host:container — wijzig de host-poort (links) als 3000 al bezet is.
+      - "3000:3000"
+    volumes:
+      # Alle data (database, geüploade media + audio) blijft hier bewaard.
+      - klonkt-data:/app/storage
+
+volumes:
+  klonkt-data:
