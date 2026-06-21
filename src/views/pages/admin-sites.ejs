@@ -1,10 +1,10 @@
 <div class="container ax-page">
 
-  <p><a href="/admin" class="btn">&larr; Beheer</a></p>
+  <p><a href="/admin" class="btn">&larr; <%= t('asit2.back') %></a></p>
   <header class="ax-header">
     <div>
-      <h1>Sites</h1>
-      <p class="ax-tagline">Beheer alle sites op deze installatie.</p>
+      <h1><%= t('asit2.title') %></h1>
+      <p class="ax-tagline"><%= t('asit2.tagline') %></p>
     </div>
   </header>
 
@@ -12,18 +12,39 @@
   <% if (error)   { %><div class="ax-flash ax-flash-err"><%= error %></div><% } %>
 
   <div class="ax-actions-bar">
-    <a href="/admin/sites/new" class="ax-btn ax-btn-primary">＋ Nieuwe site</a>
+    <a href="/admin/sites/new" class="ax-btn ax-btn-primary">＋ <%= t('asit2.new_site') %></a>
   </div>
 
   <% if (!sites.length) { %>
     <div class="ax-card">
       <div class="ax-empty">
         <div class="ax-empty-icon">🌐</div>
-        <p>Nog geen sites.</p>
-        <p class="ax-empty-sub">Maak er een via de knop hierboven.</p>
+        <p><%= t('asit2.empty') %></p>
+        <p class="ax-empty-sub"><%= t('asit2.empty_sub') %></p>
       </div>
     </div>
   <% } else { %>
+    <%
+      var _s_primary    = t('asit2.pill_primary');
+      var _s_primary_t  = t('asit2.pill_primary_title');
+      var _s_public     = t('asit2.pill_public');
+      var _s_public_t   = t('asit2.pill_public_title');
+      var _s_private    = t('asit2.pill_private');
+      var _s_private_t  = t('asit2.pill_private_title');
+      var _s_noindex    = t('asit2.pill_noindex');
+      var _s_noindex_t  = t('asit2.pill_noindex_title');
+      var _s_by         = t('asit2.by');
+      var _s_t_posts    = t('asit2.t_posts');
+      var _s_l_posts    = t('asit2.l_posts');
+      var _s_t_created  = t('asit2.t_created');
+      var _s_l_created  = t('asit2.l_created');
+      var _s_makeprim   = t('asit2.make_primary');
+      var _s_makeprim_t = t('asit2.make_primary_title');
+      var _s_makeprim_c = t('asit2.make_primary_confirm');
+      var _s_edit       = t('asit2.edit');
+      var _s_del        = t('asit2.delete');
+      var _s_del_c      = t('asit2.delete_confirm');
+    %>
     <ul class="ax-list">
       <% sites.forEach(function(s) { %>
         <li class="ax-site">
@@ -36,49 +57,49 @@
               <div class="ax-site-name">
                 <a href="/user/<%= s.slug %>"><%= s.title %></a>
                 <% if (s.is_primary) { %>
-                  <span class="ax-pill ax-pill-primary" title="Hoofd-/labelsite van deze installatie">★ primair</span>
+                  <span class="ax-pill ax-pill-primary" title="<%= _s_primary_t %>">★ <%= _s_primary %></span>
                 <% } %>
                 <% if (s.is_public) { %>
-                  <span class="ax-pill ax-pill-ok" title="Publiek zichtbaar">✓ public</span>
+                  <span class="ax-pill ax-pill-ok" title="<%= _s_public_t %>">✓ <%= _s_public %></span>
                 <% } else { %>
-                  <span class="ax-pill" title="Niet publiek">🔒 private</span>
+                  <span class="ax-pill" title="<%= _s_private_t %>">🔒 <%= _s_private %></span>
                 <% } %>
                 <% if (!s.robots_index) { %>
-                  <span class="ax-pill" title="Niet geïndexeerd door zoekmachines">🚫🤖 noindex</span>
+                  <span class="ax-pill" title="<%= _s_noindex_t %>">🚫🤖 <%= _s_noindex %></span>
                 <% } %>
               </div>
               <div class="ax-site-slug">
                 <code>/<%= s.slug %></code>
                 <% if (s.owner_username) { %>
                   <span class="ax-track-sep">·</span>
-                  <span>door <%= s.owner_username %></span>
+                  <span><%= _s_by %> <%= s.owner_username %></span>
                 <% } %>
               </div>
             </div>
           </div>
 
           <div class="ax-site-stats">
-            <span class="ax-stat" title="Aantal posts">
+            <span class="ax-stat" title="<%= _s_t_posts %>">
               <span class="ax-stat-num"><%= s.post_count %></span>
-              <span class="ax-stat-label">posts</span>
+              <span class="ax-stat-label"><%= _s_l_posts %></span>
             </span>
-            <span class="ax-stat" title="Aangemaakt op">
+            <span class="ax-stat" title="<%= _s_t_created %>">
               <span class="ax-stat-num ax-stat-date"><%= formatDate(s.created_at) %></span>
-              <span class="ax-stat-label">created</span>
+              <span class="ax-stat-label"><%= _s_l_created %></span>
             </span>
           </div>
 
           <div class="ax-site-controls">
             <% if (!s.is_primary && (typeof canMutate === 'undefined' || canMutate)) { %>
               <form method="post" action="/admin/sites/<%= s.slug %>/make-primary" style="margin:0;display:inline"
-                    onsubmit="return confirm('Deze site instellen als de primaire/hoofd-site?')">
-                <button type="submit" class="ax-icon-btn" aria-label="Maak primair" title="Maak primaire/hoofd-site">★</button>
+                    onsubmit="return confirm('<%= _s_makeprim_c %>')">
+                <button type="submit" class="ax-icon-btn" aria-label="<%= _s_makeprim %>" title="<%= _s_makeprim_t %>">★</button>
               </form>
             <% } %>
-            <a href="/admin/sites/<%= s.slug %>/edit" class="ax-icon-btn" aria-label="Bewerken" title="Bewerken">✎</a>
+            <a href="/admin/sites/<%= s.slug %>/edit" class="ax-icon-btn" aria-label="<%= _s_edit %>" title="<%= _s_edit %>">✎</a>
             <form method="post" action="/admin/sites/<%= s.slug %>/delete" class="ax-delete-form"
-                  onsubmit="return confirm('Site verwijderen? Lukt alleen als er geen posts zijn.')">
-              <button type="submit" class="ax-icon-btn ax-icon-btn-danger" aria-label="Verwijderen" title="Verwijderen">🗑</button>
+                  onsubmit="return confirm('<%= _s_del_c %>')">
+              <button type="submit" class="ax-icon-btn ax-icon-btn-danger" aria-label="<%= _s_del %>" title="<%= _s_del %>">🗑</button>
             </form>
           </div>
 

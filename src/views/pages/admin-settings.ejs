@@ -1,42 +1,41 @@
 <div class="container admin-page">
-  <h1>Instellingen</h1>
-  <p><a href="/admin" class="btn">&larr; Beheer</a></p>
+  <h1><%= t('aset.title') %></h1>
+  <p><a href="/admin" class="btn">&larr; <%= t('aset.back_admin') %></a></p>
 
   <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
   <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
 
   <section class="set-card">
-    <h2>Modus</h2>
+    <h2><%= t('aset.mode') %></h2>
     <p class="set-help">
-      Bepaalt hoe deze installatie werkt. Wisselen is veilig: er wordt niets verwijderd —
-      Solo verbergt alleen de multi-onderdelen en toont je primaire site.
+      <%= t('aset.mode_help') %>
     </p>
 
     <form method="post" action="/admin/settings" class="set-form">
       <label class="set-opt">
         <input type="radio" name="tenancy" value="solo" <%= tenancy === 'solo' ? 'checked' : '' %>>
         <span>
-          <strong>Solo</strong> — één site (de jouwe).
-          <small>Geen gebruikers-directory, geen site-wissel. Bezoekers kunnen wel met Google inloggen om te reageren.</small>
+          <strong><%= t('aset.solo') %></strong> — <%= t('aset.solo_title') %>
+          <small><%= t('aset.solo_desc') %></small>
         </span>
       </label>
       <% var _hubLocked = (typeof premiumUnlocked !== 'undefined') && !premiumUnlocked && tenancy !== 'hub'; %>
       <label class="set-opt">
         <input type="radio" name="tenancy" value="hub" <%= tenancy === 'hub' ? 'checked' : '' %> <%= _hubLocked ? 'disabled' : '' %>>
         <span>
-          <strong>Hub</strong> — bedrijfssite met <code>/user/</code>.
-          <% if (_hubLocked) { %><span style="display:inline-block;font-size:.7rem;font-weight:700;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:.05rem .45rem;margin-left:.3rem;vertical-align:1px;">🔒 premium</span><% } %>
-          <small>Jij (admin) wijst gebruikers een eigen Klonkt Hub toe. Gesloten cirkel: geen open registratie.<% if (_hubLocked) { %> <em>Vereist premium — koppel Patreon in deze pagina.</em><% } %></small>
+          <strong><%= t('aset.hub') %></strong> — <%= t('aset.hub_title') %> <code>/user/</code>.
+          <% if (_hubLocked) { %><span style="display:inline-block;font-size:.7rem;font-weight:700;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:.05rem .45rem;margin-left:.3rem;vertical-align:1px;">🔒 <%= t('aset.premium_badge') %></span><% } %>
+          <small><%= t('aset.hub_desc') %><% if (_hubLocked) { %> <em><%= t('aset.hub_locked_note') %></em><% } %></small>
         </span>
       </label>
       <label class="set-opt">
         <input type="radio" name="tenancy" value="circle" <%= tenancy === 'circle' ? 'checked' : '' %>>
         <span>
-          <strong>Cirkels</strong> &mdash; solo + federatie.
-          <small>E&eacute;n eigen site die de publieke posts van andere Klonkt-sites toont. Asymmetrisch: jij bepaalt wie in jouw cirkel zit.</small>
+          <strong><%= t('aset.circle') %></strong> &mdash; <%= t('aset.circle_title') %>
+          <small><%= t('aset.circle_desc') %></small>
         </span>
       </label>
-      <button type="submit" class="btn btn-primary">Opslaan</button>
+      <button type="submit" class="btn btn-primary"><%= t('aset.save') %></button>
     </form>
   </section>
 
@@ -44,34 +43,33 @@
       de gekozen modus hoort (Hub bij hub, Cirkel bij circle). %>
   <% if (tenancy === 'hub') { %>
   <section class="set-card set-card--mode" style="margin-top:1rem">
-    <h2>Hub-hoofdpagina</h2>
+    <h2><%= t('aset.hub_home') %></h2>
     <p class="set-help">
-      De openbare hub-pagina (<code>/</code>) is generiek — van geen enkele gebruiker.
-      Hier stel je de naam en intro in. Jouw eigen Klonkt Hub blijft los bestaan onder <code>/user/</code>.
+      <%= t('aset.hub_home_help_1') %> (<code>/</code>) <%= t('aset.hub_home_help_2') %> <code>/user/</code>.
     </p>
     <form method="post" action="/admin/settings" class="set-form" enctype="multipart/form-data">
       <label class="set-field">
-        <span>Naam</span>
-        <input type="text" name="hub_title" maxlength="80" value="<%= hubTitle %>" placeholder="bijv. Studio Noord">
+        <span><%= t('aset.name') %></span>
+        <input type="text" name="hub_title" maxlength="80" value="<%= hubTitle %>" placeholder="<%= t('aset.name_ph') %>">
       </label>
       <label class="set-field">
-        <span>Tagline</span>
-        <input type="text" name="hub_tagline" maxlength="120" value="<%= hubTagline %>" placeholder="bijv. Onafhankelijk muzieklabel">
+        <span><%= t('aset.tagline') %></span>
+        <input type="text" name="hub_tagline" maxlength="120" value="<%= hubTagline %>" placeholder="<%= t('aset.tagline_ph') %>">
       </label>
       <label class="set-field">
-        <span>Intro</span>
-        <textarea name="hub_intro" maxlength="400" rows="3" placeholder="Korte introtekst onder de titel."><%= hubIntro %></textarea>
+        <span><%= t('aset.intro') %></span>
+        <textarea name="hub_intro" maxlength="400" rows="3" placeholder="<%= t('aset.intro_ph') %>"><%= hubIntro %></textarea>
       </label>
       <label class="set-field">
-        <span>Hero-afbeelding (URL) <small style="font-weight:400;color:var(--ink-muted)">— optioneel; achtergrond van de hero</small></span>
+        <span><%= t('aset.hero_image') %> <small style="font-weight:400;color:var(--ink-muted)">— <%= t('aset.hero_image_hint') %></small></span>
         <input type="text" name="hub_hero_image" maxlength="300" value="<%= hubHeroImage %>" placeholder="/media/... of https://...">
       </label>
       <label class="set-field">
-        <span>…of upload een afbeelding <small style="font-weight:400;color:var(--ink-muted)">— jpg/png/webp/gif, max 5 MB; vervangt de URL hierboven</small></span>
+        <span><%= t('aset.hero_upload') %> <small style="font-weight:400;color:var(--ink-muted)">— <%= t('aset.hero_upload_hint') %></small></span>
         <input type="file" name="hub_hero_file" accept="image/png,image/jpeg,image/webp,image/gif">
       </label>
       <label class="set-field">
-        <span>Donkere overlay <small style="font-weight:400;color:var(--ink-muted)">— maakt de hero donkerder zodat de tekst leesbaar blijft</small></span>
+        <span><%= t('aset.hero_overlay') %> <small style="font-weight:400;color:var(--ink-muted)">— <%= t('aset.hero_overlay_hint') %></small></span>
         <span style="display:flex;align-items:center;gap:0.75rem">
           <input type="range" name="hub_hero_overlay" min="0" max="100" step="5" value="<%= hubHeroOverlay %>" style="flex:1"
             oninput="this.parentNode.querySelector('.ov-val').textContent=this.value+'%';var o=document.getElementById('hero-ov-preview');if(o)o.style.opacity=this.value/100">
@@ -80,27 +78,26 @@
       </label>
       <% if (hubHeroImage) { %>
       <div class="set-field">
-        <span style="font-weight:400;color:var(--ink-muted);font-size:0.9rem">Voorbeeld (met overlay):</span>
+        <span style="font-weight:400;color:var(--ink-muted);font-size:0.9rem"><%= t('aset.preview_overlay') %></span>
         <div style="position:relative;width:100%;aspect-ratio:16/7;margin-top:0.4rem;border-radius:8px;overflow:hidden;border:1px solid var(--rule);background:var(--paper-2)">
-          <img src="<%= hubHeroImage %>" alt="Hero-voorbeeld" style="display:block;width:100%;height:100%;object-fit:cover">
+          <img src="<%= hubHeroImage %>" alt="<%= t('aset.hero_preview_alt') %>" style="display:block;width:100%;height:100%;object-fit:cover">
           <div id="hero-ov-preview" style="position:absolute;inset:0;background:#000;opacity:<%= (hubHeroOverlay/100).toFixed(2) %>;pointer-events:none"></div>
         </div>
       </div>
       <% } %>
-      <button type="submit" class="btn btn-primary">Opslaan</button>
+      <button type="submit" class="btn btn-primary"><%= t('aset.save') %></button>
     </form>
   </section>
   <% } %>
 
   <% if (tenancy === 'circle') { %>
   <section class="set-card set-card--mode" style="margin-top:1rem">
-    <h2>🔗 Je cirkel</h2>
+    <h2>🔗 <%= t('aset.your_circle') %></h2>
     <p class="set-help">
-      Beheer welke andere Klonkt-sites je in je cirkel toont, en of jouw site in
-      cirkels van anderen mag verschijnen. Asymmetrisch: jij bepaalt wie je volgt.
+      <%= t('aset.your_circle_help') %>
     </p>
     <div class="set-actions">
-      <a href="/admin/circle" class="btn btn-primary">Beheer je cirkel &rarr;</a>
+      <a href="/admin/circle" class="btn btn-primary"><%= t('aset.manage_circle') %> &rarr;</a>
     </div>
   </section>
   <% } %>
@@ -109,84 +106,82 @@
       (env KLONKT_PREMIUM_ENABLED=on). Standaard onzichtbaar; niets gegate. %>
   <% if (premium && premium.enabled) { %>
   <section class="set-card" style="margin-top:1rem">
-    <h2>Premium (Patreon)</h2>
-    <p class="set-help">Ontgrendel de premium-modules (Hub-modus, Statistieken, Fan-login,
-      Prutter-DMs) met je <strong>$10-lifetime</strong> Patreon-steun. De app en alle updates
-      blijven gratis.</p>
+    <h2><%= t('aset.premium') %></h2>
+    <p class="set-help"><%= t('aset.premium_help_1') %> <strong><%= t('aset.premium_lifetime') %></strong> <%= t('aset.premium_help_2') %></p>
     <% if (premium.premium) { %>
-      <p class="set-help"><strong>✓ Premium actief.</strong>
-        <% if (premium.supportCents) { %>Lifetime-steun: $<%= (premium.supportCents/100).toFixed(2) %>.<% } %></p>
-      <a href="/admin/patreon/disconnect" class="btn">Patreon ontkoppelen</a>
+      <p class="set-help"><strong>✓ <%= t('aset.premium_active') %></strong>
+        <% if (premium.supportCents) { %><%= t('aset.lifetime_support') %> $<%= (premium.supportCents/100).toFixed(2) %>.<% } %></p>
+      <a href="/admin/patreon/disconnect" class="btn"><%= t('aset.patreon_disconnect') %></a>
     <% } else if (premium.connected) { %>
-      <p class="set-help">Patreon gekoppeld, maar nog geen $10 lifetime<% if (premium.supportCents) { %>
-        (nu $<%= (premium.supportCents/100).toFixed(2) %>)<% } %>. Steun de campagne en koppel opnieuw.</p>
-      <a href="/admin/patreon/connect" class="btn btn-primary">Opnieuw koppelen</a>
+      <p class="set-help"><%= t('aset.patreon_no_lifetime') %><% if (premium.supportCents) { %>
+        (<%= t('aset.now') %> $<%= (premium.supportCents/100).toFixed(2) %>)<% } %>. <%= t('aset.patreon_support_again') %></p>
+      <a href="/admin/patreon/connect" class="btn btn-primary"><%= t('aset.patreon_reconnect') %></a>
     <% } else { %>
-      <p class="set-help">Nog niet gekoppeld.</p>
-      <a href="/admin/patreon/connect" class="btn btn-primary">Koppel Patreon</a>
+      <p class="set-help"><%= t('aset.patreon_not_connected') %></p>
+      <a href="/admin/patreon/connect" class="btn btn-primary"><%= t('aset.patreon_connect') %></a>
     <% } %>
   </section>
   <% } %>
 
   <%# Google-login staat op een eigen Beheer-pagina (compacte link hier). %>
   <section class="set-card" style="margin-top:1rem">
-    <h2>Google-login (bezoekers)</h2>
-    <p class="set-help">Laat bezoekers met Google inloggen om te reageren — met je eigen Google Cloud-client.
-      <% if (google && google.configured) { %><strong>Status: ingesteld&nbsp;✓</strong><% } else { %>Nog niet ingesteld.<% } %></p>
-    <div class="set-actions"><a href="/admin/settings/google" class="btn btn-primary">Google-login instellen &rarr;</a></div>
+    <h2><%= t('aset.google_login') %></h2>
+    <p class="set-help"><%= t('aset.google_login_help') %>
+      <% if (google && google.configured) { %><strong><%= t('aset.status_set') %>&nbsp;✓</strong><% } else { %><%= t('aset.not_set_yet') %><% } %></p>
+    <div class="set-actions"><a href="/admin/settings/google" class="btn btn-primary"><%= t('aset.google_login_setup') %> &rarr;</a></div>
   </section>
 
   <%# Nieuwsbrief-aanmelding in de footer (premium). %>
   <% if (typeof premiumUnlocked === 'undefined' || premiumUnlocked) { %>
   <section class="set-card" style="margin-top:1rem">
-    <h2>Nieuwsbrief</h2>
-    <p class="set-help">Toon een <strong>aanmeldveld in de footer</strong> van je site zodat bezoekers zich op elke pagina kunnen inschrijven. (De volledige aanmeldpagina blijft op <code><%= (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '' %>/nieuwsbrief</code>.)</p>
+    <h2><%= t('aset.newsletter') %></h2>
+    <p class="set-help"><%= t('aset.newsletter_help_1') %> <strong><%= t('aset.newsletter_footer_field') %></strong> <%= t('aset.newsletter_help_2') %> <code><%= (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '' %>/nieuwsbrief</code>.)</p>
     <form method="post" action="/admin/settings/footer" class="set-form">
       <label class="set-toggle" style="display:flex;align-items:center;gap:.6rem;cursor:pointer">
         <input type="checkbox" name="footer_newsletter" value="1" <%= footerNewsletter ? 'checked' : '' %>>
-        <span>Aanmeldveld in de footer tonen</span>
+        <span><%= t('aset.newsletter_show_footer') %></span>
       </label>
-      <div class="set-actions"><button type="submit" class="btn btn-primary">Opslaan</button></div>
+      <div class="set-actions"><button type="submit" class="btn btn-primary"><%= t('aset.save') %></button></div>
     </form>
   </section>
   <% } %>
 
   <%# E-mail / SMTP — nodig voor nieuwsbrief versturen, notify-mails en wachtwoord-reset. %>
   <section class="set-card" style="margin-top:1rem">
-    <h2>E-mail (SMTP)</h2>
-    <p class="set-help">Nodig om de <strong>nieuwsbrief te versturen</strong>, <strong>show-notify</strong>-mails te sturen en wachtwoord-reset per mail te laten werken. Vul de gegevens van je mailprovider in (bv. je hostingmail, Gmail-app-wachtwoord, Brevo, Mailgun…).
-      <% if (smtp && smtp.configured) { %><br><strong>Status: ingesteld&nbsp;✓</strong><% if (smtp.fromEnv) { %> <small>(via .env)</small><% } %><% } else { %><br>Nog niet ingesteld — versturen werkt nog niet.<% } %></p>
+    <h2><%= t('aset.email_smtp') %></h2>
+    <p class="set-help"><%= t('aset.smtp_help_1') %> <strong><%= t('aset.smtp_help_newsletter') %></strong><%= t('aset.smtp_help_2') %> <strong><%= t('aset.smtp_help_notify') %></strong><%= t('aset.smtp_help_3') %>
+      <% if (smtp && smtp.configured) { %><br><strong><%= t('aset.status_set') %>&nbsp;✓</strong><% if (smtp.fromEnv) { %> <small>(<%= t('aset.via_env') %>)</small><% } %><% } else { %><br><%= t('aset.smtp_not_set') %><% } %></p>
 
     <form method="post" action="/admin/settings/smtp" class="set-form">
-      <label><span>SMTP-host</span>
+      <label><span><%= t('aset.smtp_host') %></span>
         <input type="text" name="smtp_host" value="<%= smtp ? smtp.host : '' %>" placeholder="smtp.jouwprovider.nl" autocomplete="off">
       </label>
-      <label><span>Poort <small style="font-weight:400">— 587 (STARTTLS) of 465 (SSL)</small></span>
+      <label><span><%= t('aset.smtp_port') %> <small style="font-weight:400">— <%= t('aset.smtp_port_hint') %></small></span>
         <input type="text" name="smtp_port" value="<%= (smtp && smtp.port) ? smtp.port : '' %>" placeholder="587" autocomplete="off" inputmode="numeric">
       </label>
-      <label><span>Gebruikersnaam</span>
+      <label><span><%= t('aset.smtp_user') %></span>
         <input type="text" name="smtp_user" value="<%= smtp ? smtp.user : '' %>" placeholder="jij@jouwprovider.nl" autocomplete="off">
       </label>
-      <label><span>Wachtwoord <% if (smtp && smtp.passSet) { %><small style="font-weight:400">— ingesteld; leeg laten = ongewijzigd</small><% } %></span>
-        <input type="password" name="smtp_pass" placeholder="<%= (smtp && smtp.passSet) ? '•••••••• (ingesteld)' : 'app-wachtwoord' %>" autocomplete="off">
+      <label><span><%= t('aset.smtp_pass') %> <% if (smtp && smtp.passSet) { %><small style="font-weight:400">— <%= t('aset.smtp_pass_set_hint') %></small><% } %></span>
+        <input type="password" name="smtp_pass" placeholder="<%= (smtp && smtp.passSet) ? t('aset.smtp_pass_ph_set') : t('aset.smtp_pass_ph') %>" autocomplete="off">
       </label>
-      <label><span>Afzender <small style="font-weight:400">— optioneel; standaard = gebruikersnaam</small></span>
-        <input type="text" name="smtp_from" value="<%= smtp ? smtp.from : '' %>" placeholder="Jouw Naam &lt;jij@jouwprovider.nl&gt;" autocomplete="off">
+      <label><span><%= t('aset.smtp_from') %> <small style="font-weight:400">— <%= t('aset.smtp_from_hint') %></small></span>
+        <input type="text" name="smtp_from" value="<%= smtp ? smtp.from : '' %>" placeholder="<%= t('aset.smtp_from_ph') %>" autocomplete="off">
       </label>
       <div class="set-actions">
-        <button type="submit" class="btn btn-primary">SMTP opslaan</button>
+        <button type="submit" class="btn btn-primary"><%= t('aset.smtp_save') %></button>
         <% if (smtp && (smtp.host || smtp.passSet)) { %>
-          <button type="submit" name="clear" value="1" class="btn" formnovalidate>Wissen</button>
+          <button type="submit" name="clear" value="1" class="btn" formnovalidate><%= t('aset.clear') %></button>
         <% } %>
       </div>
     </form>
 
     <% if (smtp && smtp.configured) { %>
       <form method="post" action="/admin/settings/smtp/test" class="set-form" style="margin-top:.8rem">
-        <label><span>Testmail sturen naar</span>
+        <label><span><%= t('aset.test_mail_to') %></span>
           <input type="email" name="to" placeholder="jij@email.nl" autocomplete="off">
         </label>
-        <div class="set-actions"><button type="submit" class="btn">✉ Testmail sturen</button></div>
+        <div class="set-actions"><button type="submit" class="btn">✉ <%= t('aset.send_test_mail') %></button></div>
       </form>
     <% } %>
   </section>

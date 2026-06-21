@@ -1,10 +1,10 @@
 <div class="container ax-page">
 
-  <p><a href="/admin" class="btn">&larr; Beheer</a></p>
+  <p><a href="/admin" class="btn">&larr; <%= t('ausr.back') %></a></p>
   <header class="ax-header">
     <div>
-      <h1>Users</h1>
-      <p class="ax-tagline">Beheer gebruikers, rollen, en verwijderingen. Rol <strong>kijker</strong> = alles bekijken (incl. Beheer), niets wijzigen — handig voor demo's.</p>
+      <h1><%= t('ausr.title') %></h1>
+      <p class="ax-tagline"><%= t('ausr.tagline_a') %> <strong><%= t('ausr.role_kijker') %></strong> <%= t('ausr.tagline_b') %></p>
     </div>
   </header>
 
@@ -15,10 +15,26 @@
     <div class="ax-card">
       <div class="ax-empty">
         <div class="ax-empty-icon">👤</div>
-        <p>Geen gebruikers.</p>
+        <p><%= t('ausr.empty') %></p>
       </div>
     </div>
   <% } else { %>
+    <%
+      var _u_self      = t('ausr.you');
+      var _u_t_sites   = t('ausr.t_sites');
+      var _u_t_posts   = t('ausr.t_posts');
+      var _u_t_joined  = t('ausr.t_joined');
+      var _u_l_sites   = t('ausr.l_sites');
+      var _u_l_posts   = t('ausr.l_posts');
+      var _u_l_joined  = t('ausr.l_joined');
+      var _u_newklonkt = t('ausr.new_klonkt');
+      var _u_rol       = t('ausr.role_label');
+      var _u_r_kijker  = t('ausr.role_kijker');
+      var _u_r_member  = t('ausr.role_member');
+      var _u_r_admin   = t('ausr.role_admin');
+      var _u_r_god     = t('ausr.role_god');
+      var _u_del       = t('ausr.delete');
+    %>
     <ul class="ax-list">
       <% users.forEach(function(u) { %>
         <li class="ax-user<%= u.id === user.id ? ' is-self' : '' %>">
@@ -32,24 +48,24 @@
             <div class="ax-user-meta">
               <div class="ax-user-name">
                 <a href="/users/<%= encodeURIComponent(u.username) %>"><%= u.username %></a>
-                <% if (u.id === user.id) { %><span class="ax-pill">jij</span><% } %>
+                <% if (u.id === user.id) { %><span class="ax-pill"><%= _u_self %></span><% } %>
               </div>
               <div class="ax-user-email"><%= u.email %></div>
             </div>
           </div>
 
           <div class="ax-user-stats">
-            <span class="ax-stat" title="Sites">
+            <span class="ax-stat" title="<%= _u_t_sites %>">
               <span class="ax-stat-num"><%= u.site_count %></span>
-              <span class="ax-stat-label">sites</span>
+              <span class="ax-stat-label"><%= _u_l_sites %></span>
             </span>
-            <span class="ax-stat" title="Posts">
+            <span class="ax-stat" title="<%= _u_t_posts %>">
               <span class="ax-stat-num"><%= u.post_count %></span>
-              <span class="ax-stat-label">posts</span>
+              <span class="ax-stat-label"><%= _u_l_posts %></span>
             </span>
-            <span class="ax-stat" title="Geregistreerd op">
+            <span class="ax-stat" title="<%= _u_t_joined %>">
               <span class="ax-stat-num ax-stat-date"><%= formatDate(u.created_at) %></span>
-              <span class="ax-stat-label">joined</span>
+              <span class="ax-stat-label"><%= _u_l_joined %></span>
             </span>
           </div>
 
@@ -58,27 +74,27 @@
                 nieuw-site-formulier met deze gebruiker al als eigenaar voorgeselecteerd. %>
             <% if (typeof tenancy !== 'undefined' && tenancy === 'hub' && canMutate) { %>
               <a href="/admin/sites/new?owner=<%= u.id %>" class="ax-icon-btn"
-                 aria-label="Nieuwe Klonkt voor <%= u.username %>" title="Nieuwe Klonkt voor deze gebruiker">＋🌐</a>
+                 aria-label="<%= t('ausr.new_klonkt_for', { name: u.username }) %>" title="<%= _u_newklonkt %>">＋🌐</a>
             <% } %>
             <form method="post" action="/admin/users/<%= u.id %>/role" class="ax-role-form">
               <label class="ax-role">
-                <span>Rol</span>
+                <span><%= _u_rol %></span>
                 <select name="role" onchange="this.form.submit()" <% if (u.id === user.id || !canMutate) { %>disabled<% } %>>
-                  <option value="kijker" <%= u.role === 'kijker' ? 'selected' : '' %>>kijker</option>
-                  <option value="member" <%= u.role === 'member' ? 'selected' : '' %>>member</option>
-                  <option value="admin"  <%= u.role === 'admin'  ? 'selected' : '' %>>admin</option>
-                  <option value="god"    <%= u.role === 'god'    ? 'selected' : '' %>>god</option>
+                  <option value="kijker" <%= u.role === 'kijker' ? 'selected' : '' %>><%= _u_r_kijker %></option>
+                  <option value="member" <%= u.role === 'member' ? 'selected' : '' %>><%= _u_r_member %></option>
+                  <option value="admin"  <%= u.role === 'admin'  ? 'selected' : '' %>><%= _u_r_admin %></option>
+                  <option value="god"    <%= u.role === 'god'    ? 'selected' : '' %>><%= _u_r_god %></option>
                 </select>
               </label>
             </form>
 
             <% if (u.id !== user.id && canMutate) { %>
               <% var _warn = (u.post_count + u.site_count > 0)
-                   ? ('Dit verwijdert ook hun site + ' + u.post_count + ' post(s). ')
+                   ? (t('ausr.del_warn', { n: u.post_count }) + ' ')
                    : ''; %>
               <form method="post" action="/admin/users/<%= u.id %>/delete" class="ax-delete-form"
-                    onsubmit="return confirm('Gebruiker <%= u.username %> verwijderen? <%= _warn %>Dit kan niet ongedaan worden.')">
-                <button type="submit" class="ax-icon-btn ax-icon-btn-danger" aria-label="Verwijderen" title="Verwijderen">🗑</button>
+                    onsubmit="return confirm('<%= t('ausr.del_confirm', { name: u.username }) %> <%= _warn %><%= t('ausr.del_undo') %>')">
+                <button type="submit" class="ax-icon-btn ax-icon-btn-danger" aria-label="<%= _u_del %>" title="<%= _u_del %>">🗑</button>
               </form>
             <% } else { %>
               <%# Lege plek zodat de rol-kolom op elke rij uitlijnt. %>

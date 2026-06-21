@@ -1,59 +1,67 @@
 <div class="container admin-page">
-  <h1>Cirkel</h1>
-  <p><a href="/admin/settings" class="btn">&larr; Instellingen</a></p>
+  <h1><%= t('acir.title') %></h1>
+  <p><a href="/admin/settings" class="btn">&larr; <%= t('acir.back_settings') %></a></p>
 
   <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
   <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
 
   <% if (tenancy !== 'circle') { %>
     <section class="set-card">
-      <p class="set-help">De modus staat niet op <strong>Cirkels</strong>. Zet 'm aan bij
-        <a href="/admin/settings">Instellingen</a> om je cirkel-feed te tonen op <code>/cirkel</code>.
-        Je kunt hieronder al wel bronnen klaarzetten.</p>
+      <p class="set-help"><%= t('acir.mode_off_1') %> <strong><%= t('acir.circles') %></strong>. <%= t('acir.mode_off_2') %>
+        <a href="/admin/settings"><%= t('acir.settings') %></a> <%= t('acir.mode_off_3') %> <code>/cirkel</code>.
+        <%= t('acir.mode_off_4') %></p>
     </section>
   <% } %>
 
   <section class="set-card" style="margin-top:1rem">
-    <h2>Mijn zichtbaarheid</h2>
-    <p class="set-help">Doe je mee aan cirkels? Dit maakt je <strong>al-publieke</strong> posts
-      ophaalbaar voor andere Klonkt-sites via een ondertekende feed
-      (<code>/.klonkt/outbox.json</code>). Het is een deelname-keuze, geen privacy-slot:
-      je posts blijven sowieso openbaar op je site, ook als dit uit staat. Wil je iets
-      afschermen, maak die post dan niet-publiek.</p>
+    <h2><%= t('acir.visibility_title') %></h2>
+    <p class="set-help"><%= t('acir.visibility_help_1') %> <strong><%= t('acir.all_public') %></strong> <%= t('acir.visibility_help_2') %>
+      (<code>/.klonkt/outbox.json</code>). <%= t('acir.visibility_help_3') %></p>
     <form method="post" action="/admin/circle/allow" class="set-form">
       <label class="set-opt" style="align-items:center">
         <input type="checkbox" name="allow_circle" value="on" <%= allowCircle ? 'checked' : '' %>>
-        <span><strong>Toon mijn site in cirkels van anderen</strong></span>
+        <span><strong><%= t('acir.show_in_circles') %></strong></span>
       </label>
-      <button type="submit" class="btn btn-primary">Opslaan</button>
+      <button type="submit" class="btn btn-primary"><%= t('acir.save') %></button>
     </form>
   </section>
 
   <section class="set-card" style="margin-top:1rem">
-    <h2>Klonkt-site toevoegen</h2>
-    <p class="set-help">Plak de basis-URL van een andere Klonkt-site. Asymmetrisch: jij toont
-      hen, los van of zij jou tonen.</p>
+    <h2><%= t('acir.add_title') %></h2>
+    <p class="set-help"><%= t('acir.add_help') %></p>
     <form method="post" action="/admin/circle/add" class="set-form">
       <label class="set-field">
-        <span>URL</span>
+        <span><%= t('acir.url') %></span>
         <input type="url" name="remote_url" placeholder="https://artiest.klonkt.com" required>
       </label>
       <label class="set-field">
-        <span>Label <small style="font-weight:400">— optioneel</small></span>
-        <input type="text" name="label" maxlength="80" placeholder="bijv. Joost Klein">
+        <span><%= t('acir.label') %> <small style="font-weight:400">— <%= t('acir.optional') %></small></span>
+        <input type="text" name="label" maxlength="80" placeholder="<%= t('acir.label_ph') %>">
       </label>
-      <button type="submit" class="btn btn-primary">Toevoegen</button>
+      <button type="submit" class="btn btn-primary"><%= t('acir.add') %></button>
     </form>
   </section>
 
   <section class="set-card" style="margin-top:1rem">
-    <h2>In mijn cirkel (<%= links.length %>)</h2>
+    <h2><%= t('acir.in_circle', { n: links.length }) %></h2>
     <% if (!links.length) { %>
-      <p class="set-help">Nog geen bronnen. Voeg er hierboven een toe.</p>
+      <p class="set-help"><%= t('acir.no_sources') %></p>
     <% } else { %>
       <form method="post" action="/admin/circle/sync-all" style="margin:0 0 .9rem">
-        <button type="submit" class="btn">&#8635; Alles nu synchroniseren</button>
+        <button type="submit" class="btn">&#8635; <%= t('acir.sync_all') %></button>
       </form>
+      <%
+        var _cActive = t('acir.st_active');
+        var _cPosts = t('acir.posts');
+        var _cLast = t('acir.last');
+        var _cMismatch = t('acir.st_mismatch');
+        var _cMismatchReason = t('acir.mismatch_reason');
+        var _cError = t('acir.st_error');
+        var _cPaused = t('acir.st_paused');
+        var _cRefresh = t('acir.refresh');
+        var _cRemove = t('acir.remove');
+        var _cRemoveConfirm = t('acir.remove_confirm');
+      %>
       <ul class="circ-list">
         <% links.forEach(function(l){ %>
           <li class="circ-item">
@@ -62,16 +70,16 @@
               <small><%= l.remote_url %></small>
               <div class="circ-status">
                 <% if (l.status === 'active') { %>
-                  <span class="circ-badge ok">&#10003; actief</span>
-                  <span class="circ-meta"><%= counts[l.id] || 0 %> posts<% if (l.last_synced) { %> &middot; laatst: <%= l.last_synced %><% } %></span>
+                  <span class="circ-badge ok">&#10003; <%= _cActive %></span>
+                  <span class="circ-meta"><%= counts[l.id] || 0 %> <%= _cPosts %><% if (l.last_synced) { %> &middot; <%= _cLast %>: <%= l.last_synced %><% } %></span>
                 <% } else if (l.status === 'outdated') { %>
-                  <span class="circ-badge err">&#8635; versie-mismatch</span>
-                  <div class="circ-reason"><%= l.last_error || 'Deze site draait een andere Klonkt-protocolversie — bijwerken nodig om te federeren.' %></div>
+                  <span class="circ-badge err">&#8635; <%= _cMismatch %></span>
+                  <div class="circ-reason"><%= l.last_error || _cMismatchReason %></div>
                 <% } else if (l.status === 'error') { %>
-                  <span class="circ-badge err">&#9888; fout</span>
+                  <span class="circ-badge err">&#9888; <%= _cError %></span>
                   <% if (l.last_error) { %><div class="circ-reason"><%= l.last_error %></div><% } %>
                 <% } else if (l.status === 'paused') { %>
-                  <span class="circ-badge">&#9208; gepauzeerd</span>
+                  <span class="circ-badge">&#9208; <%= _cPaused %></span>
                 <% } else { %>
                   <%# Onbekende status: toon 'm rauw + eventuele reden i.p.v. stil "gepauzeerd". %>
                   <span class="circ-badge"><%= l.status %></span>
@@ -81,11 +89,11 @@
             </div>
             <div class="circ-actions">
               <form method="post" action="/admin/circle/<%= l.id %>/sync" style="display:inline">
-                <button type="submit" class="btn">Verversen</button>
+                <button type="submit" class="btn"><%= _cRefresh %></button>
               </form>
               <form method="post" action="/admin/circle/<%= l.id %>/remove" style="display:inline"
-                    onsubmit="return confirm('Verwijderen uit je cirkel?')">
-                <button type="submit" class="btn btn-danger">Verwijder</button>
+                    onsubmit="return confirm('<%= _cRemoveConfirm %>')">
+                <button type="submit" class="btn btn-danger"><%= _cRemove %></button>
               </form>
             </div>
           </li>

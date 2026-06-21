@@ -6,37 +6,39 @@
   var smtp = (typeof nlSmtp !== 'undefined') ? nlSmtp : false;
 %>
 <section class="anl">
-  <h1>Nieuwsbrief</h1>
+  <h1><%= t('anews.title') %></h1>
 
   <% if (msg) { %><div class="anl-msg anl-<%= msgKind %>"><%= msg %></div><% } %>
 
   <div class="anl-stats">
-    <div class="anl-stat"><span class="anl-n"><%= c.confirmed %></span><span class="anl-l">bevestigd</span></div>
-    <div class="anl-stat"><span class="anl-n"><%= c.pending %></span><span class="anl-l">in afwachting</span></div>
-    <div class="anl-stat"><span class="anl-n"><%= c.unsub %></span><span class="anl-l">uitgeschreven</span></div>
+    <div class="anl-stat"><span class="anl-n"><%= c.confirmed %></span><span class="anl-l"><%= t('anews.confirmed') %></span></div>
+    <div class="anl-stat"><span class="anl-n"><%= c.pending %></span><span class="anl-l"><%= t('anews.pending') %></span></div>
+    <div class="anl-stat"><span class="anl-n"><%= c.unsub %></span><span class="anl-l"><%= t('anews.unsub') %></span></div>
   </div>
 
   <% if (!smtp) { %>
-    <div class="anl-msg anl-warn">⚠ SMTP is nog niet ingesteld. Aanmeldingen worden wél verzameld, maar versturen kan pas als je SMTP-gegevens invult (<code>SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASS / SMTP_FROM</code> in <code>.env</code>).</div>
+    <div class="anl-msg anl-warn"><%= t('anews.smtp_warn_1') %> (<code>SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASS / SMTP_FROM</code> <%= t('anews.smtp_warn_2') %> <code>.env</code>).</div>
   <% } %>
 
-  <p class="anl-share">Aanmeldlink om te delen: <a href="<%= nlSubscribeUrl %>"><%= nlSubscribeUrl %></a></p>
+  <p class="anl-share"><%= t('anews.share') %> <a href="<%= nlSubscribeUrl %>"><%= nlSubscribeUrl %></a></p>
 
+  <% var _sendConfirm = t('anews.send_confirm', { n: c.confirmed }); %>
   <form method="POST" action="<%= siteUrlBase %>/admin/newsletter/send" class="anl-form">
-    <label>Onderwerp
-      <input type="text" name="subject" required maxlength="200" value="<%= (typeof nlSubject!=='undefined')?nlSubject:'' %>" placeholder="Nieuwe single uit!">
+    <label><%= t('anews.subject') %>
+      <input type="text" name="subject" required maxlength="200" value="<%= (typeof nlSubject!=='undefined')?nlSubject:'' %>" placeholder="<%= t('anews.subject_ph') %>">
     </label>
-    <label>Bericht
-      <textarea name="body" rows="10" required placeholder="Schrijf je update…"><%= (typeof nlBody!=='undefined')?nlBody:'' %></textarea>
+    <label><%= t('anews.body') %>
+      <textarea name="body" rows="10" required placeholder="<%= t('anews.body_ph') %>"><%= (typeof nlBody!=='undefined')?nlBody:'' %></textarea>
     </label>
-    <button type="submit" class="anl-send" <%= smtp ? '' : 'disabled' %> onclick="return confirm('Nieuwsbrief versturen naar <%= c.confirmed %> bevestigde abonnee(s)?')">Versturen naar <%= c.confirmed %> abonnee(s)</button>
+    <button type="submit" class="anl-send" <%= smtp ? '' : 'disabled' %> onclick="return confirm('<%= _sendConfirm %>')"><%= t('anews.send_btn', { n: c.confirmed }) %></button>
   </form>
 
   <% if (hist.length) { %>
-    <h2 class="anl-h2">Verstuurd</h2>
+    <h2 class="anl-h2"><%= t('anews.sent_heading') %></h2>
+    <% var _recipients = t('anews.recipients'); %>
     <ul class="anl-hist">
       <% hist.forEach(function(h){ %>
-        <li><span class="anl-hist-subj"><%= h.subject %></span><span class="anl-hist-meta"><%= h.recipient_count %> ontvanger(s) · <%= formatDateTime ? formatDateTime(h.sent_at) : h.sent_at %></span></li>
+        <li><span class="anl-hist-subj"><%= h.subject %></span><span class="anl-hist-meta"><%= h.recipient_count %> <%= _recipients %> · <%= formatDateTime ? formatDateTime(h.sent_at) : h.sent_at %></span></li>
       <% }); %>
     </ul>
   <% } %>

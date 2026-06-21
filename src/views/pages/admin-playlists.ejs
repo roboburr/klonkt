@@ -9,10 +9,9 @@ const _csrf = (typeof csrfToken !== 'undefined' && csrfToken) || '';
   <p><a href="/admin" class="btn">&larr; Beheer</a></p>
   <header class="ax-header">
     <div>
-      <h1>Playlists</h1>
+      <h1><%= t('apl.title') %></h1>
       <p class="ax-tagline">
-        Canonieke playlists. Bewerk een playlist hier en de wijzigingen werken
-        door in álle posts die hem gebruiken via <code>[[playlist:&lt;id&gt;]]</code>.
+        <%= t('apl.tagline_pre') %> <code>[[playlist:&lt;id&gt;]]</code><%= t('apl.tagline_post') %>
       </p>
     </div>
   </header>
@@ -20,7 +19,7 @@ const _csrf = (typeof csrfToken !== 'undefined' && csrfToken) || '';
   <%# Sticky-on-mobile create button — easier reach than a header button. %>
   <div class="ax-actions-bar">
     <button type="button" class="ax-btn ax-btn-primary" id="pl-new-btn">
-      ＋ Nieuwe playlist
+      ＋ <%= t('apl.new_playlist') %>
     </button>
   </div>
 
@@ -28,11 +27,21 @@ const _csrf = (typeof csrfToken !== 'undefined' && csrfToken) || '';
     <div class="ax-card">
       <div class="ax-empty">
         <div class="ax-empty-icon">📃</div>
-        <p>Nog geen playlists.</p>
-        <p class="ax-empty-sub">Maak er een via de knop hierboven, of via de 📃 knop in de post-editor.</p>
+        <p><%= t('apl.none') %></p>
+        <p class="ax-empty-sub"><%= t('apl.none_sub') %></p>
       </div>
     </div>
   <% } else { %>
+    <%
+      // Pre-fetch loop labels (defensive — keep `t` calls out of the loop body).
+      var _aplPlaylist = t('apl.pill_playlist');
+      var _aplAlbum    = t('apl.pill_album');
+      var _aplTrack    = t('apl.track');
+      var _aplTracks   = t('apl.tracks');
+      var _aplCopy     = t('apl.copy_click');
+      var _aplEdit     = t('apl.edit');
+      var _aplDelete   = t('apl.delete');
+    %>
     <ul class="ax-list">
       <% playlists.forEach(function(p) { %>
         <li class="ax-track" data-id="<%= p.id %>">
@@ -43,19 +52,19 @@ const _csrf = (typeof csrfToken !== 'undefined' && csrfToken) || '';
           <div class="ax-track-meta">
             <div class="ax-track-title">
               <%= p.title %>
-              <span class="ax-pill"><%= p.kind === 'playlist' ? '📃 playlist' : '💿 album' %></span>
+              <span class="ax-pill"><%= p.kind === 'playlist' ? '📃 ' + _aplPlaylist : '💿 ' + _aplAlbum %></span>
             </div>
             <div class="ax-track-sub">
-              <span><%= p.track_count %> <%= p.track_count === 1 ? 'track' : 'tracks' %></span>
+              <span><%= p.track_count %> <%= p.track_count === 1 ? _aplTrack : _aplTracks %></span>
               <% if (p.artist) { %><span class="ax-track-sep">·</span><span><%= p.artist %></span><% } %>
               <% if (p.year) { %><span class="ax-track-sep">·</span><span><%= p.year %></span><% } %>
             </div>
-            <code class="ax-embed" data-copy="[[playlist:<%= p.id %>]]" title="Klik om te kopiëren">[[playlist:<%= p.id %>]]</code>
+            <code class="ax-embed" data-copy="[[playlist:<%= p.id %>]]" title="<%= _aplCopy %>">[[playlist:<%= p.id %>]]</code>
           </div>
 
           <div class="ax-track-actions">
-            <button type="button" class="ax-icon-btn" data-pl-edit data-id="<%= p.id %>" aria-label="Bewerken" title="Bewerken">✎</button>
-            <button type="button" class="ax-icon-btn ax-icon-btn-danger" data-pl-delete data-id="<%= p.id %>" data-title="<%= p.title %>" aria-label="Verwijderen" title="Verwijderen">🗑</button>
+            <button type="button" class="ax-icon-btn" data-pl-edit data-id="<%= p.id %>" aria-label="<%= _aplEdit %>" title="<%= _aplEdit %>">✎</button>
+            <button type="button" class="ax-icon-btn ax-icon-btn-danger" data-pl-delete data-id="<%= p.id %>" data-title="<%= p.title %>" aria-label="<%= _aplDelete %>" title="<%= _aplDelete %>">🗑</button>
           </div>
         </li>
       <% }); %>
@@ -228,7 +237,7 @@ const _csrf = (typeof csrfToken !== 'undefined' && csrfToken) || '';
         await navigator.clipboard.writeText(el.dataset.copy);
         el.classList.add('is-copied');
         const original = el.textContent;
-        el.textContent = '✓ gekopieerd';
+        el.textContent = '✓ <%= t('apl.copied') %>';
         setTimeout(() => { el.classList.remove('is-copied'); el.textContent = original; }, 1200);
       } catch (_) { /* fall back to selection */ }
     });
@@ -246,7 +255,7 @@ const _csrf = (typeof csrfToken !== 'undefined' && csrfToken) || '';
     btn.addEventListener('click', async () => {
       const id = btn.dataset.id;
       const title = btn.dataset.title || id;
-      if (!confirm(`Playlist "${title}" verwijderen? Posts die deze playlist embedden tonen vanaf nu een placeholder.`)) return;
+      if (!confirm('<%= t('apl.delete_confirm') %>'.replace('{title}', title))) return;
       try {
         const r = await fetch(`/admin/playlists/api/${encodeURIComponent(id)}/delete`, {
           method: 'POST',
@@ -255,9 +264,9 @@ const _csrf = (typeof csrfToken !== 'undefined' && csrfToken) || '';
         });
         const j = await r.json();
         if (j.ok) location.reload();
-        else alert('Verwijderen mislukt: ' + (j.error || ''));
+        else alert('<%= t('apl.delete_failed') %>: ' + (j.error || ''));
       } catch (err) {
-        alert('Verwijderen mislukt: ' + err.message);
+        alert('<%= t('apl.delete_failed') %>: ' + err.message);
       }
     });
   });

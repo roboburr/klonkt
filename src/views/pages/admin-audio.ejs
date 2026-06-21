@@ -3,8 +3,8 @@
   <p><a href="/admin" class="btn">&larr; Beheer</a></p>
   <header class="ax-header">
     <div>
-      <h1>Audio tracks</h1>
-      <p class="ax-tagline">Site-level MP3s. Gebruik <code>[[track:&lt;id&gt;]]</code> in een post om een play-knop in te voegen.</p>
+      <h1><%= t('aaud.title') %></h1>
+      <p class="ax-tagline"><%= t('aaud.tagline_pre') %> <code>[[track:&lt;id&gt;]]</code> <%= t('aaud.tagline_post') %></p>
     </div>
   </header>
 
@@ -13,7 +13,7 @@
 
   <%# ── UPLOAD ──────────────────────────────────────────────── %>
   <section class="ax-card">
-    <div class="ax-card-title">Upload</div>
+    <div class="ax-card-title"><%= t('aaud.upload') %></div>
 
     <%# Bulk drag-drop zone. Multiple files at once, transcoded sequentially.
         Title is auto-derived from each filename. Artist/album/cover are
@@ -24,19 +24,19 @@
       <%# Shared metadata fields (apply to ALL files in the batch). %>
       <div class="ax-row ax-row-2">
         <label class="ax-field">
-          <span>Artiest <small>(toegepast op alle bestanden)</small></span>
-          <input type="text" id="batch-artist" placeholder="Optioneel">
+          <span><%= t('aaud.artist') %> <small><%= t('aaud.applied_all') %></small></span>
+          <input type="text" id="batch-artist" placeholder="<%= t('aaud.optional') %>">
         </label>
         <label class="ax-field">
-          <span>Album <small>(toegepast op alle bestanden)</small></span>
-          <input type="text" id="batch-album" placeholder="Optioneel">
+          <span><%= t('aaud.album') %> <small><%= t('aaud.applied_all') %></small></span>
+          <input type="text" id="batch-album" placeholder="<%= t('aaud.optional') %>">
         </label>
       </div>
       <label class="ax-field ax-file">
-        <span>Cover <small>(optioneel, toegepast op alle bestanden — jpg/png/webp/gif, max 5 MB)</small></span>
+        <span><%= t('aaud.cover') %> <small><%= t('aaud.cover_hint') %></small></span>
         <span class="ax-file-control">
-          <span class="ax-btn ax-btn-secondary ax-file-btn">🖼 Kies cover</span>
-          <span class="ax-file-name" data-empty>Geen bestand gekozen</span>
+          <span class="ax-btn ax-btn-secondary ax-file-btn">🖼 <%= t('aaud.choose_cover') %></span>
+          <span class="ax-file-name" data-empty><%= t('aaud.no_file') %></span>
           <input type="file" id="batch-cover" accept="image/jpeg,image/png,image/webp,image/gif">
         </span>
       </label>
@@ -44,8 +44,8 @@
       <%# The drop-zone itself. Click anywhere to open file picker. %>
       <label class="ax-dropzone" id="audio-dropzone" tabindex="0">
         <span class="ax-dropzone-icon">🎵</span>
-        <strong class="ax-dropzone-title">Sleep audio hierheen</strong>
-        <span class="ax-dropzone-sub">of klik om bestanden te kiezen<br><small>mp3, m4a, ogg, opus, flac · max <%= maxBytesMb %> MB · wav max <%= maxWavMb %> MB</small></span>
+        <strong class="ax-dropzone-title"><%= t('aaud.drag_here') %></strong>
+        <span class="ax-dropzone-sub"><%= t('aaud.or_click') %><br><small>mp3, m4a, ogg, opus, flac · max <%= maxBytesMb %> MB · wav max <%= maxWavMb %> MB</small></span>
         <input type="file" id="audio-files" accept="audio/*" multiple>
       </label>
 
@@ -53,8 +53,8 @@
       <ul class="ax-upload-queue" id="upload-queue" hidden></ul>
 
       <div class="ax-form-actions" id="upload-actions" hidden>
-        <button type="button" class="ax-btn ax-btn-primary" id="start-upload-btn">⬆ Start upload</button>
-        <button type="button" class="ax-btn" id="clear-queue-btn">Wis lijst</button>
+        <button type="button" class="ax-btn ax-btn-primary" id="start-upload-btn">⬆ <%= t('aaud.start_upload') %></button>
+        <button type="button" class="ax-btn" id="clear-queue-btn"><%= t('aaud.clear_list') %></button>
       </div>
     </div>
   </section>
@@ -62,19 +62,30 @@
   <%# ── TRACK LIST ─────────────────────────────────────────── %>
   <section class="ax-card">
     <div class="ax-card-title" style="display:flex;align-items:center;gap:.5rem">
-      Tracks <span class="ax-count"><%= tracks.length %></span>
+      <%= t('aaud.tracks') %> <span class="ax-count"><%= tracks.length %></span>
       <button type="button" class="ax-btn ax-btn-secondary" id="add-link-track-btn"
-              style="margin-left:auto;font-size:.85rem" title="Een track zonder audiobestand — alleen titel + open-in links">
-        + Track zonder audio
+              style="margin-left:auto;font-size:.85rem" title="<%= t('aaud.add_link_track_title') %>">
+        + <%= t('aaud.add_link_track') %>
       </button>
     </div>
 
     <% if (!tracks.length) { %>
       <div class="ax-empty">
         <div class="ax-empty-icon">♫</div>
-        <p>Nog geen tracks. Upload er een hierboven.</p>
+        <p><%= t('aaud.no_tracks') %></p>
       </div>
     <% } else { %>
+      <%
+        // Pre-fetch loop labels — `t` is shadowed by the loop var below.
+        var _aaudUntitled = t('aaud.untitled');
+        var _aaudPlay     = t('aaud.play');
+        var _aaudEdit     = t('aaud.edit');
+        var _aaudDlOn     = t('aaud.dl_on');
+        var _aaudDlOff    = t('aaud.dl_off');
+        var _aaudDelete   = t('aaud.delete');
+        var _aaudCopy     = t('aaud.copy_click');
+        var _aaudDelConfirm = t('aaud.delete_confirm');
+      %>
       <ul class="ax-list">
         <% tracks.forEach(function(t) { %>
           <li class="ax-track" data-track-id="<%= t.id %>">
@@ -85,13 +96,13 @@
             <% } %>
 
             <div class="ax-track-meta">
-              <div class="ax-track-title" data-cell="title"><%= t.title || '(zonder titel)' %></div>
+              <div class="ax-track-title" data-cell="title"><%= t.title || _aaudUntitled %></div>
               <div class="ax-track-sub">
                 <span data-cell="artist"><%= t.artist || '—' %></span>
                 <% if (t.album) { %><span class="ax-track-sep">·</span><span data-cell="album"><%= t.album %></span><% } else { %><span data-cell="album" hidden></span><% } %>
                 <span class="ax-track-sep">·</span><span><%= t.size ? Math.round(t.size/1024) + ' KB' : '—' %></span>
               </div>
-              <code class="ax-embed" data-copy="[[track:<%= t.id %>]]" title="Klik om te kopiëren">[[track:<%= t.id %>]]</code>
+              <code class="ax-embed" data-copy="[[track:<%= t.id %>]]" title="<%= _aaudCopy %>">[[track:<%= t.id %>]]</code>
             </div>
 
             <div class="ax-track-actions">
@@ -99,18 +110,18 @@
                 <button type="button" class="ax-icon-btn ax-track-play"
                         data-stream-url="<%= t.stream_url %>"
                         data-track-id="<%= t.id %>"
-                        aria-label="Afspelen" title="Afspelen">
+                        aria-label="<%= _aaudPlay %>" title="<%= _aaudPlay %>">
                   <span class="ax-track-play-icon" aria-hidden="true">▶</span>
                 </button>
               <% } %>
-              <button type="button" class="ax-icon-btn" data-track-edit data-id="<%= t.id %>" aria-label="Bewerken" title="Bewerken">✎</button>
+              <button type="button" class="ax-icon-btn" data-track-edit data-id="<%= t.id %>" aria-label="<%= _aaudEdit %>" title="<%= _aaudEdit %>">✎</button>
               <% if (typeof premiumUnlocked === 'undefined' || premiumUnlocked) { %>
                 <button type="button" class="ax-icon-btn" data-track-dl data-id="<%= t.id %>" data-on="<%= t.downloadable ? '1' : '0' %>"
-                        aria-label="Download-voor-email" title="<%= t.downloadable ? 'Download-voor-email staat AAN — klik om uit te zetten' : 'Download-voor-email staat uit — klik om aan te zetten' %>"
+                        aria-label="<%= t.downloadable ? _aaudDlOn : _aaudDlOff %>" title="<%= t.downloadable ? _aaudDlOn : _aaudDlOff %>"
                         style="<%= t.downloadable ? 'color:var(--accent,#6b8f71)' : 'opacity:.5' %>">⬇</button>
               <% } %>
-              <form action="/admin/audio/<%= t.id %>/delete" method="post" onsubmit="return confirm('Track verwijderen?')" class="ax-track-delete">
-                <button type="submit" class="ax-icon-btn ax-icon-btn-danger" aria-label="Verwijderen" title="Verwijderen">🗑</button>
+              <form action="/admin/audio/<%= t.id %>/delete" method="post" onsubmit="return confirm('<%= _aaudDelConfirm %>')" class="ax-track-delete">
+                <button type="submit" class="ax-icon-btn ax-icon-btn-danger" aria-label="<%= _aaudDelete %>" title="<%= _aaudDelete %>">🗑</button>
               </form>
             </div>
           </li>
@@ -121,10 +132,10 @@
 
   <% if ((typeof premiumUnlocked === 'undefined' || premiumUnlocked) && typeof embedUrl !== 'undefined') { %>
     <section class="ax-section" style="margin-top:1.5rem">
-      <h2 style="margin:0 0 .4rem">🔊 Embedbare speler</h2>
-      <p style="opacity:.75;font-size:.9rem;margin:0 0 .6rem">Plak deze code op je eigen website/blog om je muziek met deze speler in te sluiten:</p>
+      <h2 style="margin:0 0 .4rem">🔊 <%= t('aaud.embed_player') %></h2>
+      <p style="opacity:.75;font-size:.9rem;margin:0 0 .6rem"><%= t('aaud.embed_hint') %></p>
       <textarea readonly rows="3" onclick="this.select()" style="width:100%;font-family:monospace;font-size:12px;padding:10px;border-radius:8px;border:1px solid var(--rule);background:var(--paper-2);color:inherit;">&lt;iframe src="<%= embedUrl %>" width="100%" height="420" frameborder="0" loading="lazy" style="border-radius:12px"&gt;&lt;/iframe&gt;</textarea>
-      <p style="margin:.6rem 0 0"><a class="btn" href="<%= embedUrl %>" target="_blank">▶ Speler-voorbeeld openen</a></p>
+      <p style="margin:.6rem 0 0"><a class="btn" href="<%= embedUrl %>" target="_blank">▶ <%= t('aaud.preview_player') %></a></p>
     </section>
   <% } %>
 
@@ -572,7 +583,7 @@
         nameEl.textContent = input.files[0].name;
         nameEl.removeAttribute('data-empty');
       } else {
-        nameEl.textContent = 'Geen bestand gekozen';
+        nameEl.textContent = '<%= t('aaud.no_file') %>';
         nameEl.setAttribute('data-empty', '');
       }
     });
@@ -591,7 +602,7 @@
       const icon = btn.querySelector('.ax-track-play-icon');
       if (icon) icon.textContent = playing ? '⏸' : '▶';
       btn.classList.toggle('is-playing', playing);
-      btn.setAttribute('aria-label', playing ? 'Pauzeren' : 'Afspelen');
+      btn.setAttribute('aria-label', playing ? '<%= t('aaud.pause') %>' : '<%= t('aaud.play') %>');
     }
 
     // Resync ALL preview buttons against the current audio element state.
@@ -694,11 +705,11 @@
 
   function setItemStatus(item, status, label) {
     const labels = {
-      queued:      'Wachten',
-      uploading:   'Uploaden…',
-      transcoding: 'Converteren…',
-      done:        '✓ Klaar',
-      error:       '✗ Fout',
+      queued:      '<%= t('aaud.st_queued') %>',
+      uploading:   '<%= t('aaud.st_uploading') %>',
+      transcoding: '<%= t('aaud.st_transcoding') %>',
+      done:        '✓ <%= t('aaud.st_done') %>',
+      error:       '✗ <%= t('aaud.st_error') %>',
     };
     item.status = status;
     const badge = item.el.querySelector('.ax-queue-status');
@@ -725,7 +736,7 @@
       li.className = 'ax-queue-item';
       li.innerHTML =
         '<div class="ax-queue-name"></div>' +
-        '<span class="ax-queue-status ax-queue-status--queued">Wachten</span>';
+        '<span class="ax-queue-status ax-queue-status--queued"><%= t('aaud.st_queued') %></span>';
       // Use textContent to avoid HTML-injection if a filename contains markup.
       li.querySelector('.ax-queue-name').textContent = file.name;
       // Append size hint inline
@@ -812,7 +823,7 @@
         await uploadOne(item, sharedArtist, sharedAlbum, sharedCover);
       } catch (err) {
         console.error('upload failed for', item.file.name, err);
-        setItemStatus(item, 'error', '✗ ' + (err.message || 'Mislukt'));
+        setItemStatus(item, 'error', '✗ ' + (err.message || '<%= t('aaud.failed') %>'));
       }
     }
 
@@ -863,13 +874,13 @@
       // (e.g. session expired and got an HTML login page), surface that.
       let data;
       try { data = await res.json(); }
-      catch (_) { throw new Error('Onverwacht serverantwoord (' + res.status + ')'); }
+      catch (_) { throw new Error('<%= t('aaud.err_unexpected') %> (' + res.status + ')'); }
 
       if (!res.ok || !data.ok) {
         throw new Error(data.error || ('HTTP ' + res.status));
       }
 
-      setItemStatus(item, 'done', '✓ ' + (data.title || 'Klaar'));
+      setItemStatus(item, 'done', '✓ ' + (data.title || '<%= t('aaud.st_done') %>'));
     } catch (err) {
       clearTimeout(transcodeHint);
       throw err;
@@ -884,7 +895,7 @@
         await navigator.clipboard.writeText(text);
         el.classList.add('is-copied');
         const original = el.textContent;
-        el.textContent = '✓ gekopieerd';
+        el.textContent = '✓ <%= t('aaud.copied') %>';
         setTimeout(() => {
           el.classList.remove('is-copied');
           el.textContent = original;
@@ -902,14 +913,14 @@
         const r = await fetch('/admin/audio/create-link', {
           method: 'POST', credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title: 'Nieuwe track' }),
+          body: JSON.stringify({ title: '<%= t('aaud.new_track') %>' }),
         });
         const j = await r.json();
-        if (!r.ok || !j.ok) throw new Error(j.error || 'Aanmaken mislukt');
+        if (!r.ok || !j.ok) throw new Error(j.error || '<%= t('aaud.create_failed') %>');
         if (typeof window.openTrackEditor !== 'function') { location.reload(); return; }
         window.openTrackEditor({ id: j.id, onSaved: () => location.reload() });
       } catch (err) {
-        alert('Track aanmaken mislukt: ' + err.message);
+        alert('<%= t('aaud.create_failed') %>: ' + err.message);
       } finally {
         addLinkBtn.disabled = false;
       }
@@ -922,7 +933,7 @@
   document.querySelectorAll('[data-track-edit]').forEach(btn => {
     btn.addEventListener('click', () => {
       if (typeof window.openTrackEditor !== 'function') {
-        alert('Track editor niet geladen');
+        alert('<%= t('aaud.editor_not_loaded') %>');
         return;
       }
       const id = btn.dataset.id;
@@ -935,7 +946,7 @@
           const titleEl  = row.querySelector('[data-cell="title"]');
           const artistEl = row.querySelector('[data-cell="artist"]');
           const albumEl  = row.querySelector('[data-cell="album"]');
-          if (titleEl)  titleEl.textContent  = track.title  || '(zonder titel)';
+          if (titleEl)  titleEl.textContent  = track.title  || '<%= t('aaud.untitled') %>';
           if (artistEl) artistEl.textContent = track.artist || '—';
           if (albumEl)  {
             albumEl.textContent = track.album || '';
@@ -983,10 +994,10 @@
         btn.style.color = want ? 'var(--accent,#6b8f71)' : '';
         btn.style.opacity = want ? '1' : '.5';
         btn.title = want
-          ? 'Download-voor-email staat AAN — klik om uit te zetten'
-          : 'Download-voor-email staat uit — klik om aan te zetten';
+          ? '<%= t('aaud.dl_on') %>'
+          : '<%= t('aaud.dl_off') %>';
       } catch (e) {
-        alert('Kon niet wijzigen: ' + (e.message || e));
+        alert('<%= t('aaud.change_failed') %>: ' + (e.message || e));
       } finally {
         btn.disabled = false;
       }

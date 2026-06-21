@@ -1,64 +1,64 @@
 <div class="container admin-page">
-  <h1>Google-login</h1>
-  <p><a href="/admin/settings" class="btn">&larr; Instellingen</a></p>
+  <h1><%= t('agoog.title') %></h1>
+  <p><a href="/admin/settings" class="btn">&larr; <%= t('agoog.back') %></a></p>
 
   <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
   <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
 
   <section class="set-card">
-    <h2>Google-login (bezoekers)</h2>
-    <p class="set-help">Laat bezoekers met Google inloggen om te reageren — met je <strong>eigen</strong>
-      Google Cloud-client. Maak er een aan op
+    <h2><%= t('agoog.card_title') %></h2>
+    <p class="set-help"><%= t('agoog.card_help_pre') %> <strong><%= t('agoog.card_help_own') %></strong>
+      <%= t('agoog.card_help_mid') %>
       <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">console.cloud.google.com</a>
-      (OAuth client-ID, type "Web application").
-      <% if (google && google.configured) { %><strong>Status: ingesteld&nbsp;✓</strong><% } else { %>Nog niet ingesteld.<% } %></p>
+      <%= t('agoog.card_help_post') %>
+      <% if (google && google.configured) { %><strong><%= t('agoog.status_set') %></strong><% } else { %><%= t('agoog.status_unset') %><% } %></p>
 
     <details class="set-google-guide">
-      <summary>Hoe stel ik dit in? (stap voor stap)</summary>
+      <summary><%= t('agoog.guide_summary') %></summary>
       <ol class="set-google-steps">
-        <li>Ga naar de <a href="https://console.cloud.google.com/" target="_blank" rel="noopener">Google Cloud Console</a> en maak (of kies) een project.</li>
-        <li><strong>APIs &amp; Services → OAuth consent screen</strong>: User type <strong>External</strong>. Voeg de scopes <code>email</code>, <code>profile</code> en <code>openid</code> toe. (In testmodus: voeg jezelf toe als testgebruiker.)</li>
-        <li><strong>APIs &amp; Services → Credentials → Create credentials → OAuth client ID</strong>, type <strong>Web application</strong>.</li>
-        <li>Bij <strong>Authorized redirect URIs</strong>: plak de redirect-URI hieronder (moet <strong>exact</strong> matchen).</li>
-        <li>Kopieer de <strong>Client ID</strong> + <strong>Client Secret</strong> die je krijgt naar de velden hieronder en klik Opslaan.</li>
+        <li><%= t('agoog.step1_pre') %> <a href="https://console.cloud.google.com/" target="_blank" rel="noopener">Google Cloud Console</a> <%= t('agoog.step1_post') %></li>
+        <li><strong>APIs &amp; Services → OAuth consent screen</strong>: <%= t('agoog.step2_usertype') %> <strong>External</strong>. <%= t('agoog.step2_scopes_pre') %> <code>email</code>, <code>profile</code> <%= t('agoog.step2_scopes_and') %> <code>openid</code> <%= t('agoog.step2_scopes_post') %> <%= t('agoog.step2_testmode') %></li>
+        <li><strong>APIs &amp; Services → Credentials → Create credentials → OAuth client ID</strong>, <%= t('agoog.step3_type') %> <strong>Web application</strong>.</li>
+        <li><%= t('agoog.step4_pre') %> <strong>Authorized redirect URIs</strong><%= t('agoog.step4_post') %></li>
+        <li><%= t('agoog.step5_pre') %> <strong>Client ID</strong> + <strong>Client Secret</strong> <%= t('agoog.step5_post') %></li>
       </ol>
-      <p class="set-help" style="margin:.5rem 0 0"><strong>Let op:</strong> je hoeft <strong>geen API's aan te zetten</strong> — "Google Cloud APIs", People API e.d. zijn <em>niet</em> nodig. Inloggen werkt via OpenID Connect (alleen het toestemmingsscherm + de OAuth-client).</p>
+      <p class="set-help" style="margin:.5rem 0 0"><strong><%= t('agoog.note_label') %></strong> <%= t('agoog.note_pre') %> <strong><%= t('agoog.note_noapi') %></strong> <%= t('agoog.note_mid') %> <em><%= t('agoog.note_not') %></em> <%= t('agoog.note_post') %></p>
     </details>
 
     <% if (google && google.redirectUri) { %>
       <div class="set-redirect">
-        <div class="set-redirect-label">Redirect-URI — kopieer deze en plak 'm in Google</div>
+        <div class="set-redirect-label"><%= t('agoog.redirect_label') %></div>
         <code class="set-redirect-url" style="user-select:all"><%= google.redirectUri %></code>
         <ol class="set-redirect-steps">
-          <li>Ga naar <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Google Cloud Console → APIs &amp; Services → Credentials</a>.</li>
-          <li>Open jouw <strong>OAuth client-ID</strong> (type "Web application").</li>
-          <li>Onder <strong>Authorized redirect URIs</strong> → klik <strong>+ ADD URI</strong> en plak de regel hierboven.</li>
-          <li>Klik <strong>Save</strong> en wacht ~1 minuut.</li>
+          <li><%= t('agoog.rstep1_pre') %> <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Google Cloud Console → APIs &amp; Services → Credentials</a>.</li>
+          <li><%= t('agoog.rstep2') %></li>
+          <li><%= t('agoog.rstep3_pre') %> <strong>Authorized redirect URIs</strong> → <%= t('agoog.rstep3_mid') %> <strong>+ ADD URI</strong> <%= t('agoog.rstep3_post') %></li>
+          <li><%= t('agoog.rstep4_pre') %> <strong>Save</strong> <%= t('agoog.rstep4_post') %></li>
         </ol>
-        <p class="set-redirect-warn">Moet <strong>exact</strong> kloppen: <code>https://</code> (geen <code>http</code>), juiste domein, en <strong>geen</strong> schuine streep aan het eind. Anders krijg je <em>"Error 400: redirect_uri_mismatch"</em>.</p>
+        <p class="set-redirect-warn"><%= t('agoog.warn_pre') %> <strong><%= t('agoog.warn_exact') %></strong> <%= t('agoog.warn_mid1') %> <code>https://</code> (<%= t('agoog.warn_nohttp') %> <code>http</code>)<%= t('agoog.warn_mid2') %> <strong><%= t('agoog.warn_noslash') %></strong> <%= t('agoog.warn_mid3') %> <em><%= t('agoog.warn_error') %></em>.</p>
       </div>
     <% } else { %>
-      <p class="set-help" style="color:var(--accent)">Stel eerst <code>PUBLIC_BASE_URL</code> in — daar wordt de redirect-URI van afgeleid.</p>
+      <p class="set-help" style="color:var(--accent)"><%= t('agoog.set_baseurl_pre') %> <code>PUBLIC_BASE_URL</code> <%= t('agoog.set_baseurl_post') %></p>
     <% } %>
 
     <form method="post" action="/admin/settings/google" class="set-form">
       <label class="set-field">
-        <span>Client ID</span>
+        <span><%= t('agoog.client_id') %></span>
         <input type="text" name="google_client_id" value="<%= google ? google.clientId : '' %>" placeholder="123-abc.apps.googleusercontent.com" autocomplete="off">
       </label>
       <label class="set-field">
-        <span>Client Secret <% if (google && google.secretSet) { %><small style="font-weight:400">— ingesteld; leeg laten = ongewijzigd</small><% } %></span>
-        <input type="password" name="google_client_secret" placeholder="<%= (google && google.secretSet) ? '•••••••• (ingesteld)' : 'GOCSPX-…' %>" autocomplete="off">
+        <span><%= t('agoog.client_secret') %> <% if (google && google.secretSet) { %><small style="font-weight:400">— <%= t('agoog.client_secret_set') %></small><% } %></span>
+        <input type="password" name="google_client_secret" placeholder="<%= (google && google.secretSet) ? t('agoog.secret_ph_set') : 'GOCSPX-…' %>" autocomplete="off">
       </label>
       <div class="set-actions">
-        <button type="submit" class="btn btn-primary">Opslaan</button>
+        <button type="submit" class="btn btn-primary"><%= t('agoog.save') %></button>
         <% if (google && (google.clientId || google.secretSet)) { %>
-          <button type="submit" name="clear" value="1" class="btn">Loskoppelen</button>
+          <button type="submit" name="clear" value="1" class="btn"><%= t('agoog.disconnect') %></button>
         <% } %>
       </div>
     </form>
     <% if (typeof premiumEnabled !== 'undefined' && premiumEnabled && !isPremium) { %>
-      <p class="set-help" style="margin-top:.7rem; color:var(--accent)">Premium-laag staat aan zonder Patreon — de Google-knop blijft verborgen tot premium ontgrendeld is.</p>
+      <p class="set-help" style="margin-top:.7rem; color:var(--accent)"><%= t('agoog.premium_locked') %></p>
     <% } %>
   </section>
 </div>

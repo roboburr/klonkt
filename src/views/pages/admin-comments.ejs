@@ -1,40 +1,46 @@
 <div class="container admin-comments-page">
-  <p><a href="/admin" class="btn">&larr; Beheer</a></p>
-  <h1>Comment moderation</h1>
+  <p><a href="/admin" class="btn">&larr; <%= t('acom.back') %></a></p>
+  <h1><%= t('acom.title') %></h1>
 
   <p class="muted">
-    Mode for this site: <strong><%= moderationMode %></strong>
+    <%= t('acom.mode_for_site') %> <strong><%= moderationMode %></strong>
     <% if (moderationMode === 'trust') { %>
-      &mdash; comments are auto-approved. Switch to <em>moderate</em> in
-      <a href="/admin/sites/<%= site.slug %>/edit">site settings</a> to queue them.
+      &mdash; <%= t('acom.mode_trust_a') %> <em><%= t('acom.mode_moderate_word') %></em>
+      <a href="/admin/sites/<%= site.slug %>/edit"><%= t('acom.site_settings') %></a> <%= t('acom.mode_trust_b') %>
     <% } else { %>
-      &mdash; new comments require approval before showing up on posts.
+      &mdash; <%= t('acom.mode_moderate_hint') %>
     <% } %>
   </p>
 
   <% if (success) { %><div class="audio-flash audio-flash--ok"><%= success %></div><% } %>
   <% if (error)   { %><div class="audio-flash audio-flash--err"><%= error %></div><% } %>
 
-  <h2>Pending (<%= pending.length %>)</h2>
+  <h2><%= t('acom.pending', { n: pending.length }) %></h2>
   <% if (!pending.length) { %>
-    <p class="muted">Nothing waiting.</p>
+    <p class="muted"><%= t('acom.nothing_waiting') %></p>
   <% } else { %>
+    <%
+      var _c_reply    = t('acom.reply');
+      var _c_on       = t('acom.on');
+      var _c_approve  = t('acom.approve');
+      var _c_reject   = t('acom.reject');
+    %>
     <ol class="moderation-list">
       <% pending.forEach(function(c) { %>
         <li class="moderation-item">
           <div class="moderation-meta">
             <strong><%= c.author_username %></strong>
-            <% if (c.parent_comment_id) { %><span class="muted">(reply)</span><% } %>
-            on <a href="<%= siteUrlBase %>/<%= c.post_slug %>"><%= c.post_title || c.post_slug %></a>
+            <% if (c.parent_comment_id) { %><span class="muted">(<%= _c_reply %>)</span><% } %>
+            <%= _c_on %> <a href="<%= siteUrlBase %>/<%= c.post_slug %>"><%= c.post_title || c.post_slug %></a>
             <span class="muted">&middot; <%= formatDateTime(c.created_at) %></span>
           </div>
           <blockquote class="moderation-content"><%= c.content %></blockquote>
           <div class="moderation-actions">
             <form method="post" action="<%= siteUrlBase %>/admin/comments/<%= c.id %>/approve" style="display:inline">
-              <button type="submit" class="btn btn-primary">Approve</button>
+              <button type="submit" class="btn btn-primary"><%= _c_approve %></button>
             </form>
             <form method="post" action="<%= siteUrlBase %>/admin/comments/<%= c.id %>/reject" style="display:inline">
-              <button type="submit" class="btn btn-danger">Reject</button>
+              <button type="submit" class="btn btn-danger"><%= _c_reject %></button>
             </form>
           </div>
         </li>
@@ -42,9 +48,9 @@
     </ol>
   <% } %>
 
-  <h2>Recent decisions</h2>
+  <h2><%= t('acom.recent') %></h2>
   <% if (!recent.length) { %>
-    <p class="muted">Nothing yet.</p>
+    <p class="muted"><%= t('acom.nothing_yet') %></p>
   <% } else { %>
     <ul class="decision-list">
       <% recent.forEach(function(c) { %>

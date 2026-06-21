@@ -1,54 +1,53 @@
 <div class="container admin-page">
-  <h1>Updates</h1>
-  <p><a href="/admin" class="btn">&larr; Beheer</a></p>
+  <h1><%= t('aupd.title') %></h1>
+  <p><a href="/admin" class="btn">&larr; <%= t('aupd.back_admin') %></a></p>
 
   <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
   <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
 
   <section class="set-card">
-    <h2>Versie van deze Klonkt</h2>
+    <h2><%= t('aupd.version_heading') %></h2>
 
     <div class="upd-row">
-      <span class="upd-label">App-versie</span>
+      <span class="upd-label"><%= t('aupd.app_version') %></span>
       <span class="upd-val"><%= appVersion || '—' %></span>
     </div>
     <div class="upd-row">
-      <span class="upd-label">Huidig</span>
+      <span class="upd-label"><%= t('aupd.current') %></span>
       <span class="upd-val">
         <% if (currentSha) { %><code><%= currentSha %></code> <span class="upd-desc"><%= currentDesc %></span>
-        <% } else { %><em>onbekend (nog niet via de update-knop bijgewerkt)</em><% } %>
+        <% } else { %><em><%= t('aupd.current_unknown') %></em><% } %>
       </span>
     </div>
     <div class="upd-row">
-      <span class="upd-label">Nieuwste</span>
+      <span class="upd-label"><%= t('aupd.latest') %></span>
       <span class="upd-val">
         <% if (latestSha) { %><code><%= latestSha %></code> <span class="upd-desc"><%= latestDesc %></span>
-        <% } else { %><em>kon de nieuwste versie niet ophalen</em><% } %>
+        <% } else { %><em><%= t('aupd.latest_failed') %></em><% } %>
       </span>
     </div>
 
     <div class="upd-status">
       <% if (!canCheck) { %>
-        <span class="upd-badge warn">&#9888; Geen update-bron bereikbaar</span>
+        <span class="upd-badge warn">&#9888; <%= t('aupd.no_source') %></span>
       <% } else if (upToDate) { %>
-        <span class="upd-badge ok">&#10003; Up-to-date</span>
+        <span class="upd-badge ok">&#10003; <%= t('aupd.uptodate') %></span>
       <% } else { %>
-        <span class="upd-badge new">&#8635; Update beschikbaar<% if (behind) { %> (<%= behind %> commit<%= behind === '1' ? '' : 's' %> achter)<% } %></span>
+        <span class="upd-badge new">&#8635; <%= t('aupd.update_available') %><% if (behind) { %> (<%= behind === '1' ? t('aupd.behind_one', { n: behind }) : t('aupd.behind_many', { n: behind }) %>)<% } %></span>
       <% } %>
     </div>
 
     <% if (canCheck) { %>
     <form method="post" action="/admin/updates/run" class="set-form"
-          onsubmit="return confirm('De site wordt naar de nieuwste versie gebracht en herstart kort. Doorgaan?');">
+          onsubmit="return confirm('<%= t('aupd.run_confirm') %>');">
       <button type="submit" class="btn btn-primary">
-        <%= upToDate ? '↻ Opnieuw uitrollen' : '⬆ Nu bijwerken' %>
+        <%= upToDate ? '↻ ' + t('aupd.redeploy') : '⬆ ' + t('aupd.update_now') %>
       </button>
     </form>
     <% } %>
 
     <p class="set-help" style="margin-top:1rem">
-      Bijwerken haalt de nieuwste code op en herstart deze site kort (~10s). Doe dit
-      rustig — er gaat niets verloren (je posts, instellingen en cirkel blijven staan).
+      <%= t('aupd.help') %>
     </p>
   </section>
 </div>

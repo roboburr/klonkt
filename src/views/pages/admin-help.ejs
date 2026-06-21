@@ -1,123 +1,123 @@
 <div class="container admin-page hb">
-  <p><a href="/admin" class="btn">&larr; Beheer</a></p>
-  <h1>Handleiding</h1>
-  <p class="hb-intro">Uitleg van alle functies. Typ hieronder om te zoeken op een onderwerp of instructie.</p>
+  <p><a href="/admin" class="btn">&larr; <%= t('ahelp.back') %></a></p>
+  <h1><%= t('ahelp.title') %></h1>
+  <p class="hb-intro"><%= t('ahelp.intro') %></p>
 
   <div class="hb-search">
-    <input type="search" id="hb-q" placeholder="Zoek… (bv. 'agenda', 'foto', 'cirkel', 'downloads')" autocomplete="off" aria-label="Zoek in de handleiding">
+    <input type="search" id="hb-q" placeholder="<%= t('ahelp.search_placeholder') %>" autocomplete="off" aria-label="<%= t('ahelp.search_aria') %>">
   </div>
   <p class="hb-count" id="hb-count" aria-live="polite"></p>
 
   <div class="hb-list">
 
     <section class="hb-item">
-      <h2>✍️ Nieuwe post schrijven</h2>
-      <p>Beheer → <strong>Nieuwe post</strong>. Geef een titel en schrijf je inhoud. Onderaan kies je de status: <em>concept</em> (niet zichtbaar) of <em>gepubliceerd</em>. Concepten staan bovenaan in je Beheer-overzicht zodat je ze terugvindt.</p>
+      <h2>✍️ <%= t('ahelp.s_newpost_h') %></h2>
+      <p><%- t('ahelp.s_newpost_b') %></p>
     </section>
 
     <section class="hb-item">
-      <h2>📝 Samenvatting &amp; Cirkel Preview</h2>
-      <p>Het veld <strong>Samenvatting &amp; Cirkel Preview</strong> (de excerpt) is de korte previewtekst onder een post in lijsten, én de samenvatting die andere sites tonen als ze je post via een <strong>Cirkel</strong> overnemen. Laat je 'm leeg, dan wordt automatisch het begin van de post gebruikt.</p>
+      <h2>📝 <%= t('ahelp.s_excerpt_h') %></h2>
+      <p><%- t('ahelp.s_excerpt_b') %></p>
     </section>
 
     <section class="hb-item">
-      <h2>📌 Post pinnen / volgorde</h2>
-      <p>In de post-editor kun je een post <strong>pinnen</strong> met een rang (1 = bovenaan). Gepinde posts staan vooraan in de tijdlijn/grid, op volgorde van hun rang. Rang leeg of 0 = niet gepind.</p>
+      <h2>📌 <%= t('ahelp.s_pin_h') %></h2>
+      <p><%- t('ahelp.s_pin_b') %></p>
     </section>
 
     <section class="hb-item">
-      <h2>🗓️ Publiceren plannen &amp; alleen voor fans <small>(premium)</small></h2>
-      <p>In de editor kun je een <strong>publicatiedatum</strong> in de toekomst zetten — de post verschijnt dan automatisch op dat moment. Met <strong>Alleen voor fans</strong> zien niet-ingelogde bezoekers alleen een teaser + login-uitnodiging; ingelogde fans zien alles.</p>
+      <h2>🗓️ <%= t('ahelp.s_schedule_h') %> <small>(<%= t('ahelp.premium') %>)</small></h2>
+      <p><%- t('ahelp.s_schedule_b') %></p>
     </section>
 
     <section class="hb-item">
-      <h2>🖼️ Afbeeldingen in posts</h2>
-      <p>Afbeeldingen in de tekst en de cover-afbeelding worden altijd <strong>volledig</strong> getoond op de volledige breedte (niet bijgesneden), met hun natuurlijke hoogte.</p>
+      <h2>🖼️ <%= t('ahelp.s_images_h') %></h2>
+      <p><%- t('ahelp.s_images_b') %></p>
     </section>
 
     <section class="hb-item">
-      <h2>🎵 Audio &amp; nummers toevoegen</h2>
-      <p>Beheer → <strong>Audio</strong>. Upload een bestand of voeg een <em>link-only</em> nummer toe (zonder upload, alleen "open in"-links). Per nummer vul je titel, artiest, cover, en optioneel album/positie in. In een post toon je een nummer met de shortcode <code>[[track:id]]</code>, een album met <code>[[album:Naam]]</code>, een playlist met <code>[[playlist:id]]</code>.</p>
+      <h2>🎵 <%= t('ahelp.s_audio_h') %></h2>
+      <p><%- t('ahelp.s_audio_b') %></p>
     </section>
 
     <section class="hb-item">
-      <h2>© Credit, licentie &amp; "open in"</h2>
-      <p>Per nummer kun je een <strong>eigenaar/credit</strong> (met © -knop) en een <strong>licentie</strong> instellen — die worden ook in de mp3-metadata geschreven. Met de <strong>open-in</strong>-velden (Spotify / YouTube / SoundCloud) verschijnen knoppen om het nummer op die platforms te openen.</p>
+      <h2>© <%= t('ahelp.s_credit_h') %></h2>
+      <p><%- t('ahelp.s_credit_b') %></p>
     </section>
 
     <section class="hb-item">
-      <h2>⬇ Downloads <small>(premium)</small></h2>
-      <p>Markeer een nummer als <strong>downloadbaar</strong> in Beheer → Audio (⬇-knop). Bezoekers vinden ze op de <strong>/downloads</strong>-pagina en laten hun e-mail achter om het bestand te krijgen (komt op je mailinglijst). Wil je downloads prominent in de feed? Maak een gewone post met slug <code>downloads</code> en pin 'm.</p>
+      <h2>⬇ <%= t('ahelp.s_downloads_h') %> <small>(<%= t('ahelp.premium') %>)</small></h2>
+      <p><%- t('ahelp.s_downloads_b') %></p>
     </section>
 
     <section class="hb-item">
-      <h2>📃 Albums &amp; playlists</h2>
-      <p>Geef nummers hetzelfde <strong>album</strong> + een <strong>positie</strong> om een album te vormen. Playlists maak je in Beheer → <strong>Playlists</strong>. Beide toon je in een post met <code>[[album:Naam]]</code> of <code>[[playlist:id]]</code>.</p>
+      <h2>📃 <%= t('ahelp.s_albums_h') %></h2>
+      <p><%- t('ahelp.s_albums_b') %></p>
     </section>
 
     <section class="hb-item">
-      <h2>📅 Agenda / evenementen <small>(premium)</small></h2>
-      <p>Beheer → <strong>Agenda</strong>. Zet bovenaan <strong>"Agenda tonen op de site"</strong> aan — dan verschijnt de Agenda-knop in de balk en is de agendapagina bereikbaar. Voeg evenementen toe (datum, plaats, locatie, tickets). Bezoekers kunnen zich (los van de nieuwsbrief) aanmelden voor een seintje bij een nieuw evenement.</p>
+      <h2>📅 <%= t('ahelp.s_agenda_h') %> <small>(<%= t('ahelp.premium') %>)</small></h2>
+      <p><%- t('ahelp.s_agenda_b') %></p>
     </section>
 
     <section class="hb-item">
-      <h2>📰 Perskit <small>(premium)</small></h2>
-      <p>Een deelbare perspagina op <strong>/pers</strong>. Bewerk 'm via de <strong>✎ Bewerken</strong>-knop op die pagina zelf (alleen jij ziet die). Stel een korte pers-bio + contact in, en kies <strong>tot 5 nummers</strong> die getoond worden (of laat leeg = automatisch de top-5 meest beluisterd).</p>
+      <h2>📰 <%= t('ahelp.s_presskit_h') %> <small>(<%= t('ahelp.premium') %>)</small></h2>
+      <p><%- t('ahelp.s_presskit_b') %></p>
     </section>
 
     <section class="hb-item">
-      <h2>🔗 Cirkels (federatie)</h2>
-      <p>In Beheer → Instellingen zet je je site op <strong>Cirkel</strong>-modus. Daarna voeg je in Beheer → <strong>Cirkel</strong> andere Klonkt-sites toe; hun publieke posts verschijnen dan in je <strong>/cirkel</strong>-feed. Wat anderen van jóu zien is de titel + de "Samenvatting &amp; Cirkel Preview". Hubs doen niet mee aan cirkels (alleen solo-sites).</p>
+      <h2>🔗 <%= t('ahelp.s_circles_h') %></h2>
+      <p><%- t('ahelp.s_circles_b') %></p>
     </section>
 
     <section class="hb-item">
-      <h2>📊 Statistieken <small>(premium)</small></h2>
-      <p>Beheer → <strong>Statistieken</strong>. Cookievrij gemeten. <strong>Bezoeker-dagen</strong> = unieke bezoekers per dag, opgeteld (géén aantal personen). <strong>Weergaven</strong> = home/feed- en post-loads. Beheerder-bezoeken en bots tellen niet mee. Goed voor trends; absolute aantallen met een korrel zout.</p>
+      <h2>📊 <%= t('ahelp.s_stats_h') %> <small>(<%= t('ahelp.premium') %>)</small></h2>
+      <p><%- t('ahelp.s_stats_b') %></p>
     </section>
 
     <section class="hb-item">
-      <h2>✉️ Nieuwsbrief <small>(premium)</small></h2>
-      <p>Beheer → <strong>Nieuwsbrief</strong>: stel een bericht op en stuur het naar je bevestigde abonnees. Bezoekers melden zich aan via de footer of <strong>/nieuwsbrief</strong>. Versturen vereist dat e-mail (SMTP) is ingesteld.</p>
+      <h2>✉️ <%= t('ahelp.s_newsletter_h') %> <small>(<%= t('ahelp.premium') %>)</small></h2>
+      <p><%- t('ahelp.s_newsletter_b') %></p>
     </section>
 
     <section class="hb-item">
-      <h2>🔗 Link-in-bio <small>(premium)</small></h2>
-      <p>Een Linktree-achtige pagina op <strong>/links</strong> met je profiel-links. De kliks per link zie je terug in Statistieken.</p>
+      <h2>🔗 <%= t('ahelp.s_linkbio_h') %> <small>(<%= t('ahelp.premium') %>)</small></h2>
+      <p><%- t('ahelp.s_linkbio_b') %></p>
     </section>
 
     <section class="hb-item">
-      <h2>▶️ Embedbare speler <small>(premium)</small></h2>
-      <p>Beheer → Audio toont een kopieerbare <code>&lt;iframe&gt;</code>-code (<strong>/embed</strong>) waarmee je je speler op een andere website kunt insluiten.</p>
+      <h2>▶️ <%= t('ahelp.s_embed_h') %> <small>(<%= t('ahelp.premium') %>)</small></h2>
+      <p><%- t('ahelp.s_embed_b') %></p>
     </section>
 
     <section class="hb-item">
-      <h2>🎨 Uiterlijk (thema, foto, accent)</h2>
-      <p>Beheer → <strong>Uiterlijk</strong>: stel je sitenaam, tagline, profielfoto, accentkleur en kleurpalet in, en de standaard feed-weergave (Tijdlijn of Grid).</p>
+      <h2>🎨 <%= t('ahelp.s_appearance_h') %></h2>
+      <p><%- t('ahelp.s_appearance_b') %></p>
     </section>
 
     <section class="hb-item">
-      <h2>👥 Solo- / Hub-modus</h2>
-      <p>Beheer → <strong>Instellingen</strong>: <em>Solo</em> = één site (jij). <em>Hub</em> = een bedrijfs-/labelsite met meerdere makers, elk een eigen Klonkt onder <code>/user/&lt;naam&gt;</code>. <em>Cirkel</em> = solo + federatie met andere sites.</p>
+      <h2>👥 <%= t('ahelp.s_tenancy_h') %></h2>
+      <p><%- t('ahelp.s_tenancy_b') %></p>
     </section>
 
     <section class="hb-item">
-      <h2>⭐ Premium / Patreon</h2>
-      <p>Premium-functies (Hub, Statistieken, Agenda, Downloads, Perskit, Nieuwsbrief, Link-in-bio, Embed, fan-login) ontgrendel je in Beheer → Instellingen door Patreon te koppelen ($10 lifetime). Updates en de kernapp blijven altijd gratis.</p>
+      <h2>⭐ <%= t('ahelp.s_premium_h') %></h2>
+      <p><%- t('ahelp.s_premium_b') %></p>
     </section>
 
     <section class="hb-item">
-      <h2>🔑 Google-login (bezoekers)</h2>
-      <p>Beheer → Instellingen → <strong>Google</strong>. Optioneel: laat bezoekers/fans met Google inloggen om te reageren. Jij beheert met je wachtwoord — Google geeft nooit beheerrechten. Vul je eigen Google-client-gegevens in (per site).</p>
+      <h2>🔑 <%= t('ahelp.s_google_h') %></h2>
+      <p><%- t('ahelp.s_google_b') %></p>
     </section>
 
     <section class="hb-item">
-      <h2>🔄 Updates</h2>
-      <p>Beheer → <strong>Updates</strong> (alleen god) toont de huidige versie en of er een nieuwere is. Met "Nu bijwerken" haal je de laatste versie binnen.</p>
+      <h2>🔄 <%= t('ahelp.s_updates_h') %></h2>
+      <p><%- t('ahelp.s_updates_b') %></p>
     </section>
 
   </div>
 
-  <p class="hb-empty" id="hb-empty" hidden>Geen onderwerpen gevonden voor je zoekopdracht.</p>
+  <p class="hb-empty" id="hb-empty" hidden><%= t('ahelp.empty') %></p>
 </div>
 
 <style>

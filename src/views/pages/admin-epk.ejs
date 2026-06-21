@@ -1,42 +1,40 @@
 <div class="container admin-page">
-  <h1>Perskit bewerken</h1>
-  <p><a href="/admin" class="btn">&larr; Beheer</a> <a href="/pers" class="btn" target="_blank" rel="noopener">📰 Bekijk perskit</a></p>
+  <h1><%= t('aepk.title') %></h1>
+  <p><a href="/admin" class="btn">&larr; <%= t('aepk.back_admin') %></a> <a href="/pers" class="btn" target="_blank" rel="noopener">📰 <%= t('aepk.view_epk') %></a></p>
 
   <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
 
   <section class="set-card">
-    <h2>Tekst</h2>
+    <h2><%= t('aepk.text_heading') %></h2>
     <p class="set-help">
-      De perskit (<code>/pers</code>) toont je sitenaam + foto, deze bio en contact,
-      plus automatisch je meest beluisterde nummers en recente posts. Laat de bio
-      leeg om de site-tagline te gebruiken; laat contact leeg om niets te tonen
-      (je login-mail wordt nooit automatisch getoond).
+      <%= t('aepk.text_help') %>
     </p>
 
     <form method="post" action="/admin/epk" class="set-form">
       <label class="set-field">
-        <span>Pers-bio</span>
+        <span><%= t('aepk.bio_label') %></span>
         <textarea name="epk_bio" rows="5" maxlength="1000"
-                  placeholder="Korte beschrijving van jou/het project voor pers &amp; boekers."><%= epkBio %></textarea>
+                  placeholder="<%= t('aepk.bio_ph') %>"><%= epkBio %></textarea>
       </label>
       <label class="set-field">
-        <span>Pers-contact</span>
+        <span><%= t('aepk.contact_label') %></span>
         <input type="text" name="epk_contact" maxlength="300"
-               placeholder="bv. pers@jouwdomein.nl of een boekingslink"
+               placeholder="<%= t('aepk.contact_ph') %>"
                value="<%= epkContact %>">
       </label>
 
       <div class="set-field">
-        <span>Nummers op de perskit <small>(kies er max <%= maxEpkTracks %>; laat leeg voor automatisch de top <%= maxEpkTracks %> meest beluisterd)</small></span>
+        <span><%= t('aepk.tracks_label') %> <small><%= t('aepk.tracks_hint', { n: maxEpkTracks }) %></small></span>
         <% if (!allTracks.length) { %>
-          <p class="set-help" style="margin:0">Nog geen nummers — voeg eerst audio toe in Beheer → Audio.</p>
+          <p class="set-help" style="margin:0"><%= t('aepk.no_tracks') %></p>
         <% } else { %>
+          <% var _untitled = t('aepk.untitled'); %>
           <div class="epk-track-pick" data-max="<%= maxEpkTracks %>">
             <% allTracks.forEach(function(t){ %>
               <label class="epk-pick-item">
                 <input type="checkbox" name="epk_tracks" value="<%= t.id %>" <%= chosenTracks.indexOf(t.id) >= 0 ? 'checked' : '' %>>
                 <span class="epk-box" aria-hidden="true">✓</span>
-                <span class="epk-pick-title"><%= t.title || '(zonder titel)' %></span>
+                <span class="epk-pick-title"><%= t.title || _untitled %></span>
                 <% if (t.artist) { %><span class="epk-pick-artist"><%= t.artist %></span><% } %>
               </label>
             <% }); %>
@@ -44,7 +42,7 @@
         <% } %>
       </div>
 
-      <button type="submit" class="btn btn-primary">Opslaan</button>
+      <button type="submit" class="btn btn-primary"><%= t('aepk.save') %></button>
     </form>
   </section>
 </div>

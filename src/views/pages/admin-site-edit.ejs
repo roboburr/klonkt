@@ -1,6 +1,6 @@
 <div class="container admin-site-edit-page">
-  <p><a href="/admin" class="btn">&larr; Beheer</a></p>
-  <h1><%= isNew ? 'Nieuwe site' : 'Uiterlijk: ' + site.title %></h1>
+  <p><a href="/admin" class="btn">&larr; <%= t('asite.back_admin') %></a></p>
+  <h1><%= isNew ? t('asite.title_new') : t('asite.title_edit') + ': ' + site.title %></h1>
 
   <% if (typeof success !== 'undefined' && success) { %><div class="audio-flash audio-flash--ok"><%= success %></div><% } %>
   <% if (error) { %><div class="audio-flash audio-flash--err"><%= error %></div><% } %>
@@ -8,43 +8,44 @@
   <form method="post" action="<%= isNew ? '/admin/sites/create' : '/admin/sites/' + site.slug + '/save' %>" class="site-form">
 
     <fieldset>
-      <legend>Identiteit</legend>
+      <legend><%= t('asite.identity') %></legend>
       <label>
-        <span>Slug (URL) <% if (!isNew) { %><em>(vast)</em><% } %></span>
+        <span><%= t('asite.slug') %> <% if (!isNew) { %><em><%= t('asite.slug_fixed') %></em><% } %></span>
         <span class="slug-url">
           <span class="slug-url-host" id="slug-host"
                 data-prefix="<%= (typeof tenancy !== 'undefined' && tenancy === 'hub') ? '/user/' : '/' %>">website.com/</span><input
                 type="text" name="slug" id="slug-input" class="slug-url-input" value="<%= site.slug %>" required <% if (!isNew) { %>readonly<% } %>
-                pattern="[a-z0-9_-]{2,40}" placeholder="jouwslug"
+                pattern="[a-z0-9_-]{2,40}" placeholder="<%= t('asite.slug_placeholder') %>"
                 autocapitalize="none" autocorrect="off" spellcheck="false">
         </span>
       </label>
       <label>
-        <span>Titel <small class="form-hint-inline">— getoond in de kop en als weergavenaam</small></span>
+        <span><%= t('asite.field_title') %> <small class="form-hint-inline"><%= t('asite.field_title_hint') %></small></span>
         <input type="text" name="title" value="<%= site.title || '' %>" required maxlength="200">
       </label>
       <%# Eigenaar (her)toewijzen — ALLEEN god. In hub-modus geef je zo elke
           gebruiker z'n eigen, zelf te beheren Klonkt. Niet-god ziet dit niet. %>
       <% if (user && user.role === 'god') { %>
       <label>
-        <span>Eigenaar <small class="form-hint-inline">— wie deze Klonkt zelf mag beheren</small></span>
+        <span><%= t('asite.owner') %> <small class="form-hint-inline"><%= t('asite.owner_hint') %></small></span>
+        <% var _godSuffix = t('asite.owner_god_suffix'); %>
         <select name="owner_id">
           <% (typeof users !== 'undefined' ? users : []).forEach(function(u){ %>
-            <option value="<%= u.id %>" <%= (site.owner_id === u.id) ? 'selected' : '' %>><%= u.username %><%= u.role === 'god' ? ' (god)' : '' %></option>
+            <option value="<%= u.id %>" <%= (site.owner_id === u.id) ? 'selected' : '' %>><%= u.username %><%= u.role === 'god' ? _godSuffix : '' %></option>
           <% }); %>
         </select>
       </label>
       <% } %>
       <label>
-        <span>Tagline <small class="form-hint-inline">— korte oneliner</small></span>
+        <span><%= t('asite.tagline') %> <small class="form-hint-inline"><%= t('asite.tagline_hint') %></small></span>
         <input type="text" name="tagline" value="<%= site.tagline || '' %>" maxlength="200">
       </label>
       <label>
-        <span>Bio / omschrijving <small class="form-hint-inline">— getoond in de profielkop en gebruikt voor SEO</small></span>
+        <span><%= t('asite.bio') %> <small class="form-hint-inline"><%= t('asite.bio_hint') %></small></span>
         <textarea name="description" rows="3" maxlength="500"><%= site.description || '' %></textarea>
       </label>
       <label>
-        <span>Profielfoto</span>
+        <span><%= t('asite.profile_photo') %></span>
         <div class="photo-picker" id="photo-picker">
           <div class="photo-thumb" id="photo-thumb" <%= site.profile_photo ? '' : 'data-empty' %>>
             <img id="photo-preview" src="<%= site.profile_photo || '' %>" alt="" <%= site.profile_photo ? '' : 'hidden' %>>
@@ -53,10 +54,10 @@
             </span>
           </div>
           <div class="photo-controls">
-            <input type="text" name="profile_photo" id="photo-url" value="<%= site.profile_photo || '' %>" placeholder="/media/avatars/foo.jpg of https://…">
+            <input type="text" name="profile_photo" id="photo-url" value="<%= site.profile_photo || '' %>" placeholder="<%= t('asite.photo_url_placeholder') %>">
             <div class="photo-actions">
-              <button type="button" class="btn" id="photo-upload-trigger">📷 Uploaden</button>
-              <button type="button" class="btn" id="photo-clear" <%= site.profile_photo ? '' : 'hidden' %>>Verwijder</button>
+              <button type="button" class="btn" id="photo-upload-trigger"><%= t('asite.photo_upload') %></button>
+              <button type="button" class="btn" id="photo-clear" <%= site.profile_photo ? '' : 'hidden' %>><%= t('asite.photo_clear') %></button>
               <small id="photo-status" class="form-hint photo-status"></small>
             </div>
             <input type="file" id="photo-upload-field" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
@@ -64,24 +65,24 @@
         </div>
       </label>
       <label>
-        <span>Taal (ISO-code)</span>
+        <span><%= t('asite.language') %></span>
         <input type="text" name="language" value="<%= site.language || 'nl' %>" maxlength="8">
       </label>
       <label class="cb">
         <input type="checkbox" name="profile_enabled" value="1" <%= site.profile_enabled ? 'checked' : '' %>>
-        <span>Profielkop tonen onder de navigatie</span>
+        <span><%= t('asite.profile_enabled') %></span>
       </label>
     </fieldset>
 
     <fieldset>
-      <legend>Vormgeving</legend>
+      <legend><%= t('asite.appearance') %></legend>
 
       <%# ── Curated accent picker ───────────────────────────────────────
           Was a free-form <input type="color">; now a fixed set of 8 hand-
           picked colors that work in both light and dark themes. The hex is
           still what's stored in the DB — we just constrain WHICH hex. %>
       <fieldset class="accent-grid">
-        <legend>Accentkleur</legend>
+        <legend><%= t('asite.accent_color') %></legend>
         <% const _curAccent = (site.accent || '#c2410c').toLowerCase(); %>
         <% accents.forEach(function(a) { %>
           <label class="accent-swatch" title="<%= a.name %>">
@@ -98,24 +99,24 @@
           their own preference yet. Logged-in users with users.theme set, and
           visitors with a localStorage override, still win over this default. %>
       <fieldset class="theme-default">
-        <legend>Standaardthema voor nieuwe bezoekers</legend>
+        <legend><%= t('asite.theme_default') %></legend>
         <% const td = site.theme_override || ''; %>
         <label class="cb">
           <input type="radio" name="theme_override" value=""      <%= td === ''      ? 'checked' : '' %>>
-          <span>Auto (volg device-voorkeur)</span>
+          <span><%= t('asite.theme_auto') %></span>
         </label>
         <label class="cb">
           <input type="radio" name="theme_override" value="light" <%= td === 'light' ? 'checked' : '' %>>
-          <span>Licht</span>
+          <span><%= t('asite.theme_light') %></span>
         </label>
         <label class="cb">
           <input type="radio" name="theme_override" value="dark"  <%= td === 'dark'  ? 'checked' : '' %>>
-          <span>Donker</span>
+          <span><%= t('asite.theme_dark') %></span>
         </label>
       </fieldset>
 
       <fieldset class="palette-grid">
-        <legend>Palet</legend>
+        <legend><%= t('asite.palette') %></legend>
         <% palettes.forEach(function(p) { %>
           <label class="palette-swatch">
             <input type="radio" name="palette" value="<%= p.key %>" <%= (site.palette || 'sage') === p.key ? 'checked' : '' %>>
@@ -136,42 +137,42 @@
     </fieldset>
 
     <fieldset>
-      <legend>Gedrag</legend>
+      <legend><%= t('asite.behavior') %></legend>
       <label class="cb">
         <input type="checkbox" name="is_public" value="1" <%= site.is_public ? 'checked' : '' %>>
-        <span>Publieke site (uitvinken voor een besloten kring)</span>
+        <span><%= t('asite.is_public') %></span>
       </label>
       <label class="cb">
         <input type="checkbox" name="robots_index" value="1" <%= site.robots_index ? 'checked' : '' %>>
-        <span>Zoekmachines mogen indexeren (sitemap.xml is verborgen indien uit)</span>
+        <span><%= t('asite.robots_index') %></span>
       </label>
       <label class="cb">
         <input type="checkbox" name="require_login_to_comment" value="1" <%= site.require_login_to_comment ? 'checked' : '' %>>
-        <span>Inloggen vereist om te reageren</span>
+        <span><%= t('asite.require_login_comment') %></span>
       </label>
       <label>
-        <span>Reactie-moderatie</span>
+        <span><%= t('asite.comment_moderation') %></span>
         <select name="comments_moderation_mode">
-          <option value="trust"    <%= (site.comments_moderation_mode || 'trust') === 'trust'    ? 'selected' : '' %>>Vertrouwen (automatisch goedkeuren)</option>
-          <option value="moderate" <%= site.comments_moderation_mode === 'moderate' ? 'selected' : '' %>>Modereren (eerst in de wachtrij)</option>
+          <option value="trust"    <%= (site.comments_moderation_mode || 'trust') === 'trust'    ? 'selected' : '' %>><%= t('asite.moderation_trust') %></option>
+          <option value="moderate" <%= site.comments_moderation_mode === 'moderate' ? 'selected' : '' %>><%= t('asite.moderation_moderate') %></option>
         </select>
       </label>
       <label class="cb">
         <input type="checkbox" name="enable_audio_player" value="1" <%= site.enable_audio_player ? 'checked' : '' %>>
-        <span>Audiospeler + embeds inschakelen</span>
+        <span><%= t('asite.enable_audio') %></span>
       </label>
       <%# Prutter is een Hub-only premium-functie — toggle alleen tonen in Hub-modus. %>
       <% if (typeof tenancy !== 'undefined' && tenancy === 'hub') { %>
       <label class="cb">
         <input type="checkbox" name="enable_prutter" value="1" <%= site.enable_prutter ? 'checked' : '' %>>
-        <span>Prutter (DM&rsquo;s tussen leden) inschakelen <small class="form-hint-inline">— Hub-functie, premium</small></span>
+        <span><%= t('asite.enable_prutter') %> <small class="form-hint-inline"><%= t('asite.enable_prutter_hint') %></small></span>
       </label>
       <% } %>
     </fieldset>
 
     <fieldset class="profile-links-fieldset">
-      <legend>Social / streaming-links</legend>
-      <p class="form-hint">Getoond als merk-iconen op de profielkop. Voeg er zoveel toe als je wilt.</p>
+      <legend><%= t('asite.links') %></legend>
+      <p class="form-hint"><%= t('asite.links_hint') %></p>
 
       <div id="profile-links-rows">
         <% (parsedLinks || []).forEach(function(l) { %>
@@ -199,55 +200,54 @@
         </div>
       </template>
 
-      <button type="button" id="profile-link-add" class="btn">+ Link toevoegen</button>
+      <button type="button" id="profile-link-add" class="btn"><%= t('asite.link_add') %></button>
     </fieldset>
 
     <fieldset>
-      <legend>Feed-weergave</legend>
+      <legend><%= t('asite.feed_view') %></legend>
       <label>
-        <span>Standaardweergave voor de homepage</span>
+        <span><%= t('asite.feed_default') %></span>
         <select name="feed_view_default">
-          <option value="timeline" <%= (site.feed_view_default || 'timeline') === 'timeline' ? 'selected' : '' %>>Tijdlijn (chronologische lijst)</option>
-          <option value="grid"     <%= site.feed_view_default === 'grid' ? 'selected' : '' %>>Grid (kaarten)</option>
+          <option value="timeline" <%= (site.feed_view_default || 'timeline') === 'timeline' ? 'selected' : '' %>><%= t('asite.feed_timeline') %></option>
+          <option value="grid"     <%= site.feed_view_default === 'grid' ? 'selected' : '' %>><%= t('asite.feed_grid') %></option>
         </select>
       </label>
       <label class="cb">
         <input type="checkbox" name="feed_view_switch" value="1" <%= site.feed_view_switch ? 'checked' : '' %>>
-        <span>Tijdlijn ↔ grid-schakelaar boven de feed tonen</span>
+        <span><%= t('asite.feed_switch') %></span>
       </label>
       <label class="cb">
         <input type="checkbox" name="show_search" value="1" <%= site.show_search ? 'checked' : '' %>>
-        <span>Zoekknop in de navigatie tonen</span>
+        <span><%= t('asite.show_search') %></span>
       </label>
       <label class="cb">
         <input type="checkbox" name="show_archive_link" value="1" <%= site.show_archive_link ? 'checked' : '' %>>
-        <span>Archief-link in de navigatie tonen</span>
+        <span><%= t('asite.show_archive') %></span>
       </label>
     </fieldset>
 
     <fieldset class="seo-pointer">
-      <legend>SEO &amp; social</legend>
-      <p>Titel-sjabloon, canonical, deel-afbeelding, verificatie-metas en meer staan
-        nu op een eigen pagina: <a href="/admin/seo">🔎 SEO &amp; vindbaarheid</a>.</p>
+      <legend><%= t('asite.seo') %></legend>
+      <p><%= t('asite.seo_pointer') %> <a href="/admin/seo"><%= t('asite.seo_link') %></a>.</p>
     </fieldset>
 
     <fieldset>
-      <legend>Eigen CSS &amp; HTML <em>(optioneel)</em></legend>
+      <legend><%= t('asite.custom_legend') %> <em><%= t('asite.optional') %></em></legend>
       <label>
-        <span>Eigen CSS (geïnjecteerd als &lt;style&gt; in &lt;head&gt;)</span>
+        <span><%= t('asite.custom_css') %></span>
         <textarea name="custom_css" rows="3" placeholder=".foo { color: red; }"><%= site.custom_css || '' %></textarea>
       </label>
       <label>
-        <span>Eigen &lt;head&gt;-HTML (analytics, extra meta&rsquo;s)</span>
+        <span><%= t('asite.custom_head') %></span>
         <textarea name="custom_head_html" rows="3" placeholder="<meta name=&quot;...&quot;>"><%= site.custom_head_html || '' %></textarea>
       </label>
       <label>
-        <span>Eigen footer-HTML</span>
+        <span><%= t('asite.custom_foot') %></span>
         <textarea name="custom_foot_html" rows="3"><%= site.custom_foot_html || '' %></textarea>
       </label>
     </fieldset>
 
-    <button type="submit" class="btn btn-primary"><%= isNew ? 'Site aanmaken' : 'Wijzigingen opslaan' %></button>
+    <button type="submit" class="btn btn-primary"><%= isNew ? t('asite.submit_create') : t('asite.submit_save') %></button>
   </form>
 </div>
 
