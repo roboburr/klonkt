@@ -1,4 +1,12 @@
 <%
+  var _ready_h1     = t('dl.ready_title');
+  var _ready_sub    = t('dl.ready_sub');
+  var _manual       = t('dl.manual');
+  var _capture_sub  = t('dl.capture_sub');
+  var _email_ph     = t('dl.email_ph');
+  var _download_btn = t('dl.download_btn');
+%>
+<%
   var t = (typeof dlTrack !== 'undefined') ? dlTrack : {};
   var st = (typeof dlState !== 'undefined') ? dlState : 'form';
   var fileUrl = siteUrlBase + '/download/' + t.id + '/bestand';
@@ -14,20 +22,20 @@
     </div>
 
     <% if (st === 'ready') { %>
-      <h1 class="dl-h1">Bedankt! ⬇</h1>
-      <p class="dl-sub">Je download zou nu moeten starten. Gebeurt er niets?</p>
-      <p><a class="dl-go" href="<%= fileUrl %>">Download handmatig starten</a></p>
+      <h1 class="dl-h1"><%= _ready_h1 %></h1>
+      <p class="dl-sub"><%= _ready_sub %></p>
+      <p><a class="dl-go" href="<%= fileUrl %>"><%= _manual %></a></p>
       <script>
         // Auto-start de download (zelfde-origin attachment-link).
         setTimeout(function(){ try { window.location.href = <%- JSON.stringify(fileUrl) %>; } catch(e){} }, 600);
       </script>
     <% } else { %>
-      <h1 class="dl-h1">Download <%= t.title %></h1>
-      <p class="dl-sub">Laat je e-mailadres achter en je krijgt het bestand. Je komt dan ook op de nieuwsbrieflijst — uitschrijven kan altijd.</p>
+      <h1 class="dl-h1"><%= _download_btn %> <%= t.title %></h1>
+      <p class="dl-sub"><%= _capture_sub %></p>
       <% if (typeof dlError !== 'undefined' && dlError) { %><p class="dl-err"><%= dlError %></p><% } %>
       <form method="POST" action="<%= siteUrlBase %>/download/<%= t.id %>" class="dl-form">
-        <input type="email" name="email" required placeholder="jouw@email.nl" value="<%= (typeof dlPrefill!=='undefined')?dlPrefill:'' %>" autocomplete="email">
-        <button type="submit" class="dl-go">⬇ Download</button>
+        <input type="email" name="email" required placeholder="<%= _email_ph %>" value="<%= (typeof dlPrefill!=='undefined')?dlPrefill:'' %>" autocomplete="email">
+        <button type="submit" class="dl-go">⬇ <%= _download_btn %></button>
       </form>
     <% } %>
   </div>

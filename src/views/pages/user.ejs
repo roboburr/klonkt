@@ -18,26 +18,26 @@
         <p class="user-bio"><%= author.bio %></p>
       <% } %>
       <p class="user-stats">
-        <%= posts.length %> post<%= posts.length === 1 ? '' : 's' %> on this site
+        <%= posts.length %> <%= posts.length === 1 ? t('pusr.post_one') : t('pusr.post_many') %> <%= t('pusr.on_this_site') %>
         <% if (totalPosts > posts.length) { %>
-          &middot; <%= totalPosts %> total
+          &middot; <%= t('pusr.total', { n: totalPosts }) %>
         <% } %>
         <% if (author.created_at) { %>
-          &middot; joined <%= formatDate(author.created_at) %>
+          &middot; <%= t('pusr.joined', { date: formatDate(author.created_at) }) %>
         <% } %>
       </p>
       <% if (user && user.id !== author.id && site && site.enable_prutter && (typeof tenancy !== 'undefined' && tenancy === 'hub') && (typeof premiumUnlocked === 'undefined' || premiumUnlocked)) { %>
         <p class="user-actions">
-          <a href="<%= siteUrlBase %>/prutter/new?to=<%= encodeURIComponent(author.username) %>" class="btn btn-primary">💬 Send DM</a>
+          <a href="<%= siteUrlBase %>/prutter/new?to=<%= encodeURIComponent(author.username) %>" class="btn btn-primary">💬 <%= t('pusr.send_dm') %></a>
         </p>
       <% } %>
     </div>
   </header>
 
   <% if (!posts.length) { %>
-    <p class="user-empty">No posts on this site yet.</p>
+    <p class="user-empty"><%= t('pusr.empty') %></p>
   <% } else { %>
-    <h2 class="user-posts-heading">Posts</h2>
+    <h2 class="user-posts-heading"><%= t('pusr.posts_heading') %></h2>
     <ol class="user-posts">
       <% posts.forEach(function(p) { %>
         <li class="user-post">
@@ -53,7 +53,7 @@
               <a href="/<%= p.slug %>"
                  hx-get="/<%= p.slug %>?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
                  hx-push-url="/<%= p.slug %>" hx-indicator="#pcms-loading">
-                <%= p.title || '(untitled)' %>
+                <%= p.title || t('pusr.untitled') %>
               </a>
             </h3>
             <p class="user-post-meta">

@@ -1,34 +1,34 @@
 <div class="container auth-page">
-  <h1>Wachtwoord resetten</h1>
+  <h1><%= t('arrq.title') %></h1>
 
   <% if (sent) { %>
     <div class="alert alert-success">
-      Als er een account bestaat voor dat e-mailadres, is er een reset-link verstuurd.
+      <%= t('arrq.sent') %>
     </div>
     <% if (devResetUrl) { %>
       <div class="alert alert-info">
-        <strong>Geen e-mailserver ingesteld</strong> — reset-link hieronder.
+        <%- t('arrq.no_mailserver') %>
         <p style="margin: 0.5rem 0 0; word-break: break-all;">
           <a href="<%= devResetUrl %>"><%= devResetUrl %></a>
         </p>
       </div>
     <% } %>
     <% if (typeof mailer !== 'undefined' && !mailer) { %>
-      <p class="auth-link-muted">Geen e-mail ingesteld? De beheerder kan ook <code>npm run reset-admin</code> draaien op de server.</p>
+      <p class="auth-link-muted"><%- t('arrq.no_mail_cli') %></p>
     <% } %>
-    <p class="auth-link"><a href="/auth/login">&larr; Terug naar inloggen</a></p>
+    <p class="auth-link"><a href="/auth/login"><%= t('arrq.back_login') %></a></p>
   <% } else { %>
-    <p class="auth-tagline">Vul je e-mail in; we sturen een reset-link.</p>
+    <p class="auth-tagline"><%= t('arrq.tagline') %></p>
 
     <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
 
     <form method="post" action="/auth/reset-request" class="auth-form">
       <label>
-        <span>E-mail</span>
+        <span><%= t('arrq.email') %></span>
         <input type="email" name="email" required autofocus autocomplete="email">
       </label>
-      <button type="submit" class="btn btn-primary">Stuur reset-link</button>
-      <p class="auth-link"><a href="/auth/login">&larr; Terug naar inloggen</a></p>
+      <button type="submit" class="btn btn-primary"><%= t('arrq.submit') %></button>
+      <p class="auth-link"><a href="/auth/login"><%= t('arrq.back_login') %></a></p>
     </form>
   <% } %>
 </div>

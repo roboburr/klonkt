@@ -22,14 +22,14 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
 
   <% if (allPosts.length === 0) { %>
     <div class="empty">
-      <h1>Hier is het nog stil.</h1>
-      <p>Nog geen posts. Spannend.</p>
+      <h1><%= t('phome.empty_title') %></h1>
+      <p><%= t('phome.empty_sub') %></p>
       <% if (user && canMutate && permissions.canCreatePost(user, site)) { %>
         <p style="margin-top:2rem">
           <a class="btn" href="<%= _base %>/posts/new"
              hx-get="<%= _base %>/posts/new?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
              hx-push-url="<%= _base %>/posts/new" hx-indicator="#pcms-loading">
-            Schrijf je eerste post →
+            <%= t('phome.write_first') %> →
           </a>
         </p>
       <% } %>
@@ -46,7 +46,7 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
 
 <!-- ========== GRID (only visible when body[data-feed-view="grid"]) ========== -->
 <% if (allPosts.length > 0) { %>
-<section class="feed-grid container" aria-label="Grid-weergave">
+<section class="feed-grid container" aria-label="<%= t('phome.grid_view') %>">
   <div class="grid-tiles">
     <% allPosts.forEach(function(post) { %>
       <%- include('../partials/post-tile', { post: post }) %>

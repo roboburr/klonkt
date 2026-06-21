@@ -12,7 +12,7 @@
   </div>
 
   <% if (!links.length) { %>
-    <p class="lb-empty">Nog geen links ingesteld.</p>
+    <p class="lb-empty"><%= t('lbio.empty') %></p>
   <% } else { %>
     <div class="lb-links">
       <% links.forEach(function(l){ %>
@@ -24,7 +24,7 @@
     </div>
   <% } %>
 
-  <p class="lb-foot"><a href="<%= siteUrlBase %>/">← naar de site</a></p>
+  <p class="lb-foot"><a href="<%= siteUrlBase %>/">← <%= t('lbio.back_to_site') %></a></p>
 </section>
 
 <style>

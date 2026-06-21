@@ -8,13 +8,13 @@
   <p class="archive-back-row">
     <a href="<%= _archBase %>/" class="btn archive-back"
        hx-get="<%= _archBase %>/?partial=1" hx-target="#pcms-main"
-       hx-push-url="<%= _archBase %>/" hx-indicator="#pcms-loading">&larr; Terug</a>
+       hx-push-url="<%= _archBase %>/" hx-indicator="#pcms-loading">&larr; <%= t('parch.back') %></a>
   </p>
-  <h1>Archief</h1>
-  <p class="archive-meta"><%= totalPosts %> bericht<%= totalPosts !== 1 ? 'en' : '' %></p>
+  <h1><%= t('parch.title') %></h1>
+  <p class="archive-meta"><%= totalPosts === 1 ? t('parch.count_one', { n: totalPosts }) : t('parch.count_many', { n: totalPosts }) %></p>
 
   <% if (totalPosts === 0) { %>
-    <p class="empty-state">Nog geen berichten.</p>
+    <p class="empty-state"><%= t('parch.empty') %></p>
   <% } %>
 
   <% Object.keys(grouped).sort((a,b) => b - a).forEach(year => { %>

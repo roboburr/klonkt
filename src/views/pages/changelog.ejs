@@ -1,12 +1,12 @@
 <div class="container changelog-page">
-  <p><a href="<%= (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '' %>/" class="btn">&larr; Terug</a></p>
-  <h1>Wijzigingen</h1>
+  <p><a href="<%= (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '' %>/" class="btn">&larr; <%= t('chlog.back') %></a></p>
+  <h1><%= t('chlog.title') %></h1>
   <p class="cl-meta">
-    App-versie <strong>v<%= appVersion %></strong>
+    <%= t('chlog.app_version') %> <strong>v<%= appVersion %></strong>
     <span class="cl-sep">·</span>
-    Federatie-proto <strong><%= proto %></strong>
+    <%= t('chlog.fed_proto') %> <strong><%= proto %></strong>
     <% if (typeof user !== 'undefined' && user && user.role === 'god') { %>
-      <span class="cl-sep">·</span> <a href="/admin/updates">Updates beheren</a>
+      <span class="cl-sep">·</span> <a href="/admin/updates"><%= t('chlog.manage_updates') %></a>
     <% } %>
   </p>
   <div class="changelog-body"><%- changelogHtml %></div>

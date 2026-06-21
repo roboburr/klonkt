@@ -14,36 +14,36 @@ const _hasCover = !!post.cover_image_url;
 const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '';
 %>
 <div class="container post-edit-page">
-  <h1><%= isNew ? 'Nieuwe post' : 'Post bewerken' %></h1>
+  <h1><%= isNew ? t('pedit.title_new') : t('pedit.title_edit') %></h1>
 
   <form method="post" action="<%= _base %><%= isNew ? '/posts/create' : '/posts/' + post.slug + '/save' %>" class="post-edit-form">
 
     <%# ── IDENTITY ─────────────────────────────────────────────── %>
     <section class="pe-card">
       <label class="pe-field">
-        <span>Titel</span>
+        <span><%= t('pedit.f_title') %></span>
         <input type="text" name="title" value="<%= post.title %>" required>
       </label>
       <div class="pe-row pe-row-2">
         <label class="pe-field">
-          <span>Slug (URL)</span>
-          <input type="text" name="slug" value="<%= post.slug %>" placeholder="auto van titel als leeg">
+          <span><%= t('pedit.f_slug') %></span>
+          <input type="text" name="slug" value="<%= post.slug %>" placeholder="<%= t('pedit.slug_placeholder') %>">
         </label>
         <label class="pe-field">
-          <span>Tags <small>(komma-gescheiden)</small></span>
+          <span><%= t('pedit.f_tags') %> <small><%= t('pedit.tags_hint') %></small></span>
           <input type="text" name="tags" value="<%= Array.isArray(post.tags) ? post.tags.join(', ') : '' %>">
         </label>
       </div>
       <label class="pe-field">
-        <span>Samenvatting &amp; Cirkel Preview</span>
+        <span><%= t('pedit.f_excerpt') %></span>
         <textarea name="excerpt" rows="2"><%= post.excerpt %></textarea>
-        <small class="pe-hint" style="opacity:.7">Wordt ook gebruikt als samenvatting in <strong>Cirkels</strong> (andere sites die je post tonen). Leeg laten = begin van de post.</small>
+        <small class="pe-hint" style="opacity:.7"><%- t('pedit.excerpt_hint') %></small>
       </label>
     </section>
 
     <%# ── COVER ────────────────────────────────────────────────── %>
     <section class="pe-card">
-      <div class="pe-section-title">Cover</div>
+      <div class="pe-section-title"><%= t('pedit.s_cover') %></div>
       <div class="pe-cover-row">
         <div class="pe-cover-thumb" id="cover-preview-wrap" <%= _hasCover ? '' : 'data-empty' %>>
           <img src="<%= _hasCover ? post.cover_image_url : '' %>" alt="" id="cover-preview-img" <%= _hasCover ? '' : 'hidden' %>>
@@ -51,15 +51,15 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
         </div>
         <div class="pe-cover-actions">
           <label class="pe-field">
-            <span>Cover URL</span>
+            <span><%= t('pedit.f_cover_url') %></span>
             <input type="text" name="cover_image_url" id="cover-url-field"
                    value="<%= post.cover_image_url || '' %>"
                    inputmode="url" autocapitalize="none" spellcheck="false"
-                   placeholder="/media/…  of https://…  (of upload met de knop)">
+                   placeholder="<%= t('pedit.cover_url_placeholder') %>">
           </label>
           <div class="pe-cover-upload">
             <button type="button" class="pe-btn pe-btn-secondary" id="cover-upload-trigger">
-              📷 Upload nieuwe cover
+              📷 <%= t('pedit.cover_upload_btn') %>
             </button>
             <input type="file" id="cover-upload-field" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
             <small id="cover-upload-status" class="pe-status"></small>
@@ -71,59 +71,59 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
     <%# ── CONTENT ──────────────────────────────────────────────── %>
     <section class="pe-card pe-card-content">
       <div class="pe-section-title">
-        Content
-        <small class="pe-content-hint">Sleep een afbeelding om in te voegen · selecteer tekst om op te maken</small>
+        <%= t('pedit.s_content') %>
+        <small class="pe-content-hint"><%= t('pedit.content_hint') %></small>
       </div>
       <div class="pe-editor-frame">
         <div class="pe-toolbar" id="pe-toolbar" role="toolbar" aria-label="Format">
-          <button type="button" id="pe-fs-done" class="pe-fs-done" title="Klaar met bewerken">✓ Klaar</button>
-          <button type="button" data-cmd="bold" title="Vet (Ctrl+B)" aria-label="Vet">
+          <button type="button" id="pe-fs-done" class="pe-fs-done" title="<%= t('pedit.tb_done_title') %>">✓ <%= t('pedit.tb_done') %></button>
+          <button type="button" data-cmd="bold" title="<%= t('pedit.tb_bold_title') %>" aria-label="<%= t('pedit.tb_bold') %>">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4h8a4 4 0 0 1 0 8H6z"/><path d="M6 12h9a4 4 0 0 1 0 8H6z"/></svg>
           </button>
-          <button type="button" data-cmd="italic" title="Cursief (Ctrl+I)" aria-label="Cursief">
+          <button type="button" data-cmd="italic" title="<%= t('pedit.tb_italic_title') %>" aria-label="<%= t('pedit.tb_italic') %>">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="4" x2="10" y2="4"/><line x1="14" y1="20" x2="5" y2="20"/><line x1="15" y1="4" x2="9" y2="20"/></svg>
           </button>
-          <button type="button" data-cmd="underline" title="Onderstreept" aria-label="Onderstreept">
+          <button type="button" data-cmd="underline" title="<%= t('pedit.tb_underline') %>" aria-label="<%= t('pedit.tb_underline') %>">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4v6a6 6 0 0 0 12 0V4"/><line x1="4" y1="20" x2="20" y2="20"/></svg>
           </button>
           <span class="pe-toolbar-sep" aria-hidden="true"></span>
-          <button type="button" class="pe-tb-text" data-cmd="formatBlock" data-arg="h2" title="Kop">H2</button>
-          <button type="button" class="pe-tb-text" data-cmd="formatBlock" data-arg="h3" title="Subkop">H3</button>
-          <button type="button" class="pe-tb-text" data-cmd="formatBlock" data-arg="p"  title="Paragraaf">¶</button>
+          <button type="button" class="pe-tb-text" data-cmd="formatBlock" data-arg="h2" title="<%= t('pedit.tb_h2') %>">H2</button>
+          <button type="button" class="pe-tb-text" data-cmd="formatBlock" data-arg="h3" title="<%= t('pedit.tb_h3') %>">H3</button>
+          <button type="button" class="pe-tb-text" data-cmd="formatBlock" data-arg="p"  title="<%= t('pedit.tb_p') %>">¶</button>
           <span class="pe-toolbar-sep" aria-hidden="true"></span>
-          <button type="button" data-cmd="insertUnorderedList" title="Lijst" aria-label="Lijst">
+          <button type="button" data-cmd="insertUnorderedList" title="<%= t('pedit.tb_ul') %>" aria-label="<%= t('pedit.tb_ul') %>">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="4.5" cy="6" r="1.2"/><circle cx="4.5" cy="12" r="1.2"/><circle cx="4.5" cy="18" r="1.2"/></svg>
           </button>
-          <button type="button" data-cmd="insertOrderedList" title="Genummerde lijst" aria-label="Genummerde lijst">
+          <button type="button" data-cmd="insertOrderedList" title="<%= t('pedit.tb_ol') %>" aria-label="<%= t('pedit.tb_ol') %>">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/><path d="M4 6h1v4"/><path d="M4 10h2"/><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/></svg>
           </button>
-          <button type="button" data-cmd="formatBlock" data-arg="blockquote" title="Quote" aria-label="Quote">
+          <button type="button" data-cmd="formatBlock" data-arg="blockquote" title="<%= t('pedit.tb_quote') %>" aria-label="<%= t('pedit.tb_quote') %>">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21c3 0 7-1 7-8V5c0-1.25-.75-2-2-2H4c-1.25 0-2 .75-2 2v6c0 1.25.75 2 2 2h2.5C6 17.5 4 19 3 19v2z"/><path d="M14 21c3 0 7-1 7-8V5c0-1.25-.75-2-2-2h-4c-1.25 0-2 .75-2 2v6c0 1.25.75 2 2 2h2.5c-.5 4.5-2.5 6-3.5 6v2z"/></svg>
           </button>
-          <button type="button" data-cmd="link-prompt" title="Link (Ctrl+K)" aria-label="Link">
+          <button type="button" data-cmd="link-prompt" title="<%= t('pedit.tb_link_title') %>" aria-label="<%= t('pedit.tb_link') %>">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
           </button>
-          <button type="button" data-cmd="code-wrap" title="Code (inline)" aria-label="Code">
+          <button type="button" data-cmd="code-wrap" title="<%= t('pedit.tb_code_title') %>" aria-label="<%= t('pedit.tb_code') %>">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
           </button>
           <span class="pe-toolbar-sep" aria-hidden="true"></span>
-          <button type="button" id="insert-image-btn" title="Afbeelding invoegen" aria-label="Afbeelding">
+          <button type="button" id="insert-image-btn" title="<%= t('pedit.tb_image_title') %>" aria-label="<%= t('pedit.tb_image') %>">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
           </button>
-          <button type="button" id="insert-track-btn" title="Track invoegen" aria-label="Track">
+          <button type="button" id="insert-track-btn" title="<%= t('pedit.tb_track_title') %>" aria-label="<%= t('pedit.tb_track') %>">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
           </button>
-          <button type="button" id="insert-playlist-btn" title="Playlist invoegen" aria-label="Playlist">
+          <button type="button" id="insert-playlist-btn" title="<%= t('pedit.tb_playlist_title') %>" aria-label="<%= t('pedit.tb_playlist') %>">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="15" y2="18"/><polygon points="3 5 3 13 9 9"/></svg>
           </button>
-          <button type="button" id="insert-embed-btn" title="Embed (YouTube, Spotify, SoundCloud, Vimeo…)" aria-label="Media embedden">
+          <button type="button" id="insert-embed-btn" title="<%= t('pedit.tb_embed_title') %>" aria-label="<%= t('pedit.tb_embed') %>">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><polygon points="10 9 15.5 12 10 15"/></svg>
           </button>
           <span class="pe-toolbar-spacer"></span>
-          <button type="button" data-cmd="removeFormat" title="Wis opmaak" aria-label="Wis opmaak">
+          <button type="button" data-cmd="removeFormat" title="<%= t('pedit.tb_clear') %>" aria-label="<%= t('pedit.tb_clear') %>">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M5 5l14 14" stroke-linecap="round"/></svg>
           </button>
-          <button type="button" id="pe-fullscreen-btn" title="Volledig scherm" aria-label="Volledig scherm" aria-pressed="false">
+          <button type="button" id="pe-fullscreen-btn" title="<%= t('pedit.tb_fullscreen') %>" aria-label="<%= t('pedit.tb_fullscreen') %>" aria-pressed="false">
             <svg class="fs-icon-expand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
             <svg class="fs-icon-compress" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
           </button>
@@ -134,12 +134,12 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
              contenteditable="true"
              role="textbox"
              aria-multiline="true"
-             aria-label="Content"
-             data-placeholder="Begin met schrijven…"></div>
+             aria-label="<%= t('pedit.editor_aria') %>"
+             data-placeholder="<%= t('pedit.editor_placeholder') %>"></div>
 
         <%# Sticky "tik om te bewerken"-hint (alleen zichtbaar op touch + niet-fullscreen
             via CSS). Puur visueel (pointer-events:none); de tik op het veld opent fullscreen. %>
-        <div class="pe-edit-hint" aria-hidden="true">✎ Tik om te bewerken</div>
+        <div class="pe-edit-hint" aria-hidden="true">✎ <%= t('pedit.tap_to_edit') %></div>
 
         <%# Hidden field is what actually submits to the server. The visible
             contenteditable's serialized HTML is copied here on submit. %>
@@ -152,7 +152,7 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
 
         <div class="pe-editor-status">
           <small id="content-upload-status" class="pe-status"></small>
-          <span class="pe-char-count"><span id="char-count">0</span> tekens</span>
+          <span class="pe-char-count"><span id="char-count">0</span> <%= t('pedit.chars') %></span>
         </div>
 
         <input type="file" id="content-upload-field" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
@@ -161,25 +161,25 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
 
     <%# ── META ─────────────────────────────────────────────────── %>
     <section class="pe-card">
-      <div class="pe-section-title">Publicatie</div>
+      <div class="pe-section-title"><%= t('pedit.s_publication') %></div>
       <div class="pe-row pe-row-2">
         <label class="pe-field">
-          <span>Status</span>
+          <span><%= t('pedit.f_status') %></span>
           <% var _st = isNew ? 'published' : (post.status || 'draft'); %>
           <select name="status">
-            <option value="published" <%= _st === 'published' ? 'selected' : '' %>>Gepubliceerd</option>
-            <option value="draft"     <%= _st === 'draft'     ? 'selected' : '' %>>Concept</option>
-            <option value="archived"  <%= _st === 'archived'  ? 'selected' : '' %>>Gearchiveerd</option>
+            <option value="published" <%= _st === 'published' ? 'selected' : '' %>><%= t('pedit.status_published') %></option>
+            <option value="draft"     <%= _st === 'draft'     ? 'selected' : '' %>><%= t('pedit.status_draft') %></option>
+            <option value="archived"  <%= _st === 'archived'  ? 'selected' : '' %>><%= t('pedit.status_archived') %></option>
           </select>
         </label>
         <label class="pe-field">
-          <span>Type</span>
+          <span><%= t('pedit.f_type') %></span>
           <select name="type">
             <% var ptype = post.type || 'post'; %>
-            <option value="post"  <%= ptype === 'post'  ? 'selected' : '' %>>Post</option>
-            <option value="foto"  <%= ptype === 'foto'  ? 'selected' : '' %>>Foto</option>
-            <option value="video" <%= ptype === 'video' ? 'selected' : '' %>>Video</option>
-            <option value="audio" <%= ptype === 'audio' ? 'selected' : '' %>>Audio</option>
+            <option value="post"  <%= ptype === 'post'  ? 'selected' : '' %>><%= t('pedit.type_post') %></option>
+            <option value="foto"  <%= ptype === 'foto'  ? 'selected' : '' %>><%= t('pedit.type_foto') %></option>
+            <option value="video" <%= ptype === 'video' ? 'selected' : '' %>><%= t('pedit.type_video') %></option>
+            <option value="audio" <%= ptype === 'audio' ? 'selected' : '' %>><%= t('pedit.type_audio') %></option>
           </select>
         </label>
       </div>
@@ -187,30 +187,30 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
         <div class="pe-pin">
           <label class="pe-checkbox">
             <input type="checkbox" id="pin-toggle" <%= (Number(post.pinned) > 0) ? 'checked' : '' %>>
-            <span>📌 Vastpinnen bovenaan</span>
+            <span>📌 <%= t('pedit.pin_label') %></span>
           </label>
           <input type="hidden" name="pinned" id="pin-rank" value="<%= post.pinned || 0 %>">
           <div class="pe-pin-pos" id="pin-pos" <%= (Number(post.pinned) > 0) ? '' : 'hidden' %>>
             <span class="pe-pin-steps">
-              <button type="button" class="pe-pin-btn" id="pin-up" aria-label="Hoger zetten">▲</button>
-              <button type="button" class="pe-pin-btn" id="pin-down" aria-label="Lager zetten">▼</button>
+              <button type="button" class="pe-pin-btn" id="pin-up" aria-label="<%= t('pedit.pin_up') %>">▲</button>
+              <button type="button" class="pe-pin-btn" id="pin-down" aria-label="<%= t('pedit.pin_down') %>">▼</button>
             </span>
             <span class="pe-pin-label" id="pin-label"></span>
           </div>
         </div>
         <label class="pe-checkbox">
           <input type="checkbox" name="noindex" value="1" <%= post.noindex ? 'checked' : '' %>>
-          <span>🚫 noindex (verberg voor zoekmachines)</span>
+          <span>🚫 <%= t('pedit.noindex_label') %></span>
         </label>
         <% if (typeof premiumUnlocked === 'undefined' || premiumUnlocked) { %>
           <label class="pe-checkbox">
             <input type="checkbox" name="fan_only" value="1" <%= post.fan_only ? 'checked' : '' %>>
-            <span>🔒 Alleen voor ingelogde fans</span>
+            <span>🔒 <%= t('pedit.fan_only_label') %></span>
           </label>
           <div style="margin-top:8px">
-            <label style="display:block;font-size:12.5px;opacity:.8;margin-bottom:4px">📅 Publiceren op (laat leeg = direct)</label>
+            <label style="display:block;font-size:12.5px;opacity:.8;margin-bottom:4px">📅 <%= t('pedit.publish_at_label') %></label>
             <input type="datetime-local" name="publish_at" value="<%= post.publish_at ? String(post.publish_at).replace(' ','T').slice(0,16) : '' %>" style="padding:8px 10px;border-radius:8px;border:1px solid var(--rule,rgba(128,128,128,.4));background:transparent;color:inherit">
-            <% if (post.status === 'scheduled' && post.publish_at) { %><div style="font-size:12px;opacity:.7;margin-top:4px">⏳ Ingepland voor <%= post.publish_at %></div><% } %>
+            <% if (post.status === 'scheduled' && post.publish_at) { %><div style="font-size:12px;opacity:.7;margin-top:4px">⏳ <%= t('pedit.scheduled_for', { d: post.publish_at }) %></div><% } %>
           </div>
         <% } %>
       </div>
@@ -218,12 +218,12 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
 
     <%# ── ACTIONS (sticky at bottom) ──────────────────────────── %>
     <div class="pe-actions">
-      <a href="<%= _base %><%= isNew ? '/' : '/' + post.slug %>" class="pe-btn">Annuleren</a>
+      <a href="<%= _base %><%= isNew ? '/' : '/' + post.slug %>" class="pe-btn"><%= t('pedit.cancel') %></a>
       <div class="pe-actions-spacer"></div>
       <% if (!isNew && post.status !== 'published') { %>
-        <button type="submit" name="action" value="publish" class="pe-btn pe-btn-success">📤 Publish</button>
+        <button type="submit" name="action" value="publish" class="pe-btn pe-btn-success">📤 <%= t('pedit.publish') %></button>
       <% } %>
-      <button type="submit" class="pe-btn pe-btn-primary">💾 Opslaan</button>
+      <button type="submit" class="pe-btn pe-btn-primary">💾 <%= t('pedit.save') %></button>
     </div>
   </form>
 </div>
@@ -982,16 +982,16 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
     coverField.addEventListener('change', async () => {
       if (!coverField.files[0]) return;
       coverStatus.classList.remove('is-error');
-      coverStatus.textContent = 'Uploaden…';
+      coverStatus.textContent = '<%= t('pedit.js_uploading') %>';
       try {
         const j = await uploadImage(coverField.files[0]);
         coverUrl.value = j.url;
         showCoverPreview(j.url);
-        coverStatus.textContent = 'Geüpload ✓';
+        coverStatus.textContent = '<%= t('pedit.js_uploaded') %> ✓';
         setTimeout(() => { coverStatus.textContent = ''; }, 2000);
       } catch (e) {
         coverStatus.classList.add('is-error');
-        coverStatus.textContent = 'Mislukt: ' + e.message;
+        coverStatus.textContent = '<%= t('pedit.js_failed') %>: ' + e.message;
       }
     });
   }
@@ -1052,10 +1052,10 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
     if (kind === 'track') {
       // UUIDs are noisy — show a 6-char prefix for visual hint
       const v = String(value || '');
-      return 'Track ' + (v.length > 8 ? v.slice(0, 6) + '…' : v);
+      return '<%= t('pedit.chip_track') %> ' + (v.length > 8 ? v.slice(0, 6) + '…' : v);
     }
-    if (kind === 'album')    return 'Album: ' + value;
-    if (kind === 'playlist') return 'Playlist: ' + value;
+    if (kind === 'album')    return '<%= t('pedit.chip_album') %> ' + value;
+    if (kind === 'playlist') return '<%= t('pedit.chip_playlist') %> ' + value;
     if (kind === 'embed') {
       const clean = String(value || '').replace(/^https?:\/\/(www\.)?/, '');
       return '▶ ' + (clean.length > 36 ? clean.slice(0, 34) + '…' : clean);
@@ -1186,7 +1186,7 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
     });
   }
   function linkPrompt() {
-    const url = window.prompt('Link URL (https://… of /pad)');
+    const url = window.prompt('<%= t('pedit.js_link_prompt') %>');
     if (!url) return;
     execCmd('createLink', url);
   }
@@ -1287,7 +1287,7 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
     document.documentElement.classList.toggle('pe-fs-open', on);
     if (fsBtn) {
       fsBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
-      fsBtn.title = on ? 'Klaar' : 'Volledig scherm';
+      fsBtn.title = on ? '<%= t('pedit.tb_done') %>' : '<%= t('pedit.tb_fullscreen') %>';
     }
     if (window.visualViewport) {
       if (on) {
@@ -1341,7 +1341,7 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
   if (isTouch) {
     editor.setAttribute('contenteditable', 'false');
     editor.classList.add('pe-tap-to-edit');
-    editor.setAttribute('data-placeholder', 'Tik om te schrijven…');
+    editor.setAttribute('data-placeholder', '<%= t('pedit.tap_to_write') %>');
     editor.addEventListener('click', function () {
       if (!isFs()) openFs();
     });
@@ -1389,18 +1389,18 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
   // ── Image upload (button + drag-drop into the editor)
   async function uploadAndInsertImage(file) {
     contentStatus.classList.remove('is-error');
-    contentStatus.textContent = 'Uploaden…';
+    contentStatus.textContent = '<%= t('pedit.js_uploading') %>';
     try {
       const j = await uploadImage(file);
       const img = '<img src="' + j.url + '" alt="">';
       editor.focus({ preventScroll: true });
       document.execCommand('insertHTML', false, img);
-      contentStatus.textContent = 'Ingevoegd ✓';
+      contentStatus.textContent = '<%= t('pedit.js_inserted') %> ✓';
       setTimeout(() => { contentStatus.textContent = ''; }, 2000);
       updateCharCount();
     } catch (e) {
       contentStatus.classList.add('is-error');
-      contentStatus.textContent = 'Mislukt: ' + e.message;
+      contentStatus.textContent = '<%= t('pedit.js_failed') %>: ' + e.message;
     }
   }
 
@@ -1458,10 +1458,10 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
   const embedBtn = document.getElementById('insert-embed-btn');
   if (embedBtn) {
     embedBtn.addEventListener('click', () => {
-      const raw = window.prompt('Plak een media-URL om in te sluiten\n(YouTube, Spotify, SoundCloud, Vimeo, Apple Music, Bandcamp):');
+      const raw = window.prompt('<%= t('pedit.js_embed_prompt') %>');
       if (!raw) return;
       const url = raw.trim();
-      if (!/^https?:\/\//i.test(url)) { alert('Geef een volledige URL (https://…).'); return; }
+      if (!/^https?:\/\//i.test(url)) { alert('<%= t('pedit.js_embed_invalid') %>'); return; }
       insertChip('embed', url);
     });
   }
@@ -1500,7 +1500,7 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
 
       if (!filtered.length) {
         tpList.innerHTML = '';
-        tpEmpty.textContent = q ? 'Geen tracks gevonden voor "' + q + '"' : 'Nog geen tracks. Upload via Beheer → Audio.';
+        tpEmpty.textContent = q ? '<%= t('pedit.js_no_tracks_found') %> ' + q : '<%= t('pedit.js_no_tracks_yet') %>';
         tpList.appendChild(tpEmpty);
         return;
       }
@@ -1526,14 +1526,14 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
 
     async function loadTracks() {
       if (Array.isArray(tpCache)) return tpCache;
-      tpEmpty.textContent = 'Tracks laden…';
+      tpEmpty.textContent = '<%= t('pedit.js_tracks_loading') %>';
       try {
         const r = await fetch('/admin/playlists/api/tracks', { credentials: 'same-origin' });
         const j = await r.json();
         tpCache = (j && j.ok && Array.isArray(j.tracks)) ? j.tracks : [];
       } catch (e) {
         tpCache = [];
-        tpEmpty.textContent = 'Kon tracks niet laden: ' + e.message;
+        tpEmpty.textContent = '<%= t('pedit.js_tracks_load_fail') %>: ' + e.message;
       }
       return tpCache;
     }
@@ -1595,7 +1595,7 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
   if (playlistBtn) {
     playlistBtn.addEventListener('click', async () => {
       if (typeof window.openPlaylistEditor !== 'function') {
-        alert('Playlist editor niet geladen');
+        alert('<%= t('pedit.js_playlist_editor_missing') %>');
         return;
       }
       try {
@@ -1603,9 +1603,9 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
         const j = await r.json();
         if (j.ok && Array.isArray(j.playlists) && j.playlists.length > 0) {
           const choice = prompt(
-            'Bestaande playlists:\n\n' +
+            '<%= t('pedit.js_playlist_existing') %>\n\n' +
             j.playlists.map((p, i) => `${i + 1}. ${p.title} (${p.track_count} tracks)`).join('\n') +
-            '\n\nKies een nummer om in te voegen, leeg = nieuwe maken:'
+            '\n\n<%= t('pedit.js_playlist_choose') %>'
           );
           if (choice && /^\d+$/.test(choice.trim())) {
             const idx = parseInt(choice.trim(), 10) - 1;
@@ -1643,8 +1643,8 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
   <div class="tp-backdrop" data-tp-close></div>
   <div class="tp-sheet" role="dialog" aria-modal="true" aria-labelledby="tp-title">
     <header class="tp-header">
-      <h2 id="tp-title" class="tp-h2">Track invoegen</h2>
-      <button type="button" class="tp-close" data-tp-close aria-label="Sluiten">
+      <h2 id="tp-title" class="tp-h2"><%= t('pedit.tp_title') %></h2>
+      <button type="button" class="tp-close" data-tp-close aria-label="<%= t('pedit.tp_close') %>">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </header>
@@ -1652,10 +1652,10 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
       <span class="tp-search-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       </span>
-      <input type="search" class="tp-search" id="tp-search" placeholder="Zoek op titel of artiest…" autocomplete="off" inputmode="search">
+      <input type="search" class="tp-search" id="tp-search" placeholder="<%= t('pedit.tp_search_placeholder') %>" autocomplete="off" inputmode="search">
     </div>
-    <div class="tp-list" id="tp-list" role="listbox" aria-label="Tracks">
-      <div class="tp-empty" id="tp-empty">Tracks laden…</div>
+    <div class="tp-list" id="tp-list" role="listbox" aria-label="<%= t('pedit.tp_list_aria') %>">
+      <div class="tp-empty" id="tp-empty"><%= t('pedit.js_tracks_loading') %></div>
     </div>
   </div>
 </div>
@@ -1681,8 +1681,8 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
 
   function descr(n) {
     n = Number(n) || 0;
-    if (n <= 1) return 'bovenaan';
-    return n + 'e van boven';
+    if (n <= 1) return '<%= t('pedit.pin_top') %>';
+    return n + '<%= t('pedit.pin_nth_suffix') %>';
   }
   function render() {
     var on = toggle.checked;

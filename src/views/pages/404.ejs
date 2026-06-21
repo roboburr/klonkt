@@ -1,11 +1,11 @@
 <section class="nf">
   <div class="nf-code">404</div>
-  <h1 class="nf-title">Pagina niet gevonden</h1>
-  <p class="nf-sub">Deze pagina bestaat niet (meer). Misschien is de link verouderd of verkeerd getypt.</p>
+  <h1 class="nf-title"><%= t('e404.title') %></h1>
+  <p class="nf-sub"><%= t('e404.sub') %></p>
   <div class="nf-actions">
-    <a class="nf-btn nf-btn-primary" href="<%= (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '' %>/">← Naar de homepagina</a>
+    <a class="nf-btn nf-btn-primary" href="<%= (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '' %>/">← <%= t('e404.home') %></a>
     <% if (typeof site !== 'undefined' && site && site.show_archive_link !== 0) { %>
-      <a class="nf-btn" href="<%= (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '' %>/archive">Archief</a>
+      <a class="nf-btn" href="<%= (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '' %>/archive"><%= t('e404.archive') %></a>
     <% } %>
   </div>
 </section>

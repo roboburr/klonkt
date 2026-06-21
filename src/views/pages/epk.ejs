@@ -10,24 +10,24 @@
   <header class="epk-hero">
     <% if (_photo) { %><div class="epk-photo"><img src="<%= _photo %>" alt="<%= site.title %>"></div><% } %>
     <div class="epk-hero-text">
-      <div class="epk-kicker">Perskit<% if (typeof user !== 'undefined' && user && user.role === 'god') { %> <a class="epk-edit-link" href="/admin/epk">✎ Bewerken</a><% } %></div>
+      <div class="epk-kicker"><%= t('epk.kicker') %><% if (typeof user !== 'undefined' && user && user.role === 'god') { %> <a class="epk-edit-link" href="/admin/epk">✎ <%= t('epk.edit') %></a><% } %></div>
       <h1 class="epk-title"><%= site.title %></h1>
       <% if (epkBio) { %><p class="epk-bio"><%= epkBio %></p><% } %>
       <div class="epk-actions">
         <% if (_isMail) { %>
-          <a class="epk-btn epk-btn-primary" href="mailto:<%= epkContact %>">✉ Contact / boeking</a>
+          <a class="epk-btn epk-btn-primary" href="mailto:<%= epkContact %>">✉ <%= t('epk.contact_booking') %></a>
         <% } else if (_isUrl) { %>
-          <a class="epk-btn epk-btn-primary" href="<%= epkContact %>" target="_blank" rel="noopener">Contact / boeking</a>
+          <a class="epk-btn epk-btn-primary" href="<%= epkContact %>" target="_blank" rel="noopener"><%= t('epk.contact_booking') %></a>
         <% } %>
-        <a class="epk-btn" href="<%= siteUrlBase %>/">Bekijk de site →</a>
-        <% if (_photo) { %><a class="epk-btn" href="<%= _photo %>" download>⬇ Persfoto</a><% } %>
+        <a class="epk-btn" href="<%= siteUrlBase %>/"><%= t('epk.view_site') %></a>
+        <% if (_photo) { %><a class="epk-btn" href="<%= _photo %>" download>⬇ <%= t('epk.press_photo') %></a><% } %>
       </div>
     </div>
   </header>
 
   <% if (epkTracks && epkTracks.length) { %>
     <div class="epk-block">
-      <h2 class="epk-h2">Meest beluisterd</h2>
+      <h2 class="epk-h2"><%= t('epk.most_played') %></h2>
       <ul class="epk-tracks">
         <% epkTracks.forEach(function(t, i){ %>
           <li class="epk-track">
@@ -46,7 +46,7 @@
 
   <% if (epkPosts && epkPosts.length) { %>
     <div class="epk-block">
-      <h2 class="epk-h2">Recent</h2>
+      <h2 class="epk-h2"><%= t('epk.recent') %></h2>
       <ul class="epk-posts">
         <% epkPosts.forEach(function(p){ %>
           <li><a href="<%= siteUrlBase %>/<%= p.slug %>"><%= p.title %></a></li>

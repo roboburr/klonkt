@@ -1,12 +1,12 @@
 <div class="container type-page">
   <header class="type-page-header">
-    <p class="type-eyebrow">Type</p>
+    <p class="type-eyebrow"><%= t('ptype.eyebrow') %></p>
     <h1><%= type.charAt(0).toUpperCase() + type.slice(1) %></h1>
-    <p class="type-meta"><%= posts.length %> post<%= posts.length === 1 ? '' : 's' %></p>
+    <p class="type-meta"><%= posts.length === 1 ? t('ptype.count_one', { n: posts.length }) : t('ptype.count_many', { n: posts.length }) %></p>
   </header>
 
   <% if (!posts.length) { %>
-    <p class="type-empty">No posts of this type yet.</p>
+    <p class="type-empty"><%= t('ptype.empty') %></p>
   <% } else { %>
     <ol class="type-results">
       <% posts.forEach(function(p) { %>
@@ -23,7 +23,7 @@
               <a href="/<%= p.slug %>"
                  hx-get="/<%= p.slug %>?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
                  hx-push-url="/<%= p.slug %>" hx-indicator="#pcms-loading">
-                <%= p.title || '(untitled)' %>
+                <%= p.title || t('ptype.untitled') %>
               </a>
             </h2>
             <p class="type-result-meta">

@@ -1,28 +1,29 @@
 <div class="container auth-page">
-  <h1>Wachtwoord resetten</h1>
+  <h1><%= t('arst.title') %></h1>
 
   <% if (!token) { %>
     <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
     <p class="auth-link">
-      <a href="/auth/reset-request">Vraag een nieuwe reset-link aan</a>
+      <a href="/auth/reset-request"><%= t('arst.request_new') %></a>
       &middot;
-      <a href="/auth/login">Terug naar inloggen</a>
+      <a href="/auth/login"><%= t('arst.back_login') %></a>
     </p>
   <% } else { %>
-    <p class="auth-tagline">Stel een nieuw wachtwoord in voor <strong><%= username %></strong>.</p>
+    <p class="auth-tagline"><%- t('arst.set_for', { username: '<strong>' + username + '</strong>' }) %></p>
+    <%# arst.set_for bevat {username} → rendered met <%- omdat username in <strong> staat %>
 
     <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
 
     <form method="post" action="/auth/reset/<%= token %>" class="auth-form">
       <label>
-        <span>Nieuw wachtwoord (min 8 tekens)</span>
+        <span><%= t('arst.new_pw') %></span>
         <input type="password" name="new_password" required minlength="8" autofocus autocomplete="new-password">
       </label>
       <label>
-        <span>Bevestig nieuw wachtwoord</span>
+        <span><%= t('arst.confirm_pw') %></span>
         <input type="password" name="confirm" required minlength="8" autocomplete="new-password">
       </label>
-      <button type="submit" class="btn btn-primary">Wachtwoord instellen</button>
+      <button type="submit" class="btn btn-primary"><%= t('arst.submit') %></button>
     </form>
   <% } %>
 </div>

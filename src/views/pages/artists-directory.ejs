@@ -14,35 +14,35 @@ function _qs(extra) {
   <%# ── Minimale nav (terug naar hub + auth) ── %>
   <nav class="adir-nav">
     <div class="adir-nav-inner container">
-      <a class="adir-nav-home" href="/"><span aria-hidden="true">←</span> <%= (typeof hubTitle !== 'undefined' && hubTitle) ? hubTitle : 'Home' %></a>
+      <a class="adir-nav-home" href="/"><span aria-hidden="true">←</span> <%= (typeof hubTitle !== 'undefined' && hubTitle) ? hubTitle : t('adir.home') %></a>
       <span class="adir-nav-spacer"></span>
       <% if (user) { %>
         <a class="adir-nav-link" href="/account"><%= user.username %></a>
-        <a class="adir-nav-link" href="/auth/logout">Uitloggen</a>
+        <a class="adir-nav-link" href="/auth/logout"><%= t('adir.logout') %></a>
       <% } else { %>
-        <a class="adir-nav-link" href="/auth/login">Inloggen</a>
+        <a class="adir-nav-link" href="/auth/login"><%= t('adir.login') %></a>
       <% } %>
     </div>
   </nav>
 
   <header class="adir-head container">
-    <h1 class="adir-title">Leden</h1>
-    <p class="adir-sub"><%= total %> Klonkt<%= total === 1 ? '' : "'s" %></p>
+    <h1 class="adir-title"><%= t('adir.title') %></h1>
+    <p class="adir-sub"><%= t(total === 1 ? 'adir.count_one' : 'adir.count_many', { n: total }) %></p>
 
     <form class="adir-search" method="get" action="/leden" role="search">
-      <input type="search" name="q" value="<%= q %>" placeholder="Zoek op naam…"
-             autocomplete="off" aria-label="Zoek leden">
-      <button type="submit" class="adir-search-btn" aria-label="Zoeken">
+      <input type="search" name="q" value="<%= q %>" placeholder="<%= t('adir.search_ph') %>"
+             autocomplete="off" aria-label="<%= t('adir.search_aria') %>">
+      <button type="submit" class="adir-search-btn" aria-label="<%= t('adir.search_btn') %>">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       </button>
-      <% if (q) { %><a class="adir-search-clear" href="/leden">Wissen</a><% } %>
+      <% if (q) { %><a class="adir-search-clear" href="/leden"><%= t('adir.clear') %></a><% } %>
     </form>
   </header>
 
   <div class="container adir-body">
     <% if (!artists.length) { %>
       <p class="adir-empty">
-        <% if (q) { %>Geen leden gevonden voor "<strong><%= q %></strong>".<% } else { %>Nog geen leden.<% } %>
+        <% if (q) { %><%- t('adir.empty_q', { q: '<strong>' + q + '</strong>' }) %><% } else { %><%= t('adir.empty') %><% } %>
       </p>
     <% } else { %>
       <div class="roster">
@@ -54,23 +54,23 @@ function _qs(extra) {
             </span>
             <span class="roster-name"><%= a.title %></span>
             <% if (a.tagline) { %><span class="roster-tag"><%= a.tagline %></span><% } %>
-            <span class="roster-count"><%= a.post_count %> post<%= a.post_count === 1 ? '' : 's' %></span>
+            <span class="roster-count"><%= t(a.post_count === 1 ? 'adir.posts_one' : 'adir.posts_many', { n: a.post_count }) %></span>
           </a>
         <% }); %>
       </div>
 
       <% if (pages > 1) { %>
-        <nav class="adir-pager" aria-label="Paginering">
+        <nav class="adir-pager" aria-label="<%= t('adir.pager_aria') %>">
           <% if (page > 1) { %>
-            <a class="adir-page" href="<%= _qs({ page: page - 1 }) %>" rel="prev">← Vorige</a>
+            <a class="adir-page" href="<%= _qs({ page: page - 1 }) %>" rel="prev"><%= t('adir.prev') %></a>
           <% } else { %>
-            <span class="adir-page is-disabled">← Vorige</span>
+            <span class="adir-page is-disabled"><%= t('adir.prev') %></span>
           <% } %>
-          <span class="adir-page-info">Pagina <%= page %> van <%= pages %></span>
+          <span class="adir-page-info"><%= t('adir.page_info', { page: page, pages: pages }) %></span>
           <% if (page < pages) { %>
-            <a class="adir-page" href="<%= _qs({ page: page + 1 }) %>" rel="next">Volgende →</a>
+            <a class="adir-page" href="<%= _qs({ page: page + 1 }) %>" rel="next"><%= t('adir.next') %></a>
           <% } else { %>
-            <span class="adir-page is-disabled">Volgende →</span>
+            <span class="adir-page is-disabled"><%= t('adir.next') %></span>
           <% } %>
         </nav>
       <% } %>

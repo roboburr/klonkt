@@ -10,14 +10,14 @@
   <% if (typeof success !== 'undefined' && success) { %><div class="alert alert-success"><%= success %></div><% } %>
   <%
     var GMAP = {
-      admin: { icon: '🔐', title: 'Dit is een beheerders-account',
-        body: 'Je logde in met Google, maar dit e-mailadres hoort bij de beheerder van deze site. Inloggen met Google is alleen voor luisteraars/fans — beheerders gebruiken altijd hun wachtwoord (zo kan een Google-login nooit per ongeluk beheerrechten geven).',
-        list: ['<strong>Ben je de beheerder?</strong> <a href="/auth/admin">Log in met je gebruikersnaam + wachtwoord</a>.', '<strong>Wil je voortaan met Google inloggen?</strong> Log eerst in met wachtwoord en <strong>koppel je Google-account</strong> onder Account → daarna werkt Google-login ook voor jou.', '<strong>Wil je als fan inloggen?</strong> Gebruik een <strong>ander Google-account</strong> (niet je beheerdersadres).'] },
-      session: { icon: '⏱️', title: 'Login afgebroken', body: 'De Google-login is afgebroken of de sessie was verlopen. Probeer het gewoon opnieuw.' },
-      email: { icon: '✉️', title: 'Geen geverifieerd e-mailadres', body: 'Je Google-account heeft geen geverifieerd e-mailadres. Verifieer je adres bij Google.' },
-      linked: { icon: '🔗', title: 'Adres al gekoppeld', body: 'Dit e-mailadres is al aan een ander Google-account gekoppeld. Gebruik dat account, of neem contact op met de beheerder.' },
-      unavailable: { icon: '🚫', title: 'Google-login niet beschikbaar', body: 'Inloggen met Google is op deze site (nog) niet ingesteld.' },
-      failed: { icon: '⚠️', title: 'Google-login mislukt', body: 'Er ging iets mis bij het inloggen met Google. Probeer het opnieuw.' },
+      admin: { icon: '🔐', title: t('glog.admin_title'),
+        body: t('glog.admin_body'),
+        list: [t('glog.admin_li1'), t('glog.admin_li2'), t('glog.admin_li3')] },
+      session: { icon: '⏱️', title: t('glog.session_title'), body: t('glog.session_body') },
+      email: { icon: '✉️', title: t('glog.email_title'), body: t('glog.email_body') },
+      linked: { icon: '🔗', title: t('glog.linked_title'), body: t('glog.linked_body') },
+      unavailable: { icon: '🚫', title: t('glog.unavailable_title'), body: t('glog.unavailable_body') },
+      failed: { icon: '⚠️', title: t('glog.failed_title'), body: t('glog.failed_body') },
     };
     var _g = (typeof gerr !== 'undefined' && gerr && GMAP[gerr]) ? GMAP[gerr] : null;
   %>

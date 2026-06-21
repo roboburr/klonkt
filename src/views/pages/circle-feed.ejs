@@ -9,8 +9,8 @@
       <circle cx="47" cy="45" r="8" fill="currentColor" fill-opacity=".16"/>
     </svg>
   </span>
-  <h1>Cirkel</h1>
-  <p class="cirkel-sub">Wat er speelt bij de andere sites in mijn cirkel.</p>
+  <h1><%= t('cfeed.title') %></h1>
+  <p class="cirkel-sub"><%= t('cfeed.sub') %></p>
   <% if (typeof sites !== 'undefined' && sites && sites.length) { %>
     <% if (sites.length <= 5) { %>
     <div class="cirkel-members">
@@ -23,14 +23,14 @@
     </div>
     <% } else { %>
       <%# Meer dan 5: geen chips (zou een muur worden) — alleen het aantal. %>
-      <span class="cirkel-count"><%= sites.length %> sites in mijn cirkel</span>
+      <span class="cirkel-count"><%= t('cfeed.count', { n: sites.length }) %></span>
     <% } %>
   <% } %>
 </div>
 
 <% if (!posts.length) { %>
   <div class="container">
-    <p class="cirkel-empty">Nog niets in mijn cirkel.</p>
+    <p class="cirkel-empty"><%= t('cfeed.empty') %></p>
   </div>
 <% } else { %>
 
@@ -49,7 +49,7 @@
   </div>
 
   <!-- ===== GRID (body[data-feed-view="grid"]) ===== -->
-  <section class="feed-grid container" aria-label="Grid-weergave">
+  <section class="feed-grid container" aria-label="<%= t('cfeed.grid_view') %>">
     <div class="grid-tiles">
       <% posts.forEach(function(post){ %>
         <%- include('../partials/post-tile', { post: post }) %>

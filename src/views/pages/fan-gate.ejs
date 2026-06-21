@@ -8,10 +8,10 @@
 <section class="fg">
   <div class="fg-card">
     <div class="fg-lock">🔒</div>
-    <h1 class="fg-h1">Alleen voor fans</h1>
+    <h1 class="fg-h1"><%= t('fgate.title') %></h1>
     <% if (typeof fgTitle !== 'undefined' && fgTitle) { %><p class="fg-which">"<%= fgTitle %>"</p><% } %>
-    <p class="fg-sub">Dit is exclusief voor ingelogde fans. Log in om het te bekijken.</p>
-    <p><a class="fg-btn" href="/auth/login?next=<%= encodeURIComponent(fgNext || '/') %>">Inloggen / aanmelden</a></p>
+    <p class="fg-sub"><%= t('fgate.sub') %></p>
+    <p><a class="fg-btn" href="/auth/login?next=<%= encodeURIComponent(fgNext || '/') %>"><%= t('fgate.login') %></a></p>
   </div>
 </section>
 

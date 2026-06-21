@@ -1,6 +1,6 @@
 <div class="prutter-conv-page" data-conversation-id="<%= conversation.id %>" data-me="<%= user.id %>">
   <header class="prutter-conv-header">
-    <a class="prutter-back" href="<%= siteUrlBase %>/prutter" aria-label="Terug naar inbox" title="Inbox">
+    <a class="prutter-back" href="<%= siteUrlBase %>/prutter" aria-label="<%= t('prcv.back_aria') %>" title="<%= t('prcv.inbox') %>">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
     </a>
     <div class="prutter-conv-avatar">
@@ -11,9 +11,9 @@
       <% } %>
     </div>
     <div class="prutter-conv-id">
-      <span class="prutter-conv-name"><%= other ? other.username : 'Onbekend' %></span>
+      <span class="prutter-conv-name"><%= other ? other.username : t('prcv.unknown') %></span>
       <% if (other) { %>
-        <a class="prutter-conv-sub" href="/users/<%= encodeURIComponent(other.username) %>">Bekijk profiel</a>
+        <a class="prutter-conv-sub" href="/users/<%= encodeURIComponent(other.username) %>"><%= t('prcv.view_profile') %></a>
       <% } %>
     </div>
   </header>
@@ -33,8 +33,8 @@
         hx-post="<%= siteUrlBase %>/prutter/<%= conversation.id %>/send"
         hx-target="#prutter-thread"
         hx-swap="beforeend">
-    <textarea name="content" rows="1" maxlength="2000" placeholder="Bericht…" required></textarea>
-    <button type="submit" class="btn btn-primary">Stuur</button>
+    <textarea name="content" rows="1" maxlength="2000" placeholder="<%= t('prcv.placeholder') %>" required></textarea>
+    <button type="submit" class="btn btn-primary"><%= t('prcv.send') %></button>
   </form>
 </div>
 

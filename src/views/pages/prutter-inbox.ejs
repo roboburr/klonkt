@@ -1,12 +1,12 @@
 <div class="container prutter-inbox-page">
   <header class="prutter-header">
     <h1>Prutter</h1>
-    <p class="prutter-tagline">Your direct messages on this site.</p>
+    <p class="prutter-tagline"><%= t('prin.tagline') %></p>
   </header>
 
   <% if (!conversations.length) { %>
     <p class="prutter-empty">
-      No conversations yet. Open someone's profile and click <em>Send DM</em> to start one.
+      <%= t('prin.empty') %>
     </p>
   <% } else { %>
     <ol class="prutter-conv-list">
@@ -30,7 +30,7 @@
               <% if (c.last_message_preview) { %>
                 <div class="prutter-conv-preview"><%= c.last_message_preview %></div>
               <% } else { %>
-                <div class="prutter-conv-preview muted">Empty conversation</div>
+                <div class="prutter-conv-preview muted"><%= t('prin.empty_conv') %></div>
               <% } %>
             </div>
             <% if (c.unread_count > 0) { %>

@@ -1,43 +1,43 @@
 <%
   var _site = site || {};
-  var _title = _site.title || 'deze artiest';
+  var _title = _site.title || t('news.this_artist');
   var st = (typeof nlState !== 'undefined') ? nlState : 'form';
 %>
 <section class="nl">
   <div class="nl-card">
     <% if (st === 'form') { %>
-      <h1 class="nl-h1">Blijf op de hoogte</h1>
-      <p class="nl-sub">Schrijf je in voor de nieuwsbrief van <strong><%= _title %></strong> — nieuwe muziek, shows en updates, rechtstreeks in je inbox. Uitschrijven kan altijd met één klik.</p>
+      <h1 class="nl-h1"><%= t('news.form_title') %></h1>
+      <p class="nl-sub"><%= t('news.form_sub_before') %><strong><%= _title %></strong><%= t('news.form_sub_after') %></p>
       <form method="POST" action="<%= siteUrlBase %>/nieuwsbrief" class="nl-form">
-        <input type="email" name="email" required placeholder="jouw@email.nl" value="<%= (typeof nlPrefill !== 'undefined') ? nlPrefill : '' %>" autocomplete="email">
-        <button type="submit" class="nl-btn">Inschrijven</button>
+        <input type="email" name="email" required placeholder="<%= t('news.email_ph') %>" value="<%= (typeof nlPrefill !== 'undefined') ? nlPrefill : '' %>" autocomplete="email">
+        <button type="submit" class="nl-btn"><%= t('news.subscribe') %></button>
       </form>
     <% } else if (st === 'check') { %>
-      <h1 class="nl-h1">Bijna klaar ✉</h1>
-      <p class="nl-sub">We hebben een bevestigingsmail gestuurd naar <strong><%= (typeof nlEmail!=='undefined')?nlEmail:'je adres' %></strong>. Klik op de link in die mail om je inschrijving te bevestigen.</p>
+      <h1 class="nl-h1"><%= t('news.check_title') %></h1>
+      <p class="nl-sub"><%= t('news.check_sub_before') %><strong><%= (typeof nlEmail!=='undefined')?nlEmail:t('news.your_address') %></strong><%= t('news.check_sub_after') %></p>
     <% } else if (st === 'done') { %>
-      <h1 class="nl-h1">Je bent ingeschreven ✓</h1>
-      <p class="nl-sub">Bedankt — je staat op de lijst van <strong><%= _title %></strong>.</p>
+      <h1 class="nl-h1"><%= t('news.done_title') %></h1>
+      <p class="nl-sub"><%= t('news.done_sub_before') %><strong><%= _title %></strong><%= t('news.done_sub_after') %></p>
     <% } else if (st === 'confirmed') { %>
-      <h1 class="nl-h1">Inschrijving bevestigd ✓</h1>
-      <p class="nl-sub">Top! Je ontvangt voortaan de nieuwsbrief van <strong><%= _title %></strong>.</p>
+      <h1 class="nl-h1"><%= t('news.confirmed_title') %></h1>
+      <p class="nl-sub"><%= t('news.confirmed_sub_before') %><strong><%= _title %></strong><%= t('news.confirmed_sub_after') %></p>
     <% } else if (st === 'unsubbed') { %>
-      <h1 class="nl-h1">Uitgeschreven</h1>
-      <p class="nl-sub">Je bent afgemeld. Je ontvangt geen nieuwsbrieven meer. Van gedachten veranderd? Je kunt je altijd opnieuw inschrijven.</p>
+      <h1 class="nl-h1"><%= t('news.unsubbed_title') %></h1>
+      <p class="nl-sub"><%= t('news.unsubbed_sub') %></p>
     <% } else if (st === 'invalid') { %>
-      <h1 class="nl-h1">Ongeldig e-mailadres</h1>
-      <p class="nl-sub">Controleer je adres en probeer 't opnieuw.</p>
-      <p><a class="nl-btn nl-btn-ghost" href="<%= siteUrlBase %>/nieuwsbrief">← Terug</a></p>
+      <h1 class="nl-h1"><%= t('news.invalid_title') %></h1>
+      <p class="nl-sub"><%= t('news.invalid_sub') %></p>
+      <p><a class="nl-btn nl-btn-ghost" href="<%= siteUrlBase %>/nieuwsbrief"><%= t('news.back') %></a></p>
     <% } else if (st === 'smtperror') { %>
-      <h1 class="nl-h1">Even niet gelukt</h1>
-      <p class="nl-sub">De bevestigingsmail kon niet verstuurd worden. Probeer 't later nog eens.</p>
+      <h1 class="nl-h1"><%= t('news.smtperror_title') %></h1>
+      <p class="nl-sub"><%= t('news.smtperror_sub') %></p>
     <% } else if (st === 'badtoken') { %>
-      <h1 class="nl-h1">Link ongeldig of verlopen</h1>
-      <p class="nl-sub">Deze link werkt niet meer. Schrijf je eventueel opnieuw in.</p>
-      <p><a class="nl-btn nl-btn-ghost" href="<%= siteUrlBase %>/nieuwsbrief">Naar inschrijven</a></p>
+      <h1 class="nl-h1"><%= t('news.badtoken_title') %></h1>
+      <p class="nl-sub"><%= t('news.badtoken_sub') %></p>
+      <p><a class="nl-btn nl-btn-ghost" href="<%= siteUrlBase %>/nieuwsbrief"><%= t('news.to_subscribe') %></a></p>
     <% } else { %>
-      <h1 class="nl-h1">Er ging iets mis</h1>
-      <p class="nl-sub">Probeer 't later nog eens.</p>
+      <h1 class="nl-h1"><%= t('news.error_title') %></h1>
+      <p class="nl-sub"><%= t('news.error_sub') %></p>
     <% } %>
   </div>
 </section>

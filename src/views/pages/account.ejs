@@ -1,10 +1,10 @@
 <div class="container ax-page">
 
   <header class="ax-header">
-    <a href="/" class="ax-back" aria-label="Terug naar home">←</a>
+    <a href="/" class="ax-back" aria-label="<%= t('acct.back_home') %>">←</a>
     <div>
-      <h1>Account</h1>
-      <p class="ax-tagline">Profiel en avatar.</p>
+      <h1><%= t('acct.title') %></h1>
+      <p class="ax-tagline"><%= t('acct.subtitle') %></p>
     </div>
   </header>
 
@@ -15,20 +15,20 @@
     <div class="ax-viewer-note" role="note">
       <span class="ax-viewer-ico" aria-hidden="true">👁️</span>
       <div>
-        <strong>Kijker-modus</strong>
-        <span>Dit is een demo-account. Je kunt alles bekijken, maar niets wijzigen — ook geen foto of bio.</span>
+        <strong><%= t('acct.viewer_mode') %></strong>
+        <span><%= t('acct.viewer_note') %></span>
       </div>
     </div>
   <% } %>
 
   <%# ── PROFILE ────────────────────────────────────────────── %>
   <section class="ax-card">
-    <div class="ax-card-title">Profiel</div>
+    <div class="ax-card-title"><%= t('acct.profile') %></div>
 
     <div class="ax-profile-id">
       <% if (canMutate) { %>
         <form action="/account/avatar" method="post" enctype="multipart/form-data" class="ax-avatar-form">
-          <label class="ax-avatar-wrap" title="Klik om je foto te wijzigen">
+          <label class="ax-avatar-wrap" title="<%= t('acct.avatar_change') %>">
             <span class="ax-profile-avatar">
               <% if (account.avatar_url) { %>
                 <img src="<%= account.avatar_url %>" alt="">
@@ -55,11 +55,11 @@
         <div class="ax-profile-name"><%= account.username %></div>
         <div class="ax-profile-role"><%= account.role %> · <%= account.email %></div>
         <% if (account.created_at) { %>
-          <div class="ax-profile-joined">Lid sinds <%= formatDate(account.created_at) %></div>
+          <div class="ax-profile-joined"><%= t('acct.member_since') %> <%= formatDate(account.created_at) %></div>
         <% } %>
         <% if (account.avatar_url && canMutate) { %>
           <form action="/account/avatar/remove" method="post" class="ax-avatar-remove">
-            <button type="submit" class="ax-linkbtn">Foto verwijderen</button>
+            <button type="submit" class="ax-linkbtn"><%= t('acct.avatar_remove') %></button>
           </form>
         <% } %>
       </div>
@@ -68,22 +68,22 @@
     <% if (canMutate) { %>
       <form action="/account/profile" method="post" class="ax-form ax-form-bio">
         <label class="ax-field">
-          <span>E-mailadres</span>
-          <input type="email" name="email" value="<%= account.email || '' %>" maxlength="254" autocomplete="email" placeholder="jij@email.nl">
+          <span><%= t('acct.email') %></span>
+          <input type="email" name="email" value="<%= account.email || '' %>" maxlength="254" autocomplete="email" placeholder="<%= t('acct.email_ph') %>">
         </label>
         <label class="ax-field">
-          <span>Bio</span>
-          <textarea name="bio" rows="3" maxlength="500" placeholder="Een korte regel over jezelf"><%= account.bio || '' %></textarea>
+          <span><%= t('acct.bio') %></span>
+          <textarea name="bio" rows="3" maxlength="500" placeholder="<%= t('acct.bio_ph') %>"><%= account.bio || '' %></textarea>
         </label>
         <div class="ax-form-actions">
-          <button type="submit" class="ax-btn ax-btn-primary">Opslaan</button>
+          <button type="submit" class="ax-btn ax-btn-primary"><%= t('acct.save') %></button>
         </div>
       </form>
     <% } else { %>
       <div class="ax-form ax-form-bio">
         <label class="ax-field">
-          <span>Bio</span>
-          <textarea rows="3" disabled placeholder="Geen bio"><%= account.bio || '' %></textarea>
+          <span><%= t('acct.bio') %></span>
+          <textarea rows="3" disabled placeholder="<%= t('acct.bio_empty') %>"><%= account.bio || '' %></textarea>
         </label>
       </div>
     <% } %>
@@ -92,18 +92,18 @@
   <%# ── SITE (eigenaar mag de naam van z'n site aanpassen) ── %>
   <% if (typeof editableSite !== 'undefined' && editableSite && canMutate) { %>
   <section class="ax-card">
-    <div class="ax-card-title">Site</div>
+    <div class="ax-card-title"><%= t('acct.site') %></div>
     <form action="/account/site" method="post" class="ax-form">
       <label class="ax-field">
-        <span>Site-naam <small>— getoond in de kop van je site</small></span>
+        <span><%= t('acct.site_name') %> <small><%= t('acct.site_name_hint') %></small></span>
         <input type="text" name="site_title" value="<%= editableSite.title || '' %>" maxlength="200" required>
       </label>
       <label class="ax-field">
-        <span>Tagline <small>— korte oneliner (optioneel)</small></span>
+        <span><%= t('acct.tagline') %> <small><%= t('acct.tagline_hint') %></small></span>
         <input type="text" name="site_tagline" value="<%= editableSite.tagline || '' %>" maxlength="200">
       </label>
       <div class="ax-form-actions">
-        <button type="submit" class="ax-btn ax-btn-primary">Site opslaan</button>
+        <button type="submit" class="ax-btn ax-btn-primary"><%= t('acct.site_save') %></button>
       </div>
     </form>
   </section>
@@ -114,46 +114,46 @@
   <% if (canMutate) { %>
   <% if (hasPassword) { %>
   <section class="ax-card">
-    <div class="ax-card-title">Wachtwoord wijzigen</div>
+    <div class="ax-card-title"><%= t('acct.password_change') %></div>
     <form action="/account/password" method="post" class="ax-form">
       <label class="ax-field">
-        <span>Huidig wachtwoord</span>
+        <span><%= t('acct.password_current') %></span>
         <input type="password" name="current" required autocomplete="current-password">
       </label>
       <div class="ax-row ax-row-2">
         <label class="ax-field">
-          <span>Nieuw wachtwoord <small>(min 8 tekens)</small></span>
+          <span><%= t('acct.password_new') %> <small><%= t('acct.password_min') %></small></span>
           <input type="password" name="new_password" required minlength="8" autocomplete="new-password">
         </label>
         <label class="ax-field">
-          <span>Bevestig nieuw wachtwoord</span>
+          <span><%= t('acct.password_confirm') %></span>
           <input type="password" name="confirm" required minlength="8" autocomplete="new-password">
         </label>
       </div>
       <div class="ax-form-actions">
-        <button type="submit" class="ax-btn ax-btn-primary">Wachtwoord wijzigen</button>
+        <button type="submit" class="ax-btn ax-btn-primary"><%= t('acct.password_change') %></button>
       </div>
     </form>
   </section>
 
   <% if (typeof googleAvailable !== 'undefined' && googleAvailable) { %>
   <section class="ax-card">
-    <div class="ax-card-title">Inloggen met Google</div>
+    <div class="ax-card-title"><%= t('acct.google_login') %></div>
     <% if (typeof googleLinked !== 'undefined' && googleLinked) { %>
-      <p class="ax-tagline" style="margin:0 0 1rem">✓ Je Google-account is gekoppeld — je kunt ook met Google inloggen.</p>
+      <p class="ax-tagline" style="margin:0 0 1rem"><%= t('acct.google_linked') %></p>
       <form action="/account/google/unlink" method="post">
-        <button type="submit" class="ax-btn">Google ontkoppelen</button>
+        <button type="submit" class="ax-btn"><%= t('acct.google_unlink') %></button>
       </form>
     <% } else { %>
-      <p class="ax-tagline" style="margin:0 0 1rem">Koppel je Google-account zodat je voortaan ook met één klik via Google kunt inloggen (naast je wachtwoord).</p>
-      <a href="/auth/google/link" class="ax-btn ax-btn-primary" data-full-load>Koppel Google-account</a>
+      <p class="ax-tagline" style="margin:0 0 1rem"><%= t('acct.google_link_hint') %></p>
+      <a href="/auth/google/link" class="ax-btn ax-btn-primary" data-full-load><%= t('acct.google_link') %></a>
     <% } %>
   </section>
   <% } %>
   <% } else { %>
   <section class="ax-card">
-    <div class="ax-card-title">Inloggen</div>
-    <p class="ax-tagline" style="margin:0">Je bent ingelogd via Google (<%= account.email %>). Er is geen apart wachtwoord.</p>
+    <div class="ax-card-title"><%= t('acct.login') %></div>
+    <p class="ax-tagline" style="margin:0"><%= t('acct.login_google_only', { email: account.email }) %></p>
   </section>
   <% } %>
   <% } %>

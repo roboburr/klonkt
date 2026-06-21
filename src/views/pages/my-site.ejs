@@ -1,34 +1,40 @@
 <div class="container admin-page">
-  <p><a href="/" class="btn">&larr; Overzicht</a></p>
-  <h1>Mijn Klonkt Hub</h1>
+  <p><a href="/" class="btn">&larr; <%= t('myst.overview') %></a></p>
+  <h1><%= t('myst.title') %></h1>
   <p class="admin-tagline"><%= mySite.title %></p>
 
-  <nav class="admin-quick-links" aria-label="Beheer-snelkoppelingen">
-    <a href="/user/<%= mySite.slug %>/posts/new" class="btn">✍️ Nieuwe post</a>
-    <a href="/admin/sites/<%= mySite.slug %>/edit" class="btn">🎨 Uiterlijk</a>
-    <a href="/user/<%= mySite.slug %>/admin/comments" class="btn">💬 Reacties</a>
-    <a href="/user/<%= mySite.slug %>" class="btn">👁️ Bekijk mijn site</a>
-    <a href="/account" class="btn">👤 Account</a>
+  <nav class="admin-quick-links" aria-label="<%= t('myst.quick_links_aria') %>">
+    <a href="/user/<%= mySite.slug %>/posts/new" class="btn">✍️ <%= t('myst.new_post') %></a>
+    <a href="/admin/sites/<%= mySite.slug %>/edit" class="btn">🎨 <%= t('myst.appearance') %></a>
+    <a href="/user/<%= mySite.slug %>/admin/comments" class="btn">💬 <%= t('myst.comments') %></a>
+    <a href="/user/<%= mySite.slug %>" class="btn">👁️ <%= t('myst.view_site') %></a>
+    <a href="/account" class="btn">👤 <%= t('myst.account') %></a>
   </nav>
 
   <div class="admin-stats">
-    <div class="stat-card"><div class="stat-num"><%= mine.posts %></div><div class="stat-label">Posts</div></div>
-    <div class="stat-card"><div class="stat-num"><%= mine.published %></div><div class="stat-label">Gepubliceerd</div></div>
+    <div class="stat-card"><div class="stat-num"><%= mine.posts %></div><div class="stat-label"><%= t('myst.posts') %></div></div>
+    <div class="stat-card"><div class="stat-num"><%= mine.published %></div><div class="stat-label"><%= t('myst.published') %></div></div>
   </div>
 
   <% if (typeof posts !== 'undefined' && posts && posts.length) { %>
     <% var _drafts = posts.filter(function(p){ return p.isDraft; }).length; %>
-    <h2 class="ms-posts-title">Posts<% if (_drafts) { %> <span class="pl-draftcount"><%= _drafts %> concept<%= _drafts === 1 ? '' : 'en' %></span><% } %></h2>
+    <%
+      var _lblBadge = t('myst.draft_badge');
+      var _lblUntitled = t('myst.untitled');
+      var _lblEdit = t('myst.edit');
+      var _lblView = t('myst.view');
+    %>
+    <h2 class="ms-posts-title"><%= t('myst.posts') %><% if (_drafts) { %> <span class="pl-draftcount"><%= _drafts === 1 ? t('myst.draft_count_one', { n: _drafts }) : t('myst.draft_count_many', { n: _drafts }) %></span><% } %></h2>
     <ul class="post-admin-list">
       <% posts.forEach(function(p) { %>
         <li class="pal-row<%= p.isDraft ? ' is-draft' : '' %>">
           <a class="pal-title" href="<%= p.editUrl %>">
-            <% if (p.isDraft) { %><span class="pal-badge">Concept</span><% } %>
-            <span class="pal-name"><%= p.title || '(zonder titel)' %></span>
+            <% if (p.isDraft) { %><span class="pal-badge"><%= _lblBadge %></span><% } %>
+            <span class="pal-name"><%= p.title || _lblUntitled %></span>
           </a>
           <span class="pal-actions">
-            <a class="pal-link" href="<%= p.editUrl %>">Bewerken</a>
-            <% if (!p.isDraft) { %><a class="pal-link" href="<%= p.viewUrl %>">Bekijk</a><% } %>
+            <a class="pal-link" href="<%= p.editUrl %>"><%= _lblEdit %></a>
+            <% if (!p.isDraft) { %><a class="pal-link" href="<%= p.viewUrl %>"><%= _lblView %></a><% } %>
           </span>
         </li>
       <% }); %>

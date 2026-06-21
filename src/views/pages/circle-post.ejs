@@ -1,13 +1,13 @@
 <article class="container cirkel-post">
   <p class="cirkel-post-back">
     <a href="/cirkel" hx-get="/cirkel?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
-       hx-push-url="/cirkel" hx-indicator="#pcms-loading">&larr; Cirkel</a>
+       hx-push-url="/cirkel" hx-indicator="#pcms-loading">&larr; <%= t('cpost.back') %></a>
   </p>
 
   <header class="cirkel-post-head">
     <div class="cirkel-post-src">
       <% if (post.sourceAvatar) { %><img class="cirkel-post-avatar" src="<%= post.sourceAvatar %>" alt=""><% } %>
-      <span>via
+      <span><%= t('cpost.via') %>
         <% if (post.sourceUrl) { %><a href="<%= post.sourceUrl %>" target="_blank" rel="noopener"><%= post.sourceName %></a>
         <% } else { %><%= post.sourceName %><% } %>
       </span>
@@ -36,7 +36,7 @@
 
   <% if (post.originalUrl) { %>
     <p class="cirkel-post-readmore">
-      <a href="<%= post.originalUrl %>" target="_blank" rel="noopener">Lees verder bij <%= post.sourceName %> &rarr;</a>
+      <a href="<%= post.originalUrl %>" target="_blank" rel="noopener"><%= t('cpost.read_more', { source: post.sourceName }) %> &rarr;</a>
     </p>
   <% } %>
 </article>

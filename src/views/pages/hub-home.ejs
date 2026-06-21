@@ -27,11 +27,11 @@
           <% if (!_mAva) { %><%= (mainSite.title || mainSite.slug).charAt(0).toUpperCase() %><% } %>
         </span>
         <span class="hub-main-info">
-          <span class="hub-main-badge">Hoofdpagina</span>
+          <span class="hub-main-badge"><%= t('phub.main_badge') %></span>
           <span class="hub-main-name"><%= mainSite.title %></span>
           <% if (mainSite.tagline) { %><span class="hub-main-tag"><%= mainSite.tagline %></span><% } %>
         </span>
-        <span class="hub-main-cta">Bekijk de pagina <span aria-hidden="true">→</span></span>
+        <span class="hub-main-cta"><%= t('phub.view_page') %> <span aria-hidden="true">→</span></span>
       </a>
     </section>
     <% } %>
@@ -42,7 +42,7 @@
     <% var _hasMore = _total > artists.length; %>
     <section class="hub-sec">
       <h2 class="hub-sec-title">
-        Leden
+        <%= t('phub.members') %>
         <% if (_hasMore) { %><span class="hub-sec-count"><%= _total %></span><% } %>
       </h2>
       <div class="roster">
@@ -56,13 +56,13 @@
             </span>
             <span class="roster-name"><%= a.title %></span>
             <% if (a.tagline) { %><span class="roster-tag"><%= a.tagline %></span><% } %>
-            <span class="roster-count"><%= a.post_count %> post<%= a.post_count === 1 ? '' : 's' %></span>
+            <span class="roster-count"><%= a.post_count %> <%= a.post_count === 1 ? t('phub.post_one') : t('phub.post_many') %></span>
           </a>
         <% }); %>
       </div>
       <% if (_hasMore) { %>
         <div class="hub-more">
-          <a class="hub-more-link" href="/leden">Alle <%= _total %> leden <span aria-hidden="true">→</span></a>
+          <a class="hub-more-link" href="/leden"><%= t('phub.all_members', { n: _total }) %> <span aria-hidden="true">→</span></a>
         </div>
       <% } %>
     </section>
@@ -71,7 +71,7 @@
     <%# ── LAATSTE POSTS ────────────────────────────────────────────── %>
     <% if (posts && posts.length) { %>
     <section class="hub-sec">
-      <h2 class="hub-sec-title">Laatste posts van onze leden.</h2>
+      <h2 class="hub-sec-title"><%= t('phub.latest_posts') %></h2>
       <div class="hub-feed">
         <% posts.forEach(function(p){ %>
           <a class="feed-item" href="/user/<%= p.site_slug %>/<%= p.slug %>"

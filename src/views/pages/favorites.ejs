@@ -1,9 +1,9 @@
 <div class="container favorites-page">
-  <h1>Favorieten</h1>
-  <p class="fav-sub">Posts die je hebt geliket. Tik op het ♥ bij een post om 'm hier te bewaren.</p>
+  <h1><%= t('fav.title') %></h1>
+  <p class="fav-sub"><%= t('fav.sub') %></p>
 
   <% if (!posts || !posts.length) { %>
-    <p class="fav-empty">Je hebt nog geen favorieten. Open een post en tik op het hartje ♡.</p>
+    <p class="fav-empty"><%= t('fav.empty') %></p>
   <% } else { %>
     <ul class="post-list">
       <% posts.forEach(function(p){ %>

@@ -1,14 +1,14 @@
 <div class="container tag-page">
   <header class="tag-page-header">
-    <p class="tag-eyebrow">Tag</p>
+    <p class="tag-eyebrow"><%= t('ptag.eyebrow') %></p>
     <h1>#<%= tag %></h1>
     <p class="tag-meta">
-      <%= posts.length %> post<%= posts.length === 1 ? '' : 's' %>
+      <%= posts.length === 1 ? t('ptag.count_one', { n: posts.length }) : t('ptag.count_many', { n: posts.length }) %>
     </p>
   </header>
 
   <% if (!posts.length) { %>
-    <p class="tag-empty">No posts with this tag yet.</p>
+    <p class="tag-empty"><%= t('ptag.empty') %></p>
   <% } else { %>
     <ol class="tag-results">
       <% posts.forEach(function(p) { %>
@@ -25,7 +25,7 @@
               <a href="/<%= p.slug %>"
                  hx-get="/<%= p.slug %>?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
                  hx-push-url="/<%= p.slug %>" hx-indicator="#pcms-loading">
-                <%= p.title || '(untitled)' %>
+                <%= p.title || t('ptag.untitled') %>
               </a>
             </h2>
             <p class="tag-result-meta">
