@@ -1101,6 +1101,7 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
       img.onload = () => {
         cropper = new Cropper(img, { viewMode: 1, autoCropArea: 1, background: false, responsive: true });
       };
+      img.onerror = () => { cleanup(); resolve(file); }; // kon niet laden → upload het origineel
       img.src = url;
 
       back.addEventListener('click', (e) => {

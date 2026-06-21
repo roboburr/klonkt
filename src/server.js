@@ -104,7 +104,10 @@ app.use(helmet({
       // toegestane inline <script> hierboven.
       scriptSrcAttr: ["'unsafe-inline'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "https:"],
+      // blob: nodig voor de afbeeldings-editor (Cropper) — die toont de gekozen
+      // foto via een URL.createObjectURL(blob:…). Zonder blob: blokkeert de CSP
+      // de <img> stil → leeg bewerk-venster. (media-src heeft blob: al voor audio.)
+      imgSrc: ["'self'", "data:", "https:", "blob:"],
       connectSrc: ["'self'", "wss:", "ws:", "https://*.spotifycdn.com", "https://*.scdn.co"],
       // blob: is required for the audio player — it fetch()es track bytes and
       // plays from a blob: object URL (Spotify-style). Without blob: here the
