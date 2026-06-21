@@ -108,6 +108,9 @@ const DICT = {
     'search.results_one': '{n} resultaat voor “{q}”', 'search.results_other': '{n} resultaten voor “{q}”',
     'search.section_tracks': 'Nummers', 'search.section_posts': 'Posts',
     'search.empty': 'Niets gevonden.', 'search.in_post': 'in post →',
+    'search.section_events': 'Evenementen', 'search.section_pages': 'Pagina’s',
+    'search.page_agenda': 'Agenda', 'search.page_downloads': 'Downloads', 'search.page_links': 'Links', 'search.page_perskit': 'Perskit', 'search.page_archive': 'Archief',
+    'search.suggest_all': 'Alle resultaten →', 'search.suggest_empty': 'Geen resultaten', 'search.suggest_typing': 'Typ om te zoeken…',
     'like.login_title': 'Log in om deze post te liken',
     // === Beheer-sub-pagina's ===
     'aset.title': 'Instellingen',
@@ -1071,6 +1074,9 @@ const DICT = {
     'search.results_one': '{n} result for “{q}”', 'search.results_other': '{n} results for “{q}”',
     'search.section_tracks': 'Tracks', 'search.section_posts': 'Posts',
     'search.empty': 'Nothing found.', 'search.in_post': 'in post →',
+    'search.section_events': 'Events', 'search.section_pages': 'Pages',
+    'search.page_agenda': 'Agenda', 'search.page_downloads': 'Downloads', 'search.page_links': 'Links', 'search.page_perskit': 'Press kit', 'search.page_archive': 'Archive',
+    'search.suggest_all': 'All results →', 'search.suggest_empty': 'No results', 'search.suggest_typing': 'Type to search…',
     'like.login_title': 'Log in to like this post',
     // === Admin sub-pages ===
     'aset.title': 'Settings',
@@ -2033,6 +2039,9 @@ const DICT = {
     'search.results_one': '{n} Ergebnis für „{q}“', 'search.results_other': '{n} Ergebnisse für „{q}“',
     'search.section_tracks': 'Titel', 'search.section_posts': 'Beiträge',
     'search.empty': 'Nichts gefunden.', 'search.in_post': 'im Beitrag →',
+    'search.section_events': 'Veranstaltungen', 'search.section_pages': 'Seiten',
+    'search.page_agenda': 'Termine', 'search.page_downloads': 'Downloads', 'search.page_links': 'Links', 'search.page_perskit': 'Pressekit', 'search.page_archive': 'Archiv',
+    'search.suggest_all': 'Alle Ergebnisse →', 'search.suggest_empty': 'Keine Ergebnisse', 'search.suggest_typing': 'Zum Suchen tippen…',
     'like.login_title': 'Zum Liken anmelden',
     // === Verwaltungs-Unterseiten ===
     'aset.title': 'Einstellungen',

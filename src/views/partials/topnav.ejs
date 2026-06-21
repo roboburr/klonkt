@@ -182,17 +182,18 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
 </header>
 
 <!-- Search overlay (shared by mobile bottom-tab + desktop top-nav) -->
-<div id="search-overlay" class="search-overlay" hidden>
+<div id="search-overlay" class="search-overlay" hidden data-suggest="<%= _siteUrlBase %>/search/suggest" data-action="<%= _siteUrlBase %>/search">
   <div class="container">
     <form class="search-overlay-form" method="get" action="<%= _siteUrlBase %>/search">
-      <input type="search" name="q" placeholder="Zoeken in posts…" autocomplete="off">
-      <button type="submit" class="nav-btn" aria-label="Zoeken">
+      <input type="search" name="q" placeholder="<%= t('search.placeholder') %>" autocomplete="off">
+      <button type="submit" class="nav-btn" aria-label="<%= t('search.button') %>">
         <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       </button>
-      <button type="button" class="nav-btn" id="search-close" aria-label="Sluiten">
+      <button type="button" class="nav-btn" id="search-close" aria-label="<%= t('imed.cancel') %>">
         <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </form>
+    <div id="search-suggest" class="search-suggest" data-lenis-prevent></div>
   </div>
 </div>
 
@@ -214,7 +215,7 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
   }
   function overlay() { return document.getElementById('search-overlay'); }
   function openSearch() { var o = overlay(); if (o) { o.hidden = false; var i = o.querySelector('input'); if (i) i.focus(); } }
-  function closeSearch() { var o = overlay(); if (o) o.hidden = true; }
+  function closeSearch() { var o = overlay(); if (o) { o.hidden = true; var b = document.getElementById('search-suggest'); if (b) b.innerHTML = ''; } }
 
   document.body.addEventListener('click', function(e) {
     if (e.target.closest('#theme-toggle, #theme-toggle-mobile, #theme-toggle-footer')) { toggleTheme(); return; }
@@ -227,7 +228,53 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
   });
 
   document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') { var o = overlay(); if (o && !o.hidden) o.hidden = true; }
+    if (e.key === 'Escape') { var o = overlay(); if (o && !o.hidden) closeSearch(); }
+  });
+
+  // ── Live resultaten tijdens typen ───────────────────────────────
+  var _ST = {
+    posts: '<%= t('search.section_posts') %>', tracks: '<%= t('search.section_tracks') %>',
+    events: '<%= t('search.section_events') %>', pages: '<%= t('search.section_pages') %>',
+    all: '<%= t('search.suggest_all') %>', none: '<%= t('search.suggest_empty') %>'
+  };
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function renderSuggest(box, d, q, ov) {
+    var html = '';
+    function grp(title, items, fmt) {
+      if (!items || !items.length) return;
+      html += '<div class="ss-group"><div class="ss-title">' + esc(title) + '</div>' + items.map(fmt).join('') + '</div>';
+    }
+    grp(_ST.posts, d.posts, function(p){ return '<a class="ss-item" href="' + esc(p.url) + '">' + esc(p.title) + '</a>'; });
+    grp(_ST.tracks, d.tracks, function(tk){ var sub = tk.artist ? ' <span class="ss-sub">' + esc(tk.artist) + '</span>' : ''; return tk.url ? '<a class="ss-item" href="' + esc(tk.url) + '">' + esc(tk.title) + sub + '</a>' : '<span class="ss-item ss-noclick">' + esc(tk.title) + sub + '</span>'; });
+    grp(_ST.events, d.events, function(ev){ return '<a class="ss-item" href="' + esc(ev.url) + '">' + esc(ev.where || ev.when) + ' <span class="ss-sub">' + esc(ev.when) + '</span></a>'; });
+    grp(_ST.pages, d.pages, function(pg){ return '<a class="ss-item" href="' + esc(pg.url) + '">' + esc(pg.label) + '</a>'; });
+    var hasAny = (d.posts && d.posts.length) || (d.tracks && d.tracks.length) || (d.events && d.events.length) || (d.pages && d.pages.length);
+    if (!hasAny) { box.innerHTML = '<div class="ss-empty">' + esc(_ST.none) + '</div>'; return; }
+    var action = (ov && ov.getAttribute('data-action')) || '/search';
+    html += '<a class="ss-all" href="' + esc(action) + '?q=' + encodeURIComponent(q) + '">' + esc(_ST.all) + '</a>';
+    box.innerHTML = html;
+  }
+  var _sTimer;
+  document.addEventListener('input', function(e) {
+    var inp = e.target.closest && e.target.closest('#search-overlay input[name="q"]');
+    if (!inp) return;
+    var box = document.getElementById('search-suggest');
+    if (!box) return;
+    var q = inp.value.trim();
+    clearTimeout(_sTimer);
+    if (q.length < 2) { box.innerHTML = ''; return; }
+    _sTimer = setTimeout(function() {
+      var ov = document.getElementById('search-overlay');
+      var url = (ov && ov.getAttribute('data-suggest')) || '/search/suggest';
+      fetch(url + '?q=' + encodeURIComponent(q))
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(d){ if (d) renderSuggest(box, d, q, ov); })
+        .catch(function(){});
+    }, 200);
+  });
+  // Klik op een suggestie → overlay sluiten (de link/boost doet de navigatie).
+  document.addEventListener('click', function(e) {
+    if (e.target.closest && e.target.closest('#search-suggest a')) { var o = overlay(); if (o) o.hidden = true; }
   });
 })();
 </script>
@@ -498,4 +545,16 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
   width: 44px; height: 44px;
   display: inline-flex; align-items: center; justify-content: center;
 }
+/* Live-resultaten dropdown */
+.search-suggest { margin-top: .6rem; max-height: 60vh; overflow-y: auto; display: flex; flex-direction: column; gap: .25rem; }
+.search-suggest:empty { display: none; }
+.ss-group { padding: .25rem 0; }
+.ss-title { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-soft, var(--ink-muted)); padding: .35rem .25rem .2rem; }
+.ss-item { display: block; padding: .55rem .6rem; border-radius: 8px; color: var(--ink); text-decoration: none; font-size: .95rem; }
+.ss-item:hover { background: var(--paper-2); color: var(--accent); }
+.ss-item.ss-noclick { opacity: .7; cursor: default; }
+.ss-sub { color: var(--ink-soft, var(--ink-muted)); font-size: .85em; }
+.ss-empty { padding: .8rem .6rem; color: var(--ink-soft, var(--ink-muted)); font-size: .9rem; }
+.ss-all { display: block; margin-top: .35rem; padding: .55rem .6rem; border-top: 1px solid var(--rule); color: var(--accent); font-weight: 600; text-decoration: none; font-size: .9rem; }
+.ss-all:hover { text-decoration: underline; }
 </style>

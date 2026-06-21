@@ -1,5 +1,7 @@
 <% const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : ''; %>
 <% const _tracks = (typeof tracks !== 'undefined' && tracks) ? tracks : []; %>
+<% const _events = (typeof events !== 'undefined' && events) ? events : []; %>
+<% const _pages = (typeof pages !== 'undefined' && pages) ? pages : []; %>
 <div class="container search-page">
   <h1><%= t('nav.search') %></h1>
 
@@ -88,7 +90,28 @@
     </ol>
   <% } %>
 
-  <% if (query && !queryError && !results.length && !_tracks.length) { %>
+  <% if (_events.length) { %>
+    <h2 class="search-section-title"><%= t('search.section_events') %></h2>
+    <ol class="search-results">
+      <% _events.forEach(function(ev) { %>
+        <li class="search-result">
+          <h3 class="search-result-title"><a href="<%= ev.url %>"><%= ev.where || '—' %></a></h3>
+          <p class="search-result-meta"><%= [ev.date, ev.time].filter(Boolean).join(' ') %></p>
+        </li>
+      <% }); %>
+    </ol>
+  <% } %>
+
+  <% if (_pages.length) { %>
+    <h2 class="search-section-title"><%= t('search.section_pages') %></h2>
+    <ul class="search-pages">
+      <% _pages.forEach(function(pg) { %>
+        <li><a class="search-page-link" href="<%= pg.url %>"><%= pg.label %> <span aria-hidden="true">→</span></a></li>
+      <% }); %>
+    </ul>
+  <% } %>
+
+  <% if (query && !queryError && !results.length && !_tracks.length && !_events.length && !_pages.length) { %>
     <p class="search-empty"><%= t('search.empty') %></p>
   <% } %>
 </div>
@@ -210,4 +233,11 @@
   padding: 0.05em 0.25em;
   border-radius: 3px;
 }
+.search-pages { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.search-page-link {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  padding: 0.45rem 0.8rem; border: 1px solid var(--rule); border-radius: 999px;
+  color: var(--ink); text-decoration: none; font-size: 0.9rem; background: var(--paper-2);
+}
+.search-page-link:hover { border-color: var(--accent); color: var(--accent); }
 </style>
