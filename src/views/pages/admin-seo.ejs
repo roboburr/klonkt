@@ -108,7 +108,11 @@
 .admin-site-edit-page h1 { font-family: var(--font-display, serif); font-size: 1.8rem; margin: 0 0 0.4rem; }
 .admin-site-edit-page .admin-tagline { color: var(--ink-muted); margin: 0 0 1.75rem; }
 
-.site-form { display: flex; flex-direction: column; gap: 1.5rem; }
+.site-form { display: flex; flex-direction: column; gap: 1.5rem; min-width: 0; }
+/* <fieldset> krimpt door de UA min-inline-size:min-content niet mee → mobiel-overflow.
+   min-width:0 dwingt meekrimpen. */
+.site-form fieldset { min-width: 0; }
+.site-form input, .site-form textarea, .site-form select { min-width: 0; }
 .site-form fieldset {
   border: 1px solid var(--rule);
   border-radius: 8px;

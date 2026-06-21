@@ -356,7 +356,13 @@
 .admin-site-edit-page { max-width: 760px; margin: 3rem auto; padding: 0 1rem; }
 .admin-site-edit-page h1 { font-family: var(--font-display, serif); font-size: 1.8rem; margin: 0 0 1.5rem; }
 
-.site-form { display: flex; flex-direction: column; gap: 1.5rem; }
+.site-form { display: flex; flex-direction: column; gap: 1.5rem; min-width: 0; }
+/* Mobiel: een <fieldset> heeft een browser-default min-inline-size:min-content en
+   krimpt daardoor NIET mee → het hele formulier werd breder dan het scherm. min-width:0
+   forceert meekrimpen; de form-velden krijgen max-width:100% + border-box zodat ze
+   nooit buiten hun fieldset lopen. */
+.site-form fieldset { min-width: 0; }
+.site-form input, .site-form select, .site-form textarea { min-width: 0; max-width: 100%; box-sizing: border-box; }
 .site-form fieldset {
   border: 1px solid var(--rule);
   border-radius: 8px;
