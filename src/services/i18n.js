@@ -193,12 +193,15 @@ export function t(lang, key, vars) {
   return s;
 }
 
-// Bepaal de taal voor dit request: sessie-keuze → browser-taal → nl.
+// Bepaal de taal voor dit request: expliciete sessie-keuze → instance-standaard
+// (env KLONKT_DEFAULT_LANG, bv. 'de' voor een Duitse site) → browser-taal → nl.
 export function resolveLang(req) {
   const s = req && req.session && req.session.lang;
-  if (s && SUPPORTED.includes(s)) return s;
+  if (s && SUPPORTED.includes(s)) return s;            // bezoeker koos zelf
+  const envDefault = (process.env.KLONKT_DEFAULT_LANG || '').toLowerCase();
+  if (SUPPORTED.includes(envDefault)) return envDefault; // per-instance standaard
   const al = ((req && req.headers && req.headers['accept-language']) || '').toLowerCase();
   const first = al.split(',')[0].trim().slice(0, 2);
-  if (SUPPORTED.includes(first)) return first;
+  if (SUPPORTED.includes(first)) return first;          // browser-voorkeur
   return 'nl';
 }
