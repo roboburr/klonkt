@@ -47,6 +47,22 @@ const imageUpload = multer({
   },
 });
 
+// Maakt een unieke slug binnen de site: 'titel', 'titel-2', 'titel-3', …
+// Zo wordt een tweede post met dezelfde titel NIET geweigerd ("bestaat al"),
+// maar krijgt 'ie automatisch een vrij achtervoegsel. exceptId = de post die
+// we bijwerken (mag z'n eigen slug houden).
+function uniqueSlug(siteId, base, exceptId = null) {
+  let candidate = base;
+  let n = 2;
+  for (;;) {
+    const row = exceptId
+      ? db.prepare('SELECT id FROM posts WHERE site_id = ? AND slug = ? AND id != ?').get(siteId, candidate, exceptId)
+      : db.prepare('SELECT id FROM posts WHERE site_id = ? AND slug = ?').get(siteId, candidate);
+    if (!row) return candidate;
+    candidate = `${base}-${n++}`;
+  }
+}
+
 const router = express.Router();
 
 // ==================== UPLOAD IMAGE (cover or content) ====================
@@ -164,17 +180,16 @@ router.post('/posts/create', requireAuth, (req, res) => {
   const cleanContent = HtmlSanitizerService.sanitize(content || '');
 
   // Generate slug from title if empty
-  const finalSlug = (slug || title || '')
+  let finalSlug = (slug || title || '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
 
   if (!finalSlug) return res.status(400).send('Title or slug required');
-  if (RESERVED_SLUGS.has(finalSlug)) return res.status(400).send('That slug is reserved');
+  if (RESERVED_SLUGS.has(finalSlug)) finalSlug = `${finalSlug}-post`;
 
-  // Uniqueness check
-  const existing = db.prepare('SELECT id FROM posts WHERE site_id = ? AND slug = ?').get(site.id, finalSlug);
-  if (existing) return res.status(400).send('A post with that slug already exists');
+  // Dubbele titel/slug? Automatisch uniek maken (titel-2, titel-3, …) i.p.v. weigeren.
+  finalSlug = uniqueSlug(site.id, finalSlug);
 
   const validTypes = new Set(['post', 'foto', 'video', 'audio']);
   const finalType = validTypes.has(type) ? type : 'post';
@@ -279,10 +294,9 @@ router.post('/posts/:slug/save', requireAuth, (req, res) => {
   let finalSlug = post.slug;
   if (newSlug && newSlug !== post.slug) {
     const cleaned = newSlug.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    if (RESERVED_SLUGS.has(cleaned)) return res.status(400).send('That slug is reserved');
-    const conflict = db.prepare('SELECT id FROM posts WHERE site_id = ? AND slug = ? AND id != ?').get(site.id, cleaned, post.id);
-    if (conflict) return res.status(400).send('Slug already taken');
-    finalSlug = cleaned;
+    const safe = RESERVED_SLUGS.has(cleaned) ? `${cleaned}-post` : cleaned;
+    // Dubbele slug? Automatisch uniek maken i.p.v. weigeren (eigen post mag z'n slug houden).
+    finalSlug = uniqueSlug(site.id, safe, post.id);
   }
 
   const now = new Date().toISOString();
