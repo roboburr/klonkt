@@ -962,12 +962,13 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
   padding: 14px; box-sizing: border-box;
 }
 .imed-stage {
-  flex: 1 1 auto; min-height: 0;
+  height: 58vh; flex: 0 0 auto;
   background: var(--paper-2, rgba(128,128,128,.08)); border-radius: 10px; overflow: hidden;
 }
-/* Cropper heeft een blok-img met begrensde hoogte nodig. */
 .imed-stage img { display: block; max-width: 100%; }
-.imed-stage .cropper-container { max-height: 64vh; }
+/* Cropper z'n container moet de volle stage-hoogte vullen — anders klapt 'ie dicht
+   in een flex-kolom zonder expliciete hoogte → leeg bewerk-venster (geen afbeelding). */
+.imed-stage .cropper-container { width: 100% !important; height: 100% !important; }
 .imed-tools {
   display: flex; flex-wrap: wrap; gap: 6px; justify-content: center;
 }
