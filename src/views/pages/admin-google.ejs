@@ -7,39 +7,43 @@
 
   <section class="set-card">
     <h2><%= t('agoog.card_title') %></h2>
-    <p class="set-help"><%= t('agoog.card_help_pre') %> <strong><%= t('agoog.card_help_own') %></strong>
-      <%= t('agoog.card_help_mid') %>
-      <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">console.cloud.google.com</a>
-      <%= t('agoog.card_help_post') %>
+    <p class="set-help"><%- t('agoog.intro') %>
       <% if (google && google.configured) { %><strong><%= t('agoog.status_set') %></strong><% } else { %><%= t('agoog.status_unset') %><% } %></p>
 
-    <details class="set-google-guide">
-      <summary><%= t('agoog.guide_summary') %></summary>
-      <ol class="set-google-steps">
-        <li><%= t('agoog.step1_pre') %> <a href="https://console.cloud.google.com/" target="_blank" rel="noopener">Google Cloud Console</a> <%= t('agoog.step1_post') %></li>
-        <li><strong>APIs &amp; Services → OAuth consent screen</strong>: <%= t('agoog.step2_usertype') %> <strong>External</strong>. <%= t('agoog.step2_scopes_pre') %> <code>email</code>, <code>profile</code> <%= t('agoog.step2_scopes_and') %> <code>openid</code> <%= t('agoog.step2_scopes_post') %> <%= t('agoog.step2_testmode') %></li>
-        <li><strong>APIs &amp; Services → Credentials → Create credentials → OAuth client ID</strong>, <%= t('agoog.step3_type') %> <strong>Web application</strong>.</li>
-        <li><%= t('agoog.step4_pre') %> <strong>Authorized redirect URIs</strong><%= t('agoog.step4_post') %></li>
-        <li><%= t('agoog.step5_pre') %> <strong>Client ID</strong> + <strong>Client Secret</strong> <%= t('agoog.step5_post') %></li>
-      </ol>
-      <p class="set-help" style="margin:.5rem 0 0"><strong><%= t('agoog.note_label') %></strong> <%= t('agoog.note_pre') %> <strong><%= t('agoog.note_noapi') %></strong> <%= t('agoog.note_mid') %> <em><%= t('agoog.note_not') %></em> <%= t('agoog.note_post') %></p>
-    </details>
-
-    <% if (google && google.redirectUri) { %>
-      <div class="set-redirect">
-        <div class="set-redirect-label"><%= t('agoog.redirect_label') %></div>
-        <code class="set-redirect-url" style="user-select:all"><%= google.redirectUri %></code>
-        <ol class="set-redirect-steps">
-          <li><%= t('agoog.rstep1_pre') %> <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Google Cloud Console → APIs &amp; Services → Credentials</a>.</li>
-          <li><%= t('agoog.rstep2') %></li>
-          <li><%= t('agoog.rstep3_pre') %> <strong>Authorized redirect URIs</strong> → <%= t('agoog.rstep3_mid') %> <strong>+ ADD URI</strong> <%= t('agoog.rstep3_post') %></li>
-          <li><%= t('agoog.rstep4_pre') %> <strong>Save</strong> <%= t('agoog.rstep4_post') %></li>
-        </ol>
-        <p class="set-redirect-warn"><%= t('agoog.warn_pre') %> <strong><%= t('agoog.warn_exact') %></strong> <%= t('agoog.warn_mid1') %> <code>https://</code> (<%= t('agoog.warn_nohttp') %> <code>http</code>)<%= t('agoog.warn_mid2') %> <strong><%= t('agoog.warn_noslash') %></strong> <%= t('agoog.warn_mid3') %> <em><%= t('agoog.warn_error') %></em>.</p>
-      </div>
-    <% } else { %>
-      <p class="set-help" style="color:var(--accent)"><%= t('agoog.set_baseurl_pre') %> <code>PUBLIC_BASE_URL</code> <%= t('agoog.set_baseurl_post') %></p>
-    <% } %>
+    <ol class="gg-steps">
+      <li>
+        <span class="gg-num">1</span>
+        <div class="gg-body"><%- t('agoog.g1') %> <a href="https://console.cloud.google.com/" target="_blank" rel="noopener">Google Cloud Console ↗</a></div>
+      </li>
+      <li>
+        <span class="gg-num">2</span>
+        <div class="gg-body"><%- t('agoog.g2') %></div>
+      </li>
+      <li>
+        <span class="gg-num">3</span>
+        <div class="gg-body"><%- t('agoog.g3') %></div>
+      </li>
+      <li>
+        <span class="gg-num">4</span>
+        <div class="gg-body">
+          <%- t('agoog.g4') %>
+          <% if (google && google.redirectUri) { %>
+            <div class="gg-redirect">
+              <code class="gg-url"><%= google.redirectUri %></code>
+              <button type="button" class="btn gg-copy" data-copy="<%= google.redirectUri %>"><%= t('agoog.copy') %></button>
+            </div>
+            <p class="gg-warn"><%- t('agoog.warn_short') %></p>
+          <% } else { %>
+            <p class="gg-warn" style="color:var(--accent)"><%- t('agoog.need_baseurl') %></p>
+          <% } %>
+        </div>
+      </li>
+      <li>
+        <span class="gg-num">5</span>
+        <div class="gg-body"><%- t('agoog.g5') %></div>
+      </li>
+    </ol>
+    <p class="gg-tip"><%- t('agoog.no_api_note') %></p>
 
     <form method="post" action="/admin/settings/google" class="set-form">
       <label class="set-field">
@@ -98,4 +102,30 @@
 .set-redirect-steps a { color: var(--accent); }
 .set-redirect-warn { margin: 0.85rem 0 0; font-size: 0.85rem; color: var(--ink-muted); }
 .set-redirect-warn code { background: var(--paper-2); padding: 0.05rem 0.35rem; border-radius: 4px; }
+/* Genummerde, altijd-zichtbare stap-voor-stap-uitleg (beginnervriendelijk) */
+.gg-steps { list-style: none; margin: 0 0 1rem; padding: 0; display: flex; flex-direction: column; gap: 0.85rem; }
+.gg-steps > li { display: flex; gap: 0.7rem; align-items: flex-start; }
+.gg-num { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #fff; font-weight: 700; font-size: 0.85rem; display: inline-flex; align-items: center; justify-content: center; }
+.gg-body { font-size: 0.92rem; line-height: 1.5; color: var(--ink); padding-top: 2px; min-width: 0; }
+.gg-body code { background: var(--paper-2); padding: 0.05rem 0.35rem; border-radius: 4px; font-size: 0.88em; }
+.gg-redirect { display: flex; gap: 0.5rem; align-items: stretch; margin: 0.5rem 0 0.3rem; flex-wrap: wrap; }
+.gg-url { flex: 1 1 220px; min-width: 0; padding: 0.5rem 0.7rem; background: var(--paper-2); border: 1px dashed var(--accent); border-radius: 6px; font-size: 0.85rem; word-break: break-all; align-self: center; }
+.gg-copy { flex: 0 0 auto; }
+.gg-warn { font-size: 0.82rem; color: var(--ink-muted); margin: 0.3rem 0 0; }
+.gg-tip { font-size: 0.85rem; color: var(--ink-muted); background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; padding: 0.6rem 0.8rem; margin: 0 0 1.25rem; }
 </style>
+<script>
+  (function () {
+    if (window.__ggCopyWired) return;
+    window.__ggCopyWired = true;
+    document.addEventListener('click', function (e) {
+      var b = e.target.closest && e.target.closest('.gg-copy');
+      if (!b) return;
+      e.preventDefault();
+      var txt = b.getAttribute('data-copy') || '';
+      var done = function () { var o = b.getAttribute('data-label') || b.textContent; b.setAttribute('data-label', o); b.textContent = '<%= t('agoog.copied') %>'; setTimeout(function () { b.textContent = o; }, 1500); };
+      if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(txt).then(done, function () {}); }
+      else { try { var ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); done(); } catch (_) {} }
+    });
+  })();
+</script>
