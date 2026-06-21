@@ -19,6 +19,7 @@ import { renderPage } from '../middleware/render.js';
 import { audioUrl } from '../services/AudioStreamService.js';
 import { getSetting } from '../services/SettingsService.js';
 import { premiumUnlocked } from '../services/PatreonService.js';
+import { t as i18nT, resolveLang } from '../services/i18n.js';
 
 const router = express.Router();
 
@@ -52,7 +53,9 @@ function searchSite(req, res, rawQ, lim) {
   const isHub = res.locals.tenancy === 'hub';
   const base = res.locals.siteUrlBase || '';
   const urlFor = (slug) => (isHub ? `/user/${site.slug}/${slug}` : `/${slug}`);
-  const t = res.locals.t || ((k) => k);
+  // Eigen vertaler (werkt ook in de JSON-route, waar res.locals.t niet bestaat).
+  const lang = resolveLang(req);
+  const t = (k) => i18nT(lang, k);
 
   const out = { results: [], tracks: [], events: [], pages: [], queryError: null };
   if (!site || !rawQ) return out;
