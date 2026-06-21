@@ -50,9 +50,14 @@ router.get('/', requireGod, (req, res) => {
 router.post('/add', requireGod, async (req, res) => {
   const site = primarySite();
   if (!site) return res.redirect('/admin/circle?error=' + encodeURIComponent('Geen site gevonden'));
-  const url = (req.body.remote_url || '').toString().trim().replace(/\/+$/, '');
+  // Schema automatisch aanvullen: een kale domeinnaam → https://, een getypte
+  // http:// → https:// (federatie is bewust https-only, getekende feeds). Zo hoeft
+  // de gebruiker nooit zelf http(s):// te typen.
+  let url = (req.body.remote_url || '').toString().trim().replace(/\/+$/, '');
+  if (url && !/^[a-z]+:\/\//i.test(url)) url = 'https://' + url;
+  url = url.replace(/^http:\/\//i, 'https://');
   if (!/^https:\/\/[^\s/]+(\/[^\s]*)?$/i.test(url)) {
-    return res.redirect('/admin/circle?error=' + encodeURIComponent('Voer een geldige https-URL in'));
+    return res.redirect('/admin/circle?error=' + encodeURIComponent('Voer een geldig site-adres in (bv. voorbeeld.nl)'));
   }
   const label = (req.body.label || '').toString().slice(0, 80).trim() || null;
   const id = crypto.randomUUID();

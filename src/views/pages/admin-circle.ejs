@@ -32,7 +32,7 @@
     <form method="post" action="/admin/circle/add" class="set-form">
       <label class="set-field">
         <span><%= t('acir.url') %></span>
-        <input type="url" name="remote_url" placeholder="https://artiest.klonkt.com" required>
+        <input type="text" name="remote_url" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="artiest.klonkt.com" required>
       </label>
       <label class="set-field">
         <span><%= t('acir.label') %> <small style="font-weight:400">— <%= t('acir.optional') %></small></span>
