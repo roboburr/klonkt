@@ -56,6 +56,13 @@
    chrome) i.p.v. body-class-CSS → werkt betrouwbaar ook na htmx-navigatie. */
 .vs-agenda.is-active { color: var(--ink); font-weight: 600; }
 
+/* Mobiel: Agenda op een eigen rij bovenaan, en Solo/Cirkel + Tijdlijn/Grid samen
+   op de rij eronder (samen ~330px → past binnen een telefoon, i.p.v. de oude
+   onevenwichtige split Agenda+Solo / Tijdlijn). */
+@media (max-width: 520px) {
+  .view-switcher-wrap .agenda-pill { flex: 0 0 100%; justify-content: center; }
+}
+
 .grid-cols-picker {
   display: none;     /* desktop-only, see media query */
   gap: 0.2rem;
