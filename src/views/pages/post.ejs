@@ -153,12 +153,29 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
                         </div>
                         <div class="comment-content"><%= r.content %></div>
                         <div class="comment-actions">
+                          <% if (user && canMutate) { %>
+                            <button type="button" class="comment-reply-btn" data-reply-to="<%= r.id %>"><%= t('comments.reply') %></button>
+                          <% } %>
                           <% if (user && permissions.canDeleteComment(user, r, site)) { %>
                             <form method="post" action="<%= _base %>/comments/<%= r.id %>/delete" style="display:inline" onsubmit="return confirm('<%= t('comments.delete_confirm') %>')">
                               <button type="submit" class="comment-delete-btn"><%= t('comments.delete') %></button>
                             </form>
                           <% } %>
                         </div>
+
+                        <%# Reageren op een antwoord — landt (via resolvedParent op de
+                            server) in dezelfde thread, dus 1 niveau diep blijft behouden. %>
+                        <% if (user && canMutate) { %>
+                          <form method="post" action="<%= _base %>/comments" class="comment-reply-form" hidden data-reply-form-for="<%= r.id %>">
+                            <input type="hidden" name="post_slug" value="<%= post.slug %>">
+                            <input type="hidden" name="parent_comment_id" value="<%= r.id %>">
+                            <textarea name="content" rows="3" maxlength="4000" placeholder="<%= t('comments.reply_to', { name: r.author_username }) %>" required></textarea>
+                            <div class="comment-reply-form-actions">
+                              <button type="submit" class="btn btn-primary"><%= t('comments.reply') %></button>
+                              <button type="button" class="btn comment-cancel-reply"><%= t('comments.cancel') %></button>
+                            </div>
+                          </form>
+                        <% } %>
                       </div>
                     </li>
                   <% }); %>
