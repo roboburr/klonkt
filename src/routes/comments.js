@@ -18,6 +18,7 @@ import { v4 as uuid } from 'uuid';
 import db from '../config/database.js';
 import { requireAuth } from '../middleware/auth.js';
 import PermissionsService from '../services/PermissionsService.js';
+import { notify } from '../services/NotificationService.js';
 
 const router = express.Router();
 
@@ -38,7 +39,7 @@ router.post('/', requireAuth, (req, res) => {
   if (rawContent.length > MAX_LEN) return res.status(413).send(`Comment too long (max ${MAX_LEN} chars)`);
 
   const post = db.prepare(
-    'SELECT id, slug FROM posts WHERE site_id = ? AND slug = ? AND status = ?'
+    'SELECT id, slug, title, author_id FROM posts WHERE site_id = ? AND slug = ? AND status = ?'
   ).get(site.id, postSlug, 'published');
   if (!post) return res.status(404).send('Post not found');
 
@@ -49,12 +50,14 @@ router.post('/', requireAuth, (req, res) => {
   // Validate parent (must belong to this post; collapses replies-of-replies
   // up to the top-level parent so we never go deeper than 1)
   let resolvedParent = null;
+  let parentAuthorId = null;
   if (parentId) {
     const parent = db.prepare(
-      'SELECT id, parent_comment_id FROM comments WHERE id = ? AND post_id = ?'
+      'SELECT id, parent_comment_id, author_id FROM comments WHERE id = ? AND post_id = ?'
     ).get(parentId, post.id);
     if (!parent) return res.status(400).send('Invalid parent comment');
     resolvedParent = parent.parent_comment_id || parent.id;
+    parentAuthorId = parent.author_id; // ontvanger van de "antwoord"-melding
   }
 
   // Status depends on the site's moderation mode.
@@ -72,6 +75,20 @@ router.post('/', requireAuth, (req, res) => {
     INSERT INTO comments (id, post_id, author_id, parent_comment_id, content, status)
     VALUES (?, ?, ?, ?, ?, ?)
   `).run(commentId, post.id, req.session.user.id, resolvedParent, rawContent, status);
+
+  // Melding (alleen bij een zichtbare reactie): antwoord → de auteur van de reactie
+  // waarop gereageerd is; top-level reactie → de auteur van de post. notify() slaat
+  // jezelf-notificeren over.
+  if (status === 'approved') {
+    const url = `${res.locals.siteUrlBase || ''}/${post.slug}#comment-${commentId}`;
+    const actorId = req.session.user.id;
+    const actorName = req.session.user.username;
+    if (parentId) {
+      notify({ userId: parentAuthorId, actorId, actorName, type: 'reply', postSlug: post.slug, postTitle: post.title, url });
+    } else {
+      notify({ userId: post.author_id, actorId, actorName, type: 'comment', postSlug: post.slug, postTitle: post.title, url });
+    }
+  }
 
   // Where to land after submit:
   //   approved → scroll to the new comment

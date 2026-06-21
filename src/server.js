@@ -26,6 +26,7 @@ import { isViewer } from './middleware/auth.js';
 import { renderPage } from './middleware/render.js';
 import authRoutes from './routes/auth.js';
 import accountRoutes from './routes/account.js';
+import notificationsRoutes from './routes/notifications.js';
 import adminRoutes from './routes/admin.js';
 import adminAudioRoutes from './routes/admin-audio.js';
 import adminPlaylistsRoutes from './routes/admin-playlists.js';
@@ -256,6 +257,7 @@ app.use((req, res, next) => {
 
 app.use('/auth', authRoutes);
 app.use('/account', accountRoutes);
+app.use('/notifications', notificationsRoutes);
 app.use('/admin/audio', adminAudioRoutes);
 app.use('/admin/playlists', adminPlaylistsRoutes);
 app.use('/admin/sites', adminSitesRoutes);

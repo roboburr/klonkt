@@ -9,6 +9,7 @@ import db from '../config/database.js';
 import { requireAuth } from '../middleware/auth.js';
 import { renderPage } from '../middleware/render.js';
 import { recordPageview, recordPostView } from '../services/StatsService.js';
+import { notify } from '../services/NotificationService.js';
 import PermissionsService from '../services/PermissionsService.js';
 import MarkdownService from '../services/MarkdownService.js';
 import HtmlSanitizerService from '../services/HtmlSanitizerService.js';
@@ -404,7 +405,7 @@ const LIKE_PARTIAL = path.join(__dirname, '..', 'views', 'partials', 'like-butto
 // knop terug (htmx outerHTML-swap).
 router.post('/posts/:id/like', requireAuth, (req, res) => {
   const userId = req.session.user.id;
-  const post = db.prepare('SELECT id, status FROM posts WHERE id = ?').get(req.params.id);
+  const post = db.prepare('SELECT id, status, slug, title, author_id FROM posts WHERE id = ?').get(req.params.id);
   if (!post) return res.status(404).send('Post niet gevonden');
   if (post.status !== 'published') return res.status(403).send('Niet beschikbaar');
 
@@ -413,6 +414,11 @@ router.post('/posts/:id/like', requireAuth, (req, res) => {
     db.prepare('DELETE FROM post_likes WHERE post_id = ? AND user_id = ?').run(post.id, userId);
   } else {
     db.prepare('INSERT OR IGNORE INTO post_likes (post_id, user_id) VALUES (?, ?)').run(post.id, userId);
+    // Melding voor de post-auteur (notify slaat jezelf-liken over).
+    notify({
+      userId: post.author_id, actorId: userId, actorName: req.session.user.username, type: 'like',
+      postSlug: post.slug, postTitle: post.title, url: (res.locals.siteUrlBase || '') + '/' + post.slug,
+    });
   }
   const likeCount = db.prepare('SELECT COUNT(*) AS c FROM post_likes WHERE post_id = ?').get(post.id).c;
 

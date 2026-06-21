@@ -106,6 +106,14 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
       <% } %>
 
       <% if (user) { %>
+        <a class="nav-btn nav-notif" href="/notifications" aria-label="<%= t('nav.notifications') %>" title="<%= t('nav.notifications') %>"
+           hx-get="/notifications?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="/notifications" hx-indicator="#pcms-loading">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <% if (typeof notifUnread !== 'undefined' && notifUnread > 0) { %><span class="notif-badge"><%= notifUnread > 9 ? '9+' : notifUnread %></span><% } %>
+        </a>
+      <% } %>
+
+      <% if (user) { %>
         <details class="user-menu">
           <summary class="nav-btn user-toggle" aria-label="Gebruikersmenu">
             <% if (user.avatar_url) { %>
@@ -136,6 +144,12 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
                  hx-push-url="/account" hx-indicator="#pcms-loading">
                 <svg class="udi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                 <span><%= t('nav.account') %></span>
+              </a>
+              <a href="/notifications" role="menuitem" class="udi"
+                 hx-get="/notifications?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
+                 hx-push-url="/notifications" hx-indicator="#pcms-loading">
+                <svg class="udi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                <span><%= t('nav.notifications') %><% if (typeof notifUnread !== 'undefined' && notifUnread > 0) { %> (<%= notifUnread %>)<% } %></span>
               </a>
               <a href="/favorieten" role="menuitem" class="udi"
                  hx-get="/favorieten?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
@@ -557,4 +571,13 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
 .ss-empty { padding: .8rem .6rem; color: var(--ink-soft, var(--ink-muted)); font-size: .9rem; }
 .ss-all { display: block; margin-top: .35rem; padding: .55rem .6rem; border-top: 1px solid var(--rule); color: var(--accent); font-weight: 600; text-decoration: none; font-size: .9rem; }
 .ss-all:hover { text-decoration: underline; }
+/* Meldingen-bel + ongelezen-badge */
+.nav-notif { position: relative; }
+.notif-badge {
+  position: absolute; top: 1px; right: 1px;
+  min-width: 16px; height: 16px; padding: 0 4px; box-sizing: border-box;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #e0245e; color: #fff; font-size: 10px; font-weight: 700;
+  border-radius: 999px; line-height: 1; pointer-events: none;
+}
 </style>

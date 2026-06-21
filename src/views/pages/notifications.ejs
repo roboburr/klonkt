@@ -1,0 +1,36 @@
+<div class="container notif-page">
+  <h1><%= t('notif.title') %></h1>
+
+  <% if (!items || !items.length) { %>
+    <p class="notif-empty"><%= t('notif.empty') %></p>
+  <% } else { %>
+    <ul class="notif-list">
+      <% items.forEach(function(n){
+           var key = n.type === 'reply' ? 'notif.reply' : (n.type === 'comment' ? 'notif.comment' : 'notif.like');
+           var actor = n.actor_name || t('notif.someone');
+      %>
+        <li class="notif-item<%= n.read ? '' : ' is-unread' %>">
+          <a class="notif-link" href="<%= n.url || '#' %>">
+            <span class="notif-text"><%= t(key, { actor: actor }) %></span>
+            <% if (n.post_title) { %><span class="notif-post">&ldquo;<%= n.post_title %>&rdquo;</span><% } %>
+            <span class="notif-time"><%= formatDateTime(n.created_at) %></span>
+          </a>
+        </li>
+      <% }); %>
+    </ul>
+  <% } %>
+</div>
+
+<style>
+.notif-page { max-width: 640px; margin: 2.5rem auto; padding: 0 1rem; }
+.notif-page h1 { font-family: var(--font-display, serif); font-size: 1.8rem; margin: 0 0 1.25rem; }
+.notif-empty { color: var(--ink-muted, var(--ink-soft)); }
+.notif-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.notif-item { border: 1px solid var(--rule); border-radius: 10px; background: var(--paper-2); }
+.notif-item.is-unread { border-color: var(--accent); }
+.notif-link { display: flex; flex-direction: column; gap: 0.15rem; padding: 0.7rem 0.9rem; color: var(--ink); text-decoration: none; }
+.notif-link:hover { background: var(--paper); }
+.notif-text { font-size: 0.95rem; }
+.notif-post { color: var(--ink-soft, var(--ink-muted)); font-size: 0.9rem; }
+.notif-time { color: var(--ink-soft, var(--ink-muted)); font-size: 0.78rem; }
+</style>

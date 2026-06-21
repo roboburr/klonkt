@@ -251,6 +251,24 @@ export function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_shows_site_date ON shows(site_id, date);
   `);
 
+  // Meldingen: iemand reageert op je reactie / post, of liket je post. Snapshots
+  // van naam/titel zodat de lijst goedkoop te tonen is zonder joins.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      type TEXT NOT NULL,
+      actor_id TEXT,
+      actor_name TEXT,
+      post_slug TEXT,
+      post_title TEXT,
+      url TEXT,
+      read INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_notif_user ON notifications(user_id, read, created_at);
+  `);
+
   // Link-in-bio klikstatistiek (premium #6). Per (site, url) een teller; de
   // link-in-bio-pagina linkt via /links/go/:i dat de klik telt en doorstuurt.
   db.exec(`

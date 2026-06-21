@@ -106,6 +106,9 @@ else if (_p.indexOf('/auth/login') === 0) _active = 'login';
         <span class="bottom-tab-avatar"><%= user.username.charAt(0).toUpperCase() %></span>
       <% } %>
       <span class="bottom-tab-label"><%= t('tab.profile') %></span>
+      <% if (typeof notifUnread !== 'undefined' && notifUnread > 0) { %>
+        <span class="bottom-tab-badge" aria-label="<%= notifUnread %> ongelezen meldingen"><%= notifUnread > 99 ? '99+' : notifUnread %></span>
+      <% } %>
     </button>
   <% } else { %>
     <a class="bottom-tab-item<%= _active === 'login' ? ' is-active' : '' %>"
