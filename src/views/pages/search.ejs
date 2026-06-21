@@ -27,6 +27,7 @@
 
   <% if (_tracks.length) { %>
     <h2 class="search-section-title"><%= t('search.section_tracks') %></h2>
+    <% var _inPost = t('search.in_post'); /* t() vóór de loop ophalen: function(t) overschaduwt 'm */ %>
     <div class="search-tracks">
       <% _tracks.forEach(function(t) {
            const tj = JSON.stringify({ id: t.id, url: t.url, title: t.title, artist: t.artist || '', cover: t.cover || '' })
@@ -55,7 +56,7 @@
                hx-target="#pcms-main"
                hx-swap="innerHTML"
                hx-push-url="<%= t.postUrl %>"
-               aria-label="<%= t('search.in_post') %>"><%= t('search.in_post') %></a>
+               aria-label="<%= _inPost %>"><%= _inPost %></a>
           <% } %>
         </div>
       <% }); %>
