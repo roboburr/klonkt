@@ -320,16 +320,17 @@ else if (_p.indexOf('/auth/login') === 0) _active = 'login';
 </style>
 
 <script>
-// Wire the bottom-tab search button into the existing #search-overlay
+// Bottom-tab zoekknop → opent #search-overlay. Via event-delegatie + de overlay
+// ELKE klik opnieuw opzoeken: de overlay zit in de chrome die bij htmx-navigatie
+// OOB vervangen wordt, dus een één-keer-opgevangen referentie verschaalt
+// (knop deed daarna niets). Guard tegen dubbel-wiren.
 (function() {
-  const btn = document.getElementById('bottom-tab-search-toggle');
-  const overlay = document.getElementById('search-overlay');
-  if (btn && overlay) {
-    btn.addEventListener('click', function() {
-      overlay.hidden = false;
-      const inp = overlay.querySelector('input');
-      if (inp) inp.focus();
-    });
-  }
+  if (window.__btSearchWired) return;
+  window.__btSearchWired = true;
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest || !e.target.closest('#bottom-tab-search-toggle')) return;
+    var o = document.getElementById('search-overlay');
+    if (o) { o.hidden = false; var i = o.querySelector('input'); if (i) i.focus(); }
+  });
 })();
 </script>
