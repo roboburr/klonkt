@@ -51,7 +51,7 @@ else if (_p.indexOf('/auth/login') === 0) _active = 'login';
       <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
       <polyline points="9 22 9 12 15 12 15 22"/>
     </svg>
-    <span class="bottom-tab-label">Home</span>
+    <span class="bottom-tab-label"><%= t('tab.home') %></span>
   </a>
 
   <!-- Zoek -->
@@ -61,7 +61,7 @@ else if (_p.indexOf('/auth/login') === 0) _active = 'login';
       <circle cx="11" cy="11" r="7"/>
       <line x1="21" y1="21" x2="16.65" y2="16.65"/>
     </svg>
-    <span class="bottom-tab-label">Zoek</span>
+    <span class="bottom-tab-label"><%= t('tab.search') %></span>
   </button>
 
   <!-- Plus (FAB-style, only when user can post) -->
@@ -75,7 +75,7 @@ else if (_p.indexOf('/auth/login') === 0) _active = 'login';
         <line x1="12" y1="5" x2="12" y2="19"/>
         <line x1="5" y1="12" x2="19" y2="12"/>
       </svg>
-      <span class="bottom-tab-label">Schrijven</span>
+      <span class="bottom-tab-label"><%= t('tab.write') %></span>
     </a>
   <% } %>
 
@@ -105,7 +105,7 @@ else if (_p.indexOf('/auth/login') === 0) _active = 'login';
       <% } else { %>
         <span class="bottom-tab-avatar"><%= user.username.charAt(0).toUpperCase() %></span>
       <% } %>
-      <span class="bottom-tab-label">Profiel</span>
+      <span class="bottom-tab-label"><%= t('tab.profile') %></span>
     </button>
   <% } else { %>
     <a class="bottom-tab-item<%= _active === 'login' ? ' is-active' : '' %>"
@@ -118,7 +118,7 @@ else if (_p.indexOf('/auth/login') === 0) _active = 'login';
         <polyline points="10 17 15 12 10 7"/>
         <line x1="15" y1="12" x2="3" y2="12"/>
       </svg>
-      <span class="bottom-tab-label">Inloggen</span>
+      <span class="bottom-tab-label"><%= t('nav.login') %></span>
     </a>
   <% } %>
 

@@ -1,15 +1,15 @@
 <div class="container welcome-page">
-  <h1>Welcome to Klonkt</h1>
-  <p class="welcome-tagline">A self-hosted publishing platform.</p>
-  
+  <h1><%= t('welcome.title') %></h1>
+  <p class="welcome-tagline"><%= t('welcome.tagline') %></p>
+
   <% if (!user) { %>
     <div class="welcome-actions">
-      <a href="/auth/register" class="btn btn-primary">Beheerder aanmaken</a>
-      <a href="/auth/login" class="btn">Al een account? Inloggen</a>
+      <a href="/auth/register" class="btn btn-primary"><%= t('auth.create_admin') %></a>
+      <a href="/auth/login" class="btn"><%= t('welcome.have_account') %></a>
     </div>
-    <p class="welcome-note">Maak je beheerdersaccount aan om te beginnen — daarna is registratie gesloten.</p>
+    <p class="welcome-note"><%= t('welcome.note') %></p>
   <% } else { %>
-    <p>Hi <%= user.username %>! No site is configured yet.</p>
+    <p><%= t('welcome.nosite', { user: user.username }) %></p>
   <% } %>
 </div>
 <style>
