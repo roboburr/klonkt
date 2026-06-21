@@ -185,7 +185,7 @@ router.post('/posts/create', requireAuth, (req, res) => {
   // (de Scheduler zet 'm live op het moment zelf). Verleden/leeg -> meteen live.
   let publishAt = null;
   const pa = Date.parse(req.body.publish_at || '');
-  if (finalStatus === 'published' && Number.isFinite(pa) && pa > Date.now()) {
+  if (req.body.schedule_enabled && finalStatus === 'published' && Number.isFinite(pa) && pa > Date.now()) {
     finalStatus = 'scheduled';
     publishAt = new Date(pa).toISOString();
     publishedAt = null;
@@ -296,7 +296,7 @@ router.post('/posts/:slug/save', requireAuth, (req, res) => {
   // Release-planning: gepubliceerd + toekomstige publish_at -> 'scheduled'.
   let publishAt = null;
   const pa = Date.parse(req.body.publish_at || '');
-  if (finalStatus === 'published' && Number.isFinite(pa) && pa > Date.now()) {
+  if (req.body.schedule_enabled && finalStatus === 'published' && Number.isFinite(pa) && pa > Date.now()) {
     finalStatus = 'scheduled';
     publishAt = new Date(pa).toISOString();
     publishedAt = null;
