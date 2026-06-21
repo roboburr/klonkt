@@ -253,8 +253,10 @@ export function initializeDatabase() {
 
   // Meldingen: iemand reageert op je reactie / post, of liket je post. Snapshots
   // van naam/titel zodat de lijst goedkoop te tonen is zonder joins.
+  // NB: bewust 'user_notifications' — sommige oudere DBs hebben nog een stale,
+  // ongebruikte 'notifications'-tabel met een ander schema (geen read-kolom).
   db.exec(`
-    CREATE TABLE IF NOT EXISTS notifications (
+    CREATE TABLE IF NOT EXISTS user_notifications (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
       type TEXT NOT NULL,
@@ -266,7 +268,7 @@ export function initializeDatabase() {
       read INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
-    CREATE INDEX IF NOT EXISTS idx_notif_user ON notifications(user_id, read, created_at);
+    CREATE INDEX IF NOT EXISTS idx_unotif_user ON user_notifications(user_id, read, created_at);
   `);
 
   // Link-in-bio klikstatistiek (premium #6). Per (site, url) een teller; de
