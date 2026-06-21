@@ -214,8 +214,8 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
           </label>
           <div id="pe-sched-fields" style="margin-top:6px;<%= _scheduled ? '' : 'display:none' %>">
             <label style="display:block;font-size:12.5px;opacity:.8;margin-bottom:4px"><%= t('pedit.publish_at_label') %></label>
-            <input type="datetime-local" name="publish_at" <%= _scheduled ? '' : 'disabled' %> value="<%= post.publish_at ? String(post.publish_at).replace(' ','T').slice(0,16) : '' %>" style="padding:8px 10px;border-radius:8px;border:1px solid var(--rule,rgba(128,128,128,.4));background:transparent;color:inherit">
-            <% if (post.status === 'scheduled' && post.publish_at) { %><div style="font-size:12px;opacity:.7;margin-top:4px">⏳ <%= t('pedit.scheduled_for', { d: post.publish_at }) %></div><% } %>
+            <input type="datetime-local" id="pe-publish-at" name="publish_at" <%= _scheduled ? '' : 'disabled' %> data-iso="<%= post.publish_at || '' %>" value="" style="padding:8px 10px;border-radius:8px;border:1px solid var(--rule,rgba(128,128,128,.4));background:transparent;color:inherit">
+            <% if (post.status === 'scheduled' && post.publish_at) { %><div style="font-size:12px;opacity:.7;margin-top:4px"><span id="pe-sched-when" data-iso="<%= post.publish_at %>" data-label="<%= t('pedit.scheduled_prefix') %>">⏳ <%= t('pedit.scheduled_for', { d: post.publish_at }) %></span></div><% } %>
             <div style="font-size:11.5px;opacity:.65;margin-top:4px"><%= t('pedit.schedule_hint') %></div>
           </div>
           <script>
@@ -223,9 +223,41 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
               var cb = document.getElementById('pe-sched-toggle');
               var box = document.getElementById('pe-sched-fields');
               if (!cb || !box) return;
-              var inp = box.querySelector('input[name="publish_at"]');
+              var inp = document.getElementById('pe-publish-at');
+              var pad = function (n) { return String(n).padStart(2, '0'); };
+              // Prefill: opgeslagen UTC → lokale datetime-local-waarde (zodat je je
+              // eigen tijdzone ziet, niet UTC).
+              if (inp && inp.dataset.iso) {
+                var d0 = new Date(inp.dataset.iso);
+                if (!isNaN(d0)) inp.value = d0.getFullYear() + '-' + pad(d0.getMonth() + 1) + '-' + pad(d0.getDate()) + 'T' + pad(d0.getHours()) + ':' + pad(d0.getMinutes());
+              }
+              // "Ingepland voor" in leesbare lokale tijd i.p.v. ruwe UTC-ISO.
+              var when = document.getElementById('pe-sched-when');
+              if (when && when.dataset.iso) {
+                var dw = new Date(when.dataset.iso);
+                if (!isNaN(dw)) when.textContent = '⏳ ' + when.dataset.label + ' ' + dw.toLocaleString();
+              }
               function sync() { box.style.display = cb.checked ? '' : 'none'; if (inp) inp.disabled = !cb.checked; }
               cb.addEventListener('change', sync); sync();
+              // Bij opslaan: lokale invoer → UTC-ISO via een hidden veld, zodat de
+              // server de juiste tijd opslaat (datetime-local heeft geen tijdzone).
+              var form = cb.closest('form');
+              if (form) {
+                form.addEventListener('submit', function () {
+                  if (inp) inp.removeAttribute('name');
+                  var old = form.querySelector('input[data-pa-utc]');
+                  if (old) old.remove();
+                  if (cb.checked && inp && inp.value) {
+                    var d2 = new Date(inp.value); // geïnterpreteerd in browser-tijdzone
+                    if (!isNaN(d2)) {
+                      var h = document.createElement('input');
+                      h.type = 'hidden'; h.name = 'publish_at'; h.setAttribute('data-pa-utc', '');
+                      h.value = d2.toISOString();
+                      form.appendChild(h);
+                    }
+                  }
+                });
+              }
             })();
           </script>
         <% } %>

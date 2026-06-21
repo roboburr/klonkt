@@ -15,7 +15,7 @@ export function flipScheduledPosts() {
     const due = db.prepare(`
       SELECT p.id, p.title, p.content, u.username
       FROM posts p JOIN users u ON u.id = p.author_id
-      WHERE p.status = 'scheduled' AND p.publish_at IS NOT NULL AND p.publish_at <= CURRENT_TIMESTAMP
+      WHERE p.status = 'scheduled' AND p.publish_at IS NOT NULL AND datetime(p.publish_at) <= datetime('now')
     `).all();
     if (!due.length) return 0;
     const upd = db.prepare(
