@@ -328,7 +328,7 @@ app.get('/manifest.webmanifest', (req, res) => {
     display_override: ['standalone', 'minimal-ui'],
     orientation: 'any',
     background_color: '#1a1a17',
-    theme_color: site?.accent || '#c2410c',
+    theme_color: site?.accent || '#e8b04b',
     lang: site?.language || 'nl',
     icons: [
       { src: '/favicon.svg', sizes: 'any', type: 'image/svg+xml' },

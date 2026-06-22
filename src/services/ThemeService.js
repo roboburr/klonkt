@@ -18,6 +18,12 @@ class ThemeService {
   // Paper/ink komen 1-op-1 uit de [data-palette]-CSS in style.css (= wat ECHT
   // wordt toegepast); de accent-stip is een representatieve kleur per palet.
   static PALETTES = {
+    // Merk-standaard — komt overeen met klonkt.com (donkerblauw + geel).
+    klonkt: {
+      name: 'Klonkt',
+      light: { paper: '#f3f1ea', ink: '#11141c', accent: '#c98a2a' },
+      dark: { paper: '#0b0d12', ink: '#f3f1ea', accent: '#e8b04b' }
+    },
     sage: {
       name: 'Sage',
       light: { paper: '#faf8f3', ink: '#1a1a1a', accent: '#c2410c' },
@@ -90,6 +96,7 @@ class ThemeService {
   // Evenwichtig over het kleurenwiel — minder groen/blauw (4 van de 12),
   // meer warme + paars/roze variatie. Allemaal leesbaar op licht én donker.
   static ACCENTS = [
+    { key: 'klonkt',  name: 'Klonkt-geel', color: '#e8b04b' },
     { key: 'red',     name: 'Rood',      color: '#dc2626' },
     { key: 'orange',  name: 'Oranje',    color: '#ea580c' },
     { key: 'amber',   name: 'Amber',     color: '#d97706' },
@@ -124,7 +131,7 @@ class ThemeService {
    * Get palette data
    */
   static getPalette(paletteKey) {
-    return this.PALETTES[paletteKey] || this.PALETTES.sage;
+    return this.PALETTES[paletteKey] || this.PALETTES.klonkt;
   }
 
   /**
@@ -196,8 +203,8 @@ class ThemeService {
    */
   static generateThemeMeta(userTheme, userPalette, siteTheme, siteAccent) {
     const theme = userTheme || siteTheme || 'dark';
-    const palette = userPalette || 'sage';
-    const accent = siteAccent || '#c2410c';
+    const palette = userPalette || 'klonkt';
+    const accent = siteAccent || '#e8b04b';
     const paletteData = this.getPalette(palette);
     const colors = theme === 'dark' ? paletteData.dark : paletteData.light;
 

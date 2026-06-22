@@ -142,7 +142,7 @@ export async function renderPage(req, res, viewName, data = {}) {
       // vorige pagina (bv. hub-paars i.p.v. eigen groen). Zelfde afleiding als shell.ejs.
       const _navAccent = (_site && _site.accent && /^#[0-9a-fA-F]{6}$/.test(_site.accent))
         ? _site.accent : '#c2410c';
-      const _navPalette = (_site && _site.palette) ? _site.palette : 'sage';
+      const _navPalette = (_site && _site.palette) ? _site.palette : 'klonkt';
       const triggerJson = JSON.stringify({
         pcmsNav: { bodyClass: locals.bodyClass, accent: _navAccent, palette: _navPalette },
         pcmsPostSwap: data.post ? {

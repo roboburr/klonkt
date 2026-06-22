@@ -108,6 +108,25 @@ input[type="datetime-local"]:hover::-webkit-calendar-picker-indicator { opacity:
     --rule: #3d3833; --rule-2: #4d4740;
 }
 
+/* ── KLONKT ── merk-standaard: off-white → donkerblauw (klonkt.com) ── */
+[data-palette="klonkt"] {
+    --paper: #f3f1ea; --paper-2: #e7e4d9;
+    --ink: #11141c; --ink-soft: #2b3040; --ink-muted: #5b6473; --ink-faint: #9aa3b2;
+    --rule: #d8d4c6; --rule-2: #c5c0af;
+}
+@media (prefers-color-scheme: dark) {
+    [data-palette="klonkt"]:not([data-theme="light"]) {
+        --paper: #0b0d12; --paper-2: #11141c;
+        --ink: #f3f1ea; --ink-soft: #c8cdd6; --ink-muted: #9aa3b2; --ink-faint: #6b7280;
+        --rule: #232a38; --rule-2: #2b3040;
+    }
+}
+[data-theme="dark"][data-palette="klonkt"] {
+    --paper: #0b0d12; --paper-2: #11141c;
+    --ink: #f3f1ea; --ink-soft: #c8cdd6; --ink-muted: #9aa3b2; --ink-faint: #6b7280;
+    --rule: #232a38; --rule-2: #2b3040;
+}
+
 /* ── PAPER ── minimalistisch wit → zwart ── */
 [data-palette="paper"] {
     --paper: #ffffff; --paper-2: #f4f4f5;

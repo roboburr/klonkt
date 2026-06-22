@@ -108,8 +108,8 @@ function siteEditableFields() {
     description: '',
     tagline: '',
     language: 'nl',
-    palette: 'sage',
-    accent: '#c2410c',
+    palette: 'klonkt',
+    accent: '#e8b04b',
     profile_photo: '',
     profile_enabled: 1,
     profile_name: '',
@@ -231,8 +231,8 @@ router.post('/create', requireGod, (req, res) => {
     (f.tagline || '').slice(0, 200),
     ownerId,
     f.language || 'nl',
-    f.palette || 'sage',
-    ThemeService.validateAccent(f.accent) || '#c2410c',
+    f.palette || 'klonkt',
+    ThemeService.validateAccent(f.accent) || '#e8b04b',
     f.profile_photo || null,
     f.is_public ? 1 : 0,
     f.robots_index ? 1 : 0,
@@ -290,7 +290,7 @@ router.post('/:slug/save', requireSiteManagerBySlug, (req, res) => {
 
   // accent: only accept colors from the curated ACCENTS list. Falls back to
   // the orange default if the submitted value isn't recognised.
-  const accent = ThemeService.validateAccent(f.accent) || '#c2410c';
+  const accent = ThemeService.validateAccent(f.accent) || '#e8b04b';
 
   db.prepare(`
     UPDATE sites SET
@@ -311,7 +311,7 @@ router.post('/:slug/save', requireSiteManagerBySlug, (req, res) => {
     (f.description || '').slice(0, 500),
     (f.tagline || '').slice(0, 200),
     f.language || 'nl',
-    f.palette || 'sage',
+    f.palette || 'klonkt',
     accent,
     themeOverride,
     f.profile_photo || null,

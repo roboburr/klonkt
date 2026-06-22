@@ -163,7 +163,7 @@ router.post('/register', registerLimiter, (req, res) => {
     db.prepare(`INSERT INTO site_members (site_id, user_id, role) VALUES (?, ?, 'admin')`).run(siteId, userId);
   }
 
-  req.session.user = { id: userId, username, email, role: 'god', palette: 'sage', theme: 'dark' };
+  req.session.user = { id: userId, username, email, role: 'god', palette: 'klonkt', theme: 'dark' };
   res.redirect(next || '/');
 });
 
