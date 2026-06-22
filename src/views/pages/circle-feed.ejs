@@ -1,28 +1,18 @@
 <div class="container cirkel-hero">
   <span class="cirkel-badge" aria-hidden="true">
-    <svg viewBox="0 0 1024 1024" fill="none">
+    <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
       <defs>
-        <marker id="cf-arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0,0 L12,6 L0,12 Z" fill="currentColor"/></marker>
+        <marker id="cf-a" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="3.4" markerHeight="3.4" orient="auto-start-reverse"><path d="M2 2 L7 5 L2 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></marker>
       </defs>
-      <circle cx="512" cy="512" r="420" fill="none" stroke="currentColor" stroke-width="10"/>
-      <g fill="currentColor">
-        <circle cx="300" cy="520" r="24"/>
-        <circle cx="500" cy="510" r="28"/>
-        <circle cx="670" cy="320" r="24"/>
-        <circle cx="720" cy="610" r="24"/>
-        <circle cx="400" cy="760" r="24"/>
-      </g>
-      <g stroke="currentColor" stroke-width="10" fill="none">
-        <line x1="330" y1="520" x2="460" y2="510" marker-end="url(#cf-arrow)"/>
-        <line x1="520" y1="500" x2="640" y2="350" marker-end="url(#cf-arrow)"/>
-        <line x1="530" y1="520" x2="680" y2="600" marker-end="url(#cf-arrow)"/>
-        <line x1="690" y1="350" x2="710" y2="580" marker-end="url(#cf-arrow)"/>
-        <line x1="320" y1="550" x2="390" y2="720" marker-end="url(#cf-arrow)"/>
-        <line x1="420" y1="740" x2="690" y2="620" marker-end="url(#cf-arrow)"/>
-        <path d="M610 280 C480 260, 430 360, 460 480" marker-end="url(#cf-arrow)"/>
-        <path d="M710 340 C860 360, 860 700, 450 800" marker-end="url(#cf-arrow)"/>
-        <path d="M330 600 C480 660, 600 760, 720 650" marker-end="url(#cf-arrow)"/>
-      </g>
+      <circle cx="32" cy="32" r="29"/>
+      <line x1="30.5" y1="22" x2="37.5" y2="22" marker-end="url(#cf-a)"/>
+      <line x1="37.5" y1="25.5" x2="30.5" y2="25.5" marker-end="url(#cf-a)"/>
+      <line x1="42.2" y1="28.4" x2="40.8" y2="38.1" marker-end="url(#cf-a)"/>
+      <line x1="26.3" y1="39.7" x2="34.3" y2="42.2" marker-end="url(#cf-a)"/>
+      <circle cx="25" cy="24" r="4.5"/>
+      <circle cx="43" cy="23" r="4.5"/>
+      <circle cx="40" cy="44" r="4.5"/>
+      <circle cx="21" cy="38" r="4.5"/>
     </svg>
   </span>
   <h1><%= t('cfeed.title') %></h1>
@@ -77,7 +67,7 @@
 
 <style>
 .cirkel-hero { text-align: center; max-width: 640px; margin: 2.5rem auto 2rem; }
-.cirkel-badge { display: block; width: 200px; height: 200px; margin: 0 auto .8rem; color: var(--accent); }
+.cirkel-badge { display: block; width: 104px; height: 104px; margin: 0 auto .7rem; color: var(--accent); }
 .cirkel-badge svg { width: 100%; height: 100%; }
 .cirkel-hero h1 { font-family: var(--font-display, serif); font-size: 2.4rem; margin: 0 0 .3rem; }
 .cirkel-sub { color: var(--ink-muted); margin: 0 0 1.25rem; font-size: 1.02rem; }
