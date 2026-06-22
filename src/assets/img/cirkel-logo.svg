@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" stroke="black" stroke-linecap="round" stroke-linejoin="round">
   <defs>
-    <marker id="cf-a" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="3.6" markerHeight="3.6" orient="auto-start-reverse">
+    <marker id="cf-a" viewBox="0 0 10 10" refX="6.5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
       <path d="M1.5 1.5 L8.5 5 L1.5 8.5 Z" fill="black" stroke="none"/>
     </marker>
   </defs>
