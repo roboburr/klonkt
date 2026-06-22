@@ -1,18 +1,5 @@
 <div class="container cirkel-hero">
-  <span class="cirkel-badge" aria-hidden="true">
-    <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
-      <defs>
-        <marker id="cf-a" viewBox="0 0 10 10" refX="6.5" refY="5" markerWidth="3" markerHeight="3" orient="auto-start-reverse"><path d="M2 2 L7 5 L2 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></marker>
-      </defs>
-      <circle cx="50" cy="50" r="45"/>
-      <line x1="35" y1="40" x2="54" y2="29" marker-start="url(#cf-a)" marker-end="url(#cf-a)"/>
-      <line x1="65" y1="34" x2="65" y2="61" marker-end="url(#cf-a)"/>
-      <line x1="33.2" y1="53.3" x2="54" y2="66.2" marker-end="url(#cf-a)"/>
-      <circle cx="23" cy="47" r="9"/>
-      <circle cx="65" cy="23" r="9"/>
-      <circle cx="65" cy="73" r="9"/>
-    </svg>
-  </span>
+  <span class="cirkel-badge" aria-hidden="true"></span>
   <h1><%= t('cfeed.title') %></h1>
   <p class="cirkel-sub"><%= t('cfeed.sub') %></p>
   <% if (typeof sites !== 'undefined' && sites && sites.length) { %>
@@ -65,7 +52,9 @@
 
 <style>
 .cirkel-hero { text-align: center; max-width: 640px; margin: 2.5rem auto 2rem; }
-.cirkel-badge { display: block; width: 104px; height: 104px; margin: 0 auto .7rem; color: var(--accent); }
+.cirkel-badge { display: block; width: 104px; height: 104px; margin: 0 auto .7rem; background-color: var(--accent);
+  -webkit-mask: url('/assets/img/cirkel-logo.svg?v=3') center / contain no-repeat;
+          mask: url('/assets/img/cirkel-logo.svg?v=3') center / contain no-repeat; }
 .cirkel-badge svg { width: 100%; height: 100%; }
 .cirkel-hero h1 { font-family: var(--font-display, serif); font-size: 2.4rem; margin: 0 0 .3rem; }
 .cirkel-sub { color: var(--ink-muted); margin: 0 0 1.25rem; font-size: 1.02rem; }
