@@ -7,17 +7,17 @@
   var _download_btn = t('dl.download_btn');
 %>
 <%
-  var t = (typeof dlTrack !== 'undefined') ? dlTrack : {};
+  var tr = (typeof dlTrack !== 'undefined') ? dlTrack : {};
   var st = (typeof dlState !== 'undefined') ? dlState : 'form';
-  var fileUrl = siteUrlBase + '/download/' + t.id + '/bestand';
+  var fileUrl = siteUrlBase + '/download/' + tr.id + '/bestand';
 %>
 <section class="dl">
   <div class="dl-card">
     <div class="dl-head">
-      <% if (t.cover_url) { %><span class="dl-cover" style="background-image:url('<%= t.cover_url %>')"></span><% } else { %><span class="dl-cover dl-cover-empty">♪</span><% } %>
+      <% if (tr.cover_url) { %><span class="dl-cover" style="background-image:url('<%= tr.cover_url %>')"></span><% } else { %><span class="dl-cover dl-cover-empty">♪</span><% } %>
       <div>
-        <div class="dl-title"><%= t.title %></div>
-        <% if (t.artist) { %><div class="dl-artist"><%= t.artist %></div><% } %>
+        <div class="dl-title"><%= tr.title %></div>
+        <% if (tr.artist) { %><div class="dl-artist"><%= tr.artist %></div><% } %>
       </div>
     </div>
 
@@ -30,10 +30,10 @@
         setTimeout(function(){ try { window.location.href = <%- JSON.stringify(fileUrl) %>; } catch(e){} }, 600);
       </script>
     <% } else { %>
-      <h1 class="dl-h1"><%= _download_btn %> <%= t.title %></h1>
+      <h1 class="dl-h1"><%= _download_btn %> <%= tr.title %></h1>
       <p class="dl-sub"><%= _capture_sub %></p>
       <% if (typeof dlError !== 'undefined' && dlError) { %><p class="dl-err"><%= dlError %></p><% } %>
-      <form method="POST" action="<%= siteUrlBase %>/download/<%= t.id %>" class="dl-form">
+      <form method="POST" action="<%= siteUrlBase %>/download/<%= tr.id %>" class="dl-form">
         <input type="email" name="email" required placeholder="<%= _email_ph %>" value="<%= (typeof dlPrefill!=='undefined')?dlPrefill:'' %>" autocomplete="email">
         <button type="submit" class="dl-go">⬇ <%= _download_btn %></button>
       </form>
