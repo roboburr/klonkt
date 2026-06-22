@@ -34,11 +34,6 @@ class ThemeService {
       light: { paper: '#ffffff', ink: '#09090b', accent: '#000000' },
       dark: { paper: '#0a0a0a', ink: '#fafafa', accent: '#ffffff' }
     },
-    ocean: {
-      name: 'Ocean',
-      light: { paper: '#f0f6fb', ink: '#0f1e2e', accent: '#0369a1' },
-      dark: { paper: '#0a1929', ink: '#e0f2fe', accent: '#38bdf8' }
-    },
     forest: {
       name: 'Forest',
       light: { paper: '#f2f6ed', ink: '#1a2e15', accent: '#4d7c2a' },
@@ -68,12 +63,6 @@ class ThemeService {
       name: 'Rose',
       light: { paper: '#fdf2f4', ink: '#2e1419', accent: '#e11d6b' },
       dark: { paper: '#1f0a0f', ink: '#fce4ea', accent: '#f06b9a' }
-    },
-    // key blijft 'slate' (DB-veilig), maar omgekleurd naar warm Goud — minder blauw.
-    slate: {
-      name: 'Goud',
-      light: { paper: '#fdf8ea', ink: '#2a2410', accent: '#b8860b' },
-      dark: { paper: '#1a1608', ink: '#f7eecd', accent: '#d4a72c' }
     },
     // key blijft 'mint' (DB-veilig), maar omgekleurd naar warm Terracotta — minder groen.
     mint: {
