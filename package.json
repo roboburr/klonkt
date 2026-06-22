@@ -1,6 +1,6 @@
 {
   "name": "klonkt",
-  "version": "1.0.0-beta.2",
+  "version": "1.0.0-beta.3",
   "description": "Klonkt — zelf-gehost multi-site muziek- & blogplatform met community, realtime en (later) E2EE DMs. Node + SQLite + htmx.",
   "type": "module",
   "main": "src/server.js",

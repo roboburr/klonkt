@@ -25,10 +25,16 @@ import { t as i18nT, resolveLang, SUPPORTED as LANGS, LANG_NAMES } from '../serv
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const VIEWS_DIR = path.join(__dirname, '..', 'views');
 
-// App-versie (uit package.json) — getoond in de footer naast "Klonkt Beta".
+// App-versie (uit package.json) + korte commit-hash (uit .klonkt-version, door de
+// deploy geschreven) — getoond in de footer naast "Klonkt Beta". De hash loopt
+// automatisch mee bij élke deploy, dus de versie is nooit meer stale.
 let APP_VERSION = '';
 try {
   APP_VERSION = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8')).version || '';
+  try {
+    const sha = fs.readFileSync(path.join(__dirname, '..', '..', '.klonkt-version'), 'utf8').trim().slice(0, 7);
+    if (sha) APP_VERSION += ' · ' + sha;
+  } catch { /* geen .klonkt-version (lokale dev) */ }
 } catch { /* geen versie beschikbaar */ }
 
 // Site-tijdzone (Beheer → Instellingen). Leeg = server-default (UTC). Wordt
