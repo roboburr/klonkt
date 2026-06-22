@@ -193,9 +193,11 @@ export async function syncOne(link) {
     db.transaction((ids) => ids.forEach((id) => del.run(id)))(stale);
   }
 
+  // Naam automatisch overnemen van de remote actor (geen handmatige invoer nodig).
+  // COALESCE: heeft de actor geen naam, dan blijft een evt. bestaand label staan.
   db.prepare(
-    "UPDATE circle_links SET remote_actor_id=?, last_synced=CURRENT_TIMESTAMP, status='active', last_error=NULL WHERE id=?"
-  ).run(actorId, link.id);
+    "UPDATE circle_links SET remote_actor_id=?, label=COALESCE(?, label), last_synced=CURRENT_TIMESTAMP, status='active', last_error=NULL WHERE id=?"
+  ).run(actorId, actor.name || null, link.id);
 
   return { ok: true, actorId, items: seen.size, pruned: stale.length };
 }
