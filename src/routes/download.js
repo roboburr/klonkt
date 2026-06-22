@@ -43,7 +43,7 @@ const GRACE_MS = 15 * 60 * 1000; // download-venster na capture
 
 function dlTrack(siteId, id) {
   return db.prepare(
-    `SELECT t.id, t.title, t.artist, t.cover_url, m.storage_path
+    `SELECT t.id, t.title, t.artist, t.cover_url, m.storage_path, m.filename
        FROM audio_tracks t JOIN media m ON m.id = t.media_id
       WHERE t.id = ? AND t.site_id = ? AND t.downloadable = 1`
   ).get(id, siteId);
@@ -128,7 +128,9 @@ router.get('/download/:id/bestand', (req, res, next) => {
   if (!ts || (Date.now() - ts) > GRACE_MS) {
     return res.status(403).send('Laat eerst je e-mailadres achter om te downloaden.');
   }
-  const sp = track.storage_path;
+  // De speelbare/te-downloaden file = de KALE filename (storage_path is een
+  // absoluut pad → faalt de slash-guard). Zelfde aanpak als /audio/stream.
+  const sp = track.filename;
   if (!sp || sp.includes('/') || sp.includes('\\') || sp.includes('..')) return res.status(400).send('Bad path');
   const filePath = path.join(AUDIO_DIR, sp);
   if (!filePath.startsWith(AUDIO_DIR + path.sep)) return res.status(400).send('Bad path');
