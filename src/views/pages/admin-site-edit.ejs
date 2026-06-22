@@ -23,9 +23,10 @@
         <span><%= t('asite.field_title') %> <small class="form-hint-inline"><%= t('asite.field_title_hint') %></small></span>
         <input type="text" name="title" value="<%= site.title || '' %>" required maxlength="200">
       </label>
-      <%# Eigenaar (her)toewijzen — ALLEEN god. In hub-modus geef je zo elke
-          gebruiker z'n eigen, zelf te beheren Klonkt. Niet-god ziet dit niet. %>
-      <% if (user && user.role === 'god') { %>
+      <%# Eigenaar (her)toewijzen — ALLEEN god ÉN alleen in hub-modus. In hub geef
+          je zo elke gebruiker z'n eigen, zelf te beheren Klonkt. In solo (één site,
+          één eigenaar) is dit zinloos/verwarrend, dus verborgen. %>
+      <% if (user && user.role === 'god' && (typeof tenancy !== 'undefined' && tenancy === 'hub')) { %>
       <label>
         <span><%= t('asite.owner') %> <small class="form-hint-inline"><%= t('asite.owner_hint') %></small></span>
         <% var _godSuffix = t('asite.owner_god_suffix'); %>
