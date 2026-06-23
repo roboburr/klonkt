@@ -162,13 +162,6 @@
         <input type="checkbox" name="enable_audio_player" value="1" <%= site.enable_audio_player ? 'checked' : '' %>>
         <span><%= t('asite.enable_audio') %></span>
       </label>
-      <%# Prutter is een Hub-only premium-functie — toggle alleen tonen in Hub-modus. %>
-      <% if (typeof tenancy !== 'undefined' && tenancy === 'hub') { %>
-      <label class="cb">
-        <input type="checkbox" name="enable_prutter" value="1" <%= site.enable_prutter ? 'checked' : '' %>>
-        <span><%= t('asite.enable_prutter') %> <small class="form-hint-inline"><%= t('asite.enable_prutter_hint') %></small></span>
-      </label>
-      <% } %>
     </fieldset>
 
     <fieldset class="profile-links-fieldset">

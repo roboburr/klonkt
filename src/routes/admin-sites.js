@@ -97,7 +97,7 @@ router.post('/upload-photo', requireAuth, (req, res) => {
 
 const RESERVED_SITE_SLUGS = new Set([
   'auth', 'admin', 'login', 'register', 'logout', 'archive', 'search',
-  'account', 'sites', 'comments', 'posts', 'media', 'audio', 'prutter',
+  'account', 'sites', 'comments', 'posts', 'media', 'audio',
   'forum', 'tag', 'user', 'users', 'artiesten', 'leden', 'feed.xml', 'atom.xml', 'sitemap.xml',
   'manifest.webmanifest', 'sw.js', 'favicon.ico', 'favicon.svg', 'assets',
 ]);
@@ -118,7 +118,6 @@ function siteEditableFields() {
     robots_index: 1,
     require_login_to_comment: 1,
     enable_audio_player: 1,
-    enable_prutter: 1,
     comments_moderation_mode: 'moderate',
     feed_view_default: 'grid',
     feed_view_switch: 1,
@@ -299,7 +298,7 @@ router.post('/:slug/save', requireSiteManagerBySlug, (req, res) => {
       profile_enabled = ?,
       profile_links = ?,
       is_public = ?, robots_index = ?, require_login_to_comment = ?,
-      enable_audio_player = ?, enable_prutter = ?,
+      enable_audio_player = ?,
       comments_moderation_mode = ?,
       feed_view_default = ?, feed_view_switch = ?,
       show_search = ?, show_archive_link = ?,
@@ -321,7 +320,6 @@ router.post('/:slug/save', requireSiteManagerBySlug, (req, res) => {
     f.robots_index ? 1 : 0,
     f.require_login_to_comment ? 1 : 0,
     f.enable_audio_player ? 1 : 0,
-    f.enable_prutter ? 1 : 0,
     moderationMode,
     feedViewDef,
     f.feed_view_switch ? 1 : 0,

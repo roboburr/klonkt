@@ -14,7 +14,6 @@
 const _siteUrlBase = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '';
 const _isAdmin     = typeof bodyClass !== 'undefined' && bodyClass.indexOf('on-admin') >= 0;
 const _hasSearch   = !site || site.show_search === undefined || site.show_search;
-const _hasPrutter  = user && site && site.enable_prutter && (typeof tenancy !== 'undefined' && tenancy === 'hub') && (typeof premiumUnlocked === 'undefined' || premiumUnlocked);
 const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
                      && permissions && permissions.canCreatePost && permissions.canCreatePost(user, site);
 %>
@@ -97,12 +96,6 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
             <% }); %>
           </div>
         </details>
-      <% } %>
-
-      <% if (_hasPrutter) { %>
-        <a class="nav-btn" href="<%= _siteUrlBase %>/prutter" aria-label="Prutter (DMs)" title="Prutter">
-          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        </a>
       <% } %>
 
       <% if (user) { %>

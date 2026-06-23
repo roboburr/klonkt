@@ -80,7 +80,7 @@ router.post('/posts/upload-image', requireAuth, (req, res) => {
 const RESERVED_SLUGS = new Set([
   'auth', 'admin', 'login', 'register', 'logout',
   'archive', 'search', 'account', 'sites', 'comments',
-  'posts', 'media', 'audio', 'prutter', 'forum',
+  'posts', 'media', 'audio', 'forum',
   'tag', 'type', 'user', 'users', 'artiesten', 'leden', 'favorieten', 'feed.xml', 'atom.xml', 'sitemap.xml',
   'manifest.webmanifest', 'sw.js', 'favicon.ico', 'favicon.svg', 'assets',
 ]);

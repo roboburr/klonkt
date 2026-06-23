@@ -12,7 +12,6 @@ const _siteUrlBase = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteU
 const _path        = (typeof currentPath !== 'undefined' && currentPath) ? currentPath : '/';
 const _canPost     = !!(user && (typeof canMutate === 'undefined' || canMutate)
                         && permissions && permissions.canCreatePost && permissions.canCreatePost(user, site));
-const _hasPrutter  = !!(user && site && site.enable_prutter && (typeof tenancy !== 'undefined' && tenancy === 'hub') && (typeof premiumUnlocked === 'undefined' || premiumUnlocked));
 const _ownProfile  = user ? ('/users/' + user.username) : null;
 const _isHub       = (typeof tenancy !== 'undefined' && tenancy === 'hub');
 // Home gaat in hub-modus ALTIJD naar de hub-root (/), niet naar de sub-home van
@@ -31,7 +30,6 @@ let _active = null;
 if (_isHub ? (_path === '/') : (_p === '/' || _p === '')) _active = 'home';
 else if (_p.indexOf('/search') === 0 || _p.indexOf('/tag/') === 0 || _p.indexOf('/type/') === 0) _active = 'search';
 else if (_p === '/posts/new' || /^\/posts\/[^/]+\/edit$/.test(_p)) _active = 'create';
-else if (_p.indexOf('/prutter') === 0) _active = 'prutter';
 else if (_p.indexOf('/account') === 0 || (_ownProfile && _p.indexOf(_ownProfile) === 0)) _active = 'profile';
 else if (_p.indexOf('/auth/login') === 0) _active = 'login';
 %>
@@ -79,20 +77,6 @@ else if (_p.indexOf('/auth/login') === 0) _active = 'login';
     </a>
   <% } %>
 
-  <!-- Prutter (DMs) -->
-  <% if (_hasPrutter) { %>
-    <a class="bottom-tab-item<%= _active === 'prutter' ? ' is-active' : '' %>"
-       href="<%= _siteUrlBase %>/prutter"
-       aria-label="Prutter berichten" <%= _active === 'prutter' ? 'aria-current="page"' : '' %>>
-      <svg class="bottom-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-      </svg>
-      <span class="bottom-tab-label">Prutter</span>
-      <% if (typeof unreadDmCount !== 'undefined' && unreadDmCount > 0) { %>
-        <span class="bottom-tab-badge" aria-label="<%= unreadDmCount %> ongelezen"><%= unreadDmCount > 99 ? '99+' : unreadDmCount %></span>
-      <% } %>
-    </a>
-  <% } %>
 
   <!-- Profiel / Inloggen -->
   <% if (user) { %>

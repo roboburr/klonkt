@@ -46,8 +46,6 @@ export function initializeDatabase() {
   ensureColumn('users', 'lang', 'TEXT');
   // Site-level moderation toggle. 'trust' = auto-approve, 'moderate' = pending until reviewed.
   ensureColumn('sites', 'comments_moderation_mode', "TEXT DEFAULT 'moderate'");
-  // Per-site Prutter toggle: when off, DM endpoints/UI are hidden for that site.
-  ensureColumn('sites', 'enable_prutter', 'INTEGER DEFAULT 1');
   // Cirkels: mag deze site in cirkels van anderen verschijnen (surfacing opt-out).
   ensureColumn('sites', 'allow_circle', 'INTEGER DEFAULT 1');
 

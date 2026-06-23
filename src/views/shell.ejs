@@ -32,7 +32,7 @@ let _shouldIndex = safeSite.robots_index !== 0;
 if (typeof post !== 'undefined' && post && post.noindex) _shouldIndex = false;
 // Listing pages (search/tag/type/archive) shouldn't be indexed (dupe content)
 if (currentPath) {
-  if (/^\/(?:search|tag|type|archive|users|prutter|account|admin)(?:$|\/)/.test(currentPath)) {
+  if (/^\/(?:search|tag|type|archive|users|account|admin)(?:$|\/)/.test(currentPath)) {
     _shouldIndex = false;
   }
 }

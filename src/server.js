@@ -18,9 +18,6 @@ import db, { initializeDatabase } from './config/database.js';
 import { startScheduler } from './services/Scheduler.js';
 import { SqliteSessionStore } from './services/SqliteSessionStore.js';
 import { ensurePrimarySite } from './services/ensurePrimarySite.js';
-import PrutterService from './services/PrutterService.js';
-import { WebSocketServer } from 'ws';
-
 import { resolveSite, loadAudioTracks, loadTheme } from './middleware/site.js';
 import { isViewer } from './middleware/auth.js';
 import { renderPage } from './middleware/render.js';
@@ -35,7 +32,6 @@ import adminUsersRoutes from './routes/admin-users.js';
 import adminCommentsRoutes from './routes/admin-comments.js';
 import adminSettingsRoutes from './routes/admin-settings.js';
 import adminSeoRoutes from './routes/admin-seo.js';
-import prutterRoutes from './routes/prutter.js';
 import audioRoutes from './routes/audio.js';
 import searchRoutes from './routes/search.js';
 import commentsRoutes from './routes/comments.js';
@@ -205,10 +201,6 @@ startCircleSyncLoop();
   }
 })();
 
-// Singleton PrutterService — routes get it via req.app.locals.prutter.
-const prutter = new PrutterService(db);
-app.locals.prutter = prutter;
-
 // Cirkels-federatie: publieke, site-agnostische endpoints (/.klonkt/*).
 // Vóór resolveSite/theme — ze hebben geen site-context nodig.
 app.use(federationRoutes);
@@ -273,7 +265,6 @@ app.use('/admin/newsletter', adminNewsletterRoutes);
 app.use('/admin/shows', adminShowsRoutes);
 app.use('/admin/epk', adminEpkRoutes);
 app.use('/admin', adminRoutes);
-app.use('/prutter', prutterRoutes);
 app.use('/audio', audioRoutes);
 app.use('/search', searchRoutes);
 app.use('/comments', commentsRoutes);
@@ -421,57 +412,6 @@ app.use((req, res) => {
   }
 });
 
-// ==================== WebSocket: Prutter real-time ====================
-// Authenticate via the existing session cookie. We reuse sessionMiddleware
-// during the HTTP upgrade so req.session is populated; if no user, abort.
-const wss = new WebSocketServer({ noServer: true });
-
-server.on('upgrade', (req, socket, head) => {
-  if (req.url !== '/ws/prutter') {
-    socket.destroy();
-    return;
-  }
-  // Run session middleware on the upgrade request.
-  // (Express's middleware accepts (req, res, next); we pass a stub res.)
-  const stubRes = { setHeader: () => {}, getHeader: () => undefined, on: () => {}, end: () => {} };
-  sessionMiddleware(req, stubRes, () => {
-    if (!req.session?.user) {
-      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-      socket.destroy();
-      return;
-    }
-    // Kijker-accounts zijn alleen-lezen: weiger de WS-upgrade. De HTTP-guard
-    // dekt geen WS, dus dit is de plek om schrijven via een (toekomstige)
-    // message-handler te voorkomen.
-    if (isViewer(req.session.user)) {
-      socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
-      socket.destroy();
-      return;
-    }
-    wss.handleUpgrade(req, socket, head, (ws) => {
-      ws.userId = req.session.user.id;
-      wss.emit('connection', ws, req);
-    });
-  });
-});
-
-wss.on('connection', (ws) => {
-  prutter.addConnection(ws.userId, ws);
-  ws.on('close', () => prutter.removeConnection(ws.userId, ws));
-  ws.on('error', () => prutter.removeConnection(ws.userId, ws));
-  // Optional: ping every 30s to keep connections alive through proxies
-  ws.isAlive = true;
-  ws.on('pong', () => { ws.isAlive = true; });
-});
-const wsPing = setInterval(() => {
-  for (const ws of wss.clients) {
-    if (ws.isAlive === false) { ws.terminate(); continue; }
-    ws.isAlive = false;
-    try { ws.ping(); } catch {}
-  }
-}, 30000);
-if (wsPing.unref) wsPing.unref();
-
 server.listen(PORT, () => {
   console.log('');
   console.log('🪶 Klonkt Beta');
@@ -482,7 +422,6 @@ server.listen(PORT, () => {
   console.log(`   ✓ Layout:   v9 editorial feel (top nav, profile header)`);
   console.log(`   ✓ Auth:     wachtwoord (beheer) + Google (luisteraars) / logout`);
   console.log(`   ✓ Posts:    create / edit / view / archive`);
-  console.log(`   ✓ Realtime: WebSocket server ready (Prutter)`);
   console.log('');
   console.log(`   Mode: ${isDev ? 'development' : 'PRODUCTION'}`);
   console.log('');
