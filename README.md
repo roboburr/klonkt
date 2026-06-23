@@ -33,42 +33,85 @@ creates itself on first start.
 
 ### Option A — One-command VPS installer (recommended)
 
-**Best on a fresh, empty Debian/Ubuntu VPS** — a cheap box with nothing else on
-it. One command installs Node 20, Caddy (automatic HTTPS) and a systemd service.
-If the server already runs something it adapts (picks a free port and skips Caddy
-when another web server is present, then prints reverse-proxy instructions), but a
-clean VPS is the simplest, most reliable setup:
+**Good if:** you have (or just rented) a fresh, empty Debian/Ubuntu VPS and want
+the easiest path. This single line does everything — installs Node 20, sets up
+Caddy for automatic HTTPS, runs Klonkt as a background service that auto-restarts
+on reboot, and adds an update command. It's coexistence-safe (if the server
+already runs something it picks a free port and skips Caddy), but a clean VPS is
+simplest. Point your domain's DNS (A + AAAA records) at the server first, then run
+as root:
 
 ```bash
 curl -fsSL https://klonkt.com/install.sh | sudo bash -s -- --domain yourdomain.com
 ```
 
-Then open your domain and finish setup in the browser. Update later with `klonkt-update`.
+Then open `https://yourdomain.com` and finish setup in the browser. Update anytime
+with `klonkt-update`.
 
 ### Option B — Docker
 
-Node, ffmpeg and cwebp are inside the image; you only need Docker.
+**Good if:** you already use Docker, or want everything bundled in one isolated
+container. Node, ffmpeg and cwebp are inside the image — you only need Docker +
+Docker Compose.
 
 ```bash
-git clone https://github.com/roboburr/klonkt.git && cd klonkt
-cp .env.example .env          # set SESSION_SECRET + PUBLIC_BASE_URL
+git clone https://github.com/roboburr/klonkt.git
+cd klonkt
+cp .env.example .env          # then edit .env: set SESSION_SECRET + PUBLIC_BASE_URL
 docker compose up -d
 ```
 
-Data (database + media) stays in the `klonkt-data` volume, even across updates.
-Updating: `git pull && docker compose up -d --build`.
+Klonkt runs on port 3000 — put your own reverse proxy in front for HTTPS (see
+step 5 of Option C). Data (database + media) stays in the `klonkt-data` volume,
+even across updates. Update: `git pull && docker compose up -d --build`.
 
-### Option C — bare Node (20+)
+### Option C — manual (Node 20+), step by step
+
+**Good if:** you want full control, are adding Klonkt to a server you already
+manage, or just want to test it locally.
+
+**1. Get the code & install dependencies**
 
 ```bash
-git clone https://github.com/roboburr/klonkt.git && cd klonkt
+git clone https://github.com/roboburr/klonkt.git
+cd klonkt
 npm ci
-cp .env.example .env          # set SESSION_SECRET + PUBLIC_BASE_URL
-npm start                     # the database is created on first start
 ```
 
-For production, put it behind a process manager (pm2/systemd) and a
-reverse proxy. `cwebp` is optional (`apt install webp`) for WebP images.
+**2. Create your config** — copy the example and edit it; at minimum set a long
+random `SESSION_SECRET` and your `PUBLIC_BASE_URL` (e.g. `https://yourdomain.com`):
+
+```bash
+cp .env.example .env
+nano .env
+```
+
+**3. Start it** — the SQLite database is created automatically on first start:
+
+```bash
+npm start          # runs on http://localhost:3000
+```
+
+Just testing locally? Stop here and open `http://localhost:3000`.
+
+**4. Keep it running** across crashes and reboots (easiest is pm2):
+
+```bash
+npm install -g pm2
+pm2 start src/server.js --name klonkt
+pm2 save && pm2 startup     # run the one command it prints, once
+```
+
+**5. Add HTTPS** with a reverse proxy in front. With Caddy (automatic
+certificates), put this in `/etc/caddy/Caddyfile` and reload Caddy:
+
+```caddy
+yourdomain.com {
+    reverse_proxy localhost:3000
+}
+```
+
+(`cwebp` is optional — `apt install webp` — for WebP image conversion.)
 
 ### HTTPS (Docker / bare Node)
 
