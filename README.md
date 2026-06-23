@@ -57,10 +57,11 @@ Docker Compose.
 ```bash
 git clone https://github.com/roboburr/klonkt.git
 cd klonkt
-cp .env.example .env          # then edit .env: set SESSION_SECRET + PUBLIC_BASE_URL
+cp .env.example .env          # works as-is; optionally set PUBLIC_BASE_URL to your domain
 docker compose up -d
 ```
 
+`SESSION_SECRET` is auto-generated on first start, so the defaults work as-is.
 Klonkt runs on port 3000 — put your own reverse proxy in front for HTTPS (see
 step 5 of Option C). Data (database + media) stays in the `klonkt-data` volume,
 even across updates. Update: `git pull && docker compose up -d --build`.
@@ -78,12 +79,14 @@ cd klonkt
 npm ci
 ```
 
-**2. Create your config** — copy the example and edit it; at minimum set a long
-random `SESSION_SECRET` and your `PUBLIC_BASE_URL` (e.g. `https://yourdomain.com`):
+**2. Create your config.** `SESSION_SECRET` (the key that signs login cookies) is
+auto-generated on first start, so this works as-is. For production, set
+`PUBLIC_BASE_URL` to your site address (e.g. `https://yourdomain.com`) so email &
+login links are correct:
 
 ```bash
 cp .env.example .env
-nano .env
+nano .env          # optional: PUBLIC_BASE_URL, plus SMTP / Google if you want them
 ```
 
 **3. Start it** — the SQLite database is created automatically on first start:

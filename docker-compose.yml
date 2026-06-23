@@ -1,11 +1,13 @@
-# Klonkt — zelf-host met Docker Compose.
+# Klonkt — self-host with Docker Compose.
 #
-#   1. cp .env.example .env   en vul SESSION_SECRET + PUBLIC_BASE_URL in
+#   1. cp .env.example .env     (works as-is: SESSION_SECRET is auto-generated;
+#                                optionally set PUBLIC_BASE_URL to your domain so
+#                                email/login links are correct)
 #   2. docker compose up -d
-#   3. open je site en maak via /auth/register je beheerdersaccount aan
+#   3. open your site and create your admin account at /auth/register
 #
-# Standaard luistert de app op poort 3000. Zet er een reverse-proxy (Caddy/
-# nginx) vóór voor HTTPS op je domein — zie README.
+# The app listens on port 3000. Put a reverse proxy (Caddy/nginx) in front for
+# HTTPS on your domain — see README.
 services:
   klonkt:
     build: .

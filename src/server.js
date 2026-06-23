@@ -12,6 +12,7 @@ import session from 'express-session';
 import bodyParser from 'body-parser';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import http from 'http';
 import db, { initializeDatabase } from './config/database.js';
@@ -62,13 +63,24 @@ import adminShowsRoutes from './routes/admin-shows.js';
 import adminEpkRoutes from './routes/admin-epk.js';
 import changelogRoutes from './routes/changelog.js';
 
+// SESSION_SECRET: use the env var if set. Otherwise auto-generate a strong one
+// and persist it next to the database, so it stays stable across restarts and
+// updates. This lets Docker / bare-Node installs run with zero manual config.
 if (!process.env.SESSION_SECRET) {
-  console.error('❌ FATAL: SESSION_SECRET is required');
-  process.exit(1);
+  const dataDir = path.dirname(process.env.DATABASE_PATH || './storage/database.sqlite');
+  const secretFile = path.join(dataDir, '.session-secret');
+  try { process.env.SESSION_SECRET = fs.readFileSync(secretFile, 'utf8').trim(); } catch { /* not yet generated */ }
+  if (!process.env.SESSION_SECRET) {
+    fs.mkdirSync(dataDir, { recursive: true });
+    process.env.SESSION_SECRET = crypto.randomBytes(32).toString('hex');
+    fs.writeFileSync(secretFile, process.env.SESSION_SECRET, { mode: 0o600 });
+    console.log(`🔑 Generated a SESSION_SECRET (stored in ${secretFile})`);
+  }
 }
 
+// A SESSION_SECRET that was explicitly set in the env must still be strong in prod.
 if (process.env.NODE_ENV === 'production' && process.env.SESSION_SECRET.length < 32) {
-  console.error('❌ FATAL: SESSION_SECRET too weak for production');
+  console.error('❌ FATAL: SESSION_SECRET is too weak for production (set a longer, random one in .env)');
   process.exit(1);
 }
 
