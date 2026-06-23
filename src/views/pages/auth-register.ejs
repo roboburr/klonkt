@@ -1,14 +1,27 @@
 <div class="container auth-page">
-  <h1><%= t('auth.create_admin') %></h1>
-  <p class="auth-intro"><%= t('auth.reg_intro') %></p>
+  <h1><%= t('setup.title') %></h1>
+  <p class="auth-intro"><%= t('setup.intro') %></p>
+
+  <div class="setup-lang" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 20px">
+    <span style="opacity:.7;font-size:.9rem"><%= t('setup.lang_label') %>:</span>
+    <% (typeof langs !== 'undefined' ? langs : []).forEach(function(L){ %>
+      <a href="/lang/<%= L.code %>?r=/auth/register"
+         style="padding:5px 13px;border-radius:8px;text-decoration:none;font-weight:600;font-size:.9rem;border:1px solid <%= L.active ? 'var(--accent)' : 'var(--rule, #2b3140)' %>;color:<%= L.active ? 'var(--accent)' : 'inherit' %>"><%= L.name %></a>
+    <% }) %>
+  </div>
+
   <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
   <form method="post" action="/auth/register" class="auth-form">
     <% if (typeof next !== 'undefined' && next) { %>
       <input type="hidden" name="next" value="<%= next %>">
     <% } %>
     <label>
+      <span><%= t('setup.f_sitename') %></span>
+      <input type="text" name="siteName" value="<%= typeof siteName !== 'undefined' ? siteName : '' %>" required autofocus maxlength="80" placeholder="<%= t('setup.sitename_ph') %>">
+    </label>
+    <label>
       <span><%= t('auth.f_username') %></span>
-      <input type="text" name="username" value="<%= username %>" required autofocus autocomplete="username" pattern="[a-zA-Z0-9_-]{3,32}">
+      <input type="text" name="username" value="<%= username %>" required autocomplete="username" pattern="[a-zA-Z0-9_-]{3,32}">
     </label>
     <label>
       <span><%= t('auth.f_email') %></span>
@@ -18,6 +31,6 @@
       <span><%= t('auth.f_password') %></span>
       <input type="password" name="password" required minlength="8" autocomplete="new-password">
     </label>
-    <button type="submit" class="btn btn-primary"><%= t('auth.create_admin') %></button>
+    <button type="submit" class="btn btn-primary"><%= t('setup.submit') %></button>
   </form>
 </div>

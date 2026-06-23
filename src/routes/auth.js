@@ -16,6 +16,8 @@ function fanLoginReady() {
   return googleConfigured() && premiumUnlocked();
 }
 import { mailerConfigured, sendMail } from '../config/mailer.js';
+import { resolveLang, t } from '../services/i18n.js';
+import { setSetting } from '../services/SettingsService.js';
 
 const router = express.Router();
 
@@ -123,17 +125,17 @@ router.get('/register', (req, res) => {
   // Geen publieke registratie: alleen de allereerste beheerder mag hier aangemaakt.
   if (!isSetupMode()) return res.redirect('/auth/login' + (next ? '?next=' + encodeURIComponent(next) : ''));
   renderPage(req, res, 'pages/auth-register', {
-    pageTitle: 'Beheerder aanmaken', bodyClass: 'on-special',
-    error: null, username: '', email: '', next,
+    pageTitle: t(resolveLang(req), 'setup.title'), bodyClass: 'on-special',
+    error: null, username: '', email: '', siteName: '', next,
   });
 });
 
 router.post('/register', registerLimiter, (req, res) => {
-  const { username, email, password } = req.body;
+  const { username, email, password, siteName } = req.body;
   const next = safeNext(req.body.next) || '';
   const renderErr = (error) => renderPage(req, res, 'pages/auth-register', {
-    pageTitle: 'Beheerder aanmaken', bodyClass: 'on-special',
-    error, username: username || '', email: email || '', next,
+    pageTitle: t(resolveLang(req), 'setup.title'), bodyClass: 'on-special',
+    error, username: username || '', email: email || '', siteName: siteName || '', next,
   });
 
   // Hard gesloten zodra er een gebruiker is — voorkomt een tweede "admin" via deze route.
@@ -154,13 +156,18 @@ router.post('/register', registerLimiter, (req, res) => {
   `).run(userId, username, email, hash);
 
   // Persoonlijke site auto-aanmaken (single-tenant-ombouw volgt later).
+  // Setup-wizard: sitenaam + taal komen uit het formulier; taal = de taal waarin
+  // de bezoeker de wizard invulde (resolveLang) en wordt meteen de site-standaard.
   if (!db.prepare('SELECT 1 FROM sites LIMIT 1').get()) {
     const siteId = uuid();
+    const lang = resolveLang(req);
+    const title = (siteName || '').trim().slice(0, 80) || (username + "'s Site");
     db.prepare(`
       INSERT INTO sites (id, slug, title, description, owner_id, palette, accent, language)
-      VALUES (?, ?, ?, ?, ?, 'sage', '#c2410c', 'nl')
-    `).run(siteId, username.toLowerCase(), username + "'s Site", 'Welkom', userId);
+      VALUES (?, ?, ?, ?, ?, 'klonkt', '#e8b04b', ?)
+    `).run(siteId, username.toLowerCase(), title, '', userId, lang);
     db.prepare(`INSERT INTO site_members (site_id, user_id, role) VALUES (?, ?, 'admin')`).run(siteId, userId);
+    try { setSetting('default_lang', lang); } catch (e) { /* niet fataal */ }
   }
 
   req.session.user = { id: userId, username, email, role: 'god', palette: 'klonkt', theme: 'dark' };
