@@ -31,7 +31,19 @@ Klonkt is a **Node app** — run it on a **VPS, in Docker, or on a Node hosting
 platform (PaaS)**. **Not** on classic shared PHP hosting. The database (SQLite)
 creates itself on first start.
 
-### Option A — Docker (recommended)
+### Option A — One-command VPS installer (recommended)
+
+The simplest way on a fresh Debian/Ubuntu VPS. One command installs Node 20,
+Caddy (automatic HTTPS) and a systemd service, and is coexistence-safe (won't
+touch an existing Node/web server):
+
+```bash
+curl -fsSL https://klonkt.com/install.sh | sudo bash -s -- --domain yourdomain.com
+```
+
+Then open your domain and finish setup in the browser. Update later with `klonkt-update`.
+
+### Option B — Docker
 
 Node, ffmpeg and cwebp are inside the image; you only need Docker.
 
@@ -43,18 +55,6 @@ docker compose up -d
 
 Data (database + media) stays in the `klonkt-data` volume, even across updates.
 Updating: `git pull && docker compose up -d --build`.
-
-### Option B — VPS installer (Debian/Ubuntu)
-
-One command: installs Node 20, Caddy (automatic HTTPS) and a systemd service.
-Coexistence-safe (won't touch an existing Node/web server).
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/roboburr/klonkt/main/scripts/install.sh \
-  | sudo bash -s -- --domain yourdomain.com
-```
-
-After that you can update with `klonkt-update`.
 
 ### Option C — bare Node (20+)
 
