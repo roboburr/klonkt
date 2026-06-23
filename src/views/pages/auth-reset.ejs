@@ -10,7 +10,7 @@
     </p>
   <% } else { %>
     <p class="auth-tagline"><%- t('arst.set_for', { username: '<strong>' + username + '</strong>' }) %></p>
-    <%# arst.set_for bevat {username} → rendered met <%- omdat username in <strong> staat %>
+    <%# arst.set_for contains {username}; rendered with raw output because username is wrapped in a strong tag %>
 
     <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
 
