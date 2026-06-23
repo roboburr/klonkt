@@ -1,131 +1,132 @@
 # Klonkt
 
-Je eigen, **zelf-gehoste** plek op het web — voor je verhaal, je beeld en je
-geluid. Gebouwd op **Node + SQLite + htmx**: licht, server-rendered, en van jou.
-Geen algoritme, geen advertenties, geen platform dat ertussen zit.
+Your own, **self-hosted** corner of the web — for your story, your visuals and
+your sound. Built on **Node + SQLite + htmx**: lightweight, server-rendered, and
+yours. No algorithm, no ads, no platform sitting in between.
 
-## Wat het kan
+## What it does
 
-- **Solo of hub** — één persoonlijke site, of een label/collectief met meerdere
-  makers onder één dak.
-- **Blog & foto's** — posts met cover, tags, tijdlijn of grid.
-- **Eigen muziek hosten** — ingebouwde audiospeler met tracks, albums en playlists.
-- **Fans & reacties** — bezoekers loggen in met Google (optioneel) en reageren.
-- **Groeien**: nieuwsbrief, download-voor-email, EPK/perskit, link-in-bio,
-  show-agenda, en **cookievrije statistieken**.
-- **Cirkels** — verbind je site met andere Klonkt-sites en toon elkaars publieke
-  posts; decentraal en zonder centraal platform (Ed25519-gesigneerde federatie).
-- **Thema's & talen** — meerdere paletten (light + dark), interface in NL/EN/DE.
-- **Installeerbaar (PWA)**, **privacy-first** (self-hosted fonts, geen tracking).
+- **Solo or hub** — one personal site, or a label/collective with multiple
+  makers under one roof.
+- **Blog & photos** — posts with cover, tags, timeline or grid.
+- **Host your own music** — built-in audio player with tracks, albums and playlists.
+- **Fans & comments** — visitors sign in with Google (optional) and comment.
+- **Grow**: newsletter, download-for-email, EPK/press kit, link-in-bio,
+  show calendar, and **cookie-free statistics**.
+- **Circles** — connect your site with other Klonkt sites and show each other's
+  public posts; decentralized, with no central platform (Ed25519-signed federation).
+- **Themes & languages** — multiple palettes (light + dark), interface in EN/NL/DE.
+- **Installable (PWA)**, **privacy-first** (self-hosted fonts, no tracking).
 
-### Lite-modus (zonder audio)
+### Lite mode (no audio)
 
-Zet `KLONKT_AUDIO=off` in `.env` om de hele audio-/muziek-feature uit te
-schakelen. Klonkt draait dan als lichte **blog/foto/EPK/links-site zónder ffmpeg**
-— ideaal voor minimale hosting. Hub, Cirkels en externe embeds
-(YouTube/SoundCloud/Spotify) blijven gewoon werken.
+Set `KLONKT_AUDIO=off` in `.env` to disable the entire audio/music feature.
+Klonkt then runs as a lightweight **blog/photo/EPK/links site without ffmpeg** —
+ideal for minimal hosting. Hub, Circles and external embeds
+(YouTube/SoundCloud/Spotify) keep working.
 
-## Zelf hosten
+## Self-hosting
 
-Klonkt is een **Node-app** — draai 'm op een **VPS, in Docker, of op een
-Node-hostingplatform (PaaS)**. **Niet** op klassieke shared PHP-hosting. De
-database (SQLite) maakt zichzelf aan bij de eerste start.
+Klonkt is a **Node app** — run it on a **VPS, in Docker, or on a Node hosting
+platform (PaaS)**. **Not** on classic shared PHP hosting. The database (SQLite)
+creates itself on first start.
 
-### Optie A — Docker (aanbevolen)
+### Option A — Docker (recommended)
 
-Node, ffmpeg en cwebp zitten in het image; je hebt alleen Docker nodig.
+Node, ffmpeg and cwebp are inside the image; you only need Docker.
 
 ```bash
-git clone <repo-url> klonkt && cd klonkt
-cp .env.example .env          # vul SESSION_SECRET + PUBLIC_BASE_URL in
+git clone https://github.com/roboburr/klonkt.git && cd klonkt
+cp .env.example .env          # set SESSION_SECRET + PUBLIC_BASE_URL
 docker compose up -d
 ```
 
-Data (database + media) blijft in het `klonkt-data`-volume, ook na een update.
-Updaten: `git pull && docker compose up -d --build`.
+Data (database + media) stays in the `klonkt-data` volume, even across updates.
+Updating: `git pull && docker compose up -d --build`.
 
-### Optie B — VPS-installer (Debian/Ubuntu)
+### Option B — VPS installer (Debian/Ubuntu)
 
-Eén commando: installeert Node 20, Caddy (automatische HTTPS) en een
-systemd-service. Coëxistentie-veilig (raakt een bestaande Node/webserver niet).
+One command: installs Node 20, Caddy (automatic HTTPS) and a systemd service.
+Coexistence-safe (won't touch an existing Node/web server).
 
 ```bash
-sudo bash scripts/install.sh --domain jouwdomein.nl
+curl -fsSL https://raw.githubusercontent.com/roboburr/klonkt/main/scripts/install.sh \
+  | sudo bash -s -- --domain yourdomain.com
 ```
 
-Bijwerken kan daarna met `klonkt-update`.
+After that you can update with `klonkt-update`.
 
-### Optie C — kaal Node (20+)
+### Option C — bare Node (20+)
 
 ```bash
-git clone <repo-url> klonkt && cd klonkt
+git clone https://github.com/roboburr/klonkt.git && cd klonkt
 npm ci
-cp .env.example .env          # SESSION_SECRET + PUBLIC_BASE_URL invullen
-npm start                     # database wordt bij de eerste start aangemaakt
+cp .env.example .env          # set SESSION_SECRET + PUBLIC_BASE_URL
+npm start                     # the database is created on first start
 ```
 
-Zet 'm voor productie achter een procesmanager (pm2/systemd) en een
-reverse-proxy. `cwebp` is optioneel (`apt install webp`) voor WebP-afbeeldingen.
+For production, put it behind a process manager (pm2/systemd) and a
+reverse proxy. `cwebp` is optional (`apt install webp`) for WebP images.
 
-### HTTPS (Docker / kaal Node)
+### HTTPS (Docker / bare Node)
 
-Zet een reverse-proxy vóór de app. Met **Caddy** (automatisch Let's Encrypt):
+Put a reverse proxy in front of the app. With **Caddy** (automatic Let's Encrypt):
 
 ```caddy
-jouwdomein.nl {
+yourdomain.com {
     reverse_proxy localhost:3000
     encode gzip zstd
 }
 ```
 
-(De VPS-installer regelt Caddy + HTTPS al voor je.)
+(The VPS installer sets up Caddy + HTTPS for you already.)
 
-### Eerste keer
+### First run
 
-Open je site → je krijgt de **setup-wizard**: kies je taal, geef je site een
-naam en maak je beheerder aan. De **eerste gebruiker wordt automatisch
-beheerder**; daarna sluit registratie zich. Wachtwoord kwijt?
+Open your site → you get the **setup wizard**: pick your language, name your site
+and create your admin. The **first user automatically becomes the administrator**;
+registration then closes. Lost your password?
 `npm run reset-admin` (Docker: `docker compose exec klonkt npm run reset-admin`).
 
-## Configuratie (`.env`)
+## Configuration (`.env`)
 
-| Variabele | Nodig | Wat |
+| Variable | Required | What |
 |---|---|---|
-| `SESSION_SECRET` | ✅ | Willekeurige string van ≥32 tekens |
-| `PUBLIC_BASE_URL` | ✅ | Canonieke URL (bv. `https://jouwdomein.nl`) |
-| `GOOGLE_CLIENT_ID` / `_SECRET` / `_REDIRECT_URI` | — | Google-login voor luisteraars (eigen OAuth-client; geeft nooit beheer) |
-| `SMTP_HOST` / `_PORT` / `_USER` / `_PASS` / `_FROM` | — | E-mail voor wachtwoord-reset + nieuwsbrief |
-| `KLONKT_DEFAULT_LANG` | — | Standaardtaal voor bezoekers (`en`/`nl`/`de`) |
-| `KLONKT_AUDIO` | — | `off` = lite-modus (geen audio/ffmpeg) |
+| `SESSION_SECRET` | ✅ | Random string of ≥32 characters |
+| `PUBLIC_BASE_URL` | ✅ | Canonical URL (e.g. `https://yourdomain.com`) |
+| `GOOGLE_CLIENT_ID` / `_SECRET` / `_REDIRECT_URI` | — | Google login for listeners (your own OAuth client; never grants admin) |
+| `SMTP_HOST` / `_PORT` / `_USER` / `_PASS` / `_FROM` | — | Email for password reset + newsletter |
+| `KLONKT_DEFAULT_LANG` | — | Default language for visitors (`en`/`nl`/`de`) |
+| `KLONKT_AUDIO` | — | `off` = lite mode (no audio/ffmpeg) |
 
 ## Stack
 
 - **Runtime:** Node 20+
 - **Web:** Express + Helmet + express-session
-- **DB:** better-sqlite3 (WAL), migreert zichzelf bij boot
-- **Templates:** EJS (server-rendered) + **htmx 1.9** (vendored, geen build-step)
-- **Audio:** ffmpeg-static (meegebundeld)
-- **Cirkels:** Ed25519-gesigneerde pull (libsodium via Node-crypto)
+- **DB:** better-sqlite3 (WAL), self-migrating on boot
+- **Templates:** EJS (server-rendered) + **htmx 1.9** (vendored, no build step)
+- **Audio:** ffmpeg-static (bundled)
+- **Circles:** Ed25519-signed pull (libsodium via Node crypto)
 - **Fonts:** self-hosted variable woff2 (Fraunces / Plus Jakarta Sans)
 
-## Project-structuur
+## Project structure
 
 ```
 src/
-├── server.js          # Express bootstrap + routes mounten
-├── config/            # database, mailer, google, feature-flags
-├── db/migrations/     # SQLite-schema (001-init.sql)
-├── middleware/        # site-resolving, auth, render (htmx-aware)
-├── routes/            # per-resource Express-routers (posts, auth, admin-*, circle, …)
-├── services/          # domeinlogica (federatie, stats, mailer, permissies, …)
+├── server.js          # Express bootstrap + route mounting
+├── config/            # database, mailer, google, feature flags
+├── db/migrations/     # SQLite schema (001-init.sql)
+├── middleware/        # site resolving, auth, render (htmx-aware)
+├── routes/            # per-resource Express routers (posts, auth, admin-*, circle, …)
+├── services/          # domain logic (federation, stats, mailer, permissions, …)
 ├── views/             # shell.ejs + partials/ + pages/  (EJS)
-└── assets/            # css/ (palette-tokens + componenten), js/ (htmx, speler), fonts/
+└── assets/            # css/ (palette tokens + components), js/ (htmx, player), fonts/
 ```
 
-## Licentie
+## License
 
-**AGPL-3.0-or-later** — zie [LICENSE](LICENSE). Klonkt is vrije software: je mag
-het gebruiken, bestuderen, aanpassen en verspreiden. De AGPL vereist wel dat een
-gewijzigde versie die je als netwerkdienst aanbiedt z'n broncode beschikbaar
-stelt aan de gebruikers ervan. Gemaakt door robo.burr (Robin Genis) ·
+**AGPL-3.0-or-later** — see [LICENSE](LICENSE). Klonkt is free software: you may
+use, study, modify and distribute it. The AGPL does require that a modified
+version you offer as a network service makes its source code available to the
+users of that service. Made by robo.burr (Robin Genis) ·
 <https://klonkt.com>
