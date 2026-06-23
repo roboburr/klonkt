@@ -57,6 +57,14 @@ export async function renderPage(req, res, viewName, data = {}) {
   // Decide: partial (HTMX) or full?
   const isPartial = req.headers['hx-request'] === 'true' || req.query.partial === '1';
 
+  // Voorkom dat de browser een htmx-PARTIAL (alleen #pcms-main, zónder <head>/CSS)
+  // onder dezelfde URL cachet en bij "terug" als volledige pagina serveert →
+  // ongestylede HTML. Vary: HX-Request scheidt partial- en full-responses in de
+  // cache; no-store op de partial zelf laat "terug" altijd de volledige pagina
+  // opnieuw ophalen. (Vary geldt ook voor tussenliggende caches/Cloudflare.)
+  res.setHeader('Vary', 'HX-Request');
+  if (isPartial) res.setHeader('Cache-Control', 'no-store');
+
   // Bezit deze (niet-god) user een eigen site? Bepaalt of 'ie een "Beheer"-
   // ingang ziet (artiest-zelfbeheer). god ziet beheer sowieso (op rol).
   let _u = req.session?.user || null;
