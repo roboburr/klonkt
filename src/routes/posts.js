@@ -48,10 +48,10 @@ const imageUpload = multer({
   },
 });
 
-// Maakt een unieke slug binnen de site: 'titel', 'titel-2', 'titel-3', …
-// Zo wordt een tweede post met dezelfde titel NIET geweigerd ("bestaat al"),
-// maar krijgt 'ie automatisch een vrij achtervoegsel. exceptId = de post die
-// we bijwerken (mag z'n eigen slug houden).
+// Generates a unique slug within the site: 'title', 'title-2', 'title-3', …
+// A second post with the same title is NOT rejected ("already exists"),
+// but automatically gets a free suffix. exceptId = the post being updated
+// (allowed to keep its own slug).
 function uniqueSlug(siteId, base, exceptId = null) {
   let candidate = base;
   let n = 2;
@@ -189,7 +189,7 @@ router.post('/posts/create', requireAuth, (req, res) => {
   if (!finalSlug) return res.status(400).send('Title or slug required');
   if (RESERVED_SLUGS.has(finalSlug)) finalSlug = `${finalSlug}-post`;
 
-  // Dubbele titel/slug? Automatisch uniek maken (titel-2, titel-3, …) i.p.v. weigeren.
+  // Duplicate title/slug? Make it unique automatically (title-2, title-3, …) instead of rejecting.
   finalSlug = uniqueSlug(site.id, finalSlug);
 
   const validTypes = new Set(['post', 'foto', 'video', 'audio']);
@@ -198,8 +198,8 @@ router.post('/posts/create', requireAuth, (req, res) => {
   const now = new Date().toISOString();
   let finalStatus = status || 'draft';
   let publishedAt = finalStatus === 'published' ? now : null;
-  // Release-planning: gepubliceerd + een toekomstige publish_at -> 'scheduled'
-  // (de Scheduler zet 'm live op het moment zelf). Verleden/leeg -> meteen live.
+  // Release planning: published + a future publish_at -> 'scheduled'
+  // (the Scheduler makes it live at that moment). Past/empty -> live immediately.
   let publishAt = null;
   const pa = Date.parse(req.body.publish_at || '');
   if (req.body.schedule_enabled && finalStatus === 'published' && Number.isFinite(pa) && pa > Date.now()) {
@@ -296,7 +296,7 @@ router.post('/posts/:slug/save', requireAuth, (req, res) => {
   if (newSlug && newSlug !== post.slug) {
     const cleaned = newSlug.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
     const safe = RESERVED_SLUGS.has(cleaned) ? `${cleaned}-post` : cleaned;
-    // Dubbele slug? Automatisch uniek maken i.p.v. weigeren (eigen post mag z'n slug houden).
+    // Duplicate slug? Make it unique automatically instead of rejecting (own post may keep its slug).
     finalSlug = uniqueSlug(site.id, safe, post.id);
   }
 
@@ -309,7 +309,7 @@ router.post('/posts/:slug/save', requireAuth, (req, res) => {
     if (!publishedAt) publishedAt = now;
   }
 
-  // Release-planning: gepubliceerd + toekomstige publish_at -> 'scheduled'.
+  // Release planning: published + future publish_at -> 'scheduled'.
   let publishAt = null;
   const pa = Date.parse(req.body.publish_at || '');
   if (req.body.schedule_enabled && finalStatus === 'published' && Number.isFinite(pa) && pa > Date.now()) {
@@ -411,13 +411,12 @@ router.get('/archive', (req, res) => {
   });
 });
 
-// Pad naar de like-knop-partial (voor de htmx-toggle re-render).
+// Path to the like button partial (for the htmx toggle re-render).
 const LIKE_PARTIAL = path.join(__dirname, '..', 'views', 'partials', 'like-button.ejs');
 
-// ==================== LIKE / FAVORIET ====================
-// Een ingelogde gebruiker (geen kijker — de globale guard blokkeert non-GET voor
-// kijkers) togglet een like op een gepubliceerde post. Geeft de her-gerenderde
-// knop terug (htmx outerHTML-swap).
+// ==================== LIKE / FAVOURITE ====================
+// A logged-in user (not a viewer — the global guard blocks non-GET for viewers)
+// toggles a like on a published post. Returns the re-rendered button (htmx outerHTML swap).
 router.post('/posts/:id/like', requireAuth, (req, res) => {
   const userId = req.session.user.id;
   const post = db.prepare('SELECT id, status, slug, title, author_id FROM posts WHERE id = ?').get(req.params.id);
@@ -429,7 +428,7 @@ router.post('/posts/:id/like', requireAuth, (req, res) => {
     db.prepare('DELETE FROM post_likes WHERE post_id = ? AND user_id = ?').run(post.id, userId);
   } else {
     db.prepare('INSERT OR IGNORE INTO post_likes (post_id, user_id) VALUES (?, ?)').run(post.id, userId);
-    // Melding voor de post-auteur (notify slaat jezelf-liken over).
+    // Notification for the post author (notify skips self-likes).
     notify({
       userId: post.author_id, actorId: userId, actorName: req.session.user.username, type: 'like',
       postSlug: post.slug, postTitle: post.title, url: (res.locals.siteUrlBase || '') + '/' + post.slug,
@@ -443,8 +442,8 @@ router.post('/posts/:id/like', requireAuth, (req, res) => {
   res.send(html);
 });
 
-// Favorieten = de posts die de ingelogde gebruiker likete. Solo: binnen de
-// huidige site. Hub: over alle sites (met juiste /user/<slug>-links).
+// Favourites = posts the logged-in user has liked. Solo: within the current
+// site. Hub: across all sites (with correct /user/<slug> links).
 router.get('/favorieten', requireAuth, (req, res) => {
   const userId = req.session.user.id;
   const isHub = res.locals.tenancy === 'hub';
@@ -468,9 +467,9 @@ router.get('/favorieten', requireAuth, (req, res) => {
   renderPage(req, res, 'pages/favorites', { posts, pageTitle: 'Favorieten', bodyClass: 'on-favorites' });
 });
 
-// Newer/Older-buren over ALLE posts in feed-volgorde. Gedeeld door de volledige
-// post-render én de fan-gate (premium fan_only), zodat de navigatie overal gelijk
-// is. Solo: binnen de site (pinned eerst, dan datum). Hub: globaal op datum.
+// Newer/Older neighbours across ALL posts in feed order. Shared by the full
+// post render and the fan gate (premium fan_only) so navigation is consistent
+// everywhere. Solo: within the site (pinned first, then date). Hub: globally by date.
 function postNeighbors(site, post, isHub) {
   const urlBaseFor = (p) => (isHub && p && p.site_slug) ? `/user/${p.site_slug}` : '';
   const ordered = isHub
@@ -506,7 +505,7 @@ router.get('/:slug', (req, res, next) => {
     WHERE p.site_id = ? AND p.slug = ?
   `).get(site.id, req.params.slug);
 
-  if (!post) return next(); // onbekende slug -> nette 404 catch-all
+  if (!post) return next(); // unknown slug -> clean 404 catch-all
 
   // Permission to view: published OR (logged in + can edit)
   if (post.status !== 'published') {
@@ -514,12 +513,12 @@ router.get('/:slug', (req, res, next) => {
     if (!canEdit) return res.status(403).send('Not published');
   }
 
-  // Fan-only preview (premium #3): volledige inhoud alleen voor ingelogde fans.
-  // Anonieme bezoekers krijgen een nette login-gate i.p.v. de inhoud (de titel/
-  // teaser mag elders wel als lokkertje verschijnen).
+  // Fan-only preview (premium #3): full content only for logged-in fans.
+  // Anonymous visitors get a clean login gate instead of the content (the title/
+  // teaser may still appear elsewhere as a teaser).
   if (post.fan_only && !(req.session && req.session.user)) {
-    // Zelfde Newer/Older-navigatie als op een gewone post, zodat de bezoeker op
-    // de fan-gate niet vastloopt maar verder kan bladeren.
+    // Same Newer/Older navigation as on a normal post, so the visitor doesn't get
+    // stuck on the fan gate but can keep browsing.
     const { newerPost, olderPost } = postNeighbors(site, post, res.locals.tenancy === 'hub');
     return renderPage(req, res, 'pages/fan-gate', {
       pageTitle: post.title || 'Alleen voor fans',
@@ -531,7 +530,7 @@ router.get('/:slug', (req, res, next) => {
     });
   }
 
-  // Statistieken: tel de weergave (skipt beheerders + niet-gepubliceerd-eigen-preview).
+  // Statistics: count the view (skips admins + unpublished own-preview).
   if (post.status === 'published') recordPostView(post, req);
 
   // Render content. Content is now user-authored HTML (already sanitized on
@@ -587,7 +586,7 @@ router.get('/:slug', (req, res, next) => {
       `).all(site.id, ...albumNames);
       const byAlbum = new Map();
       for (const r of albumRows) {
-        // Link-only tracks (geen bestand) blijven in het album-overzicht (url '').
+        // Link-only tracks (no file) remain in the album overview (url '').
         if (!byAlbum.has(r.album)) byAlbum.set(r.album, []);
         byAlbum.get(r.album).push({
           id: r.id,
@@ -624,9 +623,9 @@ router.get('/:slug', (req, res, next) => {
     }
   }
   } else {
-    // LITE-modus (KLONKT_AUDIO=off): geen eigen audio (geen ffmpeg/stream-route).
-    // Externe embeds (YouTube/SoundCloud/Spotify) blijven wel; de eigen-audio-
-    // shortcodes ([[track]]/[[album]]/[[playlist]]) verwijderen we netjes.
+    // LITE mode (KLONKT_AUDIO=off): no own audio (no ffmpeg/stream route).
+    // External embeds (YouTube/SoundCloud/Spotify) remain; the own-audio
+    // shortcodes ([[track]]/[[album]]/[[playlist]]) are cleanly stripped.
     html = AudioEmbedService.autoembed(html);
     html = AudioEmbedService.embedMediaShortcodes(html);
     html = AudioEmbedService.embedExternalLinkShortcodes(html);
@@ -664,13 +663,13 @@ router.get('/:slug', (req, res, next) => {
 
   // Prev / next chronological (kept for back-compat — "post-nav" feature
   // below the article still uses these as a simple linear navigation).
-  // Hub-modus: Gerelateerde posts + Newer/Older trekken uit ALLE users (alle
-  // sites), nieuwste->oudste. Solo-modus: binnen de huidige site (oud gedrag).
+  // Hub mode: Related posts + Newer/Older pull from ALL users (all sites),
+  // newest first. Solo mode: within the current site (old behaviour).
   const isHub = res.locals.tenancy === 'hub';
-  // Per-post URL-basis: in hub wijst een link naar /user/<site-slug>/<post-slug>.
+  // Per-post URL base: in hub a link points to /user/<site-slug>/<post-slug>.
   const urlBaseFor = (p) => (isHub && p && p.site_slug) ? `/user/${p.site_slug}` : '';
 
-  // Newer/Older over ALLE posts (gedeelde helper — ook door de fan-gate gebruikt).
+  // Newer/Older across ALL posts (shared helper — also used by the fan gate).
   const { newerPost, olderPost } = postNeighbors(site, post, isHub);
 
   // ── Related posts: same-tag matching with recency fallback ─────
@@ -726,7 +725,7 @@ router.get('/:slug', (req, res, next) => {
   // Strip the internal _overlap field before sending to view
   relatedPosts = relatedPosts.map(({ _overlap, tags, ...rest }) => ({ ...rest, _urlBase: urlBaseFor(rest) }));
 
-  // Likes / favorieten: aantal + of de ingelogde gebruiker deze post likete.
+  // Likes / favourites: count + whether the logged-in user liked this post.
   const likeCount = db.prepare('SELECT COUNT(*) AS c FROM post_likes WHERE post_id = ?').get(post.id).c;
   const likedByMe = !!(req.session?.user &&
     db.prepare('SELECT 1 FROM post_likes WHERE post_id = ? AND user_id = ?').get(post.id, req.session.user.id));

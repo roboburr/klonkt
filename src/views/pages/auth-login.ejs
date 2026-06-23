@@ -1,8 +1,8 @@
 <%
-  // adminLogin = de verborgen beheerders-loginpagina (/auth/admin): toont het
-  // gebruikersnaam/wachtwoord-formulier. De publieke /auth/login toont voor
-  // bezoekers ALLEEN Google-login (luisteraars/fans). Zo staat de admin-login
-  // niet zichtbaar op de plek waar bezoekers heen gestuurd worden.
+  // adminLogin = the hidden admin login page (/auth/admin): shows the
+  // username/password form. The public /auth/login shows visitors
+  // ONLY Google login (listeners/fans). This keeps the admin login
+  // off the page where visitors are directed.
   var _admin = (typeof adminLogin !== 'undefined' && adminLogin);
 %>
 <div class="container auth-page">
@@ -31,7 +31,7 @@
   <% } else if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
 
   <% if (_admin) { %>
-    <%# Verborgen beheerders-login (wachtwoord). %>
+    <%# Hidden admin login (password). %>
     <form method="post" action="/auth/login" class="auth-form">
       <% if (typeof next !== 'undefined' && next) { %>
         <input type="hidden" name="next" value="<%= next %>">
@@ -48,7 +48,7 @@
       <p class="auth-link auth-link-muted"><a href="/auth/reset-request"><%= t('auth.forgot') %></a></p>
     </form>
   <% } else if (googleReady) { %>
-    <%# Publieke login: alleen Google, voor luisteraars/fans. %>
+    <%# Public login: Google only, for listeners/fans. %>
     <p class="auth-sub"><%= t('auth.public_sub') %></p>
     <a class="btn btn-google" href="/auth/google<%= (typeof next !== 'undefined' && next) ? '?next=' + encodeURIComponent(next) : '' %>">
       <svg class="g-icon" width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
@@ -64,7 +64,7 @@
   <% } %>
 
   <% if (!_admin) { %>
-    <%# Klikbare box voor de beheerder → naar de verborgen wachtwoord-login. %>
+    <%# Clickable box for the admin → navigates to the hidden password login. %>
     <a class="auth-admin-box" href="/auth/admin<%= (typeof next !== 'undefined' && next) ? '?next=' + encodeURIComponent(next) : '' %>">
       <span class="auth-admin-box-icon" aria-hidden="true">🔑</span>
       <span class="auth-admin-box-text">
@@ -84,8 +84,8 @@
   .auth-notice-list { margin: 0; padding-left: 18px; line-height: 1.6; }
   .auth-notice-list li { margin: 4px 0; }
   .auth-sub { color: var(--ink-muted); margin: 0 0 1rem; text-align: center; }
-  /* Google-knop is wit → tekst altijd donker houden, ook op hover (de globale
-     a.btn:hover-regel maakt 'm anders bijna-wit op wit = onleesbaar). */
+  /* Google button is white → keep text dark at all times, including hover (the global
+     a.btn:hover rule would otherwise make it near-white on white = unreadable). */
   a.btn-google, a.btn-google:hover { color: #1f1f1f; }
   .auth-admin-box {
     display: flex; align-items: center; gap: .75rem;

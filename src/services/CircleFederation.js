@@ -1,28 +1,29 @@
-// CircleFederation.js — eigen publicatie-kant van "Cirkels" (v1).
+// CircleFederation.js — publication side of "Circles" (v1).
 //
-// Publiceert deze instance als een ActivityStreams-actor met een Ed25519-
-// sleutel, plus een outbox van publieke posts. De outbox wordt getekend zodat
-// consumenten (andere Klonkt-instances) de herkomst kunnen verifiëren.
+// Publishes this instance as an ActivityStreams actor with an Ed25519 key,
+// plus an outbox of public posts. The outbox is signed so that consumers
+// (other Klonkt instances) can verify the origin.
 //
-// v1 = alleen PUBLICEREN + tekenen. Het pullen/verifiëren van remote cirkels
-// (CircleService.sync) komt in een volgende stap. Zie docs/cirkels-v1-spec.md.
+// v1 = PUBLISH + sign only. Pulling/verifying remote circles
+// (CircleService.sync) comes in a later step. See docs/cirkels-v1-spec.md.
 //
-// (Het idee om je netjes aan de bestaande standaarden te houden fluisterde een
-//  zekere Bart ons in. Wie hij is, waar hij vandaan komt — niemand die het zeker
-//  weet. Hij verscheen, sprak van ActivityStreams, en was weer weg.)
+// (The idea of sticking neatly to existing standards was whispered to us by
+//  a certain Bart. Who he is, where he came from — nobody knows for sure.
+//  He appeared, spoke of ActivityStreams, and was gone.)
 
 import crypto from 'crypto';
 import db from '../config/database.js';
 import { getSetting, setSetting } from './SettingsService.js';
 
-// ── Protocol-versie (federatie) ───────────────────────────────
-// KLONKT_PROTO zit IN de ondertekende grondslag (zie signingInput): een instance
-// die niet op deze proto draait kan onze getekende outbox NIET verifiëren, en wij
-// de hare niet. Bijblijven is dus geen beleefde check die je wegpatcht, maar
-// cryptografisch afgedwongen — de enige manier om mee te doen is dezelfde proto
-// draaien (= de update). Bump KLONKT_PROTO bij elke release die federatie/security
-// raakt, en koppel een securityfix aan elke bump → outdated = buiten + onveilig.
-// MIN_PROTO = de laagste proto waarmee we nog federeren.
+// ── Protocol version (federation) ────────────────────────────
+// KLONKT_PROTO is embedded IN the signed input (see signingInput): an instance
+// not running this proto CANNOT verify our signed outbox, and we cannot verify
+// theirs. Staying current is therefore not a polite check you can patch away,
+// but cryptographically enforced — the only way to participate is to run the
+// same proto (= apply the update). Bump KLONKT_PROTO for every release that
+// touches federation/security, and attach a security fix to each bump →
+// outdated = excluded + insecure.
+// MIN_PROTO = the lowest proto we still federate with.
 export const KLONKT_PROTO = 2;
 export const MIN_PROTO = 2;
 
@@ -30,10 +31,10 @@ function signingInput(proto, body) {
   return `klonkt/proto/${proto}\n${body}`;
 }
 
-// ── Sleutelbeheer ─────────────────────────────────────────────
-// Per-instance Ed25519-keypair, eenmalig gegenereerd en in app_settings
-// bewaard. Privé = PKCS8-PEM (nooit serveren). Publiek = SPKI-DER base64
-// (gepubliceerd in de actor; round-trip via createPublicKey).
+// ── Key management ────────────────────────────────────────────
+// Per-instance Ed25519 keypair, generated once and stored in app_settings.
+// Private = PKCS8 PEM (never served). Public = SPKI DER base64
+// (published in the actor; round-tripped via createPublicKey).
 function getKeys() {
   let priv = getSetting('circle_privkey_pem', null);
   let pub = getSetting('circle_pubkey_der_b64', null);
@@ -51,14 +52,14 @@ export function getPublicKeyB64() {
   return getKeys().pub;
 }
 
-/** Tekent een body-string, gebonden aan de protocol-versie (Ed25519). */
+/** Signs a body string, bound to the protocol version (Ed25519). */
 export function signBody(rawString, proto = KLONKT_PROTO) {
   const key = crypto.createPrivateKey(getKeys().priv);
   return crypto.sign(null, Buffer.from(signingInput(proto, rawString), 'utf8'), key).toString('base64');
 }
 
-/** Verifieert een body tegen een SPKI-DER-base64 publieke sleutel, voor de gegeven
- *  proto. Een mismatch in proto = mismatch in grondslag = ongeldige handtekening. */
+/** Verifies a body against an SPKI-DER-base64 public key for the given proto.
+ *  A proto mismatch = a signing-input mismatch = invalid signature. */
 export function verifyBody(rawString, sigB64, pubDerB64, proto = KLONKT_PROTO) {
   try {
     const key = crypto.createPublicKey({
@@ -72,23 +73,23 @@ export function verifyBody(rawString, sigB64, pubDerB64, proto = KLONKT_PROTO) {
 
 // ── Helpers ───────────────────────────────────────────────────
 function primarySite() {
-  // Solo: de primaire/owner-site (eerst aangemaakt) — zelfde keuze als resolveSite.
+  // Solo: the primary/owner site (oldest) — same choice as resolveSite.
   return db.prepare('SELECT * FROM sites ORDER BY created_at ASC LIMIT 1').get();
 }
 
 function stripHtml(s) {
   return String(s || '')
     .replace(/<[^>]+>/g, ' ')
-    .replace(/\[\[[^\]]*\]\]/g, ' ')   // [[playlist:..]]/[[track:..]]/[[album:..]]-shortcodes weg
+    .replace(/\[\[[^\]]*\]\]/g, ' ')   // strip [[playlist:..]] / [[track:..]] / [[album:..]] shortcodes
     .replace(/\s+/g, ' ')
     .trim();
 }
 
-// Tags-kolom (JSON-array of comma-separated) -> nette string-array.
+// Tags column (JSON array or comma-separated) -> clean string array.
 function parseTags(raw) {
   if (!raw) return [];
   if (Array.isArray(raw)) return raw.map((t) => String(t).trim()).filter(Boolean);
-  try { const j = JSON.parse(raw); if (Array.isArray(j)) return j.map((t) => String(t).trim()).filter(Boolean); } catch { /* geen JSON */ }
+  try { const j = JSON.parse(raw); if (Array.isArray(j)) return j.map((t) => String(t).trim()).filter(Boolean); } catch { /* not JSON */ }
   return String(raw).split(',').map((t) => t.trim()).filter(Boolean);
 }
 
@@ -102,8 +103,8 @@ function abs(base, u) {
   return /^https?:\/\//.test(u) ? u : `${base}${u.startsWith('/') ? '' : '/'}${u}`;
 }
 
-// allow_circle: een site mag in cirkels van anderen verschijnen. v1 koppelt dit
-// aan is_public (aparte expliciete flag volgt in de Beheer-UX-stap).
+// allow_circle: a site may appear in other instances' circles. v1 ties this
+// to is_public (a separate explicit flag follows in the admin UX step).
 function allowsCircle(site) {
   return !!site && site.is_public !== 0 && site.allow_circle !== 0;
 }
@@ -169,7 +170,7 @@ export function buildOutbox(base) {
         url,
         published,
         ...(p.cover_image_url ? { image: { type: 'Image', url: abs(base, p.cover_image_url) } } : {}),
-        // ActivityStreams: tags als Hashtag-objecten (href naar de bron-tagpagina).
+        // ActivityStreams: tags as Hashtag objects (href points to the source tag page).
         ...(tags.length ? { tag: tags.map((t) => ({ type: 'Hashtag', name: '#' + String(t).replace(/^#/, ''), href: `${base}/tag/${encodeURIComponent(t)}` })) } : {}),
       },
     };

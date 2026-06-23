@@ -1,11 +1,11 @@
 /**
- * Show-agenda + notify-me (premium feature #8) — publieke kant.
+ * Show agenda + notify-me (premium feature #8) — public side.
  *
- *   GET  /shows         -> komende optredens + "houd me op de hoogte"-formulier
- *   POST /shows/notify  -> aanmelden voor show-aankondigingen (subscribers, source
- *                          'notify'; double opt-in als SMTP er is)
+ *   GET  /shows         -> upcoming gigs + "keep me posted" form
+ *   POST /shows/notify  -> subscribe to show announcements (subscribers, source
+ *                          'notify'; double opt-in if SMTP configured)
  *
- * De notify-bevestiging/uitschrijving hergebruikt de generieke subscriber-links
+ * The notify confirm/unsubscribe reuses the generic subscriber links
  * (/nieuwsbrief/bevestigen|uitschrijven/:token). Hub: /user/:slug/shows.
  */
 
@@ -19,7 +19,7 @@ import { getSetting } from '../services/SettingsService.js';
 
 const router = express.Router();
 
-// Agenda is opt-in: pas bereikbaar als de beheerder 'm heeft ingeschakeld.
+// Agenda is opt-in: only accessible once the admin has enabled it.
 function agendaOn() { return getSetting('agenda_enabled') === '1'; }
 
 function esc(s) { return String(s || '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }

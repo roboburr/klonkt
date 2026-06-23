@@ -60,7 +60,7 @@ router.get('/', requireSiteManager, (req, res) => {
 function setStatus(req, res, status) {
   const site = res.locals.site;
   if (!site) return res.status(404).send('No site');
-  const base = res.locals.siteUrlBase || ''; // /user/<slug> in hub-artiestcontext, anders ''
+  const base = res.locals.siteUrlBase || ''; // /user/<slug> in hub artist context, otherwise ''
 
   const row = db.prepare(`
     SELECT c.id FROM comments c JOIN posts p ON p.id = c.post_id

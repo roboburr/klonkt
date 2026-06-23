@@ -1,6 +1,6 @@
 /**
- * GET /notifications — meldingenpagina voor de ingelogde gebruiker.
- * Openen = alles als gelezen markeren (de teller in de header valt dan weg).
+ * GET /notifications — notifications page for the logged-in user.
+ * Opening it marks everything as read (the counter in the header disappears).
  */
 import express from 'express';
 import { requireAuth } from '../middleware/auth.js';

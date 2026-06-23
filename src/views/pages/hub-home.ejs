@@ -1,7 +1,7 @@
 <div class="hub<%= hub.heroImage ? ' hub--img' : '' %>">
 
-  <%# ── HERO (label) — de mini topnav-balk staat erboven (chrome.ejs);
-        de hero zelf is de "grote" header van de hub-home ──────────────── %>
+  <%# ── HERO (label) — the mini topnav bar sits above it (chrome.ejs);
+        the hero itself is the "large" header of the hub home ──────────────── %>
   <header class="hub-hero<%= hub.heroImage ? ' has-img' : '' %>"<% if (hub.heroImage) { %> style="--hero-img:url('<%= hub.heroImage %>'); --hero-ov:<%= ((hub.heroOverlay == null ? 45 : hub.heroOverlay)/100).toFixed(2) %>"<% } %>>
     <div class="hub-hero-inner container">
       <h1 class="hub-hero-title"><%= hub.title %></h1>
@@ -16,7 +16,7 @@
 
   <div class="container hub-body">
 
-    <%# ── HOOFDPAGINA (label-/hoofdaccount — geen artiest) ──────────── %>
+    <%# ── MAIN PAGE (label-/primary account — not an artist) ──────────── %>
     <% if (mainSite) { %>
     <section class="hub-sec hub-sec-main">
       <a class="hub-main-card" href="/user/<%= mainSite.slug %>"
@@ -36,7 +36,7 @@
     </section>
     <% } %>
 
-    <%# ── ARTIESTEN-ROSTER ─────────────────────────────────────────── %>
+    <%# ── ARTIST ROSTER ─────────────────────────────────────────── %>
     <% if (artists && artists.length) { %>
     <% var _total = (typeof totalArtists !== 'undefined') ? totalArtists : artists.length; %>
     <% var _hasMore = _total > artists.length; %>
@@ -68,7 +68,7 @@
     </section>
     <% } %>
 
-    <%# ── LAATSTE POSTS ────────────────────────────────────────────── %>
+    <%# ── LATEST POSTS ────────────────────────────────────────────── %>
     <% if (posts && posts.length) { %>
     <section class="hub-sec">
       <h2 class="hub-sec-title"><%= t('phub.latest_posts') %></h2>
@@ -98,8 +98,8 @@
 <style>
 .hub { width: 100%; position: relative; }
 
-/* Hero sluit direct aan op de mini topnav-balk — geen tussenruimte boven de
-   hub-home (override van de globale main-padding-top). */
+/* Hero connects directly to the mini topnav bar — no gap above the
+   hub home (overrides the global main-padding-top). */
 .pcms-main { padding-top: 0; }
 .hub-hero { margin-top: 0; }
 
@@ -159,7 +159,7 @@
 }
 .hub-more-link:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--paper-2)); }
 
-/* ── Hoofdpagina-kaart (label-/hoofdaccount, apart van de artiesten) ── */
+/* ── Main page card (label-/primary account, separate from the artists) ── */
 .hub-sec-main { margin-top: 2.25rem; }
 .hub-main-card {
   display: flex; align-items: center; gap: 1.25rem;
@@ -198,7 +198,7 @@
   .hub-main-cta { display: none; }
 }
 
-/* ── Roster (artiesten) ───────────────────────────────────────────── */
+/* ── Roster (artists) ───────────────────────────────────────────── */
 .roster {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
@@ -230,7 +230,7 @@
   padding: 0.15rem 0.6rem; border-radius: 99px;
 }
 
-/* ── Feed (laatste posts) ─────────────────────────────────────────── */
+/* ── Feed (latest posts) ─────────────────────────────────────────── */
 .hub-feed { display: flex; flex-direction: column; gap: 0.6rem; }
 .feed-item {
   display: flex; align-items: center; gap: 1rem;

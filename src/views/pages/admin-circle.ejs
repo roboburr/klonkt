@@ -78,7 +78,7 @@
                 <% } else if (l.status === 'paused') { %>
                   <span class="circ-badge">&#9208; <%= _cPaused %></span>
                 <% } else { %>
-                  <%# Onbekende status: toon 'm rauw + eventuele reden i.p.v. stil "gepauzeerd". %>
+                  <%# Unknown status: show it raw + any reason instead of silently showing "paused". %>
                   <span class="circ-badge"><%= l.status %></span>
                   <% if (l.last_error) { %><div class="circ-reason"><%= l.last_error %></div><% } %>
                 <% } %>
@@ -122,8 +122,8 @@
 .circ-badge.err { background: #fee2e2; color: #991b1b; }
 .circ-status { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .5rem; margin-top: .25rem; font-size: .78rem; color: var(--ink-muted); }
 .circ-meta { color: var(--ink-muted); }
-/* Reden op een eigen regel onder de badge; normale woordafbreking (geen break-all
-   die hele zinnen midden in woorden knipt — dat zit op de URL-small, niet hier). */
+/* Reason on its own line below the badge; normal word breaking (no break-all
+   that cuts whole sentences mid-word — that is applied to the URL small, not here). */
 .circ-reason { flex-basis: 100%; line-height: 1.4; color: var(--ink-muted); word-break: normal; overflow-wrap: anywhere; }
 .btn-danger { background: #dc2626; color: #fff; border-color: #dc2626; }
 .btn-danger:hover { background: #b91c1c; border-color: #b91c1c; color: #fff; }

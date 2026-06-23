@@ -1,7 +1,7 @@
 <div class="container fg-navwrap">
-  <%# Zelfde post-navigatie (Newer/Older) als op een gewone post, zodat een
-      bezoeker op de fan-gate niet vastloopt maar verder kan bladeren. Zelfde
-      maten als .post-page (720px / padding 0 1rem) zodat de nav pixel-gelijk is. %>
+  <%# Same post navigation (Newer/Older) as on a regular post, so a visitor
+      on the fan gate can still browse rather than getting stuck. Same
+      dimensions as .post-page (720px / padding 0 1rem) for pixel-perfect alignment. %>
   <%- include('../partials/post-nav', { newerPost: (typeof newerPost !== 'undefined' ? newerPost : null), olderPost: (typeof olderPost !== 'undefined' ? olderPost : null) }) %>
 </div>
 
@@ -16,8 +16,8 @@
 </section>
 
 <style>
-  /* EXACT dezelfde class-combinatie (.container + override) én waarden als
-     .post-page in post.ejs, zodat de post-nav cascade-identiek uitlijnt. */
+  /* EXACT same class combination (.container + override) and values as
+     .post-page in post.ejs, so the post-nav aligns identically in the cascade. */
   .fg-navwrap { max-width: 720px; margin: 0.5rem auto 2rem; padding: 0 1rem; }
   .fg { max-width: 480px; margin: 0 auto; padding: 56px 18px; text-align: center; }
   .fg-card { border: 1px solid rgba(128,128,128,.2); border-radius: 18px; padding: 36px 28px; }

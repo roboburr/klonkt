@@ -1,12 +1,12 @@
-// StatsService — cookievrije statistieken (premium-module).
+// StatsService — cookie-free statistics (premium module).
 //
-// Tellers: posts.view_count, audio_tracks.play_count, en per dag/site het aantal
-// pageviews (stat_daily) + unieke bezoekers (stat_visitor_day).
+// Counters: posts.view_count, audio_tracks.play_count, and per day/site the number
+// of pageviews (stat_daily) + unique visitors (stat_visitor_day).
 //
-// Unieke bezoekers ZONDER cookie: een sha256 van IP+UA+dag-salt. De salt roteert
-// elke dag en wordt nooit langer bewaard → je kunt iemand niet over dagen heen
-// volgen, het ruwe IP wordt niet opgeslagen. Geen persistente identifier, geen
-// toestemmingsbanner nodig (Plausible/Fathom-aanpak).
+// Unique visitors WITHOUT cookies: a sha256 of IP+UA+daily-salt. The salt rotates
+// every day and is never stored longer → you cannot track someone across days,
+// and the raw IP is never persisted. No persistent identifier, no consent
+// banner required (Plausible/Fathom approach).
 
 import crypto from 'node:crypto';
 import db from '../config/database.js';
@@ -16,8 +16,8 @@ function today() {
   return new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
 }
 
-// Dagelijks roterende salt (gecachet in proces, persistent in app_settings zodat
-// een herstart binnen dezelfde dag dezelfde salt houdt).
+// Daily rotating salt (cached in process, persisted in app_settings so that
+// a restart within the same day reuses the same salt).
 let _salt = null, _saltDay = null;
 function dailySalt() {
   const d = today();
@@ -38,23 +38,23 @@ function visitorHash(req) {
   return crypto.createHash('sha256').update(dailySalt() + '|' + ip + '|' + ua).digest('hex').slice(0, 32);
 }
 
-// De eigenaar/beheerder niet meetellen — anders inflate je je eigen cijfers.
+// Don't count the owner/admin — otherwise you inflate your own numbers.
 function isOperator(req) {
   const u = req && req.session && req.session.user;
   return !!(u && (u.role === 'god' || u.role === 'admin'));
 }
 
-// Bekende bots/crawlers + link-preview-fetchers + scripts overslaan, zodat ze de
-// weergaven/bezoeker-dagen niet opblazen. Geen UA = vrijwel altijd geautomatiseerd.
+// Skip known bots/crawlers + link-preview fetchers + scripts so they don't inflate
+// view/visitor-day counts. Empty UA = almost always automated.
 const BOT_RE = /bot|crawl|spider|slurp|mediapartners|bingpreview|facebookexternalhit|whatsapp|telegram|discord|twitter|linkedin|embedly|pinterest|redditbot|applebot|petalbot|yandex|baidu|duckduckbot|semrush|ahrefs|mj12|dotbot|uptimerobot|pingdom|statuscake|headless|lighthouse|gptbot|claude|ccbot|perplexity|bytespider|amazonbot|googleother|google-read-aloud|python-requests|scrapy|curl|wget|axios|node-fetch|go-http|java\/|okhttp|libwww|httpclient/i;
 function isBot(req) {
   const ua = (req && req.headers && req.headers['user-agent']) || '';
-  if (!ua) return true;          // lege UA = script/bot
+  if (!ua) return true;          // empty UA = script/bot
   return BOT_RE.test(ua);
 }
 
-// Lazy prepares — tabellen bestaan pas ná initializeDatabase(); dit module wordt
-// geïmporteerd vóór die call.
+// Lazy prepares — tables only exist after initializeDatabase(); this module is
+// imported before that call.
 let _s = null;
 function stmts() {
   if (_s) return _s;
@@ -74,8 +74,8 @@ function stmts() {
   return _s;
 }
 
-// Externe referrer-host uit de Referer-header (pro-stats #5). Lege/eigen-site/
-// ongeldige referrers worden overgeslagen → alleen echte externe bronnen tellen.
+// External referrer host from the Referer header (pro stats #5). Empty/own-site/
+// invalid referrers are skipped → only genuine external sources are counted.
 function recordReferrer(siteId, req) {
   try {
     const ref = req && req.headers && (req.headers.referer || req.headers.referrer);
@@ -83,9 +83,9 @@ function recordReferrer(siteId, req) {
     const host = new URL(ref).host.replace(/^www\./, '').toLowerCase();
     if (!host) return;
     const own = ((req.headers && req.headers.host) || '').replace(/^www\./, '').toLowerCase();
-    if (host === own) return; // interne navigatie telt niet als bron
+    if (host === own) return; // internal navigation does not count as a source
     stmts().bumpReferrer.run(siteId, host.slice(0, 120));
-  } catch { /* geen geldige referrer-URL → overslaan */ }
+  } catch { /* not a valid referrer URL → skip */ }
 }
 
 export function recordPageview(siteId, req) {
@@ -95,7 +95,7 @@ export function recordPageview(siteId, req) {
     stmts().bumpDaily.run(siteId, d);
     stmts().addVisitor.run(siteId, d, visitorHash(req));
     recordReferrer(siteId, req);
-  } catch { /* statistieken mogen nooit een request breken */ }
+  } catch { /* stats must never break a request */ }
 }
 
 export function recordPostView(post, req) {
@@ -111,7 +111,7 @@ export function recordPlay(trackId) {
   try { stmts().bumpTrack.run(trackId); } catch {}
 }
 
-// Instance-brede statistieken (solo = de site, hub = alle sites samen).
+// Instance-wide statistics (solo = the site, hub = all sites combined).
 export function getStats(days = 14) {
   days = [7, 14, 30, 90].includes(Number(days)) ? Number(days) : 14;
   const pvMap = Object.fromEntries(
@@ -128,8 +128,8 @@ export function getStats(days = 14) {
     series.push({ day: d, pageviews: pvMap[d] || 0, visitors: visMap[d] || 0 });
   }
   const totals = {
-    pageviews: series.reduce((s, r) => s + r.pageviews, 0), // laatste N dagen
-    visitors: series.reduce((s, r) => s + r.visitors, 0),   // som van dag-uniques (cookieless kan niet anders)
+    pageviews: series.reduce((s, r) => s + r.pageviews, 0), // last N days
+    visitors: series.reduce((s, r) => s + r.visitors, 0),   // sum of daily uniques (cookieless has no alternative)
     plays: db.prepare('SELECT COALESCE(SUM(play_count), 0) AS n FROM audio_tracks').get().n,
     postViews: db.prepare('SELECT COALESCE(SUM(view_count), 0) AS n FROM posts').get().n,
   };
@@ -141,14 +141,14 @@ export function getStats(days = 14) {
     SELECT title, COALESCE(play_count, 0) AS plays FROM audio_tracks
     ORDER BY play_count DESC LIMIT 5
   `).all();
-  // Top externe bronnen (pro #5) — instance-breed geaggregeerd per host.
+  // Top external sources (pro #5) — aggregated instance-wide per host.
   let referrers = [];
   try {
     referrers = db.prepare(
       'SELECT host, SUM(count) AS n FROM stat_referrer GROUP BY host ORDER BY n DESC LIMIT 10'
     ).all();
   } catch { referrers = []; }
-  // All-time totalen (cookieloze unieke bezoekers = som van dag-uniques).
+  // All-time totals (cookieless unique visitors = sum of daily uniques).
   const allTime = {
     pageviews: db.prepare('SELECT COALESCE(SUM(pageviews),0) AS n FROM stat_daily').get().n,
     visitorDays: db.prepare('SELECT COUNT(*) AS n FROM stat_visitor_day').get().n,

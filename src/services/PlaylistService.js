@@ -103,7 +103,7 @@ class PlaylistService {
     `).all(id);
 
     const mappedTracks = tracks
-      // Link-only tracks (geen media-bestand) blijven in de lijst staan met url ''.
+      // Link-only tracks (no media file) remain in the list with url ''.
       .map(t => ({
         id: t.id,
         title: t.title || 'Untitled',
@@ -115,7 +115,7 @@ class PlaylistService {
         link_soundcloud: t.link_soundcloud || '',
         url: (t.filename && urlFor) ? urlFor(t.filename) : '',
       }));
-    // Geen eigen cover? Val terug op de eerste track-cover, zodat de kaart niet leeg is.
+    // No playlist cover? Fall back to the first track cover so the card isn't empty.
     const fallbackCover = (mappedTracks.find(t => t.cover) || {}).cover || '';
     return {
       id: p.id,
@@ -219,7 +219,7 @@ class PlaylistService {
   /**
    * Delete a playlist. Track references in playlist_tracks are removed
    * automatically via ON DELETE CASCADE. Posts that embed this playlist
-   * will render a "playlist niet gevonden" placeholder.
+   * will render a "playlist not found" placeholder.
    */
   static delete(siteId, id) {
     id = this.normalizeId(id);

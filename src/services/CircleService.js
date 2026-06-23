@@ -1,8 +1,8 @@
-// CircleService.js — pull-kant van Cirkels (v1).
+// CircleService.js — pull side of Circles (v1).
 //
-// Haalt per circle_link de remote actor + outbox op, verifieert de Ed25519-
-// handtekening, sanitiseert en cachet publieke posts in remote_actors/remote_posts.
-// Alleen LEZEN van remote; nooit schrijven. Zie docs/cirkels-v1-spec.md §5b.
+// Per circle_link: fetches the remote actor + outbox, verifies the Ed25519
+// signature, sanitizes, and caches public posts in remote_actors/remote_posts.
+// READ ONLY from remote; never write. See docs/cirkels-v1-spec.md §5b.
 
 import db from '../config/database.js';
 import { verifyBody, KLONKT_PROTO, MIN_PROTO } from './CircleFederation.js';
@@ -15,7 +15,7 @@ const MAX_ITEMS = 50;
 function stripHtml(s) {
   return String(s || '')
     .replace(/<[^>]+>/g, ' ')
-    .replace(/\[\[[^\]]*\]\]/g, ' ')   // [[playlist:..]]/[[track:..]]/[[album:..]]-shortcodes weg
+    .replace(/\[\[[^\]]*\]\]/g, ' ')   // strip [[playlist:..]] / [[track:..]] / [[album:..]] shortcodes
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -30,7 +30,7 @@ function baseOf(remoteUrl) {
   return String(remoteUrl).replace(/\/+$/, '');
 }
 
-// AS Hashtag-array -> comma-separated tagnamen (zonder #), gesanitized.
+// AS Hashtag array -> comma-separated tag names (without #), sanitized.
 function extractTags(tag) {
   if (!Array.isArray(tag)) return null;
   const names = tag
@@ -40,12 +40,12 @@ function extractTags(tag) {
   return names.length ? names.join(', ') : null;
 }
 
-// Bron buiten de cirkel zetten met een leesbare reden (geen stille mislukking).
-// Aparte status 'outdated' zodat de Beheer-UI er een nette "update vereist"-
-// melding van kan maken i.p.v. een generieke fout.
+// Mark a source as outside the circle with a readable reason (no silent failure).
+// Separate 'outdated' status so the admin UI can show a clean "update required"
+// notice instead of a generic error.
 function markOutdated(link, msg) {
-  // Gecachte posts van deze bron weghalen: we kunnen ze niet meer verifiëren of
-  // verversen (proto-mismatch), dus ze horen niet meer in de cirkel-feed.
+  // Remove cached posts from this source: we can no longer verify or refresh
+  // them (proto mismatch), so they no longer belong in the circle feed.
   if (link.remote_actor_id) {
     try { db.prepare('DELETE FROM remote_posts WHERE actor_id = ?').run(link.remote_actor_id); } catch {}
   }
@@ -54,7 +54,7 @@ function markOutdated(link, msg) {
   return { ok: false, outdated: true, link: link.remote_url, error: msg };
 }
 
-// Robuuste, defensieve fetch: alleen https, timeout, body-cap, redirect-follow.
+// Robust, defensive fetch: https only, timeout, body cap, redirect follow.
 async function fetchText(url) {
   if (!/^https:\/\//i.test(url)) throw new Error('alleen https toegestaan');
   const ac = new AbortController();
@@ -65,21 +65,21 @@ async function fetchText(url) {
       redirect: 'follow',
       headers: {
         Accept: 'application/activity+json, application/json',
-        // Vertel de publisher onze proto → die kan ons met 426 weren als we te oud zijn.
+        // Tell the publisher our proto → they can reject us with 426 if we are too old.
         'Klonkt-Proto': String(KLONKT_PROTO),
       },
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const buf = Buffer.from(await res.arrayBuffer());
-    if (buf.length > MAX_BODY_BYTES) throw new Error('body te groot');
+    if (buf.length > MAX_BODY_BYTES) throw new Error('body too large');
     return { text: buf.toString('utf8'), headers: res.headers, finalUrl: res.url };
   } finally {
     clearTimeout(timer);
   }
 }
 
-// Lazy prepares — de tabellen bestaan pas ná initializeDatabase(); dit module
-// wordt geïmporteerd vóór die call, dus niet op module-niveau prepare'n.
+// Lazy prepares — tables only exist after initializeDatabase(); this module is
+// imported before that call, so do not prepare at module level.
 let _stmts = null;
 function stmts() {
   if (_stmts) return _stmts;
@@ -106,7 +106,7 @@ function stmts() {
 export async function syncOne(link) {
   const base = baseOf(link.remote_url);
 
-  // 1. Actor ophalen + valideren
+  // 1. Fetch + validate actor
   const actorUrl = `${base}/.klonkt/actor.json`;
   const a = await fetchText(actorUrl);
   let actor;
@@ -116,10 +116,10 @@ export async function syncOne(link) {
   if (!actorId || !pubKey) throw new Error('actor mist id/publicKey');
   if (originOf(actorId) !== originOf(actorUrl)) throw new Error('actor.id heeft andere origin dan de actor-URL');
 
-  // Protocol-versie-gate. De proto zit óók in de outbox-handtekening-grondslag,
-  // dus liegen in de (ongetekende) actor helpt niet: bij een echte mismatch faalt
-  // de verificatie verderop alsnog. Hier vooral voor een DUIDELIJKE melding +
-  // buitensluiten zonder stille mislukking.
+  // Protocol version gate. The proto is also embedded in the outbox signing
+  // input, so lying in the (unsigned) actor does not help: a real mismatch
+  // will still fail verification later. This check is mainly for a CLEAR
+  // message + exclusion without silent failure.
   const remoteProto = Number(actor.klonkt && actor.klonkt.proto) || 1;
   if (remoteProto > KLONKT_PROTO) {
     return markOutdated(link,
@@ -130,7 +130,7 @@ export async function syncOne(link) {
       `Draait een oudere Klonkt (proto ${remoteProto}; minimaal ${MIN_PROTO} vereist). Vraag ze te updaten.`);
   }
 
-  // TOFU: een sleutelwissel vereist expliciete herbevestiging (anti-hijack)
+  // TOFU: a key change requires explicit re-confirmation (anti-hijack)
   const existing = db.prepare('SELECT public_key FROM remote_actors WHERE id = ?').get(actorId);
   if (existing && existing.public_key !== pubKey) {
     throw new Error('publieke sleutel gewijzigd — herbevestiging vereist (TOFU)');
@@ -145,7 +145,7 @@ export async function syncOne(link) {
     public_key: pubKey,
   });
 
-  // 2. Outbox ophalen + handtekening verifiëren
+  // 2. Fetch outbox + verify signature
   const outboxUrl = actor.outbox || `${base}/.klonkt/outbox.json`;
   const o = await fetchText(outboxUrl);
   const sigHeader = o.headers.get('klonkt-signature') || '';
@@ -157,7 +157,7 @@ export async function syncOne(link) {
   try { outbox = JSON.parse(o.text); } catch { throw new Error('outbox: ongeldige JSON'); }
   const items = Array.isArray(outbox.orderedItems) ? outbox.orderedItems.slice(0, MAX_ITEMS) : [];
 
-  // 3. Objecten sanitizen + cachen (same-origin als de actor = anti-impersonatie)
+  // 3. Sanitize + cache objects (same origin as actor = anti-impersonation)
   const actorOrigin = originOf(actorId);
   const seen = new Set();
   for (const it of items) {
@@ -185,7 +185,7 @@ export async function syncOne(link) {
     seen.add(obj.id);
   }
 
-  // 4. Pruning: posts die niet meer in de outbox staan opruimen
+  // 4. Pruning: remove posts that are no longer in the outbox
   const known = db.prepare('SELECT id FROM remote_posts WHERE actor_id = ?').all(actorId).map((r) => r.id);
   const stale = known.filter((id) => !seen.has(id));
   if (stale.length) {
@@ -193,8 +193,8 @@ export async function syncOne(link) {
     db.transaction((ids) => ids.forEach((id) => del.run(id)))(stale);
   }
 
-  // Naam automatisch overnemen van de remote actor (geen handmatige invoer nodig).
-  // COALESCE: heeft de actor geen naam, dan blijft een evt. bestaand label staan.
+  // Automatically adopt the name from the remote actor (no manual entry needed).
+  // COALESCE: if the actor has no name, any existing label is preserved.
   db.prepare(
     "UPDATE circle_links SET remote_actor_id=?, label=COALESCE(?, label), last_synced=CURRENT_TIMESTAMP, status='active', last_error=NULL WHERE id=?"
   ).run(actorId, actor.name || null, link.id);
@@ -220,11 +220,11 @@ export async function sync() {
 }
 
 let _timer = null;
-/** Periodieke achtergrond-sync (gated op tenancy='circle' binnen sync()). */
+/** Periodic background sync (gated on tenancy='circle' inside sync()). */
 export function startCircleSyncLoop(intervalMs = 15 * 60 * 1000) {
   if (_timer) return;
   const run = () => { sync().catch((e) => console.error('[cirkels] sync-fout:', e.message)); };
-  setTimeout(run, 30 * 1000); // korte delay na boot
+  setTimeout(run, 30 * 1000); // short delay after boot
   _timer = setInterval(run, intervalMs);
   if (_timer.unref) _timer.unref();
 }

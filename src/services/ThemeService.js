@@ -15,10 +15,10 @@
  */
 
 class ThemeService {
-  // Paper/ink komen 1-op-1 uit de [data-palette]-CSS in style.css (= wat ECHT
-  // wordt toegepast); de accent-stip is een representatieve kleur per palet.
+  // Paper/ink values map 1-to-1 from the [data-palette] CSS in style.css (= what
+  // is ACTUALLY applied); the accent dot is a representative color per palette.
   static PALETTES = {
-    // Merk-standaard — komt overeen met klonkt.com (donkerblauw + geel).
+    // Brand default — matches klonkt.com (dark blue + gold).
     klonkt: {
       name: 'Klonkt',
       light: { paper: '#f3f1ea', ink: '#11141c', accent: '#c98a2a' },
@@ -64,7 +64,7 @@ class ThemeService {
       light: { paper: '#fdf2f4', ink: '#2e1419', accent: '#e11d6b' },
       dark: { paper: '#1f0a0f', ink: '#fce4ea', accent: '#f06b9a' }
     },
-    // key blijft 'mint' (DB-veilig), maar omgekleurd naar warm Terracotta — minder groen.
+    // key stays 'mint' (DB-safe), but recolored to warm Terracotta — less green.
     mint: {
       name: 'Terracotta',
       light: { paper: '#faf2ee', ink: '#2e1a12', accent: '#c2410c' },
@@ -82,8 +82,8 @@ class ThemeService {
    * hex picker. Keeps the brand consistent and avoids unreadable combinations.
    * Each color works against both light and dark themes.
    */
-  // Evenwichtig over het kleurenwiel — minder groen/blauw (4 van de 12),
-  // meer warme + paars/roze variatie. Allemaal leesbaar op licht én donker.
+  // Balanced across the color wheel — fewer greens/blues (4 of 12),
+  // more warm + purple/pink variation. All readable on both light and dark.
   static ACCENTS = [
     { key: 'klonkt',  name: 'Klonkt-geel', color: '#e8b04b' },
     { key: 'red',     name: 'Rood',      color: '#dc2626' },

@@ -5,16 +5,16 @@
 .view-switcher-wrap {
   border-bottom: 1px solid var(--rule);
   background: var(--paper);
-  /* Geen extra margin-top: de pill wordt zo gecentreerd tussen de profielkop-
-     streep (boven) en de eigen border (onder). De gelijke lucht boven/onder de
-     pill komt uit de symmetrische container-padding hieronder. De margin-bottom
-     (1.5rem in style.css) blijft lucht naar de feed. */
+  /* No extra margin-top: this centres the pill between the profile-header
+     rule (above) and the own border (below). Equal space above/below the
+     pill comes from the symmetric container padding below. The margin-bottom
+     (1.5rem in style.css) keeps breathing room toward the feed. */
   margin-top: 0;
 }
 .view-switcher-wrap .container {
   display: flex; align-items: center; justify-content: center; gap: 0.75rem;
-  /* Symmetrische padding → even veel lucht boven als onder de pill (≈8px),
-     gecentreerd tussen de twee lijnen. */
+  /* Symmetric padding → equal space above and below the pill (≈8px),
+     centred between the two dividing lines. */
   padding: 0.5rem 1rem;
   max-width: 1200px; margin: 0 auto;
   flex-wrap: wrap;
@@ -35,14 +35,14 @@
   transition: background 120ms, color 120ms;
 }
 .view-switch-btn:hover { color: var(--ink); }
-/* Actief = wit (lichte achtergrond, donkere tekst). Via aria-selected (element-
-   attribuut, door syncAria gezet + op htmx:afterSettle) → htmx-robuust. Op niet-
-   feed-pagina's zet syncAria aria-selected=false → beide grijs. */
+/* Active = white (light background, dark text). Via aria-selected (element
+   attribute, set by syncAria + on htmx:afterSettle) → htmx-robust. On non-
+   feed pages syncAria sets aria-selected=false → both grey. */
 .view-switch-btn[aria-selected="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
 
-/* Agenda = een EIGEN pill (los van Tijdlijn/Grid, zodat de feed-toggle nooit
-   verstoord raakt). Zelfde look als de view-switcher-pill. Zichtbaar in alle modi. */
-.agenda-pill { display: inline-flex; align-items: center; }   /* geen box — losse icoon+tekst link */
+/* Agenda = its OWN pill (separate from Timeline/Grid, so the feed-toggle is never
+   disturbed). Same look as the view-switcher pill. Visible in all modes. */
+.agenda-pill { display: inline-flex; align-items: center; }   /* no box — standalone icon+text link */
 .vs-agenda {
   display: inline-flex; align-items: center; gap: 0.4rem;
   padding: 0.35rem 0.5rem;
@@ -52,13 +52,13 @@
   transition: color 120ms;
 }
 .vs-agenda:hover { color: var(--ink); }
-/* Actief (op de agendapagina) = helder/wit. Element-class (in de OOB-gerenderde
-   chrome) i.p.v. body-class-CSS → werkt betrouwbaar ook na htmx-navigatie. */
+/* Active (on the agenda page) = bright/white. Element-class (in the OOB-rendered
+   chrome) rather than body-class CSS → stays reliable after htmx navigation. */
 .vs-agenda.is-active { color: var(--ink); font-weight: 600; }
 
-/* Mobiel: Agenda op een eigen rij bovenaan, en Solo/Cirkel + Tijdlijn/Grid samen
-   op de rij eronder (samen ~330px → past binnen een telefoon, i.p.v. de oude
-   onevenwichtige split Agenda+Solo / Tijdlijn). */
+/* Mobile: Agenda on its own row at the top, Solo/Circle + Timeline/Grid together
+   on the row below (together ~330px → fits within a phone, instead of the old
+   unbalanced split Agenda+Solo / Timeline). */
 @media (max-width: 520px) {
   .view-switcher-wrap .agenda-pill { flex: 0 0 100%; justify-content: center; }
 }
@@ -91,12 +91,12 @@
    visible so the user keeps a consistent return-to-feed control. */
 .on-admin .view-switcher-wrap { display: none; }
 
-/* Op een losse post is er geen feed om te schakelen, dus geen knop hoort "actief"
-   (gekleurd) te ogen. De actieve staat zit in style.css op body[data-feed-view]
-   / body[data-grid-cols] (background:var(--ink)); we overrulen die SPECIFIEKER
-   via body.on-post zodat de knoppen neutraal/grijs worden — maar wél klikbaar
-   blijven (de klik-handler navigeert dan naar de feed in die weergave). De
-   body-class wisselt client-side bij HTMX-nav, dus dit werkt ook zonder reload. */
+/* On a standalone post there is no feed to switch, so no button should look "active"
+   (coloured). The active state lives in style.css on body[data-feed-view]
+   / body[data-grid-cols] (background:var(--ink)); we override that MORE SPECIFICALLY
+   via body.on-post so the buttons become neutral/grey — but remain clickable
+   (the click-handler then navigates to the feed in that view). The
+   body-class switches client-side on HTMX-nav, so this works without a reload too. */
 body.on-post[data-feed-view="timeline"] .view-switch-btn[data-view="timeline"],
 body.on-post[data-feed-view="grid"] .view-switch-btn[data-view="grid"],
 body.on-post[data-grid-cols="2"] .grid-cols-btn[data-cols="2"],

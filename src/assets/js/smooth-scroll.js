@@ -1,7 +1,7 @@
 /* Klonkt — Lenis smooth wheel scroll init (desktop only) */
 (function () {
   if (typeof Lenis === "undefined") return;
-  // Skip op touch/mobile — native momentum is beter dan JS lib
+  // Skip on touch/mobile — native momentum scroll is better than a JS lib
   var isMobile = window.matchMedia("(pointer: coarse)").matches || window.innerWidth < 1024;
   if (isMobile) return;
   var lenis = new Lenis({

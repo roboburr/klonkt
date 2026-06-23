@@ -125,7 +125,7 @@ export async function transcodeToMp3({ inputPath, outputDir, outputBaseName, tag
       path: finalPath,
       size: outStat.size,
       mimeType: 'audio/mpeg',
-      durationSec,   // hele seconden uit ffmpeg's codecData (null als onbekend)
+      durationSec,   // whole seconds from ffmpeg's codecData (null if unknown)
     };
 
   } catch (err) {
@@ -137,21 +137,21 @@ export async function transcodeToMp3({ inputPath, outputDir, outputBaseName, tag
 }
 
 /**
- * Herschrijf de ID3-tags van een BESTAANDE mp3 zonder her-encoden (`-c copy`).
- * Gebruikt bij het bewerken van track-metadata (titel/artiest/album/credit/licentie)
- * zodat de eigendomsinfo in het bestand zelf meereist bij een download.
- * ffmpeg kan niet in-place editen → schrijf naar tmp en hernoem atomisch terug.
+ * Rewrite the ID3 tags of an EXISTING mp3 without re-encoding (`-c copy`).
+ * Used when editing track metadata (title/artist/album/credit/license) so that
+ * ownership info travels with the file on download.
+ * ffmpeg cannot edit in-place → write to tmp and atomically rename back.
  */
 export async function retagMp3({ filePath, tags = {} }) {
   if (!filePath) throw new Error('retagMp3: filePath required');
-  await stat(filePath); // throws als 't bestand mist
+  await stat(filePath); // throws if file is missing
   const dir = path.dirname(filePath);
   const base = path.basename(filePath, path.extname(filePath));
   const tmpPath = path.join(dir, `${base}.retag-${process.pid}.mp3`);
   try {
     await new Promise((resolve, reject) => {
       const cmd = ffmpeg(filePath)
-        .audioCodec('copy')        // geen her-encode → snel, geen kwaliteitsverlies
+        .audioCodec('copy')        // no re-encode → fast, no quality loss
         .format('mp3')
         .outputOptions('-id3v2_version', '3')
         .outputOptions('-map_metadata', '-1')
@@ -166,11 +166,11 @@ export async function retagMp3({ filePath, tags = {} }) {
          .save(tmpPath);
     });
     const s = await stat(tmpPath);
-    if (s.size === 0) throw new Error('retag output is leeg');
+    if (s.size === 0) throw new Error('retag output is empty');
     await rename(tmpPath, filePath);
     return { filePath, size: s.size };
   } catch (err) {
-    try { await unlink(tmpPath); } catch { /* tmp bestaat mogelijk niet */ }
+    try { await unlink(tmpPath); } catch { /* tmp may not exist */ }
     throw err;
   }
 }
@@ -208,12 +208,12 @@ function runFfmpeg({ inputPath, tmpPath, tags }) {
     if (tags.title)     cmd.outputOptions('-metadata', `title=${tags.title}`);
     if (tags.artist)    cmd.outputOptions('-metadata', `artist=${tags.artist}`);
     if (tags.album)     cmd.outputOptions('-metadata', `album=${tags.album}`);
-    if (tags.copyright) cmd.outputOptions('-metadata', `copyright=${tags.copyright}`); // ID3 TCOP — eigenaar/credit
-    if (tags.comment)   cmd.outputOptions('-metadata', `comment=${tags.comment}`);     // ID3 COMM — licentie
+    if (tags.copyright) cmd.outputOptions('-metadata', `copyright=${tags.copyright}`); // ID3 TCOP — owner/credit
+    if (tags.comment)   cmd.outputOptions('-metadata', `comment=${tags.comment}`);     // ID3 COMM — license
 
     cmd
-      // codecData geeft de duur van de INPUT als "HH:MM:SS.xx" — zo bepalen we
-      // de tracklengte automatisch zonder aparte ffprobe-binary.
+      // codecData gives the INPUT duration as "HH:MM:SS.xx" — this lets us
+      // determine the track length automatically without a separate ffprobe binary.
       .on('codecData', (data) => { durationSec = parseHmsToSeconds(data && data.duration); })
       .on('error', (err, stdout, stderr) => {
         // ffmpeg's stderr is the most useful diagnostic. fluent-ffmpeg's
@@ -229,8 +229,8 @@ function runFfmpeg({ inputPath, tmpPath, tags }) {
 }
 
 /**
- * Parse een ffmpeg-duurstring "HH:MM:SS.xx" naar hele seconden. Geeft null bij
- * "N/A" of een onverwacht formaat.
+ * Parse an ffmpeg duration string "HH:MM:SS.xx" to whole seconds. Returns null
+ * for "N/A" or an unexpected format.
  */
 function parseHmsToSeconds(hms) {
   if (!hms || typeof hms !== 'string') return null;
@@ -241,10 +241,10 @@ function parseHmsToSeconds(hms) {
 }
 
 /**
- * Lees de duur (hele seconden) van een audiobestand ZONDER te transcoderen.
- * Start een ffmpeg-pass en leest enkel het codecData-event (duur), waarna we het
- * proces direct stoppen — snel en zonder aparte ffprobe-binary (ffmpeg-static
- * levert alleen ffmpeg). Bedoeld voor het backfill-script.
+ * Read the duration (whole seconds) of an audio file WITHOUT transcoding.
+ * Starts an ffmpeg pass and reads only the codecData event (duration), then
+ * kills the process immediately — fast and without a separate ffprobe binary
+ * (ffmpeg-static ships only ffmpeg). Intended for the backfill script.
  * @returns {Promise<number|null>}
  */
 export function probeDuration(filePath) {
@@ -254,7 +254,7 @@ export function probeDuration(filePath) {
     const cmd = ffmpeg(filePath)
       .on('codecData', (data) => {
         durationSec = parseHmsToSeconds(data && data.duration);
-        try { cmd.kill('SIGKILL'); } catch { /* al klaar */ }
+        try { cmd.kill('SIGKILL'); } catch { /* already done */ }
         finish();
       })
       .on('error', finish)

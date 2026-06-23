@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
- * Backfill audio_tracks.duration voor bestaande tracks die nog géén duur hebben.
- * Leest de duur uit het mp3-bestand via ffmpeg (probeDuration — geen aparte
- * ffprobe-binary nodig). Idempotent: pakt alleen rijen met duration NULL of 0,
- * dus veilig herhaalbaar.
+ * Backfill audio_tracks.duration for existing tracks that have no duration yet.
+ * Reads the duration from the mp3 file via ffmpeg (probeDuration — no separate
+ * ffprobe binary required). Idempotent: only touches rows with duration NULL or 0,
+ * so it is safe to run repeatedly.
  *
  *   npm run backfill:durations
  *
- * Respecteert AUDIO_PATH (env) net als de upload-route.
+ * Respects AUDIO_PATH (env) just like the upload route.
  */
 import path from 'path';
 import fs from 'fs';
@@ -20,11 +20,11 @@ const AUDIO_DIR = path.resolve(
   process.env.AUDIO_PATH || path.join(__dirname, '..', 'storage', 'audio')
 );
 
-// storage_path is absoluut (opgeslagen bij upload); val terug op AUDIO_DIR/filename.
+// storage_path is absolute (stored at upload time); fall back to AUDIO_DIR/filename.
 function resolveFile(t) {
   const candidates = [t.storage_path, t.filename ? path.join(AUDIO_DIR, t.filename) : null].filter(Boolean);
   for (const c of candidates) {
-    try { if (fs.statSync(c).isFile()) return c; } catch { /* volgende kandidaat */ }
+    try { if (fs.statSync(c).isFile()) return c; } catch { /* try next candidate */ }
   }
   return null;
 }

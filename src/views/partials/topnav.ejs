@@ -26,9 +26,9 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
       <% if (_isAdmin) { %>
         <a href="<%= _siteUrlBase %>/" class="nav-link nav-link-admin"><%= t('nav.back_to_site') %></a>
       <% } else if (typeof tenancy !== 'undefined' && tenancy === 'hub') { %>
-        <%# Hub: de brand gaat naar de hub-home via HTMX. De chrome wordt in hub-modus
-            altijd gerenderd en via body.on-hub (CSS) verborgen op de landing, dus htmx
-            kan schakelen zonder full-reload → de audioplayer blijft leven. %>
+        <%# Hub: the brand navigates to the hub home via HTMX. The chrome is always
+            rendered in hub mode and hidden on the landing via body.on-hub (CSS), so htmx
+            can switch without a full reload → the audio player stays alive. %>
         <a class="nav-hub-home" href="/" aria-label="Home" title="Home"
            hx-get="/?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="/" hx-indicator="#pcms-loading">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
@@ -206,11 +206,11 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
 
 <script>
 (function() {
-  // EÉN keer bedraden. Deze chrome (topnav) wordt bij htmx-navigatie out-of-band
-  // opnieuw ingevoegd → zonder deze guard zou dit script bij elke navigatie EXTRA
-  // listeners stapelen, waardoor de thema-toggle 2× (of vaker) vuurde = geen netto
-  // wisseling ("toggle werkt niet meer"). Alles hieronder is event-delegatie op
-  // body/document, dus het werkt ook voor knoppen die ná deze run (OOB) verschijnen.
+  // Wired ONCE. This chrome (topnav) is re-inserted out-of-band during htmx navigation
+  // → without this guard the script would stack EXTRA listeners on every navigation,
+  // causing the theme toggle to fire 2× (or more) = no net change ("toggle stops working").
+  // Everything below uses event delegation on body/document, so it also works for
+  // buttons that appear after this run (OOB).
   if (window.__pcmsChromeWired) return;
   window.__pcmsChromeWired = true;
 
@@ -228,7 +228,7 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
     if (e.target.closest('#theme-toggle, #theme-toggle-mobile, #theme-toggle-footer')) { toggleTheme(); return; }
     if (e.target.closest('#search-toggle')) { openSearch(); return; }
     if (e.target.closest('#search-close')) { closeSearch(); return; }
-    // Open dropdowns (gebruikersmenu + taalkeuze) sluiten bij klik erbuiten.
+    // Close open dropdowns (user menu + language picker) on click outside.
     document.querySelectorAll('.user-menu[open], .lang-menu[open]').forEach(function(d) {
       if (!d.contains(e.target)) d.removeAttribute('open');
     });
@@ -238,7 +238,7 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
     if (e.key === 'Escape') { var o = overlay(); if (o && !o.hidden) closeSearch(); }
   });
 
-  // ── Live resultaten tijdens typen ───────────────────────────────
+  // ── Live results while typing ───────────────────────────────────
   var _ST = {
     posts: '<%= t('search.section_posts') %>', tracks: '<%= t('search.section_tracks') %>',
     events: '<%= t('search.section_events') %>', pages: '<%= t('search.section_pages') %>',
@@ -279,7 +279,7 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
         .catch(function(){});
     }, 200);
   });
-  // Klik op een suggestie → overlay sluiten (de link/boost doet de navigatie).
+  // Click on a suggestion → close the overlay (the link/boost handles navigation).
   document.addEventListener('click', function(e) {
     if (e.target.closest && e.target.closest('#search-suggest a')) { var o = overlay(); if (o) o.hidden = true; }
   });
@@ -312,7 +312,7 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
   display: none;
 }
 
-/* Hub-home brand is WÉL zichtbaar — de thuisknop op artiest-/hub-pagina's. */
+/* Hub-home brand IS visible — the home button on artist/hub pages. */
 .masthead-brand .nav-hub-home {
   display: inline-flex; align-items: center; justify-content: center;
   width: 40px; height: 40px;
@@ -435,7 +435,7 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
   position: absolute; top: calc(100% + .55rem); right: 0;
   min-width: 220px;
   padding: .35rem;
-  /* Frosted glass: transparant + zware blur zodat het frosted effect duidelijk is. */
+  /* Frosted glass: transparent + heavy blur so the frosted effect is clearly visible. */
   background: color-mix(in srgb, var(--paper) 60%, transparent);
   backdrop-filter: blur(34px) saturate(190%);
   -webkit-backdrop-filter: blur(34px) saturate(190%);
@@ -564,7 +564,7 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
 .ss-empty { padding: .8rem .6rem; color: var(--ink-soft, var(--ink-muted)); font-size: .9rem; }
 .ss-all { display: block; margin-top: .35rem; padding: .55rem .6rem; border-top: 1px solid var(--rule); color: var(--accent); font-weight: 600; text-decoration: none; font-size: .9rem; }
 .ss-all:hover { text-decoration: underline; }
-/* Meldingen-bel + ongelezen-badge */
+/* Notification bell + unread badge */
 .nav-notif { position: relative; }
 .notif-badge {
   position: absolute; top: 1px; right: 1px;

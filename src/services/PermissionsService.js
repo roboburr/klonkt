@@ -45,7 +45,7 @@ class PermissionsService {
   static canCreatePost(user, site) {
     if (!user) return false;
     if (user.role === 'god') return true;
-    if (!site) return false; // geen site-context (bv. hub-landing) -> niets te posten
+    if (!site) return false; // no site context (e.g. hub landing) -> nothing to post to
     if (user.id === site.owner_id) return true; // Site owner
     if (this.canAdminSite(user, site)) return true;
     return false;
@@ -58,9 +58,9 @@ class PermissionsService {
     if (!user || !site) return false;
     if (user.role === 'god') return true;
     if (user.id === site.owner_id) return true;
-    // Toegewezen mede-beheerder (collaborator) via site_members. Dit werd
-    // voorheen via een nooit-gevulde user.siteRoles gelezen → dode code; nu
-    // direct op de tabel (paar checks per pagina, indexed = goedkoop).
+    // Assigned co-admin (collaborator) via site_members. Previously read from
+    // a never-populated user.siteRoles → dead code; now queried directly on
+    // the table (a few checks per page, indexed = cheap).
     return !!db.prepare(
       "SELECT 1 FROM site_members WHERE site_id = ? AND user_id = ? AND role = 'admin' LIMIT 1"
     ).get(site.id, user.id);

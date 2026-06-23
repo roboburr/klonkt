@@ -1,13 +1,13 @@
 /**
- * Meldingen — antwoord op je reactie, reactie op je post, like op je post.
- * Voor élke ingelogde gebruiker (Google-bezoekers/fans én admin). Snapshots van
- * actor-naam + post-titel zodat de lijst zonder joins te tonen is.
+ * Notifications — reply to your comment, comment on your post, like on your post.
+ * For every logged-in user (Google visitors/fans and admins). Snapshots of
+ * actor name + post title so the list can be rendered without joins.
  */
 import { randomUUID } from 'crypto';
 import db from '../config/database.js';
 
-// Maakt een melding aan. Doet niets als er geen ontvanger is of als je jezelf
-// zou notificeren (eigen reactie/like op eigen post/reactie).
+// Creates a notification. Does nothing if there is no recipient or if you
+// would notify yourself (your own comment/like on your own post/comment).
 export function notify({ userId, actorId, actorName, type, postSlug, postTitle, url }) {
   if (!userId || userId === actorId) return;
   try {
@@ -15,7 +15,7 @@ export function notify({ userId, actorId, actorName, type, postSlug, postTitle, 
       INSERT INTO user_notifications (id, user_id, type, actor_id, actor_name, post_slug, post_title, url, read)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
     `).run(randomUUID(), userId, type, actorId || null, actorName || null, postSlug || null, postTitle || null, url || null);
-  } catch { /* meldingen zijn niet-fataal */ }
+  } catch { /* notifications are non-fatal */ }
 }
 
 export function unreadCount(userId) {
@@ -32,7 +32,7 @@ export function list(userId, limit = 50) {
 
 export function markAllRead(userId) {
   if (!userId) return;
-  try { db.prepare('UPDATE user_notifications SET read = 1 WHERE user_id = ? AND read = 0').run(userId); } catch { /* noop */ }
+  try { db.prepare('UPDATE user_notifications SET read = 1 WHERE user_id = ? AND read = 0').run(userId); } catch { /* no-op */ }
 }
 
 export default { notify, unreadCount, list, markAllRead };

@@ -229,8 +229,8 @@
       try { URL.revokeObjectURL(currentObjectUrl); } catch (e) {}
     }
     currentObjectUrl = objUrl;
-    // Schone overgang: pause + load forceert reset van internal state na
-    // meerdere src-changes (voorkomt state-corruption van het audio-element).
+    // Clean transition: pause + load forces a reset of internal state after
+    // multiple src changes (prevents state corruption of the audio element).
     try { audio.pause(); } catch (e) {}
     audio.src = objUrl;
     try { audio.load(); } catch (e) {}
@@ -275,14 +275,14 @@
   // metaOnly: show the track in the UI but DON'T download its bytes yet.
   // Used by the site pre-seed so opening a page doesn't auto-download audio;
   // the blob is fetched lazily on the first play().
-  // Markeer de huidige track persistent (blijvende highlight zolang 'ie actief is).
+  // Persistently mark the current track (stays highlighted as long as it's active).
   function markPlaying(trackId) {
     document.querySelectorAll('.pat-playing').forEach((e) => e.classList.remove('pat-playing'));
     if (!trackId) return;
     const el = document.getElementById('track-' + trackId);
     if (el) el.classList.add('pat-playing');
   }
-  // Na een htmx-navigatie is de post-DOM vervangen → highlight opnieuw zetten.
+  // After an htmx navigation the post DOM is replaced → reapply the highlight.
   document.body.addEventListener('htmx:afterSettle', () => {
     const t = queue[currentIndex];
     if (t) markPlaying(t.id);
@@ -340,10 +340,10 @@
   // breakpoint where .audio-sheet slides up full-width from the bottom
   // (@media max-width:719.98px). On wider/desktop widths the sheet is a centered
   // panel, so we do NOT auto-open it there.
-  // Drie weergaves (Robin 2026-06-15): telefoon (<768) = fullscreen sheet;
-  // tablet/auto (768–1199) = grote landscape full-player (tablet + tablet-in-de-
-  // auto); desktop (≥1200) = alleen mini-speler, GEEN full player. matchMedia
-  // zodat dit exact de CSS-breekpunten volgt.
+  // Three layouts (Robin 2026-06-15): phone (<768) = fullscreen sheet;
+  // tablet/car (768–1199) = large landscape full-player (tablet + car-mode);
+  // desktop (≥1200) = mini-player only, NO full player. matchMedia so this
+  // exactly follows the CSS breakpoints.
   function playerTier() {
     if (window.matchMedia('(min-width: 1200px)').matches) return 'desktop';
     if (window.matchMedia('(min-width: 768px)').matches) return 'tablet';
@@ -358,10 +358,10 @@
     if (!queue.length) return;
     loadTrack(typeof startIdx === 'number' ? Math.max(0, Math.min(startIdx, queue.length - 1)) : 0, true);
     // Mobile: a track press from an album/playlist auto-opens the full
-    // now-playing sheet (Spotify-style) i.p.v. alleen de dunne mini-strip.
-    // Alleen hier (setQueue = een verse, door-de-gebruiker-gestarte queue) —
-    // niet bij next/prev of de site-pre-seed — zodat een sheet die de gebruiker
-    // bewust sloot niet vanzelf terugkomt.
+    // now-playing sheet (Spotify-style) instead of just the thin mini-strip.
+    // Only here (setQueue = a fresh, user-initiated queue) —
+    // not on next/prev or the site pre-seed — so a sheet the user
+    // deliberately closed doesn't reappear by itself.
     if (hasFullPlayer()) openSheet();
   }
 
@@ -376,9 +376,9 @@
     if (p && typeof p.catch === 'function') {
       p.catch((err) => {
         console.warn('[pcms-audio] play() rejected:', err.name, err.message);
-        // Browser-autoplay-policy heeft 't gestopt (typisch na 3-4
-        // automatische plays op iOS Safari, of als tab tijdelijk inactive
-        // was). Visuele hint dat user op play moet tappen.
+        // Browser autoplay policy blocked it (typically after 3-4
+        // auto-plays on iOS Safari, or when the tab was temporarily inactive).
+        // Show a visual hint for the user to tap play.
         if (err && err.name === 'NotAllowedError') {
           root.classList.add('audio-needs-tap');
           isPlaying = false;
@@ -439,13 +439,13 @@
   }
 
   // ============================================================
-  // 4b. Mutual exclusion — gedeelde media-registry (zie embed-player.js).
+  // 4b. Mutual exclusion — shared media registry (see embed-player.js).
   // ============================================================
-  // Alle spelers (deze site-speler + de YouTube/SoundCloud/Spotify-embeds)
-  // registreren zich in window.pcmsMediaRegistry. Start er één, dan pauzeert de
-  // vorige. Dit is de precieze vervanger van de oude focus/blur-heuristiek voor
-  // de embeds met een echte JS-API. (De blur-fallback hieronder blijft staan
-  // voor iframe-only embeds zonder API: Bandcamp/Apple Music/Vimeo.)
+  // All players (this site player + YouTube/SoundCloud/Spotify embeds)
+  // register themselves in window.pcmsMediaRegistry. Starting one pauses
+  // the previous. This is the precise replacement for the old focus/blur
+  // heuristic for embeds with a real JS API. (The blur fallback below stays
+  // for iframe-only embeds without an API: Bandcamp/Apple Music/Vimeo.)
   function mediaRegistry() {
     if (window.pcmsMediaRegistry) return window.pcmsMediaRegistry;
     const r = {
@@ -466,20 +466,19 @@
   // ============================================================
   // 5. Audio element events → UI sync
   // ============================================================
-  // Error-counter voorkomt infinite-loop als ALLE tracks broken zijn.
+  // Error counter prevents an infinite loop when ALL tracks are broken.
   let consecutiveErrors = 0;
 
   audio.addEventListener('play',  () => {
     isPlaying = true;
     root.classList.add('is-playing');
-    root.classList.remove('audio-needs-tap');  // verstop tap-hint
-    mediaRegistry().setActive(registrySelf);   // pauzeer eventueel spelende embeds
+    root.classList.remove('audio-needs-tap');  // hide tap hint
+    mediaRegistry().setActive(registrySelf);   // pause any currently playing embeds
   });
-  // Reset de error-teller pas bij ECHTE playback-start (`playing`), niet bij
-  // het eager `play`-event. `play` vuurt vóór een eventuele netwerk-/decode-
-  // fout, dus resetten daar zou de 3-strikes-stop nooit laten triggeren bij
-  // een kapotte track → infinite "next"-loop. `playing` vuurt alleen als er
-  // daadwerkelijk audio speelt.
+  // Reset the error counter only on a REAL playback start (`playing`), not the
+  // eager `play` event. `play` fires before any network/decode error, so resetting
+  // there would prevent the 3-strikes stop from ever triggering on a broken
+  // track → infinite "next" loop. `playing` only fires when audio is actually playing.
   audio.addEventListener('playing', () => { consecutiveErrors = 0; preloadNext(); });
   audio.addEventListener('pause', () => { isPlaying = false; root.classList.remove('is-playing'); });
   audio.addEventListener('ended', next);
@@ -487,10 +486,10 @@
     const code = audio.error ? audio.error.code : '?';
     console.error('[pcms-audio] playback error', code, audio.src, e);
     consecutiveErrors++;
-    // Bij netwerk/decode-fout: skip naar volgende track ipv stilstaan.
-    // Max 3 fouten op rij voordat we opgeven (anders infinite loop).
+    // On network/decode error: skip to next track instead of stalling.
+    // Max 3 consecutive errors before giving up (otherwise infinite loop).
     if (consecutiveErrors < 3 && queue.length > 1) {
-      console.warn('[pcms-audio] auto-skip naar volgende na error', consecutiveErrors);
+      console.warn('[pcms-audio] auto-skip to next after error', consecutiveErrors);
       setTimeout(next, 400);
     }
   });
@@ -544,18 +543,18 @@
   // ============================================================
   // 7. Sheet expand/close + drag-down-to-close
   // ============================================================
-  // Back-knop sluit de sheet op mobiel: bij openen pushen we een history-entry,
-  // zodat de telefoon-terugknop (popstate) eerst de sheet sluit i.p.v. de pagina
-  // te verlaten. We balanceren 'm bij een UI-sluiting via history.back().
+  // Back button closes the sheet on mobile: on open we push a history entry
+  // so the phone back button (popstate) closes the sheet first instead of
+  // leaving the page. We balance it on a UI-initiated close via history.back().
   let sheetHistoryPushed = false;
 
   function openSheet() {
-    if (!hasFullPlayer()) return; // desktop (≥1200): geen full player, alleen mini-speler
+    if (!hasFullPlayer()) return; // desktop (≥1200): no full player, mini-player only
     if (sheet.classList.contains('is-open')) return;
     sheet.classList.add('is-open');
     sheet.setAttribute('aria-hidden', 'false');
     document.body.classList.add('audio-sheet-locked');
-    // Telefoon + tablet: history-entry zodat de terug-knop eerst de sheet sluit.
+    // Phone + tablet: push a history entry so the back button closes the sheet first.
     try { history.pushState({ pcmsSheet: true }, ''); sheetHistoryPushed = true; } catch (e) {}
   }
   function closeSheet(fromPopstate) {
@@ -565,9 +564,9 @@
     document.body.classList.remove('audio-sheet-locked');
     sheetPanel.style.removeProperty('--pcms-drag-y');
     sheetBackdrop.style.removeProperty('--pcms-sheet-progress');
-    // UI-sluiting (X / swipe / backdrop / Esc): pop onze eigen history-entry zodat
-    // de volgende terug-knop weer normaal navigeert. Bij een popstate-sluiting
-    // (de terug-knop zelf) is de entry al gepopt.
+    // UI close (X / swipe / backdrop / Esc): pop our own history entry so the
+    // next back button navigates normally. On a popstate close (back button itself)
+    // the entry is already popped.
     const wasPushed = sheetHistoryPushed;
     sheetHistoryPushed = false;
     if (wasPushed && !fromPopstate) { try { history.back(); } catch (e) {} }
@@ -575,10 +574,10 @@
   window.addEventListener('popstate', () => {
     if (sheet.classList.contains('is-open')) closeSheet(true);
   });
-  // Mini-player-info aanklikken:
-  //  - DESKTOP (≥768px): spring naar de post waar de track vandaan komt (als bekend),
-  //    via htmx zodat de audio blijft spelen. Geen post bekend → val terug op de sheet.
-  //  - MOBIEL: altijd de uitgebreide speler-sheet openen (huidig gedrag).
+  // Clicking the mini-player track info:
+  //  - DESKTOP (≥1200px): jump to the post the track came from (if known),
+  //    via htmx so audio keeps playing. No post known → fall back to the sheet.
+  //  - MOBILE/TABLET: always open the full now-playing sheet.
   function scrollToTrack(trackId) {
     if (!trackId) { window.scrollTo(0, 0); return; }
     const el = document.getElementById('track-' + trackId);
@@ -593,24 +592,24 @@
       try {
         const p = window.htmx.ajax('GET', url, { target: '#pcms-main', swap: 'innerHTML' });
         history.pushState({}, '', url + hash);
-        // Na de swap naar de track scrollen (klein uitstel zodat de globale
-        // afterSwap-top-scroll eerst is geweest); val terug op top als niet gevonden.
+        // Scroll to the track after the swap (small delay so the global
+        // afterSwap scroll-to-top runs first); fall back to top if not found.
         const go = () => setTimeout(() => scrollToTrack(trackId), 60);
         if (p && typeof p.then === 'function') p.then(go); else setTimeout(go, 150);
         return;
-      } catch (e) { /* val terug op volledige navigatie */ }
+      } catch (e) { /* fall back to full navigation */ }
     }
     location.href = url + hash;
   }
   expandTrigger.addEventListener('click', () => {
     const t = queue[currentIndex];
-    // Alleen op échte desktop (≥1200, geen full-player) springen we naar de post.
-    // Tablet + telefoon hebben een full-player → open die (zoals mobiel).
+    // Only on true desktop (≥1200, no full-player) do we jump to the post.
+    // Tablet + phone have a full-player → open it (same as mobile behaviour).
     const jumpToPost = !hasFullPlayer();
     if (jumpToPost && t) {
-      // 1) Track speelde vanuit een post → die URL kennen we al.
+      // 1) Track played from a post → we already know that URL.
       if (t.postUrl) { goToPost(t.postUrl, t.id); return; }
-      // 2) Site-brede track (geen postUrl) → zoek de post op via de track-id.
+      // 2) Site-wide track (no postUrl) → look up the post via the track id.
       if (t.id) {
         fetch('/audio/track/' + encodeURIComponent(t.id) + '/post')
           .then((r) => (r.ok ? r.json() : null))
@@ -626,24 +625,24 @@
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && sheet.classList.contains('is-open')) closeSheet();
   });
-  // Naar desktop-breedte (≥1200) gesleept terwijl de full player open is? Sluiten —
-  // op desktop bestaat de full player niet.
+  // Resized to desktop width (≥1200) while the full player is open? Close it —
+  // the full player doesn't exist on desktop.
   window.addEventListener('resize', () => {
     if (!hasFullPlayer() && sheet.classList.contains('is-open')) closeSheet();
   });
 
-  // Vangnet voor mutual exclusion. Voor YouTube/SoundCloud/Spotify-embeds doet de
-  // registry dit al precies (echte play-events). Maar voor iframe-only embeds
-  // ZONDER JS-API (Bandcamp/Apple/Vimeo) én voor de iframe-FALLBACK (als een
-  // ad-blocker de player-API blokkeert) is er geen play-event: daar vangen we het
-  // af via focus. Klikt de gebruiker zo'n iframe aan → window 'blur' → pauzeer
-  // onze speler. (Voor de API-embeds is dit hooguit een onschadelijke dubbele
-  // pauze.)
+  // Fallback for mutual exclusion. For YouTube/SoundCloud/Spotify embeds the
+  // registry already handles this precisely (real play events). But for
+  // iframe-only embeds WITHOUT a JS API (Bandcamp/Apple/Vimeo) and for the
+  // iframe FALLBACK (when an ad-blocker blocks the player API) there is no
+  // play event: we catch those via focus. User clicks such an iframe →
+  // window 'blur' → pause our player. (For API embeds this is at worst a
+  // harmless double-pause.)
   window.addEventListener('blur', () => {
     setTimeout(() => {
       const el = document.activeElement;
-      // Alleen embed-iframes (binnen .folio-embed) pauzeren de speler — niet een
-      // willekeurig iframe (captcha/reclame/kaart) dat per ongeluk focus krijgt.
+      // Only embed iframes (inside .folio-embed) pause the player — not a
+      // random iframe (captcha/ad/map) that happens to receive focus.
       if (el && el.tagName === 'IFRAME' && el.closest('.folio-embed') && audio.src && !audio.paused) {
         pause();
       }
@@ -709,11 +708,11 @@
   // For .pat-play the metadata lives on the surrounding .post-audio-track
   // wrapper. For the other three the data is on the button itself. The
   // handler reads from button-first, falls back to wrapper.
-  // Event-delegation op document.body i.p.v. per-knop listeners. Dit overleeft
-  // HTMX history-restores: de mobiele terug-knop (popstate) laat HTMX #pcms-main
-  // terugzetten uit z'n snapshot; een per-element `data-pcms-attached`-vlag zou
-  // dan dode knoppen geven (vlag ingebakken in de snapshot, listener weg). Eén
-  // gedelegeerde listener werkt ongeacht hoe vaak de DOM ge(her)swapt wordt.
+  // Event delegation on document.body instead of per-button listeners. This
+  // survives HTMX history-restores: the mobile back button (popstate) lets HTMX
+  // restore #pcms-main from its snapshot; a per-element `data-pcms-attached` flag
+  // would leave dead buttons (flag baked into the snapshot, listener gone). One
+  // delegated listener works regardless of how many times the DOM is (re)swapped.
   const PLAY_SELECTOR =
     '.post-audio-track .pat-play, .post-album-tracks .pat-row, .post-album-cover-btn, .post-album-playall';
   document.body.addEventListener('click', (e) => {
@@ -721,9 +720,9 @@
     if (!btn) return;
     e.preventDefault();
     e.stopPropagation();
-    // De post waar je VANAF afspeelt = de pagina waar je nu bent (de embeds staan
-    // in de post-content). Bewaar 'm op de track(s) zodat de mini-player er op
-    // desktop naartoe kan springen — overleeft ook de sessionStorage-resume.
+    // The post you're playing FROM = the current page (embeds live in post content).
+    // Store it on the track(s) so the desktop mini-player can jump back to it —
+    // survives the sessionStorage resume as well.
     const postUrl = location.pathname + location.search;
     // Resolve metadata: button-first, then closest .post-audio-track wrapper
     // (only inline single-track widgets put the data on the wrapper).
@@ -803,14 +802,14 @@
   };
 
   // ============================================================
-  // 10. Sessie-persistentie — speler "blijft" over page-navigaties heen
+  // 10. Session persistence — player "survives" across page navigations
   // ============================================================
-  // Een <audio> overleeft geen volledige page-load (en cross-context navigatie
-  // — bv. naar de headerloze hub-overview — is bewust full-nav). We bewaren de
-  // sessie in sessionStorage en herstellen + hervatten 'm op de volgende pagina:
-  // de speler staat er weer met dezelfde track op dezelfde positie. In Chrome
-  // (hoge media-engagement) speelt 'ie meteen door; staat de browser autoplay
-  // niet toe, dan staat 'ie klaar op die plek (één tik = verder).
+  // An <audio> element doesn't survive a full page load (and cross-context
+  // navigation — e.g. to the headerless hub overview — is intentionally a
+  // full-nav). We save the session to sessionStorage and restore + resume it
+  // on the next page: the player comes back with the same track at the same
+  // position. In Chrome (high media engagement) it resumes immediately;
+  // if the browser blocks autoplay it waits at that position (one tap = play).
   const PLAYER_STATE_KEY = 'pcms-player-state';
   let pendingSeek = 0;
   function savePlayerState() {
@@ -829,7 +828,7 @@
   audio.addEventListener('pause', savePlayerState);
   audio.addEventListener('ended', savePlayerState);
   setInterval(() => { if (audio.src && !audio.paused) savePlayerState(); }, 5000);
-  // Herstelde positie toepassen zodra de track-metadata binnen is.
+  // Apply the restored position once track metadata is available.
   audio.addEventListener('loadedmetadata', () => {
     if (pendingSeek > 0 && isFinite(audio.duration) && audio.duration > 0) {
       try { audio.currentTime = Math.min(pendingSeek, audio.duration - 0.25); } catch (e) {}
@@ -844,7 +843,7 @@
     albumName = s.albumName || '';
     pendingSeek = s.time || 0;
     const idx = Math.max(0, Math.min(s.currentIndex || 0, queue.length - 1));
-    // playing -> fetch + (poging tot) hervatten; gepauzeerd -> alleen metadata.
+    // playing → fetch + (attempt to) resume; paused → meta-only.
     loadTrack(idx, !!s.playing, !s.playing);
     return true;
   }
@@ -852,8 +851,8 @@
   // ============================================================
   // 11. Site-level pre-seed (window.PCMS_SITE_TRACKS)
   // ============================================================
-  // Een actieve sessie (restore) wint van de pagina-seed, zodat lopende muziek
-  // doorgaat i.p.v. vervangen te worden door de tracks van de nieuwe pagina.
+  // An active session (restore) wins over the page seed, so music that is
+  // already playing continues instead of being replaced by the new page's tracks.
   if (!restorePlayerState()) {
     if (Array.isArray(window.PCMS_SITE_TRACKS) && window.PCMS_SITE_TRACKS.length) {
       queue = window.PCMS_SITE_TRACKS.map(t => ({
@@ -863,9 +862,9 @@
         artist: t.artist || '',
         cover:  t.cover_url || t.cover || '',
       }));
-      // Queue alleen klaarzetten — de speler-balk verschijnt PAS bij de eerste
-      // audio-klik (een .post-audio-track of de mini-speler-play roept setQueue/
-      // loadTrack → die toont de balk). Geen pre-seed-balk meer op page-load.
+      // Only prime the queue — the player bar appears only on the first audio click
+      // (.post-audio-track or the mini-player play button calls setQueue/loadTrack,
+      // which shows the bar). No more pre-seed bar on page load.
       currentIndex = 0;
     }
   }

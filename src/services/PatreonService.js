@@ -1,17 +1,16 @@
-// Patreon-entitlement (premium-laag).
+// Patreon entitlement (premium layer).
 //
-// Model (Klonkt, 2026-06): de app + alle updates zijn gratis. Een paar premium-
-// modules (Hub-modus, Statistieken, Fan-login) zitten achter een $10-lifetime
-// Patreon-supporter-status. De centrale license-server (license.klonkt.com)
-// checkt Patreon en tekent een Ed25519-JWT "entitlement-token". DEZE instance
-// verifieert dat token OFFLINE met de publieke sleutel van de server — een
-// gekraakte/geforkte self-host kan dus geen geldig token verzinnen (alleen de
-// license-server kan tekenen). Dat is het echte slot; de feature-flags zelf zijn
-// op self-host wel te patchen (bewust geaccepteerd: $10 < moeite om te kraken).
+// Model (Klonkt, 2026-06): the app + all updates are free. A few premium
+// modules (Hub mode, Statistics, Fan login) are gated behind a $10 lifetime
+// Patreon supporter status. The central license server (license.klonkt.com)
+// checks Patreon and signs an Ed25519 JWT "entitlement token". THIS instance
+// verifies that token OFFLINE using the server's public key — a cracked/forked
+// self-host cannot forge a valid token (only the license server can sign).
+// That is the real lock; feature flags themselves can be patched on self-host
+// (deliberately accepted: $10 < effort to crack).
 //
-// Premium staat STANDAARD UIT (KLONKT_PREMIUM_ENABLED != 'on'): dan is er geen
-// premium-UI en wordt er niets gegate. De self-hoster zet 'm aan zodra Patreon
-// geregeld is.
+// Premium is OFF by default (KLONKT_PREMIUM_ENABLED != 'on'): no premium UI
+// is shown and nothing is gated. Self-hosters enable it once Patreon is set up.
 
 import crypto from 'node:crypto';
 import { getSetting, setSetting } from './SettingsService.js';
@@ -24,12 +23,12 @@ export function premiumEnabled() {
 }
 export function licenseBase() { return LICENSE_URL; }
 
-// --- Publieke sleutel van de license-server cachen (voor offline verificatie) ---
+// --- Cache the license-server public key (for offline verification) ---
 let _pubKey = null;
 async function licensePublicKey() {
   if (_pubKey) return _pubKey;
   const res = await fetch(`${LICENSE_URL}/pubkey`);
-  if (!res.ok) throw new Error('pubkey fetch faalde: ' + res.status);
+  if (!res.ok) throw new Error('pubkey fetch failed: ' + res.status);
   const pem = await res.text();
   _pubKey = crypto.createPublicKey(pem); // SPKI-PEM -> Ed25519 public key
   return _pubKey;
@@ -39,20 +38,20 @@ function b64urlToBuf(s) {
   return Buffer.from(String(s).replace(/-/g, '+').replace(/_/g, '/'), 'base64');
 }
 
-// Verifieer een entitlement-token (EdDSA-JWT van de license-server). Gooit bij
-// ongeldige handtekening/issuer/verlooptijd. Geeft de claims terug.
+// Verify an entitlement token (EdDSA JWT from the license server). Throws on
+// invalid signature, issuer, or expiry. Returns the claims on success.
 export async function verifyEntitlementToken(token) {
   const parts = String(token || '').split('.');
   if (parts.length !== 3) throw new Error('malformed token');
   const [h, p, s] = parts;
   const header = JSON.parse(b64urlToBuf(h).toString('utf8'));
-  if (header.alg !== 'EdDSA') throw new Error('onverwacht alg');
+  if (header.alg !== 'EdDSA') throw new Error('unexpected alg');
   const key = await licensePublicKey();
   const ok = crypto.verify(null, Buffer.from(`${h}.${p}`), key, b64urlToBuf(s));
-  if (!ok) throw new Error('ongeldige handtekening');
+  if (!ok) throw new Error('invalid signature');
   const payload = JSON.parse(b64urlToBuf(p).toString('utf8'));
-  if (payload.iss !== ISSUER) throw new Error('onverwachte issuer');
-  if (payload.exp && payload.exp * 1000 < Date.now()) throw new Error('verlopen token');
+  if (payload.iss !== ISSUER) throw new Error('unexpected issuer');
+  if (payload.exp && payload.exp * 1000 < Date.now()) throw new Error('expired token');
   return payload; // { sub, entitled, plan, lifetime_support_cents, exp, ... }
 }
 
@@ -70,9 +69,9 @@ export function clearEntitlement() {
   }
 }
 
-// Is deze instance premium? Premium-laag aan + een geldig, niet-verlopen,
-// entitled opgeslagen token. Patreon-lifetime daalt nooit, dus opnieuw koppelen
-// na verloop slaagt altijd.
+// Is this instance premium? Premium layer enabled + a valid, non-expired,
+// entitled stored token. Patreon lifetime never decreases, so re-linking
+// after expiry always succeeds.
 export function isPremium() {
   if (!premiumEnabled()) return false;
   if (getSetting('patreon_entitled') !== '1') return false;
@@ -81,9 +80,9 @@ export function isPremium() {
   return true;
 }
 
-// Is een premium-feature beschikbaar? True als de premium-laag UIT staat (dan is
-// niets gegate — huidige gedrag), of AAN én deze instance is entitled. False alleen
-// als premium aan staat maar er geen geldige Patreon-koppeling is (= betaalmuur).
+// Is a premium feature available? True if the premium layer is OFF (nothing is
+// gated — current behavior), or ON and this instance is entitled. False only
+// if premium is on but there is no valid Patreon connection (= paywall).
 export function premiumUnlocked() {
   return !premiumEnabled() || isPremium();
 }

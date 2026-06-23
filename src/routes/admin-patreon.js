@@ -1,14 +1,14 @@
 /**
- * Admin: Patreon koppelen voor de premium-laag (god-only).
+ * Admin: Link Patreon for the premium layer (god-only).
  *
- * GET /admin/patreon/connect    -> stuur de beheerder naar de license-server
- *                                  (oauth/start) met onze callback als return.
- * GET /admin/patreon/callback   -> license-server keert terug met ?klonkt_token
- *                                  (of ?klonkt_error). Verifieer + sla op.
- * GET /admin/patreon/disconnect -> entitlement wissen.
+ * GET /admin/patreon/connect    -> redirect the admin to the license server
+ *                                  (oauth/start) with our callback as return URL.
+ * GET /admin/patreon/callback   -> license server returns with ?klonkt_token
+ *                                  (or ?klonkt_error). Verify + store.
+ * GET /admin/patreon/disconnect -> clear entitlement.
  *
- * Het echte verdienmodel-slot zit in het ondertekende token (alleen de
- * license-server kan tekenen). Zie PatreonService.js.
+ * The real monetisation lock is in the signed token (only the
+ * license server can sign). See PatreonService.js.
  */
 
 import express from 'express';

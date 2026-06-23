@@ -1,13 +1,13 @@
 #!/usr/bin/env node
-// Break-glass: reset (of zet) het wachtwoord van een beheerder. Werkt altijd,
-// zonder e-mail — de self-hoster heeft immers shell-/servertoegang.
+// Break-glass: reset (or set) the password of an admin account. Always works,
+// no email required — the self-hoster has shell/server access.
 //
-// Gebruik:
-//   npm run reset-admin                       # reset de (eerste) god-user, print nieuw wachtwoord
-//   npm run reset-admin -- <user|email>       # reset specifieke user, print nieuw wachtwoord
-//   npm run reset-admin -- <user|email> <pw>  # zet een gekozen wachtwoord
+// Usage:
+//   npm run reset-admin                       # reset the (first) god user, print new password
+//   npm run reset-admin -- <user|email>       # reset a specific user, print new password
+//   npm run reset-admin -- <user|email> <pw>  # set a chosen password
 //
-// Draai dit vanuit de projectroot zodat DATABASE_PATH/.env correct geladen wordt.
+// Run from the project root so DATABASE_PATH/.env is loaded correctly.
 
 import 'dotenv/config';
 import crypto from 'crypto';
@@ -21,7 +21,7 @@ let user;
 if (arg) {
   user = db.prepare('SELECT * FROM users WHERE username = ? OR LOWER(email) = LOWER(?)').get(arg, arg);
 } else {
-  // Geen arg: pak de beheerder (god of admin), anders de allereerste user.
+  // No arg: pick the admin (god or admin role), otherwise the very first user.
   user =
     db.prepare("SELECT * FROM users WHERE role IN ('god','admin') ORDER BY created_at LIMIT 1").get() ||
     db.prepare('SELECT * FROM users ORDER BY created_at LIMIT 1').get();

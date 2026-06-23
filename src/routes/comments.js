@@ -57,7 +57,7 @@ router.post('/', requireAuth, (req, res) => {
     ).get(parentId, post.id);
     if (!parent) return res.status(400).send('Invalid parent comment');
     resolvedParent = parent.parent_comment_id || parent.id;
-    parentAuthorId = parent.author_id; // ontvanger van de "antwoord"-melding
+    parentAuthorId = parent.author_id; // recipient of the "reply" notification
   }
 
   // Status depends on the site's moderation mode.
@@ -76,9 +76,8 @@ router.post('/', requireAuth, (req, res) => {
     VALUES (?, ?, ?, ?, ?, ?)
   `).run(commentId, post.id, req.session.user.id, resolvedParent, rawContent, status);
 
-  // Melding (alleen bij een zichtbare reactie): antwoord → de auteur van de reactie
-  // waarop gereageerd is; top-level reactie → de auteur van de post. notify() slaat
-  // jezelf-notificeren over.
+  // Notification (only for visible comments): reply → author of the parent comment;
+  // top-level comment → author of the post. notify() skips self-notifications.
   if (status === 'approved') {
     const url = `${res.locals.siteUrlBase || ''}/${post.slug}#comment-${commentId}`;
     const actorId = req.session.user.id;

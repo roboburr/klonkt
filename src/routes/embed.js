@@ -1,13 +1,13 @@
 /**
- * Embedbare player (premium feature #7).
+ * Embeddable player (premium feature #7).
  *
- *   GET /embed   -> een zelfstandige, compacte audiospeler-pagina (geen shell),
- *                   bedoeld om op EXTERNE sites in een <iframe> te zetten.
+ *   GET /embed   -> a standalone, compact audio player page (no shell),
+ *                   intended to be placed in an <iframe> on EXTERNAL sites.
  *
- * De pagina wordt door ons (klonkt-origin) geserveerd, dus de audio-requests vanuit
- * het iframe blijven same-origin → de /audio/stream-gate laat ze door, ook al staat
- * het iframe op een vreemde site. We overrulen alleen Helmet's frameguard +
- * frame-ancestors zodat externe sites mógen inbedden. Hub: /user/:slug/embed.
+ * The page is served by us (klonkt-origin), so audio requests from within
+ * the iframe remain same-origin → the /audio/stream gate lets them through,
+ * even when the iframe is on a foreign site. We only override Helmet's frameguard
+ * + frame-ancestors so that external sites are allowed to embed us. Hub: /user/:slug/embed.
  */
 
 import express from 'express';
@@ -20,7 +20,7 @@ router.get('/embed', (req, res, next) => {
   const site = res.locals.site;
   if (!site) return next();
 
-  // Inbedden op externe sites toestaan (overrule de globale frameguard/CSP).
+  // Allow embedding on external sites (override the global frameguard/CSP).
   res.removeHeader('X-Frame-Options');
   res.setHeader(
     'Content-Security-Policy',

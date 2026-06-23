@@ -1,13 +1,13 @@
 /**
- * Download-voor-email (premium feature #2).
+ * Download-for-email (premium feature #2).
  *
- *   GET  /downloads                 -> lijst van downloadbare tracks (premium; anders 404)
- *   GET  /download/:id              -> e-mail-capture-pagina voor één track
- *   POST /download/:id              -> e-mail opslaan (-> mailinglijst) + download vrijgeven
- *   GET  /download/:id/bestand      -> serveert het bestand (sessie-gated na capture)
+ *   GET  /downloads                 -> list of downloadable tracks (premium; 404 otherwise)
+ *   GET  /download/:id              -> email capture page for a single track
+ *   POST /download/:id              -> save email (-> mailing list) + unlock download
+ *   GET  /download/:id/bestand      -> serves the file (session-gated after capture)
  *
- * De fan laat z'n e-mail achter en krijgt het bestand; het adres komt in de
- * subscribers-lijst (source 'download', single opt-in — geen confirm-drempel vóór de
+ * The fan leaves their email and receives the file; the address is added to the
+ * subscribers list (source 'download', single opt-in — no confirm step before the
  * download). Hub: via /user/:slug/... (resolveSite + siteUrlBase).
  */
 
@@ -23,9 +23,9 @@ import { postNeighbors } from './posts.js';
 
 const router = express.Router();
 
-// Als er een echte (gepinde) post met slug 'downloads' bestaat, hangt de
-// downloads-lijst feitelijk aan die post. Dan tonen we óók de Newer/Older-postnav,
-// zodat de bezoeker net als bij een post verder kan bladeren.
+// If a real (pinned) post with slug 'downloads' exists, the downloads list is
+// effectively attached to that post. We then also show the Newer/Older post nav
+// so the visitor can browse just like on a regular post.
 function downloadsPostNav(req, res) {
   const site = res.locals.site;
   if (!site) return {};
@@ -39,7 +39,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const AUDIO_DIR = path.resolve(process.env.AUDIO_PATH || path.join(__dirname, '..', '..', 'storage', 'audio'));
 
 const MIME = { '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.flac': 'audio/flac', '.m4a': 'audio/mp4', '.ogg': 'audio/ogg' };
-const GRACE_MS = 15 * 60 * 1000; // download-venster na capture
+const GRACE_MS = 15 * 60 * 1000; // download window after capture
 
 function dlTrack(siteId, id) {
   return db.prepare(
@@ -54,7 +54,7 @@ function safeName(title, storagePath) {
   return base + ext;
 }
 
-// Lijst van downloadbare tracks.
+// List of downloadable tracks.
 router.get('/downloads', (req, res, next) => {
   if (!premiumUnlocked()) return next();
   const site = res.locals.site;
@@ -66,8 +66,8 @@ router.get('/downloads', (req, res, next) => {
   const nav = downloadsPostNav(req, res);
   renderPage(req, res, 'pages/downloads', {
     pageTitle: 'Downloads — ' + (site.title || ''),
-    // on-special = compacte profielkop (zoals op een post); on-downloads = pill grijs
-    // + feature-route-gedrag. Samen → downloads ziet er net zo uit als een post.
+    // on-special = compact profile header (like on a post); on-downloads = grey pill
+    // + feature-route behaviour. Together → downloads looks just like a post.
     bodyClass: 'on-downloads on-special',
     dlTracks: tracks,
     newerPost: nav.newerPost || null,
@@ -75,7 +75,7 @@ router.get('/downloads', (req, res, next) => {
   });
 });
 
-// Capture-pagina voor één track.
+// Capture page for a single track.
 router.get('/download/:id', (req, res, next) => {
   if (!premiumUnlocked()) return next();
   const site = res.locals.site;
@@ -92,7 +92,7 @@ router.get('/download/:id', (req, res, next) => {
   });
 });
 
-// E-mail opslaan + download vrijgeven.
+// Save email + unlock download.
 router.post('/download/:id', (req, res, next) => {
   if (!premiumUnlocked()) return next();
   const site = res.locals.site;
@@ -108,7 +108,7 @@ router.post('/download/:id', (req, res, next) => {
       dlError: r.error === 'invalid_email' ? 'Controleer je e-mailadres.' : 'Er ging iets mis.',
     });
   }
-  // Download vrijgeven in de sessie (kort venster).
+  // Unlock download in the session (short window).
   if (!req.session.dl) req.session.dl = {};
   req.session.dl[track.id] = Date.now();
   renderPage(req, res, 'pages/download', {
@@ -117,7 +117,7 @@ router.post('/download/:id', (req, res, next) => {
   });
 });
 
-// Het bestand serveren — alleen als er net een e-mail is achtergelaten (sessie).
+// Serve the file — only if an email was just submitted (session-gated).
 router.get('/download/:id/bestand', (req, res, next) => {
   if (!premiumUnlocked()) return next();
   const site = res.locals.site;
@@ -128,8 +128,8 @@ router.get('/download/:id/bestand', (req, res, next) => {
   if (!ts || (Date.now() - ts) > GRACE_MS) {
     return res.status(403).send('Laat eerst je e-mailadres achter om te downloaden.');
   }
-  // De speelbare/te-downloaden file = de KALE filename (storage_path is een
-  // absoluut pad → faalt de slash-guard). Zelfde aanpak als /audio/stream.
+  // The playable/downloadable file = the BARE filename (storage_path is an
+  // absolute path → fails the slash-guard). Same approach as /audio/stream.
   const sp = track.filename;
   if (!sp || sp.includes('/') || sp.includes('\\') || sp.includes('..')) return res.status(400).send('Bad path');
   const filePath = path.join(AUDIO_DIR, sp);

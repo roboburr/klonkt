@@ -14,8 +14,8 @@ const _canPost     = !!(user && (typeof canMutate === 'undefined' || canMutate)
                         && permissions && permissions.canCreatePost && permissions.canCreatePost(user, site));
 const _ownProfile  = user ? ('/users/' + user.username) : null;
 const _isHub       = (typeof tenancy !== 'undefined' && tenancy === 'hub');
-// Home gaat in hub-modus ALTIJD naar de hub-root (/), niet naar de sub-home van
-// een artiest. In solo/circle is _siteUrlBase leeg, dus dat blijft '/'.
+// Home in hub mode ALWAYS goes to the hub root (/), not to an artist's sub-home.
+// In solo/circle _siteUrlBase is empty, so it stays '/'.
 const _homeHref    = (_isHub ? '' : _siteUrlBase) + '/';
 
 // Strip site prefix for cleaner matching
@@ -26,7 +26,7 @@ function _normalize(p) {
 const _p = _normalize(_path);
 
 let _active = null;
-// In hub is Home alleen actief op de échte hub-root, niet op een artiest-sub-home.
+// In hub, Home is only active on the real hub root, not on an artist sub-home.
 if (_isHub ? (_path === '/') : (_p === '/' || _p === '')) _active = 'home';
 else if (_p.indexOf('/search') === 0 || _p.indexOf('/tag/') === 0 || _p.indexOf('/type/') === 0) _active = 'search';
 else if (_p === '/posts/new' || /^\/posts\/[^/]+\/edit$/.test(_p)) _active = 'create';
@@ -37,9 +37,9 @@ else if (_p.indexOf('/auth/login') === 0) _active = 'login';
 <nav class="bottom-tab" aria-label="Hoofdnavigatie">
 
   <!-- Home -->
-  <%# htmx-navigatie (geen full reload): de persistente audioplayer in document.body
-      overleeft dan, dus de muziek verspringt niet bij het navigeren. Op mobiel is de
-      top-balk toch verborgen, dus een context-reset via full-load is hier niet nodig. %>
+  <%# htmx navigation (no full reload): the persistent audio player in document.body
+      survives, so music does not skip when navigating. On mobile the top bar is hidden
+      anyway, so a context reset via full-load is not needed here. %>
   <a class="bottom-tab-item<%= _active === 'home' ? ' is-active' : '' %>"
      href="<%= _homeHref %>"
      hx-get="<%= _homeHref %>?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
@@ -307,10 +307,10 @@ else if (_p.indexOf('/auth/login') === 0) _active = 'login';
 </style>
 
 <script>
-// Bottom-tab zoekknop → opent #search-overlay. Via event-delegatie + de overlay
-// ELKE klik opnieuw opzoeken: de overlay zit in de chrome die bij htmx-navigatie
-// OOB vervangen wordt, dus een één-keer-opgevangen referentie verschaalt
-// (knop deed daarna niets). Guard tegen dubbel-wiren.
+// Bottom-tab search button → opens #search-overlay. Using event delegation + looking
+// up the overlay on EVERY click: the overlay lives in the chrome that is OOB-replaced
+// during htmx navigation, so a once-captured reference goes stale
+// (button did nothing afterwards). Guard against double-wiring.
 (function() {
   if (window.__btSearchWired) return;
   window.__btSearchWired = true;

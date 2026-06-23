@@ -1,7 +1,7 @@
 /**
  * Klonkt Beta — server bootstrap
  *
- * Persoonlijk multi-site platform — Node + SQLite + htmx.
+ * Personal multi-site platform — Node + SQLite + htmx.
  * Stack: Express + better-sqlite3 + EJS + htmx + ws.
  */
 
@@ -86,25 +86,25 @@ app.use(helmet({
       scriptSrc: [
         "'self'",
         "'unsafe-inline'",
-        // Eigen custom-embeds (embed-player.js) laden de OFFICIELE player-API's
-        // van deze hosts. Zonder deze whitelist blokkeert de CSP ze stil (alleen
-        // een console-fout) en faalt de embed-speler.
+        // Our custom embeds (embed-player.js) load the OFFICIAL player APIs
+        // from these hosts. Without this whitelist the CSP silently blocks them
+        // (only a console error) and the embed player fails.
         "https://www.youtube.com",   // YouTube IFrame Player API (+ www-widgetapi.js)
-        "https://s.ytimg.com",       // YouTube player-assets
+        "https://s.ytimg.com",       // YouTube player assets
         "https://w.soundcloud.com",  // SoundCloud Widget API (api.js)
         "https://open.spotify.com",  // Spotify iFrame API (loader)
-        "https://*.spotifycdn.com",  // Spotify iFrame API (echte bundle: embed-cdn.spotifycdn.com)
+        "https://*.spotifycdn.com",  // Spotify iFrame API (real bundle: embed-cdn.spotifycdn.com)
       ],
-      // Helmet's default zet script-src-attr op 'none', wat ALLE inline event-
-      // handlers (onchange/onclick/onsubmit) blokkeert — daardoor deed o.a. de
-      // avatar-upload (<input onchange="this.form.submit()">) en de rol-dropdown
-      // niets. We staan inline handlers expliciet toe, consistent met de al
-      // toegestane inline <script> hierboven.
+      // Helmet's default sets script-src-attr to 'none', which blocks ALL inline
+      // event handlers (onchange/onclick/onsubmit) — causing e.g. the avatar
+      // upload (<input onchange="this.form.submit()">) and the role dropdown to
+      // silently do nothing. We explicitly allow inline handlers, consistent with
+      // the already-allowed inline <script> above.
       scriptSrcAttr: ["'unsafe-inline'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
-      // blob: nodig voor de afbeeldings-editor (Cropper) — die toont de gekozen
-      // foto via een URL.createObjectURL(blob:…). Zonder blob: blokkeert de CSP
-      // de <img> stil → leeg bewerk-venster. (media-src heeft blob: al voor audio.)
+      // blob: required for the image editor (Cropper) — it displays the chosen
+      // photo via URL.createObjectURL(blob:…). Without blob: the CSP silently
+      // blocks the <img> → empty edit window. (media-src already has blob: for audio.)
       imgSrc: ["'self'", "data:", "https:", "blob:"],
       connectSrc: ["'self'", "wss:", "ws:", "https://*.spotifycdn.com", "https://*.scdn.co"],
       // blob: is required for the audio player — it fetch()es track bytes and
@@ -120,7 +120,7 @@ app.use(helmet({
         "https://bandcamp.com",
         "https://embed.music.apple.com",
         "https://www.youtube-nocookie.com",
-        "https://www.youtube.com",   // YouTube IFrame API maakt soms een www.youtube.com-iframe
+        "https://www.youtube.com",   // YouTube IFrame API sometimes creates a www.youtube.com iframe
         "https://player.vimeo.com",
       ],
     },
@@ -142,15 +142,14 @@ app.use(bodyParser.json({ limit: '10mb' }));
 // cookies — sessions never persist past the redirect after login.
 if (!isDev) app.set('trust proxy', 1);
 
-// Schema aanmaken/bijwerken VÓÓR iets de DB aanraakt: de session-store doet
-// bij constructie al een query op de `sessions`-tabel, dus bij een verse
-// install moeten de tabellen eerst bestaan (anders: "no such table: sessions"
-// → crash-loop op de allereerste boot).
+// Create/migrate the schema BEFORE anything touches the DB: the session store
+// queries the `sessions` table on construction, so on a fresh install the tables
+// must exist first (otherwise: "no such table: sessions" → crash loop on first boot).
 initializeDatabase();
-startScheduler(); // release-planning: zet geplande posts live zodra publish_at bereikt is
+startScheduler(); // release planning: publish scheduled posts when publish_at is reached
 
-// Vangnet: garandeer dat er altijd een primaire site is (solo/hub/circle).
-// Idempotent — doet niets als er al een site is of nog geen beheerder.
+// Safety net: guarantee that there is always a primary site (solo/hub/circle).
+// Idempotent — does nothing if a site already exists or there is no admin yet.
 ensurePrimarySite();
 
 // Session middleware extracted into a variable so the WebSocket upgrade
@@ -172,17 +171,17 @@ app.use(sessionMiddleware);
 
 app.use('/assets', express.static(path.join(__dirname, 'assets'), { maxAge: isDev ? 0 : '1y' }));
 app.use('/media', express.static(process.env.MEDIA_PATH || './storage/media', {
-  // Publieke media (post-covers, avatars) moet door andere Klonkt-sites in hun
-  // CIRKEL cross-origin embedbaar zijn. Helmet zet standaard CORP=same-origin,
-  // wat die afbeeldingen in de browser blokkeert (bestand komt wél binnen, maar
-  // de browser weigert 'm te tonen). Voor /media dus expliciet cross-origin.
+  // Public media (post covers, avatars) must be cross-origin embeddable by other
+  // Klonkt sites in their CIRCLE. Helmet sets CORP=same-origin by default, which
+  // causes the browser to block those images (the file arrives, but the browser
+  // refuses to render it). Set cross-origin explicitly for /media.
   setHeaders: (res) => res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin'),
 }));
 
-// (Verwijderd) TWA / digital-asset-links — alleen nodig voor de APK/TWA-variant.
-// Klonkt is PWA-only; geen assetlinks.json meer.
+// (Removed) TWA / digital-asset-links — only needed for the APK/TWA variant.
+// Klonkt is PWA-only; assetlinks.json is no longer served.
 
-// Cirkels: periodieke achtergrond-sync van remote instances (no-op tenzij tenancy='circle').
+// Circles: periodic background sync of remote instances (no-op unless tenancy='circle').
 startCircleSyncLoop();
 
 // Bundle HTMX: copy from node_modules into our own assets dir so we can serve
@@ -202,38 +201,38 @@ startCircleSyncLoop();
   }
 })();
 
-// Cirkels-federatie: publieke, site-agnostische endpoints (/.klonkt/*).
-// Vóór resolveSite/theme — ze hebben geen site-context nodig.
+// Circle federation: public, site-agnostic endpoints (/.klonkt/*).
+// Before resolveSite/theme — they don't need a site context.
 app.use(federationRoutes);
 
 app.use(resolveSite);
 app.use(loadAudioTracks);
 app.use(loadTheme);
 
-// Lichtgewicht CSRF-defense: weiger cross-origin state-wijzigende requests.
-// Same-origin forms + HTMX sturen een matchende Origin; ontbreekt Origin dan
-// laten we door (non-browser clients). sameSite:'lax' op de sessiecookie is de
-// tweede laag. (Geldt niet voor GET/HEAD/OPTIONS.)
+// Lightweight CSRF defense: reject cross-origin state-mutating requests.
+// Same-origin forms + HTMX send a matching Origin; missing Origin is allowed
+// through (non-browser clients). sameSite:'lax' on the session cookie is the
+// second layer. (Does not apply to GET/HEAD/OPTIONS.)
 app.use((req, res, next) => {
   if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
   const origin = req.get('origin');
-  if (!origin) return next(); // geen Origin -> geen browser-CSRF-vector
+  if (!origin) return next(); // no Origin → no browser CSRF vector
   let originHost;
   try { originHost = new URL(origin).host; } catch { return res.status(403).send('Ongeldige origin'); }
   if (originHost !== req.get('host')) return res.status(403).send('Cross-origin request geweigerd');
   next();
 });
 
-// Kijker-accounts: alles bekijken mag (incl. Beheer), niets wijzigen. Dit is de
-// ENIGE schrijf-blokkade — fail-closed, vóór alle route-handlers. Elke state-
-// wijzigende methode wordt geweigerd (de login-POST zet de sessie pas ná deze
-// guard, dus die valt er niet onder). I.p.v. rauwe 403-tekst tonen we een nette
-// pagina (of, bij HTMX, een ingeswapte melding).
+// Viewer accounts: may view everything (including Admin), change nothing. This is
+// the ONLY write gate — fail-closed, before all route handlers. Every state-mutating
+// method is rejected (the login POST sets the session after this guard, so it is
+// not affected). Instead of raw 403 text we render a clean page (or, for HTMX,
+// a swapped-in message).
 app.use((req, res, next) => {
   const mutating = req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS';
   if (mutating && isViewer(req.session?.user)) {
     if (req.headers['hx-request'] === 'true') {
-      // htmx swapt niet op 4xx; stuur 200 + retarget zodat de melding in #pcms-main verschijnt.
+      // htmx doesn't swap on 4xx; send 200 + retarget so the message appears in #pcms-main.
       res.setHeader('HX-Retarget', '#pcms-main');
       res.setHeader('HX-Reswap', 'innerHTML');
       res.status(200);
@@ -276,7 +275,7 @@ app.use('/type', typesRoutes);
 app.use('/users', usersRoutes);
 // Feed/sitemap routes are mounted at root because they're at well-known paths
 app.use('/', feedRoutes);
-app.use('/leden', artistsRoutes); // doorzoekbare leden-directory (alleen hub; solo: next())
+app.use('/leden', artistsRoutes); // searchable member directory (hub only; solo: next())
 app.get('/artiesten', (req, res) => res.redirect(301, req.originalUrl.replace(/^\/artiesten/, '/leden'))); // oude URL -> /leden
 app.use('/', hubRoutes); // hub-overview op '/' (solo: next() -> postsRoutes)
 app.use('/', circleRoutes); // /cirkel-feed (solo/hub: next() -> postsRoutes)
@@ -305,9 +304,9 @@ app.get('/manifest.webmanifest', (req, res) => {
   const startUrl = (base || '') + '/?source=pwa';
 
   // A stable identity per site so installs don't collide (Chromium uses `id`).
-  // NB: een id-wissel orphant bestaande PWA-installs (er is geen migratie die een
-  // install over een id-verandering heen tilt) — wie een site al als PWA had,
-  // moet 'm één keer opnieuw installeren. Data blijft server-side, dus niets kwijt.
+  // NB: changing the id orphans existing PWA installs (no migration carries an
+  // install across an id change) — anyone who already installed the site as a
+  // PWA will need to reinstall once. Data stays server-side, so nothing is lost.
   const idBase = site?.slug ? `klonkt-${site.slug}` : 'klonkt';
 
   res.set('Cache-Control', 'no-cache');
@@ -375,14 +374,14 @@ self.addEventListener('activate', e => {
   )));
   self.clients.claim();
 });
-// ALLEEN navigaties (HTML-pagina's) onderscheppen, voor een offline-fallback.
-// Afbeeldingen, CSS, JS en /media NIET aanraken — laat de browser die native
-// afhandelen. Anders kon een mislukte netwerk-fetch terugvallen op een lege
-// cache-match (undefined) en zo een afbeelding "kapot" maken bij een gewone
-// refresh (hard reload omzeilt de SW en werkte daarom wél).
+// ONLY intercept navigations (HTML pages) for an offline fallback.
+// Do NOT touch images, CSS, JS or /media — let the browser handle those natively.
+// Otherwise a failed network fetch could fall back to an empty cache match
+// (undefined) and "break" an image on a normal refresh (hard reload bypasses
+// the SW, which is why that case worked fine).
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
-  if (e.request.mode !== 'navigate') return; // alleen page-loads
+  if (e.request.mode !== 'navigate') return; // page loads only
   e.respondWith(
     fetch(e.request).catch(() => caches.match('/').then(r => r || Response.error()))
   );
@@ -403,8 +402,8 @@ app.use((err, req, res, next) => {
 
 app.use((req, res) => {
   res.status(404);
-  // Nette, mobielvriendelijke 404 via de shell (viewport + nav + huisstijl).
-  // Valt terug op kale HTML als het renderen onverhoopt faalt.
+  // Clean, mobile-friendly 404 via the shell (viewport + nav + site theme).
+  // Falls back to bare HTML if rendering unexpectedly fails.
   try {
     return renderPage(req, res, 'pages/404', {
       pageTitle: '404 — niet gevonden',

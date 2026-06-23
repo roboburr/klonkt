@@ -1,11 +1,11 @@
 /**
- * Admin: Statistieken (premium-module, god-only).
+ * Admin: Statistics (premium module, god-only).
  *
- * GET /admin/stats -> cookievrije statistieken: bezoekers/weergaven per dag,
- *                     plays, en de populairste posts/tracks.
+ * GET /admin/stats -> cookie-free statistics: visitors/views per day,
+ *                     plays, and the most popular posts/tracks.
  *
- * Premium-gated via premiumUnlocked() (premium-laag uit = gewoon beschikbaar;
- * aan = Patreon vereist). Tracking zit in StatsService (geen cookies).
+ * Premium-gated via premiumUnlocked() (premium layer off = freely available;
+ * on = Patreon required). Tracking is in StatsService (no cookies).
  */
 
 import express from 'express';
@@ -21,7 +21,7 @@ router.get('/', requireGod, (req, res) => {
   if (!premiumUnlocked()) {
     return res.status(403).send('Statistieken is een premium-functie — koppel Patreon in Beheer → Instellingen.');
   }
-  // Link-in-bio klikken (premium #6) voor de huidige site.
+  // Link-in-bio clicks (premium #6) for the current site.
   let linkClicks = [];
   if (res.locals.site) {
     try {

@@ -37,12 +37,12 @@ fs.mkdirSync(COVER_DIR, { recursive: true });
 
 const ALLOWED_AUDIO_EXT = new Set(['.mp3', '.m4a', '.mp4', '.aac', '.oga', '.ogg', '.opus', '.flac', '.wav', '.webm']);
 const ALLOWED_COVER_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif']);
-const MAX_AUDIO_BYTES = 50 * 1024 * 1024;   // 50 MB — gecomprimeerde formaten (mp3/m4a/ogg/…)
-const MAX_WAV_BYTES   = 100 * 1024 * 1024;  // 100 MB — WAV is ongecomprimeerd, dus ruimer
+const MAX_AUDIO_BYTES = 50 * 1024 * 1024;   // 50 MB — compressed formats (mp3/m4a/ogg/…)
+const MAX_WAV_BYTES   = 100 * 1024 * 1024;  // 100 MB — WAV is uncompressed, so a higher limit
 const MAX_COVER_BYTES = 5 * 1024 * 1024;    // 5 MB
 
-// Per-bestand bovengrens op basis van extensie. multer's globale limiet is de
-// hoogste (WAV); de echte controle per type gebeurt in de upload-handler.
+// Per-file upper limit based on extension. multer's global limit is the
+// highest (WAV); the real per-type check happens in the upload handler.
 const audioByteLimitFor = (ext) => (ext.toLowerCase() === '.wav' ? MAX_WAV_BYTES : MAX_AUDIO_BYTES);
 
 // Multer routes audio + cover into separate dirs based on field name.
@@ -58,7 +58,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: MAX_WAV_BYTES }, // hoogste bovengrens (WAV) — per-type check in de handler
+  limits: { fileSize: MAX_WAV_BYTES }, // highest upper bound (WAV) — per-type check in the handler
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
     if (file.fieldname === 'cover') {
@@ -72,8 +72,8 @@ const upload = multer({
 
 const router = express.Router();
 
-// "Open in"-platformlinks per track: alleen https + de juiste host accepteren
-// (href komt ongeescaped in de view → scheme/host-guard tegen misbruik).
+// "Open in" platform links per track: only https + the correct host accepted
+// (href arrives unescaped in the view → scheme/host guard against abuse).
 const LINK_DOMAINS = {
   spotify: ['spotify.com'],
   youtube: ['youtube.com', 'youtu.be', 'music.youtube.com'],
@@ -85,7 +85,7 @@ function platformLink(url, domains) {
   try {
     const h = new URL(u).hostname.toLowerCase();
     if (domains.some((d) => h === d || h.endsWith('.' + d))) return u;
-  } catch (e) { /* ongeldige URL */ }
+  } catch (e) { /* invalid URL */ }
   return null;
 }
 
@@ -147,8 +147,8 @@ router.post('/upload', requireGod, (req, res) => {
       return fail(400, 'missing audio file');
     }
 
-    // Per-type audio size check. multer's globale limiet was de WAV-bovengrens
-    // (100MB); gecomprimeerde formaten blijven op 50MB.
+    // Per-type audio size check. multer's global limit was the WAV upper bound
+    // (100MB); compressed formats stay at 50MB.
     const audioExt = path.extname(audioFile.originalname).toLowerCase();
     const audioLimit = audioByteLimitFor(audioExt);
     if (audioFile.size > audioLimit) {
@@ -184,8 +184,8 @@ router.post('/upload', requireGod, (req, res) => {
     const finalTitle  = title?.trim() || fallbackTitle;
     const finalArtist = artist?.trim() || null;
     const finalAlbum  = album?.trim() || null;
-    // Eigenaarschap/licentie. credit valt terug op de artiest; deze gaan zowel de
-    // DB in als de ID3-tags van de mp3 (copyright + comment).
+    // Ownership/licence. credit falls back to the artist; these go both into the
+    // DB and into the ID3 tags of the mp3 (copyright + comment).
     const finalCredit  = (req.body.credit  || '').trim() || finalArtist || null;
     const finalLicense = (req.body.license || '').trim() || null;
     const finalLinkSpotify    = platformLink(req.body.link_spotify, LINK_DOMAINS.spotify);
@@ -230,9 +230,9 @@ router.post('/upload', requireGod, (req, res) => {
         VALUES (?, ?, ?, ?, ?, ?)
       `).run(mediaId, site.id, transcoded.filename, transcoded.mimeType, transcoded.size, transcoded.path);
 
-      // Duur automatisch: primair uit de transcode (ffmpeg codecData), anders een
-      // optionele client-side waarde (bulk-uploader leest <audio>.duration uit),
-      // anders NULL (UI toont dan '—:—', handmatig bij te werken in de editor).
+      // Duration automatically: primarily from the transcode (ffmpeg codecData), then
+      // an optional client-side value (bulk uploader reads <audio>.duration),
+      // otherwise NULL (UI then shows '—:—', editable manually in the editor).
       const clientDur = req.body.duration != null ? parseInt(req.body.duration, 10) : NaN;
       const finalDuration =
         (transcoded.durationSec != null && transcoded.durationSec > 0) ? transcoded.durationSec
@@ -274,8 +274,8 @@ router.post('/upload', requireGod, (req, res) => {
   });
 });
 
-// Download-voor-email per track aan/uit (premium #2). Zonder-JS toggle vanaf de
-// audio-beheerlijst → flip + terug.
+// Download-for-email per track on/off (premium #2). No-JS toggle from the
+// audio admin list → flip + back.
 router.post('/:id/downloadable', requireGod, (req, res) => {
   const site = res.locals.site;
   if (!site) return res.status(404).send('Site required');
@@ -393,8 +393,8 @@ router.get('/api/albums', requireGod, (req, res) => {
 });
 
 /** GET /admin/audio/api/:id — single track with all metadata */
-// Maak een track ZONDER audiobestand (alleen titel + open-in links). Verschijnt
-// in albums/playlists in de lijst, met open-in-iconen maar zonder afspeelknop.
+// Create a track WITHOUT an audio file (title + open-in links only). Appears
+// in albums/playlists in the list, with open-in icons but no play button.
 router.post('/create-link', requireGod, express.json(), (req, res) => {
   const site = res.locals.site;
   if (!site) return res.status(404).json({ error: 'Site required' });
@@ -506,8 +506,8 @@ router.post('/api/:id', requireGod, express.json(), async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 
-  // Verse rij + (als tag-velden wijzigden) de mp3 her-taggen, zodat de eigenaar/
-  // licentie ook IN het bestand staat (ID3) en meereist bij een download.
+  // Fresh row + (if tag fields changed) retag the mp3, so that the owner/
+  // licence is also IN the file (ID3) and travels with it on download.
   const fresh = db.prepare(`
     SELECT t.id, t.title, t.artist, t.album, t.duration, t.cover_url, t.credit, t.license, m.storage_path
     FROM audio_tracks t LEFT JOIN media m ON m.id = t.media_id
@@ -526,7 +526,7 @@ router.post('/api/:id', requireGod, express.json(), async (req, res) => {
         comment: fresh.license || undefined,
       } });
     } catch (e) {
-      console.warn('[admin-audio] ID3 her-taggen mislukt (DB is wel bijgewerkt):', e.message);
+      console.warn('[admin-audio] ID3 retag failed (DB was still updated):', e.message);
     }
   }
   const { storage_path, ...trackOut } = fresh || {};

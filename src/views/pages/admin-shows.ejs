@@ -62,8 +62,8 @@
   .ash-ok { background: rgba(60,160,90,.15); } .ash-bad { background: rgba(200,60,60,.15); }
   .ash-note { font-size: 13px; opacity: .8; margin: 0 0 18px; }
   .ash-form { border: 1px solid rgba(128,128,128,.2); border-radius: 14px; padding: 16px; margin-bottom: 24px; }
-  /* Mobiel-eerst: één kolom (twee 1fr-kolommen met niet-krimpbare date/text-inputs
-     liepen samen ~374px > telefoonbreedte). Twee kolommen pas vanaf 520px. */
+  /* Mobile-first: single column (two 1fr columns with non-shrinkable date/text inputs
+     combined to ~374px > phone width). Two columns only from 520px onwards. */
   .ash-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
   @media (min-width: 520px) { .ash-grid { grid-template-columns: 1fr 1fr; } }
   .ash-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; font-weight: 600; min-width: 0; }

@@ -1,16 +1,16 @@
 /**
- * GET /search?q=...          -> volledige resultatenpagina
- * GET /search/suggest?q=...  -> compacte JSON voor live resultaten in de overlay
+ * GET /search?q=...          -> full results page
+ * GET /search/suggest?q=...  -> compact JSON for live results in the overlay
  *
- * Doorzoekt de huidige site op:
+ * Searches the current site across:
  *   1. Posts via posts_fts (FTS5, prefix-matching) — published only.
- *   2. Nummers (audio_tracks) op titel / artiest / album.
- *   3. Evenementen (shows) op plaats / locatie / land / notitie — als de agenda aan staat.
- *   4. Pagina's (Agenda / Downloads / Links / Perskit / Archief) op naam — alleen
- *      de beschikbare.
+ *   2. Tracks (audio_tracks) on title / artist / album.
+ *   3. Events (shows) on city / venue / country / notes — when the agenda is enabled.
+ *   4. Pages (Agenda / Downloads / Links / Press kit / Archive) by name — only
+ *      the available ones.
  *
- * FTS5: user-input wordt getokeniseerd op niet-letter/cijfer en elk token tussen
- * dubbele quotes + `*` gezet → prefix-match, geen operator-soup/syntax-errors.
+ * FTS5: user input is tokenised on non-letter/digit chars and each token is wrapped
+ * in double quotes + `*` → prefix-match, no operator-soup/syntax-errors.
  */
 
 import express from 'express';
@@ -46,8 +46,8 @@ function cleanSnippet(html, excerpt) {
   return s;
 }
 
-// ── De kern: alle bronnen doorzoeken voor één site. `lim` begrenst per groep
-//    (klein voor de live-suggesties, ruim voor de volle pagina). ──────────────
+// ── Core: search all sources for one site. `lim` caps results per group
+//    (small for live suggestions, large for the full page). ──────────────────
 function searchSite(req, res, rawQ, lim) {
   const site = res.locals.site;
   const isHub = res.locals.tenancy === 'hub';
@@ -78,7 +78,7 @@ function searchSite(req, res, rawQ, lim) {
     } catch (err) { out.queryError = err.message; }
   }
 
-  // 2. Nummers
+  // 2. Tracks
   try {
     const trackRows = db.prepare(`
       SELECT t.id, t.title, t.artist, t.album, t.cover_url, t.play_count, m.filename
@@ -107,7 +107,7 @@ function searchSite(req, res, rawQ, lim) {
     }));
   } catch (err) { if (!out.queryError) out.queryError = err.message; }
 
-  // 3. Evenementen (agenda) — alleen als de agenda publiek aan staat.
+  // 3. Events (agenda) — only when the agenda is publicly enabled.
   if (premiumUnlocked() && getSetting('agenda_enabled') === '1') {
     try {
       out.events = db.prepare(`
@@ -124,7 +124,7 @@ function searchSite(req, res, rawQ, lim) {
     } catch (err) { if (!out.queryError) out.queryError = err.message; }
   }
 
-  // 4. Pagina's — curated, alleen de beschikbare; match op de (vertaalde) naam.
+  // 4. Pages — curated, available ones only; matched against the (translated) name.
   const ql = rawQ.toLowerCase();
   const candidates = [
     { key: 'search.page_agenda', url: base + '/shows', on: premiumUnlocked() && getSetting('agenda_enabled') === '1' },
@@ -142,7 +142,7 @@ function searchSite(req, res, rawQ, lim) {
   return out;
 }
 
-// ── Volledige resultatenpagina ───────────────────────────────────────────────
+// ── Full results page ────────────────────────────────────────────────────────
 router.get('/', (req, res) => {
   const site = res.locals.site;
   if (!site) return res.status(404).send('No site');
@@ -164,7 +164,7 @@ router.get('/', (req, res) => {
   });
 });
 
-// ── Live suggesties (JSON) ───────────────────────────────────────────────────
+// ── Live suggestions (JSON) ──────────────────────────────────────────────────
 router.get('/suggest', (req, res) => {
   const site = res.locals.site;
   if (!site) return res.json({ posts: [], tracks: [], events: [], pages: [] });

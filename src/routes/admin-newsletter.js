@@ -1,11 +1,11 @@
 /**
- * Nieuwsbrief — beheerkant (premium feature #1).
+ * Newsletter — admin side (premium feature #1).
  *
- *   GET  /admin/newsletter        -> opstellen + abonnee-aantallen + historie
- *   POST /admin/newsletter/send   -> verstuur naar alle BEVESTIGDE abonnees (SMTP)
+ *   GET  /admin/newsletter        -> compose + subscriber counts + history
+ *   POST /admin/newsletter/send   -> send to all CONFIRMED subscribers (SMTP)
  *
- * Premium-gated + site-beheerder. Versturen vereist ingestelde SMTP; zonder SMTP
- * worden aanmeldingen wél verzameld (single opt-in), alleen versturen kan dan niet.
+ * Premium-gated + site manager. Sending requires configured SMTP; without SMTP
+ * sign-ups are still collected (single opt-in), only sending is unavailable.
  */
 
 import express from 'express';
@@ -85,7 +85,7 @@ router.post('/send', requireSiteManager, premiumGate, async (req, res) => {
               esc(site.title) + '. <a href="' + unsub + '">Uitschrijven</a>.</p>',
       });
       sent++;
-    } catch (e) { /* sla deze ontvanger over, ga door */ }
+    } catch (e) { /* skip this recipient, continue */ }
   }
   db.prepare('INSERT INTO newsletters (id, site_id, subject, body, recipient_count) VALUES (?,?,?,?,?)')
     .run(uuid(), site.id, subject, body, sent);

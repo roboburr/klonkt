@@ -1,9 +1,9 @@
-// E-mail versturen (wachtwoord-reset, nieuwsbrief, notify). Optioneel: alleen actief
-// als SMTP is ingesteld — via Beheer → Instellingen (app_settings) OF env-vars.
+// Send email (password reset, newsletter, notify). Optional: only active
+// when SMTP is configured — via Admin → Settings (app_settings) OR env vars.
 //
-// Config-bron (in deze volgorde): app_settings (ingesteld in de UI), anders env:
+// Config source (in this order): app_settings (set via the UI), otherwise env:
 //   SMTP_HOST, SMTP_PORT (default 587), SMTP_USER, SMTP_PASS, SMTP_FROM (default = USER)
-// Niet ingesteld → versturen valt terug op CLI (reset-admin) / wordt overgeslagen.
+// Not configured → sending falls back to CLI (reset-admin) / is skipped.
 
 import nodemailer from 'nodemailer';
 import { getSetting } from '../services/SettingsService.js';
@@ -22,7 +22,7 @@ export function mailerConfigured() {
   return !!(c.host && c.user && c.pass);
 }
 
-// Status voor de UI (zonder het wachtwoord te lekken).
+// Status for the UI (without leaking the password).
 export function mailerStatus() {
   const c = cfg();
   return {
@@ -32,12 +32,12 @@ export function mailerStatus() {
     user: c.user,
     from: c.from,
     passSet: !!c.pass,
-    // bron: handig om te tonen dat env nog actief is
+    // source: useful to show that env vars are still active
     fromEnv: !getSetting('smtp_host', '') && !!process.env.SMTP_HOST,
   };
 }
 
-// Transport cachen, maar herbouwen zodra de config wijzigt (UI-edit zonder herstart).
+// Cache the transport, but rebuild it whenever the config changes (UI edit without restart).
 let _transport = null, _key = null;
 function transport() {
   const c = cfg();
@@ -46,7 +46,7 @@ function transport() {
     _transport = nodemailer.createTransport({
       host: c.host,
       port: c.port,
-      secure: c.port === 465, // 465 = impliciete TLS; 587 = STARTTLS
+      secure: c.port === 465, // 465 = implicit TLS; 587 = STARTTLS
       auth: { user: c.user, pass: c.pass },
     });
     _key = key;
@@ -55,7 +55,7 @@ function transport() {
 }
 
 export async function sendMail({ to, subject, text, html }) {
-  if (!mailerConfigured()) throw new Error('SMTP niet geconfigureerd');
+  if (!mailerConfigured()) throw new Error('SMTP not configured');
   const c = cfg();
   return transport().sendMail({ from: c.from, to, subject, text, html });
 }

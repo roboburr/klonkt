@@ -194,7 +194,7 @@ const _csrf = (typeof csrfToken !== 'undefined' && csrfToken) || '';
   border-color: var(--accent);
 }
 
-/* ── Credit-veld met ©-invoegknop ──────────────────────────── */
+/* ── Credit field with © insert button ──────────────────────────── */
 .te-credit-row { display: flex; gap: 0.4rem; align-items: stretch; }
 .te-credit-row input { flex: 1; min-width: 0; }
 .te-sym-btn {
@@ -637,7 +637,7 @@ body.te-modal-open { overflow: hidden; }
       });
     }
 
-    // ── ©-teken invoegen in het credit-veld ─────────────────
+    // ── Insert © symbol into the credit field ─────────────────
     const copyrBtn = $('#te-credit-copyr');
     if (copyrBtn) {
       copyrBtn.addEventListener('click', () => {
@@ -692,16 +692,16 @@ body.te-modal-open { overflow: hidden; }
       }
     });
 
-    // ── Auto-duur ───────────────────────────────────────────
-    // De server bepaalt de duur al automatisch bij upload. Dit is de vangnet/
-    // UX-laag: opent een admin een bestaande track zónder duur, dan lezen we 'm
-    // hier uit de audio-metadata en vullen het veld — zodat je nooit seconden
-    // hoeft te typen. Bestaande waarde wordt nooit overschreven. We halen de
-    // bytes via dezelfde header-gate als de speler (X-Audio-Player).
+    // ── Auto-duration ───────────────────────────────────────────
+    // The server already determines duration automatically on upload. This is the
+    // fallback/UX layer: if an admin opens an existing track without a duration,
+    // we read it from the audio metadata and fill the field — so you never need
+    // to type seconds manually. An existing value is never overwritten. We fetch
+    // the bytes via the same header gate as the player (X-Audio-Player).
     (async function autoDuration() {
       const durEl = $('#te-duration');
       if (!durEl || !track.stream_url) return;
-      if (durEl.value && Number(durEl.value) > 0) return;  // al ingevuld → met rust laten
+      if (durEl.value && Number(durEl.value) > 0) return;  // already filled → leave it alone
       let objUrl = null;
       try {
         const r = await fetch(track.stream_url, { credentials: 'same-origin', headers: { 'X-Audio-Player': '1' } });

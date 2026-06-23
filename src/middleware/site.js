@@ -14,10 +14,10 @@ import { audioUrl } from '../services/AudioStreamService.js';
 import { audioEnabled } from '../config/features.js';
 
 /**
- * De primaire/hoofd-site — ÉÉN bron van waarheid (vervangt de "oudste site ="
- * hoofd"-aanname die voorheen los in resolveSite/hub/account/admin stond).
- * Leest de expliciete is_primary-vlag; valt terug op de oudste als die (nog)
- * nergens staat, zodat bestaand gedrag exact behouden blijft.
+ * The primary/main site — ONE source of truth (replaces the "oldest site ="
+ * main" assumption that was previously scattered across resolveSite/hub/account/admin).
+ * Reads the explicit is_primary flag; falls back to the oldest if it isn't set
+ * anywhere yet, so existing behaviour is preserved exactly.
  */
 export function getPrimarySite() {
   return db.prepare('SELECT * FROM sites WHERE is_primary = 1 LIMIT 1').get()
@@ -27,14 +27,14 @@ export function getPrimarySite() {
 
 export function resolveSite(req, res, next) {
   const tenancy = getTenancy();
-  res.locals.tenancy = tenancy; // ook beschikbaar voor views
+  res.locals.tenancy = tenancy; // also available in views
 
-  // In HUB-mode mapt /user/:slug naar een specifieke site. In SOLO-mode bestaat
-  // er maar één site: we slaan die routing over en pinnen op de primaire site.
+  // In HUB mode /user/:slug maps to a specific site. In SOLO mode there is only
+  // one site: we skip that routing and pin to the primary site.
   if (tenancy === 'hub') {
-    // Een Klonkt-site is canoniek bereikbaar via /user/:slug. /sites/:slug is een
-    // legacy-alias → 301 naar de canonieke vorm zodat er één URL-schema overblijft
-    // (behoudt pad + querystring; raakt /admin/sites NIET, dat begint met /admin/).
+    // A Klonkt site is canonically reachable via /user/:slug. /sites/:slug is a
+    // legacy alias → 301 to the canonical form so one URL scheme remains
+    // (preserves path + query string; does NOT touch /admin/sites, which starts with /admin/).
     const m = req.path.match(/^\/(sites|user)\/([a-zA-Z0-9_-]+)(\/.*)?$/);
     if (m) {
       if (m[1] === 'sites') {
@@ -48,12 +48,12 @@ export function resolveSite(req, res, next) {
         return next();
       }
     }
-    // (Verwijderd: een dode "slug == hostname"-subdomein-hack. Slugs mogen geen
-    // punten bevatten, dus die kon nooit matchen. Echte subdomein-routing zou de
-    // subdomein-LABEL tegen de slug matchen — een aparte feature, niet dit.)
+    // (Removed: a dead "slug == hostname" subdomain hack. Slugs may not contain
+    // dots, so it could never match. Real subdomain routing would match the
+    // subdomain LABEL against the slug — a separate feature, not this.)
   }
 
-  // Solo (of hub zonder match): pin op de primaire/hoofd-site.
+  // Solo (or hub without a match): pin to the primary/main site.
   const defaultSite = getPrimarySite();
   if (defaultSite) {
     res.locals.site = defaultSite;
@@ -78,9 +78,9 @@ export function loadAudioTracks(req, res, next) {
   }
 
   try {
-    // m.filename = de kale bestandsnaam; de speelbare URL is de gated stream-route
-    // (audioUrl). De media-tabel heeft GEEN url-kolom — de oude query selecteerde
-    // m.url en faalde dus altijd stil (lege speler). Nu bouwen we de URL uit filename.
+    // m.filename = the bare filename; the playable URL is the gated stream route
+    // (audioUrl). The media table has NO url column — the old query selected
+    // m.url and always failed silently (empty player). Now we build the URL from filename.
     const rows = db.prepare(`
       SELECT t.id, t.title, t.artist, t.duration, t.position, m.filename
       FROM audio_tracks t

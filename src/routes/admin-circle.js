@@ -1,12 +1,12 @@
 /**
- * Admin: Cirkel-beheer (god-only).
- *   GET  /admin/circle           -> lijst van cirkel-links + status
- *   POST /admin/circle/add       -> Klonkt-URL toevoegen
+ * Admin: Circle management (god-only).
+ *   GET  /admin/circle           -> list of circle links + status
+ *   POST /admin/circle/add       -> add a Klonkt URL
  *   POST /admin/circle/:id/remove
- *   POST /admin/circle/:id/sync  -> nu verversen (pull + verifieer)
- *   POST /admin/circle/allow     -> toggle "mag in cirkels van anderen verschijnen"
+ *   POST /admin/circle/:id/sync  -> refresh now (pull + verify)
+ *   POST /admin/circle/allow     -> toggle "may appear in others' circles"
  *
- * Zie docs/cirkels-v1-spec.md §5d.
+ * See docs/cirkels-v1-spec.md §5d.
  */
 
 import express from 'express';
@@ -50,9 +50,9 @@ router.get('/', requireGod, (req, res) => {
 router.post('/add', requireGod, async (req, res) => {
   const site = primarySite();
   if (!site) return res.redirect('/admin/circle?error=' + encodeURIComponent('Geen site gevonden'));
-  // Schema automatisch aanvullen: een kale domeinnaam → https://, een getypte
-  // http:// → https:// (federatie is bewust https-only, getekende feeds). Zo hoeft
-  // de gebruiker nooit zelf http(s):// te typen.
+  // Auto-complete the scheme: a bare domain name → https://, a typed
+  // http:// → https:// (federation is intentionally https-only, signed feeds). So the
+  // user never has to type http(s):// themselves.
   let url = (req.body.remote_url || '').toString().trim().replace(/\/+$/, '');
   if (url && !/^[a-z]+:\/\//i.test(url)) url = 'https://' + url;
   url = url.replace(/^http:\/\//i, 'https://');
@@ -67,21 +67,21 @@ router.post('/add', requireGod, async (req, res) => {
   } catch (e) {
     return res.redirect('/admin/circle?error=' + encodeURIComponent('Deze site staat al in je cirkel'));
   }
-  // Meteen ophalen i.p.v. wachten op de 15-min-loop.
+  // Fetch immediately instead of waiting for the 15-minute loop.
   try {
     const link = db.prepare('SELECT * FROM circle_links WHERE id = ?').get(id);
     await syncOne(link);
     return res.redirect('/admin/circle?success=' + encodeURIComponent('Toegevoegd en gesynchroniseerd ✓'));
   } catch (e) {
     const msg = String((e && e.message) || e);
-    // 404 = geen cirkel-endpoint. Hubs federeren bewust NIET (hun /.klonkt/actor.json
-    // geeft 404), net als losse niet-Klonkt-sites. Niet toevoegen: rol de insert terug
-    // zodat er geen dode "fout"-rij in de cirkel blijft staan.
+    // 404 = no circle endpoint. Hubs intentionally do NOT federate (their /.klonkt/actor.json
+    // returns 404), same as standalone non-Klonkt sites. Don't add: roll back the insert
+    // so no dead "error" row is left in the circle.
     if (/\b404\b/.test(msg)) {
       db.prepare('DELETE FROM circle_links WHERE id = ?').run(id);
       return res.redirect('/admin/circle?error=' + encodeURIComponent('Niet toegevoegd: deze site doet niet mee aan cirkels. Een hub kan geen cirkel-partner zijn (en losse/niet-Klonkt-sites ook niet).'));
     }
-    // Andere (mogelijk tijdelijke) fout → link blijft staan; later "Verversen".
+    // Other (possibly temporary) error → link stays; use "Refresh" later to retry.
     return res.redirect('/admin/circle?success=' + encodeURIComponent('Toegevoegd — synchroniseren mislukte (klik "Verversen" om opnieuw te proberen)'));
   }
 });
@@ -90,7 +90,7 @@ router.post('/:id/remove', requireGod, (req, res) => {
   const link = db.prepare('SELECT * FROM circle_links WHERE id = ?').get(req.params.id);
   if (link) {
     db.prepare('DELETE FROM circle_links WHERE id = ?').run(link.id);
-    // Gecachte content opruimen als geen andere link nog naar deze actor wijst.
+    // Clean up cached content if no other link still points to this actor.
     if (link.remote_actor_id) {
       const other = db.prepare('SELECT 1 FROM circle_links WHERE remote_actor_id = ? LIMIT 1').get(link.remote_actor_id);
       if (!other) {
@@ -116,7 +116,7 @@ router.post('/:id/sync', requireGod, async (req, res) => {
   }
 });
 
-// Alles in één keer verversen (handig "voor de zekerheid").
+// Refresh everything at once (handy "just to be sure").
 router.post('/sync-all', requireGod, async (req, res) => {
   try {
     const r = await sync();

@@ -26,21 +26,20 @@ import { t as i18nT, resolveLang, SUPPORTED as LANGS, LANG_NAMES } from '../serv
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const VIEWS_DIR = path.join(__dirname, '..', 'views');
 
-// App-versie (uit package.json) + korte commit-hash (uit .klonkt-version, door de
-// deploy geschreven) — getoond in de footer naast "Klonkt Beta". De hash loopt
-// automatisch mee bij élke deploy, dus de versie is nooit meer stale.
+// App version (from package.json) + short commit hash (from .klonkt-version, written by
+// the deploy script) — shown in the footer next to "Klonkt Beta". The hash is updated
+// automatically on every deploy, so the displayed version is never stale.
 let APP_VERSION = '';
 try {
   APP_VERSION = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8')).version || '';
   try {
     const sha = fs.readFileSync(path.join(__dirname, '..', '..', '.klonkt-version'), 'utf8').trim().slice(0, 7);
     if (sha) APP_VERSION += ' · ' + sha;
-  } catch { /* geen .klonkt-version (lokale dev) */ }
-} catch { /* geen versie beschikbaar */ }
+  } catch { /* no .klonkt-version (local dev) */ }
+} catch { /* no version available */ }
 
-// Site-tijdzone (Beheer → Instellingen). Leeg = server-default (UTC). Wordt
-// toegepast op álle server-side geformatteerde datums zodat ze in de zone van
-// de site staan i.p.v. UTC.
+// Site timezone (Admin → Settings). Empty = server default (UTC). Applied to
+// all server-side formatted dates so they display in the site's timezone instead of UTC.
 const siteTimezone = () => getSetting('timezone') || undefined;
 
 const formatDate = (iso) => {
@@ -57,19 +56,19 @@ export async function renderPage(req, res, viewName, data = {}) {
   // Decide: partial (HTMX) or full?
   const isPartial = req.headers['hx-request'] === 'true' || req.query.partial === '1';
 
-  // Voorkom dat de browser een htmx-PARTIAL (alleen #pcms-main, zónder <head>/CSS)
-  // onder dezelfde URL cachet en bij "terug" als volledige pagina serveert →
-  // ongestylede HTML. Vary: HX-Request scheidt partial- en full-responses in de
-  // cache; no-store op de partial zelf laat "terug" altijd de volledige pagina
-  // opnieuw ophalen. (Vary geldt ook voor tussenliggende caches/Cloudflare.)
+  // Prevent the browser from caching an htmx PARTIAL (only #pcms-main, without <head>/CSS)
+  // under the same URL and serving it as a full page on "back" → unstyled HTML.
+  // Vary: HX-Request separates partial and full responses in the cache;
+  // no-store on the partial forces "back" to always re-fetch the full page.
+  // (Vary also applies to intermediate caches / Cloudflare.)
   res.setHeader('Vary', 'HX-Request');
   if (isPartial) res.setHeader('Cache-Control', 'no-store');
 
-  // Bezit deze (niet-god) user een eigen site? Bepaalt of 'ie een "Beheer"-
-  // ingang ziet (artiest-zelfbeheer). god ziet beheer sowieso (op rol).
+  // Does this (non-god) user own a site? Determines whether they see an "Admin"
+  // entry (artist self-manage). god always sees admin (by role).
   let _u = req.session?.user || null;
-  // Ververs avatar + rol uit de DB zodat een stale sessie (bv. na een
-  // avatar-wijziging of rolwissel) zichzelf herstelt zonder opnieuw inloggen.
+  // Refresh avatar + role from the DB so a stale session (e.g. after an
+  // avatar change or role switch) heals itself without a new login.
   if (_u && _u.id) {
     const _fresh = db.prepare('SELECT avatar_url, role, lang FROM users WHERE id = ?').get(_u.id);
     if (_fresh) _u = { ..._u, avatar_url: _fresh.avatar_url, role: _fresh.role, lang: _fresh.lang };
@@ -77,26 +76,26 @@ export async function renderPage(req, res, viewName, data = {}) {
   const userOwnsSite = !!(_u && _u.role !== 'god' &&
     db.prepare('SELECT 1 FROM sites WHERE owner_id = ? LIMIT 1').get(_u.id));
 
-  // De avatar van de SITE-EIGENAAR (niet de kijker!) — voor de Klonkt-site-kop,
-  // zodat de artiest z'n eigen account-foto als sitefoto kan gebruiken.
+  // The avatar of the SITE OWNER (not the viewer!) — for the Klonkt site header,
+  // so the artist can use their own account photo as the site photo.
   const _site = data.site || res.locals.site || null;
   const siteOwnerAvatar = (_site && _site.owner_id)
     ? (db.prepare('SELECT avatar_url FROM users WHERE id = ?').get(_site.owner_id)?.avatar_url || null)
     : null;
 
-  // Kijker-modus: alles bekijken mag, niets wijzigen. Views gebruiken canMutate
-  // om schrijf-knoppen (posten, opslaan, verwijderen) te verbergen/uit te zetten.
+  // Viewer mode: may view everything, change nothing. Views use canMutate
+  // to hide/disable write buttons (post, save, delete).
   const _isViewer = isViewer(_u);
 
-  // Wie ziet de "Beheer"-link? god/admin, een site-eigenaar (artiest-zelfbeheer),
-  // én een kijker (mag het Beheer alleen-lezen inzien). Eén bron van waarheid,
-  // gespiegeld in topnav/hub-nav/profielsheet — anders raakt de link verborgen
-  // voor wie 'm wél mag zien (kijker zag 'm eerst nergens).
+  // Who sees the "Admin" link? god/admin, a site owner (artist self-manage),
+  // and a viewer (may view Admin read-only). One source of truth,
+  // mirrored in topnav/hub-nav/profile sheet — otherwise the link gets hidden
+  // for those who should see it (viewer didn't see it anywhere before).
   const _role = _u ? _u.role : null;
   const canSeeBeheer = !!(_u && (_role === 'god' || _role === 'admin' || _role === 'kijker' || userOwnsSite));
 
-  // Interface-taal: sessie-keuze (deze sessie) → eigen voorkeur van de ingelogde
-  // gebruiker (users.lang) → admin-ingestelde standaard (Beheer) → env → browser → nl.
+  // Interface language: session choice (this session) → logged-in user's own preference
+  // (users.lang) → admin-set default (Admin → Settings) → env → browser → nl.
   const _lang = resolveLang(req, {
     userLang: _u && _u.lang,
     defaultLang: getSetting('default_lang'),
@@ -124,8 +123,8 @@ export async function renderPage(req, res, viewName, data = {}) {
     siteUrlBase: res.locals.siteUrlBase || '',
     tenancy: res.locals.tenancy || 'solo',
     hubTitle: getSetting('hub_title') || '',
-    footerNewsletter: getSetting('footer_newsletter') === '1', // nieuwsbrief-aanmelding in footer (premium)
-    agendaEnabled: getSetting('agenda_enabled') === '1', // Agenda/evenementen tonen in de pill (premium, opt-in)
+    footerNewsletter: getSetting('footer_newsletter') === '1', // newsletter sign-up in footer (premium)
+    agendaEnabled: getSetting('agenda_enabled') === '1', // show agenda/events in the pill (premium, opt-in)
     platforms_catalog: PLATFORMS_CATALOG,
     permissions: PermissionsService,
     formatDate,
@@ -152,10 +151,10 @@ export async function renderPage(req, res, viewName, data = {}) {
       // setHeader throw ERR_INVALID_CHAR and 500 the partial, so the card
       // looks "unclickable". Escape any non-ASCII to \uXXXX: the header stays
       // ASCII-safe and remains valid JSON that htmx parses back unchanged.
-      // Per-site accent + palette zitten in de shell-<head> (style#pcms-site-accent
-      // + html[data-palette]) en worden NIET mee-geswapt bij htmx-nav. Stuur ze mee
-      // zodat de client ze bijwerkt — anders erft een artiest de kleuren van de
-      // vorige pagina (bv. hub-paars i.p.v. eigen groen). Zelfde afleiding als shell.ejs.
+      // Per-site accent + palette live in the shell <head> (style#pcms-site-accent
+      // + html[data-palette]) and are NOT swapped during htmx navigation. Send them along
+      // so the client updates them — otherwise an artist inherits the previous page's
+      // colours (e.g. hub-purple instead of their own green). Same derivation as shell.ejs.
       const _navAccent = (_site && _site.accent && /^#[0-9a-fA-F]{6}$/.test(_site.accent))
         ? _site.accent : '#e8b04b';
       const _navPalette = (_site && _site.palette) ? _site.palette : 'klonkt';
@@ -168,11 +167,11 @@ export async function renderPage(req, res, viewName, data = {}) {
         } : null,
       }).replace(/[-￿]/g, (ch) => '\\u' + ch.charCodeAt(0).toString(16).padStart(4, '0'));
       res.setHeader('HX-Trigger-After-Settle', triggerJson);
-      // Site-chrome out-of-band mee-renderen, zodat de kop (topnav/profielkop/
-      // view-switcher) bij navigatie ALTIJD bij de nieuwe pagina/artiest hoort —
-      // terwijl de audioplayer (los in document.body) blijft leven (geen
-      // verspringen). htmx vervangt #pcms-chrome via hx-swap-oob. Niet kritisch:
-      // faalt 't, dan blijft de oude chrome staan (geen crash).
+      // Render the site chrome out-of-band so the header (topnav/profile header/
+      // view-switcher) ALWAYS matches the new page/artist on navigation —
+      // while the audio player (separate in document.body) keeps playing (no
+      // interruption). htmx replaces #pcms-chrome via hx-swap-oob. Non-critical:
+      // if it fails, the old chrome remains (no crash).
       let oobChrome = '';
       try {
         oobChrome = await ejs.renderFile(
@@ -180,7 +179,7 @@ export async function renderPage(req, res, viewName, data = {}) {
           { ...locals, oob: true },
           { async: false },
         );
-      } catch (e) { /* chrome-OOB overslaan */ }
+      } catch (e) { /* skip chrome OOB */ }
       return res.send(pageContent + oobChrome);
     }
 

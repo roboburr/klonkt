@@ -109,8 +109,8 @@
 .admin-site-edit-page .admin-tagline { color: var(--ink-muted); margin: 0 0 1.75rem; }
 
 .site-form { display: flex; flex-direction: column; gap: 1.5rem; min-width: 0; }
-/* <fieldset> krimpt door de UA min-inline-size:min-content niet mee → mobiel-overflow.
-   min-width:0 dwingt meekrimpen. */
+/* <fieldset> does not shrink because the UA sets min-inline-size:min-content → mobile overflow.
+   min-width:0 forces it to shrink. */
 .site-form fieldset { min-width: 0; }
 .site-form input, .site-form textarea, .site-form select { min-width: 0; }
 .site-form fieldset {

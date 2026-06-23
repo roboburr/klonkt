@@ -1,12 +1,12 @@
 /**
- * Publieke wijzigingen-/release-pagina.
+ * Public changelog / release page.
  *
- * GET /changelog  -> rendert CHANGELOG.md (de bron van waarheid voor releases).
+ * GET /changelog  -> renders CHANGELOG.md (the source of truth for releases).
  *
- * De app-versie (footer, package.json) is bewust losgekoppeld van de
- * cirkel-federatie-proto (KLONKT_PROTO): een versie-bump is cosmetisch en raakt
- * de federatie niet. We tonen de proto hier expliciet zodat per release zichtbaar
- * is met welke federatie-versie deze instance praat (cirkels = lockstep per proto).
+ * The app version (footer, package.json) is intentionally decoupled from the
+ * circle federation proto (KLONKT_PROTO): a version bump is cosmetic and does not
+ * affect federation. We show the proto here explicitly so that each release
+ * makes visible which federation version this instance speaks (circles = lockstep per proto).
  */
 
 import express from 'express';

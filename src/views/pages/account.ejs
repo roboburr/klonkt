@@ -89,7 +89,7 @@
     <% } %>
   </section>
 
-  <%# ── PERSOONLIJKE TAAL ───────────────────────────────────── %>
+  <%# ── PERSONAL LANGUAGE ──────────────────────────────────── %>
   <% if (canMutate) { %>
   <section class="ax-card">
     <div class="ax-card-title"><%= t('acct.lang_label') %></div>
@@ -109,7 +109,7 @@
   </section>
   <% } %>
 
-  <%# ── SITE (eigenaar mag de naam van z'n site aanpassen) ── %>
+  <%# ── SITE (owner may update their site name) ─────────── %>
   <% if (typeof editableSite !== 'undefined' && editableSite && canMutate) { %>
   <section class="ax-card">
     <div class="ax-card-title"><%= t('acct.site') %></div>
@@ -129,8 +129,8 @@
   </section>
   <% } %>
 
-  <%# ── WACHTWOORD ────────────────────────────────────────── %>
-  <%# In kijker-modus geen wachtwoord-sectie (niets te wijzigen). %>
+  <%# ── PASSWORD ──────────────────────────────────────────── %>
+  <%# In viewer mode there is no password section (nothing to change). %>
   <% if (canMutate) { %>
   <% if (hasPassword) { %>
   <section class="ax-card">

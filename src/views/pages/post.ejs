@@ -1,12 +1,12 @@
 <%
-// In hub-mode is de site bereikbaar onder /user/<slug>; alle site-scoped links
-// (tag, edit, delete, comments) moeten met die prefix anders vallen ze terug op
-// de primaire site → 404 / verkeerde site. In solo is _base = ''.
+// In hub mode the site is accessible under /user/<slug>; all site-scoped links
+// (tag, edit, delete, comments) must carry that prefix otherwise they fall back
+// to the primary site → 404 / wrong site. In solo mode _base = ''.
 const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '';
 %>
 <article class="container post-page">
 
-  <%# Navigatie over ALLE posts — BOVEN de post (gedeeld partial). %>
+  <%# Navigation across ALL posts — ABOVE the post (shared partial). %>
   <%- include('../partials/post-nav', { newerPost: newerPost, olderPost: olderPost }) %>
 
   <% if (post.cover_image_url) { %>
@@ -78,7 +78,7 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
     </h2>
 
     <% if (typeof currentPath === 'string' && currentPath && currentPath.indexOf('/' + post.slug) === 0) { %>
-      <% /* If the URL has ?pending=1, the previous submit landed in the queue */ %>
+      <% /* If the URL has ?pending=1, the previous submit landed in the moderation queue */ %>
     <% } %>
     <script>
       (function() {
@@ -163,8 +163,8 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
                           <% } %>
                         </div>
 
-                        <%# Reageren op een antwoord — landt (via resolvedParent op de
-                            server) in dezelfde thread, dus 1 niveau diep blijft behouden. %>
+                        <%# Replying to a reply — lands (via resolvedParent on the
+                            server) in the same thread, so the 1-level depth is preserved. %>
                         <% if (user && canMutate) { %>
                           <form method="post" action="<%= _base %>/comments" class="comment-reply-form" hidden data-reply-form-for="<%= r.id %>">
                             <input type="hidden" name="post_slug" value="<%= post.slug %>">
@@ -430,11 +430,11 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
 }
 .comment-form button { align-self: flex-start; }
 .comment-reply-form-actions { display: flex; gap: 0.5rem; }
-/* Reply-formulier pas tonen NA klik op REPLY. De display:flex hierboven overschreef
-   anders het [hidden]-attribuut → formulier stond altijd open. */
+/* Show the reply form only AFTER clicking REPLY. The display:flex above would
+   otherwise override the [hidden] attribute → form was always open. */
 .comment-reply-form[hidden] { display: none; }
-/* DELETE-knop zit in een <form>; display:contents laat 'm als directe flex-sibling
-   van REPLY meedoen → pixel-perfecte uitlijning + gelijke gap. */
+/* DELETE button is inside a <form>; display:contents makes it a direct flex-sibling
+   of REPLY → pixel-perfect alignment + equal gap. */
 .comment-actions form { display: contents; }
 
 .comments-login-cta { margin-top: 1.5rem; text-align: center; }

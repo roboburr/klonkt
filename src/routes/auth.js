@@ -9,9 +9,9 @@ import { safeNext, requireAuth } from '../middleware/auth.js';
 import { googleConfigured, authorizeUrl, exchangeCode, fetchUserinfo } from '../config/google.js';
 import { premiumUnlocked } from '../services/PatreonService.js';
 
-// Fan-login (luisteraars inloggen met Google om te reageren) is een premium-
-// feature: beschikbaar als Google is ingesteld ÉN de premium-laag ontgrendeld is
-// (premium uit = vrij; aan = Patreon vereist).
+// Fan login (listeners signing in with Google to comment) is a premium feature:
+// available when Google is configured AND the premium layer is unlocked
+// (premium off = open to all; on = Patreon required).
 function fanLoginReady() {
   return googleConfigured() && premiumUnlocked();
 }
@@ -21,16 +21,16 @@ import { setSetting } from '../services/SettingsService.js';
 
 const router = express.Router();
 
-// Vaste dummy-hash: zo draait login altijd één bcrypt-vergelijking, ook als de
-// user niet bestaat of geen wachtwoord heeft — geen timing-oracle voor enumeratie.
+// Fixed dummy hash: ensures login always runs one bcrypt comparison, even when the
+// user doesn't exist or has no password — no timing oracle for enumeration.
 const DUMMY_HASH = bcrypt.hashSync('constant-time-login-guard', 10);
 
-// Canonieke basis-URL voor links in e-mails (reset). Uit headers bouwen is
-// spoofbaar (X-Forwarded-Host); een vaste config sluit dat uit.
+// Canonical base URL for links in emails (reset). Building it from headers is
+// spoofable (X-Forwarded-Host); a fixed config eliminates that risk.
 function publicBaseUrl(req) {
   const cfg = (process.env.PUBLIC_BASE_URL || '').replace(/\/$/, '');
   if (cfg) return cfg;
-  // Fallback (dev): trust-proxy-gesaneerde protocol + Host-header (NIET de rauwe
+  // Fallback (dev): trust-proxy-sanitised protocol + Host header (NOT the raw
   // X-Forwarded-Host).
   return `${req.protocol}://${req.get('host')}`;
 }
@@ -39,17 +39,16 @@ function hashToken(raw) {
   return crypto.createHash('sha256').update(String(raw)).digest('hex');
 }
 
-// Eerste-keer-setup? Pas zolang er nog geen enkele gebruiker is mag /register een
-// beheerder aanmaken. Daarna is registratie dicht (luisteraars komen via Google).
+// First-time setup? Only while there are no users yet may /register create an
+// admin account. Afterwards registration is closed (listeners come via Google).
 function isSetupMode() {
   return db.prepare('SELECT COUNT(*) AS c FROM users').get().c === 0;
 }
 
 // ==================== LOGIN ====================
-// Publieke loginpagina: voor BEZOEKERS alleen Google-login (luisteraars/fans).
-// De beheerders-login (wachtwoord) staat hier bewust NIET — die zit verborgen op
-// /auth/admin (zie hieronder), zodat de admin-login niet zichtbaar is op de plek
-// waar bezoekers heen worden gestuurd.
+// Public login page: for VISITORS only Google-login (listeners/fans).
+// The admin login (password) is intentionally NOT here — it lives hidden at
+// /auth/admin (see below), so the admin login is not visible where visitors land.
 router.get('/login', (req, res) => {
   const next = safeNext(req.query.next) || '';
   if (req.session.user) return res.redirect(next || '/');
@@ -67,8 +66,8 @@ router.get('/login', (req, res) => {
   });
 });
 
-// Verborgen beheerders-login (gebruikersnaam + wachtwoord). Nergens in de UI
-// gelinkt — de beheerder navigeert hier rechtstreeks naartoe (/auth/admin).
+// Hidden admin login (username + password). Not linked anywhere in the UI —
+// the admin navigates here directly (/auth/admin).
 router.get('/admin', (req, res) => {
   const next = safeNext(req.query.next) || '';
   if (req.session.user) return res.redirect(next || '/');
@@ -90,8 +89,8 @@ router.post('/login', loginLimiter, (req, res) => {
   const { username, password } = req.body;
   const next = safeNext(req.body.next) || '';
 
-  // Foutweergave op de (verborgen) beheerders-loginpagina: toon het wachtwoord-
-  // formulier opnieuw (adminLogin:true), niet de Google-only publieke pagina.
+  // Error display on the (hidden) admin login page: re-show the password
+  // form (adminLogin:true), not the Google-only public page.
   const renderErr = (error, status = 400) => {
     res.status(status);
     return renderPage(req, res, 'pages/auth-login', {
@@ -104,8 +103,8 @@ router.post('/login', loginLimiter, (req, res) => {
   if (!username || !password) return renderErr('Gebruikersnaam en wachtwoord vereist');
 
   const user = db.prepare('SELECT * FROM users WHERE username = ? OR email = ?').get(username, username);
-  // Altijd één bcrypt-vergelijking (dummy als de user geen bruikbaar wachtwoord
-  // heeft) zodat de responstijd niets over het bestaan van een account verraadt.
+  // Always one bcrypt comparison (dummy if the user has no usable password)
+  // so response time reveals nothing about whether the account exists.
   const usable = !!(user && user.password_hash && user.password_hash !== '!google-oauth');
   const ok = bcrypt.compareSync(password, usable ? user.password_hash : DUMMY_HASH);
   if (!usable || !ok) return renderErr('Ongeldige inloggegevens', 401);
@@ -118,11 +117,11 @@ router.post('/login', loginLimiter, (req, res) => {
   res.redirect(next || '/');
 });
 
-// ==================== EERSTE-KEER-SETUP (beheerder aanmaken) ====================
+// ==================== FIRST-TIME SETUP (create admin account) ====================
 router.get('/register', (req, res) => {
   const next = safeNext(req.query.next) || '';
   if (req.session.user) return res.redirect(next || '/');
-  // Geen publieke registratie: alleen de allereerste beheerder mag hier aangemaakt.
+  // No public registration: only the very first admin may be created here.
   if (!isSetupMode()) return res.redirect('/auth/login' + (next ? '?next=' + encodeURIComponent(next) : ''));
   renderPage(req, res, 'pages/auth-register', {
     pageTitle: t(resolveLang(req), 'setup.title'), bodyClass: 'on-special',
@@ -138,7 +137,7 @@ router.post('/register', registerLimiter, (req, res) => {
     error, username: username || '', email: email || '', siteName: siteName || '', next,
   });
 
-  // Hard gesloten zodra er een gebruiker is — voorkomt een tweede "admin" via deze route.
+  // Hard-closed once a user exists — prevents a second "admin" via this route.
   if (!isSetupMode()) return res.redirect('/auth/login');
 
   if (!username || !email || !password) return renderErr('Alle velden zijn verplicht');
@@ -149,15 +148,15 @@ router.post('/register', registerLimiter, (req, res) => {
 
   const userId = uuid();
   const hash = bcrypt.hashSync(password, 10);
-  // De allereerste gebruiker is de beheerder (god).
+  // The very first user is the administrator (god).
   db.prepare(`
     INSERT INTO users (id, username, email, password_hash, role, theme, palette)
     VALUES (?, ?, ?, ?, 'god', 'dark', 'sage')
   `).run(userId, username, email, hash);
 
-  // Persoonlijke site auto-aanmaken (single-tenant-ombouw volgt later).
-  // Setup-wizard: sitenaam + taal komen uit het formulier; taal = de taal waarin
-  // de bezoeker de wizard invulde (resolveLang) en wordt meteen de site-standaard.
+  // Auto-create a personal site (single-tenant restructure follows later).
+  // Setup wizard: site name + language come from the form; language = the language
+  // the visitor used to fill in the wizard (resolveLang) and becomes the site default.
   if (!db.prepare('SELECT 1 FROM sites LIMIT 1').get()) {
     const siteId = uuid();
     const lang = resolveLang(req);
@@ -167,14 +166,14 @@ router.post('/register', registerLimiter, (req, res) => {
       VALUES (?, ?, ?, ?, ?, 'klonkt', '#e8b04b', ?)
     `).run(siteId, username.toLowerCase(), title, '', userId, lang);
     db.prepare(`INSERT INTO site_members (site_id, user_id, role) VALUES (?, ?, 'admin')`).run(siteId, userId);
-    try { setSetting('default_lang', lang); } catch (e) { /* niet fataal */ }
+    try { setSetting('default_lang', lang); } catch (e) { /* non-fatal */ }
   }
 
   req.session.user = { id: userId, username, email, role: 'god', palette: 'klonkt', theme: 'dark' };
   res.redirect(next || '/');
 });
 
-// ==================== WACHTWOORD VERGETEN (aanvraag) ====================
+// ==================== FORGOT PASSWORD (request) ====================
 router.get('/reset-request', (req, res) => {
   if (req.session.user) return res.redirect('/');
   renderPage(req, res, 'pages/auth-reset-request', {
@@ -190,9 +189,9 @@ router.post('/reset-request', registerLimiter, async (req, res) => {
   if (email) {
     const user = db.prepare('SELECT id, email FROM users WHERE LOWER(email) = ?').get(email);
     if (user) {
-      const token = crypto.randomBytes(32).toString('hex'); // ruw: gaat alleen de mail/link in
+      const token = crypto.randomBytes(32).toString('hex'); // raw: only goes into the mail/link
       const expires = new Date(Date.now() + 30 * 60 * 1000).toISOString(); // 30 min
-      // Alleen de HASH opslaan: DB-leestoegang levert zo geen bruikbaar token op.
+      // Store only the HASH: so DB read access yields no usable token.
       db.prepare('UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?')
         .run(hashToken(token), expires, user.id);
 
@@ -210,24 +209,24 @@ router.post('/reset-request', registerLimiter, async (req, res) => {
           console.error('[reset-request] mail faalde:', e.message);
         }
       } else if (process.env.NODE_ENV !== 'production') {
-        // Dev zonder SMTP: link in log + op de pagina tonen.
+        // Dev without SMTP: show the link in the log + on the page.
         console.log(`[password-reset] ${user.email} -> ${url}`);
         devResetUrl = url;
       } else {
-        // Productie zonder SMTP: NOOIT het token loggen. Verwijs naar de CLI break-glass.
+        // Production without SMTP: NEVER log the token. Refer to the CLI break-glass.
         console.log(`[password-reset] aangevraagd voor ${user.email} (geen SMTP — gebruik 'npm run reset-admin')`);
       }
     }
   }
 
-  // Anti-enumeratie: zelfde antwoord ongeacht of het adres bestaat.
+  // Anti-enumeration: same response regardless of whether the address exists.
   renderPage(req, res, 'pages/auth-reset-request', {
     pageTitle: 'Wachtwoord resetten', bodyClass: 'on-special',
     error: null, sent: true, devResetUrl, mailer: mailerConfigured(),
   });
 });
 
-// ==================== WACHTWOORD RESETTEN (toepassen) ====================
+// ==================== RESET PASSWORD (apply) ====================
 router.get('/reset/:token', (req, res) => {
   const row = db.prepare(`
     SELECT id, username FROM users
@@ -265,8 +264,8 @@ router.post('/reset/:token', (req, res) => {
   res.redirect('/auth/admin?success=' + encodeURIComponent('Wachtwoord gereset — log nu in.'));
 });
 
-// ==================== GOOGLE-LOGIN (luisteraars/reageerders) ====================
-// Per-instance, eigen Google-client. Geeft ALTIJD rol member — nooit beheer.
+// ==================== GOOGLE LOGIN (listeners/commenters) ====================
+// Per-instance, own Google client. ALWAYS grants role member — never admin.
 router.get('/google', (req, res) => {
   if (!fanLoginReady()) {
     return res.redirect('/auth/login?gerr=unavailable');
@@ -278,17 +277,17 @@ router.get('/google', (req, res) => {
   res.redirect(authorizeUrl(state));
 });
 
-// Google KOPPELEN aan het huidige (ingelogde) account — bv. een beheerder die
-// voortaan óók met Google wil inloggen. Vereist dat je al ingelogd bent (met
-// wachtwoord); de koppeling slaat de google_sub op het eigen account op.
-// Alleen googleConfigured() nodig (geen premium-gate — dit is geen fan-login).
+// LINK Google to the current (logged-in) account — e.g. an admin who also wants
+// to log in with Google. Requires being already logged in (with password); the
+// link stores the google_sub on their own account.
+// Only googleConfigured() needed (no premium gate — this is not fan login).
 router.get('/google/link', requireAuth, (req, res) => {
   if (!googleConfigured()) {
     return res.redirect('/account?error=' + encodeURIComponent('Google-login is op deze site niet ingesteld.'));
   }
   const state = crypto.randomBytes(16).toString('hex');
   req.session.oauthState = state;
-  req.session.oauthLink = true; // koppel-modus i.p.v. login-modus
+  req.session.oauthLink = true; // link mode instead of login mode
   res.redirect(authorizeUrl(state));
 });
 
@@ -319,13 +318,13 @@ router.get('/google/callback', async (req, res) => {
     const info = await fetchUserinfo(tok.access_token);
     const email = (info.email || '').trim().toLowerCase();
 
-    // ── KOPPEL-MODUS: Google aan het huidige (ingelogde) account hangen ──
+    // ── LINK MODE: attach Google to the current (logged-in) account ──
     if (linking) {
       delete req.session.oauthState; delete req.session.oauthLink;
       if (!req.session.user) return failLogin('session');
       if (!info.sub) return failLink('Google gaf geen account-id terug. Probeer opnieuw.');
       if (info.email && info.email_verified === false) return failLink('Je Google-adres is niet geverifieerd.');
-      // Dit Google-account mag niet al aan een ANDER account hangen.
+      // This Google account must not already be linked to a DIFFERENT account.
       const other = db.prepare('SELECT id FROM users WHERE google_sub = ? AND id != ?').get(info.sub, req.session.user.id);
       if (other) return failLink('Dit Google-account is al aan een andere gebruiker gekoppeld.');
       db.prepare(`
@@ -335,37 +334,37 @@ router.get('/google/callback', async (req, res) => {
       return res.redirect('/account?success=' + encodeURIComponent('Google-account gekoppeld — je kunt nu ook met Google inloggen.'));
     }
 
-    // ── LOGIN-MODUS (luisteraars/fans + gekoppelde beheerder) ──
+    // ── LOGIN MODE (listeners/fans + linked admin) ──
     if (!fanLoginReady()) return failLogin('unavailable');
     const next = safeNext(req.session.oauthNext) || '';
     delete req.session.oauthState; delete req.session.oauthNext;
     if (!email || info.email_verified === false) return failLogin('email');
 
-    // Zoek EERST op de gekoppelde Google-account (google_sub). Een sub-match is het
-    // expliciete koppel-bewijs → log in met de eigen rol, OOK als het Google-
-    // mailadres afwijkt van het account-mailadres (bv. een beheerder die een ander
-    // Gmail koppelt). Daarna pas op e-mail.
+    // Look FIRST by linked Google account (google_sub). A sub-match is explicit
+    // proof of the link → log in with their own role, EVEN IF the Google email
+    // differs from the account email (e.g. an admin who linked a different Gmail).
+    // Only then fall back to email lookup.
     let user = info.sub ? db.prepare('SELECT * FROM users WHERE google_sub = ?').get(info.sub) : null;
 
     if (user) {
-      // Gekoppeld account gevonden → eigen rol behouden. Avatar bijwerken indien leeg.
+      // Linked account found → keep their own role. Update avatar if empty.
       db.prepare(`
         UPDATE users SET avatar_url = COALESCE(avatar_url, ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?
       `).run(info.picture || null, user.id);
     } else {
       user = db.prepare('SELECT * FROM users WHERE LOWER(email) = ?').get(email);
       if (user && (user.role === 'god' || user.role === 'admin')) {
-        // Beheerder gevonden op e-mail maar ZONDER gekoppelde sub → Google geeft
-        // nooit beheer. Eerst koppelen via Account → Inloggen met Google.
+        // Admin found by email but WITHOUT a linked sub → Google never grants admin.
+        // Must first link via Account → Sign in with Google.
         return failLogin('admin');
       } else if (user) {
-        // Bestaande luisteraar: koppel google_sub/avatar als die ontbreken.
+        // Existing listener: link google_sub/avatar if missing.
         db.prepare(`
           UPDATE users SET google_sub = COALESCE(google_sub, ?), avatar_url = COALESCE(avatar_url, ?),
             updated_at = CURRENT_TIMESTAMP WHERE id = ?
         `).run(info.sub || null, info.picture || null, user.id);
       } else {
-        // Nieuwe luisteraar — altijd member.
+        // New listener — always member.
         const userId = uuid();
         const username = uniqueUsername(info.name || email.split('@')[0]);
         db.prepare(`

@@ -39,7 +39,7 @@
     </form>
   </section>
 
-  <%# ── Standaardtaal voor bezoekers ── %>
+  <%# ── Default language for visitors ── %>
   <section class="set-card" style="margin-top:1rem">
     <h2><%= t('aset.default_lang') %></h2>
     <p class="set-help"><%= t('aset.default_lang_hint') %></p>
@@ -57,7 +57,7 @@
     </form>
   </section>
 
-  <%# ── Tijdzone ── %>
+  <%# ── Timezone ── %>
   <section class="set-card" style="margin-top:1rem">
     <h2><%= t('aset.timezone') %></h2>
     <p class="set-help"><%= t('aset.timezone_hint') %></p>
@@ -77,8 +77,8 @@
     </form>
   </section>
 
-  <%# Modus-specifieke config — staat direct onder de Modus-kaart zodat 'ie bij
-      de gekozen modus hoort (Hub bij hub, Cirkel bij circle). %>
+  <%# Mode-specific config — placed directly below the Mode card so it visually
+      belongs to the selected mode (Hub under hub, Circle under circle). %>
   <% if (tenancy === 'hub') { %>
   <section class="set-card set-card--mode" style="margin-top:1rem">
     <h2><%= t('aset.hub_home') %></h2>
@@ -140,8 +140,8 @@
   </section>
   <% } %>
 
-  <%# Premium (Patreon) — alleen zichtbaar als de self-hoster de premium-laag aanzet
-      (env KLONKT_PREMIUM_ENABLED=on). Standaard onzichtbaar; niets gegate. %>
+  <%# Premium (Patreon) — only visible when the self-hoster enables the premium layer
+      (env KLONKT_PREMIUM_ENABLED=on). Hidden by default; nothing gated. %>
   <% if (premium && premium.enabled) { %>
   <section class="set-card" style="margin-top:1rem">
     <h2><%= t('aset.premium') %></h2>
@@ -161,7 +161,7 @@
   </section>
   <% } %>
 
-  <%# Google-login staat op een eigen Beheer-pagina (compacte link hier). %>
+  <%# Google login has its own admin page (compact link shown here). %>
   <section class="set-card" style="margin-top:1rem">
     <h2><%= t('aset.google_login') %></h2>
     <p class="set-help"><%= t('aset.google_login_help') %>
@@ -169,7 +169,7 @@
     <div class="set-actions"><a href="/admin/settings/google" class="btn btn-primary"><%= t('aset.google_login_setup') %> &rarr;</a></div>
   </section>
 
-  <%# Nieuwsbrief-aanmelding in de footer (premium). %>
+  <%# Newsletter signup in the footer (premium). %>
   <% if (typeof premiumUnlocked === 'undefined' || premiumUnlocked) { %>
   <section class="set-card" style="margin-top:1rem">
     <h2><%= t('aset.newsletter') %></h2>
@@ -184,7 +184,7 @@
   </section>
   <% } %>
 
-  <%# E-mail / SMTP — nodig voor nieuwsbrief versturen, notify-mails en wachtwoord-reset. %>
+  <%# E-mail / SMTP — required for sending newsletters, notify-mails and password resets. %>
   <section class="set-card" style="margin-top:1rem">
     <h2><%= t('aset.email_smtp') %></h2>
     <p class="set-help"><%= t('aset.smtp_help_1') %> <strong><%= t('aset.smtp_help_newsletter') %></strong><%= t('aset.smtp_help_2') %> <strong><%= t('aset.smtp_help_notify') %></strong><%= t('aset.smtp_help_3') %>
@@ -232,12 +232,12 @@
 .admin-tagline { color: var(--ink-muted); margin: 0 0 2rem; }
 .admin-tagline a { color: var(--accent); }
 .set-card { background: var(--paper-2); border: 1px solid var(--rule); border-radius: 12px; padding: 1.25rem; }
-/* Modus-specifieke kaart (Hub/Cirkel): accent-rand links zodat 'ie zichtbaar bij
-   de gekozen modus hoort, direct onder de Modus-kaart. */
+/* Mode-specific card (Hub/Circle): accent border on the left so it visually
+   belongs to the selected mode, directly below the Mode card. */
 .set-card--mode { border-left: 3px solid var(--accent); }
 .set-card h2 { font-family: var(--font-display, serif); font-size: 1.25rem; margin: 0 0 0.5rem; }
 .set-help { color: var(--ink-muted); font-size: 0.9rem; margin: 0 0 1.25rem; }
-/* Google-setup-gids (uitklapbaar) */
+/* Google setup guide (collapsible) */
 .set-google-guide { margin: 0 0 1rem; border: 1px solid var(--rule); border-radius: 8px; background: var(--paper); }
 .set-google-guide > summary { cursor: pointer; padding: 0.6rem 0.85rem; font-size: 0.9rem; font-weight: 600; color: var(--accent); list-style: none; }
 .set-google-guide > summary::-webkit-details-marker { display: none; }
@@ -248,8 +248,8 @@
 .set-google-guide code { background: var(--paper-2); padding: 0.05rem 0.35rem; border-radius: 4px; font-size: 0.85em; }
 .set-google-guide .set-help { padding: 0 0.85rem; }
 .set-form { display: flex; flex-direction: column; gap: 1rem; max-width: 460px; }
-/* Kale <label>'s in een set-form krijgen dezelfde nette stacked-stijl als .set-field:
-   label-tekst boven, input full-width. (.set-toggle = checkbox-rij, uitgezonderd.) */
+/* Bare <label>s inside a set-form inherit the same neat stacked style as .set-field:
+   label text on top, input full-width. (.set-toggle = checkbox row, excluded.) */
 .set-form > label:not(.set-toggle):not(.set-opt) { display: flex; flex-direction: column; gap: 0.3rem; }
 .set-form > label:not(.set-toggle):not(.set-opt) > span { font-size: 0.8rem; font-weight: 600; color: var(--ink-soft, var(--ink-muted)); }
 .set-form > label:not(.set-toggle):not(.set-opt) > span small { font-weight: 400; }
@@ -276,8 +276,8 @@
 }
 .set-field textarea { resize: vertical; }
 .set-field input:focus, .set-field textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
-/* Selects dezelfde nette stijl als de inputs i.p.v. de kale native dropdown:
-   eigen chevron, accent-focus, volle breedte. */
+/* Selects styled the same as inputs instead of the bare native dropdown:
+   custom chevron, accent focus ring, full width. */
 .set-form select {
   appearance: none; -webkit-appearance: none;
   width: 100%; box-sizing: border-box;

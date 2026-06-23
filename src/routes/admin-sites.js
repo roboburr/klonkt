@@ -136,14 +136,14 @@ function siteEditableFields() {
   };
 }
 
-/** Geldige user-id voor owner-toewijzing, of null bij leeg/onbekend. */
+/** Valid user-id for owner assignment, or null if empty/unknown. */
 function validOwnerId(raw) {
   const id = (raw || '').toString().trim();
   if (!id) return null;
   return db.prepare('SELECT 1 FROM users WHERE id = ?').get(id) ? id : null;
 }
 
-/** Geef een user admin-rechten op een site (idempotent upsert). */
+/** Grant a user admin rights on a site (idempotent upsert). */
 function grantSiteAdmin(siteId, userId) {
   db.prepare(`
     INSERT INTO site_members (site_id, user_id, role) VALUES (?, ?, 'admin')
@@ -151,7 +151,7 @@ function grantSiteAdmin(siteId, userId) {
   `).run(siteId, userId);
 }
 
-/** Kandidaat-owners voor het owner-keuzeveld (god-only). */
+/** Candidate owners for the owner selector field (god-only). */
 function listOwnerCandidates() {
   return db.prepare('SELECT id, username, role FROM users ORDER BY username').all();
 }
@@ -182,8 +182,8 @@ router.get('/new', requireGod, (req, res) => {
     pageTitle: 'New site',
     bodyClass: 'on-admin',
     isNew: true,
-    // ?owner=<id> (vanaf de gebruikers-pagina: "geef deze user een Klonkt") wordt
-    // voorgeselecteerd; anders de aanmakende god.
+    // ?owner=<id> (from the users page: "give this user a Klonkt") is
+    // pre-selected; otherwise defaults to the creating god.
     site: { slug: '', owner_id: validOwnerId(req.query.owner) || req.session.user.id, ...siteEditableFields() },
     users: listOwnerCandidates(),
     palettes: ThemeService.listPalettes(),
@@ -210,9 +210,9 @@ router.post('/create', requireGod, (req, res) => {
 
   const f = { ...siteEditableFields(), ...req.body };
 
-  // Owner: god mag de site aan een ANDERE gebruiker toewijzen — dit is de kern
-  // van hub-modus (elke gebruiker z'n eigen, zelf te beheren Klonkt). Leeg of
-  // ongeldig → de aanmakende god zelf.
+  // Owner: god may assign the site to a DIFFERENT user — this is the core of
+  // hub mode (each user their own self-managed Klonkt). Empty or invalid → the
+  // creating god themselves.
   const ownerId = validOwnerId(req.body.owner_id) || req.session.user.id;
 
   const siteId = uuid();
@@ -241,8 +241,8 @@ router.post('/create', requireGod, (req, res) => {
     f.comments_moderation_mode === 'trust' ? 'trust' : 'moderate',
   );
 
-  // De OWNER (niet per se de aanmaker) krijgt een site_members-admin-rij → zo komt
-  // 'ie door canAdminSite + de requireSiteManager-gates en beheert 'ie z'n site.
+  // The OWNER (not necessarily the creator) gets a site_members admin row → this
+  // lets them pass canAdminSite + requireSiteManager gates to manage their site.
   grantSiteAdmin(siteId, ownerId);
 
   res.redirect(`/admin/sites/${slug}/edit?success=` + encodeURIComponent('Site aangemaakt'));
@@ -331,8 +331,8 @@ router.post('/:slug/save', requireSiteManagerBySlug, (req, res) => {
     site.id,
   );
 
-  // Owner (her)toewijzen — ALLEEN god. Een site-owner die z'n eigen site bewerkt
-  // kan de eigenaar niet wijzigen (het veld wordt voor niet-god ook niet getoond).
+  // (Re)assign owner — god ONLY. A site-owner editing their own site cannot
+  // change the owner (the field is not shown to non-god users either).
   if (req.session.user.role === 'god') {
     const newOwner = validOwnerId(req.body.owner_id);
     if (newOwner) {
@@ -344,9 +344,9 @@ router.post('/:slug/save', requireSiteManagerBySlug, (req, res) => {
   res.redirect(`/admin/sites/${req.params.slug}/edit?success=` + encodeURIComponent('Opgeslagen'));
 });
 
-// ==================== MAAK PRIMAIR ====================
-// God kiest welke site de primaire/hoofd-site is (de label-/bedrijfssite in hub;
-// in solo dé site). Precies één site is primair → eerst alles uit, dan deze aan.
+// ==================== MAKE PRIMARY ====================
+// God chooses which site is the primary/main site (the label/company site in hub;
+// in solo mode: the one site). Exactly one site is primary → clear all, then set this one.
 router.post('/:slug/make-primary', requireGod, (req, res) => {
   const site = db.prepare('SELECT id FROM sites WHERE slug = ?').get(req.params.slug);
   if (!site) return res.redirect('/admin/sites?error=Niet+gevonden');

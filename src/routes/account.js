@@ -65,7 +65,7 @@ router.get('/', requireAuth, (req, res) => {
   `).get(req.session.user.id);
   const hasPassword = !!(account && account.password_hash && account.password_hash !== '!google-oauth');
   const googleLinked = !!(account && account.google_sub);
-  if (account) { delete account.password_hash; delete account.google_sub; } // niet naar de view lekken
+  if (account) { delete account.password_hash; delete account.google_sub; } // don't leak to the view
 
   renderPage(req, res, 'pages/account', {
     pageTitle: 'Account',
@@ -80,9 +80,9 @@ router.get('/', requireAuth, (req, res) => {
   });
 });
 
-// ==================== PERSOONLIJKE INTERFACE-TAAL ====================
-// Slaat de taalkeuze op het account op (reist mee over apparaten/sessies) én
-// zet 'm meteen in de sessie zodat 't direct effect heeft.
+// ==================== PERSONAL INTERFACE LANGUAGE ====================
+// Saves the language choice on the account (persists across devices/sessions) and
+// also sets it in the session immediately so it takes effect right away.
 router.post('/lang', requireAuth, (req, res) => {
   const code = SUPPORTED.includes(req.body.lang) ? req.body.lang : null;
   if (code) {
@@ -93,13 +93,13 @@ router.post('/lang', requireAuth, (req, res) => {
   res.redirect('/account?success=' + encodeURIComponent('Taal opgeslagen'));
 });
 
-// De site die deze gebruiker mag bewerken vanuit z'n account: z'n eigen site
-// (owner_id), of voor een god de primaire site. Null als er niets is.
+// The site this user may edit from their account: their own site
+// (owner_id), or for a god the primary site. Null if nothing found.
 function ownedSite(user) {
   if (!user) return null;
   let site = db.prepare('SELECT id, title, tagline, slug, owner_id FROM sites WHERE owner_id = ? ORDER BY created_at LIMIT 1').get(user.id);
   if (!site && user.role === 'god') {
-    site = getPrimarySite(); // primaire/hoofd-site als fallback
+    site = getPrimarySite(); // primary/main site as fallback
   }
   return site || null;
 }
@@ -123,8 +123,8 @@ router.post('/site', requireAuth, (req, res) => {
 router.post('/profile', requireAuth, (req, res) => {
   const bio = (req.body.bio || '').toString().slice(0, 500).trim();
 
-  // E-mail (optioneel mee te wijzigen). Validatie: geldig formaat + niet al door
-  // een ander account in gebruik. E-mail is het login-/reset-anker, dus uniek.
+  // Email (optionally also changed). Validation: valid format + not already in use
+  // by another account. Email is the login/reset anchor, so it must be unique.
   const email = (req.body.email || '').toString().trim();
   if (email) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
@@ -137,7 +137,7 @@ router.post('/profile', requireAuth, (req, res) => {
     }
     db.prepare('UPDATE users SET email = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
       .run(email, req.session.user.id);
-    req.session.user.email = email; // sessie bijwerken zodat de UI klopt
+    req.session.user.email = email; // update session so the UI reflects the change
   }
 
   db.prepare('UPDATE users SET bio = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
@@ -165,7 +165,7 @@ router.post('/password', requireAuth, (req, res) => {
   }
 
   const row = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(req.session.user.id);
-  // Google-only accounts (luisteraars) hebben geen echt wachtwoord.
+  // Google-only accounts (listeners) have no real password.
   if (!row || !row.password_hash || row.password_hash === '!google-oauth') {
     return res.redirect('/account?error=' + encodeURIComponent('Dit account heeft geen wachtwoord (Google-login)'));
   }
@@ -180,8 +180,8 @@ router.post('/password', requireAuth, (req, res) => {
   res.redirect('/account?success=' + encodeURIComponent('Wachtwoord gewijzigd'));
 });
 
-// Google-account ontkoppelen. Alleen toegestaan als er nog een wachtwoord is,
-// anders zou je jezelf buitensluiten (geen login-methode meer over).
+// Unlink Google account. Only allowed if a password is set,
+// otherwise the user would lock themselves out (no login method left).
 router.post('/google/unlink', requireAuth, (req, res) => {
   const row = db.prepare('SELECT password_hash, google_sub FROM users WHERE id = ?').get(req.session.user.id);
   if (!row || !row.google_sub) {

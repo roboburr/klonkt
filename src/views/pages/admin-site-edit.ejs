@@ -23,9 +23,9 @@
         <span><%= t('asite.field_title') %> <small class="form-hint-inline"><%= t('asite.field_title_hint') %></small></span>
         <input type="text" name="title" value="<%= site.title || '' %>" required maxlength="200">
       </label>
-      <%# Eigenaar (her)toewijzen — ALLEEN god ÉN alleen in hub-modus. In hub geef
-          je zo elke gebruiker z'n eigen, zelf te beheren Klonkt. In solo (één site,
-          één eigenaar) is dit zinloos/verwarrend, dus verborgen. %>
+      <%# Assign (or reassign) owner — ONLY god AND only in hub mode. In hub this
+          gives each user their own self-managed Klonkt. In solo (one site,
+          one owner) this is pointless/confusing, so it's hidden. %>
       <% if (user && user.role === 'god' && (typeof tenancy !== 'undefined' && tenancy === 'hub')) { %>
       <label>
         <span><%= t('asite.owner') %> <small class="form-hint-inline"><%= t('asite.owner_hint') %></small></span>
@@ -249,8 +249,8 @@
 
 <script>
 (function() {
-  // Slug-URL-veld: toon de echte host als gedimde prefix (de slug zelf is
-  // gekleurd via CSS). Hub → host/user/<slug>, anders host/<slug>.
+  // Slug URL field: show the real host as a dimmed prefix (the slug itself is
+  // coloured via CSS). Hub → host/user/<slug>, otherwise host/<slug>.
   var sh = document.getElementById('slug-host');
   if (sh) sh.textContent = location.host + (sh.dataset.prefix || '/');
 })();
@@ -353,10 +353,10 @@
 .admin-site-edit-page h1 { font-family: var(--font-display, serif); font-size: 1.8rem; margin: 0 0 1.5rem; }
 
 .site-form { display: flex; flex-direction: column; gap: 1.5rem; min-width: 0; }
-/* Mobiel: een <fieldset> heeft een browser-default min-inline-size:min-content en
-   krimpt daardoor NIET mee → het hele formulier werd breder dan het scherm. min-width:0
-   forceert meekrimpen; de form-velden krijgen max-width:100% + border-box zodat ze
-   nooit buiten hun fieldset lopen. */
+/* Mobile: a <fieldset> has a browser-default min-inline-size:min-content and
+   therefore does NOT shrink → the entire form became wider than the screen. min-width:0
+   forces it to shrink; form fields get max-width:100% + border-box so they
+   never overflow their fieldset. */
 .site-form fieldset { min-width: 0; }
 .site-form input, .site-form select, .site-form textarea { min-width: 0; max-width: 100%; box-sizing: border-box; }
 .site-form fieldset {
@@ -397,7 +397,7 @@
 .site-form textarea { resize: vertical; min-height: 60px; font-family: var(--font-mono, monospace); font-size: 0.85rem; }
 .site-form input[readonly] { opacity: 0.6; cursor: not-allowed; background: var(--paper-2); }
 
-/* Slug als URL-veld: gedimde host-prefix + de slug zelf in de accentkleur. */
+/* Slug as URL field: dimmed host prefix + the slug itself in the accent colour. */
 .slug-url {
   display: flex; align-items: stretch;
   border: 1px solid var(--rule); border-radius: 5px;
@@ -424,8 +424,8 @@
   opacity: 1; cursor: default; background: transparent !important;
 }
 
-/* Selects: zelfde look als de inputs, met een eigen chevron i.p.v. de kale
-   native pijl. De geopende optielijst blijft door de browser gerenderd. */
+/* Selects: same look as the inputs, with a custom chevron instead of the bare
+   native arrow. The open option list is still rendered by the browser. */
 .site-form select {
   appearance: none;
   -webkit-appearance: none;
@@ -561,9 +561,9 @@
   .photo-picker { flex-direction: row; align-items: flex-start; gap: 1rem; }
   .photo-controls { gap: .55rem; }
 }
-/* Mobiel-eerst: platform-keuze op een eigen regel (volle breedte), daaronder de
-   URL-input + verwijderknop. Voorkomt horizontale overflow op telefoons (de vaste
-   160px-kolom + niet-krimpbare input liepen samen ~447px > schermbreedte). */
+/* Mobile-first: platform selector on its own line (full width), URL input + remove
+   button below. Prevents horizontal overflow on phones (fixed 160px column +
+   non-shrinkable input together ~447px > screen width). */
 .profile-link-row {
   display: grid; grid-template-columns: 1fr auto; gap: 0.5rem; margin-bottom: 0.5rem;
 }

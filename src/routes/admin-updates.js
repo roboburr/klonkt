@@ -1,13 +1,13 @@
 /**
  * Admin: Updates (god-only).
- * Git-gebaseerde v1 voor instances die via de bare-repo draaien.
- *   GET  /admin/updates      -> huidige vs. nieuwste versie + status
- *   POST /admin/updates/run  -> haal nieuwste main op + herstart (detached script)
+ * Git-based v1 for instances running from a bare repo.
+ *   GET  /admin/updates      -> current vs. latest version + status
+ *   POST /admin/updates/run  -> fetch latest main + restart (detached script)
  *
- * De instance kent z'n "huidige" commit uit .klonkt-version (door het script
- * geschreven) en de "nieuwste" uit de bare repo (KLONKT_GIT_DIR). Voor externe
- * self-hosters komt later een GESIGNEERDE release-feed (zie monetization-plan);
- * deze v1 is bewust simpel en alleen voor Robins eigen VPS-instances.
+ * The instance knows its "current" commit from .klonkt-version (written by the
+ * script) and the "latest" from the bare repo (KLONKT_GIT_DIR). For external
+ * self-hosters a SIGNED release feed will follow later (see monetization plan);
+ * this v1 is intentionally simple and only for Robin's own VPS instances.
  */
 
 import express from 'express';
@@ -36,7 +36,7 @@ function currentSha() {
   try { return fs.readFileSync(versionFile(), 'utf8').trim() || null; } catch { return null; }
 }
 
-// Laatste 5 commits op main = de "laatste wijzigingen" die je bij bijwerken krijgt.
+// Last 5 commits on main = the "recent changes" you'll get when updating.
 function recentChanges() {
   const out = git(['log', '-5', '--format=%s%x1f%cd', '--date=short', 'main']);
   if (!out) return [];
@@ -71,7 +71,7 @@ router.post('/run', requireGod, (req, res) => {
     return res.redirect('/admin/updates?error=' + encodeURIComponent('Update-script ontbreekt op de server.'));
   }
   try {
-    // Detached + losgekoppeld: overleeft de pm2-reload die deze app herstart.
+    // Detached + unlinked: survives the pm2-reload that restarts this app.
     const child = spawn('bash', [UPDATE_SCRIPT, process.cwd()], { detached: true, stdio: 'ignore' });
     child.unref();
   } catch (e) {

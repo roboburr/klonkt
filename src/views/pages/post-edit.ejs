@@ -8,9 +8,9 @@
 // All behavior (IDs, names, upload endpoints) is preserved — only layout
 // and styling changed.
 const _hasCover = !!post.cover_image_url;
-// In hub-modus moeten save/create/cancel de /user/<slug>/-prefix dragen, anders
-// valt de request terug op de primaire site (siteUrlBase leeg) en rendert de
-// post na opslaan headerless (bareChrome). In solo is _base leeg.
+// In hub mode, save/create/cancel must carry the /user/<slug>/ prefix, otherwise
+// the request falls back to the primary site (siteUrlBase empty) and the post
+// renders headerless (bareChrome) after saving. In solo mode _base is empty.
 const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '';
 %>
 <div class="container post-edit-page">
@@ -137,8 +137,8 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
              aria-label="<%= t('pedit.editor_aria') %>"
              data-placeholder="<%= t('pedit.editor_placeholder') %>"></div>
 
-        <%# Sticky "tik om te bewerken"-hint (alleen zichtbaar op touch + niet-fullscreen
-            via CSS). Puur visueel (pointer-events:none); de tik op het veld opent fullscreen. %>
+        <%# Sticky "tap to edit" hint (only visible on touch + non-fullscreen
+            via CSS). Purely visual (pointer-events:none); tapping the field opens fullscreen. %>
         <div class="pe-edit-hint" aria-hidden="true">✎ <%= t('pedit.tap_to_edit') %></div>
 
         <%# Hidden field is what actually submits to the server. The visible
@@ -224,21 +224,21 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
               var box = document.getElementById('pe-sched-fields');
               if (!cb || !box) return;
               var inp = document.getElementById('pe-publish-at');
-              var SITE_TZ = '<%= timezone || '' %>'; // ingestelde site-tijdzone; leeg = browser-lokaal
+              var SITE_TZ = '<%= timezone || '' %>'; // configured site timezone; empty = browser local
               var pad = function (n) { return String(n).padStart(2, '0'); };
-              // Offset (ms) tussen een tijdzone en UTC op een bepaald moment.
+              // Offset (ms) between a timezone and UTC at a given moment.
               function tzOffset(date, tz) {
                 var f = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
                 var p = {}; f.formatToParts(date).forEach(function (x) { p[x.type] = x.value; });
                 return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - date.getTime();
               }
-              // datetime-local "wandtijd" (in de site-zone) → UTC Date.
+              // datetime-local "wall time" (in the site zone) → UTC Date.
               function wallToUtc(wall) {
                 if (!SITE_TZ) return new Date(wall);
                 var guess = new Date(wall + ':00Z').getTime();
                 return new Date(guess - tzOffset(new Date(guess), SITE_TZ));
               }
-              // UTC-ISO → "YYYY-MM-DDTHH:MM" wandtijd in de site-zone.
+              // UTC-ISO → "YYYY-MM-DDTHH:MM" wall time in the site zone.
               function utcToWall(iso) {
                 var d = new Date(iso); if (isNaN(d)) return '';
                 if (!SITE_TZ) return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
@@ -246,9 +246,9 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
                 var p = {}; f.formatToParts(d).forEach(function (x) { p[x.type] = x.value; });
                 return p.year + '-' + p.month + '-' + p.day + 'T' + p.hour + ':' + p.minute;
               }
-              // Prefill: opgeslagen UTC → wandtijd in de site-zone.
+              // Prefill: stored UTC → wall time in the site zone.
               if (inp && inp.dataset.iso) inp.value = utcToWall(inp.dataset.iso);
-              // "Ingepland voor" in leesbare tijd van de site-zone.
+              // "Scheduled for" in human-readable time in the site zone.
               var when = document.getElementById('pe-sched-when');
               if (when && when.dataset.iso) {
                 var dw = new Date(when.dataset.iso);
@@ -256,7 +256,7 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
               }
               function sync() { box.style.display = cb.checked ? '' : 'none'; if (inp) inp.disabled = !cb.checked; }
               cb.addEventListener('change', sync); sync();
-              // Bij opslaan: wandtijd in de site-zone → UTC-ISO via een hidden veld.
+              // On save: wall time in the site zone → UTC-ISO via a hidden field.
               var form = cb.closest('form');
               if (form) {
                 form.addEventListener('submit', function () {
@@ -465,7 +465,7 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
   display: inline-flex; align-items: center; justify-content: center;
   width: 32px; height: 32px;
   padding: 0;
-  touch-action: manipulation; /* snappy taps op mobiel, geen dubbeltik-zoom */
+  touch-action: manipulation; /* snappy taps on mobile, no double-tap zoom */
   -webkit-user-select: none; user-select: none;
   background: transparent;
   border: 1px solid transparent;
@@ -477,8 +477,8 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
   transition: background var(--transition), color var(--transition), border-color var(--transition);
   -webkit-tap-highlight-color: transparent;
 }
-/* Hover alleen op echte hover-apparaten — op touch blijft :hover anders "plakken"
-   na een tik, waardoor de actief/inactief-staat onleesbaar wordt. */
+/* Hover only on real hover-capable devices — on touch :hover otherwise "sticks"
+   after a tap, making the active/inactive state unreadable. */
 @media (hover: hover) {
   .pe-toolbar button:hover {
     background: var(--paper-2);
@@ -486,8 +486,8 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
   }
 }
 .pe-toolbar button:active { transform: scale(.94); }
-/* Actieve opmaak = onmiskenbaar gevuld met de accentkleur. Zo is op mobiel
-   meteen duidelijk dat bv. vet AAN staat (tik nogmaals = uit). */
+/* Active formatting = unmistakably filled with the accent colour. On mobile
+   it's immediately clear when e.g. bold is ON (tap again = off). */
 .pe-toolbar button.is-active {
   background: var(--accent);
   color: #fff;
@@ -504,7 +504,7 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
 }
 .pe-toolbar-spacer { flex: 1; }
 
-/* ─── Volledig-scherm schrijfmodus ─── */
+/* ─── Full-screen writing mode ─── */
 .fs-icon-compress { display: none; }
 .pe-editor-frame.pe-fs .fs-icon-expand { display: none; }
 .pe-editor-frame.pe-fs .fs-icon-compress { display: inline; }
@@ -513,22 +513,22 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
   margin: 0; border-top: 0;
   height: 100dvh;
   background: var(--paper);
-  overflow: hidden;   /* alléén het tekstveld scrollt, niet het frame zelf */
+  overflow: hidden;   /* only the text field scrolls, not the frame itself */
 }
-/* In fullscreen vult het schrijfveld de resterende ruimte en scrollt het zelf
-   (max-height: none overschrijft de mobiele box-begrenzing hieronder). */
+/* In fullscreen the writing field fills the remaining space and scrolls itself
+   (max-height: none overrides the mobile box limit below). */
 .pe-editor-frame.pe-fs .pe-editor {
   flex: 1 1 auto; min-height: 0; height: auto; max-height: none;
 }
-/* NB: bewust GEEN overflow:hidden op html/body in fullscreen — dat kon blijven
-   hangen (bv. fullscreen verlaten via navigatie) en blokkeerde dan het scrollen van
-   de hele pagina. Het fullscreen-frame (position:fixed, inset:0) dekt de pagina al
-   af, en op touch zijn de scrollbalken verborgen → geen dubbele balk nodig. */
+/* NB: deliberately NO overflow:hidden on html/body in fullscreen — that could get
+   stuck (e.g. leaving fullscreen via navigation) and would block scrolling on the
+   whole page. The fullscreen frame (position:fixed, inset:0) already covers the page,
+   and on touch scrollbars are hidden → no double bar needed. */
 
-/* "Klaar"-knop: alleen in fullscreen zichtbaar (links in de toolbar), duidelijke
-   accent-pill i.p.v. een vierkant icoontje. */
-/* Verberg-regel specifieker dan ".pe-toolbar button" (anders wint die en zie je
-   de Klaar-knop ook inline als kleine knop). Alleen in fullscreen tonen → groot. */
+/* "Done" button: only visible in fullscreen (left side of toolbar), clear
+   accent-pill instead of a square icon. */
+/* Hide rule more specific than ".pe-toolbar button" (otherwise that wins and the
+   Done button also shows inline as a small button). Only shown in fullscreen → large. */
 .pe-toolbar button.pe-fs-done { display: none; }
 .pe-editor-frame.pe-fs .pe-fs-done {
   display: inline-flex; align-items: center; gap: .35rem;
@@ -555,22 +555,22 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
   overflow-y: auto;
 }
 .pe-editor:focus { outline: none; }
-/* Inline (niet-fullscreen) groeit het schrijfveld gewoon mee met de inhoud — geen
-   interne scroll-box (scroll-binnen-scroll is verwarrend). Op mobiel/tablet gaat
-   typen sowieso fullscreen (zie JS), waar het veld de pagina vult en als enige
-   scrollt. */
+/* Inline (non-fullscreen) the writing field simply grows with the content — no
+   internal scroll-box (scroll-within-scroll is confusing). On mobile/tablet typing
+   always goes fullscreen (see JS), where the field fills the page and is the sole
+   scroller. */
 .pe-editor-frame:not(.pe-fs) .pe-editor { overflow: visible; }
 
-/* Touch: het inline content-veld is geen tekstveld maar een tap-vlak → fullscreen
-   bewerken. Een "✎ Tik om te bewerken"-pill plakt sticky onderaan de container,
-   zodat de hint altijd in beeld is zonder midden in de tekst te staan. */
+/* Touch: the inline content field is not a text field but a tap target → fullscreen
+   editing. A "✎ Tap to edit" pill sticks to the bottom of the container,
+   so the hint is always visible without sitting in the middle of the text. */
 .pe-editor.pe-tap-to-edit { cursor: pointer; }
 .pe-edit-hint { display: none; }
 @media (pointer: coarse) {
   .pe-editor-frame:not(.pe-fs) .pe-edit-hint {
     display: block;
     position: sticky;
-    bottom: 4.5rem;   /* boven de sticky Opslaan/Annuleren-balk */
+    bottom: 4.5rem;   /* above the sticky Save/Cancel bar */
     width: max-content;
     max-width: calc(100% - 2rem);
     margin: .4rem auto;
@@ -579,11 +579,11 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
     box-shadow: 0 4px 14px rgba(0,0,0,.35);
     pointer-events: none; text-align: center; white-space: nowrap;
   }
-  /* Niet relevant op touch (slepen/selecteren hoort bij inline-bewerken op desktop). */
+  /* Not relevant on touch (drag/select belongs to inline editing on desktop). */
   .pe-content-hint { display: none; }
-  /* Inline (niet-fullscreen) op touch: simpel houden — je bewerkt hier toch niet,
-     dus geen opmaak-toolbar en geen losse rand. Alleen de content-preview + de
-     "tik om te bewerken"-pill. De toolbar verschijnt pas in fullscreen. */
+  /* Inline (non-fullscreen) on touch: keep it simple — you don't edit here anyway,
+     so no formatting toolbar and no border. Just the content preview + the
+     "tap to edit" pill. The toolbar only appears in fullscreen. */
   .pe-editor-frame:not(.pe-fs) .pe-toolbar { display: none; }
   .pe-editor-frame:not(.pe-fs) { border-top: 0; }
   .pe-editor-frame:not(.pe-fs) .pe-editor { min-height: 8rem; }
@@ -954,7 +954,7 @@ body.tp-locked { overflow: hidden; touch-action: none; }
   accent-color: var(--accent);
 }
 
-/* Vastpinnen: checkbox + ▲▼-stepper met beschrijving (i.p.v. een ruw rang-getal). */
+/* Pin: checkbox + ▲▼-stepper with description (instead of a raw rank number). */
 .pe-pin { display: flex; flex-direction: column; gap: 0.45rem; }
 .pe-pin-pos { display: flex; align-items: center; gap: 0.55rem; padding-left: 1.65rem; }
 .pe-pin-pos[hidden] { display: none; }
@@ -977,7 +977,7 @@ body.tp-locked { overflow: hidden; touch-action: none; }
   display: flex; align-items: center;
   gap: 0.5rem;
   padding: 0.85rem 1rem;
-  margin: 0.5rem -1rem 0;   /* extend to viewport edges on tight container */
+  margin: 0.5rem -1rem 0;   /* extend to viewport edges on a narrow container */
   background: color-mix(in srgb, var(--paper) 94%, transparent);
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
@@ -986,16 +986,16 @@ body.tp-locked { overflow: hidden; touch-action: none; }
 }
 .pe-actions-spacer { flex: 1; }
 
-/* De editor is een focus-scherm: verberg de mobiele site-tabbalk (Home/Zoek/…)
-   zodat er niet twee balken onderaan stapelen (Opslaan-balk + tabbalk). De
-   Opslaan/Annuleren-balk wordt dan de enige onderbalk → gewoon op bottom:0,
-   geen tab-offset meer nodig. Op desktop is de tabbalk toch al verborgen. */
+/* The editor is a focus screen: hide the mobile site tab bar (Home/Search/…)
+   so two bars don't stack at the bottom (Save bar + tab bar). The
+   Save/Cancel bar then becomes the only bottom bar → plain bottom:0,
+   no tab offset needed. On desktop the tab bar is already hidden. */
 body:has(.post-edit-page) .bottom-tab { display: none; }
-/* Audiospeler (indien aan het spelen) niet meer 56px optillen voor de nu-verborgen
-   tabbalk, anders zou die zweven boven de actiebalk. */
+/* Audio player (if playing) no longer lifted 56px for the now-hidden
+   tab bar, otherwise it would float above the action bar. */
 body:has(.post-edit-page) .audio-player { bottom: 0; }
 
-/* ── Afbeeldings-editor (draaien / bijsnijden / spiegelen) ── */
+/* ── Image editor (rotate / crop / mirror) ── */
 .imed-backdrop {
   position: fixed; inset: 0; z-index: 9999;
   display: flex; align-items: center; justify-content: center;
@@ -1014,8 +1014,8 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
   background: var(--paper-2, rgba(128,128,128,.08)); border-radius: 10px; overflow: hidden;
 }
 .imed-stage img { display: block; max-width: 100%; }
-/* Cropper z'n container moet de volle stage-hoogte vullen — anders klapt 'ie dicht
-   in een flex-kolom zonder expliciete hoogte → leeg bewerk-venster (geen afbeelding). */
+/* Cropper's container must fill the full stage height — otherwise it collapses
+   in a flex column without an explicit height → empty edit window (no image). */
 .imed-stage .cropper-container { width: 100% !important; height: 100% !important; }
 .imed-tools {
   display: flex; flex-wrap: wrap; gap: 6px; justify-content: center;
@@ -1051,8 +1051,8 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
     return await res.json();   // {url, size, mime}
   }
 
-  // ── Afbeeldings-editor (draaien / bijsnijden / spiegelen) ──────────
-  // Lazy-load Cropper.js (lokaal gevendord) pas bij het eerste gebruik.
+  // ── Image editor (rotate / crop / mirror) ──────────
+  // Lazy-load Cropper.js (locally vendored) on first use.
   let _cropperReady = null;
   function ensureCropper() {
     if (window.Cropper) return Promise.resolve();
@@ -1072,13 +1072,13 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
     return _cropperReady;
   }
 
-  // Opent de editor voor een gekozen bestand; resolved met een bewerkt File,
-  // of null als de gebruiker annuleert. Animatie-GIF's worden niet door de
-  // canvas-editor gehaald (zouden statisch worden) — die uploaden direct.
+  // Opens the editor for a chosen file; resolves with an edited File,
+  // or null if the user cancels. Animated GIFs are not sent through the
+  // canvas editor (they would become static) — those upload directly.
   async function openImageEditor(file) {
     if (!file || !file.type || !file.type.startsWith('image/')) return file;
-    if (file.type === 'image/gif') return file; // behoud animatie
-    try { await ensureCropper(); } catch (_) { return file; } // editor onbeschikbaar → direct uploaden
+    if (file.type === 'image/gif') return file; // preserve animation
+    try { await ensureCropper(); } catch (_) { return file; } // editor unavailable → upload directly
 
     return new Promise((resolve) => {
       const back = document.createElement('div');
@@ -1117,7 +1117,7 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
       img.onload = () => {
         cropper = new Cropper(img, { viewMode: 1, autoCropArea: 1, background: false, responsive: true });
       };
-      img.onerror = () => { cleanup(); resolve(file); }; // kon niet laden → upload het origineel
+      img.onerror = () => { cleanup(); resolve(file); }; // could not load → upload the original
       img.src = url;
 
       back.addEventListener('click', (e) => {
@@ -1178,7 +1178,7 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
       if (!coverField.files[0]) return;
       const edited = await openImageEditor(coverField.files[0]);
       coverField.value = '';
-      if (!edited) return; // geannuleerd
+      if (!edited) return; // cancelled
       coverStatus.classList.remove('is-error');
       coverStatus.textContent = '<%= t('pedit.js_uploading') %>';
       try {
@@ -1223,8 +1223,8 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
 
   if (!editor) return;
 
-  // Titel alleen automatisch focussen op desktop (muis/trackpad). Op touch zou
-  // dit meteen het toetsenbord openen bij het openen van de editor — niet gewenst.
+  // Auto-focus the title only on desktop (mouse/trackpad). On touch this would
+  // immediately open the keyboard when the editor opens — not desired.
   try {
     const titleInput = form && form.querySelector('input[name="title"]');
     if (titleInput && window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
@@ -1328,11 +1328,11 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
   editor.addEventListener('input', updateCharCount);
 
   // ── Toolbar wiring
-  // Houd de scrollpositie vast rond een edit-commando. execCommand/insert scrollt
-  // standaard de caret in beeld → het beeld "verspringt" bij het aanklikken van een
-  // opmaakknop. We leggen ALLE scrollbare voorouders (editor, frame, #pcms-main, …)
-  // + de pagina vast en zetten ze terug — sync én over een paar frames, want Chrome
-  // scrollt soms pas een frame later. De gebruiker scrollt zo zelf.
+  // Lock the scroll position around an edit command. execCommand/insert scrolls
+  // the caret into view by default → the view "jumps" when clicking a formatting
+  // button. We lock ALL scrollable ancestors (editor, frame, #pcms-main, …)
+  // + the page and restore them — sync and over a few frames, because Chrome
+  // sometimes scrolls a frame later. The user scrolls themselves.
   function scrollableAncestors(el) {
     const list = [];
     let node = el;
@@ -1344,8 +1344,8 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
     return list;
   }
   function keepScroll(fn) {
-    // In fullscreen staat de pagina vast (body overflow:hidden) en mag het veld
-    // gewoon naar de caret scrollen — geen pagina-sprong mogelijk, dus niets fixen.
+    // In fullscreen the page is locked (body overflow:hidden) and the field may
+    // scroll to the caret freely — no page jump possible, so nothing to fix.
     const frame = document.querySelector('.pe-editor-frame');
     if (frame && frame.classList.contains('pe-fs')) { fn(); return; }
     const wx = window.scrollX, wy = window.scrollY;
@@ -1388,7 +1388,7 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
     if (!url) return;
     execCmd('createLink', url);
   }
-  // De huidige selectie zit in een <blockquote> binnen de editor? Geef 'm terug.
+  // Is the current selection inside a <blockquote> within the editor? Return it.
   function blockquoteAncestor() {
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) return null;
@@ -1399,16 +1399,16 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
     }
     return null;
   }
-  // Echte toggle: execCommand('formatBlock','blockquote') zet 'm wél AAN maar
-  // krijgt 'm nooit meer UIT (browser-quirk). Staat de caret al in een quote →
-  // pak de wrapper uit; anders pas blockquote toe.
+  // Real toggle: execCommand('formatBlock','blockquote') does turn it ON but
+  // can never turn it OFF (browser quirk). If the caret is already in a quote →
+  // unwrap it; otherwise apply blockquote.
   function toggleBlockquote() {
     keepScroll(function () {
       editor.focus({ preventScroll: true });
       const bq = blockquoteAncestor();
       if (bq) {
         const parent = bq.parentNode;
-        // Inhoud uit de quote halen, op z'n plek, en de lege wrapper verwijderen.
+        // Extract content from the quote in place, then remove the empty wrapper.
         const ref = bq;
         let firstMoved = null;
         while (bq.firstChild) {
@@ -1417,7 +1417,7 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
           parent.insertBefore(child, ref);
         }
         parent.removeChild(bq);
-        // Caret terugzetten in de uitgepakte inhoud.
+        // Restore the caret inside the unwrapped content.
         if (firstMoved) {
           const sel = window.getSelection();
           const range = document.createRange();
@@ -1435,11 +1435,11 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
   }
 
   if (toolbar) {
-    // CRUCIAAL (mobiel + desktop): voorkom dat een toolbar-knop de focus/selectie
-    // uit het editor-veld steelt. Zonder dit raakt de selectie kwijt bij het tikken
-    // → execCommand werkt op een lege selectie (vet kan niet meer UIT) én de browser
-    // scrollt de caret opnieuw in beeld (de "sprong naar beneden"). preventDefault op
-    // mousedown houdt de focus in de editor; de click blijft gewoon vuren.
+    // CRUCIAL (mobile + desktop): prevent a toolbar button from stealing focus/selection
+    // from the editor field. Without this the selection is lost on tap
+    // → execCommand operates on an empty selection (bold can no longer be toggled OFF)
+    // and the browser scrolls the caret back into view (the "jump down"). preventDefault
+    // on mousedown keeps focus in the editor; the click still fires normally.
     toolbar.addEventListener('mousedown', (e) => {
       if (e.target.closest('button')) e.preventDefault();
     });
@@ -1456,15 +1456,15 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
     });
   }
 
-  // ── Volledig-scherm schrijfmodus: het schrijfveld vult de hele pagina.
+  // ── Full-screen writing mode: the writing field fills the whole page.
   const fsBtn = document.getElementById('pe-fullscreen-btn');
   const editorFrame = document.querySelector('.pe-editor-frame');
   const isTouch = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
 
-  // Op mobiel duwt het toetsenbord de zichtbare (visual) viewport omhoog terwijl
-  // een position:fixed-frame aan de LAYOUT-viewport blijft hangen → de toolbar
-  // schuift uit beeld. Houd het fullscreen-frame daarom gelijk aan de visual
-  // viewport (top + hoogte), zodat de toolbar altijd bovenaan zichtbaar blijft.
+  // On mobile the keyboard pushes the visible (visual) viewport up while
+  // a position:fixed frame stays pinned to the LAYOUT viewport → the toolbar
+  // slides out of view. Keep the fullscreen frame aligned to the visual
+  // viewport (top + height) so the toolbar stays visible at the top.
   function syncFsViewport() {
     if (!editorFrame || !editorFrame.classList.contains('pe-fs')) return;
     const vv = window.visualViewport;
@@ -1498,22 +1498,22 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
         clearFsViewport();
       }
     }
-    // Op touch is het veld inline NIET bewerkbaar; alleen in fullscreen wel.
+    // On touch the field is NOT editable inline; only in fullscreen.
     if (isTouch) editor.setAttribute('contenteditable', on ? 'true' : 'false');
     if (on) {
       editor.focus({ preventScroll: true });
     } else {
       if (isTouch) editor.blur();
-      // Bij sluiten: naar de TOP van de content scrollen i.p.v. ergens onderaan
-      // (footer) te blijven hangen.
+      // On close: scroll to the TOP of the content instead of staying
+      // somewhere at the bottom (footer).
       requestAnimationFrame(function () {
         try { editorFrame.scrollIntoView({ block: 'start' }); } catch (_) {}
       });
     }
   }
-  // De fullscreen schrijf-"pagina": openen pusht een history-state zodat de browser-
-  // back-knop (en de Klaar-knop) 'm sluit en je terug bent in het formulier — voelt
-  // als een aparte pagina, maar álle formuliervelden blijven intact (zelfde DOM).
+  // The fullscreen writing "page": opening pushes a history state so the browser
+  // back button (and the Done button) closes it and returns you to the form — feels
+  // like a separate page, but all form fields remain intact (same DOM).
   function openFs() {
     if (isFs()) return;
     try { history.pushState({ peFs: true }, ''); } catch (_) {}
@@ -1521,7 +1521,7 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
   }
   function closeFs() {
     if (!isFs()) return;
-    if (history.state && history.state.peFs) history.back(); // → popstate sluit af
+    if (history.state && history.state.peFs) history.back(); // → popstate closes it
     else applyFs(false);
   }
   function toggleFullscreen() { if (isFs()) closeFs(); else openFs(); }
@@ -1533,9 +1533,9 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
     if (e.key === 'Escape' && isFs()) { e.preventDefault(); closeFs(); }
   });
 
-  // Op mobiel/tablet (touch): het content-veld is INLINE NIET bewerkbaar — het is
-  // dan geen tekstveld. Eén tik → fullscreen, waar het wél bewerkbaar wordt
-  // (toggleFullscreen zet contenteditable aan/uit). Zo kun je nooit inline typen.
+  // On mobile/tablet (touch): the content field is NOT editable inline — it is
+  // not a text field there. One tap → fullscreen, where it becomes editable
+  // (toggleFullscreen toggles contenteditable). This prevents inline typing.
   if (isTouch) {
     editor.setAttribute('contenteditable', 'false');
     editor.classList.add('pe-tap-to-edit');
@@ -1554,7 +1554,7 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
       if (!btn) continue;
       try { btn.classList.toggle('is-active', document.queryCommandState(cmd)); } catch(_) {}
     }
-    // Quote-knop: actief als de caret in een <blockquote> staat (toggle-feedback).
+    // Quote button: active when the caret is inside a <blockquote> (toggle feedback).
     const bqBtn = toolbar.querySelector('button[data-cmd="formatBlock"][data-arg="blockquote"]');
     if (bqBtn) bqBtn.classList.toggle('is-active', !!blockquoteAncestor());
   }
@@ -1587,7 +1587,7 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
   // ── Image upload (button + drag-drop into the editor)
   async function uploadAndInsertImage(file) {
     const edited = await openImageEditor(file);
-    if (!edited) return; // geannuleerd
+    if (!edited) return; // cancelled
     contentStatus.classList.remove('is-error');
     contentStatus.textContent = '<%= t('pedit.js_uploading') %>';
     try {
@@ -1653,8 +1653,8 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
     updateCharCount();
   }
 
-  // ── Embed insert: plak een platform-URL -> [[embed:url]]-chip die server-side
-  //    een iframe wordt (YouTube/Spotify/SoundCloud/Vimeo/Apple Music/Bandcamp).
+  // ── Embed insert: paste a platform URL -> [[embed:url]]-chip that becomes
+  //    an iframe server-side (YouTube/Spotify/SoundCloud/Vimeo/Apple Music/Bandcamp).
   const embedBtn = document.getElementById('insert-embed-btn');
   if (embedBtn) {
     embedBtn.addEventListener('click', () => {
@@ -1673,7 +1673,7 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
     const tpList   = document.getElementById('tp-list');
     const tpEmpty  = document.getElementById('tp-empty');
     const tpSearch = document.getElementById('tp-search');
-    let tpCache = null;       // cached tracks list (fetched once per page load)
+    let tpCache = null;       // cached track list (fetched once per page load)
     let tpLastFocus = null;   // element to restore focus to on close
 
     const SVG_NOTE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 17V5l12-2v12"/><circle cx="6" cy="17" r="3"/><circle cx="18" cy="15" r="3"/></svg>';
@@ -1869,13 +1869,13 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
 
 <script>
 (function () {
-  // Vastpinnen: checkbox toggelt het verborgen rang-veld (0 = niet gepind),
-  // ▲▼ verschuift de plek, met een leesbare beschrijving i.p.v. een ruw getal.
+  // Pin: checkbox toggles the hidden rank field (0 = not pinned),
+  // ▲▼ shifts the position, with a readable description instead of a raw number.
   var toggle = document.getElementById('pin-toggle');
   var rank   = document.getElementById('pin-rank');
   var pos    = document.getElementById('pin-pos');
   var label  = document.getElementById('pin-label');
-  var up     = document.getElementById('pin-up');    // hoger = lager getal (richting 1/bovenaan)
+  var up     = document.getElementById('pin-up');    // higher = lower number (towards 1/top)
   var down   = document.getElementById('pin-down');
   if (!toggle || !rank || !pos) return;
 
@@ -1899,13 +1899,13 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
 })();
 
 (function () {
-  // De Opslaan/Annuleren-balk (position: sticky; bottom:0) net boven twee mogelijke
-  // obstakels houden door een dynamische bottom-offset te zetten = het grootste van:
-  //  1) de hoogte van het toetsenbord-deel dat de layout-viewport NIET dekt
-  //     (op iOS verschuift de visual viewport; op Android verkleint de layout-
-  //     viewport door interactive-widget=resizes-content → offset ≈ 0);
-  //  2) de hoogte van de spelende audiospeler (fixed, z-index 1000).
-  // We blijven bij sticky (geen fixed/top-gegoochel → geen balk midden in beeld).
+  // Keep the Save/Cancel bar (position: sticky; bottom:0) just above two possible
+  // obstacles by setting a dynamic bottom offset = the greater of:
+  //  1) the height of the keyboard area NOT covered by the layout viewport
+  //     (on iOS the visual viewport shifts; on Android the layout viewport shrinks
+  //     due to interactive-widget=resizes-content → offset ≈ 0);
+  //  2) the height of the playing audio player (fixed, z-index 1000).
+  // We stick with sticky (no fixed/top tricks → no bar floating in the middle).
   var bar = document.querySelector('.pe-actions');
   if (!bar) return;
   var vv = window.visualViewport;
@@ -1921,7 +1921,7 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
   position();
   window.addEventListener('resize', position);
   if (vv) { vv.addEventListener('resize', position); vv.addEventListener('scroll', position); }
-  // has-audio-player wisselt via een body-class → daarop reageren.
+  // has-audio-player is toggled via a body class → observe it.
   try { new MutationObserver(position).observe(document.body, { attributes: true, attributeFilter: ['class'] }); } catch (_) {}
 })();
 </script>

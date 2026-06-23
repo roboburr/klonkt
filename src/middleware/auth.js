@@ -37,10 +37,10 @@ export function requireAuth(req, res, next) {
   next();
 }
 
-// Een 'kijker' mag ALLES bekijken (incl. Beheer) maar NIETS wijzigen. De
-// schrijf-blokkade zit in de globale guard in server.js; deze helper bepaalt
-// alleen "is dit een alleen-lezen account?". `readonly` is de legacy-vlag die
-// we nog meenemen zodat niet-gemigreerde demo-accounts geblokkeerd blijven.
+// A 'kijker' (viewer) may VIEW everything (incl. Admin) but CHANGE nothing. The
+// write block lives in the global guard in server.js; this helper only determines
+// "is this a read-only account?". `readonly` is the legacy flag we still include
+// so unmigrated demo accounts remain blocked.
 export function isViewer(user) {
   return !!user && (user.role === 'kijker' || !!user.readonly);
 }
@@ -48,33 +48,33 @@ export function isViewer(user) {
 export function requireGod(req, res, next) {
   if (!req.session?.user) return loginRedirect(req, res);
   const role = req.session.user.role;
-  // god beheert; een kijker mág het Beheer-paneel zien (alleen-lezen) — de
-  // globale guard 403't elke write, dus dit geeft enkel kijk-toegang.
+  // god manages; a viewer MAY see the Admin panel (read-only) — the
+  // global guard 403s every write, so this only grants view access.
   if (role !== 'god' && role !== 'kijker') {
     return res.status(403).send('God role required');
   }
   next();
 }
 
-// Mag de ingelogde user de HUIDIGE site (res.locals.site) beheren? god altijd;
-// anders alleen de owner van die site. Gebruikt voor site-gescopete beheerroutes
-// die een artiest via /user/<eigen-slug>/admin/... bereikt (res.locals.site is dan
-// z'n eigen site; een vreemde slug levert een andere site -> 403).
+// Can the logged-in user manage the CURRENT site (res.locals.site)? god always;
+// otherwise only the owner of that site. Used for site-scoped admin routes
+// that an artist reaches via /user/<own-slug>/admin/... (res.locals.site is then
+// their own site; a foreign slug yields a different site -> 403).
 export function requireSiteManager(req, res, next) {
   if (!req.session?.user) return loginRedirect(req, res);
   const u = req.session.user;
-  if (u.role === 'god' || u.role === 'kijker') return next(); // kijker = alleen-lezen kijk-toegang
+  if (u.role === 'god' || u.role === 'kijker') return next(); // viewer = read-only view access
   const site = res.locals.site;
-  // owner OF toegewezen mede-beheerder (site_members) — canAdminSite dekt beide.
+  // owner OR assigned co-admin (site_members) — canAdminSite covers both.
   if (site && PermissionsService.canAdminSite(u, site)) return next();
   return res.status(403).send('Geen toegang tot deze site.');
 }
 
-// Idem, maar de site wordt bepaald door de :slug-parameter (bv. site-edit).
+// Same, but the site is determined by the :slug parameter (e.g. site-edit).
 export function requireSiteManagerBySlug(req, res, next) {
   if (!req.session?.user) return loginRedirect(req, res);
   const u = req.session.user;
-  if (u.role === 'god' || u.role === 'kijker') return next(); // kijker = alleen-lezen kijk-toegang
+  if (u.role === 'god' || u.role === 'kijker') return next(); // viewer = read-only view access
   const site = db.prepare('SELECT id, owner_id FROM sites WHERE slug = ?').get(req.params.slug);
   if (site && PermissionsService.canAdminSite(u, site)) return next();
   return res.status(403).send('Geen toegang tot deze site.');

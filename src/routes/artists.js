@@ -1,12 +1,12 @@
 /**
- * Artiesten-directory — alleen in hub-modus.
+ * Artists directory — hub mode only.
  *
- * GET /leden?q=&page=  -> doorzoekbare, gepagineerde lijst van ALLE
- * Klonkt-site's. De hub-home toont maar een beperkte selectie; deze pagina
- * schaalt naar honderden/duizenden artiesten via zoeken + paginering.
+ * GET /leden?q=&page=  -> searchable, paginated list of ALL
+ * Klonkt sites. The hub home shows only a limited selection; this page
+ * scales to hundreds/thousands of artists via search + pagination.
  *
- * In solo-modus bestaat er maar één site -> next() (valt door naar postsRoutes,
- * die 'artiesten' als onbekende slug afhandelt).
+ * In solo mode there is only one site -> next() (falls through to postsRoutes,
+ * which handles 'artiesten' as an unknown slug).
  */
 
 import express from 'express';
@@ -25,14 +25,14 @@ router.get('/', (req, res, next) => {
   let page = parseInt(req.query.page, 10);
   if (!Number.isFinite(page) || page < 1) page = 1;
 
-  // De hoofd-/labelsite (oudste) is geen artiest -> uit de directory weren,
-  // consistent met de hub-home die 'm apart toont.
+  // The main/label site (oldest) is not an artist -> exclude from the directory,
+  // consistent with the hub home which displays it separately.
   const mainRow = db.prepare('SELECT id FROM sites ORDER BY created_at ASC LIMIT 1').get();
   const mainId = mainRow ? mainRow.id : '';
 
-  // Zoekterm tegen titel/slug/tagline (case-insensitive via LIKE; SQLite LIKE is
-  // standaard ongevoelig voor ASCII-hoofdletters). De ESCAPE '\' maakt %, _ en \
-  // in de zoekterm letterlijk (anders zouden ze als wildcards werken).
+  // Search term against title/slug/tagline (case-insensitive via LIKE; SQLite LIKE is
+  // case-insensitive for ASCII by default). ESCAPE '\' makes %, _, and \
+  // in the search term literal (otherwise they would act as wildcards).
   const like = '%' + q.replace(/[\\%_]/g, (m) => '\\' + m) + '%';
   const conds = ['s.id != @mainId'];
   if (q) conds.push("(s.title LIKE @like ESCAPE '\\' OR s.slug LIKE @like ESCAPE '\\' OR s.tagline LIKE @like ESCAPE '\\')");

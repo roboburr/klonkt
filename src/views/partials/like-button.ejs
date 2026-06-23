@@ -1,6 +1,6 @@
-<%# Like-/favorietknop voor een post. Ingelogd → htmx-toggle (POST /posts/:id/like,
-    swap outerHTML met deze partial terug). Niet ingelogd → link naar login.
-    Verwacht: post (met .id), likedByMe, likeCount, loggedIn, loginNext. %>
+<%# Like/favourite button for a post. Logged in → htmx toggle (POST /posts/:id/like,
+    swaps outerHTML back with this partial). Not logged in → link to login.
+    Expects: post (with .id), likedByMe, likeCount, loggedIn, loginNext. %>
 <%
   var _liked = (typeof likedByMe !== 'undefined' && likedByMe);
   var _cnt = (typeof likeCount !== 'undefined' && likeCount != null) ? likeCount : 0;

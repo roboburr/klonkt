@@ -1,13 +1,13 @@
 /**
- * Nieuwsbrief — publieke kant (premium feature #1).
+ * Newsletter — public side (premium feature #1).
  *
- *   GET  /nieuwsbrief                      -> aanmeldformulier (premium; anders 404)
- *   POST /nieuwsbrief                      -> aanmelden (double opt-in als SMTP er is)
- *   GET  /nieuwsbrief/bevestigen/:token    -> opt-in bevestigen
- *   GET  /nieuwsbrief/uitschrijven/:token  -> uitschrijven (ALTIJD toegestaan)
+ *   GET  /nieuwsbrief                      -> sign-up form (premium; 404 otherwise)
+ *   POST /nieuwsbrief                      -> subscribe (double opt-in if SMTP configured)
+ *   GET  /nieuwsbrief/bevestigen/:token    -> confirm opt-in
+ *   GET  /nieuwsbrief/uitschrijven/:token  -> unsubscribe (ALWAYS allowed)
  *
- * In hub-modus loopt dit via /user/:slug/nieuwsbrief (resolveSite zet siteUrlBase).
- * Confirm-/unsub-links in de mail zijn absoluut (PUBLIC_BASE_URL + siteUrlBase).
+ * In hub mode this runs via /user/:slug/nieuwsbrief (resolveSite sets siteUrlBase).
+ * Confirm/unsub links in the mail are absolute (PUBLIC_BASE_URL + siteUrlBase).
  */
 
 import express from 'express';
@@ -52,7 +52,7 @@ router.post('/nieuwsbrief', async (req, res, next) => {
   if (!r.ok) return show(req, res, r.error === 'invalid_email' ? 'invalid' : 'error', { nlPrefill: email });
 
   if (r.status === 'pending') {
-    // Double opt-in: stuur de bevestigingsmail.
+    // Double opt-in: send the confirmation email.
     const link = fullUrl(req, res.locals.siteUrlBase, '/nieuwsbrief/bevestigen/' + r.token);
     const unsub = fullUrl(req, res.locals.siteUrlBase, '/nieuwsbrief/uitschrijven/' + r.token);
     try {
@@ -80,8 +80,8 @@ router.get('/nieuwsbrief/bevestigen/:token', (req, res, next) => {
   show(req, res, ok ? 'confirmed' : 'badtoken');
 });
 
-// Uitschrijven mag altijd (ook als de premium-laag later uit zou gaan): een abonnee
-// moet zich altijd kunnen afmelden. Niet premium-gated.
+// Unsubscribe is always allowed (even if the premium layer is later disabled): a
+// subscriber must always be able to opt out. Not premium-gated.
 router.get('/nieuwsbrief/uitschrijven/:token', (req, res) => {
   const ok = unsubscribe(req.params.token);
   show(req, res, ok ? 'unsubbed' : 'badtoken');

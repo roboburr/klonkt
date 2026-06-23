@@ -1,16 +1,16 @@
 /**
- * Admin: geavanceerde SEO-instellingen van de primaire site.
+ * Admin: advanced SEO settings for the primary site.
  *
- * GET  /admin/seo   -> formulier met alle SEO/social-velden van de hoofdsite
- * POST /admin/seo   -> opslaan (god-only)
+ * GET  /admin/seo   -> form with all SEO/social fields for the main site
+ * POST /admin/seo   -> save (god-only)
  *
- * Deze velden worden al door de <head> (shell.ejs) en de JSON-LD/OpenGraph-
- * tags geconsumeerd, maar waren tot nu toe nergens te bewerken. De basis-
- * velden (titel/bio/robots) blijven in Uiterlijk; dit is de geavanceerde laag:
- * titel-sjabloon, canonical, social-share-afbeelding, verificatie-metas,
- * publisher/JSON-LD en OpenGraph-locale.
+ * These fields are already consumed by the <head> (shell.ejs) and the JSON-LD/
+ * OpenGraph tags, but were previously not editable anywhere. The basic
+ * fields (title/bio/robots) remain in Appearance; this is the advanced layer:
+ * title template, canonical, social share image, verification metas,
+ * publisher/JSON-LD and OpenGraph locale.
  *
- * Werkt op de PRIMAIRE site (solo = de enige site; hub = de bedrijfssite).
+ * Operates on the PRIMARY site (solo = the only site; hub = the company site).
  */
 
 import express from 'express';

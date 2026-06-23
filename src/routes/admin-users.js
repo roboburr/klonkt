@@ -19,9 +19,9 @@ import { requireGod } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// 'kijker' = alleen-lezen demonstratie/audit-account: mag alles bekijken (incl.
-// Beheer), maar de globale guard blokkeert elke wijziging. Vervangt de oude
-// losse 'kijk-modus'-vlag (readonly), die nu door deze rol wordt afgedekt.
+// 'kijker' = read-only demo/audit account: may view everything (incl. admin panel),
+// but the global guard blocks all mutations. Replaces the old separate
+// 'kijk-modus' flag (readonly), which is now covered by this role.
 const VALID_ROLES = new Set(['kijker', 'member', 'admin', 'god']);
 
 function godCount() {
@@ -68,8 +68,8 @@ router.post('/:id/role', requireGod, (req, res) => {
     return res.redirect('/admin/users?error=' + encodeURIComponent('Cannot demote the only remaining god'));
   }
 
-  // readonly=0: de alleen-lezen-status zit nu volledig in de 'kijker'-rol, dus
-  // bij elke rolwijziging ruimen we de legacy-vlag op (geen dubbele bron).
+  // readonly=0: read-only status now lives entirely in the 'kijker' role, so
+  // on every role change we clear the legacy flag (no dual source of truth).
   db.prepare('UPDATE users SET role = ?, readonly = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
     .run(newRole, userId);
   res.redirect('/admin/users?success=' + encodeURIComponent('Role updated'));
@@ -88,9 +88,9 @@ router.post('/:id/delete', requireGod, (req, res) => {
     return res.redirect('/admin/users?error=' + encodeURIComponent('Cannot delete the only remaining god'));
   }
 
-  // Cascade-verwijderen: de sites van deze user (+ posts/playlists/audio/leden/
-  // comments daaronder), z'n eigen content elders, en daarna de user zelf.
-  // Atomisch in een transactie — faalt er een FK, dan rolt alles terug.
+  // Cascade delete: this user's sites (+ posts/playlists/audio/members/
+  // comments under them), their own content elsewhere, then the user themselves.
+  // Atomic in a transaction — if any FK fails, everything rolls back.
   const del = db.transaction(() => {
     const sites = db.prepare('SELECT id FROM sites WHERE owner_id = ?').all(userId).map((s) => s.id);
     for (const sid of sites) {
@@ -101,7 +101,7 @@ router.post('/:id/delete', requireGod, (req, res) => {
       db.prepare('DELETE FROM site_members WHERE site_id = ?').run(sid);
       db.prepare('DELETE FROM sites WHERE id = ?').run(sid);
     }
-    // Eigen content op andere sites + losse koppelingen.
+    // Own content on other sites + loose associations.
     db.prepare('DELETE FROM comments WHERE post_id IN (SELECT id FROM posts WHERE author_id = ?)').run(userId);
     db.prepare('DELETE FROM posts WHERE author_id = ?').run(userId);
     db.prepare('DELETE FROM comments WHERE author_id = ?').run(userId);

@@ -38,21 +38,21 @@ export function initializeDatabase() {
   ensureColumn('audio_tracks', 'album', 'TEXT');
   ensureColumn('users', 'reset_token', 'TEXT');
   ensureColumn('users', 'reset_token_expires', 'DATETIME');
-  // Google OAuth: koppel een Google-account aan een user (login via Google).
+  // Google OAuth: link a Google account to a user (login via Google).
   ensureColumn('users', 'google_sub', 'TEXT');
-  // Read-only/kijk-account: kan alles bekijken maar geen wijzigingen doen.
+  // Read-only/viewer account: can view everything but make no changes.
   ensureColumn('users', 'readonly', 'INTEGER DEFAULT 0');
-  // Persoonlijke interface-taal (nl|en|de). Null = volg de standaard (site/env/browser).
+  // Personal interface language (nl|en|de). Null = follow the default (site/env/browser).
   ensureColumn('users', 'lang', 'TEXT');
   // Site-level moderation toggle. 'trust' = auto-approve, 'moderate' = pending until reviewed.
   ensureColumn('sites', 'comments_moderation_mode', "TEXT DEFAULT 'moderate'");
-  // Cirkels: mag deze site in cirkels van anderen verschijnen (surfacing opt-out).
+  // Circles: whether this site may appear in other sites' circles (surfacing opt-out).
   ensureColumn('sites', 'allow_circle', 'INTEGER DEFAULT 1');
 
-  // Eén EXPLICIETE primaire/hoofd-site (= de bedrijfs-/labelsite in hub-modus,
-  // de enige site in solo) i.p.v. de fragiele "oudste = hoofd"-conventie die op
-  // 4 plekken gedupliceerd stond. Backfill: markeer de oudste als er nog geen
-  // primaire site is, zodat bestaand gedrag exact behouden blijft.
+  // One EXPLICIT primary/main site (= the company/label site in hub mode,
+  // the only site in solo) instead of the fragile "oldest = main" convention
+  // that was duplicated in 4 places. Backfill: mark the oldest if no primary
+  // site exists yet, so existing behaviour is preserved exactly.
   ensureColumn('sites', 'is_primary', 'INTEGER DEFAULT 0');
   try {
     const hasPrimary = db.prepare('SELECT 1 FROM sites WHERE is_primary = 1 LIMIT 1').get();
@@ -60,7 +60,7 @@ export function initializeDatabase() {
       const oldest = db.prepare('SELECT id FROM sites ORDER BY created_at ASC LIMIT 1').get();
       if (oldest) db.prepare('UPDATE sites SET is_primary = 1 WHERE id = ?').run(oldest.id);
     }
-  } catch (e) { /* sites-tabel nog leeg/afwezig bij verse init — ensurePrimarySite regelt 't */ }
+  } catch (e) { /* sites table still empty/absent on fresh init — ensurePrimarySite handles it */ }
 
   // v9 audit additions —————————————————————————————————————————
   // SEO/social columns the v9 template uses (most live in 001-init.sql already
@@ -81,17 +81,17 @@ export function initializeDatabase() {
 
   // Per-post noindex + type
   ensureColumn('posts', 'noindex', 'INTEGER DEFAULT 0');
-  ensureColumn('posts', 'publish_at', 'DATETIME');         // release-planning (premium #3): geplande go-live
+  ensureColumn('posts', 'publish_at', 'DATETIME');         // release planning (premium #3): scheduled go-live
   ensureColumn('posts', 'fan_only', 'INTEGER DEFAULT 0');  // fan-only preview (premium #3)
   ensureColumn('posts', 'type',    "TEXT DEFAULT 'post'");  // post | foto | video | audio
 
-  // Statistieken (premium-module) — kale tellers, cookievrij.
-  ensureColumn('posts', 'view_count', 'INTEGER DEFAULT 0');         // weergaven per post
+  // Statistics (premium module) — bare counters, cookie-free.
+  ensureColumn('posts', 'view_count', 'INTEGER DEFAULT 0');         // views per post
   ensureColumn('audio_tracks', 'play_count', 'INTEGER DEFAULT 0');  // plays per track
-  ensureColumn('audio_tracks', 'downloadable', 'INTEGER DEFAULT 0'); // download-voor-email (premium #2)
-  ensureColumn('audio_tracks', 'credit', 'TEXT');   // eigenaar/credit (copyright-houder)
-  ensureColumn('audio_tracks', 'license', 'TEXT');  // licentie (bv. "CC BY 4.0", "Alle rechten voorbehouden")
-  ensureColumn('audio_tracks', 'link_spotify',    'TEXT');  // "open in"-links per track
+  ensureColumn('audio_tracks', 'downloadable', 'INTEGER DEFAULT 0'); // download-for-email (premium #2)
+  ensureColumn('audio_tracks', 'credit', 'TEXT');   // owner/credit (copyright holder)
+  ensureColumn('audio_tracks', 'license', 'TEXT');  // license (e.g. "CC BY 4.0", "All rights reserved")
+  ensureColumn('audio_tracks', 'link_spotify',    'TEXT');  // "open in" links per track
   ensureColumn('audio_tracks', 'link_youtube',    'TEXT');
   ensureColumn('audio_tracks', 'link_soundcloud', 'TEXT');
 
@@ -122,8 +122,8 @@ export function initializeDatabase() {
       ON playlist_tracks(playlist_id, position);
   `);
 
-  // Globale app-instellingen (key/value singleton). O.a. de tenancy-modus
-  // (solo = één site, hub = bedrijfssite + /user/). Default = solo.
+  // Global app settings (key/value singleton). Includes the tenancy mode
+  // (solo = one site, hub = company site + /user/). Default = solo.
   db.exec(`
     CREATE TABLE IF NOT EXISTS app_settings (
       key TEXT PRIMARY KEY,
@@ -133,11 +133,11 @@ export function initializeDatabase() {
   `);
   db.prepare("INSERT OR IGNORE INTO app_settings (key, value) VALUES ('tenancy', 'solo')").run();
 
-  // ── Statistieken (premium) — cookievrij ─────────────────────
-  // stat_daily: per dag per site het aantal pageviews (kale teller).
-  // stat_visitor_day: per dag per site een rij per UNIEKE bezoeker-hash
-  //   (sha256 van IP+UA+dag-salt; de salt roteert dagelijks en wordt nooit
-  //   bewaard → geen persistente identifier, geen cookie, geen toestemming nodig).
+  // ── Statistics (premium) — cookie-free ──────────────────────
+  // stat_daily: pageview count per day per site (bare counter).
+  // stat_visitor_day: one row per UNIQUE visitor hash per day per site
+  //   (sha256 of IP+UA+day-salt; the salt rotates daily and is never stored
+  //   → no persistent identifier, no cookie, no consent required).
   db.exec(`
     CREATE TABLE IF NOT EXISTS stat_daily (
       site_id TEXT NOT NULL,
@@ -160,8 +160,8 @@ export function initializeDatabase() {
     );
   `);
 
-  // ── Cirkels (federatie) ─────────────────────────────────────
-  // Decentrale, asymmetrische verbindingen tussen solo-instances.
+  // ── Circles (federation) ────────────────────────────────────
+  // Decentralised, asymmetric connections between solo instances.
   db.exec(`
     CREATE TABLE IF NOT EXISTS circle_links (
       id TEXT PRIMARY KEY,
@@ -199,12 +199,12 @@ export function initializeDatabase() {
     );
   `);
 
-  // Tags van de originele post — getoond in de cirkel (comma-separated string).
+  // Tags from the original post — shown in the circle feed (comma-separated string).
   ensureColumn('remote_posts', 'tags', 'TEXT');
 
-  // Nieuwsbrief / mailinglijst (premium). Abonnees per site; double opt-in als SMTP
-  // er is (status 'pending' tot bevestigd), anders single opt-in ('confirmed').
-  // 'unsub' = uitgeschreven. token = confirm/unsubscribe-sleutel (in de e-maillinks).
+  // Newsletter / mailing list (premium). Subscribers per site; double opt-in when SMTP
+  // is configured (status 'pending' until confirmed), otherwise single opt-in ('confirmed').
+  // 'unsub' = unsubscribed. token = confirm/unsubscribe key (used in email links).
   db.exec(`
     CREATE TABLE IF NOT EXISTS subscribers (
       id TEXT PRIMARY KEY,
@@ -220,7 +220,7 @@ export function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_subscribers_site_status ON subscribers(site_id, status);
   `);
 
-  // Verstuurde nieuwsbrieven (historie + aantallen).
+  // Sent newsletters (history + counts).
   db.exec(`
     CREATE TABLE IF NOT EXISTS newsletters (
       id TEXT PRIMARY KEY,
@@ -232,7 +232,7 @@ export function initializeDatabase() {
     );
   `);
 
-  // Show-agenda (premium #8): tourdata/optredens per site.
+  // Show agenda (premium #8): tour dates / gigs per site.
   db.exec(`
     CREATE TABLE IF NOT EXISTS shows (
       id TEXT PRIMARY KEY,
@@ -249,10 +249,10 @@ export function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_shows_site_date ON shows(site_id, date);
   `);
 
-  // Meldingen: iemand reageert op je reactie / post, of liket je post. Snapshots
-  // van naam/titel zodat de lijst goedkoop te tonen is zonder joins.
-  // NB: bewust 'user_notifications' — sommige oudere DBs hebben nog een stale,
-  // ongebruikte 'notifications'-tabel met een ander schema (geen read-kolom).
+  // Notifications: someone replies to your comment / post, or likes your post. Snapshots
+  // of name/title so the list can be shown cheaply without joins.
+  // NB: deliberately named 'user_notifications' — some older DBs still have a stale,
+  // unused 'notifications' table with a different schema (no read column).
   db.exec(`
     CREATE TABLE IF NOT EXISTS user_notifications (
       id TEXT PRIMARY KEY,
@@ -269,8 +269,8 @@ export function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_unotif_user ON user_notifications(user_id, read, created_at);
   `);
 
-  // Link-in-bio klikstatistiek (premium #6). Per (site, url) een teller; de
-  // link-in-bio-pagina linkt via /links/go/:i dat de klik telt en doorstuurt.
+  // Link-in-bio click statistics (premium #6). One counter per (site, url); the
+  // link-in-bio page links via /links/go/:i which counts the click and redirects.
   db.exec(`
     CREATE TABLE IF NOT EXISTS link_clicks (
       site_id TEXT NOT NULL,
@@ -281,9 +281,9 @@ export function initializeDatabase() {
     );
   `);
 
-  // Likes / favorieten: een ingelogde gebruiker kan een post liken. De set van
-  // posts die een gebruiker likte = z'n favorieten (/favorieten-pagina). Eén rij
-  // per (post, user); uniek zodat liken idempotent is.
+  // Likes / favourites: a logged-in user can like a post. The set of
+  // posts a user liked = their favourites (/favorieten page). One row
+  // per (post, user); unique so that liking is idempotent.
   db.exec(`
     CREATE TABLE IF NOT EXISTS post_likes (
       post_id TEXT NOT NULL,

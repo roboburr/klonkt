@@ -10,7 +10,7 @@
  * </figure>
  */
 
-// "Open in"-iconen (brand-gekleurd via CSS .pat-link--*).
+// "Open in" icons (brand-colored via CSS .pat-link--).
 const OPEN_IN_SVG = {
   spotify: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm4.6 14.42a.62.62 0 01-.86.21c-2.35-1.44-5.3-1.76-8.79-.96a.62.62 0 11-.28-1.21c3.8-.87 7.07-.5 9.71 1.11.3.18.39.57.22.85zm1.23-2.73a.78.78 0 01-1.07.26c-2.69-1.66-6.79-2.14-9.97-1.17a.78.78 0 11-.45-1.49c3.63-1.1 8.15-.56 11.24 1.33.36.22.48.7.25 1.07zm.1-2.85C14.66 8.95 9.4 8.78 6.3 9.72a.93.93 0 11-.54-1.79c3.56-1.08 9.37-.87 13.07 1.33a.94.94 0 01-.96 1.61z"/></svg>',
   youtube: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M23 7.1a3 3 0 00-2.1-2.12C19.04 4.5 12 4.5 12 4.5s-7.04 0-8.9.48A3 3 0 001 7.1 31.2 31.2 0 00.5 12 31.2 31.2 0 001 16.9a3 3 0 002.1 2.12c1.86.48 8.9.48 8.9.48s7.04 0 8.9-.48A3 3 0 0023 16.9 31.2 31.2 0 0023.5 12 31.2 31.2 0 0023 7.1zM9.75 15.5v-7l6 3.5-6 3.5z"/></svg>',
@@ -18,10 +18,10 @@ const OPEN_IN_SVG = {
 };
 
 class AudioEmbedService {
-  // Kleine "open in"-links voor een track (Spotify/YouTube/SoundCloud). De hrefs
-  // zijn server-side al gevalideerd (alleen https + juiste host). Geeft '' als er
-  // geen links zijn. Wordt naast de play-knop gezet (buiten de knop → geen
-  // conflict met afspelen).
+  // Small "open in" links for a track (Spotify/YouTube/SoundCloud). The hrefs
+  // are already validated server-side (https + correct host only). Returns ''
+  // when no links exist. Placed next to the play button (outside the button →
+  // no conflict with playback).
   static openInLinks(t) {
     if (!t) return '';
     const out = [];
@@ -39,11 +39,11 @@ class AudioEmbedService {
     if (!url || typeof url !== 'string') return null;
     url = url.trim();
 
-    // Alleen http(s)-URL's embedden. De provider-regexes hieronder zijn NIET
-    // verankerd, dus zonder deze check zou bv. `javascript:alert(1)//youtu.be/x`
-    // matchen en als embed-URL belanden (stored XSS via een [[embed:...]]-
-    // shortcode — die tekst gaat niet langs de HTML-sanitizer omdat 'ie in een
-    // text-node zit). De scheme-guard sluit javascript:/data:/vbscript: enz. uit.
+    // Only embed http(s) URLs. The provider regexes below are NOT anchored,
+    // so without this check e.g. `javascript:alert(1)//youtu.be/x` would match
+    // and land as an embed URL (stored XSS via an [[embed:...]] shortcode —
+    // that text never passes through the HTML sanitizer because it lives in a
+    // text node). The scheme guard excludes javascript:/data:/vbscript: etc.
     if (!/^https?:\/\//i.test(url)) return null;
 
     // Spotify
@@ -67,8 +67,8 @@ class AudioEmbedService {
       return { provider: 'applemusic', url };
     }
 
-    // YouTube — video-id is altijd exact 11 tekens (lijnt uit met de client-side
-    // ytId() in embed-player.js, die ook {11} verwacht).
+    // YouTube — video id is always exactly 11 characters (aligns with the client-side
+    // ytId() in embed-player.js, which also expects {11}).
     if (/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/|youtube\.com\/live\/)([A-Za-z0-9_-]{11})/i.test(url)) {
       const match = url.match(/(?:v=|youtu\.be\/|embed\/|shorts\/|live\/)([A-Za-z0-9_-]{11})/i);
       return { provider: 'youtube', id: match[1], url };
@@ -85,9 +85,9 @@ class AudioEmbedService {
 
   static generateIframe(provider, config) {
     switch (provider) {
-      // Eigen custom-spelers (client-side via embed-player.js + de echte
-      // platform-API's). We renderen een placeholder met data-attributen i.p.v.
-      // het kale platform-iframe, zodat de embed in ÓNZE huisstijl verschijnt.
+      // Custom players (client-side via embed-player.js + the real platform APIs).
+      // We render a placeholder with data attributes instead of the bare platform
+      // iframe, so the embed appears in OUR brand style.
       case 'youtube':
         return this.embedPlaceholder('youtube', config.id, 'video',
           config.url || `https://youtu.be/${config.id}`);
@@ -96,8 +96,8 @@ class AudioEmbedService {
       case 'spotify':
         return this.embedPlaceholder('spotify', `spotify:${config.type}:${config.id}`,
           config.type, config.url || `https://open.spotify.com/${config.type}/${config.id}`);
-      // Geen JS-API (Bandcamp/Apple) of niet-prioritair (Vimeo): blijven een
-      // iframe; mutual-exclusion loopt voor deze via de blur-fallback.
+      // No JS API (Bandcamp/Apple) or low priority (Vimeo): remain as iframes;
+      // mutual exclusion for these runs via the blur fallback.
       case 'bandcamp':
         return this.bandcampIframe(config);
       case 'applemusic':
@@ -110,9 +110,9 @@ class AudioEmbedService {
   }
 
   /**
-   * Placeholder voor een eigen custom-speler. embed-player.js pikt
-   * .folio-embed[data-embed-provider] op en bouwt de kaart + speler client-side.
-   * ALLE waarden via escape() — post.content_html wordt ongeescaped uitgevoerd.
+   * Placeholder for a custom player. embed-player.js picks up
+   * .folio-embed[data-embed-provider] and builds the card + player client-side.
+   * ALL values go through escape() — post.content_html is executed unescaped.
    */
   static embedPlaceholder(provider, ref, type, url) {
     const attrs = [
@@ -243,10 +243,10 @@ class AudioEmbedService {
   }
 
   /**
-   * Replace [[embed:<url>]] shortcodes met de platform-iframe (YouTube, Spotify,
-   * SoundCloud, Apple Music, Bandcamp, Vimeo). De editor-knop voegt deze
-   * shortcode in; losse URL-regels embedden ook automatisch via autoembed().
-   * Niet-ondersteunde/ongeldige URLs krijgen een nette inline-melding.
+   * Replace [[embed:<url>]] shortcodes with the platform iframe (YouTube, Spotify,
+   * SoundCloud, Apple Music, Bandcamp, Vimeo). The editor button inserts this
+   * shortcode; bare URL lines also embed automatically via autoembed().
+   * Unsupported/invalid URLs get a clean inline notice.
    */
   static embedMediaShortcodes(html) {
     if (!html) return html;
@@ -273,7 +273,7 @@ class AudioEmbedService {
       const titleH0 = this.escape(t.title || 'Untitled');
       const artistH0 = this.escape(t.artist || '');
       const creditBits0 = [this.escape(t.credit || ''), this.escape(t.license || '')].filter(Boolean).join(' · ');
-      // Link-only track (geen audiobestand): geen afspeelknop, wel info + open-in.
+      // Link-only track (no audio file): no play button, but info + open-in links.
       if (!t.url) {
         const coverH0 = this.escape(t.cover || '');
         const leader0 = coverH0
@@ -301,11 +301,11 @@ class AudioEmbedService {
       const titleH = this.escape(t.title || 'Untitled');
       const artistH = this.escape(t.artist || '');
       const urlH = this.escape(t.url);
-      // Zichtbare eigenaar/licentie-regel onder de track.
+      // Visible owner/license line below the track.
       const creditBits = [this.escape(t.credit || ''), this.escape(t.license || '')].filter(Boolean).join(' · ');
       const dataAttr = trackJson
         .replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/</g, '&lt;');
-      // id="track-<id>" = anker zodat de mini-speler hierheen kan scrollen.
+      // id="track-<id>" = anchor so the mini-player can scroll to this element.
       return `<div class="post-audio-track" id="track-${id}" data-pcms-track-id="${id}" data-pcms-track-url="${urlH}" data-pcms-track='${dataAttr}'>
   <button type="button" class="pat-play" aria-label="Play ${titleH}">
     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 4l12 8-12 8z"/></svg>
@@ -336,8 +336,8 @@ class AudioEmbedService {
 
       // Stable DOM id for this rendering — used as data-pcms-album-id on tracks
       const albumDomId = 'album-' + Math.random().toString(36).slice(2, 10);
-      // Alleen afspeelbare tracks (met url) in de queue; link-only tracks staan
-      // wel in de lijst maar niet in de afspeel-JSON.
+      // Only playable tracks (with url) in the queue; link-only tracks appear
+      // in the list but not in the playback JSON.
       const albumJson = JSON.stringify(album.tracks.filter((t) => t.url))
         .replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/</g, '&lt;');
       const titleH = this.escape(album.title || name);
@@ -347,7 +347,7 @@ class AudioEmbedService {
       const trackItems = album.tracks.map((t, i) => {
         const tTitle = this.escape(t.title || ('Track ' + (i + 1)));
         const tArtist = this.escape(t.artist || '');
-        // Link-only track: geen afspeelknop, wel nummer + info + open-in.
+        // Link-only track: no play button, but track number + info + open-in links.
         if (!t.url) {
           return `    <li class="post-audio-track post-audio-track--static"${t.id ? ` id="track-${t.id}"` : ''}>
       <span class="pat-track-num">${i + 1}.</span>
@@ -435,8 +435,8 @@ ${trackItems}
 
       // Audio-player.js reads data-pcms-album for queue. Same shape as
       // embedAlbumShortcodes — keep both in sync.
-      // Alleen afspeelbare tracks in de queue; link-only tracks staan wel in de
-      // lijst maar niet in de afspeel-JSON.
+      // Only playable tracks in the queue; link-only tracks appear in the list
+      // but not in the playback JSON.
       const tracksData = pl.tracks.filter(t => t.url).map(t => ({
         id:     t.id,
         url:    t.url,
@@ -478,7 +478,7 @@ ${trackItems}
           ? `<span class="pat-cover" style="background-image:url(${this.escape(t.cover)})" aria-hidden="true"></span>`
           : `<span class="pat-num">${i + 1}</span>`;
 
-        // Link-only track: geen klikbare afspeel-rij (statische div), wel open-in.
+        // Link-only track: no clickable play row (static div), but open-in links.
         if (!t.url) {
           return `    <li class="post-album-track-compact post-album-track-compact--static"${t.id ? ` id="track-${t.id}"` : ''}>
       <div class="pat-row pat-static">
@@ -593,7 +593,7 @@ ${trackItems}
   /**
    * Replace [[link:url]] or [[link:url|Custom Label]] shortcodes with a
    * branded "Open in <Platform>" anchor (no iframe). Opens in new tab.
-   * Per Robin's v9: "Externe link, klik = open platform (target _blank)".
+   * Per Robin's v9: "External link, click = open platform (target _blank)".
    */
   static embedExternalLinkShortcodes(html) {
     if (!html) return html;

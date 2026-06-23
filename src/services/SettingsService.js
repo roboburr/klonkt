@@ -1,10 +1,10 @@
-// Globale app-instellingen (key/value, gecached). Nu vooral de tenancy-modus.
+// Global app settings (key/value, cached). Primarily used for the tenancy mode.
 //
-//   tenancy = 'solo'  -> precies één site (de primaire/owner-site)
-//   tenancy = 'hub'   -> hoofdsite (bedrijf) + /user/, admin wijst Klonkt-site's toe
+//   tenancy = 'solo'  -> exactly one site (the primary/owner site)
+//   tenancy = 'hub'   -> main site (company) + /user/, admin assigns Klonkt sites
 //
-// De cache wordt bij setSetting meteen ververst, dus een toggle in Beheer werkt
-// live zonder herstart.
+// The cache is updated immediately on setSetting, so a toggle in admin
+// takes effect live without a restart.
 
 import db from '../config/database.js';
 

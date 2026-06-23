@@ -1,10 +1,10 @@
 /**
- * Scheduler — release-planning (premium #3).
+ * Scheduler — release planning (premium #3).
  *
- * Geplande posts hebben status 'scheduled' + publish_at (toekomst). Een lichte
- * timer zet ze op 'published' zodra publish_at bereikt is. Zo hoeven de publieke
- * queries (status='published') NIET aangepast te worden — een geplande post is
- * gewoon nog niet 'published' en dus nergens publiek zichtbaar tot het moment.
+ * Scheduled posts have status 'scheduled' + publish_at (future). A lightweight
+ * timer flips them to 'published' once publish_at is reached. This means public
+ * queries (status='published') need NO changes — a scheduled post simply isn't
+ * 'published' yet and therefore invisible until that moment.
  */
 
 import db from '../config/database.js';
@@ -24,7 +24,7 @@ export function flipScheduledPosts() {
     const fts = db.prepare('INSERT INTO posts_fts(content, title, author, post_id) VALUES (?, ?, ?, ?)');
     for (const p of due) {
       upd.run(p.id);
-      try { fts.run(HtmlSanitizerService.toPlainText(p.content || ''), p.title || '', p.username || '', p.id); } catch { /* FTS niet-fataal */ }
+      try { fts.run(HtmlSanitizerService.toPlainText(p.content || ''), p.title || '', p.username || '', p.id); } catch { /* FTS failure is non-fatal */ }
     }
     return due.length;
   } catch { return 0; }
@@ -32,8 +32,8 @@ export function flipScheduledPosts() {
 
 let _timer = null;
 export function startScheduler() {
-  flipScheduledPosts();                 // direct bij boot
+  flipScheduledPosts();                 // run immediately on boot
   if (_timer) return;
-  _timer = setInterval(flipScheduledPosts, 60 * 1000); // elke minuut
+  _timer = setInterval(flipScheduledPosts, 60 * 1000); // every minute
   if (_timer.unref) _timer.unref();
 }

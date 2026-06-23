@@ -1,13 +1,13 @@
-// Google OAuth2 voor LUISTERAARS (reageren). Per-instance: de self-hoster zet
-// z'n EIGEN Google-client. Zo hangt elke site aan z'n eigen Google Cloud project
-// — geen centrale afhankelijkheid, geen gedeelde aansprakelijkheid.
+// Google OAuth2 for LISTENERS (commenting). Per-instance: each self-hoster sets
+// their OWN Google client. This way every site is tied to its own Google Cloud
+// project — no central dependency, no shared liability.
 //
-// Config-bron (in deze volgorde): app_settings (ingesteld via Beheer → Instellingen),
-// anders de env-vars. Niet ingesteld → geen "Login met Google"-knop; de rest van
-// de site werkt door. Google-login geeft NOOIT beheerrechten.
+// Config source (in this order): app_settings (set via Admin → Settings),
+// otherwise env vars. Not configured → no "Login with Google" button; the rest
+// of the site keeps working. Google login NEVER grants admin rights.
 //
-// De redirect-URI wordt afgeleid van PUBLIC_BASE_URL (<base>/auth/google/callback),
-// of expliciet via GOOGLE_REDIRECT_URI. Die exacte URL moet in Google Cloud staan.
+// The redirect URI is derived from PUBLIC_BASE_URL (<base>/auth/google/callback),
+// or explicitly via GOOGLE_REDIRECT_URI. That exact URL must be listed in Google Cloud.
 
 import { getSetting } from '../services/SettingsService.js';
 
@@ -15,7 +15,7 @@ const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const USERINFO_URL = 'https://openidconnect.googleapis.com/v1/userinfo';
 
-// Dynamisch lezen (UI-wijziging werkt zonder herstart). app_settings wint, env = fallback.
+// Read dynamically (UI changes take effect without a restart). app_settings wins, env = fallback.
 function clientId() {
   return getSetting('google_client_id', '') || process.env.GOOGLE_CLIENT_ID || '';
 }
@@ -28,7 +28,7 @@ export function redirectUri() {
   return base ? `${base}/auth/google/callback` : '';
 }
 
-export function currentClientId() { return clientId(); } // niet-geheim, voor het formulier
+export function currentClientId() { return clientId(); } // not secret, used for the settings form
 export function clientSecretSet() { return !!clientSecret(); }
 export function googleConfigured() {
   return !!(clientId() && clientSecret() && redirectUri());
@@ -60,13 +60,13 @@ export async function exchangeCode(code) {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body,
   });
-  if (!r.ok) throw new Error(`Google token-exchange faalde: ${r.status}`);
+  if (!r.ok) throw new Error(`Google token exchange failed: ${r.status}`);
   return r.json(); // { access_token, id_token, ... }
 }
 
 // Returns { sub, email, email_verified, name, picture }.
 export async function fetchUserinfo(accessToken) {
   const r = await fetch(USERINFO_URL, { headers: { Authorization: `Bearer ${accessToken}` } });
-  if (!r.ok) throw new Error(`Google userinfo faalde: ${r.status}`);
+  if (!r.ok) throw new Error(`Google userinfo failed: ${r.status}`);
   return r.json();
 }

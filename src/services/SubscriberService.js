@@ -1,10 +1,10 @@
 /**
- * SubscriberService — nieuwsbrief-abonnees per site (premium feature #1).
+ * SubscriberService — newsletter subscribers per site (premium feature #1).
  *
- * Double opt-in als SMTP er is (status 'pending' → 'confirmed' via confirm-link),
- * anders single opt-in ('confirmed' meteen). Elke abonnee heeft een token dat zowel
- * de confirm- als de unsubscribe-link draagt. Hergebruikt door #2 (download-voor-
- * email) en #8 (notify-me) als gedeelde abonnee-opslag.
+ * Double opt-in when SMTP is configured (status 'pending' → 'confirmed' via
+ * confirm link), otherwise single opt-in ('confirmed' immediately). Each
+ * subscriber has a token used for both the confirm and unsubscribe links.
+ * Reused by #2 (download-for-email) and #8 (notify-me) as shared subscriber storage.
  */
 
 import crypto from 'crypto';
@@ -22,10 +22,10 @@ function newToken() {
 }
 
 /**
- * Voeg een abonnee toe (of heractiveer een uitgeschreven/bestaande).
+ * Add a subscriber (or reactivate an unsubscribed/existing one).
  * @returns {{ok:boolean, status?:string, token?:string, created?:boolean, error?:string}}
- *   status 'pending'  → er moet nog bevestigd worden (stuur confirm-mail)
- *   status 'confirmed'→ direct actief (single opt-in)
+ *   status 'pending'  → confirmation still required (send confirm email)
+ *   status 'confirmed'→ immediately active (single opt-in)
  */
 export function addSubscriber(siteId, email, source = 'widget', { doubleOptin = false } = {}) {
   email = (email || '').trim().toLowerCase();
@@ -36,9 +36,9 @@ export function addSubscriber(siteId, email, source = 'widget', { doubleOptin = 
   const status = doubleOptin ? 'pending' : 'confirmed';
 
   if (existing) {
-    // Al actief → niets te doen (idempotent, geen dubbele mail).
+    // Already confirmed → nothing to do (idempotent, no duplicate email).
     if (existing.status === 'confirmed') return { ok: true, status: 'confirmed', token: existing.token, created: false };
-    // Pending of uitgeschreven → opnieuw uitnodigen/activeren met een verse token.
+    // Pending or unsubscribed → re-invite/reactivate with a fresh token.
     const token = newToken();
     db.prepare("UPDATE subscribers SET status = ?, token = ?, source = ?, confirmed_at = CASE WHEN ? = 'confirmed' THEN CURRENT_TIMESTAMP ELSE NULL END WHERE id = ?")
       .run(status, token, source, status, existing.id);
@@ -68,8 +68,8 @@ export function unsubscribe(token) {
   return true;
 }
 
-/** Bevestigde abonnees (email + token) voor een site — voor het versturen.
- * Optioneel filteren op bron (bv. 'notify' voor show-aankondigingen). */
+/** Confirmed subscribers (email + token) for a site — for sending newsletters.
+ * Optionally filter by source (e.g. 'notify' for show announcements). */
 export function confirmedFor(siteId, source) {
   if (source) {
     return db.prepare("SELECT email, token FROM subscribers WHERE site_id = ? AND status = 'confirmed' AND source = ?").all(siteId, source);

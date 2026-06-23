@@ -70,8 +70,8 @@
           </div>
 
           <div class="ax-user-controls">
-            <%# Hub: geef deze gebruiker een eigen, zelf te beheren Klonkt — opent het
-                nieuw-site-formulier met deze gebruiker al als eigenaar voorgeselecteerd. %>
+            <%# Hub: give this user their own self-managed Klonkt — opens the
+                new-site form with this user already pre-selected as owner. %>
             <% if (typeof tenancy !== 'undefined' && tenancy === 'hub' && canMutate) { %>
               <a href="/admin/sites/new?owner=<%= u.id %>" class="ax-icon-btn"
                  aria-label="<%= t('ausr.new_klonkt_for', { name: u.username }) %>" title="<%= _u_newklonkt %>">＋🌐</a>
@@ -97,7 +97,7 @@
                 <button type="submit" class="ax-icon-btn ax-icon-btn-danger" aria-label="<%= _u_del %>" title="<%= _u_del %>">🗑</button>
               </form>
             <% } else { %>
-              <%# Lege plek zodat de rol-kolom op elke rij uitlijnt. %>
+              <%# Empty placeholder so the role column aligns on every row. %>
               <span class="ax-icon-btn-spacer" aria-hidden="true"></span>
             <% } %>
           </div>

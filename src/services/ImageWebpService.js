@@ -1,12 +1,12 @@
 /**
- * Zet een zojuist-geüploade afbeelding om naar WebP (kleiner, modern).
+ * Convert a freshly uploaded image to WebP (smaller, modern format).
  *
- * Gebruikt het systeem-`cwebp` (libwebp). Aanwezig → converteer + verwijder het
- * origineel, geef de nieuwe .webp-bestandsnaam terug. Niet aanwezig of fout →
- * geef de originele bestandsnaam terug (graceful fallback, niks breekt).
+ * Uses the system `cwebp` (libwebp). Present → convert + delete the original,
+ * return the new .webp filename. Not present or error → return the original
+ * filename (graceful fallback, nothing breaks).
  *
- * GIF blijft GIF (cwebp maakt geen geanimeerde webp van een gif); reeds-webp
- * wordt overgeslagen.
+ * GIF stays GIF (cwebp cannot produce animated WebP from a GIF); already-WebP
+ * files are skipped.
  */
 import { execFileSync } from 'child_process';
 import fs from 'fs';
@@ -16,7 +16,7 @@ const QUALITY = '82';
 
 /**
  * @param {{path:string, filename:string, destination?:string}} file  multer file
- * @returns {string} de definitieve bestandsnaam (basename) — .webp of het origineel
+ * @returns {string} the final filename (basename) — .webp or the original
  */
 export function toWebp(file) {
   if (!file || !file.path || !file.filename) return file && file.filename;
@@ -27,13 +27,13 @@ export function toWebp(file) {
   const outPath = path.join(dir, outName);
   try {
     execFileSync('cwebp', ['-quiet', '-q', QUALITY, file.path, '-o', outPath], { stdio: 'ignore' });
-    if (!fs.existsSync(outPath) || fs.statSync(outPath).size === 0) throw new Error('lege output');
-    try { fs.unlinkSync(file.path); } catch { /* origineel weg, niet kritisch */ }
+    if (!fs.existsSync(outPath) || fs.statSync(outPath).size === 0) throw new Error('empty output');
+    try { fs.unlinkSync(file.path); } catch { /* original gone, not critical */ }
     return outName;
   } catch (e) {
-    console.warn('[webp] conversie overgeslagen (cwebp niet beschikbaar/fout):', e.message);
-    try { if (fs.existsSync(outPath)) fs.unlinkSync(outPath); } catch {} // ruim halve output op
-    return file.filename; // behoud origineel
+    console.warn('[webp] conversion skipped (cwebp not available/error):', e.message);
+    try { if (fs.existsSync(outPath)) fs.unlinkSync(outPath); } catch {} // clean up partial output
+    return file.filename; // keep original
   }
 }
 

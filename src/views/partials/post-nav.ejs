@@ -1,6 +1,6 @@
-<%# Post-navigatie (Newer links / Older rechts) — gedeeld door post.ejs én
-    fan-gate.ejs. Verwacht newerPost + olderPost in scope. Ontbreekt een buur,
-    dan een uitgegrijsde placeholder zodat elke post dezelfde structuur houdt. %>
+<%# Post navigation (Newer link left / Older right) — shared by post.ejs and
+    fan-gate.ejs. Expects newerPost + olderPost in scope. If a neighbour is missing,
+    a greyed-out placeholder keeps every post in the same two-card structure. %>
 <% if ((typeof newerPost !== 'undefined' && newerPost) || (typeof olderPost !== 'undefined' && olderPost)) { %>
   <nav class="post-nav post-nav--top">
     <% if (newerPost) { %>
@@ -34,11 +34,11 @@
 
 <style>
 .post-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--rule); }
-/* Boven de post: geen lijn/gap erboven, maar een scheidingslijn ERONDER (naar de content). */
+/* Above the post: no line/gap above it, but a dividing line BELOW (toward the content). */
 .post-nav--top { margin-top: 0; padding-top: 0; border-top: 0; margin-bottom: 2rem; padding-bottom: 2rem; border-bottom: 1px solid var(--rule); }
 .post-nav-prev, .post-nav-next { display: flex; flex-direction: column; padding: 1rem; background: var(--paper-2); border-radius: 6px; text-decoration: none; color: var(--ink); }
-/* Lege plek (geen nieuwere/oudere post): zelfde kaart, uitgegrijsd + niet klikbaar,
-   zodat elke post dezelfde twee-kaarten-structuur houdt. */
+/* Empty slot (no newer/older post): same card, greyed out + not clickable,
+   so every post keeps the same two-card structure. */
 .post-nav-prev.is-empty, .post-nav-next.is-empty { opacity: 0.4; cursor: default; }
 .post-nav-prev.is-empty .post-nav-title, .post-nav-next.is-empty .post-nav-title { font-weight: 400; font-style: italic; color: var(--ink-muted); }
 .post-nav-next { text-align: right; align-items: flex-end; }

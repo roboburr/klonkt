@@ -13,9 +13,9 @@ import { getPrimarySite } from '../middleware/site.js';
 
 const router = express.Router();
 
-// Recente posts van één site, CONCEPTEN BOVENAAN, met mode-bewuste edit/view-URLs.
-// Lost op dat drafts (status != published) nergens terug te vinden waren: de
-// tijdlijn toont alleen gepubliceerde posts.
+// Recent posts from one site, DRAFTS ON TOP, with mode-aware edit/view URLs.
+// Solves the problem that drafts (status != published) were not findable anywhere:
+// the timeline shows only published posts.
 function sitePosts(siteId, siteSlug, tenancy, limit = 60) {
   const base = tenancy === 'hub' ? `/user/${siteSlug}` : '';
   return db.prepare(`
@@ -34,10 +34,9 @@ function sitePosts(siteId, siteSlug, tenancy, limit = 60) {
 router.get('/', requireAuth, (req, res) => {
   const user = req.session.user;
 
-  // Een kijker mag het volledige (god-)Beheer alleen-lezen inzien — net als god
-  // dus, alleen schrijven is globaal geblokkeerd. Een gewone artiest die een
-  // eigen site bezit krijgt een "Mijn Klonkt Hub"-dashboard, gescopet op z'n
-  // eigen site. Bezit 'ie geen site -> geen beheer.
+  // A kijker may view the full (god) admin panel read-only — same as god,
+  // but writing is globally blocked. A regular artist who owns a site gets
+  // a "My Klonkt Hub" dashboard, scoped to their own site. No site -> no admin.
   if (user.role !== 'god' && user.role !== 'kijker') {
     const mySite = db.prepare(
       'SELECT * FROM sites WHERE owner_id = ? ORDER BY created_at ASC LIMIT 1'
@@ -59,8 +58,8 @@ router.get('/', requireAuth, (req, res) => {
 
   const tenancy = getTenancy();
 
-  // De primaire/hoofd-site — in solo dé site, in hub de hoofdsite. Geeft de
-  // "Uiterlijk"-tegel z'n edit-link + de posts/concepten-lijst.
+  // The primary/main site — in solo THE site, in hub the main site. Provides the
+  // "Appearance" tile with its edit link + the posts/drafts list.
   const primarySite = getPrimarySite();
 
   const stats = {
@@ -72,7 +71,7 @@ router.get('/', requireAuth, (req, res) => {
     ).get().c,
   };
 
-  // Sites/users-tabellen zijn alleen in hub relevant; in solo besparen we de query.
+  // Sites/users tables are only relevant in hub mode; in solo we skip the query.
   const sites = tenancy === 'hub' ? db.prepare(`
     SELECT s.slug, s.title, s.created_at, u.username AS owner_username
     FROM sites s
@@ -88,8 +87,8 @@ router.get('/', requireAuth, (req, res) => {
     LIMIT 50
   `).all() : [];
 
-  // Posts/concepten van de primaire site (in solo = de site; in hub = de
-  // hoofdsite van de admin). Concepten staan bovenaan zodat ze vindbaar zijn.
+  // Posts/drafts of the primary site (in solo = the site; in hub = the admin's
+  // main site). Drafts are listed first so they are easy to find.
   const posts = primarySite ? sitePosts(primarySite.id, primarySite.slug, tenancy) : [];
 
   renderPage(req, res, 'pages/admin', {
@@ -104,8 +103,8 @@ router.get('/', requireAuth, (req, res) => {
   });
 });
 
-// Handleiding — doorzoekbare uitleg van alle Beheer-functies. Zichtbaar voor wie
-// het Beheer mag zien (ingelogd); puur statische hulptekst, niets gevoeligs.
+// Handleiding — searchable explanation of all admin features. Visible to anyone
+// who may view the admin panel (logged in); purely static help text, nothing sensitive.
 router.get('/handleiding', requireAuth, (req, res) => {
   renderPage(req, res, 'pages/admin-help', {
     pageTitle: 'Handleiding',

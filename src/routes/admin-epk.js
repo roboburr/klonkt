@@ -1,11 +1,11 @@
 /**
- * Admin: Perskit (EPK) bewerken — per-site bio + pers-contact.
+ * Admin: Edit press kit (EPK) — per-site bio + press contact.
  *
- * GET  /admin/epk   -> formulier met huidige bio + contact
- * POST /admin/epk   -> opslaan (app_settings: epk_bio_<siteId> / epk_contact_<siteId>)
+ * GET  /admin/epk   -> form with current bio + contact
+ * POST /admin/epk   -> save (app_settings: epk_bio_<siteId> / epk_contact_<siteId>)
  *
- * De perskit-pagina zelf (/pers) leest deze waarden; tracks + recente posts komen
- * automatisch. Perskit is premium + solo (zie routes/epk.js).
+ * The press kit page itself (/pers) reads these values; tracks + recent posts come
+ * automatically. Press kit is premium + solo (see routes/epk.js).
  */
 
 import express from 'express';
@@ -48,7 +48,7 @@ router.post('/', requireGod, (req, res) => {
   if (!site) return res.status(404).send('Geen site');
   setSetting('epk_bio_' + site.id, (req.body.epk_bio || '').toString().slice(0, 1000).trim());
   setSetting('epk_contact_' + site.id, (req.body.epk_contact || '').toString().slice(0, 300).trim());
-  // Gekozen nummers: alleen ids van DEZE site, max 5, in de aangeleverde volgorde.
+  // Chosen tracks: only ids belonging to THIS site, max 5, in the supplied order.
   let ids = req.body.epk_tracks;
   if (!Array.isArray(ids)) ids = ids ? [ids] : [];
   const valid = new Set(db.prepare('SELECT id FROM audio_tracks WHERE site_id = ?').all(site.id).map((r) => r.id));

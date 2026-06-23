@@ -1,12 +1,12 @@
 /**
- * Show-agenda (premium feature #8) — beheerkant.
+ * Show agenda (premium feature #8) — admin side.
  *
- *   GET  /admin/shows           -> lijst + toevoeg-formulier
- *   POST /admin/shows           -> show toevoegen (optioneel notify-mail naar abonnees)
+ *   GET  /admin/shows           -> list + add form
+ *   POST /admin/shows           -> add show (optional notify email to subscribers)
  *   POST /admin/shows/:id/delete
  *
- * Premium + site-beheerder. Notify-mail vereist SMTP; zonder SMTP wordt de show
- * gewoon opgeslagen (geen mail).
+ * Premium + site manager. Notify email requires SMTP; without SMTP the show is
+ * simply saved (no email sent).
  */
 
 import express from 'express';
@@ -78,14 +78,14 @@ router.post('/', requireSiteManager, premiumGate, async (req, res) => {
                 '<p style="color:#888;font-size:12px"><a href="' + unsub + '">Uitschrijven</a></p>',
         });
         sent++;
-      } catch { /* sla over */ }
+      } catch { /* skip */ }
     }
   }
   render(req, res, { msg: 'Show toegevoegd.' + (sent ? (' Notify gestuurd naar ' + sent + ' abonnee(s).') : ''), msgKind: 'ok' });
 });
 
 router.post('/toggle', requireSiteManager, premiumGate, (req, res) => {
-  // Agenda tonen op de site (Agenda-knop in de pill + /shows-pagina).
+  // Show the agenda on the site (Agenda button in the pill + /shows page).
   setSetting('agenda_enabled', req.body.enabled ? '1' : '0');
   res.redirect((res.locals.siteUrlBase || '') + '/admin/shows');
 });

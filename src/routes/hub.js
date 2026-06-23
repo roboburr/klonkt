@@ -1,9 +1,9 @@
 /**
- * Hub-hoofdpagina — alleen in hub-modus. In plaats van de primaire Klonkt-site te
- * tonen, rendert '/' hier een bedrijfs-overview: de laatste posts van ALLE
- * gebruikers samengevat + een lijst van de Klonkt-site's.
+ * Hub home page — hub mode only. Instead of rendering the primary Klonkt site,
+ * '/' renders a company overview here: the latest posts from ALL users combined
+ * + a list of the Klonkt sites.
  *
- * In solo-modus doet dit niets (next()) en rendert posts.js de enige site.
+ * In solo mode this does nothing (next()) and posts.js renders the single site.
  */
 
 import express from 'express';
@@ -15,12 +15,12 @@ const router = express.Router();
 
 router.get('/', (req, res, next) => {
   if (getTenancy() !== 'hub') return next();
-  // Als resolveSite een specifieke site adresseerde (/user/:slug of /sites/:slug),
-  // is req.url naar '/' herschreven — dan NIET de overview tonen maar de site zelf
-  // laten renderen door posts.js. siteUrlBase is dan gezet.
+  // If resolveSite addressed a specific site (/user/:slug or /sites/:slug),
+  // req.url was rewritten to '/' — do NOT show the overview but let posts.js
+  // render the site itself. siteUrlBase is set in that case.
   if (res.locals.siteUrlBase) return next();
 
-  // Laatste gepubliceerde posts over álle sites heen.
+  // Latest published posts across all sites.
   const posts = db.prepare(`
     SELECT p.title, p.slug, p.excerpt, p.published_at, p.created_at,
            p.cover_image_url, p.type,
@@ -34,8 +34,8 @@ router.get('/', (req, res, next) => {
     LIMIT 24
   `).all();
 
-  // De hoofd-/labelsite (de expliciet primaire = de bedrijfs-/hoofdaccount) is
-  // GEEN artiest; die tonen we apart bovenaan, niet in de Artiesten-roster.
+  // The main/label site (the explicitly primary = the company/main account) is
+  // NOT an artist; we display it separately at the top, not in the Artists roster.
   const mainSite = db.prepare(`
     SELECT s.id, s.slug, s.title, s.tagline, s.profile_photo, s.accent,
            u.avatar_url AS owner_avatar,
@@ -47,9 +47,9 @@ router.get('/', (req, res, next) => {
   `).get() || null;
   const mainId = mainSite ? mainSite.id : '';
 
-  // Uitgelichte Klonkt-site's voor de home-roster: meest-actief eerst (aantal
-  // gepubliceerde posts), dan nieuwste. Excl. de hoofdsite. Beperkt tot
-  // HOME_ROSTER_LIMIT zodat de home schaalt — volledige lijst staat op /leden.
+  // Featured Klonkt sites for the home roster: most active first (number of
+  // published posts), then newest. Excl. the main site. Capped at
+  // HOME_ROSTER_LIMIT so the home scales — full list is at /leden.
   const HOME_ROSTER_LIMIT = 24;
   const artists = db.prepare(`
     SELECT s.slug, s.title, s.tagline, s.profile_photo, s.accent,
@@ -63,8 +63,8 @@ router.get('/', (req, res, next) => {
   `).all({ mainId, limit: HOME_ROSTER_LIMIT });
   const totalArtists = db.prepare('SELECT COUNT(*) AS c FROM sites WHERE id != ?').get(mainId).c;
 
-  // De hub-pagina is GENERIEK (van geen enkele user) — branding komt uit globale
-  // instellingen die de admin in Beheer beheert, niet uit een site.
+  // The hub page is GENERIC (not belonging to any user) — branding comes from global
+  // settings managed by the admin in the admin panel, not from a site.
   const hub = {
     title: getSetting('hub_title') || 'Overzicht',
     tagline: getSetting('hub_tagline') || '',

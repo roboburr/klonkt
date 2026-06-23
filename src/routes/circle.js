@@ -1,9 +1,9 @@
 /**
- * Cirkel-feed + lokale lees-pagina.
- *   GET /cirkel        -> overzicht (zelfde timeline/grid-view als de home)
- *   GET /cirkel/:id    -> losse remote-post in eigen chrome (blijf op je site)
- * Alleen actief als tenancy === 'circle' (anders next() -> postsRoutes/404).
- * Zie docs/cirkels-v1-spec.md §5c.
+ * Circle feed + local reading page.
+ *   GET /cirkel        -> overview (same timeline/grid view as the home)
+ *   GET /cirkel/:id    -> individual remote post in own chrome (stay on your site)
+ * Only active when tenancy === 'circle' (otherwise next() -> postsRoutes/404).
+ * See docs/cirkels-v1-spec.md §5c.
  */
 
 import express from 'express';
@@ -24,7 +24,7 @@ function mediaImage(media_json) {
   return media.find((m) => m.type === 'image') || null;
 }
 
-// ── Overzicht ────────────────────────────────────────────────
+// ── Overview ─────────────────────────────────────────────────
 router.get('/cirkel', (req, res, next) => {
   if (getTenancy() !== 'circle') return next();
 
@@ -41,8 +41,8 @@ router.get('/cirkel', (req, res, next) => {
     const image = mediaImage(r.media_json);
     return {
       id: r.id,
-      // Lokale lees-pagina -> de kaart blijft op de eigen site (post-card linkt
-      // lokaal + htmx, GEEN external_url).
+      // Local reading page -> the card stays on the own site (post-card links
+      // locally + htmx, NO external_url).
       slug: 'cirkel/' + encodeURIComponent(r.id),
       title: r.title || '(zonder titel)',
       excerpt: r.summary || '',
@@ -57,8 +57,8 @@ router.get('/cirkel', (req, res, next) => {
     };
   });
 
-  // Sites in de cirkel — alleen actieve links (outdated/error vallen weg, net als
-  // hun posts). Voor de grafische header met avatars.
+  // Sites in the circle — active links only (outdated/error ones are excluded, along
+  // with their posts). Used for the graphic header with avatars.
   const sites = db.prepare(`
     SELECT a.name, a.url, a.avatar
     FROM remote_actors a
@@ -75,7 +75,7 @@ router.get('/cirkel', (req, res, next) => {
   renderPage(req, res, 'pages/circle-feed', { pageTitle: 'Cirkel', bodyClass: 'on-cirkel', posts, sites });
 });
 
-// ── Losse remote-post (lokaal lezen) ─────────────────────────
+// ── Individual remote post (local reading) ────────────────────
 router.get('/cirkel/:id', (req, res, next) => {
   if (getTenancy() !== 'circle') return next();
 

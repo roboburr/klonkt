@@ -13,11 +13,11 @@
 import rateLimit from 'express-rate-limit';
 import { renderPage } from './render.js';
 
-// Achter Cloudflare/Caddy kan req.ip binnenkomen als "1.2.3.4:11046" (IPv4 met
-// poort). express-rate-limit v7 valideert het IP en gooit anders
-// ERR_ERL_INVALID_IP_ADDRESS — onafgevangen async → het proces crasht (en pm2
-// loopt in een restart-loop). Strip een trailing IPv4-poort, val terug op de
-// socket, en laat IPv6 (meerdere dubbele punten) ongemoeid.
+// Behind Cloudflare/Caddy, req.ip can arrive as "1.2.3.4:11046" (IPv4 with
+// port). express-rate-limit v7 validates the IP and otherwise throws
+// ERR_ERL_INVALID_IP_ADDRESS — uncaught async → the process crashes (and pm2
+// enters a restart loop). Strip a trailing IPv4 port, fall back to the
+// socket address, and leave IPv6 (multiple colons) untouched.
 function clientKey(req) {
   let ip = req.ip || req.socket?.remoteAddress || '';
   if (/^\d{1,3}(\.\d{1,3}){3}:\d+$/.test(ip)) ip = ip.split(':')[0];

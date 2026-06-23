@@ -1,10 +1,10 @@
-// routes/federation.js — publieke Cirkels-endpoints (v1, publicatie-kant).
+// routes/federation.js — public Cirkels endpoints (v1, publication side).
 //
-//   GET /.klonkt/actor.json   — ActivityStreams-actor + Ed25519-pubkey
-//   GET /.klonkt/outbox.json  — publieke posts als AS Create-objecten,
-//                               getekend via de Klonkt-Signature-header
+//   GET /.klonkt/actor.json   — ActivityStreams actor + Ed25519 public key
+//   GET /.klonkt/outbox.json  — public posts as AS Create objects,
+//                               signed via the Klonkt-Signature header
 //
-// Site-agnostisch en zonder auth — alleen lezen. Zie docs/cirkels-v1-spec.md.
+// Site-agnostic and unauthenticated — read-only. See docs/cirkels-v1-spec.md.
 
 import express from 'express';
 import { buildActor, buildOutbox, signBody, KLONKT_PROTO, MIN_PROTO } from '../services/CircleFederation.js';
@@ -17,16 +17,16 @@ function baseUrl(req) {
   return b.replace(/\/+$/, '');
 }
 
-// De proto die de consument zegt te draaien (uit z'n request-header), of 0.
+// The proto the consumer claims to be running (from their request header), or 0.
 function consumerProto(req) {
   return parseInt(req.get('Klonkt-Proto') || '0', 10) || 0;
 }
 
 router.get('/.klonkt/actor.json', (req, res) => {
-  // Cirkels = solo-naar-solo; hubs publiceren geen federatie-actor.
+  // Circles = solo-to-solo; hubs do not publish a federation actor.
   if (getTenancy() === 'hub') return res.status(404).type('text/plain').send('Niet beschikbaar in hub-modus');
-  // De actor serveren we ALTIJD (ook aan oudere consumenten) zodat zij onze proto
-  // kunnen lezen en een nette "update vereist"-melding kunnen tonen.
+  // We ALWAYS serve the actor (including to older consumers) so they can read our
+  // proto and show a clean "update required" message.
   const body = JSON.stringify(buildActor(baseUrl(req)), null, 2);
   res.type('application/activity+json; charset=utf-8');
   res.set('Klonkt-Proto', String(KLONKT_PROTO));
@@ -37,9 +37,9 @@ router.get('/.klonkt/actor.json', (req, res) => {
 router.get('/.klonkt/outbox.json', (req, res) => {
   if (getTenancy() === 'hub') return res.status(404).type('text/plain').send('Niet beschikbaar in hub-modus');
   res.set('Klonkt-Proto', String(KLONKT_PROTO));
-  // Te-oude consument? Weiger met 426 Upgrade Required (de crypto-binding sluit 'm
-  // sowieso al uit; dit geeft een expliciet, leesbaar signaal). proto 0 = geen
-  // header (bv. een browser/curl) → toestaan, die verifieert toch niet.
+  // Consumer too old? Reject with 426 Upgrade Required (the crypto binding already
+  // excludes them; this gives an explicit, readable signal). proto 0 = no header
+  // (e.g. a browser/curl) → allow, they won't verify anyway.
   const cp = consumerProto(req);
   if (cp && cp < MIN_PROTO) {
     return res.status(426).type('text/plain')

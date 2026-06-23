@@ -1,36 +1,36 @@
 /**
- * Klonkt Embed Player — eigen, in-huisstijl media-embeds bovenop de ÉCHTE
- * player-API's (YouTube IFrame API, SoundCloud Widget API, Spotify iFrame API).
+ * Klonkt Embed Player — custom, on-brand media embeds on top of the REAL
+ * player APIs (YouTube IFrame API, SoundCloud Widget API, Spotify iFrame API).
  *
- * De server (AudioEmbedService) rendert per embed een placeholder:
+ * The server (AudioEmbedService) renders a placeholder per embed:
  *   <div class="folio-embed folio-embed--<provider> pcms-embed-card"
  *        data-embed-provider data-embed-ref data-embed-type data-embed-url></div>
- * Dit script bouwt daar onze eigen kaart omheen (cover/poster + onze play-knop +
- * voortgangsbalk in huisstijl) en bestuurt de onderliggende speler via de
- * platform-API, zodat play/pause/voortgang in ÓNZE handen liggen.
+ * This script wraps it in our own card (cover/poster + our play button +
+ * progress bar in brand style) and controls the underlying player via the
+ * platform API, so play/pause/progress are in OUR hands.
  *
- * Capability-eerlijkheid:
- *  - youtube/soundcloud  → volledig eigen controls (native chrome verborgen).
- *  - spotify             → besturing + onze frame eromheen; Spotify's eigen UI
- *                          blijft binnenin (kan niet anders zonder Premium+OAuth).
+ * Capability honesty:
+ *  - youtube/soundcloud  → fully custom controls (native chrome hidden).
+ *  - spotify             → controls + our frame around it; Spotify's own UI
+ *                          stays inside (no alternative without Premium+OAuth).
  *
- * Mutual exclusion: elke speler (incl. de site-audiospeler in audio-player.js)
- * registreert zich in window.pcmsMediaRegistry. Start er één → de vorige pauzeert.
- * Dit vervangt de oude focus/blur-heuristiek door echte play-events.
+ * Mutual exclusion: every player (incl. the site audio player in audio-player.js)
+ * registers itself in window.pcmsMediaRegistry. Starting one pauses the previous.
+ * This replaces the old focus/blur heuristic with real play events.
  *
- * Singleton — guard tegen dubbel-init (HTMX laadt scripts soms opnieuw).
+ * Singleton — guard against double-init (HTMX can reload scripts).
  */
 (function () {
   if (window.pcmsEmbedPlayer) return;
 
   // ============================================================
-  // 0. Gedeelde playback-registry (ook door audio-player.js gebruikt)
+  // 0. Shared playback registry (also used by audio-player.js)
   // ============================================================
   function registry() {
     if (window.pcmsMediaRegistry) return window.pcmsMediaRegistry;
     const r = {
       _active: null,
-      // Markeer `player` als de enige actieve; pauzeer de vorige.
+      // Mark `player` as the sole active one; pause the previous.
       setActive(player) {
         if (this._active && this._active !== player && this._active.pause) {
           try { this._active.pause(); } catch (e) {}
@@ -44,9 +44,9 @@
   }
 
   // ============================================================
-  // 1. Lazy script-loaders — 1 promise per platform, gedeeld over N embeds.
-  //    We laden een platform-script PAS als er een embed van dat platform op de
-  //    pagina daadwerkelijk wordt gestart.
+  // 1. Lazy script loaders — 1 promise per platform, shared across N embeds.
+  //    A platform script is only loaded when an embed from that platform
+  //    is actually started on the page.
   // ============================================================
   const scripts = {};
   function loadScript(src) {
@@ -54,16 +54,16 @@
       const s = document.createElement('script');
       s.src = src; s.async = true;
       s.onload = () => resolve();
-      s.onerror = () => reject(new Error('embed-script faalde: ' + src));
+      s.onerror = () => reject(new Error('embed script failed: ' + src));
       document.head.appendChild(s);
     });
   }
-  // Belangrijk: alle loaders REJECTEN bij een script-fout (bv. een ad-blocker die
-  // het API-script blokkeert) én na een time-out — zodat de aanroeper netjes kan
-  // terugvallen op het kale platform-iframe i.p.v. eeuwig te hangen.
+  // Important: all loaders REJECT on script errors (e.g. an ad-blocker blocking
+  // the API script) and on timeout — so the caller can gracefully fall back to
+  // the plain platform iframe instead of hanging indefinitely.
   const API_TIMEOUT = 8000;
 
-  // YouTube: globale callback onYouTubeIframeAPIReady (1×) → in promise wikkelen.
+  // YouTube: global callback onYouTubeIframeAPIReady (once) → wrap in a promise.
   function ytApi() {
     if (scripts.yt) return scripts.yt;
     scripts.yt = new Promise((resolve, reject) => {
@@ -78,8 +78,8 @@
     });
     return scripts.yt;
   }
-  // SoundCloud: geen globale ready-callback; resolve op script-onload, daarna
-  // wacht elke widget op z'n eigen SC.Widget.Events.READY.
+  // SoundCloud: no global ready callback; resolve on script onload, then
+  // each widget waits for its own SC.Widget.Events.READY.
   function scApi() {
     if (scripts.sc) return scripts.sc;
     scripts.sc = new Promise((resolve, reject) => {
@@ -90,7 +90,7 @@
     });
     return scripts.sc;
   }
-  // Spotify: globale callback onSpotifyIframeApiReady(IFrameAPI) (1×) → wrappen.
+  // Spotify: global callback onSpotifyIframeApiReady(IFrameAPI) (once) → wrap in a promise.
   function spotifyApi() {
     if (scripts.sp) return scripts.sp;
     scripts.sp = new Promise((resolve, reject) => {
@@ -100,16 +100,16 @@
         resolve(IFrameAPI);
       };
       loadScript('https://open.spotify.com/embed/iframe-api/v1').catch(reject);
-      // Korter dan API_TIMEOUT: Spotify's bundle initialiseert snel óf helemaal
-      // niet (CDN 503 / origin-gating). Niet 8s wachten vóór de iframe-fallback.
+      // Shorter than API_TIMEOUT: Spotify's bundle initialises quickly or not at all
+      // (CDN 503 / origin-gating). No need to wait 8 s before the iframe fallback.
       setTimeout(() => reject(new Error('Spotify API timeout')), 4000);
     });
     return scripts.sp;
   }
 
-  // Kaal platform-iframe als fallback wanneer de JS-API geblokkeerd/onbereikbaar
-  // is. Ad-blockers laten de embed-iframes doorgaans wél door. Autoplay-param
-  // omdat we hier altijd in een user-gesture-context zitten (klik op play).
+  // Plain platform iframe as fallback when the JS API is blocked/unreachable.
+  // Ad-blockers generally let embed iframes through. Autoplay parameter
+  // is safe here because we're always in a user-gesture context (play click).
   function fallbackIframe(provider, ref, url) {
     if (provider === 'youtube') {
       const id = ytId(ref, url);
@@ -137,9 +137,9 @@
     if (ref && /^[A-Za-z0-9_-]{11}$/.test(ref)) return ref;
     const m = (url || '').match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);
     if (m) return m[1];
-    return null;  // geen blinde slice — een ongeldige ref geeft liever niets dan een kapotte id
+    return null;  // no blind slice — an invalid ref returns nothing rather than a broken id
   }
-  // Alleen http(s) als href toelaten (defense-in-depth tegen javascript:/data:).
+  // Only allow http(s) as href (defense-in-depth against javascript:/data: URIs).
   function safeHref(u) {
     try { const p = new URL(u, location.href); return (p.protocol === 'http:' || p.protocol === 'https:') ? u : '#'; }
     catch (e) { return '#'; }
@@ -153,7 +153,7 @@
   const LABEL = { youtube: 'YouTube', soundcloud: 'SoundCloud', spotify: 'Spotify' };
 
   // ============================================================
-  // 3. Card controller — bouwt de huisstijl-kaart + delegeert naar een adapter
+  // 3. Card controller — builds the on-brand card + delegates to an adapter
   // ============================================================
   function buildCard(el) {
     const provider = el.dataset.embedProvider;
@@ -164,14 +164,14 @@
     el.classList.add('pcms-embed-card', 'pcms-embed-card--' + provider);
     el.classList.remove('pcms-embed-loading');
 
-    // Onze speler-zijde (registry-peer). pause() wijst naar de adapter zodra die
-    // gemount is; ervoor is 't een no-op.
+    // Our player side (registry peer). pause() points to the adapter once
+    // mounted; before that it's a no-op.
     let adapter = null;
     const self = { pause() { if (adapter && adapter.pause) { try { adapter.pause(); } catch (e) {} } } };
 
-    // Teardown-hook: aangeroepen door de MutationObserver als deze kaart uit de
-    // DOM verdwijnt (HTMX-swap) → adapter opruimen (timers/iframes) + registry
-    // vrijgeven, zodat er geen poll-timers of spelers blijven lekken.
+    // Teardown hook: called by the MutationObserver when this card leaves the
+    // DOM (HTMX swap) → clean up the adapter (timers/iframes) + release the registry,
+    // so no poll timers or players keep leaking.
     el._pcmsDestroy = function () {
       try { if (adapter && adapter.destroy) adapter.destroy(); } catch (e) {}
       registry().release(self);
@@ -181,7 +181,7 @@
     let mounted = false;
     let dur = 0;
 
-    // --- UI ophangen (verschilt per provider-type) ---
+    // --- Mount the UI (differs per provider type) ---
     const isVideo = provider === 'youtube';
     const custom = provider === 'youtube' || provider === 'soundcloud'; // eigen controls
     const poster = provider === 'youtube'
@@ -219,7 +219,7 @@
     const subEl = el.querySelector('.pcms-embed-sub');
     const volEl = el.querySelector('.pcms-embed-vol');
     const muteBtn = el.querySelector('.pcms-embed-mute');
-    let vol = 100;       // huidige volume 0-100 (wordt op de adapter toegepast)
+    let vol = 100;       // current volume 0-100 (applied to the adapter)
     let preMuteVol = 100;
 
     function setPlayingUI(on) {
@@ -250,9 +250,9 @@
       onProgress(cur, total) { setProgress(cur, total); },
     };
 
-    // API geblokkeerd/onbereikbaar → kaal platform-iframe (graceful degradation).
-    // De mutual-exclusion loopt voor deze fallback via de blur-heuristiek
-    // (audio-player.js), want de kaart krijgt geen .is-mounted.
+    // API blocked/unreachable → plain platform iframe (graceful degradation).
+    // Mutual exclusion for this fallback runs via the blur heuristic
+    // (audio-player.js), because the card never gets .is-mounted.
     function renderFallback() {
       const fb = fallbackIframe(provider, ref, url);
       if (!fb.src) { el.classList.remove('pcms-embed-busy'); el.classList.add('pcms-embed-error'); return; }
@@ -270,12 +270,12 @@
       el.innerHTML = '';
       el.appendChild(iframe);
 
-      // Mutual exclusion óók voor de fallback-iframe. Een cross-origin iframe
-      // kunnen we niet via een API pauzeren, dus 'pauze' = herladen ZONDER
-      // autoplay (= stopt het geluid, speler blijft zichtbaar/herstartbaar).
-      // We registreren 'm als actief: nu (= gebruiker start de embed) pauzeert de
-      // site-speler/andere embeds; en als de site-speler later start, pauzeert de
-      // registry deze fallback.
+      // Mutual exclusion also for the fallback iframe. A cross-origin iframe
+      // cannot be paused via an API, so 'pause' = reload WITHOUT
+      // autoplay (= stops the audio, player stays visible/restartable).
+      // We register it as active: now (= user starts the embed) the
+      // site player/other embeds pause; and when the site player starts later,
+      // the registry pauses this fallback.
       self.pause = function () {
         try {
           const noAuto = fb.src
@@ -293,25 +293,25 @@
       registry().setActive(self);
     }
 
-    // Eerste interactie → adapter mounten + spelen. Daarna toggelt de knop.
+    // First interaction → mount the adapter + play. The button toggles after that.
     async function ensureMountedAndPlay() {
       if (mounted) { if (adapter) adapter.play(); return; }
       mounted = true;
-      // Spotify: hun speler is toch niet te skinnen (besturing-only) én de
-      // iFrame-API-bundle initialiseert in de praktijk vaak niet (CDN-gating/503)
-      // → niet op de API wachten, meteen het kale Spotify-iframe tonen. Instant.
+      // Spotify: their player cannot be skinned (controls-only) and the
+      // iFrame API bundle often fails to initialise in practice (CDN-gating/503)
+      // → don't wait for the API, show the plain Spotify iframe immediately.
       if (provider === 'spotify') { renderFallback(); return; }
       el.classList.add('pcms-embed-busy');
       try {
         adapter = await MOUNTERS[provider](mountEl, { ref, url }, hooks);
         if (el._pcmsApplyVol) el._pcmsApplyVol();  // onthouden volume toepassen
-        // is-mounted: CSS verbergt de poster (video) of de Spotify-facade en
-        // toont de echte speler. Voor SoundCloud blijft onze kaart+balk staan en
-        // blijft het (functionele) iframe off-screen verborgen.
+        // is-mounted: CSS hides the poster (video) or Spotify facade and
+        // shows the real player. For SoundCloud our card+bar stays visible and
+        // the (functional) iframe remains hidden off-screen.
         el.classList.add('is-mounted');
         adapter.play();
       } catch (err) {
-        console.warn('[pcms-embed] API niet beschikbaar, val terug op kaal iframe', provider, err);
+        console.warn('[pcms-embed] API unavailable, falling back to plain iframe', provider, err);
         renderFallback();
       }
     }
@@ -327,8 +327,8 @@
       const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
       adapter.seek(ratio * dur);
     });
-    // Volume: schuif zet vol (0-100) en past 'm toe op de adapter (YT/SC hebben
-    // setVolume). De waarde wordt onthouden en na het mounten opnieuw toegepast.
+    // Volume: slider sets vol (0-100) and applies it to the adapter (YT/SC support
+    // setVolume). The value is remembered and reapplied after mounting.
     function applyVol() {
       if (adapter && adapter.setVolume) { try { adapter.setVolume(vol); } catch (e) {} }
       if (muteBtn) muteBtn.innerHTML = vol === 0 ? ICON.muted : ICON.volume;
@@ -340,7 +340,7 @@
       if (vol > 0) { preMuteVol = vol; vol = 0; } else { vol = preMuteVol || 100; }
       applyVol();
     });
-    el._pcmsApplyVol = applyVol;  // door ensureMountedAndPlay aangeroepen na mount
+    el._pcmsApplyVol = applyVol;  // called by ensureMountedAndPlay after mount
   }
 
   function escAttr(s) {
@@ -348,9 +348,9 @@
   }
 
   // ============================================================
-  // 4. Adapters — normaliseren de 3 zeer verschillende API's naar 1 vorm.
-  //    Elke mounter geeft { play, pause, seek } terug en roept hooks aan met
-  //    seconden (units worden hier rechtgetrokken).
+  // 4. Adapters — normalise the 3 very different APIs to one common shape.
+  //    Each mounter returns { play, pause, seek } and calls hooks with
+  //    seconds (units are normalised here).
   // ============================================================
   const MOUNTERS = {
     // ---- YouTube: IFrame Player API, eigen controls (controls:0) ----
@@ -402,10 +402,10 @@
       });
     },
 
-    // ---- SoundCloud: Widget API, visual=false, eigen controls ----
+    // ---- SoundCloud: Widget API, visual=false, custom controls ----
     async soundcloud(mountEl, { ref, url }, hooks) {
       const SC = await scApi();
-      // Iframe zelf bouwen (kale balk) en daarna SC.Widget eraan hangen.
+      // Build the iframe ourselves (bare bar) and then attach SC.Widget to it.
       const iframe = document.createElement('iframe');
       iframe.allow = 'autoplay';
       iframe.title = 'SoundCloud';
@@ -452,7 +452,7 @@
       });
     },
 
-    // ---- Spotify: iFrame API — besturing + onze frame; geen eigen skin ----
+    // ---- Spotify: iFrame API — controls + our frame; no custom skin ----
     async spotify(mountEl, { ref, url }, hooks) {
       const IFrameAPI = await spotifyApi();
       const uri = ref || url;
@@ -472,9 +472,9 @@
           controller.addListener('playback_update', (e) => {
             const d = e && e.data ? e.data : {};
             hooks.onProgress((d.position || 0) / 1000, (d.duration || 0) / 1000);
-            // Geen betrouwbare 'ended'-event bij Spotify; we behandelen elke
-            // isPaused-overgang als play/pause. Einde = gewoon een pauze (de balk
-            // blijft op de eindpositie i.p.v. misleidend naar 0 te springen).
+            // No reliable 'ended' event from Spotify; we treat every
+            // isPaused transition as play/pause. End = just a pause (the bar
+            // stays at the end position rather than misleadingly jumping to 0).
             if (d.isPaused === false && lastPaused) { lastPaused = false; hooks.onPlay(); }
             else if (d.isPaused === true && !lastPaused) { lastPaused = true; hooks.onPause(); }
           });
@@ -485,13 +485,13 @@
   };
 
   // ============================================================
-  // 5. Scan + HTMX-/DOM-mutatie-aware (de site navigeert deels via HTMX-swaps)
+  // 5. Scan + HTMX/DOM-mutation-aware (the site partially navigates via HTMX swaps)
   // ============================================================
   function scan(root) {
     (root || document).querySelectorAll('.folio-embed[data-embed-provider]').forEach((el) => {
       if (el.dataset.embedInit) return;
       el.dataset.embedInit = '1';
-      try { buildCard(el); } catch (e) { console.error('[pcms-embed] buildCard faalde', e); }
+      try { buildCard(el); } catch (e) { console.error('[pcms-embed] buildCard failed', e); }
     });
   }
 
@@ -500,15 +500,14 @@
   } else {
     scan(document);
   }
-  // HTMX vervangt #pcms-main bij interne navigatie → opnieuw scannen.
+  // HTMX replaces #pcms-main on internal navigation → rescan.
   document.body.addEventListener('htmx:afterSwap', (e) => scan(e.target || document));
   document.body.addEventListener('htmx:load', (e) => scan(e.target || document));
 
-  // Teardown bij verwijdering uit de DOM (HTMX vervangt #pcms-main innerHTML, of
-  // een SPA-achtige swap). Zonder dit blijven YouTube-poll-timers + adapters/
-  // iframes hangen als je wegnavigeert terwijl een embed speelt → CPU/geheugenlek
-  // dat per navigatie opstapelt. We roepen el._pcmsDestroy() aan voor elke kaart
-  // die echt uit het document verdwijnt.
+  // Teardown on DOM removal (HTMX replaces #pcms-main innerHTML, or an SPA-like
+  // swap). Without this, YouTube poll timers + adapters/iframes linger when
+  // navigating away while an embed is playing → CPU/memory leak that accumulates
+  // per navigation. We call el._pcmsDestroy() for every card that truly leaves the document.
   const teardownObserver = new MutationObserver((muts) => {
     for (const m of muts) {
       m.removedNodes.forEach((node) => {

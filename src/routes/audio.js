@@ -91,9 +91,9 @@ router.get('/stream/:filename', (req, res) => {
   const total = stat.size;
   const range = req.headers.range;
 
-  // Statistieken: tel één play bij de initiële player-fetch (niet bij scrub/
-  // range-continuaties; replays binnen 24u komen uit de browsercache → geen
-  // dubbeltelling). Best-effort, mag nooit de stream breken.
+  // Statistics: count one play on the initial player fetch (not on scrub/
+  // range continuations; replays within 24h come from the browser cache → no
+  // double counting). Best-effort, must never break the stream.
   if (req.get('X-Audio-Player') === '1' && (!range || /^bytes=0-/.test(range))) {
     try {
       const tr = db.prepare(`
@@ -140,8 +140,8 @@ router.get('/stream/:filename', (req, res) => {
   fs.createReadStream(filePath, { start, end }).pipe(res);
 });
 
-// Welke post bevat deze track? (voor de mini-speler → "spring naar de post +
-// scroll naar de track".) Pakt de nieuwste gepubliceerde post met [[track:<id>]].
+// Which post contains this track? (for the mini-player → "jump to the post +
+// scroll to the track".) Fetches the newest published post with [[track:<id>]].
 router.get('/track/:id/post', (req, res) => {
   const id = String(req.params.id || '');
   if (!/^[A-Za-z0-9_-]+$/.test(id)) return res.status(400).json({ error: 'bad id' });

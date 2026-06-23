@@ -1,15 +1,15 @@
 /**
- * Admin: globale instellingen.
- *  - tenancy-modus (Solo/Hub)
- *  - hub-branding (naam/tagline/intro/hero van de generieke hub-hoofdpagina)
+ * Admin: global settings.
+ *  - tenancy mode (Solo/Hub)
+ *  - hub branding (name/tagline/intro/hero of the generic hub home page)
  *
- * GET  /admin/settings   -> toon huidige instellingen
- * POST /admin/settings   -> sla op (god-only). Accepteert nu ook een geuploade
- *                           hero-afbeelding (multipart); een upload wint van het
- *                           URL-tekstveld. Zonder upload blijft het URL-veld leidend.
+ * GET  /admin/settings   -> show current settings
+ * POST /admin/settings   -> save (god-only). Also accepts an uploaded
+ *                           hero image (multipart); an upload wins over the
+ *                           URL text field. Without an upload the URL field is leading.
  *
- * De hub-pagina is generiek (van geen enkele user); deze branding leeft in
- * globale settings, niet in een site.
+ * The hub page is generic (belonging to no user); this branding lives in
+ * global settings, not in a site.
  */
 
 import express from 'express';
@@ -29,24 +29,24 @@ import { toWebp } from '../services/ImageWebpService.js';
 
 const router = express.Router();
 
-// Hero dark-overlay: percentage 0-100 (0 = geen overlay, 100 = volledig zwart).
-// Default 45 = de oude hardgecodeerde waarde, zodat bestaande hubs niet wijzigen.
+// Hero dark overlay: percentage 0-100 (0 = no overlay, 100 = fully black).
+// Default 45 = the old hard-coded value, so existing hubs don't change appearance.
 function clampOverlay(raw) {
   const v = parseInt(raw, 10);
   return Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 45;
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// Hero-uploads landen in storage/media/hero → bereikbaar als /media/hero/<file>
-// (de /media static handler serveert storage/media). Zelfde model als avatars.
+// Hero uploads land in storage/media/hero → accessible as /media/hero/<file>
+// (the /media static handler serves storage/media). Same model as avatars.
 const HERO_DIR = path.resolve(
   process.env.HERO_PATH || path.join(__dirname, '..', '..', 'storage', 'media', 'hero')
 );
 fs.mkdirSync(HERO_DIR, { recursive: true });
 
-// Alleen raster-formaten voor de upload. SVG mag bewust NIET via upload (raw
-// SVG kan script bevatten → opgeslagen-XSS bij direct openen); een SVG-hero kan
-// nog steeds via het URL-veld (zoals de meegeleverde demo-placeholder).
+// Only raster formats for upload. SVG is intentionally NOT allowed via upload
+// (raw SVG can contain scripts → stored-XSS when opened directly); an SVG hero
+// can still be set via the URL field (like the bundled demo placeholder).
 const ALLOWED_HERO_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif']);
 const MAX_HERO_BYTES = 5 * 1024 * 1024;
 
@@ -94,30 +94,30 @@ router.get('/', requireGod, (req, res) => {
 });
 
 router.post('/', requireGod, (req, res) => {
-  // multer.single verwerkt multipart (hub-branding form). Bij een gewone
-  // urlencoded POST (tenancy-form) doet multer niets en blijft req.body intact.
+  // multer.single processes multipart (hub branding form). For a plain
+  // urlencoded POST (tenancy form) multer does nothing and req.body stays intact.
   heroUpload.single('hub_hero_file')(req, res, (err) => {
     if (err) {
       return res.redirect('/admin/settings?error=' + encodeURIComponent(err.message));
     }
 
     if (typeof req.body.tenancy !== 'undefined') {
-      // Hub-modus is een premium-feature: alleen naar hub schakelen als premium
-      // ontgrendeld is (premium-laag uit = vrij; aan = Patreon vereist). Al-hub
-      // blijven mag altijd, zodat een instance nooit vastloopt.
+      // Hub mode is a premium feature: only switch to hub if premium is
+      // unlocked (premium layer off = free; on = Patreon required). Staying on
+      // hub is always allowed, so an instance can never get stuck.
       if (req.body.tenancy === 'hub' && !premiumUnlocked() && getTenancy() !== 'hub') {
         return res.redirect('/admin/settings?error=' + encodeURIComponent('Hub-modus is een premium-functie — koppel Patreon in Beheer → Instellingen.'));
       }
       setTenancy(req.body.tenancy); // valideert naar solo | hub | circle
     }
     if (typeof req.body.default_lang !== 'undefined') {
-      // Standaardtaal voor bezoekers (leeg = volg env/browser). Valideert tegen NL/EN/DE.
+      // Default language for visitors (empty = follow env/browser). Validated against NL/EN/DE.
       const dl = (req.body.default_lang || '').toString().toLowerCase();
       setSetting('default_lang', SUPPORTED.includes(dl) ? dl : '');
     }
     if (typeof req.body.timezone !== 'undefined') {
-      // Site-tijdzone (IANA, bv. Europe/Amsterdam). Leeg = server-default (UTC).
-      // Valideer met Intl zodat een onzin-waarde nooit de datum-rendering breekt.
+      // Site timezone (IANA, e.g. Europe/Amsterdam). Empty = server default (UTC).
+      // Validate with Intl so a nonsense value never breaks date rendering.
       const tz = (req.body.timezone || '').toString().trim();
       let valid = '';
       if (tz) { try { Intl.DateTimeFormat('en-US', { timeZone: tz }); valid = tz; } catch { valid = ''; } }
@@ -133,10 +133,10 @@ router.post('/', requireGod, (req, res) => {
       setSetting('hub_intro', (req.body.hub_intro || '').toString().slice(0, 400).trim());
     }
 
-    // Hero: een geüploade afbeelding wint; anders het URL-tekstveld.
+    // Hero: an uploaded image wins; otherwise the URL text field.
     if (req.file) {
       const newUrl = `/media/hero/${toWebp(req.file)}`;
-      // Ruim een vorige geüploade hero op (alleen als die uit onze hero-map kwam).
+      // Clean up a previously uploaded hero (only if it came from our hero dir).
       const old = getSetting('hub_hero_image') || '';
       if (old.startsWith('/media/hero/')) {
         try { fs.unlinkSync(path.join(HERO_DIR, path.basename(old))); } catch {}
@@ -154,7 +154,7 @@ router.post('/', requireGod, (req, res) => {
   });
 });
 
-// Google-login op een eigen Beheer-pagina (los van de algemene instellingen).
+// Google login on its own admin page (separate from the general settings).
 router.get('/google', requireGod, (req, res) => {
   renderPage(req, res, 'pages/admin-google', {
     pageTitle: 'Google-login',
@@ -170,8 +170,8 @@ router.get('/google', requireGod, (req, res) => {
   });
 });
 
-// Google-login (luisteraars) configureren — Client ID + Secret in app_settings.
-// De redirect-URI leiden we af van PUBLIC_BASE_URL (zie config/google.js).
+// Configure Google login (listeners) — Client ID + Secret in app_settings.
+// The redirect URI is derived from PUBLIC_BASE_URL (see config/google.js).
 router.post('/google', requireGod, (req, res) => {
   if (req.body.clear === '1') {
     setSetting('google_client_id', '');
@@ -179,7 +179,7 @@ router.post('/google', requireGod, (req, res) => {
     return res.redirect('/admin/settings?success=' + encodeURIComponent('Google-login losgekoppeld'));
   }
   setSetting('google_client_id', (req.body.google_client_id || '').toString().trim());
-  // Secret alleen overschrijven als er een nieuwe waarde is ingevoerd (leeg = laat staan).
+  // Only overwrite the secret if a new value was entered (empty = leave as-is).
   const secret = (req.body.google_client_secret || '').toString().trim();
   if (secret) setSetting('google_client_secret', secret);
   res.redirect('/admin/settings?success=' + encodeURIComponent('Google-login opgeslagen'));
@@ -196,19 +196,19 @@ router.post('/smtp', requireGod, (req, res) => {
   setSetting('smtp_port', (b.smtp_port || '').toString().trim());
   setSetting('smtp_user', (b.smtp_user || '').toString().trim());
   setSetting('smtp_from', (b.smtp_from || '').toString().trim());
-  // Wachtwoord alleen overschrijven als er een nieuwe waarde is ingevoerd.
+  // Only overwrite the password if a new value was entered.
   const pass = (b.smtp_pass || '').toString();
   if (pass) setSetting('smtp_pass', pass);
   res.redirect('/admin/settings?success=' + encodeURIComponent('SMTP-instellingen opgeslagen'));
 });
 
-// Nieuwsbrief-aanmelding in de footer aan/uit.
+// Newsletter sign-up in the footer on/off.
 router.post('/footer', requireGod, (req, res) => {
   setSetting('footer_newsletter', req.body.footer_newsletter ? '1' : '0');
   res.redirect('/admin/settings?success=' + encodeURIComponent('Footer-instelling opgeslagen'));
 });
 
-// Testmail sturen naar een opgegeven adres (of de ingelogde gebruiker).
+// Send a test email to a specified address (or the logged-in user).
 router.post('/smtp/test', requireGod, async (req, res) => {
   const to = ((req.body && req.body.to) || (req.session.user && req.session.user.email) || '').toString().trim();
   if (!to || to.indexOf('@') === -1) {
