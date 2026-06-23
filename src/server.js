@@ -337,7 +337,7 @@ app.get('/manifest.webmanifest', (req, res) => {
 // Browsers also request /favicon.ico by convention; we serve the same SVG
 // content there with a forgiving content-type since modern browsers accept it.
 function _renderFavicon(res, accent) {
-  const safeAccent = /^#[0-9a-fA-F]{3,8}$/.test(accent) ? accent : '#c2410c';
+  const safeAccent = /^#[0-9a-fA-F]{3,8}$/.test(accent) ? accent : '#e8b04b';
   // Site mark: rounded square in the site accent + bold white 'K' (Klonkt)
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">

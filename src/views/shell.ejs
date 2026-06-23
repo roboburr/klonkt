@@ -8,7 +8,7 @@ function _e(s) {
 
 const safeSite     = site || {};
 const safeUrlBase  = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '';
-const safeAccent   = safeSite.accent && /^#[0-9a-fA-F]{6}$/.test(safeSite.accent) ? safeSite.accent : '#c2410c';
+const safeAccent   = safeSite.accent && /^#[0-9a-fA-F]{6}$/.test(safeSite.accent) ? safeSite.accent : '#e8b04b';
 const lang         = safeSite.language || 'nl';
 const ogLocale     = safeSite.og_locale || (lang === 'nl' ? 'nl_NL' : (lang.length === 2 ? lang + '_' + lang.toUpperCase() : 'en_US'));
 const homePath     = safeUrlBase + '/';
@@ -94,7 +94,7 @@ if (typeof post !== 'undefined' && post && post.slug) {
   };
 }
 %><!DOCTYPE html>
-<html lang="<%= _e(lang) %>" data-palette="<%= _e(safeSite.palette || 'sage') %>">
+<html lang="<%= _e(lang) %>" data-palette="<%= _e(safeSite.palette || 'klonkt') %>">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
