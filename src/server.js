@@ -86,6 +86,10 @@ if (process.env.NODE_ENV === 'production' && process.env.SESSION_SECRET.length <
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
+// Interface to bind. Default 0.0.0.0 (needed for Docker port-forwarding). Behind a
+// reverse proxy on the same host, set HOST=127.0.0.1 so the app is NOT reachable
+// directly from the internet (only via the proxy) — see README/install docs.
+const HOST = process.env.HOST || '0.0.0.0';
 const isDev = process.env.NODE_ENV !== 'production';
 
 const app = express();
@@ -426,7 +430,7 @@ app.use((req, res) => {
   }
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, HOST, () => {
   console.log('');
   console.log('🪶 Klonkt Beta');
   console.log(`   http://localhost:${PORT}`);

@@ -15,15 +15,19 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      # In de container draait 'ie altijd op 3000 en in productie-modus,
-      # ongeacht wat er in .env staat.
+      # Inside the container it always runs on port 3000 in production mode and
+      # binds all interfaces (so the port mapping works) — overrides .env. The
+      # loopback host-mapping below is what keeps it off the public internet.
       NODE_ENV: production
       PORT: "3000"
+      HOST: "0.0.0.0"
     ports:
-      # host:container — wijzig de host-poort (links) als 3000 al bezet is.
-      - "3000:3000"
+      # Bind the host port to loopback only — reach the app through your reverse
+      # proxy (Caddy/nginx) on this host, not directly from the internet.
+      # Change the left side if 3000 is taken, e.g. "127.0.0.1:3001:3000".
+      - "127.0.0.1:3000:3000"
     volumes:
-      # Alle data (database, geüploade media + audio) blijft hier bewaard.
+      # All data (database, uploaded media + audio) is kept here.
       - klonkt-data:/app/storage
 
 volumes:

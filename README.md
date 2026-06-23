@@ -114,6 +114,12 @@ yourdomain.com {
 }
 ```
 
+By default the app binds to `127.0.0.1` (via `HOST` in `.env`), so only your
+reverse proxy can reach it — not the open internet. Local testing on the same
+machine (`localhost:3000`) still works. Only set `HOST=0.0.0.0` if you need direct
+external access without a proxy (then open the port in your firewall and add HTTPS
+yourself).
+
 (`cwebp` is optional — `apt install webp` — for WebP image conversion.)
 
 ### HTTPS (Docker / bare Node)

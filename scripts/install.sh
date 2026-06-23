@@ -159,6 +159,9 @@ if [ ! -f "$ENV" ]; then
   {
     echo "NODE_ENV=production"
     echo "PORT=${KLONKT_PORT}"
+    # Bind to loopback only: Caddy (this host) reaches it; the internet cannot
+    # hit the app directly on its port, bypassing HTTPS.
+    echo "HOST=127.0.0.1"
     echo "SESSION_SECRET=${SECRET}"
     echo "DATABASE_PATH=./storage/database.sqlite"
     echo "MEDIA_PATH=./storage/media"
@@ -167,11 +170,13 @@ if [ ! -f "$ENV" ]; then
     [ -n "$KLONKT_LANG" ] && echo "KLONKT_DEFAULT_LANG=${KLONKT_LANG}"
   } > "$ENV"
   chown "$KLONKT_USER:$KLONKT_USER" "$ENV"; chmod 600 "$ENV"
-  ok "new .env (random SESSION_SECRET)"
+  ok "new .env (random SESSION_SECRET, app bound to 127.0.0.1)"
 else
   # sync the port in an existing .env with the chosen port
   if grep -q '^PORT=' "$ENV"; then sed -i "s/^PORT=.*/PORT=${KLONKT_PORT}/" "$ENV"; fi
-  ok "kept existing .env (port synced)"
+  # harden older installs: bind to loopback if not already configured
+  grep -q '^HOST=' "$ENV" || echo "HOST=127.0.0.1" >> "$ENV"
+  ok "kept existing .env (port synced, bound to 127.0.0.1)"
 fi
 
 log "systemd service…"
