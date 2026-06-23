@@ -1,72 +1,75 @@
-# Klonkt Beta
+# Klonkt
 
-Persoonlijk multi-site platform met editorial-feel content + sociale community.
-Gebouwd op **Node + SQLite + htmx** — licht, zelf-gehost, en van jou.
+Je eigen, **zelf-gehoste** plek op het web — voor je verhaal, je beeld en je
+geluid. Gebouwd op **Node + SQLite + htmx**: licht, server-rendered, en van jou.
+Geen algoritme, geen advertenties, geen platform dat ertussen zit.
 
-> **Wat het is.** Geen *publishing tool* maar een *persoonlijk canvas* — content,
-> profiel, sociale interactie en realtime in één.
+## Wat het kan
 
-## Filosofie
+- **Solo of hub** — één persoonlijke site, of een label/collectief met meerdere
+  makers onder één dak.
+- **Blog & foto's** — posts met cover, tags, tijdlijn of grid.
+- **Eigen muziek hosten** — ingebouwde audiospeler met tracks, albums en playlists.
+- **Fans & reacties** — bezoekers loggen in met Google (optioneel) en reageren.
+- **Groeien**: nieuwsbrief, download-voor-email, EPK/perskit, link-in-bio,
+  show-agenda, en **cookievrije statistieken**.
+- **Cirkels** — verbind je site met andere Klonkt-sites en toon elkaars publieke
+  posts; decentraal en zonder centraal platform (Ed25519-gesigneerde federatie).
+- **Thema's & talen** — meerdere paletten (light + dark), interface in NL/EN/DE.
+- **Installeerbaar (PWA)**, **privacy-first** (self-hosted fonts, geen tracking).
 
-- **Editorial feel.** Magazine-typografie (Fraunces + Literata + Plus Jakarta), royale spacing, 12 paletten (o.a. Sage, Paper, Ocean, Forest, Stone, Midnight, Sunset, Cream, Rose, Goud, Terracotta, Lilac). Light + dark per palette.
-- **App-feel waar het telt.** Geen full page reloads — htmx swaps + (binnenkort) View Transitions. Voelt als app, niet als website.
-- **Server-rendered.** Geen build step, geen SPA-tax. EJS + htmx + minimale Alpine.
-- **Realtime ingebouwd.** WebSocket server zit in `src/websocket/`. SSE als alternatief beschikbaar.
-- **Privacy-first.** Self-hosted fonts, geen third-party requests, geen tracking.
+### Lite-modus (zonder audio)
 
-## Roadmap
-
-| Fase | Scope | Status |
-|------|-------|--------|
-| **1.0 — v9-feel** | Homepage, profile-header, feed, post-detail visueel matchen met v9 | 🟡 in progress |
-| **1.1 — auth + posts** | Login / register / post CRUD compleet | ✅ klaar |
-| **1.2 — sociale laag** | Comments, Prutter (DMs zonder E2EE), notifications | ⚪ na 1.0 |
-| **1.3 — app-feel** | View Transitions, optimistic UI, swipe-actions, haptics | ⚪ |
-| **1.4 — bottom-tab nav** | Native-app-stijl navigatie op mobiel, sidebar op desktop | ⚪ |
-| **2.0 — E2EE DMs** | MLS protocol via `@openmls/openmls`, single-device first | ⚪ apart project |
+Zet `KLONKT_AUDIO=off` in `.env` om de hele audio-/muziek-feature uit te
+schakelen. Klonkt draait dan als lichte **blog/foto/EPK/links-site zónder ffmpeg**
+— ideaal voor minimale hosting. Hub, Cirkels en externe embeds
+(YouTube/SoundCloud/Spotify) blijven gewoon werken.
 
 ## Zelf hosten
 
-Klonkt is een **Node-app** (geen PHP) — draai 'm op een VPS, in Docker of op een
-Node-hostingplatform. **Niet** op klassieke shared PHP-hosting. De database
-(SQLite) maakt zichzelf aan bij de eerste start; er is geen los installatiescript.
+Klonkt is een **Node-app** — draai 'm op een **VPS, in Docker, of op een
+Node-hostingplatform (PaaS)**. **Niet** op klassieke shared PHP-hosting. De
+database (SQLite) maakt zichzelf aan bij de eerste start.
 
 ### Optie A — Docker (aanbevolen)
 
-Alles (Node, ffmpeg, cwebp) zit in het image; je hoeft alleen Docker te hebben.
+Node, ffmpeg en cwebp zitten in het image; je hebt alleen Docker nodig.
 
 ```bash
 git clone <repo-url> klonkt && cd klonkt
-cp .env.example .env
-# vul in .env minimaal in: SESSION_SECRET (>=32 random tekens) + PUBLIC_BASE_URL
+cp .env.example .env          # vul SESSION_SECRET + PUBLIC_BASE_URL in
 docker compose up -d
 ```
 
-De app draait nu op poort 3000. Alle data (database + geüploade media/audio)
-blijft bewaard in het `klonkt-data`-volume, ook na een update. Updaten:
+Data (database + media) blijft in het `klonkt-data`-volume, ook na een update.
+Updaten: `git pull && docker compose up -d --build`.
+
+### Optie B — VPS-installer (Debian/Ubuntu)
+
+Eén commando: installeert Node 20, Caddy (automatische HTTPS) en een
+systemd-service. Coëxistentie-veilig (raakt een bestaande Node/webserver niet).
 
 ```bash
-git pull && docker compose up -d --build
+sudo bash scripts/install.sh --domain jouwdomein.nl
 ```
 
-### Optie B — direct met Node (Node 20+)
+Bijwerken kan daarna met `klonkt-update`.
+
+### Optie C — kaal Node (20+)
 
 ```bash
 git clone <repo-url> klonkt && cd klonkt
 npm ci
-cp .env.example .env        # SESSION_SECRET + PUBLIC_BASE_URL invullen
-npm start                   # database wordt bij de eerste start aangemaakt
+cp .env.example .env          # SESSION_SECRET + PUBLIC_BASE_URL invullen
+npm start                     # database wordt bij de eerste start aangemaakt
 ```
 
-Open http://localhost:3000. Voor productie: zet 'm achter een procesmanager
-(pm2/systemd) zodat 'ie aanblijft. `cwebp` is optioneel (Debian/Ubuntu:
-`apt install webp`) voor WebP-afbeeldingen — ontbreekt 'ie, dan wordt het
-origineel bewaard. (`npm run dev` = watch-mode voor ontwikkeling.)
+Zet 'm voor productie achter een procesmanager (pm2/systemd) en een
+reverse-proxy. `cwebp` is optioneel (`apt install webp`) voor WebP-afbeeldingen.
 
-### HTTPS (productie)
+### HTTPS (Docker / kaal Node)
 
-Zet een reverse-proxy vóór de app voor TLS. Met **Caddy** (automatisch
-Let's Encrypt) volstaat één blok:
+Zet een reverse-proxy vóór de app. Met **Caddy** (automatisch Let's Encrypt):
 
 ```caddy
 jouwdomein.nl {
@@ -75,51 +78,53 @@ jouwdomein.nl {
 }
 ```
 
+(De VPS-installer regelt Caddy + HTTPS al voor je.)
+
 ### Eerste keer
 
-Open je site en ga naar **`/auth/register`** — de **eerste gebruiker wordt
-automatisch beheerder**; daarna sluit registratie zich. Wachtwoord kwijt?
-`npm run reset-admin` (in Docker: `docker compose exec klonkt npm run reset-admin`).
+Open je site → je krijgt de **setup-wizard**: kies je taal, geef je site een
+naam en maak je beheerder aan. De **eerste gebruiker wordt automatisch
+beheerder**; daarna sluit registratie zich. Wachtwoord kwijt?
+`npm run reset-admin` (Docker: `docker compose exec klonkt npm run reset-admin`).
+
+## Configuratie (`.env`)
+
+| Variabele | Nodig | Wat |
+|---|---|---|
+| `SESSION_SECRET` | ✅ | Willekeurige string van ≥32 tekens |
+| `PUBLIC_BASE_URL` | ✅ | Canonieke URL (bv. `https://jouwdomein.nl`) |
+| `GOOGLE_CLIENT_ID` / `_SECRET` / `_REDIRECT_URI` | — | Google-login voor luisteraars (eigen OAuth-client; geeft nooit beheer) |
+| `SMTP_HOST` / `_PORT` / `_USER` / `_PASS` / `_FROM` | — | E-mail voor wachtwoord-reset + nieuwsbrief |
+| `KLONKT_DEFAULT_LANG` | — | Standaardtaal voor bezoekers (`en`/`nl`/`de`) |
+| `KLONKT_AUDIO` | — | `off` = lite-modus (geen audio/ffmpeg) |
 
 ## Stack
 
 - **Runtime:** Node 20+
 - **Web:** Express + Helmet + express-session
-- **DB:** better-sqlite3 (WAL mode)
-- **Templates:** EJS (server-rendered)
-- **Frontend interactie:** htmx 1.9 (vendored)
-- **Realtime:** ws (WebSocket)
-- **Fonts:** self-hosted variable woff2 (Fraunces / Literata / Plus Jakarta Sans)
+- **DB:** better-sqlite3 (WAL), migreert zichzelf bij boot
+- **Templates:** EJS (server-rendered) + **htmx 1.9** (vendored, geen build-step)
+- **Audio:** ffmpeg-static (meegebundeld)
+- **Cirkels:** Ed25519-gesigneerde pull (libsodium via Node-crypto)
+- **Fonts:** self-hosted variable woff2 (Fraunces / Plus Jakarta Sans)
 
-## Project structure
+## Project-structuur
 
 ```
 src/
-├── server.js           # Express bootstrap, routes mounting, WS server
-├── config/             # database, env loading
-├── db/migrations/      # SQLite schema (001-init.sql)
-├── middleware/         # auth, render (htmx-aware), site, rate-limit
-├── routes/             # per-resource Express routers
-├── services/           # domain logic (Prutter, Audio, Theme, Permissions, ...)
-├── views/
-│   ├── shell.ejs       # outer document (head, nav, footer)
-│   ├── partials/       # topnav, profile-header, post-card, post-tile
-│   └── pages/          # home, post, account, admin, ...
-├── assets/
-│   ├── css/style.css   # v9 stylesheet — palette tokens, components
-│   ├── fonts/          # variable woff2
-│   └── js/             # htmx, audio-player
-└── websocket/          # WS server for realtime (notifications, prutter, presence)
+├── server.js          # Express bootstrap + routes mounten
+├── config/            # database, mailer, google, feature-flags
+├── db/migrations/     # SQLite-schema (001-init.sql)
+├── middleware/        # site-resolving, auth, render (htmx-aware)
+├── routes/            # per-resource Express-routers (posts, auth, admin-*, circle, …)
+├── services/          # domeinlogica (federatie, stats, mailer, permissies, …)
+├── views/             # shell.ejs + partials/ + pages/  (EJS)
+└── assets/            # css/ (palette-tokens + componenten), js/ (htmx, speler), fonts/
 ```
 
-## Import
+## Licentie
 
-Importer voor bestaande bestandsgebaseerde content is gepland voor v1.1.
-Pad: `posts/*.md` + `users.json` + `sites/*/config.json` → SQLite.
-
-## License
-
-Persoonlijk project. Niet bedoeld voor publieke distributie tot verder bericht.
-
-## Deployed via git workflow on 2026-04-30
-
+Open-source, zelf-hostbaar. **Definitieve licentie nog te bepalen** (richting
+AGPL-3.0). Tot dan: gebruik om zelf te hosten is welkom; vraag even bij
+herdistributie/doorverkoop. Gemaakt door robo.burr (Robin Genis) ·
+<https://klonkt.com>
