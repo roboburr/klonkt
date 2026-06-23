@@ -359,6 +359,16 @@ body:not(.admin)::before {
     background: radial-gradient(ellipse at top, color-mix(in srgb, var(--accent) 3%, transparent), transparent 60%),
                 radial-gradient(ellipse at bottom right, color-mix(in srgb, var(--accent) 4%, transparent), transparent 55%);
 }
+/* Klonkt-palet (donker): zuivere navy-diepte i.p.v. de accent(goud)-wash — anders
+   kleurt het gouden accent de navy warm/bruinig. Matcht de klonkt.com-look. */
+[data-theme="dark"][data-palette="klonkt"] body:not(.admin)::before {
+    background: radial-gradient(ellipse at top, #1a1f2b 0%, transparent 62%);
+}
+@media (prefers-color-scheme: dark) {
+    [data-palette="klonkt"]:not([data-theme="light"]) body:not(.admin)::before {
+        background: radial-gradient(ellipse at top, #1a1f2b 0%, transparent 62%);
+    }
+}
 ::selection { background: var(--accent-tint); color: var(--accent); }
 
 h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 450; line-height: 1.15; letter-spacing: -0.015em; margin: 0; text-wrap: balance; font-variation-settings: "opsz" 144, "SOFT" 50; }
