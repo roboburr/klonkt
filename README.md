@@ -33,9 +33,11 @@ creates itself on first start.
 
 ### Option A — One-command VPS installer (recommended)
 
-The simplest way on a fresh Debian/Ubuntu VPS. One command installs Node 20,
-Caddy (automatic HTTPS) and a systemd service, and is coexistence-safe (won't
-touch an existing Node/web server):
+**Best on a fresh, empty Debian/Ubuntu VPS** — a cheap box with nothing else on
+it. One command installs Node 20, Caddy (automatic HTTPS) and a systemd service.
+If the server already runs something it adapts (picks a free port and skips Caddy
+when another web server is present, then prints reverse-proxy instructions), but a
+clean VPS is the simplest, most reliable setup:
 
 ```bash
 curl -fsSL https://klonkt.com/install.sh | sudo bash -s -- --domain yourdomain.com
