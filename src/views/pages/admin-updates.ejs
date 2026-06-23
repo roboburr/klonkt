@@ -50,6 +50,17 @@
       <%= t('aupd.help') %>
     </p>
   </section>
+
+  <% if (changes && changes.length) { %>
+  <section class="set-card" style="margin-top:1rem">
+    <h2><%= t('aupd.changes_heading') %></h2>
+    <ul class="upd-changes">
+      <% changes.forEach(function (c) { %>
+        <li><span class="upd-ch-date"><%= c.date %></span> <span class="upd-ch-msg"><%= c.msg %></span></li>
+      <% }) %>
+    </ul>
+  </section>
+  <% } %>
 </div>
 
 <style>
@@ -71,4 +82,9 @@
 .alert { padding: .75rem 1rem; border-radius: 6px; margin-bottom: 1rem; }
 .alert-success { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
 .alert-error { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+.upd-changes { list-style: none; padding: 0; margin: 0; }
+.upd-changes li { display: flex; gap: .7rem; padding: .45rem 0; border-bottom: 1px solid var(--rule); font-size: .9rem; align-items: baseline; }
+.upd-changes li:last-child { border-bottom: 0; }
+.upd-ch-date { color: var(--ink-muted); flex-shrink: 0; font-size: .8rem; font-variant-numeric: tabular-nums; }
+.upd-ch-msg { word-break: break-word; }
 </style>

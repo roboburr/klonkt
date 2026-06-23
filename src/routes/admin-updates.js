@@ -36,6 +36,16 @@ function currentSha() {
   try { return fs.readFileSync(versionFile(), 'utf8').trim() || null; } catch { return null; }
 }
 
+// Laatste 5 commits op main = de "laatste wijzigingen" die je bij bijwerken krijgt.
+function recentChanges() {
+  const out = git(['log', '-5', '--format=%s%x1f%cd', '--date=short', 'main']);
+  if (!out) return [];
+  return out.split('\n').map((l) => {
+    const i = l.indexOf('\x1f');
+    return i >= 0 ? { msg: l.slice(0, i), date: l.slice(i + 1) } : { msg: l, date: '' };
+  });
+}
+
 router.get('/', requireGod, (req, res) => {
   const cur = currentSha();
   const latest = git(['rev-parse', 'main']);
@@ -50,6 +60,7 @@ router.get('/', requireGod, (req, res) => {
     upToDate: !!(cur && latest && cur === latest),
     canCheck: !!latest,
     behind: (cur && latest && cur !== latest) ? git(['rev-list', '--count', cur + '..main']) : null,
+    changes: recentChanges(),
     success: req.query.success || null,
     error: req.query.error || null,
   });
