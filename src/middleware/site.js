@@ -11,6 +11,7 @@
 import db from '../config/database.js';
 import { getTenancy } from '../services/SettingsService.js';
 import { audioUrl } from '../services/AudioStreamService.js';
+import { audioEnabled } from '../config/features.js';
 
 /**
  * De primaire/hoofd-site — ÉÉN bron van waarheid (vervangt de "oudste site ="
@@ -69,6 +70,7 @@ export function resolveSite(req, res, next) {
  * length to decide whether to mount audio-player.js.
  */
 export function loadAudioTracks(req, res, next) {
+  if (!audioEnabled()) { res.locals.audioTracks = []; return next(); }   // lite-modus
   const site = res.locals.site;
   if (!site || site.enable_audio_player === 0) {
     res.locals.audioTracks = [];

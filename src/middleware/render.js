@@ -19,6 +19,7 @@ import { isViewer } from './auth.js';
 import { getSetting } from '../services/SettingsService.js';
 import { isPremium as isPremiumInstance, premiumEnabled, premiumUnlocked } from '../services/PatreonService.js';
 import { unreadCount as notifUnreadCount } from '../services/NotificationService.js';
+import { audioEnabled as audioFeatureEnabled } from '../config/features.js';
 import { PLATFORMS as PLATFORMS_CATALOG } from '../services/PlatformIcons.js';
 import { t as i18nT, resolveLang, SUPPORTED as LANGS, LANG_NAMES } from '../services/i18n.js';
 
@@ -110,6 +111,7 @@ export async function renderPage(req, res, viewName, data = {}) {
     premiumUnlocked: premiumUnlocked(),
     siteOwnerAvatar,
     site: _site,
+    audioEnabled: audioFeatureEnabled(),
     audioTracks: data.audioTracks || res.locals.audioTracks || [],
     siteUrlBase: res.locals.siteUrlBase || '',
     tenancy: res.locals.tenancy || 'solo',

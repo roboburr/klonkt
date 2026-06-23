@@ -15,6 +15,7 @@ import MarkdownService from '../services/MarkdownService.js';
 import HtmlSanitizerService from '../services/HtmlSanitizerService.js';
 import AudioEmbedService from '../services/AudioEmbedService.js';
 import PlaylistService from '../services/PlaylistService.js';
+import { audioEnabled } from '../config/features.js';
 import { audioUrl } from '../services/AudioStreamService.js';
 import { toWebp } from '../services/ImageWebpService.js';
 
@@ -537,6 +538,7 @@ router.get('/:slug', (req, res, next) => {
   // save). The pipeline still adds autoembed iframes and shortcode embeds:
   //   stored HTML → autoembed → [[track]]/[[album]]/[[playlist]] → response
   let html = post.content || '';
+  if (audioEnabled()) {
   if (site.enable_audio_player !== 0) {
     html = AudioEmbedService.autoembed(html);
     html = AudioEmbedService.embedMediaShortcodes(html);
@@ -620,6 +622,15 @@ router.get('/:slug', (req, res, next) => {
         return PlaylistService.get(site.id, id, audioUrl);
       }, { isAdmin });
     }
+  }
+  } else {
+    // LITE-modus (KLONKT_AUDIO=off): geen eigen audio (geen ffmpeg/stream-route).
+    // Externe embeds (YouTube/SoundCloud/Spotify) blijven wel; de eigen-audio-
+    // shortcodes ([[track]]/[[album]]/[[playlist]]) verwijderen we netjes.
+    html = AudioEmbedService.autoembed(html);
+    html = AudioEmbedService.embedMediaShortcodes(html);
+    html = AudioEmbedService.embedExternalLinkShortcodes(html);
+    html = html.replace(/\[\[(track|album|playlist):[^\]]+\]\]/gi, '');
   }
   post.content_html = html;
 

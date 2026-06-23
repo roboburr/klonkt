@@ -158,10 +158,12 @@
           <option value="moderate" <%= site.comments_moderation_mode === 'moderate' ? 'selected' : '' %>><%= t('asite.moderation_moderate') %></option>
         </select>
       </label>
+      <% if (typeof audioEnabled === 'undefined' || audioEnabled) { %>
       <label class="cb">
         <input type="checkbox" name="enable_audio_player" value="1" <%= site.enable_audio_player ? 'checked' : '' %>>
         <span><%= t('asite.enable_audio') %></span>
       </label>
+      <% } %>
     </fieldset>
 
     <fieldset class="profile-links-fieldset">

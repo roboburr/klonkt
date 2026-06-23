@@ -21,6 +21,7 @@ import { ensurePrimarySite } from './services/ensurePrimarySite.js';
 import { resolveSite, loadAudioTracks, loadTheme } from './middleware/site.js';
 import { isViewer } from './middleware/auth.js';
 import { renderPage } from './middleware/render.js';
+import { audioEnabled } from './config/features.js';
 import authRoutes from './routes/auth.js';
 import accountRoutes from './routes/account.js';
 import notificationsRoutes from './routes/notifications.js';
@@ -250,8 +251,10 @@ app.use((req, res, next) => {
 app.use('/auth', authRoutes);
 app.use('/account', accountRoutes);
 app.use('/notifications', notificationsRoutes);
-app.use('/admin/audio', adminAudioRoutes);
-app.use('/admin/playlists', adminPlaylistsRoutes);
+if (audioEnabled()) {
+  app.use('/admin/audio', adminAudioRoutes);
+  app.use('/admin/playlists', adminPlaylistsRoutes);
+}
 app.use('/admin/sites', adminSitesRoutes);
 app.use('/admin/users', adminUsersRoutes);
 app.use('/admin/comments', adminCommentsRoutes);
@@ -265,7 +268,7 @@ app.use('/admin/newsletter', adminNewsletterRoutes);
 app.use('/admin/shows', adminShowsRoutes);
 app.use('/admin/epk', adminEpkRoutes);
 app.use('/admin', adminRoutes);
-app.use('/audio', audioRoutes);
+if (audioEnabled()) app.use('/audio', audioRoutes);
 app.use('/search', searchRoutes);
 app.use('/comments', commentsRoutes);
 app.use('/tag', tagsRoutes);
@@ -279,9 +282,9 @@ app.use('/', hubRoutes); // hub-overview op '/' (solo: next() -> postsRoutes)
 app.use('/', circleRoutes); // /cirkel-feed (solo/hub: next() -> postsRoutes)
 app.use('/', epkRoutes); // /pers perskit (premium; niet-premium: next() -> 404)
 app.use('/', newsletterRoutes); // /nieuwsbrief in/uitschrijven (premium; niet-premium: next())
-app.use('/', downloadRoutes); // /downloads + /download/:id download-voor-email (premium)
+if (audioEnabled()) app.use('/', downloadRoutes); // /downloads + /download/:id (audio; lite: uit)
 app.use('/', linkbioRoutes); // /links link-in-bio + klikstats (premium)
-app.use('/', embedRoutes); // /embed inbedbare audiospeler (premium)
+if (audioEnabled()) app.use('/', embedRoutes); // /embed inbedbare audiospeler (audio; lite: uit)
 app.use('/', showsRoutes); // /shows agenda + notify-me (premium)
 app.use('/', changelogRoutes); // /changelog publieke release-/wijzigingen-pagina
 app.use('/', langRoutes); // /lang/:code — interface-taal kiezen (vóór de catch-all)
