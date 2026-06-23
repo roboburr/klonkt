@@ -124,7 +124,8 @@ src/
 
 ## Licentie
 
-Open-source, zelf-hostbaar. **Definitieve licentie nog te bepalen** (richting
-AGPL-3.0). Tot dan: gebruik om zelf te hosten is welkom; vraag even bij
-herdistributie/doorverkoop. Gemaakt door robo.burr (Robin Genis) ·
+**AGPL-3.0-or-later** — zie [LICENSE](LICENSE). Klonkt is vrije software: je mag
+het gebruiken, bestuderen, aanpassen en verspreiden. De AGPL vereist wel dat een
+gewijzigde versie die je als netwerkdienst aanbiedt z'n broncode beschikbaar
+stelt aan de gebruikers ervan. Gemaakt door robo.burr (Robin Genis) ·
 <https://klonkt.com>
