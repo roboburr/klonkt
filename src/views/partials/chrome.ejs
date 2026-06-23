@@ -34,7 +34,7 @@ var _headerless = hubLanding || _isChat || _featurePage;
   <%- include('topnav') %>
   <% if (!_headerless) { %>
     <%- include('profile-header') %>
-    <% if (!_isAdmin) { %><%- include('view-switcher') %><% } %>
+    <% if (!_isAdmin && (typeof site !== 'undefined' && site)) { %><%- include('view-switcher') %><% } %>
   <% } %>
 <% } %>
 </div>
