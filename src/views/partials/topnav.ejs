@@ -68,7 +68,7 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
       <% } %>
 
       <% if (_hasSearch) { %>
-        <button type="button" class="nav-btn" id="search-toggle" aria-label="Zoeken" title="Zoeken">
+        <button type="button" class="nav-btn" id="search-toggle" aria-label="<%= t('nav.search') %>" title="<%= t('nav.search') %>">
           <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         </button>
       <% } %>
