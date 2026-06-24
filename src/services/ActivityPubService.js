@@ -287,8 +287,29 @@ export async function deliverCreate(site, post) {
   for (const inbox of inboxes) deliver(inbox, create, keyId, keys.private_pem).catch(() => { /* best-effort */ });
 }
 
+// Tell followers a post is gone (Delete + Tombstone) so it's removed from their feeds.
+export async function deliverDelete(site, post) {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  if (!base || !site || !site.slug || !post || !post.id) return;
+  const followers = fStmts().list.all(site.slug);
+  if (!followers.length) return;
+  const inboxes = [...new Set(followers.map((f) => f.shared_inbox || f.inbox).filter(Boolean))];
+  const keys = getOrCreateKeys(site.slug);
+  const me = actorId(base, site.slug);
+  const nid = noteId(base, post.id);
+  const del = {
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    id: `${nid}#delete-${Date.now()}`,
+    type: 'Delete',
+    actor: me,
+    to: [PUBLIC],
+    object: { id: nid, type: 'Tombstone' },
+  };
+  for (const inbox of inboxes) deliver(inbox, del, `${me}#main-key`, keys.private_pem).catch(() => { /* best-effort */ });
+}
+
 export default {
   getOrCreateKeys, apWants, sendAP, actorId, noteId,
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers,
-  followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate,
+  followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete,
 };

@@ -370,6 +370,13 @@ router.post('/posts/:slug/delete', requireAuth, (req, res) => {
     return res.status(403).send('No permission');
   }
 
+  // ActivityPub: tell followers the post is gone (Delete + Tombstone), but only
+  // if it was actually federated (published + not fan-only). Fire before the row
+  // is removed — we still have post.id (= the Note id).
+  if (post.status === 'published' && !post.fan_only) {
+    ActivityPubService.deliverDelete(site, post).catch(() => { /* best-effort */ });
+  }
+
   // Cascade: comments + FTS row, THEN the post itself.
   // FK constraints are ON (config/database.js), so a bare DELETE on posts
   // fails when comments still reference it.
