@@ -9,7 +9,6 @@ import db from '../config/database.js';
 import { requireAuth, requireSiteManager } from '../middleware/auth.js';
 import { renderPage } from '../middleware/render.js';
 import { recordPageview, recordPostView } from '../services/StatsService.js';
-import { notify } from '../services/NotificationService.js';
 import PermissionsService from '../services/PermissionsService.js';
 import MarkdownService from '../services/MarkdownService.js';
 import HtmlSanitizerService from '../services/HtmlSanitizerService.js';
@@ -429,61 +428,8 @@ router.get('/archive', (req, res) => {
   });
 });
 
-// Path to the like button partial (for the htmx toggle re-render).
-const LIKE_PARTIAL = path.join(__dirname, '..', 'views', 'partials', 'like-button.ejs');
-
-// ==================== LIKE / FAVOURITE ====================
-// A logged-in user (not a viewer — the global guard blocks non-GET for viewers)
-// toggles a like on a published post. Returns the re-rendered button (htmx outerHTML swap).
-router.post('/posts/:id/like', requireAuth, (req, res) => {
-  const userId = req.session.user.id;
-  const post = db.prepare('SELECT id, status, slug, title, author_id FROM posts WHERE id = ?').get(req.params.id);
-  if (!post) return res.status(404).send('Post niet gevonden');
-  if (post.status !== 'published') return res.status(403).send('Niet beschikbaar');
-
-  const exists = db.prepare('SELECT 1 FROM post_likes WHERE post_id = ? AND user_id = ?').get(post.id, userId);
-  if (exists) {
-    db.prepare('DELETE FROM post_likes WHERE post_id = ? AND user_id = ?').run(post.id, userId);
-  } else {
-    db.prepare('INSERT OR IGNORE INTO post_likes (post_id, user_id) VALUES (?, ?)').run(post.id, userId);
-    // Notification for the post author (notify skips self-likes).
-    notify({
-      userId: post.author_id, actorId: userId, actorName: req.session.user.username, type: 'like',
-      postSlug: post.slug, postTitle: post.title, url: (res.locals.siteUrlBase || '') + '/' + post.slug,
-    });
-  }
-  const likeCount = db.prepare('SELECT COUNT(*) AS c FROM post_likes WHERE post_id = ?').get(post.id).c;
-
-  const html = ejs.render(fs.readFileSync(LIKE_PARTIAL, 'utf8'), {
-    post: { id: post.id }, likedByMe: !exists, likeCount, loggedIn: true, loginNext: '/',
-  });
-  res.send(html);
-});
-
-// Favourites = posts the logged-in user has liked. Solo: within the current
-// site. Hub: across all sites (with correct /user/<slug> links).
-router.get('/favorieten', requireAuth, (req, res) => {
-  const userId = req.session.user.id;
-  const isHub = res.locals.tenancy === 'hub';
-  const site = res.locals.site;
-  const rows = isHub
-    ? db.prepare(`
-        SELECT p.id, p.slug, p.title, p.excerpt, p.cover_image_url, p.published_at,
-               p.tags, p.type, p.pinned, p.status, s.slug AS site_slug
-        FROM post_likes pl JOIN posts p ON p.id = pl.post_id JOIN sites s ON s.id = p.site_id
-        WHERE pl.user_id = ? AND p.status = 'published'
-        ORDER BY pl.created_at DESC
-      `).all(userId)
-    : db.prepare(`
-        SELECT p.id, p.slug, p.title, p.excerpt, p.cover_image_url, p.published_at,
-               p.tags, p.type, p.pinned, p.status
-        FROM post_likes pl JOIN posts p ON p.id = pl.post_id
-        WHERE pl.user_id = ? AND p.site_id = ? AND p.status = 'published'
-        ORDER BY pl.created_at DESC
-      `).all(userId, site ? site.id : '');
-  const posts = rows.map((p) => ({ ...p, _urlBase: (isHub && p.site_slug) ? `/user/${p.site_slug}` : '' }));
-  renderPage(req, res, 'pages/favorites', { posts, pageTitle: 'Favorieten', bodyClass: 'on-favorites' });
-});
+// Local likes/favourites are removed — engagement is fediverse-only now
+// (the ⭐ on a post likes via the fediverse). No post_likes, no /favorieten.
 
 // Newer/Older neighbours across ALL posts in feed order. Shared by the full
 // post render and the fan gate (premium fan_only) so navigation is consistent
@@ -868,11 +814,6 @@ router.get('/:slug', (req, res, next) => {
   // Strip the internal _overlap field before sending to view
   relatedPosts = relatedPosts.map(({ _overlap, tags, ...rest }) => ({ ...rest, _urlBase: urlBaseFor(rest) }));
 
-  // Likes / favourites: count + whether the logged-in user liked this post.
-  const likeCount = db.prepare('SELECT COUNT(*) AS c FROM post_likes WHERE post_id = ?').get(post.id).c;
-  const likedByMe = !!(req.session?.user &&
-    db.prepare('SELECT 1 FROM post_likes WHERE post_id = ? AND user_id = ?').get(post.id, req.session.user.id));
-
   // Inbound fediverse activity (threaded) for this post.
   let fediverse = { thread: [], likeCount: 0, announceCount: 0, total: 0 };
   try {
@@ -892,8 +833,6 @@ router.get('/:slug', (req, res, next) => {
     fediverse,
     canManageSite,
     siteAvatar,
-    likeCount,
-    likedByMe,
     pageTitle: post.title + ' - ' + site.title,
     socialDescr: post.excerpt || '',
     socialImage: post.cover_image_url || '',
