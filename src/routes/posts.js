@@ -517,29 +517,30 @@ function postNeighbors(site, post, isHub) {
 router.get('/authorize_interaction', requireSiteManager, async (req, res) => {
   const site = res.locals.site;
   const uri = (req.query.uri || '').toString();
+  const sent = !!req.query.sent;
   let target = null;
-  try { target = await ActivityPubService.resolveRemoteNote(uri); } catch { /* ignore */ }
+  if (!sent) { try { target = await ActivityPubService.resolveRemoteNote(uri); } catch { /* ignore */ } }
   renderPage(req, res, 'pages/authorize-interaction', {
     pageTitle: 'Reageer via de fediverse',
     bodyClass: 'on-special',
     uri,
     target,
+    sent,
     siteTitle: site ? site.title : '',
   });
 });
 
-router.post('/authorize_interaction', requireSiteManager, async (req, res) => {
+router.post('/authorize_interaction', requireSiteManager, (req, res) => {
   const site = res.locals.site;
   const uri = (req.body.uri || '').toString();
   const text = (req.body.text || '').toString();
   if (site && uri && text.trim()) {
-    try {
-      const parent = await ActivityPubService.resolveRemoteNote(uri);
-      if (parent) await ActivityPubService.deliverReply(site, { postId: '', postSlug: null, parent, text });
-    } catch (e) { console.warn('[AP] remote reply failed:', e.message); }
+    // Resolve + deliver in the background so Send responds instantly.
+    ActivityPubService.resolveRemoteNote(uri)
+      .then((parent) => parent && ActivityPubService.deliverReply(site, { postId: '', postSlug: null, parent, text }))
+      .catch((e) => console.warn('[AP] remote reply failed:', e.message));
   }
-  // Send them to the post they replied to so they can see the thread.
-  res.redirect(uri && /^https?:\/\//i.test(uri) ? uri : (res.locals.siteUrlBase || '/'));
+  res.redirect('/authorize_interaction?sent=1&uri=' + encodeURIComponent(uri));
 });
 
 // ==================== VIEW POST (last route â€” catches /:slug) ====================

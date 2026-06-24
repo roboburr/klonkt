@@ -1,4 +1,12 @@
 <div class="auth-interact">
+  <% if (typeof sent !== 'undefined' && sent) { %>
+    <h1 class="auth-interact-title"><%= t('fedi.remote_sent_title') %></h1>
+    <p class="auth-interact-note"><%= t('fedi.remote_sent') %></p>
+    <p class="auth-interact-actions">
+      <% if (uri) { %><a class="btn" href="<%= uri %>" target="_blank" rel="nofollow noopener"><%= t('fedi.remote_view_original') %></a><% } %>
+      <a class="btn btn-primary" href="/"><%= t('fedi.remote_back') %></a>
+    </p>
+  <% } else { %>
   <h1 class="auth-interact-title"><%= t('fedi.remote_title') %></h1>
 
   <% if (!target) { %>
@@ -32,6 +40,7 @@
       </div>
     </form>
     <p class="auth-interact-note"><%= t('fedi.remote_as', { site: siteTitle }) %></p>
+  <% } %>
   <% } %>
 </div>
 
