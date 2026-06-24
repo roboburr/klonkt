@@ -39,8 +39,6 @@ import tagsRoutes from './routes/tags.js';
 import typesRoutes from './routes/types.js';
 import usersRoutes from './routes/users.js';
 import feedRoutes from './routes/feed.js';
-import hubRoutes from './routes/hub.js';
-import artistsRoutes from './routes/artists.js';
 import postsRoutes from './routes/posts.js';
 import langRoutes from './routes/lang.js';
 import federationRoutes from './routes/federation.js';
@@ -319,10 +317,7 @@ app.use('/type', typesRoutes);
 app.use('/users', usersRoutes);
 // Feed/sitemap routes are mounted at root because they're at well-known paths
 app.use('/', feedRoutes);
-app.use('/leden', artistsRoutes); // searchable member directory (hub only; solo: next())
-app.get('/artiesten', (req, res) => res.redirect(301, req.originalUrl.replace(/^\/artiesten/, '/leden'))); // oude URL -> /leden
-app.use('/', hubRoutes); // hub-overview op '/' (solo: next() -> postsRoutes)
-app.use('/', circleRoutes); // /cirkel-feed (solo/hub: next() -> postsRoutes)
+app.use('/', circleRoutes); // /cirkel-feed (solo: next() -> postsRoutes)
 app.use('/', epkRoutes); // /pers perskit (premium; niet-premium: next() -> 404)
 app.use('/', newsletterRoutes); // /nieuwsbrief in/uitschrijven (premium; niet-premium: next())
 if (audioEnabled()) app.use('/', downloadRoutes); // /downloads + /download/:id (audio; lite: uit)
