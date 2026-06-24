@@ -6,15 +6,6 @@ import db from '../config/database.js';
 import { renderPage } from '../middleware/render.js';
 import { loginLimiter, registerLimiter } from '../middleware/rate-limit.js';
 import { safeNext, requireAuth } from '../middleware/auth.js';
-import { googleConfigured, authorizeUrl, exchangeCode, fetchUserinfo } from '../config/google.js';
-import { premiumUnlocked } from '../services/PatreonService.js';
-
-// Fan login (listeners signing in with Google to comment) is a premium feature:
-// available when Google is configured AND the premium layer is unlocked
-// (premium off = open to all; on = Patreon required).
-function fanLoginReady() {
-  return googleConfigured() && premiumUnlocked();
-}
 import { mailerConfigured, sendMail } from '../config/mailer.js';
 import { resolveLang, t } from '../services/i18n.js';
 import { setSetting } from '../services/SettingsService.js';
@@ -46,9 +37,8 @@ function isSetupMode() {
 }
 
 // ==================== LOGIN ====================
-// Public login page: for VISITORS only Google-login (listeners/fans).
-// The admin login (password) is intentionally NOT here — it lives hidden at
-// /auth/admin (see below), so the admin login is not visible where visitors land.
+// Single login = admin/owner password (no public/listener login anymore; social
+// interaction happens via the fediverse). /login and /auth/admin both show it.
 router.get('/login', (req, res) => {
   const next = safeNext(req.query.next) || '';
   if (req.session.user) return res.redirect(next || '/');
@@ -57,11 +47,11 @@ router.get('/login', (req, res) => {
     pageTitle: 'Inloggen',
     bodyClass: 'on-special on-auth',
     error: req.query.error || null,
-    gerr: req.query.gerr || null, // foutcode voor een rijkere uitleg (bv. 'admin')
+    gerr: null,
     success: req.query.success || null,
     username: '',
-    adminLogin: false,
-    googleReady: fanLoginReady(),
+    adminLogin: true,
+    googleReady: false,
     next,
   });
 });
@@ -262,132 +252,6 @@ router.post('/reset/:token', (req, res) => {
       updated_at = CURRENT_TIMESTAMP WHERE id = ?
   `).run(hash, row.id);
   res.redirect('/auth/admin?success=' + encodeURIComponent('Wachtwoord gereset — log nu in.'));
-});
-
-// ==================== GOOGLE LOGIN (listeners/commenters) ====================
-// Per-instance, own Google client. ALWAYS grants role member — never admin.
-router.get('/google', (req, res) => {
-  if (!fanLoginReady()) {
-    return res.redirect('/auth/login?gerr=unavailable');
-  }
-  const state = crypto.randomBytes(16).toString('hex');
-  req.session.oauthState = state;
-  req.session.oauthNext = safeNext(req.query.next) || '';
-  delete req.session.oauthLink;
-  res.redirect(authorizeUrl(state));
-});
-
-// LINK Google to the current (logged-in) account — e.g. an admin who also wants
-// to log in with Google. Requires being already logged in (with password); the
-// link stores the google_sub on their own account.
-// Only googleConfigured() needed (no premium gate — this is not fan login).
-router.get('/google/link', requireAuth, (req, res) => {
-  if (!googleConfigured()) {
-    return res.redirect('/account?error=' + encodeURIComponent('Google-login is op deze site niet ingesteld.'));
-  }
-  const state = crypto.randomBytes(16).toString('hex');
-  req.session.oauthState = state;
-  req.session.oauthLink = true; // link mode instead of login mode
-  res.redirect(authorizeUrl(state));
-});
-
-function uniqueUsername(base) {
-  let u = String(base || 'luisteraar').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 28);
-  if (u.length < 3) u = 'luisteraar';
-  let candidate = u, n = 1;
-  while (db.prepare('SELECT 1 FROM users WHERE username = ?').get(candidate)) {
-    candidate = (u.slice(0, 26) + n).slice(0, 32);
-    n++;
-  }
-  return candidate;
-}
-
-router.get('/google/callback', async (req, res) => {
-  const linking = !!req.session.oauthLink;
-  const failLogin = (code) => res.redirect('/auth/login?gerr=' + code);
-  const failLink = (msg) => res.redirect('/account?error=' + encodeURIComponent(msg));
-
-  try {
-    const { code, state } = req.query;
-    if (!code || !state || state !== req.session.oauthState) {
-      delete req.session.oauthState; delete req.session.oauthLink; delete req.session.oauthNext;
-      return linking ? failLink('Google-koppeling afgebroken of sessie verlopen. Probeer opnieuw.') : failLogin('session');
-    }
-
-    const tok = await exchangeCode(String(code));
-    const info = await fetchUserinfo(tok.access_token);
-    const email = (info.email || '').trim().toLowerCase();
-
-    // ── LINK MODE: attach Google to the current (logged-in) account ──
-    if (linking) {
-      delete req.session.oauthState; delete req.session.oauthLink;
-      if (!req.session.user) return failLogin('session');
-      if (!info.sub) return failLink('Google gaf geen account-id terug. Probeer opnieuw.');
-      if (info.email && info.email_verified === false) return failLink('Je Google-adres is niet geverifieerd.');
-      // This Google account must not already be linked to a DIFFERENT account.
-      const other = db.prepare('SELECT id FROM users WHERE google_sub = ? AND id != ?').get(info.sub, req.session.user.id);
-      if (other) return failLink('Dit Google-account is al aan een andere gebruiker gekoppeld.');
-      db.prepare(`
-        UPDATE users SET google_sub = ?, avatar_url = COALESCE(avatar_url, ?),
-          updated_at = CURRENT_TIMESTAMP WHERE id = ?
-      `).run(info.sub, info.picture || null, req.session.user.id);
-      return res.redirect('/account?success=' + encodeURIComponent('Google-account gekoppeld — je kunt nu ook met Google inloggen.'));
-    }
-
-    // ── LOGIN MODE (listeners/fans + linked admin) ──
-    if (!fanLoginReady()) return failLogin('unavailable');
-    const next = safeNext(req.session.oauthNext) || '';
-    delete req.session.oauthState; delete req.session.oauthNext;
-    if (!email || info.email_verified === false) return failLogin('email');
-
-    // Look FIRST by linked Google account (google_sub). A sub-match is explicit
-    // proof of the link → log in with their own role, EVEN IF the Google email
-    // differs from the account email (e.g. an admin who linked a different Gmail).
-    // Only then fall back to email lookup.
-    let user = info.sub ? db.prepare('SELECT * FROM users WHERE google_sub = ?').get(info.sub) : null;
-
-    if (user) {
-      // Linked account found → keep their own role. Update avatar if empty.
-      db.prepare(`
-        UPDATE users SET avatar_url = COALESCE(avatar_url, ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?
-      `).run(info.picture || null, user.id);
-    } else {
-      user = db.prepare('SELECT * FROM users WHERE LOWER(email) = ?').get(email);
-      if (user && (user.role === 'god' || user.role === 'admin')) {
-        // Admin found by email but WITHOUT a linked sub → Google never grants admin.
-        // Must first link via Account → Sign in with Google.
-        return failLogin('admin');
-      } else if (user) {
-        // Existing listener: link google_sub/avatar if missing.
-        db.prepare(`
-          UPDATE users SET google_sub = COALESCE(google_sub, ?), avatar_url = COALESCE(avatar_url, ?),
-            updated_at = CURRENT_TIMESTAMP WHERE id = ?
-        `).run(info.sub || null, info.picture || null, user.id);
-      } else {
-        // New listener — always member.
-        const userId = uuid();
-        const username = uniqueUsername(info.name || email.split('@')[0]);
-        db.prepare(`
-          INSERT INTO users (id, username, email, password_hash, role, avatar_url, theme, palette, google_sub)
-          VALUES (?, ?, ?, '!google-oauth', 'member', ?, 'dark', 'sage', ?)
-        `).run(userId, username, info.email || email, info.picture || null, info.sub || null);
-        user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
-      }
-    }
-
-    req.session.user = {
-      id: user.id, username: user.username, email: user.email, role: user.role,
-      avatar_url: user.avatar_url, palette: user.palette, theme: user.theme,
-      readonly: !!user.readonly,
-    };
-    res.redirect(next || '/');
-  } catch (e) {
-    console.error('[auth/google/callback]', e.message);
-    delete req.session.oauthState; delete req.session.oauthLink; delete req.session.oauthNext;
-    return linking
-      ? res.redirect('/account?error=' + encodeURIComponent('Google koppelen mislukt — probeer opnieuw.'))
-      : failLogin('failed');
-  }
 });
 
 // ==================== LOGOUT ====================

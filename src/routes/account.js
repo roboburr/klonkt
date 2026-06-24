@@ -23,7 +23,6 @@ import db from '../config/database.js';
 import { getPrimarySite } from '../middleware/site.js';
 import { renderPage } from '../middleware/render.js';
 import { requireAuth } from '../middleware/auth.js';
-import { googleConfigured } from '../config/google.js';
 import { toWebp } from '../services/ImageWebpService.js';
 import { SUPPORTED } from '../services/i18n.js';
 
@@ -64,7 +63,6 @@ router.get('/', requireAuth, (req, res) => {
     FROM users WHERE id = ?
   `).get(req.session.user.id);
   const hasPassword = !!(account && account.password_hash && account.password_hash !== '!google-oauth');
-  const googleLinked = !!(account && account.google_sub);
   if (account) { delete account.password_hash; delete account.google_sub; } // don't leak to the view
 
   const editableSite = ownedSite(req.session.user);
@@ -73,8 +71,6 @@ router.get('/', requireAuth, (req, res) => {
     bodyClass: 'on-special',
     account,
     hasPassword,
-    googleLinked,
-    googleAvailable: googleConfigured(),
     editableSite,
     // Display fallback: when you have no own account avatar, show your site's photo.
     siteAvatar: editableSite ? editableSite.profile_photo : null,
@@ -201,20 +197,6 @@ router.post('/password', requireAuth, (req, res) => {
     .run(newHash, req.session.user.id);
 
   res.redirect('/account?success=' + encodeURIComponent('Wachtwoord gewijzigd'));
-});
-
-// Unlink Google account. Only allowed if a password is set,
-// otherwise the user would lock themselves out (no login method left).
-router.post('/google/unlink', requireAuth, (req, res) => {
-  const row = db.prepare('SELECT password_hash, google_sub FROM users WHERE id = ?').get(req.session.user.id);
-  if (!row || !row.google_sub) {
-    return res.redirect('/account?error=' + encodeURIComponent('Er is geen Google-account gekoppeld'));
-  }
-  if (!row.password_hash || row.password_hash === '!google-oauth') {
-    return res.redirect('/account?error=' + encodeURIComponent('Stel eerst een wachtwoord in — anders kun je niet meer inloggen.'));
-  }
-  db.prepare('UPDATE users SET google_sub = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(req.session.user.id);
-  res.redirect('/account?success=' + encodeURIComponent('Google-account ontkoppeld'));
 });
 
 // ==================== UPLOAD AVATAR ====================

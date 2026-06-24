@@ -24,7 +24,6 @@ import { getTenancy, setTenancy, getSetting, setSetting } from '../services/Sett
 import { SUPPORTED } from '../services/i18n.js';
 import { mailerStatus, sendMail } from '../config/mailer.js';
 import { entitlementStatus, premiumUnlocked } from '../services/PatreonService.js';
-import { googleConfigured, redirectUri, currentClientId, clientSecretSet } from '../config/google.js';
 import { toWebp } from '../services/ImageWebpService.js';
 
 const router = express.Router();
@@ -80,12 +79,6 @@ router.get('/', requireGod, (req, res) => {
     hubHeroOverlay: clampOverlay(getSetting('hub_hero_overlay')),
     defaultLang: getSetting('default_lang') || '',
     premium: entitlementStatus(),
-    google: {
-      configured: googleConfigured(),
-      redirectUri: redirectUri(),
-      clientId: currentClientId(),
-      secretSet: clientSecretSet(),
-    },
     smtp: mailerStatus(),
     footerNewsletter: getSetting('footer_newsletter') === '1',
     success: req.query.success || null,
@@ -152,37 +145,6 @@ router.post('/', requireGod, (req, res) => {
 
     res.redirect('/admin/settings?success=' + encodeURIComponent('Opgeslagen'));
   });
-});
-
-// Google login on its own admin page (separate from the general settings).
-router.get('/google', requireGod, (req, res) => {
-  renderPage(req, res, 'pages/admin-google', {
-    pageTitle: 'Google-login',
-    bodyClass: 'on-admin',
-    google: {
-      configured: googleConfigured(),
-      redirectUri: redirectUri(),
-      clientId: currentClientId(),
-      secretSet: clientSecretSet(),
-    },
-    success: req.query.success || null,
-    error: req.query.error || null,
-  });
-});
-
-// Configure Google login (listeners) — Client ID + Secret in app_settings.
-// The redirect URI is derived from PUBLIC_BASE_URL (see config/google.js).
-router.post('/google', requireGod, (req, res) => {
-  if (req.body.clear === '1') {
-    setSetting('google_client_id', '');
-    setSetting('google_client_secret', '');
-    return res.redirect('/admin/settings?success=' + encodeURIComponent('Google-login losgekoppeld'));
-  }
-  setSetting('google_client_id', (req.body.google_client_id || '').toString().trim());
-  // Only overwrite the secret if a new value was entered (empty = leave as-is).
-  const secret = (req.body.google_client_secret || '').toString().trim();
-  if (secret) setSetting('google_client_secret', secret);
-  res.redirect('/admin/settings?success=' + encodeURIComponent('Google-login opgeslagen'));
 });
 
 // ── SMTP / e-mail-instellingen ────────────────────────────────────

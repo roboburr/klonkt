@@ -161,14 +161,6 @@
   </section>
   <% } %>
 
-  <%# Google login has its own admin page (compact link shown here). %>
-  <section class="set-card" style="margin-top:1rem">
-    <h2><%= t('aset.google_login') %></h2>
-    <p class="set-help"><%= t('aset.google_login_help') %>
-      <% if (google && google.configured) { %><strong><%= t('aset.status_set') %>&nbsp;✓</strong><% } else { %><%= t('aset.not_set_yet') %><% } %></p>
-    <div class="set-actions"><a href="/admin/settings/google" class="btn btn-primary"><%= t('aset.google_login_setup') %> &rarr;</a></div>
-  </section>
-
   <%# Newsletter signup in the footer (premium). %>
   <% if (typeof premiumUnlocked === 'undefined' || premiumUnlocked) { %>
   <section class="set-card" style="margin-top:1rem">

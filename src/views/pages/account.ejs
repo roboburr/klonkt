@@ -162,20 +162,6 @@
     </form>
   </section>
 
-  <% if (typeof googleAvailable !== 'undefined' && googleAvailable) { %>
-  <section class="ax-card">
-    <div class="ax-card-title"><%= t('acct.google_login') %></div>
-    <% if (typeof googleLinked !== 'undefined' && googleLinked) { %>
-      <p class="ax-tagline" style="margin:0 0 1rem"><%= t('acct.google_linked') %></p>
-      <form action="/account/google/unlink" method="post">
-        <button type="submit" class="ax-btn"><%= t('acct.google_unlink') %></button>
-      </form>
-    <% } else { %>
-      <p class="ax-tagline" style="margin:0 0 1rem"><%= t('acct.google_link_hint') %></p>
-      <a href="/auth/google/link" class="ax-btn ax-btn-primary" data-full-load><%= t('acct.google_link') %></a>
-    <% } %>
-  </section>
-  <% } %>
   <% } else { %>
   <section class="ax-card">
     <div class="ax-card-title"><%= t('acct.login') %></div>
