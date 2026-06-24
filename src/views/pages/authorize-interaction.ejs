@@ -13,9 +13,16 @@
       <a href="<%= target.actor_url %>" rel="nofollow noopener" target="_blank"><strong><%= target.actor_name %></strong></a>
       <span class="fedi-handle"><%= target.actor_handle %></span>
     </p>
-    <% if (target.preview) { %>
-      <blockquote class="auth-interact-preview"><%= target.preview %></blockquote>
-    <% } %>
+    <blockquote class="auth-interact-preview">
+      <% if (target.content) { %><div class="auth-interact-content"><%- target.content %></div>
+      <% } else if (target.preview) { %><%= target.preview %><% } %>
+      <% (target.images || []).forEach(function(im){ %>
+        <img class="auth-interact-img" src="<%= im %>" alt="" loading="lazy">
+      <% }); %>
+      <% if (target.url || uri) { %>
+        <p class="auth-interact-orig"><a href="<%= target.url || uri %>" target="_blank" rel="nofollow noopener"><%= t('fedi.remote_view_original') %></a></p>
+      <% } %>
+    </blockquote>
     <form method="post" action="/authorize_interaction" class="auth-interact-form">
       <input type="hidden" name="uri" value="<%= uri %>">
       <textarea name="text" rows="4" required placeholder="<%= t('fedi.reply_ph') %>"></textarea>
@@ -45,4 +52,10 @@
   }
   .auth-interact-actions { display: flex; gap: .5rem; align-items: center; }
   .auth-interact-note { color: var(--ink-soft, #999); font-size: .85rem; margin-top: 1rem; }
+  .auth-interact-content { line-height: 1.55; }
+  .auth-interact-content p { margin: .35rem 0; }
+  .auth-interact-content p:first-child { margin-top: 0; }
+  .auth-interact-img { max-width: 100%; height: auto; border-radius: 10px; margin: .5rem 0 0; display: block; }
+  .auth-interact-orig { margin: .75rem 0 0; font-size: .85rem; }
+  .auth-interact-orig a { color: var(--accent, #06c); }
 </style>

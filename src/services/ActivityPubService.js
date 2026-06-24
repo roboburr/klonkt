@@ -120,6 +120,9 @@ export function buildNote(base, site, post) {
   let body = post.content || '';
   for (const m of body.matchAll(/<img\b[^>]*\bsrc="([^"]+)"[^>]*>/gi)) urls.push(abs(m[1]));
   body = body.replace(/<img\b[^>]*>/gi, '');
+  // Strip Klonkt audio shortcodes ([[track:…]] etc.) — they'd federate raw as
+  // ugly text (audio federation itself is a later phase).
+  body = body.replace(/\[\[(track|album|playlist):[^\]]+\]\]/gi, '');
   const seen = new Set();
   const attachment = urls.filter(Boolean)
     .filter((u) => { if (seen.has(u)) return false; seen.add(u); return true; })
@@ -487,6 +490,10 @@ export async function resolveRemoteNote(url) {
   if (!actorUri) return null;
   const actor = await fetchActor(actorUri).catch(() => null);
   const ai = actorInfo(actor, actorUri);
+  const rawHtml = String(note.content || '').replace(/\[\[(track|album|playlist):[^\]]+\]\]/gi, '');
+  const images = (Array.isArray(note.attachment) ? note.attachment : [])
+    .filter((a) => a && a.url && (!a.mediaType || /^image\//i.test(a.mediaType)))
+    .map((a) => a.url);
   return {
     object_uri: note.id,
     actor_uri: actorUri,
@@ -494,6 +501,9 @@ export async function resolveRemoteNote(url) {
     actor_handle: ai.handle,
     actor_name: ai.name,
     actor_icon: ai.icon,
+    url: note.url || url,
+    content: HtmlSanitizerService.sanitize(rawHtml),       // full, sanitized
+    images,
     preview: HtmlSanitizerService.toPlainText(note.content || '').slice(0, 240),
   };
 }
