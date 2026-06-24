@@ -31,12 +31,10 @@ import adminAudioRoutes from './routes/admin-audio.js';
 import adminPlaylistsRoutes from './routes/admin-playlists.js';
 import adminSitesRoutes from './routes/admin-sites.js';
 import adminUsersRoutes from './routes/admin-users.js';
-import adminCommentsRoutes from './routes/admin-comments.js';
 import adminSettingsRoutes from './routes/admin-settings.js';
 import adminSeoRoutes from './routes/admin-seo.js';
 import audioRoutes from './routes/audio.js';
 import searchRoutes from './routes/search.js';
-import commentsRoutes from './routes/comments.js';
 import tagsRoutes from './routes/tags.js';
 import typesRoutes from './routes/types.js';
 import usersRoutes from './routes/users.js';
@@ -304,7 +302,6 @@ if (audioEnabled()) {
 }
 app.use('/admin/sites', adminSitesRoutes);
 app.use('/admin/users', adminUsersRoutes);
-app.use('/admin/comments', adminCommentsRoutes);
 app.use('/admin/settings', adminSettingsRoutes);
 app.use('/admin/seo', adminSeoRoutes);
 app.use('/admin/circle', adminCircleRoutes);
@@ -317,7 +314,6 @@ app.use('/admin/epk', adminEpkRoutes);
 app.use('/admin', adminRoutes);
 if (audioEnabled()) app.use('/audio', audioRoutes);
 app.use('/search', searchRoutes);
-app.use('/comments', commentsRoutes);
 app.use('/tag', tagsRoutes);
 app.use('/type', typesRoutes);
 app.use('/users', usersRoutes);

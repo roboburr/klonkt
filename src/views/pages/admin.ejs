@@ -30,7 +30,6 @@
       <a href="/admin/audio" class="btn"><%= t('admin.b_audio') %></a>
       <a href="/admin/playlists" class="btn"><%= t('admin.b_playlists') %></a>
       <% } %>
-      <a href="/admin/comments" class="btn"><%= t('admin.b_comments') %></a>
       <% if (primarySite) { %><a href="/admin/seo" class="btn"><%= t('admin.b_seo') %></a><% } %>
       <a href="/admin/settings" class="btn"><%= t('admin.b_settings') %></a>
     <% } else { %>
@@ -38,7 +37,6 @@
       <% if (typeof audioEnabled === 'undefined' || audioEnabled) { %>
       <a href="/admin/audio" class="btn"><%= t('admin.b_audio') %></a>
       <% } %>
-      <a href="/admin/comments" class="btn"><%= t('admin.b_comments') %></a>
       <% if (primarySite) { %>
         <a href="/admin/sites/<%= primarySite.slug %>/edit" class="btn"><%= t('admin.b_look') %></a>
       <% } else { %>

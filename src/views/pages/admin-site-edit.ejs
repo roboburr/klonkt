@@ -147,17 +147,6 @@
         <input type="checkbox" name="robots_index" value="1" <%= site.robots_index ? 'checked' : '' %>>
         <span><%= t('asite.robots_index') %></span>
       </label>
-      <label class="cb">
-        <input type="checkbox" name="require_login_to_comment" value="1" <%= site.require_login_to_comment ? 'checked' : '' %>>
-        <span><%= t('asite.require_login_comment') %></span>
-      </label>
-      <label>
-        <span><%= t('asite.comment_moderation') %></span>
-        <select name="comments_moderation_mode">
-          <option value="trust"    <%= (site.comments_moderation_mode || 'trust') === 'trust'    ? 'selected' : '' %>><%= t('asite.moderation_trust') %></option>
-          <option value="moderate" <%= site.comments_moderation_mode === 'moderate' ? 'selected' : '' %>><%= t('asite.moderation_moderate') %></option>
-        </select>
-      </label>
       <% if (typeof audioEnabled === 'undefined' || audioEnabled) { %>
       <label class="cb">
         <input type="checkbox" name="enable_audio_player" value="1" <%= site.enable_audio_player ? 'checked' : '' %>>

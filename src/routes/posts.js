@@ -709,28 +709,8 @@ router.get('/:slug', (req, res, next) => {
     post.tags = [];
   }
 
-  // Comments: top-level + replies. Two-pass build: fetch all approved
-  // comments for the post, then group replies under their parent.
-  const commentRows = db.prepare(`
-    SELECT c.id, c.parent_comment_id, c.content, c.status, c.created_at,
-           c.author_id, u.username AS author_username,
-           COALESCE(u.avatar_url, (SELECT profile_photo FROM sites WHERE owner_id = u.id AND profile_photo IS NOT NULL ORDER BY is_primary DESC, created_at ASC LIMIT 1)) AS author_avatar
-    FROM comments c JOIN users u ON u.id = c.author_id
-    WHERE c.post_id = ? AND c.status = 'approved'
-    ORDER BY c.created_at ASC
-  `).all(post.id);
-  const topLevel = [];
-  const repliesById = new Map();
-  for (const c of commentRows) {
-    if (c.parent_comment_id) {
-      if (!repliesById.has(c.parent_comment_id)) repliesById.set(c.parent_comment_id, []);
-      repliesById.get(c.parent_comment_id).push(c);
-    } else {
-      topLevel.push(c);
-    }
-  }
-  for (const c of topLevel) c.replies = repliesById.get(c.id) || [];
-  const totalComments = commentRows.length;
+  // Native comments removed: social interaction is fediverse-only (see the
+  // "From the fediverse" section below).
 
   // Prev / next chronological (kept for back-compat — "post-nav" feature
   // below the article still uses these as a simple linear navigation).
@@ -817,8 +797,6 @@ router.get('/:slug', (req, res, next) => {
     newerPost,
     olderPost,
     relatedPosts,
-    comments: topLevel,
-    totalComments,
     fediverse,
     canManageSite,
     siteAvatar,
