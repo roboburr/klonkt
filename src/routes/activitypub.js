@@ -53,7 +53,7 @@ router.get('/ap/users/:slug/outbox', (req, res) => {
   const site = publicSite(req.params.slug);
   if (!site) return res.status(404).end();
   const posts = db.prepare(
-    `SELECT id, slug, title, content, published_at, created_at
+    `SELECT id, slug, title, content, cover_image_url, published_at, created_at
      FROM posts WHERE site_id = ? AND status = 'published' AND (fan_only IS NULL OR fan_only = 0)
      ORDER BY COALESCE(published_at, created_at) DESC LIMIT 20`
   ).all(site.id);

@@ -235,7 +235,8 @@ router.post('/posts/create', requireAuth, (req, res) => {
     if (!fanOnly) {
       ActivityPubService.deliverCreate(site, {
         id: postId, slug: finalSlug, title: title || finalSlug,
-        content: cleanContent, published_at: publishedAt, created_at: now,
+        content: cleanContent, cover_image_url: cover_image_url || null,
+        published_at: publishedAt, created_at: now,
       }).catch(() => { /* best-effort */ });
     }
   }

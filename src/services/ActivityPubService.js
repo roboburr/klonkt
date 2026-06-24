@@ -105,18 +105,38 @@ export function buildNote(base, site, post) {
   // already sanitized HTML; the title is plain text, so escape it.
   const escTitle = String(post.title || '').replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
   const titleHtml = post.title ? `<p><strong>${escTitle}</strong></p>` : '';
-  const html = titleHtml + (post.content || '');
-  return {
+
+  // Images travel as AP `attachment` (Mastodon strips <img> from content). Collect
+  // the cover + any inline <img>, make absolute, then strip <img> from the content
+  // to avoid duplicate rendering on clients that DO keep them.
+  const abs = (u) => !u ? null : (/^https?:/i.test(u) ? u : `${base}${u.startsWith('/') ? '' : '/'}${u}`);
+  const mediaType = (u) => {
+    const e = ((u || '').split('?')[0].match(/\.(\w+)$/) || [])[1];
+    return ({ jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', avif: 'image/avif' })[(e || '').toLowerCase()] || 'image/jpeg';
+  };
+  const urls = [];
+  if (post.cover_image_url) urls.push(abs(post.cover_image_url));
+  let body = post.content || '';
+  for (const m of body.matchAll(/<img\b[^>]*\bsrc="([^"]+)"[^>]*>/gi)) urls.push(abs(m[1]));
+  body = body.replace(/<img\b[^>]*>/gi, '');
+  const seen = new Set();
+  const attachment = urls.filter(Boolean)
+    .filter((u) => { if (seen.has(u)) return false; seen.add(u); return true; })
+    .map((u) => ({ type: 'Document', mediaType: mediaType(u), url: u }));
+
+  const note = {
     id,
     type: 'Note',
     attributedTo: aId,
-    content: html,
+    content: titleHtml + body,
     url: human,
     published: new Date(post.published_at || post.created_at || Date.now()).toISOString(),
     to: [PUBLIC],
     cc: [`${aId}/followers`],
     tag: Array.isArray(post.tags) ? post.tags.map((t) => ({ type: 'Hashtag', name: '#' + String(t).replace(/\s+/g, '') })) : [],
   };
+  if (attachment.length) note.attachment = attachment;
+  return note;
 }
 
 export function buildCreate(base, site, post) {
