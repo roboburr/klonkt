@@ -454,6 +454,10 @@ export async function deliverReply(site, { postId, postSlug, parent, text }) {
   const mention = parent.actor_uri
     ? `<a href="${escHtml(parent.actor_url || parent.actor_uri)}" class="u-url mention">${escHtml(handle)}</a> ` : '';
   const content = `<p>${mention}${body}</p>`;
+  // Dedup: skip if the exact same reply was already sent (double-submit guard).
+  const dup = db.prepare('SELECT 1 FROM ap_outbox WHERE site_slug = ? AND IFNULL(in_reply_to, \'\') = ? AND content = ? LIMIT 1')
+    .get(site.slug, parent.object_uri || '', content);
+  if (dup) { console.log('[AP] outreply skipped (duplicate)'); return { duplicate: true, delivered: 0 }; }
   const id = crypto.randomUUID();
   iStmts().insO.run(id, site.slug, postId, postSlug || null, parent.object_uri || null, parent.actor_uri || null, handle, content);
   const row = iStmts().getO.get(id);
