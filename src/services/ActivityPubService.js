@@ -363,6 +363,8 @@ export async function handleInbox(req, slugParam) {
   // actor it claims to be. No valid signature, or signer ≠ actor → reject (no
   // forged replies/likes/follows/timeline posts). GET/discovery stays open.
   const claimedActor = typeof act.actor === 'string' ? act.actor : (act.actor && act.actor.id);
+  // Blocked actor/domain → silently drop (202, don't reveal the block).
+  if (claimedActor && isBlockedAny(claimedActor)) { console.log('[AP] inbox dropped (blocked)', claimedActor); return 202; }
   const GATED = ['Create', 'Like', 'Announce', 'Follow', 'Delete', 'Undo', 'Accept', 'Reject'];
   if (GATED.includes(type)) {
     if (!verified || !claimedActor || verified.id !== claimedActor) {
@@ -773,6 +775,60 @@ export function getNotifications(slug, limit) {
   return out.slice(0, limit || 60);
 }
 
+// ── Blocking / defederation ───────────────────────────────────────
+let _insBl, _delBl, _listBl;
+function blStmts() {
+  if (!_insBl) {
+    _insBl = db.prepare('INSERT OR IGNORE INTO ap_blocks (slug, target, kind, label, created_at) VALUES (?,?,?,?,CURRENT_TIMESTAMP)');
+    _delBl = db.prepare('DELETE FROM ap_blocks WHERE slug = ? AND target = ?');
+    _listBl = db.prepare('SELECT * FROM ap_blocks WHERE slug = ? ORDER BY created_at DESC');
+  }
+  return { ins: _insBl, del: _delBl, list: _listBl };
+}
+export function listBlocks(slug) { return blStmts().list.all(slug); }
+
+// True if an actor (or its whole domain) is blocked anywhere on this instance.
+export function isBlockedAny(actorUri) {
+  if (!actorUri) return false;
+  let domain = ''; try { domain = new URL(actorUri).host; } catch { /* ignore */ }
+  try { return !!db.prepare("SELECT 1 FROM ap_blocks WHERE (kind='actor' AND target=?) OR (kind='domain' AND target=?) LIMIT 1").get(actorUri, domain); }
+  catch { return false; }
+}
+
+function purgeBlocked(kind, target) {
+  try {
+    if (kind === 'domain') {
+      const like = `%//${target}/%`;
+      db.prepare('DELETE FROM ap_interactions WHERE actor_uri LIKE ?').run(like);
+      db.prepare('DELETE FROM ap_timeline WHERE author_uri LIKE ?').run(like);
+      db.prepare('DELETE FROM ap_followers WHERE actor_uri LIKE ?').run(like);
+    } else {
+      db.prepare('DELETE FROM ap_interactions WHERE actor_uri = ?').run(target);
+      db.prepare('DELETE FROM ap_timeline WHERE author_uri = ?').run(target);
+      db.prepare('DELETE FROM ap_followers WHERE actor_uri = ?').run(target);
+    }
+  } catch { /* best-effort */ }
+}
+
+// Block an actor (@handle or actor URL) or a whole domain; purges their content.
+export async function blockTarget(site, input) {
+  const raw = String(input || '').trim();
+  if (!site || !site.slug || !raw) return { error: 'empty' };
+  let kind, target, label;
+  if (/^https?:\/\//i.test(raw)) { kind = 'actor'; target = raw; label = raw; }
+  else if (raw.includes('@')) {
+    const actorUrl = await webfingerResolve(raw);
+    if (!actorUrl) return { error: 'not_found' };
+    kind = 'actor'; target = actorUrl; label = raw.startsWith('@') ? raw : ('@' + raw);
+  } else { kind = 'domain'; target = raw.toLowerCase(); label = raw.toLowerCase(); }
+  blStmts().ins.run(site.slug, target, kind, label);
+  purgeBlocked(kind, target);
+  console.log('[AP] block', site.slug, kind, target);
+  return { ok: true, label };
+}
+
+export function unblock(site, target) { blStmts().del.run(site.slug, target); return { ok: true }; }
+
 export default {
   getOrCreateKeys, apWants, sendAP, actorId, noteId,
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers,
@@ -780,5 +836,5 @@ export default {
   getInteractions, getInteractionById, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete,
   webfingerResolve, followActor, unfollowActor, listFollowing, getTimeline, sendInteraction,
-  getNotifications,
+  getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
 };

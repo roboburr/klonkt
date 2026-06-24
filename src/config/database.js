@@ -378,6 +378,16 @@ export function initializeDatabase() {
       UNIQUE(slug, id)
     );
     CREATE INDEX IF NOT EXISTS idx_ap_timeline_slug ON ap_timeline(slug, published);
+    CREATE TABLE IF NOT EXISTS ap_blocks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug TEXT NOT NULL,          -- our site that set the block
+      target TEXT NOT NULL,        -- actor URI (actor block) or domain (domain block)
+      kind TEXT NOT NULL,          -- 'actor' | 'domain'
+      label TEXT,                  -- display (@handle or domain)
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(slug, target)
+    );
+    CREATE INDEX IF NOT EXISTS idx_ap_blocks_target ON ap_blocks(target);
   `);
 }
 

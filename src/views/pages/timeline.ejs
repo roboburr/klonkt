@@ -48,6 +48,7 @@
               <form method="post" action="/tijdlijn/like" class="tl-act-form"><input type="hidden" name="note" value="<%= p.id %>"><input type="hidden" name="author" value="<%= p.author_uri %>"><button type="submit" class="tl-act" title="<%= t('fedi.likes') %>">⭐</button></form>
               <form method="post" action="/tijdlijn/boost" class="tl-act-form"><input type="hidden" name="note" value="<%= p.id %>"><input type="hidden" name="author" value="<%= p.author_uri %>"><button type="submit" class="tl-act" title="<%= t('fedi.boosts') %>">🔁</button></form>
               <button type="button" class="tl-act fedi-remote-reply-btn" data-fedi-uri="<%= p.id %>" data-fedi-ph="<%= t('fedi.remote_ph') %>" title="<%= t('fedi.remote_reply') %>">↩</button>
+              <form method="post" action="/blokkeren/add" class="tl-act-form" onsubmit="return confirm('<%= t('tl.block') %>?');"><input type="hidden" name="target" value="<%= p.author_uri %>"><button type="submit" class="tl-act" title="<%= t('tl.block') %>">🚫</button></form>
             </div>
           </div>
         </li>

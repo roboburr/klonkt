@@ -99,6 +99,9 @@ export async function renderPage(req, res, viewName, data = {}) {
   // for those who should see it (viewer didn't see it anywhere before).
   const _role = _u ? _u.role : null;
   const canSeeBeheer = !!(_u && (_role === 'god' || _role === 'admin' || _role === 'kijker' || userOwnsSite));
+  // Who may use the fediverse client (timeline/notifications/blocking) — actual
+  // site managers only (these routes are requireSiteManager; viewers are excluded).
+  const canManageFedi = !!(_u && (_role === 'god' || _role === 'admin' || userOwnsSite));
 
   // Interface language: session choice (this session) → logged-in user's own preference
   // (users.lang) → admin-set default (Admin → Settings) → env → browser → nl.
@@ -117,6 +120,7 @@ export async function renderPage(req, res, viewName, data = {}) {
     notifUnread: _u ? notifUnreadCount(_u.id) : 0,
     userOwnsSite,
     canSeeBeheer,
+    canManageFedi,
     isViewer: _isViewer,
     canMutate: !_isViewer,
     isPremium: isPremiumInstance(),

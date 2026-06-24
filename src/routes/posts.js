@@ -85,7 +85,7 @@ const RESERVED_SLUGS = new Set([
   'posts', 'media', 'audio', 'forum',
   'tag', 'type', 'user', 'users', 'artiesten', 'leden', 'favorieten', 'feed.xml', 'atom.xml', 'sitemap.xml',
   'manifest.webmanifest', 'sw.js', 'favicon.ico', 'favicon.svg', 'assets',
-  'authorize_interaction', 'fediverse', 'tijdlijn', 'meldingen',
+  'authorize_interaction', 'fediverse', 'tijdlijn', 'meldingen', 'blokkeren',
 ]);
 
 /**
@@ -612,6 +612,33 @@ router.get('/meldingen', requireSiteManager, (req, res) => {
   const site = res.locals.site;
   const items = site ? ActivityPubService.getNotifications(site.slug, 80) : [];
   renderPage(req, res, 'pages/fedi-notifications', { pageTitle: 'Meldingen', bodyClass: 'on-special', items });
+});
+
+// Blocking / defederation (owner-only).
+router.get('/blokkeren', requireSiteManager, (req, res) => {
+  const site = res.locals.site;
+  const blocks = site ? ActivityPubService.listBlocks(site.slug) : [];
+  renderPage(req, res, 'pages/blocks', { pageTitle: 'Blokkeren', bodyClass: 'on-special', blocks, success: req.query.success || null, error: req.query.error || null });
+});
+
+router.post('/blokkeren/add', requireSiteManager, async (req, res) => {
+  const site = res.locals.site;
+  let q = 'success=' + encodeURIComponent('Geblokkeerd');
+  if (site) {
+    try {
+      const r = await ActivityPubService.blockTarget(site, (req.body.target || '').toString());
+      if (r && r.error) q = 'error=' + encodeURIComponent(r.error === 'not_found' ? 'Account niet gevonden' : 'Voer een @handle of domein in');
+      else q = 'success=' + encodeURIComponent(((r && r.label) || '') + ' geblokkeerd');
+    } catch (e) { q = 'error=' + encodeURIComponent('Blokkeren mislukt'); }
+  }
+  const ref = req.get('Referer') || '';
+  res.redirect((ref.includes('/tijdlijn') ? '/tijdlijn?' : '/blokkeren?') + q);
+});
+
+router.post('/blokkeren/remove', requireSiteManager, (req, res) => {
+  const site = res.locals.site;
+  if (site) { try { ActivityPubService.unblock(site, (req.body.target || '').toString()); } catch (e) { /* ignore */ } }
+  res.redirect('/blokkeren?success=' + encodeURIComponent('Deblokkeerd'));
 });
 
 // ==================== VIEW POST (last route â€” catches /:slug) ====================

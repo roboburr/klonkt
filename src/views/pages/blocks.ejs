@@ -1,0 +1,41 @@
+<div class="bl-wrap">
+  <h1 class="bl-title"><%= t('blk.title') %></h1>
+  <p class="bl-lead"><%= t('blk.lead') %></p>
+  <% if (typeof success !== 'undefined' && success) { %><div class="alert alert-success"><%= success %></div><% } %>
+  <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+  <form method="post" action="/blokkeren/add" class="bl-form">
+    <input type="text" name="target" placeholder="@naam@server.social  •  server.social" autocomplete="off" spellcheck="false" required>
+    <button type="submit" class="btn btn-primary"><%= t('blk.block_btn') %></button>
+  </form>
+
+  <% if (!blocks || !blocks.length) { %>
+    <p class="bl-empty"><%= t('blk.empty') %></p>
+  <% } else { %>
+    <ul class="bl-list">
+      <% blocks.forEach(function(b){ %>
+        <li class="bl-item">
+          <span class="bl-kind"><%= b.kind === 'domain' ? '🌐' : '👤' %></span>
+          <span class="bl-label"><%= b.label || b.target %></span>
+          <form method="post" action="/blokkeren/remove"><input type="hidden" name="target" value="<%= b.target %>"><button type="submit" class="bl-unblock"><%= t('blk.unblock') %></button></form>
+        </li>
+      <% }); %>
+    </ul>
+  <% } %>
+</div>
+
+<style>
+  .bl-wrap { max-width: 560px; margin: 2rem auto; padding: 0 1rem; }
+  .bl-title { margin: 0 0 .25rem; }
+  .bl-lead { color: var(--ink-soft, #888); margin: 0 0 1.25rem; }
+  .bl-form { display: flex; gap: .5rem; margin: 0 0 1.25rem; flex-wrap: wrap; }
+  .bl-form input { flex: 1; min-width: 220px; height: 2.4rem; padding: 0 .9rem; border-radius: 999px; font: inherit;
+    border: 1px solid color-mix(in srgb, var(--ink, #000) 18%, transparent); background: color-mix(in srgb, var(--ink, #000) 4%, transparent); color: var(--ink, #000); }
+  .bl-empty { color: var(--ink-soft, #888); }
+  .bl-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .5rem; }
+  .bl-item { display: flex; align-items: center; gap: .6rem; padding: .55rem .8rem; border-radius: 12px; background: color-mix(in srgb, var(--ink, #000) 4%, transparent); border: 1px solid color-mix(in srgb, var(--ink, #000) 8%, transparent); }
+  .bl-kind { font-size: 1.05rem; }
+  .bl-label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .bl-unblock { background: none; border: 1px solid color-mix(in srgb, var(--ink, #000) 18%, transparent); border-radius: 8px; padding: .25rem .6rem; font-size: .8rem; color: var(--ink-soft, #888); cursor: pointer; }
+  .bl-unblock:hover { color: var(--ink, #000); }
+</style>
