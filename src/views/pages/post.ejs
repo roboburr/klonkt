@@ -278,12 +278,18 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
   display: flex;
   gap: 0.5rem;
   align-items: baseline;
+  flex-wrap: wrap;
+  row-gap: 0.1rem;
   font-size: 0.85rem;
   margin-bottom: 0.3rem;
 }
 .comment-author { color: var(--ink); font-weight: 600; text-decoration: none; }
 .comment-author:hover { color: var(--accent); }
 .comment-time { color: var(--ink-muted, var(--ink-soft)); }
+.comment-meta .fedi-handle { overflow-wrap: anywhere; }
+@media (max-width: 560px) {
+  .comment-meta .comment-time { flex-basis: 100%; font-size: 0.78rem; color: var(--ink-faint, var(--ink-muted)); }
+}
 .comment-content {
   white-space: pre-wrap;
   word-wrap: break-word;
