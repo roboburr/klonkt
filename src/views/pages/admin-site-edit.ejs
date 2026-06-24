@@ -120,7 +120,7 @@
         <legend><%= t('asite.palette') %></legend>
         <% palettes.forEach(function(p) { %>
           <label class="palette-swatch">
-            <input type="radio" name="palette" value="<%= p.key %>" <%= (site.palette || 'sage') === p.key ? 'checked' : '' %>>
+            <input type="radio" name="palette" value="<%= p.key %>" <%= (site.palette || 'klonkt') === p.key ? 'checked' : '' %>>
             <span class="palette-preview" aria-hidden="true">
               <span class="pp-half pp-light" style="background: <%= p.light.paper %>; color: <%= p.light.ink %>;">
                 <span class="pp-letter">Aa</span>
@@ -136,6 +136,30 @@
         <% }); %>
       </fieldset>
     </fieldset>
+
+    <%# Live preview: selecting an accent / theme / palette re-themes this page
+        instantly (reverts on reload; persists on save). %>
+    <script>
+    (function(){
+      if (window.__themePreviewWired) return; window.__themePreviewWired = true;
+      var html = document.documentElement;
+      function applyAccent(hex){
+        if(!/^#[0-9a-fA-F]{6}$/.test(hex)) return;
+        var sa = document.getElementById('pcms-site-accent');
+        if(!sa){ sa = document.createElement('style'); sa.id = 'pcms-site-accent'; document.head.appendChild(sa); }
+        sa.textContent = ':root,[data-palette]{--accent:'+hex+';--accent-soft:color-mix(in srgb,'+hex+' 80%,white);--accent-tint:color-mix(in srgb,'+hex+' 12%,transparent);}';
+      }
+      document.addEventListener('change', function(e){
+        var t = e.target; if(!t || !t.name) return;
+        if(t.name === 'palette'){ html.setAttribute('data-palette', t.value); }
+        else if(t.name === 'accent'){ applyAccent(t.value); }
+        else if(t.name === 'theme_override'){
+          if(t.value === 'light' || t.value === 'dark'){ html.setAttribute('data-theme', t.value); }
+          else { var dk = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches; html.setAttribute('data-theme', dk ? 'dark' : 'light'); }
+        }
+      });
+    })();
+    </script>
 
     <fieldset>
       <legend><%= t('asite.behavior') %></legend>
