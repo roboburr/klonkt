@@ -70,6 +70,10 @@
     <% if (canMutate) { %>
       <form action="/account/profile" method="post" class="ax-form ax-form-bio">
         <label class="ax-field">
+          <span><%= t('acct.username') %></span>
+          <input type="text" name="username" value="<%= account.username %>" minlength="2" maxlength="30" pattern="[A-Za-z0-9_\-]{2,30}" autocomplete="username">
+        </label>
+        <label class="ax-field">
           <span><%= t('acct.email') %></span>
           <input type="email" name="email" value="<%= account.email || '' %>" maxlength="254" autocomplete="email" placeholder="<%= t('acct.email_ph') %>">
         </label>

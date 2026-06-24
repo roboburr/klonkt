@@ -123,8 +123,28 @@ router.post('/site', requireAuth, (req, res) => {
 });
 
 // ==================== UPDATE BIO ====================
+const RESERVED_USERNAMES = new Set(['admin', 'account', 'auth', 'login', 'register', 'logout', 'user', 'users', 'api', 'fediverse', 'posts', 'media', 'audio', 'assets', 'cirkel', 'authorize_interaction']);
+
 router.post('/profile', requireAuth, (req, res) => {
   const bio = (req.body.bio || '').toString().slice(0, 500).trim();
+
+  // Username (login + display name; does NOT affect the fediverse handle, which
+  // is the site slug). Validate: format + reserved + unique (case-insensitive).
+  const username = (req.body.username || '').toString().trim();
+  if (username && username !== req.session.user.username) {
+    if (!/^[A-Za-z0-9_-]{2,30}$/.test(username)) {
+      return res.redirect('/account?error=' + encodeURIComponent('Gebruikersnaam: 2-30 tekens; letters, cijfers, _ en - .'));
+    }
+    if (RESERVED_USERNAMES.has(username.toLowerCase())) {
+      return res.redirect('/account?error=' + encodeURIComponent('Die gebruikersnaam is gereserveerd.'));
+    }
+    const uTaken = db.prepare('SELECT 1 FROM users WHERE LOWER(username) = LOWER(?) AND id != ?').get(username, req.session.user.id);
+    if (uTaken) {
+      return res.redirect('/account?error=' + encodeURIComponent('Die gebruikersnaam is al in gebruik.'));
+    }
+    db.prepare('UPDATE users SET username = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(username, req.session.user.id);
+    req.session.user.username = username;
+  }
 
   // Email (optionally also changed). Validation: valid format + not already in use
   // by another account. Email is the login/reset anchor, so it must be unique.
