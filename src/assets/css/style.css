@@ -4418,7 +4418,7 @@ body:not(.has-audio-player) #pcms-audio-player.is-hidden {
 .post-fediverse details[open] .fedi-reply-toggle { margin-bottom: .5rem; }
 
 /* Reply-via-fediverse CTA on post pages */
-.post-fediverse-cta { margin: 1.75rem 0; }
+.post-fediverse-cta { margin: 1.75rem 0; display: flex; align-items: center; min-height: 2.4rem; }
 .fedi-remote-reply-btn { display: inline-flex; align-items: center; gap: .45rem; }
 .post-fediverse-cta .fedi-remote-reply-btn {
   border: 1px solid color-mix(in srgb, var(--accent, #888) 55%, transparent);
@@ -4431,7 +4431,7 @@ body:not(.has-audio-player) #pcms-audio-player.is-hidden {
 .post-fediverse .comment-actions .fedi-remote-reply-btn { gap: .3rem; }
 
 /* Inline "reply via fediverse" address form (replaces the browser prompt) */
-.fedi-remote-form { display: inline-flex; align-items: center; gap: .4rem; margin: .55rem 0 0; flex-wrap: wrap; }
+.fedi-remote-form { display: inline-flex; align-items: center; gap: .4rem; margin: 0; flex-wrap: wrap; }
 .fedi-remote-form input {
   height: 2.2rem; padding: 0 .9rem; border-radius: 999px; font: inherit; min-width: 230px;
   border: 1px solid color-mix(in srgb, var(--ink, #000) 18%, transparent);
