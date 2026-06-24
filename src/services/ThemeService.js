@@ -5,11 +5,11 @@
  * - Klonkt (default, navy + gold brand)
  * - Paper (minimalist white)
  * - Forest (greens)
- * - Stone (warm grays)
  * - Sunset (pink)
- * - Cream (amber beige)
- * - Terracotta (burnt orange, key 'mint')
+ * - Sand (warm paper, clay accent — key 'cream')
  * - Lilac (purple)
+ * - Ocean (klonkt navy + blue accent)
+ * - Candy (klonkt navy + candy-red accent)
  *
  * Dark/Light mode toggle stored per user
  */
@@ -34,26 +34,28 @@ class ThemeService {
       light: { paper: '#f2f6ed', ink: '#1a2e15', accent: '#4d7c2a' },
       dark: { paper: '#0d1f12', ink: '#dcf2d0', accent: '#6fae3f' }
     },
-    stone: {
-      name: 'Stone',
-      light: { paper: '#f5f0e8', ink: '#2b2218', accent: '#8a6a45' },
-      dark: { paper: '#1a130b', ink: '#f5e9d5', accent: '#b89366' }
-    },
     sunset: {
       name: 'Sunset',
       light: { paper: '#fdf4f3', ink: '#2e1618', accent: '#d6477f' },
       dark: { paper: '#1f0a14', ink: '#fce7f3', accent: '#f06fa3' }
     },
+    // Warm paper — soft off-white + clay accent (deliberately NOT bright yellow).
+    // key stays 'cream' (DB-safe).
     cream: {
-      name: 'Cream',
-      light: { paper: '#fefaf0', ink: '#2a1f0f', accent: '#d97706' },
-      dark: { paper: '#1a1208', ink: '#fef3d6', accent: '#f0a93a' }
+      name: 'Sand',
+      light: { paper: '#f7f3ec', ink: '#232019', accent: '#bf6a45' },
+      dark: { paper: '#14120d', ink: '#efe9dd', accent: '#d6845f' }
     },
-    // key stays 'mint' (DB-safe), but recolored to warm Terracotta — less green.
-    mint: {
-      name: 'Terracotta',
-      light: { paper: '#faf2ee', ink: '#2e1a12', accent: '#c2410c' },
-      dark: { paper: '#1f120c', ink: '#f7e6da', accent: '#e8783f' }
+    // Ocean & Candy = the klonkt palette (navy + off-white) with a different accent.
+    ocean: {
+      name: 'Ocean',
+      light: { paper: '#f3f1ea', ink: '#11141c', accent: '#1d6fe0' },
+      dark: { paper: '#0b0d12', ink: '#f3f1ea', accent: '#4f9bff' }
+    },
+    candy: {
+      name: 'Candy',
+      light: { paper: '#f3f1ea', ink: '#11141c', accent: '#e11d48' },
+      dark: { paper: '#0b0d12', ink: '#f3f1ea', accent: '#fb5c7d' }
     },
     lilac: {
       name: 'Lilac',
@@ -71,8 +73,7 @@ class ThemeService {
   // more warm + purple/pink variation. All readable on both light and dark.
   static ACCENTS = [
     { key: 'klonkt',  name: 'Klonkt-geel', color: '#e8b04b' },
-    { key: 'red',     name: 'Rood',      color: '#dc2626' },
-    { key: 'orange',  name: 'Oranje',    color: '#ea580c' },
+    { key: 'red',     name: 'Candy-rood', color: '#e11d48' },
     { key: 'amber',   name: 'Amber',     color: '#d97706' },
     { key: 'forest',  name: 'Groen',     color: '#16a34a' },
     { key: 'teal',    name: 'Turquoise', color: '#0d9488' },
@@ -81,7 +82,6 @@ class ThemeService {
     { key: 'violet',  name: 'Violet',    color: '#7c3aed' },
     { key: 'plum',    name: 'Magenta',   color: '#c026d3' },
     { key: 'pink',    name: 'Roze',      color: '#db2777' },
-    { key: 'brown',   name: 'Bruin',     color: '#9a3412' },
   ];
 
   static listAccents() {

@@ -223,23 +223,61 @@ input[type="datetime-local"]:hover::-webkit-calendar-picker-indicator { opacity:
     --rule: #4a1f35; --rule-2: #5e2d43;
 }
 
-/* ── CREAM ── warm papier → caramel-donker ── */
+/* ── SAND ── warm papier (subtiel, niet fel geel) → warm donker ── (key blijft 'cream') */
 [data-palette="cream"] {
-    --paper: #fefaf0; --paper-2: #f5ebd5;
-    --ink: #2a1f0f; --ink-soft: #4a3820; --ink-muted: #786140; --ink-faint: #ad9068;
-    --rule: #e8d9b0; --rule-2: #d1bc8a;
+    --paper: #f7f3ec; --paper-2: #ece5d8;
+    --ink: #232019; --ink-soft: #43392c; --ink-muted: #6f6149; --ink-faint: #a3957c;
+    --rule: #ddd3c0; --rule-2: #c9bca3;
 }
 @media (prefers-color-scheme: dark) {
     [data-palette="cream"]:not([data-theme="light"]) {
-        --paper: #1a1208; --paper-2: #2e2012;
-        --ink: #fef3d6; --ink-soft: #e0cfa0; --ink-muted: #b0996b; --ink-faint: #7a6848;
-        --rule: #3d2c16; --rule-2: #523d1f;
+        --paper: #14120d; --paper-2: #221e15;
+        --ink: #efe9dd; --ink-soft: #d0c6b2; --ink-muted: #a3957c; --ink-faint: #6f6149;
+        --rule: #322c20; --rule-2: #463d2c;
     }
 }
 [data-theme="dark"][data-palette="cream"] {
-    --paper: #1a1208; --paper-2: #2e2012;
-    --ink: #fef3d6; --ink-soft: #e0cfa0; --ink-muted: #b0996b; --ink-faint: #7a6848;
-    --rule: #3d2c16; --rule-2: #523d1f;
+    --paper: #14120d; --paper-2: #221e15;
+    --ink: #efe9dd; --ink-soft: #d0c6b2; --ink-muted: #a3957c; --ink-faint: #6f6149;
+    --rule: #322c20; --rule-2: #463d2c;
+}
+
+/* ── OCEAN ── klonkt-structuur (navy → off-white), blauw accent ── */
+[data-palette="ocean"] {
+    --paper: #f3f1ea; --paper-2: #e7e4d9;
+    --ink: #11141c; --ink-soft: #2b3040; --ink-muted: #5b6473; --ink-faint: #9aa3b2;
+    --rule: #d8d4c6; --rule-2: #c5c0af;
+}
+@media (prefers-color-scheme: dark) {
+    [data-palette="ocean"]:not([data-theme="light"]) {
+        --paper: #0b0d12; --paper-2: #11141c;
+        --ink: #f3f1ea; --ink-soft: #c8cdd6; --ink-muted: #9aa3b2; --ink-faint: #6b7280;
+        --rule: #232a38; --rule-2: #2b3040;
+    }
+}
+[data-theme="dark"][data-palette="ocean"] {
+    --paper: #0b0d12; --paper-2: #11141c;
+    --ink: #f3f1ea; --ink-soft: #c8cdd6; --ink-muted: #9aa3b2; --ink-faint: #6b7280;
+    --rule: #232a38; --rule-2: #2b3040;
+}
+
+/* ── CANDY ── klonkt-structuur (navy → off-white), candy-rood accent ── */
+[data-palette="candy"] {
+    --paper: #f3f1ea; --paper-2: #e7e4d9;
+    --ink: #11141c; --ink-soft: #2b3040; --ink-muted: #5b6473; --ink-faint: #9aa3b2;
+    --rule: #d8d4c6; --rule-2: #c5c0af;
+}
+@media (prefers-color-scheme: dark) {
+    [data-palette="candy"]:not([data-theme="light"]) {
+        --paper: #0b0d12; --paper-2: #11141c;
+        --ink: #f3f1ea; --ink-soft: #c8cdd6; --ink-muted: #9aa3b2; --ink-faint: #6b7280;
+        --rule: #232a38; --rule-2: #2b3040;
+    }
+}
+[data-theme="dark"][data-palette="candy"] {
+    --paper: #0b0d12; --paper-2: #11141c;
+    --ink: #f3f1ea; --ink-soft: #c8cdd6; --ink-muted: #9aa3b2; --ink-faint: #6b7280;
+    --rule: #232a38; --rule-2: #2b3040;
 }
 
 /* ── ROSE ── zacht roze → wijnrood ── */
