@@ -536,6 +536,9 @@ export async function resolveRemoteNote(url) {
   if (!actorUri) return null;
   const actor = await fetchActor(actorUri).catch(() => null);
   const ai = actorInfo(actor, actorUri);
+  // Is what we're replying to a post (or a comment) on one of OUR posts? If so,
+  // link our reply to that local post so it shows nested in the post thread.
+  const localTgt = findThreadTarget(note.id, (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, ''));
   // If this note is itself a reply (a comment), also reach the original post's
   // author so THEIR server threads our reply under the comment.
   let threadInbox = null;
@@ -563,6 +566,7 @@ export async function resolveRemoteNote(url) {
     content: HtmlSanitizerService.sanitize(rawHtml),       // full, sanitized
     images,
     threadInbox,                                            // post author's inbox (if a comment)
+    localPostId: localTgt ? localTgt.post_id : '',          // our post this belongs to (if any)
     preview: HtmlSanitizerService.toPlainText(note.content || '').slice(0, 240),
   };
 }

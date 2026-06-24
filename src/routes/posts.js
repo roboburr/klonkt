@@ -537,7 +537,7 @@ router.post('/authorize_interaction', requireSiteManager, (req, res) => {
   if (site && uri && text.trim()) {
     // Resolve + deliver in the background so Send responds instantly.
     ActivityPubService.resolveRemoteNote(uri)
-      .then((parent) => parent && ActivityPubService.deliverReply(site, { postId: '', postSlug: null, parent, text }))
+      .then((parent) => parent && ActivityPubService.deliverReply(site, { postId: parent.localPostId || '', postSlug: null, parent, text }))
       .catch((e) => console.warn('[AP] remote reply failed:', e.message));
   }
   res.redirect('/authorize_interaction?sent=1&uri=' + encodeURIComponent(uri));
