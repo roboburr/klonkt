@@ -19,15 +19,6 @@
           <small><%= t('aset.solo_desc') %></small>
         </span>
       </label>
-      <% var _hubLocked = (typeof premiumUnlocked !== 'undefined') && !premiumUnlocked && tenancy !== 'hub'; %>
-      <label class="set-opt">
-        <input type="radio" name="tenancy" value="hub" <%= tenancy === 'hub' ? 'checked' : '' %> <%= _hubLocked ? 'disabled' : '' %>>
-        <span>
-          <strong><%= t('aset.hub') %></strong> — <%= t('aset.hub_title') %> <code>/user/</code>.
-          <% if (_hubLocked) { %><span style="display:inline-block;font-size:.7rem;font-weight:700;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:.05rem .45rem;margin-left:.3rem;vertical-align:1px;">🔒 <%= t('aset.premium_badge') %></span><% } %>
-          <small><%= t('aset.hub_desc') %><% if (_hubLocked) { %> <em><%= t('aset.hub_locked_note') %></em><% } %></small>
-        </span>
-      </label>
       <label class="set-opt">
         <input type="radio" name="tenancy" value="circle" <%= tenancy === 'circle' ? 'checked' : '' %>>
         <span>
@@ -77,57 +68,7 @@
     </form>
   </section>
 
-  <%# Mode-specific config — placed directly below the Mode card so it visually
-      belongs to the selected mode (Hub under hub, Circle under circle). %>
-  <% if (tenancy === 'hub') { %>
-  <section class="set-card set-card--mode" style="margin-top:1rem">
-    <h2><%= t('aset.hub_home') %></h2>
-    <p class="set-help">
-      <%= t('aset.hub_home_help_1') %> (<code>/</code>) <%= t('aset.hub_home_help_2') %> <code>/user/</code>.
-    </p>
-    <form method="post" action="/admin/settings" class="set-form" enctype="multipart/form-data">
-      <label class="set-field">
-        <span><%= t('aset.name') %></span>
-        <input type="text" name="hub_title" maxlength="80" value="<%= hubTitle %>" placeholder="<%= t('aset.name_ph') %>">
-      </label>
-      <label class="set-field">
-        <span><%= t('aset.tagline') %></span>
-        <input type="text" name="hub_tagline" maxlength="120" value="<%= hubTagline %>" placeholder="<%= t('aset.tagline_ph') %>">
-      </label>
-      <label class="set-field">
-        <span><%= t('aset.intro') %></span>
-        <textarea name="hub_intro" maxlength="400" rows="3" placeholder="<%= t('aset.intro_ph') %>"><%= hubIntro %></textarea>
-      </label>
-      <label class="set-field">
-        <span><%= t('aset.hero_image') %> <small style="font-weight:400;color:var(--ink-muted)">— <%= t('aset.hero_image_hint') %></small></span>
-        <input type="text" name="hub_hero_image" maxlength="300" value="<%= hubHeroImage %>" placeholder="/media/... of https://...">
-      </label>
-      <label class="set-field">
-        <span><%= t('aset.hero_upload') %> <small style="font-weight:400;color:var(--ink-muted)">— <%= t('aset.hero_upload_hint') %></small></span>
-        <input type="file" name="hub_hero_file" accept="image/png,image/jpeg,image/webp,image/gif">
-      </label>
-      <label class="set-field">
-        <span><%= t('aset.hero_overlay') %> <small style="font-weight:400;color:var(--ink-muted)">— <%= t('aset.hero_overlay_hint') %></small></span>
-        <span style="display:flex;align-items:center;gap:0.75rem">
-          <input type="range" name="hub_hero_overlay" min="0" max="100" step="5" value="<%= hubHeroOverlay %>" style="flex:1"
-            oninput="this.parentNode.querySelector('.ov-val').textContent=this.value+'%';var o=document.getElementById('hero-ov-preview');if(o)o.style.opacity=this.value/100">
-          <span class="ov-val" style="min-width:3.5ch;text-align:right;font-variant-numeric:tabular-nums"><%= hubHeroOverlay %>%</span>
-        </span>
-      </label>
-      <% if (hubHeroImage) { %>
-      <div class="set-field">
-        <span style="font-weight:400;color:var(--ink-muted);font-size:0.9rem"><%= t('aset.preview_overlay') %></span>
-        <div style="position:relative;width:100%;aspect-ratio:16/7;margin-top:0.4rem;border-radius:8px;overflow:hidden;border:1px solid var(--rule);background:var(--paper-2)">
-          <img src="<%= hubHeroImage %>" alt="<%= t('aset.hero_preview_alt') %>" style="display:block;width:100%;height:100%;object-fit:cover">
-          <div id="hero-ov-preview" style="position:absolute;inset:0;background:#000;opacity:<%= (hubHeroOverlay/100).toFixed(2) %>;pointer-events:none"></div>
-        </div>
-      </div>
-      <% } %>
-      <button type="submit" class="btn btn-primary"><%= t('aset.save') %></button>
-    </form>
-  </section>
-  <% } %>
-
+  <%# Mode-specific config — Circle settings below the mode card. (Hub removed.) %>
   <% if (tenancy === 'circle') { %>
   <section class="set-card set-card--mode" style="margin-top:1rem">
     <h2>🔗 <%= t('aset.your_circle') %></h2>

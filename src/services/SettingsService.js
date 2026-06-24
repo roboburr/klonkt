@@ -1,7 +1,12 @@
 // Global app settings (key/value, cached). Primarily used for the tenancy mode.
 //
-//   tenancy = 'solo'  -> exactly one site (the primary/owner site)
-//   tenancy = 'hub'   -> main site (company) + /user/, admin assigns Klonkt sites
+//   tenancy = 'solo'   -> exactly one site (the primary/owner site)
+//   tenancy = 'circle' -> solo site that federates with other solo Klonkt sites
+//
+// HUB MODE IS REMOVED (2026-06-24): multi-artist-per-domain was dropped in favour
+// of solo + Cirkels. getTenancy() coerces any legacy 'hub' value to 'solo' so all
+// the old `tenancy === 'hub'` branches are unreachable; the hub code is being
+// deleted incrementally.
 //
 // The cache is updated immediately on setSetting, so a toggle in admin
 // takes effect live without a restart.
@@ -35,10 +40,11 @@ export function setSetting(key, value) {
 
 export function getTenancy() {
   const v = getSetting('tenancy', 'solo');
-  return v === 'hub' ? 'hub' : v === 'circle' ? 'circle' : 'solo';
+  // 'hub' is removed → coerce legacy values to 'solo'.
+  return v === 'circle' ? 'circle' : 'solo';
 }
 
 export function setTenancy(mode) {
-  const m = (mode === 'hub' || mode === 'circle') ? mode : 'solo';
+  const m = mode === 'circle' ? 'circle' : 'solo';
   setSetting('tenancy', m);
 }

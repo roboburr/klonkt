@@ -95,13 +95,8 @@ router.post('/', requireGod, (req, res) => {
     }
 
     if (typeof req.body.tenancy !== 'undefined') {
-      // Hub mode is a premium feature: only switch to hub if premium is
-      // unlocked (premium layer off = free; on = Patreon required). Staying on
-      // hub is always allowed, so an instance can never get stuck.
-      if (req.body.tenancy === 'hub' && !premiumUnlocked() && getTenancy() !== 'hub') {
-        return res.redirect('/admin/settings?error=' + encodeURIComponent('Hub-modus is een premium-functie — koppel Patreon in Beheer → Instellingen.'));
-      }
-      setTenancy(req.body.tenancy); // valideert naar solo | hub | circle
+      // Hub mode is removed → setTenancy only accepts solo | circle (coerces the rest).
+      setTenancy(req.body.tenancy);
     }
     if (typeof req.body.default_lang !== 'undefined') {
       // Default language for visitors (empty = follow env/browser). Validated against NL/EN/DE.
