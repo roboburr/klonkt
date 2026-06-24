@@ -72,11 +72,20 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
   <% if (post.status === 'published') { %>
     <section class="post-fediverse post-comments" id="fediverse">
       <h2 class="comments-heading"><%= t('fedi.heading') %></h2>
-      <p class="fedi-stats">
-        <button type="button" class="fedi-stat-btn fedi-remote-reply-btn" data-fedi-uri="<%= _postAbsUrl %>" data-fedi-ph="<%= t('fedi.remote_ph') %>" title="<%= t('like.fedi_title') %>">⭐ <%= _fedi.likeCount %></button>
-        <span title="<%= t('fedi.boosts') %>">🔁 <%= _fedi.announceCount %></span>
-        <span title="<%= t('fedi.replies') %>">💬 <%= (_fedi.thread || []).length %></span>
-      </p>
+      <div class="fedi-stats">
+        <button type="button" class="fedi-stat fedi-stat-btn fedi-remote-reply-btn" data-fedi-uri="<%= _postAbsUrl %>" data-fedi-ph="<%= t('fedi.remote_ph') %>" title="<%= t('like.fedi_title') %>">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <span><%= _fedi.likeCount %></span>
+        </button>
+        <span class="fedi-stat" title="<%= t('fedi.boosts') %>">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+          <span><%= _fedi.announceCount %></span>
+        </span>
+        <span class="fedi-stat" title="<%= t('fedi.replies') %>">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <span><%= (_fedi.thread || []).length %></span>
+        </span>
+      </div>
       <% if (_fedi.thread && _fedi.thread.length) { %>
         <ol class="comments-list">
           <% _fedi.thread.forEach(function(n){ %>

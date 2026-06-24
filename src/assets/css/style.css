@@ -4467,16 +4467,18 @@ body:not(.has-audio-player) #pcms-audio-player.is-hidden {
 }
 
 /* === Fediverse interactions — inherits the native .comment styling === */
-.post-fediverse .fedi-stats { display: flex; gap: .55rem; margin: .25rem 0 1.25rem; align-items: center; }
-.post-fediverse .fedi-stats span,
-.post-fediverse .fedi-stats .fedi-stat-btn {
-  display: inline-flex; align-items: center; gap: .35rem;
-  padding: .2rem .65rem; border-radius: 999px; font-size: .82rem;
-  color: var(--ink-soft, #888);
-  background: color-mix(in srgb, currentColor 12%, transparent);
+.post-fediverse .fedi-stats { display: flex; gap: .45rem; margin: .35rem 0 1.5rem; align-items: center; }
+.post-fediverse .fedi-stat {
+  display: inline-flex; align-items: center; gap: .4rem;
+  padding: .32rem .7rem; border-radius: 999px; font-size: .85rem; line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-muted); background: transparent;
+  border: 1px solid var(--rule);
 }
-.post-fediverse .fedi-stats .fedi-stat-btn { border: 0; cursor: pointer; font-family: inherit; }
-.post-fediverse .fedi-stats .fedi-stat-btn:hover { color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.post-fediverse .fedi-stat svg { width: 15px; height: 15px; }
+.post-fediverse .fedi-stat-btn { cursor: pointer; font: inherit; line-height: 1; transition: color .15s, border-color .15s, background .15s; }
+.post-fediverse .fedi-stat-btn:hover { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 55%, var(--rule)); background: var(--accent-tint); }
+.post-fediverse .fedi-stat-btn:hover svg { fill: color-mix(in srgb, var(--accent) 22%, transparent); }
 .post-fediverse .fedi-handle { color: var(--ink-soft, #888); font-size: .82rem; }
 .post-fediverse .comment-content p { margin: .2rem 0; }
 .post-fediverse .comment-content p:first-child { margin-top: 0; }
