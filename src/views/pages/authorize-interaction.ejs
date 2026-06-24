@@ -1,22 +1,24 @@
 <div class="auth-interact">
   <% if (typeof manage !== 'undefined' && manage) { %>
     <h1 class="auth-interact-title"><%= t('fedi.manage_title') %></h1>
-    <% if (!manage.length) { %><p class="auth-interact-note"><%= t('fedi.manage_empty') %></p><% } %>
-    <ol class="comments-list">
-      <% manage.forEach(function(m){ %>
-        <li class="comment">
-          <div class="comment-body">
-            <div class="comment-content"><%- m.content %></div>
-            <div class="comment-actions">
-              <% if (m.to_handle) { %><span class="fedi-handle">→ <%= m.to_handle %></span><% } %>
+    <% if (!manage.length) { %>
+      <p class="auth-interact-note"><%= t('fedi.manage_empty') %></p>
+    <% } else { %>
+      <ul class="fedi-manage">
+        <% manage.forEach(function(m){ %>
+          <li class="fedi-manage-item">
+            <div class="fedi-manage-content"><%- m.content %></div>
+            <div class="fedi-manage-foot">
+              <span class="fedi-manage-meta"><% if (m.to_handle) { %>→ <%= m.to_handle %><% } %><% if (m.created_at && typeof formatDateTime === 'function') { %> · <%= formatDateTime(m.created_at) %><% } %></span>
               <form method="post" action="/fediverse/<%= m.id %>/delete" onsubmit="return confirm('<%= t('fedi.delete_confirm') %>')">
-                <button type="submit" class="comment-delete-btn"><%= t('comments.delete') %></button>
+                <button type="submit" class="fedi-del-btn"><%= t('comments.delete') %></button>
               </form>
             </div>
-          </div>
-        </li>
-      <% }); %>
-    </ol>
+          </li>
+        <% }); %>
+      </ul>
+    <% } %>
+    <p class="auth-interact-note"><a href="/"><%= t('fedi.remote_back') %></a></p>
   <% } else if (typeof sent !== 'undefined' && sent) { %>
     <h1 class="auth-interact-title"><%= t('fedi.remote_sent_title') %></h1>
     <p class="auth-interact-note"><%= t('fedi.remote_sent') %></p>
@@ -85,4 +87,14 @@
   .auth-interact-img { max-width: 100%; height: auto; border-radius: 10px; margin: .5rem 0 0; display: block; }
   .auth-interact-orig { margin: .75rem 0 0; font-size: .85rem; }
   .auth-interact-orig a { color: var(--accent, #06c); }
+  .fedi-manage { list-style: none; padding: 0; margin: 1.25rem 0 1rem; display: flex; flex-direction: column; gap: .7rem; }
+  .fedi-manage-item { padding: .85rem 1rem; border-radius: 14px; background: color-mix(in srgb, var(--ink, #000) 4%, transparent); border: 1px solid color-mix(in srgb, var(--ink, #000) 9%, transparent); }
+  .fedi-manage-content { line-height: 1.5; overflow-wrap: anywhere; }
+  .fedi-manage-content p { margin: .15rem 0; }
+  .fedi-manage-content p:first-child { margin-top: 0; }
+  .fedi-manage-content p:last-child { margin-bottom: 0; }
+  .fedi-manage-foot { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: .6rem; flex-wrap: wrap; }
+  .fedi-manage-meta { color: var(--ink-soft, #999); font-size: .8rem; }
+  .fedi-del-btn { border: 1px solid color-mix(in srgb, #d9534f 50%, transparent); background: color-mix(in srgb, #d9534f 12%, transparent); color: #e06b66; border-radius: 8px; padding: .3rem .75rem; font-size: .82rem; cursor: pointer; transition: background .15s ease; }
+  .fedi-del-btn:hover { background: color-mix(in srgb, #d9534f 24%, transparent); }
 </style>
