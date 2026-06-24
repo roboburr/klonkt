@@ -108,6 +108,13 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
                       </div>
                     </form>
                   </details>
+                <% } else if (r.object_uri) { %>
+                  <div class="comment-actions">
+                    <button type="button" class="comment-reply-btn fedi-remote-reply-btn" data-fedi-uri="<%= r.object_uri %>" data-fedi-prompt="<%= t('fedi.remote_prompt') %>">
+                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+                      <%= t('fedi.remote_reply_short') %>
+                    </button>
+                  </div>
                 <% } %>
 
                 <% var mine = (typeof fediverse.outReplies !== 'undefined' ? fediverse.outReplies : []).filter(function(o){ return o.in_reply_to && o.in_reply_to === r.object_uri; }); %>
@@ -138,7 +145,10 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
   <!-- Reply via the fediverse (remote interaction: bounces to the visitor's own server) -->
   <% var _postAbsUrl = (typeof ogOrigin !== 'undefined' && ogOrigin ? ogOrigin : '') + (typeof _base !== 'undefined' && _base ? _base : '') + '/' + post.slug; %>
   <div class="post-fediverse-cta">
-    <button type="button" class="btn fedi-remote-reply-btn" data-fedi-uri="<%= _postAbsUrl %>" data-fedi-prompt="<%= t('fedi.remote_prompt') %>">🐘 <%= t('fedi.remote_reply') %></button>
+    <button type="button" class="btn fedi-remote-reply-btn" data-fedi-uri="<%= _postAbsUrl %>" data-fedi-prompt="<%= t('fedi.remote_prompt') %>">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+      <%= t('fedi.remote_reply') %>
+    </button>
   </div>
   <script>
   (function(){

@@ -4419,4 +4419,13 @@ body:not(.has-audio-player) #pcms-audio-player.is-hidden {
 
 /* Reply-via-fediverse CTA on post pages */
 .post-fediverse-cta { margin: 1.75rem 0; }
-.fedi-remote-reply-btn { display: inline-flex; align-items: center; gap: .4rem; }
+.fedi-remote-reply-btn { display: inline-flex; align-items: center; gap: .45rem; }
+.post-fediverse-cta .fedi-remote-reply-btn {
+  border: 1px solid color-mix(in srgb, var(--accent, #888) 55%, transparent);
+  background: color-mix(in srgb, var(--accent, #888) 10%, transparent);
+  color: var(--ink, inherit); border-radius: 999px; padding: .5rem 1.05rem;
+  font-weight: 600; cursor: pointer; transition: background .15s ease;
+}
+.post-fediverse-cta .fedi-remote-reply-btn:hover { background: color-mix(in srgb, var(--accent, #888) 22%, transparent); }
+.post-fediverse-cta .fedi-remote-reply-btn svg { color: var(--accent, currentColor); }
+.post-fediverse .comment-actions .fedi-remote-reply-btn { gap: .3rem; }
