@@ -85,7 +85,7 @@ const RESERVED_SLUGS = new Set([
   'posts', 'media', 'audio', 'forum',
   'tag', 'type', 'user', 'users', 'artiesten', 'leden', 'favorieten', 'feed.xml', 'atom.xml', 'sitemap.xml',
   'manifest.webmanifest', 'sw.js', 'favicon.ico', 'favicon.svg', 'assets',
-  'authorize_interaction', 'fediverse',
+  'authorize_interaction', 'fediverse', 'tijdlijn',
 ]);
 
 /**
@@ -560,6 +560,39 @@ router.post('/fediverse/:id/delete', requireSiteManager, async (req, res) => {
     catch (e) { console.warn('[AP] outbox delete failed:', e.message); }
   }
   res.redirect(req.get('Referer') || `${res.locals.siteUrlBase || ''}/fediverse`);
+});
+
+// ==================== FEDIVERSE CLIENT: home timeline + following ====================
+router.get('/tijdlijn', requireSiteManager, (req, res) => {
+  const site = res.locals.site;
+  const following = site ? ActivityPubService.listFollowing(site.slug) : [];
+  const timeline = site ? ActivityPubService.getTimeline(site.slug, 60) : [];
+  renderPage(req, res, 'pages/timeline', {
+    pageTitle: 'Tijdlijn', bodyClass: 'on-special',
+    following, timeline,
+    success: req.query.success || null, error: req.query.error || null,
+  });
+});
+
+router.post('/tijdlijn/follow', requireSiteManager, async (req, res) => {
+  const site = res.locals.site;
+  const handle = (req.body.handle || '').toString();
+  let q = 'success=' + encodeURIComponent('Volgverzoek verstuurd');
+  if (site && handle.trim()) {
+    try {
+      const r = await ActivityPubService.followActor(site, handle);
+      if (r && r.error) q = 'error=' + encodeURIComponent(r.error === 'not_found' ? 'Account niet gevonden' : (r.error === 'unreachable' ? 'Server onbereikbaar' : 'Volgen mislukt'));
+      else q = 'success=' + encodeURIComponent('Je volgt nu ' + ((r && r.name) || handle));
+    } catch (e) { q = 'error=' + encodeURIComponent('Volgen mislukt'); }
+  }
+  res.redirect('/tijdlijn?' + q);
+});
+
+router.post('/tijdlijn/unfollow', requireSiteManager, async (req, res) => {
+  const site = res.locals.site;
+  const actorUri = (req.body.actor_uri || '').toString();
+  if (site && actorUri) { try { await ActivityPubService.unfollowActor(site, actorUri); } catch (e) { /* ignore */ } }
+  res.redirect('/tijdlijn?success=' + encodeURIComponent('Ontvolgd'));
 });
 
 // ==================== VIEW POST (last route â€” catches /:slug) ====================

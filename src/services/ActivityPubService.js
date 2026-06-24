@@ -405,6 +405,18 @@ export async function handleInbox(req, slugParam) {
       const html = HtmlSanitizerService.sanitize(o.content || '');
       iStmts().ins.run('reply', tgt.post_id, o.id || '', actorUri, ai.name, ai.handle, ai.url, ai.icon, html, o.published || null, tgt.parent_uri);
       console.log('[AP] reply', actorUri, '→', tgt.post_id);
+      return 202;
+    }
+    // Home timeline (client): a top-level post from an account we follow.
+    if (actorUri && !isLocalActor && !o.inReplyTo && o.id) {
+      let subs = []; try { subs = db.prepare('SELECT slug FROM ap_following WHERE actor_uri = ?').all(actorUri); } catch { /* table may not exist yet */ }
+      if (subs.length) {
+        const ai = actorInfo(await resolveActor(actorUri), actorUri);
+        const html = HtmlSanitizerService.sanitize(o.content || '');
+        const media = JSON.stringify((Array.isArray(o.attachment) ? o.attachment : []).filter((a) => a && a.url).map((a) => ({ url: a.url, type: a.mediaType || '' })));
+        for (const s of subs) tlStmts().ins.run(o.id, s.slug, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.url || null, o.published || null, media);
+        console.log('[AP] timeline +', actorUri, 'x' + subs.length);
+      }
     }
     return 202;
   }
@@ -419,9 +431,21 @@ export async function handleInbox(req, slugParam) {
     return 202;
   }
   if (type === 'Delete') {
-    // A remote reply was deleted upstream → drop it if we stored it.
+    // A remote note was deleted upstream → drop it from replies AND the timeline.
     const oid = typeof act.object === 'string' ? act.object : (act.object && act.object.id);
-    if (oid) iStmts().delReply.run(oid);
+    if (oid) { iStmts().delReply.run(oid); try { tlStmts().del.run(oid); } catch { /* ignore */ } }
+    return 202;
+  }
+  // Accept/Reject of a Follow WE sent (client side).
+  if (type === 'Accept' && act.object) {
+    const fid = typeof act.object === 'string' ? act.object : (act.object && act.object.id);
+    if (fid) { try { fwStmts().acc.run(fid); } catch { /* ignore */ } }
+    console.log('[AP] follow accepted', actorUri);
+    return 202;
+  }
+  if (type === 'Reject' && act.object) {
+    const who = actorUri;
+    if (who && slugParam) { try { fwStmts().del.run(slugParam, who); } catch { /* ignore */ } }
     return 202;
   }
 
@@ -615,10 +639,85 @@ export async function deliverOutboxDelete(site, outboxId) {
   return true;
 }
 
+// ── Fediverse CLIENT: follow accounts + home timeline ─────────────
+// Resolve an @user@domain handle to its actor URL via WebFinger.
+export async function webfingerResolve(handle) {
+  const h = String(handle || '').trim().replace(/^@/, '');
+  const parts = h.split('@');
+  if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
+  const acct = `${parts[0]}@${parts[1]}`;
+  try {
+    const r = await fetch(`https://${parts[1]}/.well-known/webfinger?resource=acct:${encodeURIComponent(acct)}`,
+      { headers: { Accept: 'application/jrd+json, application/json' }, redirect: 'follow', signal: AbortSignal.timeout(8000) });
+    if (!r.ok) return null;
+    const jrd = await r.json();
+    const link = (jrd.links || []).find((l) => l.rel === 'self' && /activity\+json|ld\+json/.test(l.type || ''));
+    return link ? link.href : null;
+  } catch { return null; }
+}
+
+let _insFw, _delFw, _listFw, _accFw, _oneFw;
+function fwStmts() {
+  if (!_insFw) {
+    _insFw = db.prepare('INSERT OR REPLACE INTO ap_following (slug, actor_uri, handle, name, icon, url, inbox, follow_id, status, created_at) VALUES (?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)');
+    _delFw = db.prepare('DELETE FROM ap_following WHERE slug = ? AND actor_uri = ?');
+    _listFw = db.prepare('SELECT * FROM ap_following WHERE slug = ? ORDER BY created_at DESC');
+    _accFw = db.prepare("UPDATE ap_following SET status = 'accepted' WHERE follow_id = ?");
+    _oneFw = db.prepare('SELECT * FROM ap_following WHERE slug = ? AND actor_uri = ?');
+  }
+  return { ins: _insFw, del: _delFw, list: _listFw, acc: _accFw, one: _oneFw };
+}
+export function listFollowing(slug) { return fwStmts().list.all(slug); }
+
+let _insTl, _listTl, _delTl;
+function tlStmts() {
+  if (!_insTl) {
+    _insTl = db.prepare('INSERT OR IGNORE INTO ap_timeline (id, slug, author_uri, author_name, author_handle, author_icon, author_url, content, url, published, media_json, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)');
+    _listTl = db.prepare('SELECT * FROM ap_timeline WHERE slug = ? ORDER BY COALESCE(published, created_at) DESC LIMIT ?');
+    _delTl = db.prepare('DELETE FROM ap_timeline WHERE id = ?');
+  }
+  return { ins: _insTl, list: _listTl, del: _delTl };
+}
+export function getTimeline(slug, limit) { return tlStmts().list.all(slug, limit || 50); }
+
+// Follow a fediverse account by @handle (WebFinger → actor → signed Follow).
+export async function followActor(site, handle) {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  if (!base || !site || !site.slug) return { error: 'config' };
+  const actorUrl = await webfingerResolve(handle);
+  if (!actorUrl) return { error: 'not_found' };
+  const actor = await fetchActor(actorUrl).catch(() => null);
+  if (!actor || !actor.id || !actor.inbox) return { error: 'unreachable' };
+  const ai = actorInfo(actor, actor.id);
+  const me = actorId(base, site.slug);
+  const keys = getOrCreateKeys(site.slug);
+  const followId = `${me}#follow-${Date.now()}`;
+  fwStmts().ins.run(site.slug, actor.id, ai.handle, ai.name, ai.icon, ai.url, actor.inbox, followId, 'pending');
+  const follow = { '@context': 'https://www.w3.org/ns/activitystreams', id: followId, type: 'Follow', actor: me, object: actor.id };
+  try { await deliver(actor.inbox, follow, `${me}#main-key`, keys.private_pem); }
+  catch (e) { console.warn('[AP] follow deliver failed:', e.message); }
+  console.log('[AP] follow', site.slug, '→', actor.id);
+  return { ok: true, name: ai.name, handle: ai.handle };
+}
+
+export async function unfollowActor(site, actorUri) {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  const me = actorId(base, site.slug);
+  const keys = getOrCreateKeys(site.slug);
+  const row = fwStmts().one.get(site.slug, actorUri);
+  if (row && row.inbox) {
+    const undo = { '@context': 'https://www.w3.org/ns/activitystreams', id: `${me}#unfollow-${Date.now()}`, type: 'Undo', actor: me, object: { id: row.follow_id || `${me}#follow`, type: 'Follow', actor: me, object: actorUri } };
+    try { await deliver(row.inbox, undo, `${me}#main-key`, keys.private_pem); } catch { /* best-effort */ }
+  }
+  fwStmts().del.run(site.slug, actorUri);
+  return { ok: true };
+}
+
 export default {
   getOrCreateKeys, apWants, sendAP, actorId, noteId,
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers,
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete,
   getInteractions, getInteractionById, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete,
+  webfingerResolve, followActor, unfollowActor, listFollowing, getTimeline,
 };

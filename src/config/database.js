@@ -355,6 +355,30 @@ export function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_ap_outbox_post ON ap_outbox(post_id);
   `);
   ensureColumn('ap_interactions', 'parent_uri', 'TEXT'); // nesting (existing DBs)
+
+  // Fediverse CLIENT: accounts WE follow (outbound) + the home timeline of their posts.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS ap_following (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug TEXT NOT NULL,            -- our site that follows
+      actor_uri TEXT NOT NULL,       -- the followed account's actor id
+      handle TEXT, name TEXT, icon TEXT, url TEXT,
+      inbox TEXT,                    -- their inbox (for Create delivery / Undo)
+      follow_id TEXT,                -- the Follow activity id we sent (Accept matching)
+      status TEXT DEFAULT 'pending', -- pending | accepted
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(slug, actor_uri)
+    );
+    CREATE TABLE IF NOT EXISTS ap_timeline (
+      id TEXT NOT NULL,              -- the remote note's AP id
+      slug TEXT NOT NULL,            -- whose home timeline (our site)
+      author_uri TEXT, author_name TEXT, author_handle TEXT, author_icon TEXT, author_url TEXT,
+      content TEXT, url TEXT, published TEXT, media_json TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(slug, id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_ap_timeline_slug ON ap_timeline(slug, published);
+  `);
 }
 
 function ensureColumn(table, column, definition) {
