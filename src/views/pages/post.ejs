@@ -95,6 +95,20 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
                   <% if (r.published || r.created_at) { %><time class="fedi-time"><%= formatDateTime(r.published || r.created_at) %></time><% } %>
                 </div>
                 <div class="fedi-text"><%- r.content %></div>
+                <% var mine = (typeof fediverse.outReplies !== 'undefined' ? fediverse.outReplies : []).filter(function(o){ return o.in_reply_to && o.in_reply_to === r.object_uri; }); %>
+                <% mine.forEach(function(o){ %>
+                  <div class="fedi-ours"><span class="fedi-ours-label"><%= t('fedi.you') %></span> <span class="fedi-ours-body"><%- o.content %></span></div>
+                <% }); %>
+                <% if (typeof canManageSite !== 'undefined' && canManageSite) { %>
+                  <details class="fedi-replybox">
+                    <summary><%= t('fedi.reply') %></summary>
+                    <form method="post" action="<%= _base %>/posts/<%= post.slug %>/fedi-reply">
+                      <input type="hidden" name="interaction_id" value="<%= r.id %>">
+                      <textarea name="text" rows="2" required placeholder="<%= t('fedi.reply_ph') %>"></textarea>
+                      <button type="submit" class="btn btn-primary"><%= t('fedi.send') %></button>
+                    </form>
+                  </details>
+                <% } %>
               </div>
             </li>
           <% }); %>

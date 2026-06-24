@@ -331,6 +331,18 @@ export function initializeDatabase() {
       UNIQUE(kind, post_id, actor_uri, object_uri)
     );
     CREATE INDEX IF NOT EXISTS idx_ap_inter_post ON ap_interactions(post_id, kind);
+    CREATE TABLE IF NOT EXISTS ap_outbox (
+      id TEXT PRIMARY KEY,            -- note path segment (uuid) → /ap/notes/<id>
+      site_slug TEXT NOT NULL,
+      post_id TEXT NOT NULL,
+      post_slug TEXT,
+      in_reply_to TEXT,               -- remote status uri we reply to
+      to_actor TEXT,                  -- remote actor uri (mentioned)
+      to_handle TEXT,
+      content TEXT NOT NULL,          -- sanitized HTML of our reply
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_ap_outbox_post ON ap_outbox(post_id);
   `);
 }
 

@@ -73,7 +73,12 @@ router.get('/ap/notes/:id', (req, res) => {
   const post = db.prepare(
     "SELECT * FROM posts WHERE id = ? AND status = 'published' AND (fan_only IS NULL OR fan_only = 0)"
   ).get(req.params.id);
-  if (!post) return res.status(404).end();
+  if (!post) {
+    // Could be one of OUR outbound replies (ap_outbox), not a post.
+    const note = AP.getOutboxNote(baseUrl(req), req.params.id);
+    if (note) return AP.sendAP(res, { '@context': 'https://www.w3.org/ns/activitystreams', ...note });
+    return res.status(404).end();
+  }
   const site = db.prepare('SELECT * FROM sites WHERE id = ?').get(post.site_id);
   if (!site) return res.status(404).end();
   AP.sendAP(res, { '@context': 'https://www.w3.org/ns/activitystreams', ...AP.buildNote(baseUrl(req), site, post) });

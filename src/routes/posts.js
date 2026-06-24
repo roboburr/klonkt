@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 import multer from 'multer';
 import ejs from 'ejs';
 import db from '../config/database.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, requireSiteManager } from '../middleware/auth.js';
 import { renderPage } from '../middleware/render.js';
 import { recordPageview, recordPostView } from '../services/StatsService.js';
 import { notify } from '../services/NotificationService.js';
@@ -748,8 +748,10 @@ router.get('/:slug', (req, res, next) => {
     db.prepare('SELECT 1 FROM post_likes WHERE post_id = ? AND user_id = ?').get(post.id, req.session.user.id));
 
   // Inbound fediverse activity (replies/likes/boosts) for this post.
-  let fediverse = { replies: [], likeCount: 0, announceCount: 0, total: 0 };
+  let fediverse = { replies: [], outReplies: [], likeCount: 0, announceCount: 0, total: 0 };
   try { fediverse = ActivityPubService.getInteractions(post.id); } catch { /* non-fatal */ }
+  // Owner/admin of this site may reply back to a fediverse interaction.
+  const canManageSite = !!(req.session?.user && PermissionsService.canAdminSite(req.session.user, site));
 
   renderPage(req, res, 'pages/post', {
     post,
@@ -759,6 +761,7 @@ router.get('/:slug', (req, res, next) => {
     comments: topLevel,
     totalComments,
     fediverse,
+    canManageSite,
     likeCount,
     likedByMe,
     pageTitle: post.title + ' - ' + site.title,
@@ -766,6 +769,22 @@ router.get('/:slug', (req, res, next) => {
     socialImage: post.cover_image_url || '',
     bodyClass: 'on-post',
   });
+});
+
+// ── Reply back to a fediverse interaction (site owner/admin only) ──
+router.post('/posts/:slug/fedi-reply', requireSiteManager, async (req, res) => {
+  const site = res.locals.site;
+  if (!site) return res.status(404).send('Site required');
+  const post = db.prepare('SELECT id, slug FROM posts WHERE site_id = ? AND slug = ?').get(site.id, req.params.slug);
+  if (!post) return res.status(404).send('Not found');
+  const parent = ActivityPubService.getInteractionById(req.body.interaction_id);
+  const text = (req.body.text || '').toString();
+  if (parent && parent.post_id === post.id && text.trim()) {
+    try {
+      await ActivityPubService.deliverReply(site, { postId: post.id, postSlug: post.slug, parent, text });
+    } catch (e) { console.warn('[AP] reply send failed:', e.message); }
+  }
+  res.redirect(`${res.locals.siteUrlBase || ''}/${post.slug}#fediverse`);
 });
 
 export default router;

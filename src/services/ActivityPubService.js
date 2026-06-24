@@ -190,17 +190,23 @@ function fStmts() {
 }
 export function followerCount(slug) { return fStmts().cnt.get(slug).n; }
 
-// ── inbound interactions store (replies / likes / boosts), lazy stmts ──
-let _insI, _delLA, _delReply, _listI;
+// ── inbound interactions store (replies / likes / boosts) + our outbound replies ──
+let _insI, _delLA, _delReply, _listI, _getI, _insO, _listO, _getO;
 function iStmts() {
   if (!_insI) {
     _insI = db.prepare('INSERT OR IGNORE INTO ap_interactions (kind, post_id, object_uri, actor_uri, actor_name, actor_handle, actor_url, actor_icon, content, published, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)');
     _delLA = db.prepare('DELETE FROM ap_interactions WHERE kind = ? AND post_id = ? AND actor_uri = ?');
     _delReply = db.prepare("DELETE FROM ap_interactions WHERE kind = 'reply' AND object_uri = ?");
-    _listI = db.prepare('SELECT kind, actor_uri, actor_name, actor_handle, actor_url, actor_icon, content, published, created_at FROM ap_interactions WHERE post_id = ? ORDER BY created_at ASC');
+    _listI = db.prepare('SELECT id, kind, object_uri, actor_uri, actor_name, actor_handle, actor_url, actor_icon, content, published, created_at FROM ap_interactions WHERE post_id = ? ORDER BY created_at ASC');
+    _getI = db.prepare('SELECT * FROM ap_interactions WHERE id = ?');
+    _insO = db.prepare('INSERT INTO ap_outbox (id, site_slug, post_id, post_slug, in_reply_to, to_actor, to_handle, content, created_at) VALUES (?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)');
+    _listO = db.prepare('SELECT * FROM ap_outbox WHERE post_id = ? ORDER BY created_at ASC');
+    _getO = db.prepare('SELECT * FROM ap_outbox WHERE id = ?');
   }
-  return { ins: _insI, delLA: _delLA, delReply: _delReply, list: _listI };
+  return { ins: _insI, delLA: _delLA, delReply: _delReply, list: _listI, getI: _getI, insO: _insO, listO: _listO, getO: _getO };
 }
+
+export function getInteractionById(id) { return iStmts().getI.get(id); }
 
 const localPostExists = (id) => { try { return !!db.prepare('SELECT 1 FROM posts WHERE id = ?').get(id); } catch { return false; } };
 // Extract our local post id from a note URL, but only if it's ours (base match).
@@ -225,14 +231,20 @@ function actorInfo(doc, actorUri) {
   };
 }
 
-// Stored, view-ready summary of a post's inbound fediverse activity.
+// Stored, view-ready summary of a post's inbound fediverse activity + our replies.
 export function getInteractions(postId) {
-  const rows = iStmts().list.all(postId);
+  const s = iStmts();
+  const rows = s.list.all(postId);
+  const outReplies = s.listO.all(postId).map((o) => ({
+    id: o.id, content: o.content, in_reply_to: o.in_reply_to, to_handle: o.to_handle,
+    created_at: o.created_at, mine: true,
+  }));
   return {
     replies: rows.filter((r) => r.kind === 'reply'),
+    outReplies,
     likeCount: rows.filter((r) => r.kind === 'like').length,
     announceCount: rows.filter((r) => r.kind === 'announce').length,
-    total: rows.length,
+    total: rows.length + outReplies.length,
   };
 }
 
@@ -398,9 +410,75 @@ export async function deliverDelete(site, post) {
   for (const inbox of inboxes) deliver(inbox, del, `${me}#main-key`, keys.private_pem).catch(() => { /* best-effort */ });
 }
 
+// ── outbound replies (Klonkt → fediverse) ─────────────────────────
+const escHtml = (s) => String(s || '').replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+const toISO = (v) => { if (!v) return new Date().toISOString(); const s = String(v); const d = new Date(/[TZ]/.test(s) ? s : s.replace(' ', 'T') + 'Z'); return isNaN(d) ? new Date().toISOString() : d.toISOString(); };
+
+// Build one of OUR outbound reply Notes from an ap_outbox row.
+export function buildReplyNote(base, site, row) {
+  const me = actorId(base, site.slug);
+  return {
+    id: noteId(base, row.id),
+    type: 'Note',
+    attributedTo: me,
+    inReplyTo: row.in_reply_to || undefined,
+    content: row.content,
+    url: row.post_slug ? `${base}/${encodeURIComponent(row.post_slug)}` : undefined,
+    published: toISO(row.created_at),
+    to: row.to_actor ? [row.to_actor] : [PUBLIC],
+    cc: [PUBLIC, `${me}/followers`],
+    tag: row.to_actor ? [{ type: 'Mention', href: row.to_actor, name: row.to_handle }] : [],
+  };
+}
+
+// Resolve one of our outbound reply Notes by id (for /ap/notes/:id fallback).
+export function getOutboxNote(base, id) {
+  const row = iStmts().getO.get(id);
+  if (!row) return null;
+  const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(row.site_slug);
+  if (!site) return null;
+  return buildReplyNote(base, site, row);
+}
+
+// Send a reply FROM this site to a remote actor (in reply to their inbound reply).
+// `parent` = an ap_interactions row (actor_uri, actor_url, actor_handle, object_uri).
+export async function deliverReply(site, { postId, postSlug, parent, text }) {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  if (!base || !site || !site.slug || !parent || !String(text || '').trim()) return null;
+  const me = actorId(base, site.slug);
+  const handle = parent.actor_handle || deriveHandle(parent.actor_uri);
+  const body = escHtml(String(text).trim()).replace(/\r?\n/g, '<br>');
+  const mention = parent.actor_uri
+    ? `<a href="${escHtml(parent.actor_url || parent.actor_uri)}" class="u-url mention">${escHtml(handle)}</a> ` : '';
+  const content = `<p>${mention}${body}</p>`;
+  const id = crypto.randomUUID();
+  iStmts().insO.run(id, site.slug, postId, postSlug || null, parent.object_uri || null, parent.actor_uri || null, handle, content);
+  const row = iStmts().getO.get(id);
+  const note = buildReplyNote(base, site, row);
+  const create = {
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    id: note.id + '#create', type: 'Create', actor: me,
+    published: note.published, to: note.to, cc: note.cc, object: note,
+  };
+  const keys = getOrCreateKeys(site.slug);
+  const keyId = `${me}#main-key`;
+  const inboxes = new Set();
+  if (parent.actor_uri) {
+    const a = await fetchActor(parent.actor_uri).catch(() => null);
+    if (a) inboxes.add((a.endpoints && a.endpoints.sharedInbox) || a.inbox);
+  }
+  for (const f of fStmts().list.all(site.slug)) inboxes.add(f.shared_inbox || f.inbox);
+  let delivered = 0;
+  for (const inbox of [...inboxes].filter(Boolean)) {
+    try { const st = await deliver(inbox, create, keyId, keys.private_pem); if (st >= 200 && st < 300) delivered++; } catch { /* best-effort */ }
+  }
+  console.log('[AP] outreply', site.slug, '→', parent.actor_uri, 'delivered', delivered);
+  return { id, content, delivered };
+}
+
 export default {
   getOrCreateKeys, apWants, sendAP, actorId, noteId,
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers,
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete,
-  getInteractions,
+  getInteractions, getInteractionById, buildReplyNote, getOutboxNote, deliverReply,
 };

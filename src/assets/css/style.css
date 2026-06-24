@@ -4433,3 +4433,20 @@ body:not(.has-audio-player) #pcms-audio-player.is-hidden {
 .post-fediverse .fedi-text p { margin: .25rem 0; }
 .post-fediverse .fedi-text p:first-child { margin-top: 0; }
 .post-fediverse .fedi-text a { color: var(--accent, #06c); }
+.post-fediverse .fedi-ours {
+  margin: .6rem 0 0; padding: .55rem .75rem; border-radius: 12px;
+  border-left: 3px solid var(--accent, #888);
+  background: color-mix(in srgb, var(--accent, #888) 8%, transparent);
+  font-size: .95rem;
+}
+.post-fediverse .fedi-ours-label { font-weight: 600; color: var(--accent, #555); margin-right: .25rem; }
+.post-fediverse .fedi-ours-body p { margin: 0; display: inline; }
+.post-fediverse .fedi-replybox { margin-top: .55rem; }
+.post-fediverse .fedi-replybox summary { cursor: pointer; font-size: .85rem; color: var(--ink-soft, #888); width: fit-content; }
+.post-fediverse .fedi-replybox form { display: flex; flex-direction: column; gap: .5rem; margin-top: .5rem; }
+.post-fediverse .fedi-replybox textarea {
+  width: 100%; box-sizing: border-box; resize: vertical; padding: .55rem .7rem;
+  border-radius: 10px; border: 1px solid color-mix(in srgb, var(--ink, #000) 18%, transparent);
+  background: var(--paper, #fff); color: var(--ink, #000); font: inherit;
+}
+.post-fediverse .fedi-replybox button { align-self: flex-end; }
