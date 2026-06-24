@@ -385,12 +385,14 @@ export async function handleInbox(req, slugParam) {
 
   const actorUri = typeof act.actor === 'string' ? act.actor : (act.actor && act.actor.id);
   const resolveActor = async (uri) => ((verified && verified.id === uri) ? verified : await fetchActor(uri).catch(() => null));
+  // Activities from our OWN actors are already stored via ap_outbox — don't re-store.
+  const isLocalActor = !!(base && actorUri && actorUri.startsWith(`${base}/ap/users/`));
 
   // Inbound reply: a Create whose object replies to one of our notes (post OR comment).
   if (type === 'Create' && act.object && (act.object.type === 'Note' || act.object.type === 'Article')) {
     const o = act.object;
     const tgt = findThreadTarget(o.inReplyTo, base);
-    if (tgt && actorUri) {
+    if (tgt && actorUri && !isLocalActor) {
       const ai = actorInfo(await resolveActor(actorUri), actorUri);
       const html = HtmlSanitizerService.sanitize(o.content || '');
       iStmts().ins.run('reply', tgt.post_id, o.id || '', actorUri, ai.name, ai.handle, ai.url, ai.icon, html, o.published || null, tgt.parent_uri);
@@ -401,7 +403,7 @@ export async function handleInbox(req, slugParam) {
   if (type === 'Like' || type === 'Announce') {
     const tgt = act.object;
     const pid = postIdFromNoteUrl(typeof tgt === 'string' ? tgt : (tgt && tgt.id), base);
-    if (pid && actorUri && localPostExists(pid)) {
+    if (pid && actorUri && !isLocalActor && localPostExists(pid)) {
       const ai = actorInfo(await resolveActor(actorUri), actorUri);
       iStmts().ins.run(type.toLowerCase(), pid, '', actorUri, ai.name, ai.handle, ai.url, ai.icon, null, null, null);
       console.log('[AP]', type === 'Like' ? 'like' : 'boost', actorUri, '→', pid);
@@ -517,6 +519,8 @@ export async function deliverReply(site, { postId, postSlug, parent, text }) {
   }
   if (parent.threadInbox) inboxes.add(parent.threadInbox); // post author's server (nesting)
   for (const f of fStmts().list.all(site.slug)) inboxes.add(f.shared_inbox || f.inbox);
+  inboxes.delete(`${me}/inbox`);       // never deliver to ourselves (already in ap_outbox)
+  inboxes.delete(`${base}/ap/inbox`);  // (our own shared inbox) → avoids a self-duplicate
   let delivered = 0;
   for (const inbox of [...inboxes].filter(Boolean)) {
     try { const st = await deliver(inbox, create, keyId, keys.private_pem); if (st >= 200 && st < 300) delivered++; } catch { /* best-effort */ }
