@@ -63,6 +63,7 @@ import adminShowsRoutes from './routes/admin-shows.js';
 import adminEpkRoutes from './routes/admin-epk.js';
 import changelogRoutes from './routes/changelog.js';
 import ogRoutes from './routes/og.js';
+import apRoutes from './routes/activitypub.js';
 
 // SESSION_SECRET: use the env var if set. Otherwise auto-generate a strong one
 // and persist it next to the database, so it stays stable across restarts and
@@ -221,6 +222,9 @@ startCircleSyncLoop();
 // Circle federation: public, site-agnostic endpoints (/.klonkt/*).
 // Before resolveSite/theme — they don't need a site context.
 app.use(federationRoutes);
+
+// ActivityPub: WebFinger + /ap/* (site-agnostic, resolves the site by slug).
+app.use(apRoutes);
 
 // Themed OG cards (/og/:slug.png) — resolve the site by slug themselves, so they
 // run before resolveSite and need no site context.

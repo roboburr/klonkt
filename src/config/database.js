@@ -294,6 +294,28 @@ export function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_post_likes_user ON post_likes(user_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_post_likes_post ON post_likes(post_id);
   `);
+
+  // ── ActivityPub (fediverse bridge) ──────────────────────────
+  // RSA keypair per actor (Mastodon-compatible HTTP Signatures; separate from
+  // the Cirkels Ed25519 keys). ap_followers = remote AP actors following us.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS ap_keys (
+      slug TEXT PRIMARY KEY,
+      public_pem TEXT NOT NULL,
+      private_pem TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS ap_followers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug TEXT NOT NULL,
+      actor_uri TEXT NOT NULL,
+      inbox TEXT,
+      shared_inbox TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(slug, actor_uri)
+    );
+    CREATE INDEX IF NOT EXISTS idx_ap_followers_slug ON ap_followers(slug);
+  `);
 }
 
 function ensureColumn(table, column, definition) {

@@ -1,0 +1,89 @@
+/**
+ * ActivityPub — public endpoints (Phase 1: discover + fetch).
+ *
+ *   GET /.well-known/webfinger?resource=acct:<slug>@<host>
+ *   GET /ap/users/:slug            actor (content-negotiated: AP-JSON vs redirect to HTML profile)
+ *   GET /ap/users/:slug/outbox     OrderedCollection of Create(Note)
+ *   GET /ap/users/:slug/followers  count-only OrderedCollection
+ *   GET /ap/notes/:id              a single Note
+ *   POST /ap/users/:slug/inbox, /ap/inbox  → 202 (Follow/Accept + signature verify: next step)
+ *
+ * Mounted before resolveSite; resolves the site by slug itself.
+ */
+import express from 'express';
+import db from '../config/database.js';
+import AP from '../services/ActivityPubService.js';
+
+const router = express.Router();
+
+const baseUrl = (req) => (process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+const hostOf = (req) => { try { return new URL(baseUrl(req)).host; } catch { return req.get('host'); } };
+const publicSite = (slug) => db.prepare('SELECT * FROM sites WHERE slug = ? AND (is_public IS NULL OR is_public = 1)').get(slug);
+const primarySlug = () => { const r = db.prepare('SELECT slug FROM sites WHERE is_primary = 1').get(); return r && r.slug; };
+
+// ── WebFinger ─────────────────────────────────────────────────────
+router.get('/.well-known/webfinger', (req, res) => {
+  const m = String(req.query.resource || '').match(/^acct:([^@]+)@(.+)$/i);
+  if (!m) return res.status(400).type('text/plain').send('bad resource');
+  const site = publicSite(m[1]);
+  if (!site) return res.status(404).end();
+  res.type('application/jrd+json; charset=utf-8');
+  res.set('Cache-Control', 'public, max-age=300');
+  res.send(JSON.stringify({
+    subject: `acct:${site.slug}@${hostOf(req)}`,
+    links: [{ rel: 'self', type: 'application/activity+json', href: AP.actorId(baseUrl(req), site.slug) }],
+  }));
+});
+
+// ── Actor ─────────────────────────────────────────────────────────
+router.get('/ap/users/:slug', (req, res) => {
+  const site = publicSite(req.params.slug);
+  if (!site) return res.status(404).end();
+  if (!AP.apWants(req)) {
+    // A browser hit the AP actor URL → send them to the human profile.
+    const human = site.slug === primarySlug() ? '/' : `/user/${encodeURIComponent(site.slug)}`;
+    return res.redirect(302, baseUrl(req) + human);
+  }
+  site.primary_slug = primarySlug();
+  AP.sendAP(res, AP.buildActor(baseUrl(req), site));
+});
+
+// ── Outbox ────────────────────────────────────────────────────────
+router.get('/ap/users/:slug/outbox', (req, res) => {
+  const site = publicSite(req.params.slug);
+  if (!site) return res.status(404).end();
+  const posts = db.prepare(
+    `SELECT id, slug, title, content, published_at, created_at
+     FROM posts WHERE site_id = ? AND status = 'published' AND (fan_only IS NULL OR fan_only = 0)
+     ORDER BY COALESCE(published_at, created_at) DESC LIMIT 20`
+  ).all(site.id);
+  AP.sendAP(res, AP.buildOutbox(baseUrl(req), site, posts));
+});
+
+// ── Followers (count only) ────────────────────────────────────────
+router.get('/ap/users/:slug/followers', (req, res) => {
+  const site = publicSite(req.params.slug);
+  if (!site) return res.status(404).end();
+  const n = db.prepare('SELECT COUNT(*) n FROM ap_followers WHERE slug = ?').get(site.slug).n;
+  AP.sendAP(res, AP.buildFollowers(baseUrl(req), site, n));
+});
+
+// ── Note ──────────────────────────────────────────────────────────
+router.get('/ap/notes/:id', (req, res) => {
+  const post = db.prepare(
+    "SELECT * FROM posts WHERE id = ? AND status = 'published' AND (fan_only IS NULL OR fan_only = 0)"
+  ).get(req.params.id);
+  if (!post) return res.status(404).end();
+  const site = db.prepare('SELECT * FROM sites WHERE id = ?').get(post.site_id);
+  if (!site) return res.status(404).end();
+  AP.sendAP(res, { '@context': 'https://www.w3.org/ns/activitystreams', ...AP.buildNote(baseUrl(req), site, post) });
+});
+
+// ── Inbox (Phase 1 stub: accept; Follow/Accept + sig verify next step) ──
+const apJson = express.json({ type: ['application/activity+json', 'application/ld+json', 'application/json'], limit: '1mb' });
+router.post(['/ap/users/:slug/inbox', '/ap/inbox'], apJson, (req, res) => {
+  try { console.log('[AP inbox]', (req.body && req.body.type) || 'unknown', '→', req.params.slug || 'shared'); } catch { /* ignore */ }
+  res.status(202).end();
+});
+
+export default router;
