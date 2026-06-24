@@ -64,6 +64,7 @@ import adminEpkRoutes from './routes/admin-epk.js';
 import changelogRoutes from './routes/changelog.js';
 import ogRoutes from './routes/og.js';
 import apRoutes from './routes/activitypub.js';
+import { apWants } from './services/ActivityPubService.js';
 
 // SESSION_SECRET: use the env var if set. Otherwise auto-generate a strong one
 // and persist it next to the database, so it stays stable across restarts and
@@ -233,6 +234,28 @@ app.use('/og', ogRoutes);
 app.use(resolveSite);
 app.use(loadAudioTracks);
 app.use(loadTheme);
+
+// ActivityPub content negotiation on the human URLs: an AP request (Accept:
+// application/activity+json) to a profile/post URL is redirected to its /ap/*
+// representation — same URL serves HTML to browsers, AP-JSON to servers (this is
+// how Mastodon resolves a pasted profile/post URL). Gated on apWants() so normal
+// browser requests pay nothing.
+app.use((req, res, next) => {
+  if (req.method !== 'GET' || !apWants(req)) return next();
+  const site = res.locals.site;
+  if (!site || !site.slug) return next();
+  const seg = req.path.replace(/^\/+|\/+$/g, '');
+  if (seg === '') return res.redirect(302, `/ap/users/${encodeURIComponent(site.slug)}`);
+  if (!seg.includes('/')) {
+    try {
+      const post = db.prepare(
+        "SELECT id FROM posts WHERE site_id = ? AND slug = ? AND status = 'published' AND (fan_only IS NULL OR fan_only = 0)"
+      ).get(site.id, seg);
+      if (post) return res.redirect(302, `/ap/notes/${post.id}`);
+    } catch { /* fall through to normal HTML handling */ }
+  }
+  return next();
+});
 
 // Lightweight CSRF defense: reject cross-origin state-mutating requests.
 // Same-origin forms + HTMX send a matching Origin; missing Origin is allowed
