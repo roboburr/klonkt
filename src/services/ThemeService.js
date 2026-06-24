@@ -89,7 +89,6 @@ class ThemeService {
     { key: 'red',     name: 'Rood',      color: '#dc2626' },
     { key: 'orange',  name: 'Oranje',    color: '#ea580c' },
     { key: 'amber',   name: 'Amber',     color: '#d97706' },
-    { key: 'gold',    name: 'Goud',      color: '#ca8a04' },
     { key: 'forest',  name: 'Groen',     color: '#16a34a' },
     { key: 'teal',    name: 'Turquoise', color: '#0d9488' },
     { key: 'ocean',   name: 'Blauw',     color: '#2563eb' },
