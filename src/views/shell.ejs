@@ -101,7 +101,7 @@ if (typeof post !== 'undefined' && post && post.slug) {
   };
 }
 %><!DOCTYPE html>
-<html lang="<%= _e(lang) %>" data-palette="<%= _e(safeSite.palette || 'klonkt') %>">
+<html lang="<%= _e(lang) %>" data-palette="<%= _e((typeof palette !== 'undefined' && palette) ? palette : (safeSite.palette || 'klonkt')) %>">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -217,7 +217,7 @@ if (typeof post !== 'undefined' && post && post.slug) {
   (function() {
     try {
       var siteDefault   = '<%= safeSite.theme_override || "" %>';
-      var sitePalette   = '<%= safeSite.palette || "klonkt" %>';
+      var sitePalette   = '<%= (typeof palette !== 'undefined' && palette) ? palette : (safeSite.palette || 'klonkt') %>';
 
       // One-time cleanup: drop the orphan pcms-palette key set by P43-P57
       // bootstrap. After this it never re-appears because nothing writes it.
