@@ -356,17 +356,23 @@ body:not(.admin) #pcms-main { flex: 1 0 auto; }
 body:not(.admin) .site-footer { flex-shrink: 0; }
 body:not(.admin)::before {
     content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
-    background: radial-gradient(ellipse at top, color-mix(in srgb, var(--accent) 3%, transparent), transparent 60%),
-                radial-gradient(ellipse at bottom right, color-mix(in srgb, var(--accent) 4%, transparent), transparent 55%);
+    /* Per-palette achtergrond-gradient: opgebouwd uit de palette's EIGEN --paper/--paper-2
+       (diagonale verloop) + een zachte accent-glow erbovenop. Werkt automatisch voor elk
+       palet, light én dark — geen per-palette regels nodig. */
+    background: radial-gradient(ellipse at top, color-mix(in srgb, var(--accent) 6%, transparent), transparent 60%),
+                radial-gradient(ellipse at bottom right, color-mix(in srgb, var(--accent) 7%, transparent), transparent 55%),
+                linear-gradient(160deg, var(--paper) 0%, var(--paper-2) 100%);
 }
 /* Klonkt-palet (donker): zuivere navy-diepte i.p.v. de accent(goud)-wash — anders
    kleurt het gouden accent de navy warm/bruinig. Matcht de klonkt.com-look. */
 [data-theme="dark"][data-palette="klonkt"] body:not(.admin)::before {
-    background: radial-gradient(ellipse at top, #1a1f2b 0%, transparent 62%);
+    background: radial-gradient(ellipse at top, #1a1f2b 0%, transparent 62%),
+                linear-gradient(160deg, var(--paper) 0%, var(--paper-2) 100%);
 }
 @media (prefers-color-scheme: dark) {
     [data-palette="klonkt"]:not([data-theme="light"]) body:not(.admin)::before {
-        background: radial-gradient(ellipse at top, #1a1f2b 0%, transparent 62%);
+        background: radial-gradient(ellipse at top, #1a1f2b 0%, transparent 62%),
+                    linear-gradient(160deg, var(--paper) 0%, var(--paper-2) 100%);
     }
 }
 ::selection { background: var(--accent-tint); color: var(--accent); }
