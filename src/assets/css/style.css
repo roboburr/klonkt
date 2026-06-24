@@ -2459,10 +2459,10 @@ body.on-cirkel[data-feed-view="grid"]  .feed-grid { display: block; }
     box-shadow: 0 2px 6px rgba(0,0,0,.3);
     pointer-events: none;
 }
-.grid-tile-pin::before {
-    content: "📌";
-    font-size: .9em;
-    line-height: 1;
+.grid-tile-pin svg {
+    width: .95em;
+    height: .95em;
+    margin-top: -1px;
 }
 /* Pinned-tile overall highlight: accent border + subtle inner glow */
 .grid-tile.is-pinned {
