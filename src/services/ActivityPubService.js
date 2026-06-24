@@ -100,13 +100,17 @@ export function buildNote(base, site, post) {
   const id = noteId(base, post.id);
   const aId = actorId(base, site.slug);
   const human = `${base}/${encodeURIComponent(post.slug)}`;
-  const html = post.content || ''; // posts store sanitized HTML
+  // Mastodon ignores a Note's `name`, so put the title INTO the content (bold
+  // first line) — the standard blog→fediverse convention. post.content is
+  // already sanitized HTML; the title is plain text, so escape it.
+  const escTitle = String(post.title || '').replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+  const titleHtml = post.title ? `<p><strong>${escTitle}</strong></p>` : '';
+  const html = titleHtml + (post.content || '');
   return {
     id,
     type: 'Note',
     attributedTo: aId,
     content: html,
-    name: post.title || undefined,
     url: human,
     published: new Date(post.published_at || post.created_at || Date.now()).toISOString(),
     to: [PUBLIC],
