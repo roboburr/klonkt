@@ -81,24 +81,24 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
         <span title="<%= t('fedi.replies') %>">💬 <%= fediverse.replies.length %></span>
       </p>
       <% if (fediverse.replies.length) { %>
-        <ol class="fedi-replies">
+        <ul class="fedi-replies">
           <% fediverse.replies.forEach(function(r) { %>
             <li class="fedi-reply">
-              <div class="comment-avatar">
+              <div class="fedi-avatar">
                 <% if (r.actor_icon) { %><img src="<%= r.actor_icon %>" alt="" loading="lazy">
-                <% } else { %><span class="comment-avatar-fallback"><%= (r.actor_name || '?').charAt(0).toUpperCase() %></span><% } %>
+                <% } else { %><span class="fedi-avatar-fallback"><%= (r.actor_name || '?').charAt(0).toUpperCase() %></span><% } %>
               </div>
-              <div class="comment-body">
-                <div class="comment-meta">
-                  <a class="comment-author" href="<%= r.actor_url %>" rel="nofollow noopener" target="_blank"><%= r.actor_name %></a>
+              <div class="fedi-main">
+                <div class="fedi-line">
+                  <a class="fedi-name" href="<%= r.actor_url %>" rel="nofollow noopener" target="_blank"><%= r.actor_name %></a>
                   <span class="fedi-handle"><%= r.actor_handle %></span>
-                  <% if (r.published || r.created_at) { %><span class="comment-time"><%= formatDateTime(r.published || r.created_at) %></span><% } %>
+                  <% if (r.published || r.created_at) { %><time class="fedi-time"><%= formatDateTime(r.published || r.created_at) %></time><% } %>
                 </div>
-                <div class="comment-content"><%- r.content %></div>
+                <div class="fedi-text"><%- r.content %></div>
               </div>
             </li>
           <% }); %>
-        </ol>
+        </ul>
       <% } %>
     </section>
   <% } %>
