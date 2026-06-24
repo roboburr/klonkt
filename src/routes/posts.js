@@ -805,7 +805,7 @@ router.get('/:slug', (req, res, next) => {
   let fediverse = { thread: [], likeCount: 0, announceCount: 0, total: 0 };
   try {
     const _apBase = (process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
-    fediverse = ActivityPubService.getInteractions(post.id, _apBase);
+    fediverse = ActivityPubService.getInteractions(post.id, _apBase, site);
   } catch { /* non-fatal */ }
   // Owner/admin of this site may reply back to a fediverse interaction.
   const canManageSite = !!(req.session?.user && PermissionsService.canAdminSite(req.session.user, site));

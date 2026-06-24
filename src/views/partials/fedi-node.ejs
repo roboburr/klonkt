@@ -1,19 +1,13 @@
 <%# Renders one fediverse thread node (n). Expects: n, t, canManageSite, _base, siteAvatar, formatDateTime %>
 <div class="comment-avatar">
-  <% if (n.mine) { %>
-    <% if (typeof siteAvatar !== 'undefined' && siteAvatar) { %><img src="<%= siteAvatar %>" alt="">
-    <% } else { %><span><%= t('fedi.you').charAt(0).toUpperCase() %></span><% } %>
-  <% } else if (n.actor_icon) { %><img src="<%= n.actor_icon %>" alt="" loading="lazy">
+  <% if (n.actor_icon) { %><img src="<%= n.actor_icon %>" alt="" loading="lazy">
   <% } else { %><span><%= (n.actor_name || '?').charAt(0).toUpperCase() %></span><% } %>
 </div>
 <div class="comment-body">
   <div class="comment-meta">
-    <% if (n.mine) { %>
-      <span class="comment-author"><%= t('fedi.you') %></span>
-    <% } else { %>
-      <a class="comment-author" href="<%= n.actor_url %>" rel="nofollow noopener" target="_blank"><%= n.actor_name %></a>
-      <span class="fedi-handle"><%= n.actor_handle %></span>
-    <% } %>
+    <% if (n.actor_url) { %><a class="comment-author" href="<%= n.actor_url %>" rel="nofollow noopener" target="_blank"><%= n.actor_name %></a>
+    <% } else { %><span class="comment-author"><%= n.actor_name %></span><% } %>
+    <% if (n.actor_handle) { %><span class="fedi-handle"><%= n.actor_handle %></span><% } %>
     <% if (n.created_at) { %><span class="comment-time"><%= formatDateTime(n.created_at) %></span><% } %>
   </div>
   <div class="comment-content"><%- n.content %></div>

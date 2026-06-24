@@ -249,11 +249,17 @@ function findThreadTarget(inReplyTo, base) {
 
 // View-ready threaded view of a post's fediverse activity (inbound replies +
 // our outbound replies, nested), plus like/boost counts.
-export function getInteractions(postId, base) {
+export function getInteractions(postId, base, site) {
   const s = iStmts();
   const rows = s.list.all(postId);
   const baseClean = (base || process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   const postNoteId = baseClean ? `${baseClean}/ap/notes/${postId}` : null;
+  // Our own (outbound) replies show the SITE identity for everyone (not "You").
+  let host = ''; try { host = new URL(baseClean).host; } catch { /* ignore */ }
+  const siteName = (site && (site.title || site.slug)) || '';
+  const siteHandle = (site && site.slug && host) ? `@${site.slug}@${host}` : '';
+  const siteUrl = baseClean ? `${baseClean}/` : '';
+  const siteIcon = (site && site.profile_photo) || null;
 
   const nodes = [];
   for (const r of rows) {
@@ -268,7 +274,9 @@ export function getInteractions(postId, base) {
   for (const o of s.listO.all(postId)) {
     nodes.push({
       noteId: baseClean ? `${baseClean}/ap/notes/${o.id}` : o.id, parent: o.in_reply_to || null,
-      mine: true, outboxId: o.id, content: o.content, created_at: o.created_at, children: [],
+      mine: true, outboxId: o.id, content: o.content, created_at: o.created_at,
+      actor_name: siteName, actor_handle: siteHandle, actor_url: siteUrl, actor_icon: siteIcon,
+      children: [],
     });
   }
 
