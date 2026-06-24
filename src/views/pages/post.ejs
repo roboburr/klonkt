@@ -135,6 +135,15 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
     </section>
   <% } %>
 
+  <!-- Reply via the fediverse (remote interaction: bounces to the visitor's own server) -->
+  <% var _postAbsUrl = (typeof ogOrigin !== 'undefined' && ogOrigin ? ogOrigin : '') + (typeof _base !== 'undefined' && _base ? _base : '') + '/' + post.slug; %>
+  <div class="post-fediverse-cta">
+    <button type="button" class="btn fedi-remote-reply-btn"
+      onclick="(function(){var d=prompt(<%- JSON.stringify(t('fedi.remote_prompt')) %>);if(!d)return;d=d.trim().replace(/^@?[^@\s]*@/,'').replace(/^https?:\/\//i,'').replace(/\/.*$/,'').trim();if(d)location.href='https://'+d+'/authorize_interaction?uri='+encodeURIComponent(<%- JSON.stringify(_postAbsUrl) %>);})()">
+      🐘 <%= t('fedi.remote_reply') %>
+    </button>
+  </div>
+
   <!-- Comments -->
   <section class="post-comments" id="comments">
     <h2 class="comments-heading">

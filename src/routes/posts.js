@@ -85,6 +85,7 @@ const RESERVED_SLUGS = new Set([
   'posts', 'media', 'audio', 'forum',
   'tag', 'type', 'user', 'users', 'artiesten', 'leden', 'favorieten', 'feed.xml', 'atom.xml', 'sitemap.xml',
   'manifest.webmanifest', 'sw.js', 'favicon.ico', 'favicon.svg', 'assets',
+  'authorize_interaction',
 ]);
 
 /**
@@ -508,6 +509,38 @@ function postNeighbors(site, post, isHub) {
   if (olderPost) olderPost._urlBase = urlBaseFor(olderPost);
   return { newerPost, olderPost };
 }
+
+// ==================== REMOTE INTERACTION (reply to a fediverse post as your site) ====================
+// Standard fediverse "reply from your own server" landing endpoint. A post page
+// elsewhere bounces the visitor here with ?uri=<remote post>; the site owner
+// composes a reply that federates back to that post.
+router.get('/authorize_interaction', requireSiteManager, async (req, res) => {
+  const site = res.locals.site;
+  const uri = (req.query.uri || '').toString();
+  let target = null;
+  try { target = await ActivityPubService.resolveRemoteNote(uri); } catch { /* ignore */ }
+  renderPage(req, res, 'pages/authorize-interaction', {
+    pageTitle: 'Reageer via de fediverse',
+    bodyClass: 'on-special',
+    uri,
+    target,
+    siteTitle: site ? site.title : '',
+  });
+});
+
+router.post('/authorize_interaction', requireSiteManager, async (req, res) => {
+  const site = res.locals.site;
+  const uri = (req.body.uri || '').toString();
+  const text = (req.body.text || '').toString();
+  if (site && uri && text.trim()) {
+    try {
+      const parent = await ActivityPubService.resolveRemoteNote(uri);
+      if (parent) await ActivityPubService.deliverReply(site, { postId: '', postSlug: null, parent, text });
+    } catch (e) { console.warn('[AP] remote reply failed:', e.message); }
+  }
+  // Send them to the post they replied to so they can see the thread.
+  res.redirect(uri && /^https?:\/\//i.test(uri) ? uri : (res.locals.siteUrlBase || '/'));
+});
 
 // ==================== VIEW POST (last route â€” catches /:slug) ====================
 router.get('/:slug', (req, res, next) => {

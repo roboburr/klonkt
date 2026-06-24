@@ -1,0 +1,48 @@
+<div class="auth-interact">
+  <h1 class="auth-interact-title"><%= t('fedi.remote_title') %></h1>
+
+  <% if (!target) { %>
+    <p class="auth-interact-note"><%= t('fedi.remote_notfound') %></p>
+    <form method="get" action="/authorize_interaction" class="auth-interact-form">
+      <input type="url" name="uri" placeholder="https://…/een-post" value="<%= uri || '' %>" required>
+      <button type="submit" class="btn btn-primary"><%= t('fedi.remote_load') %></button>
+    </form>
+  <% } else { %>
+    <p class="auth-interact-meta">
+      <%= t('fedi.remote_replying_to') %>
+      <a href="<%= target.actor_url %>" rel="nofollow noopener" target="_blank"><strong><%= target.actor_name %></strong></a>
+      <span class="fedi-handle"><%= target.actor_handle %></span>
+    </p>
+    <% if (target.preview) { %>
+      <blockquote class="auth-interact-preview"><%= target.preview %></blockquote>
+    <% } %>
+    <form method="post" action="/authorize_interaction" class="auth-interact-form">
+      <input type="hidden" name="uri" value="<%= uri %>">
+      <textarea name="text" rows="4" required placeholder="<%= t('fedi.reply_ph') %>"></textarea>
+      <div class="auth-interact-actions">
+        <button type="submit" class="btn btn-primary"><%= t('fedi.send') %></button>
+        <a href="<%= uri %>" class="btn"><%= t('comments.cancel') %></a>
+      </div>
+    </form>
+    <p class="auth-interact-note"><%= t('fedi.remote_as', { site: siteTitle }) %></p>
+  <% } %>
+</div>
+
+<style>
+  .auth-interact { max-width: 580px; margin: 2rem auto; padding: 0 1rem; }
+  .auth-interact-title { margin: 0 0 1rem; }
+  .auth-interact-meta { color: var(--ink-soft, #888); margin: 0 0 .75rem; }
+  .auth-interact-preview {
+    margin: 0 0 1rem; padding: .75rem 1rem; border-left: 3px solid var(--accent, #888);
+    background: color-mix(in srgb, var(--ink, #000) 4%, transparent); border-radius: 0 12px 12px 0;
+    color: var(--ink, inherit);
+  }
+  .auth-interact-form { display: flex; flex-direction: column; gap: .75rem; }
+  .auth-interact-form textarea, .auth-interact-form input[type=url] {
+    width: 100%; box-sizing: border-box; padding: .6rem .8rem; font: inherit; resize: vertical;
+    border-radius: 12px; border: 1px solid color-mix(in srgb, var(--ink, #000) 18%, transparent);
+    background: var(--paper, #fff); color: var(--ink, #000);
+  }
+  .auth-interact-actions { display: flex; gap: .5rem; align-items: center; }
+  .auth-interact-note { color: var(--ink-soft, #999); font-size: .85rem; margin-top: 1rem; }
+</style>

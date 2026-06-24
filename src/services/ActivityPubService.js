@@ -476,9 +476,31 @@ export async function deliverReply(site, { postId, postSlug, parent, text }) {
   return { id, content, delivered };
 }
 
+// Resolve a remote post URL (any fediverse/Klonkt post) into a reply target.
+// Returns a parent-shaped object usable by deliverReply(), or null.
+export async function resolveRemoteNote(url) {
+  if (!/^https?:\/\//i.test(String(url || ''))) return null;
+  const note = await fetchActor(url).catch(() => null); // AP GET (content-negotiates)
+  if (!note || !note.id) return null;
+  const att = note.attributedTo;
+  const actorUri = typeof att === 'string' ? att : (att && att.id);
+  if (!actorUri) return null;
+  const actor = await fetchActor(actorUri).catch(() => null);
+  const ai = actorInfo(actor, actorUri);
+  return {
+    object_uri: note.id,
+    actor_uri: actorUri,
+    actor_url: ai.url,
+    actor_handle: ai.handle,
+    actor_name: ai.name,
+    actor_icon: ai.icon,
+    preview: HtmlSanitizerService.toPlainText(note.content || '').slice(0, 240),
+  };
+}
+
 export default {
   getOrCreateKeys, apWants, sendAP, actorId, noteId,
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers,
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete,
-  getInteractions, getInteractionById, buildReplyNote, getOutboxNote, deliverReply,
+  getInteractions, getInteractionById, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
 };

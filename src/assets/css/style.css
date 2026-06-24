@@ -4416,3 +4416,7 @@ body:not(.has-audio-player) #pcms-audio-player.is-hidden {
 .post-fediverse .fedi-reply-toggle { list-style: none; cursor: pointer; display: inline-block; }
 .post-fediverse .fedi-reply-toggle::-webkit-details-marker { display: none; }
 .post-fediverse details[open] .fedi-reply-toggle { margin-bottom: .5rem; }
+
+/* Reply-via-fediverse CTA on post pages */
+.post-fediverse-cta { margin: 1.75rem 0; }
+.fedi-remote-reply-btn { display: inline-flex; align-items: center; gap: .4rem; }
