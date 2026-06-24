@@ -752,6 +752,8 @@ router.get('/:slug', (req, res, next) => {
   try { fediverse = ActivityPubService.getInteractions(post.id); } catch { /* non-fatal */ }
   // Owner/admin of this site may reply back to a fediverse interaction.
   const canManageSite = !!(req.session?.user && PermissionsService.canAdminSite(req.session.user, site));
+  // Avatar for our own (outbound) fediverse replies = the site's profile photo.
+  const siteAvatar = (site && site.profile_photo) ? site.profile_photo : null;
 
   renderPage(req, res, 'pages/post', {
     post,
@@ -762,6 +764,7 @@ router.get('/:slug', (req, res, next) => {
     totalComments,
     fediverse,
     canManageSite,
+    siteAvatar,
     likeCount,
     likedByMe,
     pageTitle: post.title + ' - ' + site.title,

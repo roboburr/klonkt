@@ -115,7 +115,10 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
                   <ol class="comment-replies">
                     <% mine.forEach(function(o){ %>
                       <li class="comment comment-reply">
-                        <div class="comment-avatar"><span><%= t('fedi.you').charAt(0).toUpperCase() %></span></div>
+                        <div class="comment-avatar">
+                          <% if (typeof siteAvatar !== 'undefined' && siteAvatar) { %><img src="<%= siteAvatar %>" alt="">
+                          <% } else { %><span><%= t('fedi.you').charAt(0).toUpperCase() %></span><% } %>
+                        </div>
                         <div class="comment-body">
                           <div class="comment-meta"><span class="comment-author"><%= t('fedi.you') %></span></div>
                           <div class="comment-content"><%- o.content %></div>
