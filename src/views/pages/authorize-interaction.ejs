@@ -23,14 +23,14 @@
     <h1 class="auth-interact-title">★ <%= t('fedi.liked_title') %></h1>
     <p class="auth-interact-note"><%= t('fedi.liked_done') %></p>
     <p class="auth-interact-actions">
-      <% if (uri) { %><a class="btn" href="<%= uri %>" target="_blank" rel="nofollow noopener"><%= t('fedi.remote_view_original') %></a><% } %>
+      <% if (uri) { %><a class="btn" href="<%= uri %>" rel="nofollow noopener"><%= t('fedi.remote_view_original') %></a><% } %>
       <a class="btn btn-primary" href="/"><%= t('fedi.remote_back') %></a>
     </p>
   <% } else if (typeof sent !== 'undefined' && sent) { %>
     <h1 class="auth-interact-title"><%= t('fedi.remote_sent_title') %></h1>
     <p class="auth-interact-note"><%= t('fedi.remote_sent') %></p>
     <p class="auth-interact-actions">
-      <% if (uri) { %><a class="btn" href="<%= uri %>" target="_blank" rel="nofollow noopener"><%= t('fedi.remote_view_original') %></a><% } %>
+      <% if (uri) { %><a class="btn" href="<%= uri %>" rel="nofollow noopener"><%= t('fedi.remote_view_original') %></a><% } %>
       <a class="btn btn-primary" href="/"><%= t('fedi.remote_back') %></a>
     </p>
   <% } else { %>
