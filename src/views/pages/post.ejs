@@ -32,7 +32,7 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
     </div>
     <% if (post.status === 'published') { %>
       <div class="post-like-row">
-        <%- include('../partials/like-button', { post: post, likedByMe: (typeof likedByMe !== 'undefined' && likedByMe), likeCount: (typeof likeCount !== 'undefined' ? likeCount : 0), loggedIn: !!user, loginNext: _base + '/' + post.slug }) %>
+        <%- include('../partials/like-button', { post: post, noteUri: (typeof ogOrigin !== 'undefined' && ogOrigin ? ogOrigin : '') + (typeof _base !== 'undefined' && _base ? _base : '') + '/' + post.slug, fediLikeCount: (typeof fediverse !== 'undefined' && fediverse ? fediverse.likeCount : 0), fediPh: t('fedi.remote_ph') }) %>
       </div>
     <% } %>
   </header>
@@ -126,7 +126,7 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
         f.innerHTML = '<input type="text" autocomplete="off" spellcheck="false">'
           + '<button type="submit" class="btn btn-primary fedi-remote-go" aria-label="ok">&rarr;</button>'
           + '<button type="button" class="fedi-remote-cancel" aria-label="x">&times;</button>';
-        f.querySelector('input').placeholder = b.getAttribute('data-fedi-ph') || '@name@server.social';
+        f.querySelector('input').placeholder = b.getAttribute('data-fedi-ph') || 'mastodon.social';
         document.body.appendChild(f);            // floating popover → no layout reflow
         place(f, b); current = f; currentBtn = b;
         f.querySelector('input').focus();

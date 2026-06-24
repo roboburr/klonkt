@@ -1,24 +1,13 @@
-<%# Like/favourite button for a post. Logged in → htmx toggle (POST /posts/:id/like,
-    swaps outerHTML back with this partial). Not logged in → link to login.
-    Expects: post (with .id), likedByMe, likeCount, loggedIn, loginNext. %>
-<%
-  var _liked = (typeof likedByMe !== 'undefined' && likedByMe);
-  var _cnt = (typeof likeCount !== 'undefined' && likeCount != null) ? likeCount : 0;
-  var _logged = (typeof loggedIn !== 'undefined' && loggedIn);
-%>
-<% if (_logged) { %>
-  <button type="button" class="like-btn<%= _liked ? ' is-liked' : '' %>"
-          hx-post="/posts/<%= post.id %>/like" hx-swap="outerHTML"
-          aria-pressed="<%= _liked ? 'true' : 'false' %>"
-          aria-label="<%= _liked ? 'Uit favorieten verwijderen' : 'Toevoegen aan favorieten' %>"
-          title="<%= _liked ? 'Uit favorieten verwijderen' : 'Toevoegen aan favorieten' %>">
-    <span class="like-heart" aria-hidden="true"><%= _liked ? '♥' : '♡' %></span>
-    <span class="like-count"><%= _cnt %></span>
-  </button>
-<% } else { %>
-  <a class="like-btn" href="/auth/login?next=<%= encodeURIComponent((typeof loginNext !== 'undefined' && loginNext) ? loginNext : '/') %>"
-     title="<%= t('like.login_title') %>">
-    <span class="like-heart" aria-hidden="true">♡</span>
-    <span class="like-count"><%= _cnt %></span>
-  </a>
-<% } %>
+<%# Fediverse like — a visitor likes this post out loud from their OWN fediverse
+    account. Click → popover asks only for their server (e.g. mastodon.social) →
+    bounces to that server's /authorize_interaction, where they favourite it.
+    Reuses the .fedi-remote-reply-btn popover wired in post.ejs. The count shows
+    the incoming fediverse likes.
+    Expects: noteUri (post's public URL), fediLikeCount, fediPh (server hint). %>
+<button type="button" class="like-btn fedi-remote-reply-btn"
+        data-fedi-uri="<%= typeof noteUri !== 'undefined' ? noteUri : '' %>"
+        data-fedi-ph="<%= typeof fediPh !== 'undefined' && fediPh ? fediPh : 'mastodon.social' %>"
+        aria-label="<%= t('like.fedi_title') %>" title="<%= t('like.fedi_title') %>">
+  <span class="like-heart" aria-hidden="true">★</span>
+  <span class="like-count"><%= (typeof fediLikeCount !== 'undefined' && fediLikeCount) ? fediLikeCount : 0 %></span>
+</button>
