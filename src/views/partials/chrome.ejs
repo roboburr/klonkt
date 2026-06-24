@@ -26,7 +26,7 @@ var hubLanding = (typeof bodyClass === 'string' && bodyClass.indexOf('on-hub') >
 // (/download/:id → on-download) blijft wél een focus-pagina zonder kop.
 var _featurePage = typeof bodyClass === 'string' &&
   bodyClass.indexOf('on-downloads') < 0 &&
-  ['on-epk', 'on-download', 'on-linkbio', 'on-newsletter'].some(function (c) { return bodyClass.indexOf(c) >= 0; });
+  ['on-epk', 'on-download', 'on-linkbio', 'on-newsletter', 'on-special'].some(function (c) { return bodyClass.indexOf(c) >= 0; });
 var _headerless = hubLanding || _isChat || _featurePage;
 %>
 <div id="pcms-chrome"<% if (typeof oob !== 'undefined' && oob) { %> hx-swap-oob="true"<% } %>>
