@@ -1,16 +1,16 @@
 /**
  * ThemeService — Palette and theme management
  * 
- * 8 Built-in Palettes (from v9):
- * - Sage (default, warm crème)
+ * 8 Built-in Palettes (curated, no near-duplicates):
+ * - Klonkt (default, navy + gold brand)
  * - Paper (minimalist white)
- * - Ocean (cool blues)
  * - Forest (greens)
- * - Stone (grays)
- * - Midnight (dark blue)
- * - Sunset (warm oranges)
- * - Cream (light beige)
- * 
+ * - Stone (warm grays)
+ * - Sunset (pink)
+ * - Cream (amber beige)
+ * - Terracotta (burnt orange, key 'mint')
+ * - Lilac (purple)
+ *
  * Dark/Light mode toggle stored per user
  */
 
@@ -23,11 +23,6 @@ class ThemeService {
       name: 'Klonkt',
       light: { paper: '#f3f1ea', ink: '#11141c', accent: '#c98a2a' },
       dark: { paper: '#0b0d12', ink: '#f3f1ea', accent: '#e8b04b' }
-    },
-    sage: {
-      name: 'Sage',
-      light: { paper: '#faf8f3', ink: '#1a1a1a', accent: '#c2410c' },
-      dark: { paper: '#1c1a17', ink: '#f4ede0', accent: '#c2410c' }
     },
     paper: {
       name: 'Paper',
@@ -44,11 +39,6 @@ class ThemeService {
       light: { paper: '#f5f0e8', ink: '#2b2218', accent: '#8a6a45' },
       dark: { paper: '#1a130b', ink: '#f5e9d5', accent: '#b89366' }
     },
-    midnight: {
-      name: 'Midnight',
-      light: { paper: '#f3f1f8', ink: '#1e1a2e', accent: '#7c5cbf' },
-      dark: { paper: '#0f0a1f', ink: '#e9def7', accent: '#9d88e0' }
-    },
     sunset: {
       name: 'Sunset',
       light: { paper: '#fdf4f3', ink: '#2e1618', accent: '#d6477f' },
@@ -58,11 +48,6 @@ class ThemeService {
       name: 'Cream',
       light: { paper: '#fefaf0', ink: '#2a1f0f', accent: '#d97706' },
       dark: { paper: '#1a1208', ink: '#fef3d6', accent: '#f0a93a' }
-    },
-    rose: {
-      name: 'Rose',
-      light: { paper: '#fdf2f4', ink: '#2e1419', accent: '#e11d6b' },
-      dark: { paper: '#1f0a0f', ink: '#fce4ea', accent: '#f06b9a' }
     },
     // key stays 'mint' (DB-safe), but recolored to warm Terracotta — less green.
     mint: {
