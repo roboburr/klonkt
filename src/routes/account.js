@@ -67,6 +67,7 @@ router.get('/', requireAuth, (req, res) => {
   const googleLinked = !!(account && account.google_sub);
   if (account) { delete account.password_hash; delete account.google_sub; } // don't leak to the view
 
+  const editableSite = ownedSite(req.session.user);
   renderPage(req, res, 'pages/account', {
     pageTitle: 'Account',
     bodyClass: 'on-special',
@@ -74,7 +75,9 @@ router.get('/', requireAuth, (req, res) => {
     hasPassword,
     googleLinked,
     googleAvailable: googleConfigured(),
-    editableSite: ownedSite(req.session.user),
+    editableSite,
+    // Display fallback: when you have no own account avatar, show your site's photo.
+    siteAvatar: editableSite ? editableSite.profile_photo : null,
     success: req.query.success || null,
     error: req.query.error || null,
   });
@@ -97,7 +100,7 @@ router.post('/lang', requireAuth, (req, res) => {
 // (owner_id), or for a god the primary site. Null if nothing found.
 function ownedSite(user) {
   if (!user) return null;
-  let site = db.prepare('SELECT id, title, tagline, slug, owner_id FROM sites WHERE owner_id = ? ORDER BY created_at LIMIT 1').get(user.id);
+  let site = db.prepare('SELECT id, title, tagline, slug, owner_id, profile_photo FROM sites WHERE owner_id = ? ORDER BY created_at LIMIT 1').get(user.id);
   if (!site && user.role === 'god') {
     site = getPrimarySite(); // primary/main site as fallback
   }

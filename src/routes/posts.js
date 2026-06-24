@@ -660,7 +660,8 @@ router.get('/:slug', (req, res, next) => {
   // comments for the post, then group replies under their parent.
   const commentRows = db.prepare(`
     SELECT c.id, c.parent_comment_id, c.content, c.status, c.created_at,
-           c.author_id, u.username AS author_username, u.avatar_url AS author_avatar
+           c.author_id, u.username AS author_username,
+           COALESCE(u.avatar_url, (SELECT profile_photo FROM sites WHERE owner_id = u.id AND profile_photo IS NOT NULL ORDER BY is_primary DESC, created_at ASC LIMIT 1)) AS author_avatar
     FROM comments c JOIN users u ON u.id = c.author_id
     WHERE c.post_id = ? AND c.status = 'approved'
     ORDER BY c.created_at ASC

@@ -72,6 +72,12 @@ export async function renderPage(req, res, viewName, data = {}) {
   if (_u && _u.id) {
     const _fresh = db.prepare('SELECT avatar_url, role, lang FROM users WHERE id = ?').get(_u.id);
     if (_fresh) _u = { ..._u, avatar_url: _fresh.avatar_url, role: _fresh.role, lang: _fresh.lang };
+    // One identity: no own account avatar → fall back to the user's site photo,
+    // so the same picture shows everywhere (nav, account, comments).
+    if (_u && !_u.avatar_url) {
+      const _sp = db.prepare("SELECT profile_photo FROM sites WHERE owner_id = ? AND profile_photo IS NOT NULL ORDER BY is_primary DESC, created_at ASC LIMIT 1").get(_u.id);
+      if (_sp && _sp.profile_photo) _u = { ..._u, avatar_url: _sp.profile_photo };
+    }
   }
   const userOwnsSite = !!(_u && _u.role !== 'god' &&
     db.prepare('SELECT 1 FROM sites WHERE owner_id = ? LIMIT 1').get(_u.id));

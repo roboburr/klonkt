@@ -30,8 +30,9 @@
         <form action="/account/avatar" method="post" enctype="multipart/form-data" class="ax-avatar-form">
           <label class="ax-avatar-wrap" title="<%= t('acct.avatar_change') %>">
             <span class="ax-profile-avatar">
-              <% if (account.avatar_url) { %>
-                <img src="<%= account.avatar_url %>" alt="">
+              <% var _av = account.avatar_url || (typeof siteAvatar !== 'undefined' ? siteAvatar : null); %>
+              <% if (_av) { %>
+                <img src="<%= _av %>" alt="">
               <% } else { %>
                 <span><%= account.username.charAt(0).toUpperCase() %></span>
               <% } %>
@@ -44,8 +45,9 @@
         </form>
       <% } else { %>
         <span class="ax-profile-avatar ax-profile-avatar-static">
-          <% if (account.avatar_url) { %>
-            <img src="<%= account.avatar_url %>" alt="">
+          <% var _av2 = account.avatar_url || (typeof siteAvatar !== 'undefined' ? siteAvatar : null); %>
+          <% if (_av2) { %>
+            <img src="<%= _av2 %>" alt="">
           <% } else { %>
             <span><%= account.username.charAt(0).toUpperCase() %></span>
           <% } %>
