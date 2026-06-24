@@ -525,7 +525,8 @@ export async function deliverReply(site, { postId, postSlug, parent, text }) {
     const a = await fetchActor(parent.actor_uri).catch(() => null);
     if (a) inboxes.add((a.endpoints && a.endpoints.sharedInbox) || a.inbox);
   }
-  if (parent.threadInbox) inboxes.add(parent.threadInbox); // post author's server (nesting)
+  if (parent.threadInbox) inboxes.add(parent.threadInbox); // back-compat (single)
+  (parent.threadInboxes || []).forEach((i) => inboxes.add(i)); // whole ancestor chain
   for (const f of fStmts().list.all(site.slug)) inboxes.add(f.shared_inbox || f.inbox);
   inboxes.delete(`${me}/inbox`);       // never deliver to ourselves (already in ap_outbox)
   inboxes.delete(`${base}/ap/inbox`);  // (our own shared inbox) → avoids a self-duplicate
@@ -551,17 +552,24 @@ export async function resolveRemoteNote(url) {
   // Is what we're replying to a post (or a comment) on one of OUR posts? If so,
   // link our reply to that local post so it shows nested in the post thread.
   const localTgt = findThreadTarget(note.id, (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, ''));
-  // If this note is itself a reply (a comment), also reach the original post's
-  // author so THEIR server threads our reply under the comment.
-  let threadInbox = null;
-  if (note.inReplyTo) {
-    const parentUrl = typeof note.inReplyTo === 'string' ? note.inReplyTo : (note.inReplyTo && note.inReplyTo.id);
-    const parentNote = parentUrl ? await fetchActor(parentUrl).catch(() => null) : null;
-    const pAtt = parentNote && (typeof parentNote.attributedTo === 'string' ? parentNote.attributedTo : (parentNote.attributedTo && parentNote.attributedTo.id));
-    if (pAtt && pAtt !== actorUri) {
-      const pa = await fetchActor(pAtt).catch(() => null);
-      threadInbox = pa && ((pa.endpoints && pa.endpoints.sharedInbox) || pa.inbox);
+  // Walk the WHOLE reply chain upward (comment → parent comment → … → root post)
+  // and collect every ancestor author's inbox, so each participant's server —
+  // including the original post's author — receives + threads our reply.
+  const threadInboxes = [];
+  const seenInbox = new Set();
+  let cursor = note.inReplyTo, guard = 0;
+  while (cursor && guard++ < 6) {
+    const url = typeof cursor === 'string' ? cursor : (cursor && cursor.id);
+    if (!url) break;
+    const pn = await fetchActor(url).catch(() => null);
+    if (!pn) break;
+    const pa = typeof pn.attributedTo === 'string' ? pn.attributedTo : (pn.attributedTo && pn.attributedTo.id);
+    if (pa && pa !== actorUri) {
+      const paDoc = await fetchActor(pa).catch(() => null);
+      const inbox = paDoc && ((paDoc.endpoints && paDoc.endpoints.sharedInbox) || paDoc.inbox);
+      if (inbox && !seenInbox.has(inbox)) { seenInbox.add(inbox); threadInboxes.push(inbox); }
     }
+    cursor = pn.inReplyTo; // climb to the next ancestor
   }
   const rawHtml = String(note.content || '').replace(/\[\[(track|album|playlist):[^\]]+\]\]/gi, '');
   const images = (Array.isArray(note.attachment) ? note.attachment : [])
@@ -577,7 +585,7 @@ export async function resolveRemoteNote(url) {
     url: note.url || url,
     content: HtmlSanitizerService.sanitize(rawHtml),       // full, sanitized
     images,
-    threadInbox,                                            // post author's inbox (if a comment)
+    threadInboxes,                                          // every ancestor author's inbox
     localPostId: localTgt ? localTgt.post_id : '',          // our post this belongs to (if any)
     preview: HtmlSanitizerService.toPlainText(note.content || '').slice(0, 240),
   };
