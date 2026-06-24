@@ -357,7 +357,19 @@ export async function handleInbox(req, slugParam) {
   const act = req.body || {};
   const type = act.type;
   const base = (process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
-  const verified = await verifyRequest(req).catch(() => null); // best-effort; not gating (MVP)
+  const verified = await verifyRequest(req).catch(() => null);
+
+  // ENFORCE HTTP signatures: a data-affecting activity must be signed by the very
+  // actor it claims to be. No valid signature, or signer ≠ actor → reject (no
+  // forged replies/likes/follows/timeline posts). GET/discovery stays open.
+  const claimedActor = typeof act.actor === 'string' ? act.actor : (act.actor && act.actor.id);
+  const GATED = ['Create', 'Like', 'Announce', 'Follow', 'Delete', 'Undo', 'Accept', 'Reject'];
+  if (GATED.includes(type)) {
+    if (!verified || !claimedActor || verified.id !== claimedActor) {
+      console.warn('[AP] inbox REJECTED (signature)', type, claimedActor || '?', verified ? '(signer mismatch)' : '(unsigned/invalid)');
+      return 401;
+    }
+  }
 
   if (type === 'Follow') {
     const who = typeof act.actor === 'string' ? act.actor : (act.actor && act.actor.id);
