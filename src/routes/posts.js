@@ -18,6 +18,7 @@ import PlaylistService from '../services/PlaylistService.js';
 import { audioEnabled } from '../config/features.js';
 import { audioUrl } from '../services/AudioStreamService.js';
 import { toWebp } from '../services/ImageWebpService.js';
+import ActivityPubService from '../services/ActivityPubService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const POST_IMAGES_DIR = path.resolve(
@@ -229,6 +230,14 @@ router.post('/posts/create', requireAuth, (req, res) => {
         'INSERT INTO posts_fts(content, title, author, post_id) VALUES (?, ?, ?, ?)'
       ).run(HtmlSanitizerService.toPlainText(cleanContent), title || '', req.session.user.username, postId);
     } catch (e) { /* FTS index issues are non-fatal */ }
+
+    // ActivityPub: federate a freshly published public post to followers.
+    if (!fanOnly) {
+      ActivityPubService.deliverCreate(site, {
+        id: postId, slug: finalSlug, title: title || finalSlug,
+        content: cleanContent, published_at: publishedAt, created_at: now,
+      }).catch(() => { /* best-effort */ });
+    }
   }
 
   // HTMX request -> return redirect header

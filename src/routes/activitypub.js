@@ -79,11 +79,15 @@ router.get('/ap/notes/:id', (req, res) => {
   AP.sendAP(res, { '@context': 'https://www.w3.org/ns/activitystreams', ...AP.buildNote(baseUrl(req), site, post) });
 });
 
-// ── Inbox (Phase 1 stub: accept; Follow/Accept + sig verify next step) ──
-const apJson = express.json({ type: ['application/activity+json', 'application/ld+json', 'application/json'], limit: '1mb' });
-router.post(['/ap/users/:slug/inbox', '/ap/inbox'], apJson, (req, res) => {
-  try { console.log('[AP inbox]', (req.body && req.body.type) || 'unknown', '→', req.params.slug || 'shared'); } catch { /* ignore */ }
-  res.status(202).end();
+// ── Inbox — Follow→Accept, Undo Follow (best-effort signature verify) ──
+const apJson = express.json({
+  type: ['application/activity+json', 'application/ld+json', 'application/json'],
+  limit: '1mb',
+  verify: (req, _res, buf) => { req.rawBody = buf; }, // raw body for digest verification
+});
+router.post(['/ap/users/:slug/inbox', '/ap/inbox'], apJson, async (req, res) => {
+  try { return res.status(await AP.handleInbox(req, req.params.slug || null) || 202).end(); }
+  catch (e) { console.warn('[AP inbox] error:', e.message); return res.status(202).end(); }
 });
 
 export default router;
