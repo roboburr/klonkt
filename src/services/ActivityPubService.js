@@ -17,6 +17,7 @@
  */
 import crypto from 'crypto';
 import db from '../config/database.js';
+import HtmlSanitizerService from './HtmlSanitizerService.js';
 
 const PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
 const MAX_OUTBOX = 20;
@@ -189,6 +190,52 @@ function fStmts() {
 }
 export function followerCount(slug) { return fStmts().cnt.get(slug).n; }
 
+// ── inbound interactions store (replies / likes / boosts), lazy stmts ──
+let _insI, _delLA, _delReply, _listI;
+function iStmts() {
+  if (!_insI) {
+    _insI = db.prepare('INSERT OR IGNORE INTO ap_interactions (kind, post_id, object_uri, actor_uri, actor_name, actor_handle, actor_url, actor_icon, content, published, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)');
+    _delLA = db.prepare('DELETE FROM ap_interactions WHERE kind = ? AND post_id = ? AND actor_uri = ?');
+    _delReply = db.prepare("DELETE FROM ap_interactions WHERE kind = 'reply' AND object_uri = ?");
+    _listI = db.prepare('SELECT kind, actor_uri, actor_name, actor_handle, actor_url, actor_icon, content, published, created_at FROM ap_interactions WHERE post_id = ? ORDER BY created_at ASC');
+  }
+  return { ins: _insI, delLA: _delLA, delReply: _delReply, list: _listI };
+}
+
+const localPostExists = (id) => { try { return !!db.prepare('SELECT 1 FROM posts WHERE id = ?').get(id); } catch { return false; } };
+// Extract our local post id from a note URL, but only if it's ours (base match).
+function postIdFromNoteUrl(url, base) {
+  const s = String(url || '');
+  if (base && !s.startsWith(base)) return null;
+  const m = s.match(/\/ap\/notes\/([^/?#]+)/);
+  return m ? decodeURIComponent(m[1]) : null;
+}
+function deriveHandle(actorUri) {
+  try { const u = new URL(actorUri); const seg = u.pathname.split('/').filter(Boolean).pop() || ''; return `@${seg}@${u.host}`; } catch { return String(actorUri || ''); }
+}
+function actorInfo(doc, actorUri) {
+  let host = ''; try { host = new URL(actorUri).host; } catch { /* keep empty */ }
+  const handle = doc && doc.preferredUsername ? `@${doc.preferredUsername}@${host}` : deriveHandle(actorUri);
+  const icon = doc && doc.icon ? (doc.icon.url || (Array.isArray(doc.icon) && doc.icon[0] && doc.icon[0].url)) : null;
+  return {
+    name: (doc && (doc.name || doc.preferredUsername)) || handle,
+    handle,
+    url: (doc && (doc.url || doc.id)) || actorUri,
+    icon: icon || null,
+  };
+}
+
+// Stored, view-ready summary of a post's inbound fediverse activity.
+export function getInteractions(postId) {
+  const rows = iStmts().list.all(postId);
+  return {
+    replies: rows.filter((r) => r.kind === 'reply'),
+    likeCount: rows.filter((r) => r.kind === 'like').length,
+    announceCount: rows.filter((r) => r.kind === 'announce').length,
+    total: rows.length,
+  };
+}
+
 // ── HTTP Signatures + delivery ────────────────────────────────────
 const slugFromActorUrl = (url) => { const m = String(url || '').match(/\/ap\/users\/([^/?#]+)/); return m ? decodeURIComponent(m[1]) : null; };
 
@@ -262,13 +309,56 @@ export async function handleInbox(req, slugParam) {
     console.log('[AP] Follow', who, '→', slug, verified ? '(sig ok)' : '(sig unverified)');
     return 202;
   }
-  if (type === 'Undo' && act.object && act.object.type === 'Follow') {
+  if (type === 'Undo' && act.object) {
     const who = typeof act.actor === 'string' ? act.actor : (act.actor && act.actor.id);
-    const obj = act.object.object;
-    const slug = slugParam || slugFromActorUrl(typeof obj === 'string' ? obj : (obj && obj.id));
-    if (who && slug) { fStmts().del.run(slug, who); console.log('[AP] Unfollow', who, '→', slug); }
+    const ot = act.object.type;
+    if (ot === 'Follow') {
+      const obj = act.object.object;
+      const slug = slugParam || slugFromActorUrl(typeof obj === 'string' ? obj : (obj && obj.id));
+      if (who && slug) { fStmts().del.run(slug, who); console.log('[AP] Unfollow', who, '→', slug); }
+      return 202;
+    }
+    if (ot === 'Like' || ot === 'Announce') {
+      const tgt = act.object.object;
+      const pid = postIdFromNoteUrl(typeof tgt === 'string' ? tgt : (tgt && tgt.id), base);
+      if (who && pid) { iStmts().delLA.run(ot.toLowerCase(), pid, who); console.log('[AP] Undo', ot, who, '→', pid); }
+      return 202;
+    }
     return 202;
   }
+
+  const actorUri = typeof act.actor === 'string' ? act.actor : (act.actor && act.actor.id);
+  const resolveActor = async (uri) => ((verified && verified.id === uri) ? verified : await fetchActor(uri).catch(() => null));
+
+  // Inbound reply: a Create whose object replies to one of our notes.
+  if (type === 'Create' && act.object && (act.object.type === 'Note' || act.object.type === 'Article')) {
+    const o = act.object;
+    const pid = postIdFromNoteUrl(o.inReplyTo, base);
+    if (pid && actorUri && localPostExists(pid)) {
+      const ai = actorInfo(await resolveActor(actorUri), actorUri);
+      const html = HtmlSanitizerService.sanitize(o.content || '');
+      iStmts().ins.run('reply', pid, o.id || '', actorUri, ai.name, ai.handle, ai.url, ai.icon, html, o.published || null);
+      console.log('[AP] reply', actorUri, '→', pid);
+    }
+    return 202;
+  }
+  if (type === 'Like' || type === 'Announce') {
+    const tgt = act.object;
+    const pid = postIdFromNoteUrl(typeof tgt === 'string' ? tgt : (tgt && tgt.id), base);
+    if (pid && actorUri && localPostExists(pid)) {
+      const ai = actorInfo(await resolveActor(actorUri), actorUri);
+      iStmts().ins.run(type.toLowerCase(), pid, '', actorUri, ai.name, ai.handle, ai.url, ai.icon, null, null);
+      console.log('[AP]', type === 'Like' ? 'like' : 'boost', actorUri, '→', pid);
+    }
+    return 202;
+  }
+  if (type === 'Delete') {
+    // A remote reply was deleted upstream → drop it if we stored it.
+    const oid = typeof act.object === 'string' ? act.object : (act.object && act.object.id);
+    if (oid) iStmts().delReply.run(oid);
+    return 202;
+  }
+
   console.log('[AP] inbox', type || 'unknown', '→', slugParam || 'shared', '(ignored)');
   return 202;
 }
@@ -312,4 +402,5 @@ export default {
   getOrCreateKeys, apWants, sendAP, actorId, noteId,
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers,
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete,
+  getInteractions,
 };

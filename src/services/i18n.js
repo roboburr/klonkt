@@ -106,6 +106,7 @@ const DICT = {
     // Reacties + gerelateerd (post-pagina)
     'comments.heading_one': '{n} reactie', 'comments.heading_other': '{n} reacties',
     'comments.empty': 'Nog geen reacties.',
+    'fedi.heading': 'Vanuit de fediverse', 'fedi.likes': 'sterren', 'fedi.boosts': 'boosts', 'fedi.replies': 'Reacties uit de fediverse',
     'comments.to_start': 'om de conversatie te starten.',
     'comments.reply': 'Reageer', 'comments.delete': 'Verwijder', 'comments.cancel': 'Annuleren',
     'comments.delete_confirm': 'Deze reactie verwijderen?',
@@ -1098,6 +1099,7 @@ const DICT = {
     'tab.home': 'Home', 'tab.search': 'Search', 'tab.write': 'Write', 'tab.profile': 'Profile',
     'comments.heading_one': '{n} comment', 'comments.heading_other': '{n} comments',
     'comments.empty': 'No comments yet.',
+    'fedi.heading': 'From the fediverse', 'fedi.likes': 'favourites', 'fedi.boosts': 'boosts', 'fedi.replies': 'Replies from the fediverse',
     'comments.to_start': 'to start the conversation.',
     'comments.reply': 'Reply', 'comments.delete': 'Delete', 'comments.cancel': 'Cancel',
     'comments.delete_confirm': 'Delete this comment?',
@@ -2088,6 +2090,7 @@ const DICT = {
     'tab.home': 'Start', 'tab.search': 'Suche', 'tab.write': 'Schreiben', 'tab.profile': 'Profil',
     'comments.heading_one': '{n} Kommentar', 'comments.heading_other': '{n} Kommentare',
     'comments.empty': 'Noch keine Kommentare.',
+    'fedi.heading': 'Aus dem Fediverse', 'fedi.likes': 'Favoriten', 'fedi.boosts': 'Boosts', 'fedi.replies': 'Antworten aus dem Fediverse',
     'comments.to_start': 'um das Gespräch zu starten.',
     'comments.reply': 'Antworten', 'comments.delete': 'Löschen', 'comments.cancel': 'Abbrechen',
     'comments.delete_confirm': 'Diesen Kommentar löschen?',

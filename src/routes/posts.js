@@ -747,6 +747,10 @@ router.get('/:slug', (req, res, next) => {
   const likedByMe = !!(req.session?.user &&
     db.prepare('SELECT 1 FROM post_likes WHERE post_id = ? AND user_id = ?').get(post.id, req.session.user.id));
 
+  // Inbound fediverse activity (replies/likes/boosts) for this post.
+  let fediverse = { replies: [], likeCount: 0, announceCount: 0, total: 0 };
+  try { fediverse = ActivityPubService.getInteractions(post.id); } catch { /* non-fatal */ }
+
   renderPage(req, res, 'pages/post', {
     post,
     newerPost,
@@ -754,6 +758,7 @@ router.get('/:slug', (req, res, next) => {
     relatedPosts,
     comments: topLevel,
     totalComments,
+    fediverse,
     likeCount,
     likedByMe,
     pageTitle: post.title + ' - ' + site.title,

@@ -71,6 +71,38 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
     </aside>
   <% } %>
 
+  <!-- Fediverse interactions (inbound replies / likes / boosts via ActivityPub) -->
+  <% if (typeof fediverse !== 'undefined' && fediverse && fediverse.total > 0) { %>
+    <section class="post-fediverse" id="fediverse">
+      <h2 class="fedi-heading"><%= t('fedi.heading') %></h2>
+      <p class="fedi-stats">
+        <span title="<%= t('fedi.likes') %>">⭐ <%= fediverse.likeCount %></span>
+        <span title="<%= t('fedi.boosts') %>">🔁 <%= fediverse.announceCount %></span>
+        <span title="<%= t('fedi.replies') %>">💬 <%= fediverse.replies.length %></span>
+      </p>
+      <% if (fediverse.replies.length) { %>
+        <ol class="fedi-replies">
+          <% fediverse.replies.forEach(function(r) { %>
+            <li class="fedi-reply">
+              <div class="comment-avatar">
+                <% if (r.actor_icon) { %><img src="<%= r.actor_icon %>" alt="" loading="lazy">
+                <% } else { %><span class="comment-avatar-fallback"><%= (r.actor_name || '?').charAt(0).toUpperCase() %></span><% } %>
+              </div>
+              <div class="comment-body">
+                <div class="comment-meta">
+                  <a class="comment-author" href="<%= r.actor_url %>" rel="nofollow noopener" target="_blank"><%= r.actor_name %></a>
+                  <span class="fedi-handle"><%= r.actor_handle %></span>
+                  <% if (r.published || r.created_at) { %><span class="comment-time"><%= formatDateTime(r.published || r.created_at) %></span><% } %>
+                </div>
+                <div class="comment-content"><%- r.content %></div>
+              </div>
+            </li>
+          <% }); %>
+        </ol>
+      <% } %>
+    </section>
+  <% } %>
+
   <!-- Comments -->
   <section class="post-comments" id="comments">
     <h2 class="comments-heading">

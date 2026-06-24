@@ -315,6 +315,22 @@ export function initializeDatabase() {
       UNIQUE(slug, actor_uri)
     );
     CREATE INDEX IF NOT EXISTS idx_ap_followers_slug ON ap_followers(slug);
+    CREATE TABLE IF NOT EXISTS ap_interactions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      kind TEXT NOT NULL,                   -- 'reply' | 'like' | 'announce'
+      post_id TEXT NOT NULL,
+      object_uri TEXT NOT NULL DEFAULT '',  -- remote note id (reply) or '' (like/announce)
+      actor_uri TEXT NOT NULL,
+      actor_name TEXT,
+      actor_handle TEXT,
+      actor_url TEXT,
+      actor_icon TEXT,
+      content TEXT,                         -- sanitized HTML (reply)
+      published TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(kind, post_id, actor_uri, object_uri)
+    );
+    CREATE INDEX IF NOT EXISTS idx_ap_inter_post ON ap_interactions(post_id, kind);
   `);
 }
 
