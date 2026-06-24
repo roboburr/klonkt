@@ -134,8 +134,7 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
              contenteditable="true"
              role="textbox"
              aria-multiline="true"
-             aria-label="<%= t('pedit.editor_aria') %>"
-             data-placeholder="<%= t('pedit.editor_placeholder') %>"></div>
+             aria-label="<%= t('pedit.editor_aria') %>"></div>
 
         <%# Sticky "tap to edit" hint (only visible on touch + non-fullscreen
             via CSS). Purely visual (pointer-events:none); tapping the field opens fullscreen. %>
@@ -591,13 +590,6 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
 .pe-editor.is-dragover {
   outline: 2px dashed var(--accent);
   outline-offset: -10px;
-}
-.pe-editor[data-placeholder]:empty::before,
-.pe-editor[data-placeholder]:has(br:only-child)::before {
-  content: attr(data-placeholder);
-  color: var(--ink-muted, #999);
-  pointer-events: none;
-  opacity: .55;
 }
 /* Inline prose styles inside the editor — match the public post styling so
    what you see is roughly what you'll get. Margins are tighter than on the
@@ -1539,7 +1531,6 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
   if (isTouch) {
     editor.setAttribute('contenteditable', 'false');
     editor.classList.add('pe-tap-to-edit');
-    editor.setAttribute('data-placeholder', '<%= t('pedit.tap_to_write') %>');
     editor.addEventListener('click', function () {
       if (!isFs()) openFs();
     });
