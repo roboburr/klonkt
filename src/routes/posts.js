@@ -521,13 +521,26 @@ router.get('/authorize_interaction', requireSiteManager, async (req, res) => {
   let target = null;
   if (!sent) { try { target = await ActivityPubService.resolveRemoteNote(uri); } catch { /* ignore */ } }
   renderPage(req, res, 'pages/authorize-interaction', {
-    pageTitle: 'Reageer via de fediverse',
+    pageTitle: 'Interacteer via de fediverse',
     bodyClass: 'on-special',
     uri,
     target,
     sent,
+    liked: !!req.query.liked,
     siteTitle: site ? site.title : '',
   });
+});
+
+// ⭐ Like a remote post from your own site (the star flow lands here).
+router.post('/authorize_interaction/like', requireSiteManager, (req, res) => {
+  const site = res.locals.site;
+  const uri = (req.body.uri || '').toString();
+  if (site && uri) {
+    ActivityPubService.resolveRemoteNote(uri)
+      .then((note) => note && ActivityPubService.sendInteraction(site, 'like', note.object_uri || uri, note.actor_uri))
+      .catch((e) => console.warn('[AP] remote like failed:', e.message));
+  }
+  res.redirect('/authorize_interaction?liked=1&uri=' + encodeURIComponent(uri));
 });
 
 router.post('/authorize_interaction', requireSiteManager, (req, res) => {

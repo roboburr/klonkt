@@ -19,6 +19,13 @@
       </ul>
     <% } %>
     <p class="auth-interact-note"><a href="/"><%= t('fedi.remote_back') %></a></p>
+  <% } else if (typeof liked !== 'undefined' && liked) { %>
+    <h1 class="auth-interact-title">★ <%= t('fedi.liked_title') %></h1>
+    <p class="auth-interact-note"><%= t('fedi.liked_done') %></p>
+    <p class="auth-interact-actions">
+      <% if (uri) { %><a class="btn" href="<%= uri %>" target="_blank" rel="nofollow noopener"><%= t('fedi.remote_view_original') %></a><% } %>
+      <a class="btn btn-primary" href="/"><%= t('fedi.remote_back') %></a>
+    </p>
   <% } else if (typeof sent !== 'undefined' && sent) { %>
     <h1 class="auth-interact-title"><%= t('fedi.remote_sent_title') %></h1>
     <p class="auth-interact-note"><%= t('fedi.remote_sent') %></p>
@@ -51,11 +58,16 @@
         <p class="auth-interact-orig"><a href="<%= target.url || uri %>" target="_blank" rel="nofollow noopener"><%= t('fedi.remote_view_original') %></a></p>
       <% } %>
     </blockquote>
+    <form method="post" action="/authorize_interaction/like" class="auth-interact-like">
+      <input type="hidden" name="uri" value="<%= uri %>">
+      <button type="submit" class="btn btn-primary auth-like-btn">★ <%= t('fedi.like_btn') %></button>
+    </form>
+    <p class="auth-interact-or"><%= t('fedi.or_reply') %></p>
     <form method="post" action="/authorize_interaction" class="auth-interact-form">
       <input type="hidden" name="uri" value="<%= uri %>">
       <textarea name="text" rows="4" required placeholder="<%= t('fedi.reply_ph') %>"></textarea>
       <div class="auth-interact-actions">
-        <button type="submit" class="btn btn-primary"><%= t('fedi.send') %></button>
+        <button type="submit" class="btn"><%= t('fedi.send') %></button>
         <a href="<%= uri %>" class="btn"><%= t('comments.cancel') %></a>
       </div>
     </form>
