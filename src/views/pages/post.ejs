@@ -138,11 +138,20 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
   <!-- Reply via the fediverse (remote interaction: bounces to the visitor's own server) -->
   <% var _postAbsUrl = (typeof ogOrigin !== 'undefined' && ogOrigin ? ogOrigin : '') + (typeof _base !== 'undefined' && _base ? _base : '') + '/' + post.slug; %>
   <div class="post-fediverse-cta">
-    <button type="button" class="btn fedi-remote-reply-btn"
-      onclick="(function(){var d=prompt(<%- JSON.stringify(t('fedi.remote_prompt')) %>);if(!d)return;d=d.trim().replace(/^@?[^@\s]*@/,'').replace(/^https?:\/\//i,'').replace(/\/.*$/,'').trim();if(d)location.href='https://'+d+'/authorize_interaction?uri='+encodeURIComponent(<%- JSON.stringify(_postAbsUrl) %>);})()">
-      🐘 <%= t('fedi.remote_reply') %>
-    </button>
+    <button type="button" class="btn fedi-remote-reply-btn" data-fedi-uri="<%= _postAbsUrl %>" data-fedi-prompt="<%= t('fedi.remote_prompt') %>">🐘 <%= t('fedi.remote_reply') %></button>
   </div>
+  <script>
+  (function(){
+    if (window.__fediRemoteWired) return; window.__fediRemoteWired = true;
+    document.addEventListener('click', function(e){
+      var b = e.target.closest && e.target.closest('.fedi-remote-reply-btn');
+      if (!b) return;
+      var d = prompt(b.getAttribute('data-fedi-prompt') || ''); if (!d) return;
+      d = d.trim().replace(/^@?[^@\s]*@/, '').replace(/^https?:\/\//i, '').replace(/\/.*$/, '').trim();
+      if (d) location.href = 'https://' + d + '/authorize_interaction?uri=' + encodeURIComponent(b.getAttribute('data-fedi-uri') || '');
+    });
+  })();
+  </script>
 
   <!-- Comments -->
   <section class="post-comments" id="comments">
