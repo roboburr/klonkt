@@ -30,11 +30,6 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
         <span class="status-badge status-<%= post.status %>"><%= post.status %></span>
       <% } %>
     </div>
-    <% if (post.status === 'published') { %>
-      <div class="post-like-row">
-        <%- include('../partials/like-button', { post: post, noteUri: (typeof ogOrigin !== 'undefined' && ogOrigin ? ogOrigin : '') + (typeof _base !== 'undefined' && _base ? _base : '') + '/' + post.slug, fediLikeCount: (typeof fediverse !== 'undefined' && fediverse ? fediverse.likeCount : 0), fediPh: t('fedi.remote_ph') }) %>
-      </div>
-    <% } %>
   </header>
 
   <div class="post-content">
@@ -71,33 +66,32 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
     </aside>
   <% } %>
 
-  <!-- Fediverse interactions (threaded: inbound replies/likes/boosts + our replies) -->
-  <% if (typeof fediverse !== 'undefined' && fediverse && fediverse.total > 0) { %>
+  <!-- Fediverse interactions — single place: ⭐ like (clickable) + 🔁/💬 counts + reply -->
+  <% var _postAbsUrl = (typeof ogOrigin !== 'undefined' && ogOrigin ? ogOrigin : '') + (typeof _base !== 'undefined' && _base ? _base : '') + '/' + post.slug; %>
+  <% var _fedi = (typeof fediverse !== 'undefined' && fediverse) ? fediverse : { thread: [], likeCount: 0, announceCount: 0 }; %>
+  <% if (post.status === 'published') { %>
     <section class="post-fediverse post-comments" id="fediverse">
       <h2 class="comments-heading"><%= t('fedi.heading') %></h2>
       <p class="fedi-stats">
-        <span title="<%= t('fedi.likes') %>">⭐ <%= fediverse.likeCount %></span>
-        <span title="<%= t('fedi.boosts') %>">🔁 <%= fediverse.announceCount %></span>
-        <span title="<%= t('fedi.replies') %>">💬 <%= (fediverse.thread || []).length %></span>
+        <button type="button" class="fedi-stat-btn fedi-remote-reply-btn" data-fedi-uri="<%= _postAbsUrl %>" data-fedi-ph="<%= t('fedi.remote_ph') %>" title="<%= t('like.fedi_title') %>">⭐ <%= _fedi.likeCount %></button>
+        <span title="<%= t('fedi.boosts') %>">🔁 <%= _fedi.announceCount %></span>
+        <span title="<%= t('fedi.replies') %>">💬 <%= (_fedi.thread || []).length %></span>
       </p>
-      <% if (fediverse.thread && fediverse.thread.length) { %>
+      <% if (_fedi.thread && _fedi.thread.length) { %>
         <ol class="comments-list">
-          <% fediverse.thread.forEach(function(n){ %>
+          <% _fedi.thread.forEach(function(n){ %>
             <li class="comment"><%- include('../partials/fedi-node', { n: n, t: t, canManageSite: (typeof canManageSite !== 'undefined' ? canManageSite : false), _base: _base, siteAvatar: (typeof siteAvatar !== 'undefined' ? siteAvatar : null), formatDateTime: formatDateTime }) %></li>
           <% }); %>
         </ol>
       <% } %>
+      <div class="post-fediverse-cta">
+        <button type="button" class="btn fedi-remote-reply-btn" data-fedi-uri="<%= _postAbsUrl %>" data-fedi-ph="<%= t('fedi.remote_ph') %>">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+          <%= t('fedi.remote_reply') %>
+        </button>
+      </div>
     </section>
   <% } %>
-
-  <!-- Reply via the fediverse (remote interaction: bounces to the visitor's own server) -->
-  <% var _postAbsUrl = (typeof ogOrigin !== 'undefined' && ogOrigin ? ogOrigin : '') + (typeof _base !== 'undefined' && _base ? _base : '') + '/' + post.slug; %>
-  <div class="post-fediverse-cta">
-    <button type="button" class="btn fedi-remote-reply-btn" data-fedi-uri="<%= _postAbsUrl %>" data-fedi-ph="<%= t('fedi.remote_ph') %>">
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
-      <%= t('fedi.remote_reply') %>
-    </button>
-  </div>
   <script>
   (function(){
     if (window.__fediRemoteWired) return; window.__fediRemoteWired = true;

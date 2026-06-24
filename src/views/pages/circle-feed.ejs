@@ -19,7 +19,7 @@
     <div class="cirkel-members">
       <% sites.forEach(function(s){ %>
         <% if (s.url) { %><a class="cirkel-member" href="<%= s.url %>" target="_blank" rel="noopener" title="<%= s.name %>"><% } else { %><span class="cirkel-member" title="<%= s.name %>"><% } %>
-          <span class="cirkel-avatar"<% if (s.avatar) { %> style="background-image:url('<%= s.avatar %>')"<% } %>><% if (!s.avatar) { %><%= (s.name || '?').charAt(0).toUpperCase() %><% } %></span>
+          <span class="cirkel-avatar"<% if (s.avatar) { %> style="background-image:url('<%= s.avatar %>');background-color:transparent"<% } %>><% if (!s.avatar) { %><%= (s.name || '?').charAt(0).toUpperCase() %><% } %></span>
           <span class="cirkel-member-name"><%= s.name %></span>
         <% if (s.url) { %></a><% } else { %></span><% } %>
       <% }); %>

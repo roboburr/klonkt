@@ -439,18 +439,8 @@ body:not(.admin)::before {
                 radial-gradient(ellipse at bottom right, color-mix(in srgb, var(--accent) 7%, transparent), transparent 55%),
                 linear-gradient(160deg, var(--paper) 0%, var(--paper-2) 100%);
 }
-/* Klonkt-palet (donker): zuivere navy-diepte i.p.v. de accent(goud)-wash — anders
-   kleurt het gouden accent de navy warm/bruinig. Matcht de klonkt.com-look. */
-[data-theme="dark"][data-palette="klonkt"] body:not(.admin)::before {
-    background: radial-gradient(ellipse at top, #1a1f2b 0%, transparent 62%),
-                linear-gradient(160deg, var(--paper) 0%, var(--paper-2) 100%);
-}
-@media (prefers-color-scheme: dark) {
-    [data-palette="klonkt"]:not([data-theme="light"]) body:not(.admin)::before {
-        background: radial-gradient(ellipse at top, #1a1f2b 0%, transparent 62%),
-                    linear-gradient(160deg, var(--paper) 0%, var(--paper-2) 100%);
-    }
-}
+/* Klonkt-palet gebruikt nu (net als de andere paletten) de generieke accent-glow
+   hierboven → de achtergrond-gradient volgt de gekozen accentkleur. */
 ::selection { background: var(--accent-tint); color: var(--accent); }
 
 h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 450; line-height: 1.15; letter-spacing: -0.015em; margin: 0; text-wrap: balance; font-variation-settings: "opsz" 144, "SOFT" 50; }
@@ -4477,13 +4467,16 @@ body:not(.has-audio-player) #pcms-audio-player.is-hidden {
 }
 
 /* === Fediverse interactions — inherits the native .comment styling === */
-.post-fediverse .fedi-stats { display: flex; gap: .55rem; margin: .25rem 0 1.25rem; }
-.post-fediverse .fedi-stats span {
+.post-fediverse .fedi-stats { display: flex; gap: .55rem; margin: .25rem 0 1.25rem; align-items: center; }
+.post-fediverse .fedi-stats span,
+.post-fediverse .fedi-stats .fedi-stat-btn {
   display: inline-flex; align-items: center; gap: .35rem;
   padding: .2rem .65rem; border-radius: 999px; font-size: .82rem;
   color: var(--ink-soft, #888);
   background: color-mix(in srgb, currentColor 12%, transparent);
 }
+.post-fediverse .fedi-stats .fedi-stat-btn { border: 0; cursor: pointer; font-family: inherit; }
+.post-fediverse .fedi-stats .fedi-stat-btn:hover { color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
 .post-fediverse .fedi-handle { color: var(--ink-soft, #888); font-size: .82rem; }
 .post-fediverse .comment-content p { margin: .2rem 0; }
 .post-fediverse .comment-content p:first-child { margin-top: 0; }
