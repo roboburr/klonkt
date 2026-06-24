@@ -19,6 +19,30 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
   "in post →"-link naar de post/album/playlist waarin het nummer voorkomt.
 - Posts-zoek gebruikt nu **prefix-matching**: typ "astr" en je vindt "astra"
   (elk woord als prefix, AND tussen de woorden) — fijner zoeken-terwijl-je-typt.
+- **Fediverse-client**: volg accounts (WebFinger → ondertekende Follow), een
+  **home-tijdlijn** (`/tijdlijn`) van wie je volgt, een **meldingen-inbox**
+  (`/meldingen`), en ⭐-like / 🔁-boost / ↩-reageren vanuit de tijdlijn.
+- **Liken én reageren via de fediverse** op een post: bezoekers vullen alleen
+  hun eigen server in (`@jij@server` of `server.com`) en handelen het af op hun
+  eigen account (`/authorize_interaction`).
+- **HTTP-handtekeningen afgedwongen** op de inbox: ongetekende of vervalste
+  activiteiten worden geweigerd — geen nep-reacties/likes/volgers meer.
+- **Blokkeren/defedereren** van een account of een heel domein (`/blokkeren`).
+- **Live thema-preview** in Beheer → site-instellingen: accent, thema en palet
+  meteen zichtbaar vóór je opslaat.
+
+### Gewijzigd
+- **Paletten herzien** naar 8: de neutrale **Klonkt** (wit/zwart, gouden accent)
+  is nu de standaard, plus 7 echte-kleur thema's (Forest, Ocean, Teal, Lilac,
+  Sunset, Candy, Amber). Accent-keuze opgeschoond; de Klonkt-achtergrond volgt
+  nu de gekozen accentkleur.
+
+### Verwijderd
+- **Hub-modus** verwijderd — Klonkt is voortaan **solo of cirkels**. Een
+  collectief/label maak je nu via **Cirkels** (gefedereerde losse sites).
+- **Native reacties + Google-login** verwijderd — interactie loopt nu volledig
+  via de **fediverse**.
+- **Lokale favorieten (♥)** verwijderd — vervangen door de ⭐ fediverse-like.
 
 ### Opgelost
 - Mini-speler: spring + scroll naar de spelende track werkt nu ook vanuit een
