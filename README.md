@@ -6,11 +6,12 @@ yours. No algorithm, no ads, no platform sitting in between.
 
 ## What it does
 
-- **Solo or hub** — one personal site, or a label/collective with multiple
-  makers under one roof.
+- **Solo** — one personal site, entirely yours, on your own domain.
 - **Blog & photos** — posts with cover, tags, timeline or grid.
 - **Host your own music** — built-in audio player with tracks, albums and playlists.
-- **Fans & comments** — visitors sign in with Google (optional) and comment.
+- **Fediverse-native** — your posts federate over **ActivityPub**: people follow,
+  like, boost and reply from Mastodon (or another Klonkt). You can follow accounts,
+  see a home timeline, and reply/like back — Klonkt is a full fediverse client.
 - **Grow**: newsletter, download-for-email, EPK/press kit, link-in-bio,
   show calendar, and **cookie-free statistics**.
 - **Circles** — connect your site with other Klonkt sites and show each other's
@@ -22,7 +23,7 @@ yours. No algorithm, no ads, no platform sitting in between.
 
 Set `KLONKT_AUDIO=off` in `.env` to disable the entire audio/music feature.
 Klonkt then runs as a lightweight **blog/photo/EPK/links site without ffmpeg** —
-ideal for minimal hosting. Hub, Circles and external embeds
+ideal for minimal hosting. Circles and external embeds
 (YouTube/SoundCloud/Spotify) keep working.
 
 ## Self-hosting
@@ -86,7 +87,7 @@ login links are correct:
 
 ```bash
 cp .env.example .env
-nano .env          # optional: PUBLIC_BASE_URL, plus SMTP / Google if you want them
+nano .env          # optional: PUBLIC_BASE_URL, plus SMTP if you want it
 ```
 
 **3. Start it** — the SQLite database is created automatically on first start:
@@ -148,7 +149,6 @@ registration then closes. Lost your password?
 |---|---|---|
 | `SESSION_SECRET` | ✅ | Random string of ≥32 characters |
 | `PUBLIC_BASE_URL` | ✅ | Canonical URL (e.g. `https://yourdomain.com`) |
-| `GOOGLE_CLIENT_ID` / `_SECRET` / `_REDIRECT_URI` | — | Google login for listeners (your own OAuth client; never grants admin) |
 | `SMTP_HOST` / `_PORT` / `_USER` / `_PASS` / `_FROM` | — | Email for password reset + newsletter |
 | `KLONKT_DEFAULT_LANG` | — | Default language for visitors (`en`/`nl`/`de`) |
 | `KLONKT_AUDIO` | — | `off` = lite mode (no audio/ffmpeg) |
@@ -168,7 +168,7 @@ registration then closes. Lost your password?
 ```
 src/
 ├── server.js          # Express bootstrap + route mounting
-├── config/            # database, mailer, google, feature flags
+├── config/            # database, mailer, feature flags
 ├── db/migrations/     # SQLite schema (001-init.sql)
 ├── middleware/        # site resolving, auth, render (htmx-aware)
 ├── routes/            # per-resource Express routers (posts, auth, admin-*, circle, …)
