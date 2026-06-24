@@ -266,8 +266,17 @@ export function initializeDatabase() {
       read INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
-    CREATE INDEX IF NOT EXISTS idx_unotif_user ON user_notifications(user_id, read, created_at);
   `);
+  // Older DBs may have a user_notifications table predating these columns — add
+  // them before the index (which references `read`), else boot crashes.
+  ensureColumn('user_notifications', 'type', 'TEXT');
+  ensureColumn('user_notifications', 'actor_id', 'TEXT');
+  ensureColumn('user_notifications', 'actor_name', 'TEXT');
+  ensureColumn('user_notifications', 'post_slug', 'TEXT');
+  ensureColumn('user_notifications', 'post_title', 'TEXT');
+  ensureColumn('user_notifications', 'url', 'TEXT');
+  ensureColumn('user_notifications', 'read', 'INTEGER DEFAULT 0');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_unotif_user ON user_notifications(user_id, read, created_at);');
 
   // Link-in-bio click statistics (premium #6). One counter per (site, url); the
   // link-in-bio page links via /links/go/:i which counts the click and redirects.
