@@ -93,7 +93,7 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
   <!-- Reply via the fediverse (remote interaction: bounces to the visitor's own server) -->
   <% var _postAbsUrl = (typeof ogOrigin !== 'undefined' && ogOrigin ? ogOrigin : '') + (typeof _base !== 'undefined' && _base ? _base : '') + '/' + post.slug; %>
   <div class="post-fediverse-cta">
-    <button type="button" class="btn fedi-remote-reply-btn" data-fedi-uri="<%= _postAbsUrl %>" data-fedi-prompt="<%= t('fedi.remote_prompt') %>">
+    <button type="button" class="btn fedi-remote-reply-btn" data-fedi-uri="<%= _postAbsUrl %>" data-fedi-ph="<%= t('fedi.remote_ph') %>">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
       <%= t('fedi.remote_reply') %>
     </button>
@@ -117,11 +117,13 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
       var f = document.createElement('form');
       f.className = 'fedi-remote-form';
       f.dataset.uri = b.getAttribute('data-fedi-uri') || '';
-      f.innerHTML = '<input type="text" placeholder="@jij@mastodon.social" autocomplete="off" spellcheck="false">'
-        + '<button type="submit" class="btn btn-primary fedi-remote-go">&rarr;</button>'
+      f.innerHTML = '<input type="text" autocomplete="off" spellcheck="false">'
+        + '<button type="submit" class="btn btn-primary fedi-remote-go" aria-label="ok">&rarr;</button>'
         + '<button type="button" class="fedi-remote-cancel" aria-label="x">&times;</button>';
+      var inp = f.querySelector('input');
+      inp.placeholder = b.getAttribute('data-fedi-ph') || '@name@mastodon.social';
       b.parentNode.insertBefore(f, b.nextSibling);
-      f.querySelector('input').focus();
+      inp.focus();
     });
     document.addEventListener('submit', function(e){
       var f = e.target.closest && e.target.closest('.fedi-remote-form');

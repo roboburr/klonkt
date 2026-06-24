@@ -17,7 +17,7 @@
         <button type="submit" class="comment-delete-btn"><%= t('comments.delete') %></button>
       </form>
     <% } else if (!n.mine && n.noteId) { %>
-      <button type="button" class="comment-reply-btn fedi-remote-reply-btn" data-fedi-uri="<%= n.noteId %>" data-fedi-prompt="<%= t('fedi.remote_prompt') %>">
+      <button type="button" class="comment-reply-btn fedi-remote-reply-btn" data-fedi-uri="<%= n.noteId %>" data-fedi-ph="<%= t('fedi.remote_ph') %>">
         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
         <%= t('fedi.remote_reply_short') %>
       </button>
