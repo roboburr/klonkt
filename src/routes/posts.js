@@ -85,7 +85,7 @@ const RESERVED_SLUGS = new Set([
   'posts', 'media', 'audio', 'forum',
   'tag', 'type', 'user', 'users', 'artiesten', 'leden', 'favorieten', 'feed.xml', 'atom.xml', 'sitemap.xml',
   'manifest.webmanifest', 'sw.js', 'favicon.ico', 'favicon.svg', 'assets',
-  'authorize_interaction',
+  'authorize_interaction', 'fediverse',
 ]);
 
 /**
@@ -543,6 +543,25 @@ router.post('/authorize_interaction', requireSiteManager, (req, res) => {
   res.redirect('/authorize_interaction?sent=1&uri=' + encodeURIComponent(uri));
 });
 
+// Manage / delete your own outbound fediverse replies (site owner only).
+router.get('/fediverse', requireSiteManager, (req, res) => {
+  const site = res.locals.site;
+  const items = site ? ActivityPubService.listOutbox(site.slug) : [];
+  renderPage(req, res, 'pages/authorize-interaction', {
+    pageTitle: 'Mijn fediverse-reacties', bodyClass: 'on-special',
+    manage: items, uri: '', target: null, sent: false, siteTitle: site ? site.title : '',
+  });
+});
+
+router.post('/fediverse/:id/delete', requireSiteManager, async (req, res) => {
+  const site = res.locals.site;
+  if (site) {
+    try { await ActivityPubService.deliverOutboxDelete(site, req.params.id); }
+    catch (e) { console.warn('[AP] outbox delete failed:', e.message); }
+  }
+  res.redirect(req.get('Referer') || `${res.locals.siteUrlBase || ''}/fediverse`);
+});
+
 // ==================== VIEW POST (last route â€” catches /:slug) ====================
 router.get('/:slug', (req, res, next) => {
   if (RESERVED_SLUGS.has(req.params.slug)) return next();
@@ -782,9 +801,12 @@ router.get('/:slug', (req, res, next) => {
   const likedByMe = !!(req.session?.user &&
     db.prepare('SELECT 1 FROM post_likes WHERE post_id = ? AND user_id = ?').get(post.id, req.session.user.id));
 
-  // Inbound fediverse activity (replies/likes/boosts) for this post.
-  let fediverse = { replies: [], outReplies: [], likeCount: 0, announceCount: 0, total: 0 };
-  try { fediverse = ActivityPubService.getInteractions(post.id); } catch { /* non-fatal */ }
+  // Inbound fediverse activity (threaded) for this post.
+  let fediverse = { thread: [], likeCount: 0, announceCount: 0, total: 0 };
+  try {
+    const _apBase = (process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+    fediverse = ActivityPubService.getInteractions(post.id, _apBase);
+  } catch { /* non-fatal */ }
   // Owner/admin of this site may reply back to a fediverse interaction.
   const canManageSite = !!(req.session?.user && PermissionsService.canAdminSite(req.session.user, site));
   // Avatar for our own (outbound) fediverse replies = the site's profile photo.

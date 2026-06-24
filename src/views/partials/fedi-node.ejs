@@ -1,0 +1,39 @@
+<%# Renders one fediverse thread node (n). Expects: n, t, canManageSite, _base, siteAvatar, formatDateTime %>
+<div class="comment-avatar">
+  <% if (n.mine) { %>
+    <% if (typeof siteAvatar !== 'undefined' && siteAvatar) { %><img src="<%= siteAvatar %>" alt="">
+    <% } else { %><span><%= t('fedi.you').charAt(0).toUpperCase() %></span><% } %>
+  <% } else if (n.actor_icon) { %><img src="<%= n.actor_icon %>" alt="" loading="lazy">
+  <% } else { %><span><%= (n.actor_name || '?').charAt(0).toUpperCase() %></span><% } %>
+</div>
+<div class="comment-body">
+  <div class="comment-meta">
+    <% if (n.mine) { %>
+      <span class="comment-author"><%= t('fedi.you') %></span>
+    <% } else { %>
+      <a class="comment-author" href="<%= n.actor_url %>" rel="nofollow noopener" target="_blank"><%= n.actor_name %></a>
+      <span class="fedi-handle"><%= n.actor_handle %></span>
+    <% } %>
+    <% if (n.created_at) { %><span class="comment-time"><%= formatDateTime(n.created_at) %></span><% } %>
+  </div>
+  <div class="comment-content"><%- n.content %></div>
+  <div class="comment-actions">
+    <% if (n.mine && typeof canManageSite !== 'undefined' && canManageSite && n.outboxId) { %>
+      <form method="post" action="<%= _base %>/fediverse/<%= n.outboxId %>/delete" onsubmit="return confirm('<%= t('fedi.delete_confirm') %>')">
+        <button type="submit" class="comment-delete-btn"><%= t('comments.delete') %></button>
+      </form>
+    <% } else if (!n.mine && n.noteId) { %>
+      <button type="button" class="comment-reply-btn fedi-remote-reply-btn" data-fedi-uri="<%= n.noteId %>" data-fedi-prompt="<%= t('fedi.remote_prompt') %>">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+        <%= t('fedi.remote_reply_short') %>
+      </button>
+    <% } %>
+  </div>
+  <% if (n.children && n.children.length) { %>
+    <ol class="comment-replies">
+      <% n.children.forEach(function(c){ %>
+        <li class="comment comment-reply"><%- include('../partials/fedi-node', { n: c }) %></li>
+      <% }); %>
+    </ol>
+  <% } %>
+</div>

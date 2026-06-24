@@ -327,6 +327,7 @@ export function initializeDatabase() {
       actor_icon TEXT,
       content TEXT,                         -- sanitized HTML (reply)
       published TEXT,
+      parent_uri TEXT,                      -- the note this reply replies to (for nesting)
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(kind, post_id, actor_uri, object_uri)
     );
@@ -344,6 +345,7 @@ export function initializeDatabase() {
     );
     CREATE INDEX IF NOT EXISTS idx_ap_outbox_post ON ap_outbox(post_id);
   `);
+  ensureColumn('ap_interactions', 'parent_uri', 'TEXT'); // nesting (existing DBs)
 }
 
 function ensureColumn(table, column, definition) {

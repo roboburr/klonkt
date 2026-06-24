@@ -71,71 +71,19 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
     </aside>
   <% } %>
 
-  <!-- Fediverse interactions (inbound replies / likes / boosts via ActivityPub) -->
-  <!-- Mirrors the native comment markup/classes so it looks identical. -->
+  <!-- Fediverse interactions (threaded: inbound replies/likes/boosts + our replies) -->
   <% if (typeof fediverse !== 'undefined' && fediverse && fediverse.total > 0) { %>
     <section class="post-fediverse post-comments" id="fediverse">
       <h2 class="comments-heading"><%= t('fedi.heading') %></h2>
       <p class="fedi-stats">
         <span title="<%= t('fedi.likes') %>">⭐ <%= fediverse.likeCount %></span>
         <span title="<%= t('fedi.boosts') %>">🔁 <%= fediverse.announceCount %></span>
-        <span title="<%= t('fedi.replies') %>">💬 <%= fediverse.replies.length %></span>
+        <span title="<%= t('fedi.replies') %>">💬 <%= (fediverse.thread || []).length %></span>
       </p>
-      <% if (fediverse.replies.length) { %>
+      <% if (fediverse.thread && fediverse.thread.length) { %>
         <ol class="comments-list">
-          <% fediverse.replies.forEach(function(r) { %>
-            <li class="comment">
-              <div class="comment-avatar">
-                <% if (r.actor_icon) { %><img src="<%= r.actor_icon %>" alt="" loading="lazy">
-                <% } else { %><span><%= (r.actor_name || '?').charAt(0).toUpperCase() %></span><% } %>
-              </div>
-              <div class="comment-body">
-                <div class="comment-meta">
-                  <a class="comment-author" href="<%= r.actor_url %>" rel="nofollow noopener" target="_blank"><%= r.actor_name %></a>
-                  <span class="fedi-handle"><%= r.actor_handle %></span>
-                  <% if (r.published || r.created_at) { %><span class="comment-time"><%= formatDateTime(r.published || r.created_at) %></span><% } %>
-                </div>
-                <div class="comment-content"><%- r.content %></div>
-
-                <% if (typeof canManageSite !== 'undefined' && canManageSite) { %>
-                  <details class="fedi-replybox">
-                    <summary class="comment-reply-btn fedi-reply-toggle"><%= t('fedi.reply') %></summary>
-                    <form method="post" action="<%= _base %>/posts/<%= post.slug %>/fedi-reply" class="comment-reply-form">
-                      <input type="hidden" name="interaction_id" value="<%= r.id %>">
-                      <textarea name="text" rows="3" required placeholder="<%= t('fedi.reply_ph') %>"></textarea>
-                      <div class="comment-reply-form-actions">
-                        <button type="submit" class="btn btn-primary"><%= t('fedi.send') %></button>
-                      </div>
-                    </form>
-                  </details>
-                <% } else if (r.object_uri) { %>
-                  <div class="comment-actions">
-                    <button type="button" class="comment-reply-btn fedi-remote-reply-btn" data-fedi-uri="<%= r.object_uri %>" data-fedi-prompt="<%= t('fedi.remote_prompt') %>">
-                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
-                      <%= t('fedi.remote_reply_short') %>
-                    </button>
-                  </div>
-                <% } %>
-
-                <% var mine = (typeof fediverse.outReplies !== 'undefined' ? fediverse.outReplies : []).filter(function(o){ return o.in_reply_to && o.in_reply_to === r.object_uri; }); %>
-                <% if (mine.length) { %>
-                  <ol class="comment-replies">
-                    <% mine.forEach(function(o){ %>
-                      <li class="comment comment-reply">
-                        <div class="comment-avatar">
-                          <% if (typeof siteAvatar !== 'undefined' && siteAvatar) { %><img src="<%= siteAvatar %>" alt="">
-                          <% } else { %><span><%= t('fedi.you').charAt(0).toUpperCase() %></span><% } %>
-                        </div>
-                        <div class="comment-body">
-                          <div class="comment-meta"><span class="comment-author"><%= t('fedi.you') %></span></div>
-                          <div class="comment-content"><%- o.content %></div>
-                        </div>
-                      </li>
-                    <% }); %>
-                  </ol>
-                <% } %>
-              </div>
-            </li>
+          <% fediverse.thread.forEach(function(n){ %>
+            <li class="comment"><%- include('../partials/fedi-node', { n: n }) %></li>
           <% }); %>
         </ol>
       <% } %>

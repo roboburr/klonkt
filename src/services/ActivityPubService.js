@@ -197,10 +197,10 @@ export function followerCount(slug) { return fStmts().cnt.get(slug).n; }
 let _insI, _delLA, _delReply, _listI, _getI, _insO, _listO, _getO;
 function iStmts() {
   if (!_insI) {
-    _insI = db.prepare('INSERT OR IGNORE INTO ap_interactions (kind, post_id, object_uri, actor_uri, actor_name, actor_handle, actor_url, actor_icon, content, published, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)');
+    _insI = db.prepare('INSERT OR IGNORE INTO ap_interactions (kind, post_id, object_uri, actor_uri, actor_name, actor_handle, actor_url, actor_icon, content, published, parent_uri, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)');
     _delLA = db.prepare('DELETE FROM ap_interactions WHERE kind = ? AND post_id = ? AND actor_uri = ?');
     _delReply = db.prepare("DELETE FROM ap_interactions WHERE kind = 'reply' AND object_uri = ?");
-    _listI = db.prepare('SELECT id, kind, object_uri, actor_uri, actor_name, actor_handle, actor_url, actor_icon, content, published, created_at FROM ap_interactions WHERE post_id = ? ORDER BY created_at ASC');
+    _listI = db.prepare('SELECT id, kind, object_uri, parent_uri, actor_uri, actor_name, actor_handle, actor_url, actor_icon, content, published, created_at FROM ap_interactions WHERE post_id = ? ORDER BY created_at ASC');
     _getI = db.prepare('SELECT * FROM ap_interactions WHERE id = ?');
     _insO = db.prepare('INSERT INTO ap_outbox (id, site_slug, post_id, post_slug, in_reply_to, to_actor, to_handle, content, created_at) VALUES (?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)');
     _listO = db.prepare('SELECT * FROM ap_outbox WHERE post_id = ? ORDER BY created_at ASC');
@@ -234,20 +234,61 @@ function actorInfo(doc, actorUri) {
   };
 }
 
-// Stored, view-ready summary of a post's inbound fediverse activity + our replies.
-export function getInteractions(postId) {
+// Given an inReplyTo note URL, find which local post the thread belongs to + the
+// note being replied to (parent), so a reply-to-a-comment can be nested.
+function findThreadTarget(inReplyTo, base) {
+  if (!inReplyTo) return null;
+  const seg = postIdFromNoteUrl(inReplyTo, base); // our /ap/notes/<id> segment (if ours)
+  if (seg && localPostExists(seg)) return { post_id: seg, parent_uri: inReplyTo };
+  if (seg) {
+    try { const o = db.prepare('SELECT post_id FROM ap_outbox WHERE id = ?').get(seg); if (o && o.post_id) return { post_id: o.post_id, parent_uri: inReplyTo }; } catch { /* ignore */ }
+  }
+  try { const row = db.prepare("SELECT post_id FROM ap_interactions WHERE object_uri = ? AND kind = 'reply' LIMIT 1").get(inReplyTo); if (row && row.post_id) return { post_id: row.post_id, parent_uri: inReplyTo }; } catch { /* ignore */ }
+  return null;
+}
+
+// View-ready threaded view of a post's fediverse activity (inbound replies +
+// our outbound replies, nested), plus like/boost counts.
+export function getInteractions(postId, base) {
   const s = iStmts();
   const rows = s.list.all(postId);
-  const outReplies = s.listO.all(postId).map((o) => ({
-    id: o.id, content: o.content, in_reply_to: o.in_reply_to, to_handle: o.to_handle,
-    created_at: o.created_at, mine: true,
-  }));
+  const baseClean = (base || process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  const postNoteId = baseClean ? `${baseClean}/ap/notes/${postId}` : null;
+
+  const nodes = [];
+  for (const r of rows) {
+    if (r.kind !== 'reply') continue;
+    nodes.push({
+      noteId: r.object_uri, parent: r.parent_uri || null, mine: false,
+      actor_name: r.actor_name, actor_handle: r.actor_handle, actor_url: r.actor_url,
+      actor_icon: r.actor_icon, content: r.content, created_at: r.published || r.created_at,
+      children: [],
+    });
+  }
+  for (const o of s.listO.all(postId)) {
+    nodes.push({
+      noteId: baseClean ? `${baseClean}/ap/notes/${o.id}` : o.id, parent: o.in_reply_to || null,
+      mine: true, outboxId: o.id, content: o.content, created_at: o.created_at, children: [],
+    });
+  }
+
+  const byId = new Map(nodes.map((n) => [n.noteId, n]));
+  const isTop = (n) => !n.parent || n.parent === postNoteId || !byId.has(n.parent);
+  const tops = [];
+  for (const n of nodes) {
+    if (isTop(n)) { tops.push(n); continue; }
+    let anc = n, guard = 0;
+    while (!isTop(anc) && guard++ < 12) anc = byId.get(anc.parent);
+    anc.children.push(n);
+  }
+  const byTime = (a, b) => new Date(a.created_at) - new Date(b.created_at);
+  tops.sort(byTime).forEach((t) => t.children.sort(byTime));
+
   return {
-    replies: rows.filter((r) => r.kind === 'reply'),
-    outReplies,
+    thread: tops,
     likeCount: rows.filter((r) => r.kind === 'like').length,
     announceCount: rows.filter((r) => r.kind === 'announce').length,
-    total: rows.length + outReplies.length,
+    total: nodes.length,
   };
 }
 
@@ -345,15 +386,15 @@ export async function handleInbox(req, slugParam) {
   const actorUri = typeof act.actor === 'string' ? act.actor : (act.actor && act.actor.id);
   const resolveActor = async (uri) => ((verified && verified.id === uri) ? verified : await fetchActor(uri).catch(() => null));
 
-  // Inbound reply: a Create whose object replies to one of our notes.
+  // Inbound reply: a Create whose object replies to one of our notes (post OR comment).
   if (type === 'Create' && act.object && (act.object.type === 'Note' || act.object.type === 'Article')) {
     const o = act.object;
-    const pid = postIdFromNoteUrl(o.inReplyTo, base);
-    if (pid && actorUri && localPostExists(pid)) {
+    const tgt = findThreadTarget(o.inReplyTo, base);
+    if (tgt && actorUri) {
       const ai = actorInfo(await resolveActor(actorUri), actorUri);
       const html = HtmlSanitizerService.sanitize(o.content || '');
-      iStmts().ins.run('reply', pid, o.id || '', actorUri, ai.name, ai.handle, ai.url, ai.icon, html, o.published || null);
-      console.log('[AP] reply', actorUri, '→', pid);
+      iStmts().ins.run('reply', tgt.post_id, o.id || '', actorUri, ai.name, ai.handle, ai.url, ai.icon, html, o.published || null, tgt.parent_uri);
+      console.log('[AP] reply', actorUri, '→', tgt.post_id);
     }
     return 202;
   }
@@ -362,7 +403,7 @@ export async function handleInbox(req, slugParam) {
     const pid = postIdFromNoteUrl(typeof tgt === 'string' ? tgt : (tgt && tgt.id), base);
     if (pid && actorUri && localPostExists(pid)) {
       const ai = actorInfo(await resolveActor(actorUri), actorUri);
-      iStmts().ins.run(type.toLowerCase(), pid, '', actorUri, ai.name, ai.handle, ai.url, ai.icon, null, null);
+      iStmts().ins.run(type.toLowerCase(), pid, '', actorUri, ai.name, ai.handle, ai.url, ai.icon, null, null, null);
       console.log('[AP]', type === 'Like' ? 'like' : 'boost', actorUri, '→', pid);
     }
     return 202;
@@ -474,6 +515,7 @@ export async function deliverReply(site, { postId, postSlug, parent, text }) {
     const a = await fetchActor(parent.actor_uri).catch(() => null);
     if (a) inboxes.add((a.endpoints && a.endpoints.sharedInbox) || a.inbox);
   }
+  if (parent.threadInbox) inboxes.add(parent.threadInbox); // post author's server (nesting)
   for (const f of fStmts().list.all(site.slug)) inboxes.add(f.shared_inbox || f.inbox);
   let delivered = 0;
   for (const inbox of [...inboxes].filter(Boolean)) {
@@ -494,6 +536,18 @@ export async function resolveRemoteNote(url) {
   if (!actorUri) return null;
   const actor = await fetchActor(actorUri).catch(() => null);
   const ai = actorInfo(actor, actorUri);
+  // If this note is itself a reply (a comment), also reach the original post's
+  // author so THEIR server threads our reply under the comment.
+  let threadInbox = null;
+  if (note.inReplyTo) {
+    const parentUrl = typeof note.inReplyTo === 'string' ? note.inReplyTo : (note.inReplyTo && note.inReplyTo.id);
+    const parentNote = parentUrl ? await fetchActor(parentUrl).catch(() => null) : null;
+    const pAtt = parentNote && (typeof parentNote.attributedTo === 'string' ? parentNote.attributedTo : (parentNote.attributedTo && parentNote.attributedTo.id));
+    if (pAtt && pAtt !== actorUri) {
+      const pa = await fetchActor(pAtt).catch(() => null);
+      threadInbox = pa && ((pa.endpoints && pa.endpoints.sharedInbox) || pa.inbox);
+    }
+  }
   const rawHtml = String(note.content || '').replace(/\[\[(track|album|playlist):[^\]]+\]\]/gi, '');
   const images = (Array.isArray(note.attachment) ? note.attachment : [])
     .filter((a) => a && a.url && (!a.mediaType || /^image\//i.test(a.mediaType)))
@@ -508,8 +562,33 @@ export async function resolveRemoteNote(url) {
     url: note.url || url,
     content: HtmlSanitizerService.sanitize(rawHtml),       // full, sanitized
     images,
+    threadInbox,                                            // post author's inbox (if a comment)
     preview: HtmlSanitizerService.toPlainText(note.content || '').slice(0, 240),
   };
+}
+
+// List a site's own outbound fediverse replies (for the manage/delete view).
+export function listOutbox(siteSlug) {
+  return db.prepare('SELECT id, content, to_handle, in_reply_to, created_at FROM ap_outbox WHERE site_slug = ? ORDER BY created_at DESC').all(siteSlug);
+}
+
+// Delete one of our outbound replies: send Delete(Tombstone) to recipients + remove it.
+export async function deliverOutboxDelete(site, outboxId) {
+  const row = iStmts().getO.get(outboxId);
+  if (!row || row.site_slug !== site.slug) return false;
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  if (base) {
+    const me = actorId(base, site.slug);
+    const nid = noteId(base, row.id);
+    const del = { '@context': 'https://www.w3.org/ns/activitystreams', id: `${nid}#delete-${Date.now()}`, type: 'Delete', actor: me, to: [PUBLIC], object: { id: nid, type: 'Tombstone' } };
+    const keys = getOrCreateKeys(site.slug);
+    const inboxes = new Set();
+    if (row.to_actor) { const a = await fetchActor(row.to_actor).catch(() => null); if (a) inboxes.add((a.endpoints && a.endpoints.sharedInbox) || a.inbox); }
+    for (const f of fStmts().list.all(site.slug)) inboxes.add(f.shared_inbox || f.inbox);
+    for (const inbox of [...inboxes].filter(Boolean)) { try { await deliver(inbox, del, `${me}#main-key`, keys.private_pem); } catch { /* best-effort */ } }
+  }
+  db.prepare('DELETE FROM ap_outbox WHERE id = ?').run(outboxId);
+  return true;
 }
 
 export default {
@@ -517,4 +596,5 @@ export default {
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers,
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete,
   getInteractions, getInteractionById, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
+  listOutbox, deliverOutboxDelete,
 };
