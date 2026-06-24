@@ -136,6 +136,8 @@ export async function renderPage(req, res, viewName, data = {}) {
     socialImage: data.socialImage || '',
     cspNonce: () => '',
     currentPath: req.path,
+    // Absolute origin (for building absolute URLs like the generated og:image).
+    ogOrigin: (process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host') || ''}`).replace(/\/+$/, ''),
     ...data,
   };
 

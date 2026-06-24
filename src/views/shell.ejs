@@ -56,9 +56,16 @@ const _socialTitle = (typeof post !== 'undefined' && post && post.title) ? post.
 const _socialDescr = (typeof socialDescr !== 'undefined' && socialDescr)
   ? socialDescr
   : (safeSite.default_description || safeSite.description || '');
-const _socialImage = (typeof socialImage !== 'undefined' && socialImage)
-  ? socialImage
-  : (safeSite.og_image_default || safeSite.default_cover || '');
+// og:image — custom (post/site) first; otherwise the auto-generated themed card
+// (/og/<slug>.png), so every site has a branded social preview by default.
+let _socialImage = '', _ogGenerated = false;
+if (typeof socialImage !== 'undefined' && socialImage) _socialImage = socialImage;
+else if (safeSite.og_image_default) _socialImage = safeSite.og_image_default;
+else if (safeSite.default_cover) _socialImage = safeSite.default_cover;
+else if (safeSite.slug && typeof ogOrigin !== 'undefined' && ogOrigin) {
+  _socialImage = ogOrigin + '/og/' + encodeURIComponent(safeSite.slug) + '.png';
+  _ogGenerated = true;
+}
 const _ogType = isPostPage ? 'article' : 'website';
 
 // ── JSON-LD ───────────────────────────────────────────────────────
@@ -138,6 +145,11 @@ if (typeof post !== 'undefined' && post && post.slug) {
 <% if (_socialImage) { %>
 <meta property="og:image"     content="<%= _e(_socialImage) %>">
 <meta property="og:image:alt" content="<%= _e(_socialTitle) %>">
+<% if (_ogGenerated) { %>
+<meta property="og:image:width"  content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:type"   content="image/png">
+<% } %>
 <% } %>
 <% if (_canonical) { %><meta property="og:url" content="<%= _e(_canonical) %>"><% } %>
 <% if (typeof post !== 'undefined' && post && post.published_at) { %>
