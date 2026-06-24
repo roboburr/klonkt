@@ -713,11 +713,34 @@ export async function unfollowActor(site, actorUri) {
   return { ok: true };
 }
 
+// Send a Like or Announce (boost) on a remote note FROM this site.
+export async function sendInteraction(site, kind, targetNoteId, authorUri) {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  if (!base || !site || !site.slug || !targetNoteId) return { error: 'config' };
+  const type = kind === 'boost' ? 'Announce' : 'Like';
+  const me = actorId(base, site.slug);
+  const keys = getOrCreateKeys(site.slug);
+  const act = {
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    id: `${me}#${type.toLowerCase()}-${Date.now()}`,
+    type, actor: me, object: targetNoteId,
+  };
+  if (type === 'Announce') { act.to = [PUBLIC]; act.cc = [`${me}/followers`]; }
+  const inboxes = new Set();
+  if (authorUri) { const a = await fetchActor(authorUri).catch(() => null); if (a) inboxes.add((a.endpoints && a.endpoints.sharedInbox) || a.inbox); }
+  // A boost is public → also deliver to our own followers so it shows for them.
+  if (type === 'Announce') { for (const f of fStmts().list.all(site.slug)) inboxes.add(f.shared_inbox || f.inbox); }
+  let delivered = 0;
+  for (const inbox of [...inboxes].filter(Boolean)) { try { const st = await deliver(inbox, act, `${me}#main-key`, keys.private_pem); if (st >= 200 && st < 300) delivered++; } catch { /* best-effort */ } }
+  console.log('[AP]', type, site.slug, '→', targetNoteId, 'delivered', delivered);
+  return { ok: true, delivered };
+}
+
 export default {
   getOrCreateKeys, apWants, sendAP, actorId, noteId,
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers,
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete,
   getInteractions, getInteractionById, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete,
-  webfingerResolve, followActor, unfollowActor, listFollowing, getTimeline,
+  webfingerResolve, followActor, unfollowActor, listFollowing, getTimeline, sendInteraction,
 };

@@ -44,6 +44,11 @@
             <% var media = []; try { media = JSON.parse(p.media_json || '[]'); } catch (e) { media = []; } %>
             <% media.filter(function(m){ return !m.type || /^image\//.test(m.type); }).forEach(function(m){ %><img class="tl-media" src="<%= m.url %>" alt="" loading="lazy"><% }); %>
             <% if (p.url) { %><p class="tl-orig"><a href="<%= p.url %>" target="_blank" rel="nofollow noopener"><%= t('tl.view_original') %></a></p><% } %>
+            <div class="tl-actions">
+              <form method="post" action="/tijdlijn/like" class="tl-act-form"><input type="hidden" name="note" value="<%= p.id %>"><input type="hidden" name="author" value="<%= p.author_uri %>"><button type="submit" class="tl-act" title="<%= t('fedi.likes') %>">⭐</button></form>
+              <form method="post" action="/tijdlijn/boost" class="tl-act-form"><input type="hidden" name="note" value="<%= p.id %>"><input type="hidden" name="author" value="<%= p.author_uri %>"><button type="submit" class="tl-act" title="<%= t('fedi.boosts') %>">🔁</button></form>
+              <button type="button" class="tl-act fedi-remote-reply-btn" data-fedi-uri="<%= p.id %>" data-fedi-ph="<%= t('fedi.remote_ph') %>" title="<%= t('fedi.remote_reply') %>">↩</button>
+            </div>
           </div>
         </li>
       <% }); %>
@@ -81,4 +86,37 @@
   .tl-media { max-width: 100%; height: auto; border-radius: 10px; margin: .5rem 0 0; display: block; }
   .tl-orig { margin: .5rem 0 0; font-size: .82rem; }
   .tl-orig a { color: var(--accent, #06c); }
+  .tl-actions { display: flex; gap: .35rem; margin-top: .55rem; }
+  .tl-act-form { margin: 0; }
+  .tl-act { background: none; border: 1px solid color-mix(in srgb, var(--ink, #000) 14%, transparent); border-radius: 999px; padding: .2rem .6rem; cursor: pointer; font-size: .9rem; color: var(--ink-soft, #888); }
+  .tl-act:hover { color: var(--ink, #000); border-color: color-mix(in srgb, var(--accent, #888) 50%, transparent); }
 </style>
+
+<script>
+(function(){
+  if (window.__fediRemoteWired) return; window.__fediRemoteWired = true;
+  var current = null, currentBtn = null;
+  function close(){ if (current) { current.remove(); current = null; currentBtn = null; } }
+  function go(raw, uri){ var d=(raw||'').trim().replace(/^@?[^@\s]*@/,'').replace(/^https?:\/\//i,'').replace(/\/.*$/,'').trim(); if(d) location.href='https://'+d+'/authorize_interaction?uri='+encodeURIComponent(uri||''); }
+  function place(f, b){ var r=b.getBoundingClientRect(); f.style.top=(r.bottom+window.scrollY+6)+'px'; f.style.left=Math.max(8, Math.min(r.left+window.scrollX, window.scrollX+window.innerWidth-340))+'px'; }
+  document.addEventListener('click', function(e){
+    if (e.target.closest && e.target.closest('.fedi-remote-cancel')) { close(); return; }
+    if (current && e.target.closest && e.target.closest('.fedi-remote-form')) return;
+    var b = e.target.closest && e.target.closest('.fedi-remote-reply-btn');
+    if (b) {
+      e.preventDefault();
+      if (currentBtn === b) { close(); return; }
+      close();
+      var f = document.createElement('form'); f.className='fedi-remote-form'; f.dataset.uri = b.getAttribute('data-fedi-uri')||'';
+      f.innerHTML = '<input type="text" autocomplete="off" spellcheck="false"><button type="submit" class="btn btn-primary fedi-remote-go" aria-label="ok">&rarr;</button><button type="button" class="fedi-remote-cancel" aria-label="x">&times;</button>';
+      f.querySelector('input').placeholder = b.getAttribute('data-fedi-ph') || '@name@server.social';
+      document.body.appendChild(f); place(f, b); current=f; currentBtn=b; f.querySelector('input').focus();
+      return;
+    }
+    if (current) close();
+  });
+  document.addEventListener('submit', function(e){ var f=e.target.closest && e.target.closest('.fedi-remote-form'); if(!f) return; e.preventDefault(); go(f.querySelector('input').value, f.dataset.uri); });
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape') close(); });
+  window.addEventListener('scroll', close, true);
+})();
+</script>

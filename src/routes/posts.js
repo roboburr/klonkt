@@ -595,6 +595,18 @@ router.post('/tijdlijn/unfollow', requireSiteManager, async (req, res) => {
   res.redirect('/tijdlijn?success=' + encodeURIComponent('Ontvolgd'));
 });
 
+router.post('/tijdlijn/like', requireSiteManager, async (req, res) => {
+  const site = res.locals.site;
+  if (site) { try { await ActivityPubService.sendInteraction(site, 'like', (req.body.note || '').toString(), (req.body.author || '').toString()); } catch (e) { /* ignore */ } }
+  res.redirect('/tijdlijn?success=' + encodeURIComponent('Geliket ⭐'));
+});
+
+router.post('/tijdlijn/boost', requireSiteManager, async (req, res) => {
+  const site = res.locals.site;
+  if (site) { try { await ActivityPubService.sendInteraction(site, 'boost', (req.body.note || '').toString(), (req.body.author || '').toString()); } catch (e) { /* ignore */ } }
+  res.redirect('/tijdlijn?success=' + encodeURIComponent('Geboost 🔁'));
+});
+
 // ==================== VIEW POST (last route â€” catches /:slug) ====================
 router.get('/:slug', (req, res, next) => {
   if (RESERVED_SLUGS.has(req.params.slug)) return next();
