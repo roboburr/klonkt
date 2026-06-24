@@ -1,0 +1,48 @@
+<div class="nt-wrap">
+  <h1 class="nt-title"><%= t('notif.title') %></h1>
+  <% if (!items || !items.length) { %>
+    <p class="nt-empty"><%= t('notif.empty') %></p>
+  <% } else { %>
+    <ul class="nt-list">
+      <% items.forEach(function(n){ %>
+        <li class="nt-item">
+          <span class="nt-icon"><%= n.type === 'follow' ? '👤' : (n.type === 'like' ? '⭐' : (n.type === 'announce' ? '🔁' : '💬')) %></span>
+          <div class="nt-body">
+            <div class="nt-line">
+              <a class="nt-who" href="<%= n.url %>" target="_blank" rel="nofollow noopener"><%= n.name || n.handle %></a>
+              <% if (n.handle && n.name) { %><span class="nt-handle"><%= n.handle %></span><% } %>
+              <span class="nt-what">
+                <% if (n.type === 'follow') { %><%= t('notif.followed') %>
+                <% } else if (n.type === 'like') { %><%= t('notif.liked') %>
+                <% } else if (n.type === 'announce') { %><%= t('notif.boosted') %>
+                <% } else { %><%= t('notif.replied') %><% } %>
+                <% if (n.post_slug) { %><a href="/<%= n.post_slug %>"><%= n.post_title || n.post_slug %></a><% } %>
+              </span>
+              <% if (n.created_at) { %><span class="nt-time"><%= formatDateTime(n.created_at) %></span><% } %>
+            </div>
+            <% if (n.type === 'reply' && n.content) { %><div class="nt-content"><%- n.content %></div><% } %>
+          </div>
+        </li>
+      <% }); %>
+    </ul>
+  <% } %>
+</div>
+
+<style>
+  .nt-wrap { max-width: 620px; margin: 2rem auto; padding: 0 1rem; }
+  .nt-title { margin: 0 0 1.25rem; }
+  .nt-empty { color: var(--ink-soft, #888); }
+  .nt-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .5rem; }
+  .nt-item { display: flex; gap: .7rem; padding: .7rem .9rem; border-radius: 12px; background: color-mix(in srgb, var(--ink, #000) 4%, transparent); border: 1px solid color-mix(in srgb, var(--ink, #000) 8%, transparent); }
+  .nt-icon { font-size: 1.1rem; flex: 0 0 1.4rem; text-align: center; }
+  .nt-body { flex: 1; min-width: 0; }
+  .nt-line { display: flex; align-items: baseline; gap: .35rem; flex-wrap: wrap; }
+  .nt-who { font-weight: 600; color: var(--ink, inherit); text-decoration: none; }
+  .nt-who:hover { text-decoration: underline; }
+  .nt-handle { color: var(--ink-soft, #888); font-size: .82rem; }
+  .nt-what { color: var(--ink-soft, #aaa); }
+  .nt-what a { color: var(--accent, #06c); }
+  .nt-time { color: var(--ink-soft, #999); font-size: .78rem; margin-left: auto; }
+  .nt-content { margin: .3rem 0 0; line-height: 1.45; color: var(--ink, inherit); overflow-wrap: anywhere; }
+  .nt-content p { margin: .2rem 0; } .nt-content p:first-child { margin-top: 0; }
+</style>

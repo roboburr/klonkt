@@ -736,6 +736,31 @@ export async function sendInteraction(site, kind, targetNoteId, authorUri) {
   return { ok: true, delivered };
 }
 
+// Notifications inbox: new followers + replies/likes/boosts on this site's posts.
+export function getNotifications(slug, limit) {
+  const out = [];
+  try {
+    for (const f of db.prepare('SELECT actor_uri, created_at FROM ap_followers WHERE slug = ? ORDER BY created_at DESC LIMIT 50').all(slug)) {
+      out.push({ type: 'follow', handle: deriveHandle(f.actor_uri), url: f.actor_uri, created_at: f.created_at });
+    }
+  } catch { /* ignore */ }
+  try {
+    const rows = db.prepare(`
+      SELECT i.kind, i.actor_name, i.actor_handle, i.actor_url, i.content, i.created_at,
+             p.slug AS post_slug, p.title AS post_title
+      FROM ap_interactions i LEFT JOIN posts p ON p.id = i.post_id
+      WHERE p.site_id = (SELECT id FROM sites WHERE slug = ?)
+      ORDER BY i.created_at DESC LIMIT 80
+    `).all(slug);
+    for (const r of rows) out.push({
+      type: r.kind, name: r.actor_name, handle: r.actor_handle, url: r.actor_url,
+      content: r.content, post_slug: r.post_slug, post_title: r.post_title, created_at: r.created_at,
+    });
+  } catch { /* ignore */ }
+  out.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  return out.slice(0, limit || 60);
+}
+
 export default {
   getOrCreateKeys, apWants, sendAP, actorId, noteId,
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers,
@@ -743,4 +768,5 @@ export default {
   getInteractions, getInteractionById, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete,
   webfingerResolve, followActor, unfollowActor, listFollowing, getTimeline, sendInteraction,
+  getNotifications,
 };

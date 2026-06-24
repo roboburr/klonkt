@@ -85,7 +85,7 @@ const RESERVED_SLUGS = new Set([
   'posts', 'media', 'audio', 'forum',
   'tag', 'type', 'user', 'users', 'artiesten', 'leden', 'favorieten', 'feed.xml', 'atom.xml', 'sitemap.xml',
   'manifest.webmanifest', 'sw.js', 'favicon.ico', 'favicon.svg', 'assets',
-  'authorize_interaction', 'fediverse', 'tijdlijn',
+  'authorize_interaction', 'fediverse', 'tijdlijn', 'meldingen',
 ]);
 
 /**
@@ -605,6 +605,13 @@ router.post('/tijdlijn/boost', requireSiteManager, async (req, res) => {
   const site = res.locals.site;
   if (site) { try { await ActivityPubService.sendInteraction(site, 'boost', (req.body.note || '').toString(), (req.body.author || '').toString()); } catch (e) { /* ignore */ } }
   res.redirect('/tijdlijn?success=' + encodeURIComponent('Geboost 🔁'));
+});
+
+// Notifications inbox (new followers + replies/likes/boosts on your posts).
+router.get('/meldingen', requireSiteManager, (req, res) => {
+  const site = res.locals.site;
+  const items = site ? ActivityPubService.getNotifications(site.slug, 80) : [];
+  renderPage(req, res, 'pages/fedi-notifications', { pageTitle: 'Meldingen', bodyClass: 'on-special', items });
 });
 
 // ==================== VIEW POST (last route â€” catches /:slug) ====================
