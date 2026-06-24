@@ -1,15 +1,11 @@
 /**
  * ThemeService — Palette and theme management
  * 
- * 8 Built-in Palettes (curated, no near-duplicates):
- * - Klonkt (default, navy + gold brand)
- * - Paper (minimalist white)
- * - Forest (greens)
- * - Sunset (pink)
- * - Sand (warm paper, clay accent — key 'cream')
- * - Lilac (purple)
- * - Ocean (klonkt navy + blue accent)
- * - Candy (klonkt navy + candy-red accent)
+ * 8 Built-in Palettes — 1 neutral default + 7 real colours:
+ * - Klonkt (DEFAULT, clean white/black neutral + gold accent; was 'Paper')
+ * - Forest (green) · Ocean (blue) · Teal · Lilac (purple)
+ * - Sunset (pink) · Candy (red) · Amber (warm)
+ * Colour palettes are tinted (like forest/lilac), not navy-with-accent.
  *
  * Dark/Light mode toggle stored per user
  */
@@ -18,49 +14,48 @@ class ThemeService {
   // Paper/ink values map 1-to-1 from the [data-palette] CSS in style.css (= what
   // is ACTUALLY applied); the accent dot is a representative color per palette.
   static PALETTES = {
-    // Brand default — matches klonkt.com (dark blue + gold).
+    // DEFAULT — clean neutral (formerly 'Paper'), renamed to the brand 'Klonkt'.
+    // White → near-black, with the brand gold as accent. The old navy 'Klonkt' is gone.
     klonkt: {
       name: 'Klonkt',
-      light: { paper: '#f3f1ea', ink: '#11141c', accent: '#c98a2a' },
-      dark: { paper: '#0b0d12', ink: '#f3f1ea', accent: '#e8b04b' }
+      light: { paper: '#ffffff', ink: '#09090b', accent: '#c98a2a' },
+      dark: { paper: '#0a0a0a', ink: '#fafafa', accent: '#e8b04b' }
     },
-    paper: {
-      name: 'Paper',
-      light: { paper: '#ffffff', ink: '#09090b', accent: '#000000' },
-      dark: { paper: '#0a0a0a', ink: '#fafafa', accent: '#ffffff' }
-    },
+    // 7 real-colour palettes (tinted paper, like forest/lilac — NOT navy-with-accent).
     forest: {
       name: 'Forest',
       light: { paper: '#f2f6ed', ink: '#1a2e15', accent: '#4d7c2a' },
       dark: { paper: '#0d1f12', ink: '#dcf2d0', accent: '#6fae3f' }
+    },
+    ocean: {
+      name: 'Ocean',
+      light: { paper: '#eef4fb', ink: '#0f2942', accent: '#1d6fe0' },
+      dark: { paper: '#081726', ink: '#d6e8fb', accent: '#5ba0f5' }
+    },
+    teal: {
+      name: 'Teal',
+      light: { paper: '#ecf7f5', ink: '#0c2e2a', accent: '#0d9488' },
+      dark: { paper: '#06201d', ink: '#d4f2ec', accent: '#2dd4bf' }
+    },
+    lilac: {
+      name: 'Lilac',
+      light: { paper: '#faf4fb', ink: '#2a1830', accent: '#a855f7' },
+      dark: { paper: '#170a1c', ink: '#f3e2f7', accent: '#c084fc' }
     },
     sunset: {
       name: 'Sunset',
       light: { paper: '#fdf4f3', ink: '#2e1618', accent: '#d6477f' },
       dark: { paper: '#1f0a14', ink: '#fce7f3', accent: '#f06fa3' }
     },
-    // Warm paper — soft off-white + clay accent (deliberately NOT bright yellow).
-    // key stays 'cream' (DB-safe).
-    cream: {
-      name: 'Sand',
-      light: { paper: '#f7f3ec', ink: '#232019', accent: '#bf6a45' },
-      dark: { paper: '#14120d', ink: '#efe9dd', accent: '#d6845f' }
-    },
-    // Ocean & Candy = the klonkt palette (navy + off-white) with a different accent.
-    ocean: {
-      name: 'Ocean',
-      light: { paper: '#f3f1ea', ink: '#11141c', accent: '#1d6fe0' },
-      dark: { paper: '#0b0d12', ink: '#f3f1ea', accent: '#4f9bff' }
-    },
     candy: {
       name: 'Candy',
-      light: { paper: '#f3f1ea', ink: '#11141c', accent: '#e11d48' },
-      dark: { paper: '#0b0d12', ink: '#f3f1ea', accent: '#fb5c7d' }
+      light: { paper: '#fdf1f3', ink: '#3a1018', accent: '#e11d48' },
+      dark: { paper: '#220810', ink: '#fde0e6', accent: '#fb6f8b' }
     },
-    lilac: {
-      name: 'Lilac',
-      light: { paper: '#faf4fb', ink: '#2a1830', accent: '#a855f7' },
-      dark: { paper: '#170a1c', ink: '#f3e2f7', accent: '#c084fc' }
+    amber: {
+      name: 'Amber',
+      light: { paper: '#fdf6e9', ink: '#3a2a0c', accent: '#d97706' },
+      dark: { paper: '#221a08', ink: '#fdeecb', accent: '#f0a93a' }
     }
   };
 

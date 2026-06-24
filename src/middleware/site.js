@@ -104,7 +104,7 @@ export function loadAudioTracks(req, res, next) {
  * Theme loader — applies user/site theme preferences.
  */
 export function loadTheme(req, res, next) {
-  const PALETTES = ['klonkt','paper','forest','sunset','cream','lilac','ocean','candy'];
+  const PALETTES = ['klonkt','forest','ocean','teal','lilac','sunset','candy','amber'];
   
   const user = req.session?.user;
   const site = res.locals.site;
