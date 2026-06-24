@@ -32,7 +32,7 @@
   <% if (n.children && n.children.length) { %>
     <ol class="comment-replies">
       <% n.children.forEach(function(c){ %>
-        <li class="comment comment-reply"><%- include('../partials/fedi-node', { n: c }) %></li>
+        <li class="comment comment-reply"><%- include('../partials/fedi-node', { n: c, t: t, canManageSite: (typeof canManageSite !== 'undefined' ? canManageSite : false), _base: _base, siteAvatar: (typeof siteAvatar !== 'undefined' ? siteAvatar : null), formatDateTime: formatDateTime }) %></li>
       <% }); %>
     </ol>
   <% } %>

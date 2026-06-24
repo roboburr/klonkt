@@ -83,7 +83,7 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
       <% if (fediverse.thread && fediverse.thread.length) { %>
         <ol class="comments-list">
           <% fediverse.thread.forEach(function(n){ %>
-            <li class="comment"><%- include('../partials/fedi-node', { n: n }) %></li>
+            <li class="comment"><%- include('../partials/fedi-node', { n: n, t: t, canManageSite: (typeof canManageSite !== 'undefined' ? canManageSite : false), _base: _base, siteAvatar: (typeof siteAvatar !== 'undefined' ? siteAvatar : null), formatDateTime: formatDateTime }) %></li>
           <% }); %>
         </ol>
       <% } %>
