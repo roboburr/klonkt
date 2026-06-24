@@ -101,12 +101,33 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
   <script>
   (function(){
     if (window.__fediRemoteWired) return; window.__fediRemoteWired = true;
+    function go(raw, uri){
+      var d = (raw||'').trim().replace(/^@?[^@\s]*@/, '').replace(/^https?:\/\//i, '').replace(/\/.*$/, '').trim();
+      if (d) location.href = 'https://' + d + '/authorize_interaction?uri=' + encodeURIComponent(uri||'');
+    }
     document.addEventListener('click', function(e){
+      var cancel = e.target.closest && e.target.closest('.fedi-remote-cancel');
+      if (cancel) { var f0 = cancel.closest('.fedi-remote-form'); if (f0) f0.remove(); return; }
       var b = e.target.closest && e.target.closest('.fedi-remote-reply-btn');
       if (!b) return;
-      var d = prompt(b.getAttribute('data-fedi-prompt') || ''); if (!d) return;
-      d = d.trim().replace(/^@?[^@\s]*@/, '').replace(/^https?:\/\//i, '').replace(/\/.*$/, '').trim();
-      if (d) location.href = 'https://' + d + '/authorize_interaction?uri=' + encodeURIComponent(b.getAttribute('data-fedi-uri') || '');
+      e.preventDefault();
+      var mine = (b.nextElementSibling && b.nextElementSibling.classList && b.nextElementSibling.classList.contains('fedi-remote-form')) ? b.nextElementSibling : null;
+      var any = document.querySelector('.fedi-remote-form'); if (any) any.remove();
+      if (mine) return; // clicking again closes it
+      var f = document.createElement('form');
+      f.className = 'fedi-remote-form';
+      f.dataset.uri = b.getAttribute('data-fedi-uri') || '';
+      f.innerHTML = '<input type="text" placeholder="@jij@mastodon.social" autocomplete="off" spellcheck="false">'
+        + '<button type="submit" class="btn btn-primary fedi-remote-go">&rarr;</button>'
+        + '<button type="button" class="fedi-remote-cancel" aria-label="x">&times;</button>';
+      b.parentNode.insertBefore(f, b.nextSibling);
+      f.querySelector('input').focus();
+    });
+    document.addEventListener('submit', function(e){
+      var f = e.target.closest && e.target.closest('.fedi-remote-form');
+      if (!f) return;
+      e.preventDefault();
+      go(f.querySelector('input').value, f.dataset.uri);
     });
   })();
   </script>
