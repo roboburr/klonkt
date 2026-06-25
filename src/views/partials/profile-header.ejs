@@ -87,10 +87,31 @@ if (site && site.profile_links) {
           <% }); %>
         </ul>
       <% } %>
+
+      <button type="button" class="profile-fedi-btn" data-fedi-actor-slug="<%= site.slug %>">
+        🐘 <%= t('fedi.profile_follow') %>
+      </button>
     </div>
 
   </div>
 </aside>
+<script>
+(function () {
+  if (window.__pcmsFediFollowWired) return;
+  window.__pcmsFediFollowWired = true;
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('.profile-fedi-btn');
+    if (!b) return;
+    var raw = window.prompt(<%- JSON.stringify(t('fedi.remote_prompt')) %>, '');
+    if (!raw) return;
+    // Strip a full @user@host handle (and any scheme/path) down to the server host.
+    var server = raw.trim().replace(/^@?[^@\s]*@/, '').replace(/^https?:\/\//i, '').replace(/\/.*$/, '').trim();
+    if (!server) return;
+    var actor = location.origin + '/ap/users/' + encodeURIComponent(b.getAttribute('data-fedi-actor-slug') || '');
+    location.href = 'https://' + server + '/authorize_interaction?uri=' + encodeURIComponent(actor);
+  });
+})();
+</script>
 <% } %>
 
 <style>
@@ -249,4 +270,23 @@ if (site && site.profile_links) {
 .on-post .profile-links,
 .on-special .profile-links,
 .on-archive .profile-links { display: none; }
+
+/* Follow-via-fediverse button */
+.profile-fedi-btn {
+  margin-top: 0.65rem;
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--paper-2);
+  color: var(--ink-soft);
+  font: inherit; font-size: 0.85rem; font-weight: 600;
+  cursor: pointer;
+  transition: border-color 120ms, color 120ms, background 120ms;
+}
+.profile-fedi-btn:hover { border-color: var(--accent); color: var(--ink); }
+.on-post .profile-fedi-btn,
+.on-special .profile-fedi-btn,
+.on-search .profile-fedi-btn,
+.on-archive .profile-fedi-btn { display: none; }
 </style>
