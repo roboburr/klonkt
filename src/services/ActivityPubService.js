@@ -599,6 +599,27 @@ export async function deliverDelete(site, post) {
   for (const inbox of inboxes) deliverWithRetry(site.slug, inbox, del, `${me}#main-key`, keys.private_pem);
 }
 
+// Tell followers an already-published post changed (Update + edited Note) so
+// Mastodon refreshes the cached copy (e.g. after fixing content).
+export async function deliverUpdate(site, post) {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  if (!base || !site || !site.slug || !post || !post.id) return;
+  const followers = fStmts().list.all(site.slug);
+  if (!followers.length) return;
+  const inboxes = [...new Set(followers.map((f) => f.shared_inbox || f.inbox).filter(Boolean))];
+  const keys = getOrCreateKeys(site.slug);
+  const me = actorId(base, site.slug);
+  const note = buildNote(base, site, post);
+  note.updated = new Date().toISOString();
+  const update = {
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    id: `${noteId(base, post.id)}#update-${Date.now()}`,
+    type: 'Update', actor: me, to: [PUBLIC], cc: [`${me}/followers`],
+    object: note,
+  };
+  for (const inbox of inboxes) deliverWithRetry(site.slug, inbox, update, `${me}#main-key`, keys.private_pem);
+}
+
 // ── outbound replies (Klonkt → fediverse) ─────────────────────────
 const escHtml = (s) => String(s || '').replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
 const toISO = (v) => { if (!v) return new Date().toISOString(); const s = String(v); const d = new Date(/[TZ]/.test(s) ? s : s.replace(' ', 'T') + 'Z'); return isNaN(d) ? new Date().toISOString() : d.toISOString(); };
@@ -929,7 +950,7 @@ export function unblock(site, target) { blStmts().del.run(site.slug, target); re
 export default {
   getOrCreateKeys, apWants, sendAP, actorId, noteId,
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers,
-  followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete,
+  followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate,
   getInteractions, getInteractionById, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete,
   webfingerResolve, followActor, unfollowActor, listFollowing, getTimeline, sendInteraction,
