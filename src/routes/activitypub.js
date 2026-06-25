@@ -96,12 +96,25 @@ router.get('/ap/notes/:id', (req, res) => {
   if (!post) {
     // Could be one of OUR outbound replies (ap_outbox), not a post.
     const note = AP.getOutboxNote(baseUrl(req), req.params.id);
-    if (note) return AP.sendAP(res, { '@context': 'https://www.w3.org/ns/activitystreams', ...note });
-    return res.status(404).end();
+    if (!note) return res.status(404).end();
+    if (!AP.apWants(req)) {
+      // A browser hit a reply's AP URL → send them to the source it replies to
+      // (where the post + its reactions live), falling back to the site home.
+      const src = (typeof note.inReplyTo === 'string' && /^https?:\/\//i.test(note.inReplyTo))
+        ? note.inReplyTo : (baseUrl(req) + '/');
+      return res.redirect(302, src);
+    }
+    return AP.sendAP(res, { '@context': 'https://www.w3.org/ns/activitystreams', ...note });
   }
   const site = db.prepare('SELECT * FROM sites WHERE id = ?').get(post.site_id);
   if (!site) return res.status(404).end();
-  AP.sendAP(res, { '@context': 'https://www.w3.org/ns/activitystreams', ...AP.buildNote(baseUrl(req), site, post) });
+  const note = AP.buildNote(baseUrl(req), site, post);
+  if (!AP.apWants(req)) {
+    // A browser hit a post's AP note URL → send them to the human post page
+    // (which shows the post + its "from the fediverse" reactions).
+    return res.redirect(302, note.url || (baseUrl(req) + '/'));
+  }
+  AP.sendAP(res, { '@context': 'https://www.w3.org/ns/activitystreams', ...note });
 });
 
 // ── Replies collection ── lets remote servers fetch a post's whole thread.
