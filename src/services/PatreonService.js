@@ -12,10 +12,8 @@
 // (deliberately accepted: $16 < effort to crack).
 //
 // Premium gating is ON by default: the extras (newsletter, statistics, …)
-// require a linked Patreon supporter ($16 lifetime). Set KLONKT_PREMIUM_ENABLED=off
-// to make every feature free (e.g. an internal/demo instance, or a self-hoster who
-// just wants the whole app). On self-host the flag is patchable — the gate is a soft
-// nudge toward supporting the project, not hard DRM.
+// require a linked Patreon supporter. KLONKT_PREMIUM_ENABLED=off disables the
+// premium layer (intended for internal/demo instances).
 
 import crypto from 'node:crypto';
 import { getSetting, setSetting } from './SettingsService.js';
