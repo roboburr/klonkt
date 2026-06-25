@@ -96,6 +96,19 @@ export function buildActor(base, site) {
   return actor;
 }
 
+// Does a post's audio shortcodes reference at least one PLAYABLE (file-backed)
+// track? Link-only tracks (external Spotify/YouTube, media_id NULL) don't count —
+// they have no Klonkt-hosted audio to embed, so no player card / cover-suppression.
+export function hasPlayableAudio(content, siteId) {
+  if (!content || !/\[\[(track|album|playlist):/i.test(content)) return false;
+  try {
+    for (const m of content.matchAll(/\[\[track:([A-Za-z0-9_-]+)\]\]/g)) { const r = db.prepare('SELECT media_id FROM audio_tracks WHERE id = ?').get(m[1]); if (r && r.media_id) return true; }
+    for (const m of content.matchAll(/\[\[album:([^\]]+)\]\]/g)) { if (db.prepare('SELECT 1 FROM audio_tracks WHERE site_id = ? AND album = ? AND media_id IS NOT NULL LIMIT 1').get(siteId, m[1].trim())) return true; }
+    for (const m of content.matchAll(/\[\[playlist:([A-Za-z0-9_-]+)\]\]/g)) { if (db.prepare('SELECT 1 FROM playlist_tracks pt JOIN audio_tracks t ON t.id = pt.track_id WHERE pt.playlist_id = ? AND t.media_id IS NOT NULL LIMIT 1').get(m[1])) return true; }
+  } catch { /* non-fatal */ }
+  return false;
+}
+
 // A single post as an AS2 Note (the object), and as a Create activity (for outbox/delivery).
 export function buildNote(base, site, post) {
   const id = noteId(base, post.id);
@@ -116,13 +129,15 @@ export function buildNote(base, site, post) {
     return ({ jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', avif: 'image/avif' })[(e || '').toLowerCase()] || 'image/jpeg';
   };
   const hadAudio = /\[\[(track|album|playlist):/i.test(post.content || '');
+  const playable = hasPlayableAudio(post.content || '', site && site.id);
   const urls = [];
-  // Audio posts suppress image attachments so Mastodon renders the player CARD
-  // (twitter:player) instead of the cover — on Mastodon a media attachment and a
-  // link/player card are mutually exclusive, and the inline player is the point.
-  if (post.cover_image_url && !hadAudio) urls.push(abs(post.cover_image_url));
+  // Posts with PLAYABLE hosted audio suppress image attachments so Mastodon renders
+  // the player CARD (twitter:player) instead of the cover — media attachment and
+  // link/player card are mutually exclusive on Mastodon. Link-only audio (external)
+  // keeps its cover (no player card to show).
+  if (post.cover_image_url && !playable) urls.push(abs(post.cover_image_url));
   let body = post.content || '';
-  if (!hadAudio) for (const m of body.matchAll(/<img\b[^>]*\bsrc="([^"]+)"[^>]*>/gi)) urls.push(abs(m[1]));
+  if (!playable) for (const m of body.matchAll(/<img\b[^>]*\bsrc="([^"]+)"[^>]*>/gi)) urls.push(abs(m[1]));
   body = body.replace(/<img\b[^>]*>/gi, '');
   // Audio shortcodes: do NOT federate the raw audio file — Klonkt deliberately
   // gates audio (the /audio/stream URL has friction), and shipping it as an AP
@@ -959,5 +974,5 @@ export default {
   webfingerResolve, followActor, unfollowActor, listFollowing, getTimeline, sendInteraction,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
-  getReplyUris, markNotificationsSeen, countUnseenNotifications,
+  getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
 };

@@ -44,11 +44,10 @@ router.get('/embed', (req, res, next) => {
         for (const m of post.content.matchAll(/\[\[track:([A-Za-z0-9_-]+)\]\]/g)) add(m[1]);
         for (const m of post.content.matchAll(/\[\[album:([^\]]+)\]\]/g)) for (const r of db.prepare('SELECT id FROM audio_tracks WHERE site_id = ? AND album = ? ORDER BY position').all(site.id, m[1].trim())) add(r.id);
         for (const m of post.content.matchAll(/\[\[playlist:([A-Za-z0-9_-]+)\]\]/g)) for (const r of db.prepare('SELECT track_id FROM playlist_tracks WHERE playlist_id = ? ORDER BY position').all(m[1])) add(r.track_id);
-        if (ids.length) {
-          const byId = new Map(tracks.map((t) => [t.id, t]));
-          const scoped = ids.map((id) => byId.get(id)).filter(Boolean);
-          if (scoped.length) tracks = scoped;
-        }
+        // Strictly scope to this post's tracks — do NOT fall back to all-site
+        // tracks (that showed unrelated songs for a link-only-track post).
+        const byId = new Map(tracks.map((t) => [t.id, t]));
+        tracks = ids.map((id) => byId.get(id)).filter(Boolean);
       }
     } catch { /* fall back to the full site player */ }
   }

@@ -157,7 +157,7 @@ if (typeof post !== 'undefined' && post && post.slug) {
 // mp3, point at our embeddable player (/embed?post=slug) so Mastodon shows an
 // inline player that streams via the gated /audio/stream (no downloadable file).
 const _postAudio = !!(typeof post !== 'undefined' && post
-  && /\[\[(track|album|playlist):/i.test(post.content || post.content_html || '')
+  && typeof postHasPlayableAudio !== 'undefined' && postHasPlayableAudio
   && typeof premiumUnlocked !== 'undefined' && premiumUnlocked);
 const _embedUrl = _postAudio
   ? ((typeof ogOrigin !== 'undefined' && ogOrigin ? ogOrigin : '') + safeUrlBase + '/embed?post=' + encodeURIComponent(post.slug))

@@ -847,6 +847,7 @@ router.get('/:slug', (req, res, next) => {
     fediverse,
     canManageSite,
     siteAvatar,
+    postHasPlayableAudio: ActivityPubService.hasPlayableAudio(post.content || '', site.id),
     pageTitle: post.title + ' - ' + site.title,
     socialDescr: post.excerpt || '',
     socialImage: post.cover_image_url || '',
