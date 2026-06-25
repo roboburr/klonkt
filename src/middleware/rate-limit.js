@@ -20,7 +20,20 @@ import { renderPage } from './render.js';
 // socket address, and leave IPv6 (multiple colons) untouched.
 function clientKey(req) {
   let ip = req.ip || req.socket?.remoteAddress || '';
+  // Strip a trailing IPv4 port (1.2.3.4:11046 -> 1.2.3.4)
   if (/^\d{1,3}(\.\d{1,3}){3}:\d+$/.test(ip)) ip = ip.split(':')[0];
+  // IPv6-mapped IPv4 (::ffff:1.2.3.4) -> the plain IPv4
+  const mapped = ip.match(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i);
+  if (mapped) return mapped[1];
+  // Real IPv6: key on the /64 network prefix, not the full address. A single
+  // user/allocation is usually a whole /64, so this stops an attacker from
+  // getting a fresh budget by rotating addresses within their own range.
+  if (ip.includes(':')) {
+    const left = ip.includes('::') ? ip.split('::')[0] : ip;
+    const groups = left.split(':').filter(Boolean);
+    while (groups.length < 4) groups.push('0');
+    return groups.slice(0, 4).join(':') + '::/64';
+  }
   return ip || 'unknown';
 }
 
@@ -68,4 +81,33 @@ export const registerLimiter = rateLimit({
   validate: { ip: false },
   skipSuccessfulRequests: false,   // any attempt counts (registration spam is the concern)
   handler: blockedHandler('pages/auth-register', 'on-special', 'Too many signup attempts.'),
+});
+
+// ─── Fediverse (/ap/*) ────────────────────────────────────────────
+// These endpoints are hit by REMOTE SERVERS, not browsers, so the default
+// plain-text 429 is the right response (no HTML page). Deliberately generous:
+// legitimate federation from one instance never comes close, but a flood from
+// a single IP is capped. Per-IP via the same /64-aware clientKey.
+
+// Baseline read cap across all /ap/* (actor, outbox, notes, webfinger, …).
+// 5 req/sec per IP — far above any real Mastodon polling.
+export const apReadLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: clientKey,
+  validate: { ip: false },
+});
+
+// Inbox POSTs each trigger an outbound actor fetch (signature verify) → cap the
+// amplification/queue-inflation a single source can drive. 120/min/IP is still
+// generous for a small site's inbound federation; bump if a busy instance trips it.
+export const apInboxLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: clientKey,
+  validate: { ip: false },
 });

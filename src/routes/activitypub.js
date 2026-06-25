@@ -15,8 +15,12 @@ import express from 'express';
 import { readFileSync } from 'fs';
 import db from '../config/database.js';
 import AP from '../services/ActivityPubService.js';
+import { apReadLimiter, apInboxLimiter } from '../middleware/rate-limit.js';
 
 const router = express.Router();
+// Generous per-IP baseline over all /ap/* (reads). The inbox POST gets an
+// additional, tighter cap inline (it triggers outbound fetches).
+router.use(apReadLimiter);
 let _ver = '1.0.0';
 try { _ver = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url))).version || _ver; } catch { /* keep default */ }
 
@@ -159,7 +163,7 @@ const apJson = express.json({
   limit: '1mb',
   verify: (req, _res, buf) => { req.rawBody = buf; }, // raw body for digest verification
 });
-router.post(['/ap/users/:slug/inbox', '/ap/inbox'], apJson, async (req, res) => {
+router.post(['/ap/users/:slug/inbox', '/ap/inbox'], apInboxLimiter, apJson, async (req, res) => {
   try { return res.status(await AP.handleInbox(req, req.params.slug || null) || 202).end(); }
   catch (e) { console.warn('[AP inbox] error:', e.message); return res.status(202).end(); }
 });
