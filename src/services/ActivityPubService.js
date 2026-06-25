@@ -21,6 +21,9 @@ import HtmlSanitizerService from './HtmlSanitizerService.js';
 
 const PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
 const MAX_OUTBOX = 20;
+// Cache-buster for the music listen-link → forces Mastodon to re-crawl a FRESH
+// (square) player card. Bump this whenever the twitter:player card dimensions change.
+const FEDI_CARD_VER = '2';
 
 // ── RSA keys per actor (lazy, cached in DB) ───────────────────────
 // Prepared lazily (NOT at module load) — the ap_keys table is created in
@@ -154,7 +157,12 @@ export function buildNote(base, site, post) {
   body = body.replace(/\[\[(track|album|playlist):[^\]]+\]\]/gi, '');
   if (hadAudio) {
     const lbl = audioLabels.length ? esc(audioLabels.slice(0, 4).join(', ')) : '';
-    body += `<p>🎵 ${lbl ? `<strong>${lbl}</strong> — ` : ''}<a href="${human}">listen on ${esc(site.title || 'the site')}</a></p>`;
+    // For playable posts, append a version param to the listen-link so Mastodon
+    // sees a NEW card URL and re-crawls it (fresh SQUARE player card) instead of
+    // reusing the cached landscape one. Invisible: the link TEXT stays clean, the
+    // page ignores the param. Bump FEDI_CARD_VER when the card dimensions change.
+    const listenHref = playable ? `${human}?fc=${FEDI_CARD_VER}` : human;
+    body += `<p>🎵 ${lbl ? `<strong>${lbl}</strong> — ` : ''}<a href="${listenHref}">listen on ${esc(site.title || 'the site')}</a></p>`;
   }
   const seen = new Set();
   const attachment = urls.filter(Boolean)
