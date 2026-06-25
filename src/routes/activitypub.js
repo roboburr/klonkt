@@ -76,11 +76,14 @@ router.get('/ap/users/:slug/followers', (req, res) => {
 router.get('/ap/users/:slug/featured', (req, res) => {
   const site = publicSite(req.params.slug);
   if (!site) return res.status(404).end();
+  // NB: Mastodon DISPLAYS the featured collection in REVERSE (pins shown
+  // last-processed-first). So we emit it reversed (lowest pin priority first,
+  // rank 1 last) → Mastodon flips it back to pin-rank ascending on the profile.
   const posts = db.prepare(
     `SELECT id, slug, title, content, cover_image_url, published_at, created_at
      FROM posts WHERE site_id = ? AND status = 'published' AND (fan_only IS NULL OR fan_only = 0)
        AND pinned IS NOT NULL AND pinned > 0
-     ORDER BY pinned ASC, COALESCE(published_at, created_at) DESC LIMIT 20`
+     ORDER BY pinned DESC, COALESCE(published_at, created_at) ASC LIMIT 20`
   ).all(site.id);
   AP.sendAP(res, AP.buildFeatured(baseUrl(req), site, posts));
 });
