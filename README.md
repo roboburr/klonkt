@@ -32,6 +32,10 @@ Klonkt is a **Node app** — run it on a **VPS, in Docker, or on a Node hosting
 platform (PaaS)**. **Not** on classic shared PHP hosting. The database (SQLite)
 creates itself on first start.
 
+> **Requires [Node.js](https://nodejs.org/) 20 or newer.** The one-command VPS
+> installer and the Docker image include it; only a manual install needs you to
+> provide it.
+
 ### Option A — One-command VPS installer (recommended)
 
 **Good if:** you have (or just rented) a fresh, empty Debian/Ubuntu VPS and want
