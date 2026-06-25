@@ -654,6 +654,26 @@ export async function deliverUpdate(site, post) {
   for (const inbox of inboxes) deliverWithRetry(site.slug, inbox, update, `${me}#main-key`, keys.private_pem);
 }
 
+// Tell followers the ACTOR changed (Update + Person) so Mastodon re-processes the
+// account AND re-fetches the featured (pinned) collection — there is no standard
+// "featured changed" activity, so this is how a pin/unpin propagates promptly.
+export async function deliverActorUpdate(site) {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  if (!base || !site || !site.slug) return;
+  const followers = fStmts().list.all(site.slug);
+  if (!followers.length) return;
+  const inboxes = [...new Set(followers.map((f) => f.shared_inbox || f.inbox).filter(Boolean))];
+  const keys = getOrCreateKeys(site.slug);
+  const me = actorId(base, site.slug);
+  const update = {
+    '@context': ['https://www.w3.org/ns/activitystreams', 'https://w3id.org/security/v1'],
+    id: `${me}#update-${Date.now()}`,
+    type: 'Update', actor: me, to: [PUBLIC], cc: [`${me}/followers`],
+    object: buildActor(base, site),
+  };
+  for (const inbox of inboxes) deliverWithRetry(site.slug, inbox, update, `${me}#main-key`, keys.private_pem);
+}
+
 // ── outbound replies (Klonkt → fediverse) ─────────────────────────
 const escHtml = (s) => String(s || '').replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
 const toISO = (v) => { if (!v) return new Date().toISOString(); const s = String(v); const d = new Date(/[TZ]/.test(s) ? s : s.replace(' ', 'T') + 'Z'); return isNaN(d) ? new Date().toISOString() : d.toISOString(); };
@@ -984,7 +1004,7 @@ export function unblock(site, target) { blStmts().del.run(site.slug, target); re
 export default {
   getOrCreateKeys, apWants, sendAP, actorId, noteId,
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers, buildFeatured,
-  followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate,
+  followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate,
   getInteractions, getInteractionById, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete,
   webfingerResolve, followActor, unfollowActor, listFollowing, getTimeline, sendInteraction,
