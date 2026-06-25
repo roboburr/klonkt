@@ -5,6 +5,7 @@
  *   GET /ap/users/:slug            actor (content-negotiated: AP-JSON vs redirect to HTML profile)
  *   GET /ap/users/:slug/outbox     OrderedCollection of Create(Note)
  *   GET /ap/users/:slug/followers  count-only OrderedCollection
+ *   GET /ap/users/:slug/featured   pinned posts (Mastodon "Featured" tab)
  *   GET /ap/notes/:id              a single Note
  *   POST /ap/users/:slug/inbox, /ap/inbox  → 202 (Follow/Accept + signature verify: next step)
  *
@@ -69,6 +70,19 @@ router.get('/ap/users/:slug/followers', (req, res) => {
   if (!site) return res.status(404).end();
   const n = db.prepare('SELECT COUNT(*) n FROM ap_followers WHERE slug = ?').get(site.slug).n;
   AP.sendAP(res, AP.buildFollowers(baseUrl(req), site, n));
+});
+
+// ── Featured (pinned posts → Mastodon "Featured" tab) ─────────────
+router.get('/ap/users/:slug/featured', (req, res) => {
+  const site = publicSite(req.params.slug);
+  if (!site) return res.status(404).end();
+  const posts = db.prepare(
+    `SELECT id, slug, title, content, cover_image_url, published_at, created_at
+     FROM posts WHERE site_id = ? AND status = 'published' AND (fan_only IS NULL OR fan_only = 0)
+       AND pinned IS NOT NULL AND pinned > 0
+     ORDER BY pinned ASC, COALESCE(published_at, created_at) DESC LIMIT 20`
+  ).all(site.id);
+  AP.sendAP(res, AP.buildFeatured(baseUrl(req), site, posts));
 });
 
 // ── Note ──────────────────────────────────────────────────────────

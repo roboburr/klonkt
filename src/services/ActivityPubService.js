@@ -82,6 +82,7 @@ export function buildActor(base, site) {
     inbox: `${id}/inbox`,
     outbox: `${id}/outbox`,
     followers: `${id}/followers`,
+    featured: `${id}/featured`,
     endpoints: { sharedInbox: `${base}/ap/inbox` },
     publicKey: {
       id: `${id}#main-key`,
@@ -239,6 +240,21 @@ export function buildFollowers(base, site, count) {
     type: 'OrderedCollection',
     totalItems: count || 0,
     orderedItems: [], // hidden for privacy; count only
+  };
+}
+
+// Pinned posts → the actor's `featured` collection. Mastodon reads this and shows
+// these as the "Featured" tab (pinned to the profile). Posts come ordered by pin
+// rank; embedded as full Notes so a remote server doesn't need extra fetches.
+export function buildFeatured(base, site, posts) {
+  const id = `${actorId(base, site.slug)}/featured`;
+  const items = (posts || []).map((p) => buildNote(base, site, p));
+  return {
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    id,
+    type: 'OrderedCollection',
+    totalItems: items.length,
+    orderedItems: items,
   };
 }
 
@@ -967,7 +983,7 @@ export function unblock(site, target) { blStmts().del.run(site.slug, target); re
 
 export default {
   getOrCreateKeys, apWants, sendAP, actorId, noteId,
-  buildActor, buildNote, buildCreate, buildOutbox, buildFollowers,
+  buildActor, buildNote, buildCreate, buildOutbox, buildFollowers, buildFeatured,
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate,
   getInteractions, getInteractionById, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete,
