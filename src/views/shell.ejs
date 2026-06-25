@@ -168,7 +168,7 @@ const _embedUrl = _postAudio
 <meta property="og:video:secure_url" content="<%= _e(_embedUrl) %>">
 <meta property="og:video:type"       content="text/html">
 <meta property="og:video:width"      content="480">
-<meta property="og:video:height"     content="400">
+<meta property="og:video:height"     content="480">
 <% } %>
 <% if (typeof post !== 'undefined' && post && post.published_at) { %>
 <meta property="article:published_time" content="<%= _e(post.published_at) %>">
@@ -181,7 +181,7 @@ const _embedUrl = _postAudio
 <% if (_postAudio) { %>
 <meta name="twitter:player"        content="<%= _e(_embedUrl) %>">
 <meta name="twitter:player:width"  content="480">
-<meta name="twitter:player:height" content="400">
+<meta name="twitter:player:height" content="480">
 <% } %>
 <meta name="twitter:title"       content="<%= _e(_socialTitle) %>">
 <meta name="twitter:description" content="<%= _e(_socialDescr) %>">
