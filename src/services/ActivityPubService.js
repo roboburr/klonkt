@@ -115,10 +115,14 @@ export function buildNote(base, site, post) {
     const e = ((u || '').split('?')[0].match(/\.(\w+)$/) || [])[1];
     return ({ jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', avif: 'image/avif' })[(e || '').toLowerCase()] || 'image/jpeg';
   };
+  const hadAudio = /\[\[(track|album|playlist):/i.test(post.content || '');
   const urls = [];
-  if (post.cover_image_url) urls.push(abs(post.cover_image_url));
+  // Audio posts suppress image attachments so Mastodon renders the player CARD
+  // (twitter:player) instead of the cover — on Mastodon a media attachment and a
+  // link/player card are mutually exclusive, and the inline player is the point.
+  if (post.cover_image_url && !hadAudio) urls.push(abs(post.cover_image_url));
   let body = post.content || '';
-  for (const m of body.matchAll(/<img\b[^>]*\bsrc="([^"]+)"[^>]*>/gi)) urls.push(abs(m[1]));
+  if (!hadAudio) for (const m of body.matchAll(/<img\b[^>]*\bsrc="([^"]+)"[^>]*>/gi)) urls.push(abs(m[1]));
   body = body.replace(/<img\b[^>]*>/gi, '');
   // Audio shortcodes: do NOT federate the raw audio file — Klonkt deliberately
   // gates audio (the /audio/stream URL has friction), and shipping it as an AP
@@ -131,7 +135,6 @@ export function buildNote(base, site, post) {
     for (const m of body.matchAll(/\[\[track:([A-Za-z0-9_-]+)\]\]/g)) { const r = db.prepare('SELECT title FROM audio_tracks WHERE id = ?').get(m[1]); if (r && r.title) audioLabels.push(r.title); }
     for (const m of body.matchAll(/\[\[album:([^\]]+)\]\]/g)) audioLabels.push(m[1].trim());
   } catch { /* non-fatal */ }
-  const hadAudio = /\[\[(track|album|playlist):/i.test(body);
   body = body.replace(/\[\[(track|album|playlist):[^\]]+\]\]/gi, '');
   if (hadAudio) {
     const lbl = audioLabels.length ? esc(audioLabels.slice(0, 4).join(', ')) : '';
