@@ -37,13 +37,16 @@
       <% } %>
     </div>
 
-    <% if (canCheck) { %>
+    <% if (canCheck && canSelfUpdate) { %>
     <form method="post" action="/admin/updates/run" class="set-form"
           onsubmit="return confirm('<%= t('aupd.run_confirm') %>');">
       <button type="submit" class="btn btn-primary">
         <%= upToDate ? '↻ ' + t('aupd.redeploy') : '⬆ ' + t('aupd.update_now') %>
       </button>
     </form>
+    <% } else if (typeof manualCommand !== 'undefined' && manualCommand && !upToDate) { %>
+    <p class="set-help" style="margin:.2rem 0 .45rem"><%= t('aupd.manual_hint') %></p>
+    <pre class="upd-cmd"><code><%= manualCommand %></code></pre>
     <% } %>
 
     <p class="set-help" style="margin-top:1rem">
@@ -75,6 +78,8 @@
 .upd-val code { background: var(--paper); padding: .1rem .4rem; border-radius: 4px; font-size: .85em; }
 .upd-desc { color: var(--ink-muted); }
 .upd-status { margin: 1.1rem 0; }
+.upd-cmd { background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; padding: .6rem .8rem; margin: 0; overflow-x: auto; }
+.upd-cmd code { font-size: .9em; }
 .upd-badge { font-size: .8rem; font-weight: 700; padding: .25rem .7rem; border-radius: 20px; }
 .upd-badge.ok { background: #d1fae5; color: #065f46; }
 .upd-badge.new { background: #fef3c7; color: #92400e; }
