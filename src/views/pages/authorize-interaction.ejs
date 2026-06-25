@@ -37,8 +37,8 @@
     <h1 class="auth-interact-title"><%= t('fedi.remote_sent_title') %></h1>
     <p class="auth-interact-note"><%= t('fedi.remote_sent') %></p>
     <p class="auth-interact-actions">
-      <% if (uri) { %><a class="btn" href="<%= uri %>" rel="nofollow noopener"><%= t('fedi.remote_view_original') %></a><% } %>
-      <a class="btn btn-primary" href="/"><%= t('fedi.remote_back') %></a>
+      <% if (uri) { %><a class="btn btn-primary" href="<%= uri %>" rel="nofollow noopener"><%= t('fedi.remote_view_original') %></a><% } %>
+      <a class="btn" href="/"><%= t('fedi.remote_back') %></a>
     </p>
   <% } else if (typeof followTarget !== 'undefined' && followTarget) { %>
   <h1 class="auth-interact-title"><%= t('fedi.follow_heading') %></h1>
@@ -85,6 +85,7 @@
       <button type="submit" class="btn btn-primary auth-like-btn">★ <%= t('fedi.like_btn') %></button>
     </form>
     <p class="auth-interact-or"><%= t('fedi.or_reply') %></p>
+    <p class="auth-interact-where">💬 <%= t('fedi.reply_where') %></p>
     <form method="post" action="/authorize_interaction" class="auth-interact-form">
       <input type="hidden" name="uri" value="<%= uri %>">
       <textarea name="text" rows="4" required placeholder="<%= t('fedi.reply_ph') %>"></textarea>
@@ -115,6 +116,7 @@
   }
   .auth-interact-actions { display: flex; gap: .5rem; align-items: center; }
   .auth-interact-note { color: var(--ink-soft, #999); font-size: .85rem; margin-top: 1rem; }
+  .auth-interact-where { margin: .25rem 0 .85rem; padding: .6rem .8rem; font-size: .85rem; line-height: 1.5; border-radius: 10px; background: color-mix(in srgb, var(--accent, #888) 12%, transparent); color: var(--ink, inherit); }
   .auth-interact-content { line-height: 1.55; }
   .auth-interact-content p { margin: .35rem 0; }
   .auth-interact-content p:first-child { margin-top: 0; }
