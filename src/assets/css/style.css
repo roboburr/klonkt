@@ -2391,8 +2391,11 @@ body.on-cirkel[data-feed-view="grid"]  .feed-grid { display: block; }
 }
 .grid-tile-overlay-src::before { content: "⛓"; margin-right: .25rem; font-size: .9em; }
 .grid-tile-gradient-src {
-    margin-top: .3rem; font-size: .72rem; opacity: .8;
+    margin-top: .35rem; font-size: .72rem; opacity: .85;
+    color: var(--ink-soft);
+    display: inline-flex; align-items: center;
 }
+.grid-tile-gradient-src::before { content: "⛓"; margin-right: .25rem; font-size: .9em; }
 .grid-tile-overlay strong {
     color: #fff;
     font-family: var(--font-display);
@@ -2417,6 +2420,7 @@ body.on-cirkel[data-feed-view="grid"]  .feed-grid { display: block; }
     background-color: hsl(var(--tile-hue, 30), 40%, 85%);
     background-image: linear-gradient(135deg, hsl(var(--tile-hue, 30), 45%, 88%), hsl(calc(var(--tile-hue, 30) + 30), 35%, 75%));
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     padding: 1rem;
