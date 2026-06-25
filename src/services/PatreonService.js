@@ -11,8 +11,11 @@
 // That is the real lock; feature flags themselves can be patched on self-host
 // (deliberately accepted: $16 < effort to crack).
 //
-// Premium is OFF by default (KLONKT_PREMIUM_ENABLED != 'on'): no premium UI
-// is shown and nothing is gated. Self-hosters enable it once Patreon is set up.
+// Premium gating is ON by default: the extras (newsletter, statistics, …)
+// require a linked Patreon supporter ($16 lifetime). Set KLONKT_PREMIUM_ENABLED=off
+// to make every feature free (e.g. an internal/demo instance, or a self-hoster who
+// just wants the whole app). On self-host the flag is patchable — the gate is a soft
+// nudge toward supporting the project, not hard DRM.
 
 import crypto from 'node:crypto';
 import { getSetting, setSetting } from './SettingsService.js';
@@ -21,7 +24,8 @@ const LICENSE_URL = (process.env.KLONKT_LICENSE_URL || 'https://license.klonkt.c
 const ISSUER = 'klonkt-license';
 
 export function premiumEnabled() {
-  return String(process.env.KLONKT_PREMIUM_ENABLED || '').toLowerCase() === 'on';
+  // Default ON; only an explicit 'off' disables the premium layer.
+  return String(process.env.KLONKT_PREMIUM_ENABLED || 'on').toLowerCase() !== 'off';
 }
 export function licenseBase() { return LICENSE_URL; }
 
