@@ -27,6 +27,12 @@
   .ep-foot { padding: 8px 14px; font-size: 11px; opacity: .5; text-align: center; border-top: 1px solid rgba(255,255,255,.08); }
   .ep-foot a { color: inherit; }
   .ep-empty { padding: 24px; text-align: center; opacity: .6; }
+  /* Slim, themed scrollbar for the track list (instead of the chunky default). */
+  .ep-list { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.28) transparent; }
+  .ep-list::-webkit-scrollbar { width: 8px; }
+  .ep-list::-webkit-scrollbar-track { background: transparent; }
+  .ep-list::-webkit-scrollbar-thumb { background-color: rgba(255,255,255,.22); border-radius: 999px; border: 2px solid transparent; background-clip: content-box; }
+  .ep-list::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, var(--ac) 70%, #fff); }
 </style>
 </head>
 <body>
