@@ -584,14 +584,24 @@ export async function handleInbox(req, slugParam) {
     if (!who || !slug) return 400;
     const remote = await fetchActor(who);
     if (!remote || !remote.inbox) return 202; // can't reach them → drop quietly
-    fStmts().ins.run(slug, who, remote.inbox, (remote.endpoints && remote.endpoints.sharedInbox) || null);
+    const sharedInbox = (remote.endpoints && remote.endpoints.sharedInbox) || null;
+    fStmts().ins.run(slug, who, remote.inbox, sharedInbox);
     const me = actorId(base, slug);
     const keys = getOrCreateKeys(slug);
     const accept = { '@context': 'https://www.w3.org/ns/activitystreams', id: `${me}#accept-${Date.now()}-${rid()}`, type: 'Accept', actor: me, object: act };
     deliver(remote.inbox, accept, `${me}#main-key`, keys.private_pem).catch((e) => console.warn('[AP] Accept delivery failed:', e.message));
-    // Auto-backfill: send the new follower our recent posts as Create so their
-    // timeline isn't empty (Mastodon doesn't fetch history on follow). Fire-and-forget.
-    backfillNewFollower(base, slug, remote.inbox).catch(() => { /* best-effort */ });
+    // Auto-backfill: send our recent posts as Create so the instance has our history
+    // (Mastodon doesn't fetch history on follow). ONCE PER REMOTE INSTANCE only —
+    // Mastodon dedupes notes per-instance, so re-filling an instance that already has
+    // a follower of ours is wasted work (and won't re-populate the new follower's
+    // timeline anyway). Deliver to the shared inbox (instance-level) when present.
+    // Sync insert+check (no await between) → no interleave race with concurrent Follows.
+    const instanceFilled = sharedInbox &&
+      db.prepare('SELECT 1 FROM ap_followers WHERE slug = ? AND shared_inbox = ? AND actor_uri != ? LIMIT 1')
+        .get(slug, sharedInbox, who);
+    if (!instanceFilled) {
+      backfillNewFollower(base, slug, sharedInbox || remote.inbox).catch(() => { /* best-effort */ });
+    }
     console.log('[AP] Follow', who, '→', slug, verified ? '(sig ok)' : '(sig unverified)');
     return 202;
   }
