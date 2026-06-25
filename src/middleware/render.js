@@ -18,7 +18,7 @@ import PermissionsService from '../services/PermissionsService.js';
 import { isViewer } from './auth.js';
 import { getSetting } from '../services/SettingsService.js';
 import { isPremium as isPremiumInstance, premiumEnabled, premiumUnlocked } from '../services/PatreonService.js';
-import { unreadCount as notifUnreadCount } from '../services/NotificationService.js';
+import ActivityPubService from '../services/ActivityPubService.js';
 import { audioEnabled as audioFeatureEnabled } from '../config/features.js';
 import { PLATFORMS as PLATFORMS_CATALOG } from '../services/PlatformIcons.js';
 import { t as i18nT, resolveLang, SUPPORTED as LANGS, LANG_NAMES } from '../services/i18n.js';
@@ -117,7 +117,7 @@ export async function renderPage(req, res, viewName, data = {}) {
     t: (key, vars) => i18nT(_lang, key, vars),
     langs: LANGS.map((c) => ({ code: c, name: LANG_NAMES[c], active: c === _lang })),
     timezone: getSetting('timezone') || '',
-    notifUnread: _u ? notifUnreadCount(_u.id) : 0,
+    notifUnread: (canManageFedi && _site) ? ActivityPubService.countUnseenNotifications(_site.slug) : 0,
     userOwnsSite,
     canSeeBeheer,
     canManageFedi,

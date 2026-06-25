@@ -580,6 +580,7 @@ router.post('/tijdlijn/boost', requireSiteManager, async (req, res) => {
 router.get('/meldingen', requireSiteManager, (req, res) => {
   const site = res.locals.site;
   const items = site ? ActivityPubService.getNotifications(site.slug, 80) : [];
+  if (site) ActivityPubService.markNotificationsSeen(site.slug); // viewing = seen → clears the bell badge
   renderPage(req, res, 'pages/fedi-notifications', { pageTitle: 'Meldingen', bodyClass: 'on-special', items });
 });
 

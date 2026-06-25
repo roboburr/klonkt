@@ -170,6 +170,23 @@ export function getReplyUris(base, postId) {
   return out;
 }
 
+// Notifications "seen" tracking → a real bell badge. Stored per site in app_settings.
+export function markNotificationsSeen(slug) {
+  try {
+    db.prepare("INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP")
+      .run(`fedi_notif_seen:${slug}`, new Date().toISOString());
+  } catch { /* non-fatal */ }
+}
+export function countUnseenNotifications(slug) {
+  try {
+    const row = db.prepare('SELECT value FROM app_settings WHERE key = ?').get(`fedi_notif_seen:${slug}`);
+    const seen = row ? Date.parse(row.value) : 0;
+    let n = 0;
+    for (const it of getNotifications(slug, 50)) { if (Date.parse(it.created_at) > seen) n++; }
+    return n;
+  } catch { return 0; }
+}
+
 export function buildCreate(base, site, post) {
   const note = buildNote(base, site, post);
   return {
@@ -918,5 +935,5 @@ export default {
   webfingerResolve, followActor, unfollowActor, listFollowing, getTimeline, sendInteraction,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
-  getReplyUris,
+  getReplyUris, markNotificationsSeen, countUnseenNotifications,
 };
