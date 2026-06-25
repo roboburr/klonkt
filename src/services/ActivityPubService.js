@@ -155,6 +155,13 @@ export function buildNote(base, site, post) {
     for (const m of body.matchAll(/\[\[album:([^\]]+)\]\]/g)) audioLabels.push(m[1].trim());
   } catch { /* non-fatal */ }
   body = body.replace(/\[\[(track|album|playlist):[^\]]+\]\]/gi, '');
+  // External embeds ([[embed:url]]) → emit the bare URL as a link so Mastodon
+  // renders its OWN preview/player card (YouTube/Spotify/SoundCloud/etc) instead
+  // of federating the raw shortcode text.
+  body = body.replace(/\[\[embed:([^\]]+)\]\]/gi, (mm, raw) => {
+    const u = esc(raw.trim().replace(/&amp;/g, '&'));
+    return `<p><a href="${u}">${u}</a></p>`;
+  });
   if (hadAudio) {
     const lbl = audioLabels.length ? esc(audioLabels.slice(0, 4).join(', ')) : '';
     // For playable posts, append a version param to the listen-link so Mastodon
