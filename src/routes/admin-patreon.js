@@ -36,7 +36,7 @@ router.get('/callback', async (req, res) => {
   if (klonkt_error) {
     const cents = Number(klonkt_support_cents || 0);
     const msg = klonkt_error === 'not_entitled'
-      ? `Patreon gekoppeld, maar nog geen €14 (≈ $16) lifetime (nu ${(cents / 100).toFixed(2)} aan steun). Steun de campagne en koppel opnieuw.`
+      ? `Patreon gekoppeld, maar nog geen $16 lifetime (nu ${(cents / 100).toFixed(2)} aan steun). Steun de campagne en koppel opnieuw.`
       : 'Patreon-koppeling mislukt.';
     return res.redirect('/admin/settings?error=' + encodeURIComponent(msg));
   }
