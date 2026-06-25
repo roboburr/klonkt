@@ -523,6 +523,9 @@ export async function handleInbox(req, slugParam) {
     const keys = getOrCreateKeys(slug);
     const accept = { '@context': 'https://www.w3.org/ns/activitystreams', id: `${me}#accept-${Date.now()}`, type: 'Accept', actor: me, object: act };
     deliver(remote.inbox, accept, `${me}#main-key`, keys.private_pem).catch((e) => console.warn('[AP] Accept delivery failed:', e.message));
+    // Auto-backfill: send the new follower our recent posts as Create so their
+    // timeline isn't empty (Mastodon doesn't fetch history on follow). Fire-and-forget.
+    backfillNewFollower(base, slug, remote.inbox).catch(() => { /* best-effort */ });
     console.log('[AP] Follow', who, '→', slug, verified ? '(sig ok)' : '(sig unverified)');
     return 202;
   }
@@ -618,6 +621,28 @@ export async function deliverCreate(site, post) {
   const keyId = `${actorId(base, site.slug)}#main-key`;
   const create = buildCreate(base, site, post);
   for (const inbox of inboxes) deliverWithRetry(site.slug, inbox, create, keyId, keys.private_pem);
+}
+
+// On a new Follow, send that follower our most recent posts as Create so their
+// timeline shows our history (Mastodon does not backfill on follow). Oldest-first
+// so they sort into the follower's timeline at their original dates.
+async function backfillNewFollower(base, slug, inbox) {
+  if (!base || !slug || !inbox) return;
+  const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(slug);
+  if (!site) return;
+  const recent = db.prepare(
+    `SELECT id, slug, title, content, cover_image_url, published_at, created_at
+     FROM posts WHERE site_id = ? AND status = 'published' AND (fan_only IS NULL OR fan_only = 0)
+     ORDER BY COALESCE(published_at, created_at) DESC LIMIT 20`
+  ).all(site.id).reverse();
+  if (!recent.length) return;
+  const keys = getOrCreateKeys(slug);
+  const keyId = `${actorId(base, slug)}#main-key`;
+  for (const p of recent) {
+    try { await deliver(inbox, buildCreate(base, site, p), keyId, keys.private_pem); } catch { /* best-effort */ }
+    await new Promise((r) => setTimeout(r, 150));
+  }
+  console.log('[AP] backfilled', recent.length, 'posts to new follower of', slug);
 }
 
 // Tell followers a post is gone (Delete + Tombstone) so it's removed from their feeds.
