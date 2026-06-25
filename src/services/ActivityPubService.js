@@ -152,9 +152,22 @@ export function buildNote(base, site, post) {
     to: [PUBLIC],
     cc: [`${aId}/followers`],
     tag: Array.isArray(post.tags) ? post.tags.map((t) => ({ type: 'Hashtag', name: '#' + String(t).replace(/\s+/g, '') })) : [],
+    replies: `${id}/replies`,
   };
   if (attachment.length) note.attachment = attachment;
   return note;
+}
+
+// All reply note URIs on a local post (inbound fediverse replies + our own
+// outbound replies) — backs the Note's `replies` Collection so remote servers
+// can fetch the whole thread.
+export function getReplyUris(base, postId) {
+  const out = [];
+  try {
+    for (const r of db.prepare("SELECT object_uri FROM ap_interactions WHERE kind = 'reply' AND post_id = ? AND object_uri != '' ORDER BY created_at").all(postId)) out.push(r.object_uri);
+    for (const r of db.prepare('SELECT id FROM ap_outbox WHERE post_id = ? ORDER BY rowid').all(postId)) out.push(`${base}/ap/notes/${r.id}`);
+  } catch { /* non-fatal */ }
+  return out;
 }
 
 export function buildCreate(base, site, post) {
@@ -905,4 +918,5 @@ export default {
   webfingerResolve, followActor, unfollowActor, listFollowing, getTimeline, sendInteraction,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
+  getReplyUris,
 };

@@ -11,10 +11,13 @@
  * Mounted before resolveSite; resolves the site by slug itself.
  */
 import express from 'express';
+import { readFileSync } from 'fs';
 import db from '../config/database.js';
 import AP from '../services/ActivityPubService.js';
 
 const router = express.Router();
+let _ver = '1.0.0';
+try { _ver = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url))).version || _ver; } catch { /* keep default */ }
 
 const baseUrl = (req) => (process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
 const hostOf = (req) => { try { return new URL(baseUrl(req)).host; } catch { return req.get('host'); } };
@@ -82,6 +85,42 @@ router.get('/ap/notes/:id', (req, res) => {
   const site = db.prepare('SELECT * FROM sites WHERE id = ?').get(post.site_id);
   if (!site) return res.status(404).end();
   AP.sendAP(res, { '@context': 'https://www.w3.org/ns/activitystreams', ...AP.buildNote(baseUrl(req), site, post) });
+});
+
+// ── Replies collection ── lets remote servers fetch a post's whole thread.
+router.get('/ap/notes/:id/replies', (req, res) => {
+  const base = baseUrl(req);
+  const items = AP.getReplyUris(base, req.params.id);
+  AP.sendAP(res, {
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    id: `${base}/ap/notes/${req.params.id}/replies`,
+    type: 'OrderedCollection',
+    totalItems: items.length,
+    orderedItems: items,
+  });
+});
+
+// ── NodeInfo ── standard instance metadata so fediverse tools recognise Klonkt.
+router.get('/.well-known/nodeinfo', (req, res) => {
+  res.type('application/json');
+  res.set('Cache-Control', 'public, max-age=3600');
+  res.send(JSON.stringify({ links: [{ rel: 'http://nodeinfo.diaspora.software/ns/schema/2.1', href: `${baseUrl(req)}/nodeinfo/2.1` }] }));
+});
+router.get('/nodeinfo/2.1', (req, res) => {
+  let users = 0; let posts = 0;
+  try { users = db.prepare('SELECT COUNT(*) c FROM users').get().c; } catch { /* */ }
+  try { posts = db.prepare("SELECT COUNT(*) c FROM posts WHERE status = 'published'").get().c; } catch { /* */ }
+  res.type('application/json; charset=utf-8');
+  res.set('Cache-Control', 'public, max-age=600');
+  res.send(JSON.stringify({
+    version: '2.1',
+    software: { name: 'klonkt', version: _ver, repository: 'https://github.com/roboburr/klonkt' },
+    protocols: ['activitypub'],
+    services: { inbound: [], outbound: [] },
+    openRegistrations: false,
+    usage: { users: { total: users }, localPosts: posts },
+    metadata: { nodeName: 'Klonkt' },
+  }));
 });
 
 // ── Inbox — Follow→Accept, Undo Follow (best-effort signature verify) ──
