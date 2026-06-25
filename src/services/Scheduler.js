@@ -23,11 +23,14 @@ export function flipScheduledPosts() {
     const upd = db.prepare(
       "UPDATE posts SET status = 'published', published_at = COALESCE(published_at, publish_at, CURRENT_TIMESTAMP) WHERE id = ?"
     );
+    const ftsDel = db.prepare('DELETE FROM posts_fts WHERE post_id = ?');
     const fts = db.prepare('INSERT INTO posts_fts(content, title, author, post_id) VALUES (?, ?, ?, ?)');
     const siteStmt = db.prepare('SELECT * FROM sites WHERE id = ?');
     for (const p of due) {
       upd.run(p.id);
-      try { fts.run(HtmlSanitizerService.toPlainText(p.content || ''), p.title || '', p.username || '', p.id); } catch { /* FTS failure is non-fatal */ }
+      // Delete-before-insert so a re-scheduled (previously published) post doesn't
+      // get a duplicate FTS row → duplicate search hits.
+      try { ftsDel.run(p.id); fts.run(HtmlSanitizerService.toPlainText(p.content || ''), p.title || '', p.username || '', p.id); } catch { /* FTS failure is non-fatal */ }
       // ActivityPub: federate the now-published post to followers.
       if (!p.fan_only) {
         try {

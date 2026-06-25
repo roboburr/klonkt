@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 import multer from 'multer';
 import ejs from 'ejs';
 import db from '../config/database.js';
-import { requireAuth, requireSiteManager } from '../middleware/auth.js';
+import { requireAuth, requireSiteManager, isViewer } from '../middleware/auth.js';
 import { renderPage } from '../middleware/render.js';
 import { recordPageview, recordPostView } from '../services/StatsService.js';
 import PermissionsService from '../services/PermissionsService.js';
@@ -590,7 +590,9 @@ router.post('/tijdlijn/boost', requireSiteManager, async (req, res) => {
 router.get('/meldingen', requireSiteManager, (req, res) => {
   const site = res.locals.site;
   const items = site ? ActivityPubService.getNotifications(site.slug, 80) : [];
-  if (site) ActivityPubService.markNotificationsSeen(site.slug); // viewing = seen → clears the bell badge
+  // viewing = seen → clears the bell badge. A viewer (kijker) may look but must not
+  // mutate state (the global write-guard only catches non-GET, not this GET-side effect).
+  if (site && !isViewer(req.session.user)) ActivityPubService.markNotificationsSeen(site.slug);
   renderPage(req, res, 'pages/fedi-notifications', { pageTitle: 'Meldingen', bodyClass: 'on-special', items });
 });
 

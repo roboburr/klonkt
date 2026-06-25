@@ -16,10 +16,61 @@
  *   note    = <base>/ap/notes/<postId>
  */
 import crypto from 'crypto';
+import dns from 'dns';
+import net from 'net';
 import db from '../config/database.js';
 import HtmlSanitizerService from './HtmlSanitizerService.js';
 
 const PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
+
+// Short random suffix so two activity ids minted in the same millisecond (e.g.
+// parallel saves) don't collide and get deduped by a receiver.
+const rid = () => crypto.randomBytes(4).toString('hex');
+
+// Keep only http(s) URLs — drops javascript:/data:/etc so a remote actor can't
+// smuggle a dangerous scheme into a stored href/src (rendered in owner-only views).
+const safeUrl = (u) => { const s = String(u == null ? '' : u).trim(); return /^https?:\/\//i.test(s) ? s : ''; };
+
+// ── SSRF guard for outbound fetches ───────────────────────────────
+// Remote URLs (actor/keyId/webfinger/inbox/inReplyTo) are attacker-controlled, so
+// every outbound fetch must refuse hosts that resolve to private/loopback ranges
+// (cloud metadata, internal services) — on the initial host AND each redirect hop.
+function isBlockedIp(ip) {
+  if (!ip) return true;
+  const v = net.isIP(ip);
+  if (v === 4) {
+    const o = ip.split('.').map(Number);
+    return o[0] === 127 || o[0] === 10 || o[0] === 0
+      || (o[0] === 172 && o[1] >= 16 && o[1] <= 31)
+      || (o[0] === 192 && o[1] === 168)
+      || (o[0] === 169 && o[1] === 254)
+      || (o[0] === 100 && o[1] >= 64 && o[1] <= 127); // CGNAT
+  }
+  if (v === 6) {
+    const s = ip.toLowerCase().replace(/^\[|\]$/g, '');
+    return s === '::1' || s === '::' || s.startsWith('fc') || s.startsWith('fd') || s.startsWith('fe80')
+      || s.startsWith('::ffff:127.') || s.startsWith('::ffff:10.') || s.startsWith('::ffff:192.168.')
+      || s.startsWith('::ffff:169.254.') || s.startsWith('::ffff:172.');
+  }
+  return true; // not an IP literal we recognise → refuse
+}
+async function assertPublicHost(hostname) {
+  if (net.isIP(hostname)) { if (isBlockedIp(hostname)) throw new Error('ssrf-blocked-ip'); return; }
+  const addrs = await dns.promises.lookup(hostname, { all: true });
+  if (!addrs.length || addrs.some((a) => isBlockedIp(a.address))) throw new Error('ssrf-blocked-host');
+}
+async function safeFetch(url, opts = {}, maxRedirects = 3) {
+  let target = url;
+  for (let hop = 0; ; hop++) {
+    const u = new URL(target); // throws on malformed → caller's catch
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new Error('ssrf-bad-scheme');
+    await assertPublicHost(u.hostname);
+    const r = await fetch(target, { ...opts, redirect: 'manual', signal: AbortSignal.timeout(8000) });
+    const loc = (r.status >= 300 && r.status < 400) ? r.headers.get('location') : null;
+    if (loc && hop < maxRedirects) { target = new URL(loc, target).toString(); continue; }
+    return r;
+  }
+}
 const MAX_OUTBOX = 20;
 // Cache-buster for the music listen-link → forces Mastodon to re-crawl a FRESH
 // (square) player card. Bump this whenever the twitter:player card dimensions change.
@@ -322,8 +373,8 @@ function actorInfo(doc, actorUri) {
   return {
     name: (doc && (doc.name || doc.preferredUsername)) || handle,
     handle,
-    url: (doc && (doc.url || doc.id)) || actorUri,
-    icon: icon || null,
+    url: safeUrl((doc && (doc.url || doc.id)) || actorUri) || null,
+    icon: safeUrl(icon) || null,
   };
 }
 
@@ -405,19 +456,20 @@ export async function deliver(inboxUrl, bodyObj, keyId, privatePem) {
   const signingString = `(request-target): post ${u.pathname}\nhost: ${u.host}\ndate: ${date}\ndigest: ${digest}`;
   const signature = crypto.sign('sha256', Buffer.from(signingString), privatePem).toString('base64');
   const sig = `keyId="${keyId}",algorithm="rsa-sha256",headers="(request-target) host date digest",signature="${signature}"`;
-  const r = await fetch(inboxUrl, {
+  const r = await safeFetch(inboxUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/activity+json', Accept: 'application/activity+json', Date: date, Digest: digest, Signature: sig },
     body,
-    signal: AbortSignal.timeout(8000),
   });
   return r.status;
 }
 
 export async function fetchActor(url) {
   try {
-    const r = await fetch(url, { headers: { Accept: 'application/activity+json' }, redirect: 'follow', signal: AbortSignal.timeout(8000) });
+    const r = await safeFetch(url, { headers: { Accept: 'application/activity+json' } });
     if (!r.ok) return null;
+    const len = Number(r.headers.get('content-length') || 0);
+    if (len > 2_000_000) return null; // refuse oversized actor docs
     return await r.json();
   } catch { return null; }
 }
@@ -449,24 +501,31 @@ export async function deliverWithRetry(slug, inbox, activity, keyId, privPem) {
   try { const st = await deliver(inbox, activity, keyId, privPem); if (st >= 200 && st < 300) return; } catch { /* queue below */ }
   enqueueDelivery(slug, inbox, activity);
 }
+let _processingDeliv = false;
 export async function processDeliveryQueue() {
-  let rows;
-  try { rows = deliveryStmts().due.all(); } catch { return; }
-  if (!rows || !rows.length) return;
-  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
-  for (const row of rows) {
-    let ok = false;
-    try {
-      const keys = getOrCreateKeys(row.slug);
-      const st = await deliver(row.inbox, JSON.parse(row.body), `${actorId(base, row.slug)}#main-key`, keys.private_pem);
-      ok = st >= 200 && st < 300;
-    } catch { ok = false; }
-    if (ok) { deliveryStmts().del.run(row.id); continue; }
-    const attempts = row.attempts + 1;
-    if (attempts >= DELIVERY_MAX_ATTEMPTS) { deliveryStmts().del.run(row.id); console.warn('[AP] delivery gave up after', attempts, 'tries →', row.inbox); continue; }
-    const mins = DELIVERY_BACKOFF_MIN[Math.min(attempts, DELIVERY_BACKOFF_MIN.length - 1)];
-    deliveryStmts().bump.run(attempts, new Date(Date.now() + mins * 60000).toISOString(), row.id);
-  }
+  if (_processingDeliv) return; // re-entrancy guard: 30 rows × 8s can exceed the 60s tick → no double-delivery
+  _processingDeliv = true;
+  try {
+    let rows;
+    try { rows = deliveryStmts().due.all(); } catch { return; }
+    if (!rows || !rows.length) return;
+    const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+    for (const row of rows) {
+      let ok = false;
+      try {
+        const keys = getOrCreateKeys(row.slug);
+        const st = await deliver(row.inbox, JSON.parse(row.body), `${actorId(base, row.slug)}#main-key`, keys.private_pem);
+        ok = st >= 200 && st < 300;
+      } catch { ok = false; }
+      if (ok) { deliveryStmts().del.run(row.id); continue; }
+      const attempts = row.attempts + 1;
+      if (attempts >= DELIVERY_MAX_ATTEMPTS) { deliveryStmts().del.run(row.id); console.warn('[AP] delivery gave up after', attempts, 'tries →', row.inbox); continue; }
+      // Index the backoff on the CURRENT attempt count (row.attempts) so the first
+      // retry uses the 1-min tier instead of skipping it.
+      const mins = DELIVERY_BACKOFF_MIN[Math.min(row.attempts, DELIVERY_BACKOFF_MIN.length - 1)];
+      deliveryStmts().bump.run(attempts, new Date(Date.now() + mins * 60000).toISOString(), row.id);
+    }
+  } finally { _processingDeliv = false; }
 }
 let _delivTimer = null;
 export function startDeliveryWorker() {
@@ -511,7 +570,7 @@ export async function handleInbox(req, slugParam) {
   const claimedActor = typeof act.actor === 'string' ? act.actor : (act.actor && act.actor.id);
   // Blocked actor/domain → silently drop (202, don't reveal the block).
   if (claimedActor && isBlockedAny(claimedActor)) { console.log('[AP] inbox dropped (blocked)', claimedActor); return 202; }
-  const GATED = ['Create', 'Like', 'Announce', 'Follow', 'Delete', 'Undo', 'Accept', 'Reject'];
+  const GATED = ['Create', 'Like', 'Announce', 'Follow', 'Delete', 'Undo', 'Accept', 'Reject', 'Add', 'Remove', 'Update'];
   if (GATED.includes(type)) {
     if (!verified || !claimedActor || verified.id !== claimedActor) {
       console.warn('[AP] inbox REJECTED (signature)', type, claimedActor || '?', verified ? '(signer mismatch)' : '(unsigned/invalid)');
@@ -528,7 +587,7 @@ export async function handleInbox(req, slugParam) {
     fStmts().ins.run(slug, who, remote.inbox, (remote.endpoints && remote.endpoints.sharedInbox) || null);
     const me = actorId(base, slug);
     const keys = getOrCreateKeys(slug);
-    const accept = { '@context': 'https://www.w3.org/ns/activitystreams', id: `${me}#accept-${Date.now()}`, type: 'Accept', actor: me, object: act };
+    const accept = { '@context': 'https://www.w3.org/ns/activitystreams', id: `${me}#accept-${Date.now()}-${rid()}`, type: 'Accept', actor: me, object: act };
     deliver(remote.inbox, accept, `${me}#main-key`, keys.private_pem).catch((e) => console.warn('[AP] Accept delivery failed:', e.message));
     // Auto-backfill: send the new follower our recent posts as Create so their
     // timeline isn't empty (Mastodon doesn't fetch history on follow). Fire-and-forget.
@@ -576,7 +635,7 @@ export async function handleInbox(req, slugParam) {
       if (subs.length) {
         const ai = actorInfo(await resolveActor(actorUri), actorUri);
         const html = HtmlSanitizerService.sanitize(o.content || '');
-        const media = JSON.stringify((Array.isArray(o.attachment) ? o.attachment : []).filter((a) => a && a.url).map((a) => ({ url: a.url, type: a.mediaType || '' })));
+        const media = JSON.stringify((Array.isArray(o.attachment) ? o.attachment : []).map((a) => ({ url: safeUrl(a && a.url), type: (a && a.mediaType) || '' })).filter((m) => m.url));
         for (const s of subs) tlStmts().ins.run(o.id, s.slug, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.url || null, o.published || null, media);
         console.log('[AP] timeline +', actorUri, 'x' + subs.length);
       }
@@ -595,8 +654,13 @@ export async function handleInbox(req, slugParam) {
   }
   if (type === 'Delete') {
     // A remote note was deleted upstream → drop it from replies AND the timeline.
+    // Scope to the SIGNING actor so actor B can't delete actor A's content (the
+    // signature gate guarantees claimedActor == the verified signer here).
     const oid = typeof act.object === 'string' ? act.object : (act.object && act.object.id);
-    if (oid) { iStmts().delReply.run(oid); try { tlStmts().del.run(oid); } catch { /* ignore */ } }
+    if (oid && claimedActor) {
+      try { db.prepare('DELETE FROM ap_interactions WHERE object_uri = ? AND actor_uri = ?').run(oid, claimedActor); } catch { /* ignore */ }
+      try { db.prepare('DELETE FROM ap_timeline WHERE id = ? AND author_uri = ?').run(oid, claimedActor); } catch { /* ignore */ }
+    }
     return 202;
   }
   // Accept/Reject of a Follow WE sent (client side).
@@ -664,7 +728,7 @@ export async function deliverDelete(site, post) {
   const nid = noteId(base, post.id);
   const del = {
     '@context': 'https://www.w3.org/ns/activitystreams',
-    id: `${nid}#delete-${Date.now()}`,
+    id: `${nid}#delete-${Date.now()}-${rid()}`,
     type: 'Delete',
     actor: me,
     to: [PUBLIC],
@@ -687,7 +751,7 @@ export async function deliverUpdate(site, post) {
   note.updated = new Date().toISOString();
   const update = {
     '@context': 'https://www.w3.org/ns/activitystreams',
-    id: `${noteId(base, post.id)}#update-${Date.now()}`,
+    id: `${noteId(base, post.id)}#update-${Date.now()}-${rid()}`,
     type: 'Update', actor: me, to: [PUBLIC], cc: [`${me}/followers`],
     object: note,
   };
@@ -707,7 +771,7 @@ export async function deliverActorUpdate(site) {
   const me = actorId(base, site.slug);
   const update = {
     '@context': ['https://www.w3.org/ns/activitystreams', 'https://w3id.org/security/v1'],
-    id: `${me}#update-${Date.now()}`,
+    id: `${me}#update-${Date.now()}-${rid()}`,
     type: 'Update', actor: me, to: [PUBLIC], cc: [`${me}/followers`],
     object: buildActor(base, site),
   };
@@ -740,14 +804,14 @@ export async function resyncFeaturedPins(site, alsoRemove = []) {
   const removeIds = [...new Set([...pinned.map((p) => p.id), ...alsoRemove])];
   // 1. Remove every current pin so Mastodon can recreate them in order.
   for (const id of removeIds) {
-    const rm = { '@context': AS, id: `${me}#rm-${id}-${Date.now()}`, type: 'Remove', actor: me, object: note(id), target: featured, to: [PUBLIC] };
+    const rm = { '@context': AS, id: `${me}#rm-${id}-${Date.now()}-${rid()}`, type: 'Remove', actor: me, object: note(id), target: featured, to: [PUBLIC] };
     for (const inbox of inboxes) deliver(inbox, rm, keyId, keys.private_pem).catch(() => { /* best-effort */ });
   }
   if (!pinned.length) { console.log('[AP] unpinned all featured for', site.slug); return; }
   await new Promise((r) => setTimeout(r, 5000)); // let the Removes land first
   // 2. Add in rank-DESC order, gaps so each StatusPin gets an increasing created_at.
   for (const p of pinned) {
-    const add = { '@context': AS, id: `${me}#add-${p.id}-${Date.now()}`, type: 'Add', actor: me, object: note(p.id), target: featured, to: [PUBLIC], cc: [`${me}/followers`] };
+    const add = { '@context': AS, id: `${me}#add-${p.id}-${Date.now()}-${rid()}`, type: 'Add', actor: me, object: note(p.id), target: featured, to: [PUBLIC], cc: [`${me}/followers`] };
     for (const inbox of inboxes) deliver(inbox, add, keyId, keys.private_pem).catch(() => { /* best-effort */ });
     await new Promise((r) => setTimeout(r, 2000));
   }
@@ -864,9 +928,9 @@ export async function resolveRemoteNote(url) {
   const rawHtml = String(note.content || '').replace(/\[\[(track|album|playlist):[^\]]+\]\]/gi, '');
   const images = (Array.isArray(note.attachment) ? note.attachment : [])
     .filter((a) => a && a.url && (!a.mediaType || /^image\//i.test(a.mediaType)))
-    .map((a) => a.url);
+    .map((a) => safeUrl(a.url)).filter(Boolean);
   return {
-    object_uri: note.id,
+    object_uri: safeUrl(note.id) || note.id,
     actor_uri: actorUri,
     actor_url: ai.url,
     actor_handle: ai.handle,
@@ -894,7 +958,7 @@ export async function deliverOutboxDelete(site, outboxId) {
   if (base) {
     const me = actorId(base, site.slug);
     const nid = noteId(base, row.id);
-    const del = { '@context': 'https://www.w3.org/ns/activitystreams', id: `${nid}#delete-${Date.now()}`, type: 'Delete', actor: me, to: [PUBLIC], object: { id: nid, type: 'Tombstone' } };
+    const del = { '@context': 'https://www.w3.org/ns/activitystreams', id: `${nid}#delete-${Date.now()}-${rid()}`, type: 'Delete', actor: me, to: [PUBLIC], object: { id: nid, type: 'Tombstone' } };
     const keys = getOrCreateKeys(site.slug);
     const inboxes = new Set();
     if (row.to_actor) { const a = await fetchActor(row.to_actor).catch(() => null); if (a) inboxes.add((a.endpoints && a.endpoints.sharedInbox) || a.inbox); }
@@ -913,12 +977,12 @@ export async function webfingerResolve(handle) {
   if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
   const acct = `${parts[0]}@${parts[1]}`;
   try {
-    const r = await fetch(`https://${parts[1]}/.well-known/webfinger?resource=acct:${encodeURIComponent(acct)}`,
-      { headers: { Accept: 'application/jrd+json, application/json' }, redirect: 'follow', signal: AbortSignal.timeout(8000) });
+    const r = await safeFetch(`https://${parts[1]}/.well-known/webfinger?resource=acct:${encodeURIComponent(acct)}`,
+      { headers: { Accept: 'application/jrd+json, application/json' } });
     if (!r.ok) return null;
     const jrd = await r.json();
     const link = (jrd.links || []).find((l) => l.rel === 'self' && /activity\+json|ld\+json/.test(l.type || ''));
-    return link ? link.href : null;
+    return safeUrl(link ? link.href : '') || null;
   } catch { return null; }
 }
 
@@ -957,7 +1021,7 @@ export async function followActor(site, handle) {
   const ai = actorInfo(actor, actor.id);
   const me = actorId(base, site.slug);
   const keys = getOrCreateKeys(site.slug);
-  const followId = `${me}#follow-${Date.now()}`;
+  const followId = `${me}#follow-${Date.now()}-${rid()}`;
   fwStmts().ins.run(site.slug, actor.id, ai.handle, ai.name, ai.icon, ai.url, actor.inbox, followId, 'pending');
   const follow = { '@context': 'https://www.w3.org/ns/activitystreams', id: followId, type: 'Follow', actor: me, object: actor.id };
   try { await deliver(actor.inbox, follow, `${me}#main-key`, keys.private_pem); }
@@ -972,7 +1036,7 @@ export async function unfollowActor(site, actorUri) {
   const keys = getOrCreateKeys(site.slug);
   const row = fwStmts().one.get(site.slug, actorUri);
   if (row && row.inbox) {
-    const undo = { '@context': 'https://www.w3.org/ns/activitystreams', id: `${me}#unfollow-${Date.now()}`, type: 'Undo', actor: me, object: { id: row.follow_id || `${me}#follow`, type: 'Follow', actor: me, object: actorUri } };
+    const undo = { '@context': 'https://www.w3.org/ns/activitystreams', id: `${me}#unfollow-${Date.now()}-${rid()}`, type: 'Undo', actor: me, object: { id: row.follow_id || `${me}#follow`, type: 'Follow', actor: me, object: actorUri } };
     try { await deliver(row.inbox, undo, `${me}#main-key`, keys.private_pem); } catch { /* best-effort */ }
   }
   fwStmts().del.run(site.slug, actorUri);
@@ -988,7 +1052,7 @@ export async function sendInteraction(site, kind, targetNoteId, authorUri) {
   const keys = getOrCreateKeys(site.slug);
   const act = {
     '@context': 'https://www.w3.org/ns/activitystreams',
-    id: `${me}#${type.toLowerCase()}-${Date.now()}`,
+    id: `${me}#${type.toLowerCase()}-${Date.now()}-${rid()}`,
     type, actor: me, object: targetNoteId,
   };
   if (type === 'Announce') { act.to = [PUBLIC]; act.cc = [`${me}/followers`]; }
