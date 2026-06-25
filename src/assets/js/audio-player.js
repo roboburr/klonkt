@@ -288,6 +288,27 @@
     if (t) markPlaying(t.id);
   });
 
+  // Media Session metadata (lock-screen / notification info + artwork). Set per
+  // track; the action handlers are wired once below. Keeping a live media session
+  // is what lets iOS continue a programmatic auto-advance play() instead of
+  // pausing it immediately.
+  function updateMediaMetadata(t) {
+    if (!('mediaSession' in navigator) || typeof MediaMetadata === 'undefined') return;
+    try {
+      const art = [];
+      if (t && t.cover) {
+        let u = t.cover; try { u = new URL(t.cover, location.href).href; } catch (e) {}
+        art.push({ src: u, sizes: '512x512', type: '' });
+      }
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: (t && t.title) || 'Untitled',
+        artist: (t && t.artist) || '',
+        album: albumName || '',
+        artwork: art,
+      });
+    } catch (e) { /* non-fatal */ }
+  }
+
   function loadTrack(index, autoplay, metaOnly) {
     if (!queue[index]) {
       console.warn('[pcms-audio] loadTrack: no track at index', index);
@@ -313,6 +334,7 @@
     document.body.classList.add('has-audio-player');
     renderQueue();
     markPlaying(t.id);
+    updateMediaMetadata(t);
 
     if (metaOnly) return;
 
@@ -474,13 +496,27 @@
     root.classList.add('is-playing');
     root.classList.remove('audio-needs-tap');  // hide tap hint
     mediaRegistry().setActive(registrySelf);   // pause any currently playing embeds
+    if ('mediaSession' in navigator) { try { navigator.mediaSession.playbackState = 'playing'; } catch (e) {} }
   });
+
+  // Media Session action handlers (wired once): lock-screen / headset / car
+  // controls, and — crucially — an active session so iOS keeps a programmatic
+  // auto-advance playing instead of pausing it the instant it starts.
+  if ('mediaSession' in navigator) {
+    const ms = navigator.mediaSession;
+    const wire = (action, fn) => { try { ms.setActionHandler(action, fn); } catch (e) { /* unsupported action */ } };
+    wire('play', () => play());
+    wire('pause', () => pause());
+    wire('previoustrack', () => prev());
+    wire('nexttrack', () => next());
+    wire('seekto', (e) => { if (e && e.seekTime != null && audio.duration) { try { audio.currentTime = e.seekTime; } catch (er) {} } });
+  }
   // Reset the error counter only on a REAL playback start (`playing`), not the
   // eager `play` event. `play` fires before any network/decode error, so resetting
   // there would prevent the 3-strikes stop from ever triggering on a broken
   // track → infinite "next" loop. `playing` only fires when audio is actually playing.
   audio.addEventListener('playing', () => { consecutiveErrors = 0; preloadNext(); });
-  audio.addEventListener('pause', () => { isPlaying = false; root.classList.remove('is-playing'); });
+  audio.addEventListener('pause', () => { isPlaying = false; root.classList.remove('is-playing'); if ('mediaSession' in navigator) { try { navigator.mediaSession.playbackState = 'paused'; } catch (e) {} } });
   audio.addEventListener('ended', next);
   audio.addEventListener('error', (e) => {
     const code = audio.error ? audio.error.code : '?';
