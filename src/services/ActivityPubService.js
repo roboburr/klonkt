@@ -707,6 +707,46 @@ export async function deliverActorUpdate(site) {
   for (const inbox of inboxes) deliverWithRetry(site.slug, inbox, update, `${me}#main-key`, keys.private_pem);
 }
 
+// Reliably set the pinned order on followers' instances via Add/Remove activities
+// (how Mastodon itself federates pins) — pushed to the inbox + processed immediately,
+// unlike the featured COLLECTION which Mastodon caches with sticky StatusPins.
+// Mastodon's Add skips an already-pinned status, so we REMOVE every pin first, wait,
+// then ADD in rank-DESCENDING order (rank 1 added LAST → newest StatusPin → shown first,
+// because Mastodon displays pins newest-first). `alsoRemove` = ids to unpin too.
+export async function resyncFeaturedPins(site, alsoRemove = []) {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  if (!base || !site || !site.slug) return;
+  const followers = fStmts().list.all(site.slug);
+  if (!followers.length) return;
+  const inboxes = [...new Set(followers.map((f) => f.shared_inbox || f.inbox).filter(Boolean))];
+  const keys = getOrCreateKeys(site.slug);
+  const me = actorId(base, site.slug);
+  const keyId = `${me}#main-key`;
+  const featured = `${me}/featured`;
+  const AS = 'https://www.w3.org/ns/activitystreams';
+  const note = (id) => noteId(base, id);
+  const pinned = db.prepare(
+    `SELECT id FROM posts WHERE site_id = ? AND status = 'published' AND (fan_only IS NULL OR fan_only = 0)
+       AND pinned IS NOT NULL AND pinned > 0
+     ORDER BY pinned DESC, COALESCE(published_at, created_at) ASC LIMIT 20`
+  ).all(site.id);
+  const removeIds = [...new Set([...pinned.map((p) => p.id), ...alsoRemove])];
+  // 1. Remove every current pin so Mastodon can recreate them in order.
+  for (const id of removeIds) {
+    const rm = { '@context': AS, id: `${me}#rm-${id}-${Date.now()}`, type: 'Remove', actor: me, object: note(id), target: featured, to: [PUBLIC] };
+    for (const inbox of inboxes) deliver(inbox, rm, keyId, keys.private_pem).catch(() => { /* best-effort */ });
+  }
+  if (!pinned.length) { console.log('[AP] unpinned all featured for', site.slug); return; }
+  await new Promise((r) => setTimeout(r, 5000)); // let the Removes land first
+  // 2. Add in rank-DESC order, gaps so each StatusPin gets an increasing created_at.
+  for (const p of pinned) {
+    const add = { '@context': AS, id: `${me}#add-${p.id}-${Date.now()}`, type: 'Add', actor: me, object: note(p.id), target: featured, to: [PUBLIC], cc: [`${me}/followers`] };
+    for (const inbox of inboxes) deliver(inbox, add, keyId, keys.private_pem).catch(() => { /* best-effort */ });
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  console.log('[AP] resynced', pinned.length, 'featured pins for', site.slug);
+}
+
 // ── outbound replies (Klonkt → fediverse) ─────────────────────────
 const escHtml = (s) => String(s || '').replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
 const toISO = (v) => { if (!v) return new Date().toISOString(); const s = String(v); const d = new Date(/[TZ]/.test(s) ? s : s.replace(' ', 'T') + 'Z'); return isNaN(d) ? new Date().toISOString() : d.toISOString(); };
@@ -1037,7 +1077,7 @@ export function unblock(site, target) { blStmts().del.run(site.slug, target); re
 export default {
   getOrCreateKeys, apWants, sendAP, actorId, noteId,
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers, buildFeatured,
-  followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate,
+  followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
   getInteractions, getInteractionById, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete,
   webfingerResolve, followActor, unfollowActor, listFollowing, getTimeline, sendInteraction,

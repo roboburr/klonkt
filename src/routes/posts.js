@@ -366,10 +366,11 @@ router.post('/posts/:slug/save', requireAuth, (req, res) => {
     else ActivityPubService.deliverUpdate(site, apPost).catch(() => { /* best-effort */ });
   }
 
-  // Pin/unpin changed → push an actor Update so Mastodon re-fetches the featured
-  // (pinned) collection promptly instead of waiting for its own actor refresh.
+  // Pin/unpin/reorder → push Add/Remove activities so followers' instances update the
+  // pinned order immediately (reliable, unlike re-fetching the cached featured collection).
   if ((post.pinned || 0) !== parsePinnedRank(pinned)) {
-    ActivityPubService.deliverActorUpdate(site).catch(() => { /* best-effort */ });
+    const unpinned = (post.pinned || 0) > 0 && parsePinnedRank(pinned) === 0 ? [post.id] : [];
+    ActivityPubService.resyncFeaturedPins(site, unpinned).catch(() => { /* best-effort */ });
   }
 
   res.redirect(`${res.locals.siteUrlBase || ''}/${finalSlug}`);
