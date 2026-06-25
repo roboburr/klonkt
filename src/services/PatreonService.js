@@ -3,13 +3,13 @@
 // Model (Klonkt, 2026-06): the app + all updates are free. A set of premium
 // extras (newsletter, download-for-email, release planning + fan-only posts,
 // EPK/press kit, pro statistics, link-in-bio, embeddable player, show agenda)
-// is gated behind a $10 lifetime Patreon supporter status. The central license
+// is gated behind a €14 lifetime Patreon supporter status. The central license
 // server (license.klonkt.com)
 // checks Patreon and signs an Ed25519 JWT "entitlement token". THIS instance
 // verifies that token OFFLINE using the server's public key — a cracked/forked
 // self-host cannot forge a valid token (only the license server can sign).
 // That is the real lock; feature flags themselves can be patched on self-host
-// (deliberately accepted: $10 < effort to crack).
+// (deliberately accepted: €14 < effort to crack).
 //
 // Premium is OFF by default (KLONKT_PREMIUM_ENABLED != 'on'): no premium UI
 // is shown and nothing is gated. Self-hosters enable it once Patreon is set up.
