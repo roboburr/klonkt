@@ -1,8 +1,10 @@
 // Patreon entitlement (premium layer).
 //
-// Model (Klonkt, 2026-06): the app + all updates are free. A few premium
-// modules (Hub mode, Statistics, Fan login) are gated behind a $10 lifetime
-// Patreon supporter status. The central license server (license.klonkt.com)
+// Model (Klonkt, 2026-06): the app + all updates are free. A set of premium
+// extras (newsletter, download-for-email, release planning + fan-only posts,
+// EPK/press kit, pro statistics, link-in-bio, embeddable player, show agenda)
+// is gated behind a $10 lifetime Patreon supporter status. The central license
+// server (license.klonkt.com)
 // checks Patreon and signs an Ed25519 JWT "entitlement token". THIS instance
 // verifies that token OFFLINE using the server's public key — a cracked/forked
 // self-host cannot forge a valid token (only the license server can sign).
