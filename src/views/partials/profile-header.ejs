@@ -67,7 +67,10 @@ if (site && site.profile_links) {
         <p class="profile-bio"><%= _bioText %></p>
       <% } %>
 
-      <% if (_profileLinks.length) { %>
+      <%# Follow-via-fediverse: a compact icon in the links row (keeps the header
+          short), and hidden for the owner — you don't follow yourself. %>
+      <% var _showFollow = (typeof canManageFedi === 'undefined' || !canManageFedi) && site && site.slug; %>
+      <% if (_profileLinks.length || _showFollow) { %>
         <% const _platforms = (typeof platforms_catalog !== 'undefined' && platforms_catalog) || {}; %>
         <ul class="profile-links" aria-label="External links">
           <% _profileLinks.forEach(function(l) {
@@ -85,12 +88,14 @@ if (site && site.profile_links) {
               </a>
             </li>
           <% }); %>
+          <% if (_showFollow) { %>
+            <li>
+              <button type="button" class="profile-link profile-fedi-link" data-fedi-actor-slug="<%= site.slug %>"
+                      aria-label="<%= t('fedi.profile_follow') %>" title="<%= t('fedi.profile_follow') %>">🐘</button>
+            </li>
+          <% } %>
         </ul>
       <% } %>
-
-      <button type="button" class="profile-fedi-btn" data-fedi-actor-slug="<%= site.slug %>">
-        🐘 <%= t('fedi.profile_follow') %>
-      </button>
     </div>
 
   </div>
@@ -100,7 +105,7 @@ if (site && site.profile_links) {
   if (window.__pcmsFediFollowWired) return;
   window.__pcmsFediFollowWired = true;
   document.addEventListener('click', function (e) {
-    var b = e.target.closest && e.target.closest('.profile-fedi-btn');
+    var b = e.target.closest && e.target.closest('.profile-fedi-link');
     if (!b) return;
     var raw = window.prompt(<%- JSON.stringify(t('fedi.remote_prompt')) %>, '');
     if (!raw) return;
@@ -271,22 +276,6 @@ if (site && site.profile_links) {
 .on-special .profile-links,
 .on-archive .profile-links { display: none; }
 
-/* Follow-via-fediverse button */
-.profile-fedi-btn {
-  margin-top: 0.65rem;
-  display: inline-flex; align-items: center; gap: 0.4rem;
-  padding: 0.4rem 0.85rem;
-  border: 1px solid var(--rule);
-  border-radius: 999px;
-  background: var(--paper-2);
-  color: var(--ink-soft);
-  font: inherit; font-size: 0.85rem; font-weight: 600;
-  cursor: pointer;
-  transition: border-color 120ms, color 120ms, background 120ms;
-}
-.profile-fedi-btn:hover { border-color: var(--accent); color: var(--ink); }
-.on-post .profile-fedi-btn,
-.on-special .profile-fedi-btn,
-.on-search .profile-fedi-btn,
-.on-archive .profile-fedi-btn { display: none; }
+/* Follow-via-fediverse: compact icon button, sits in the links row */
+.profile-fedi-link { border: 0; font: inherit; font-size: 18px; line-height: 1; cursor: pointer; }
 </style>
