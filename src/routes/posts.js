@@ -898,5 +898,21 @@ router.post('/posts/:slug/fedi-reply', requireSiteManager, async (req, res) => {
   res.redirect(`${res.locals.siteUrlBase || ''}/${post.slug}#fediverse`);
 });
 
+// Owner likes/boosts a fediverse comment on their own post — directly as the
+// site, no "your server" detour (mirrors /fedi-reply).
+router.post('/posts/:slug/fedi-react', requireSiteManager, async (req, res) => {
+  const site = res.locals.site;
+  if (!site) return res.status(404).send('Site required');
+  const post = db.prepare('SELECT id, slug FROM posts WHERE site_id = ? AND slug = ?').get(site.id, req.params.slug);
+  if (!post) return res.status(404).send('Not found');
+  const parent = ActivityPubService.getInteractionById(req.body.interaction_id);
+  const kind = req.body.kind === 'boost' ? 'boost' : 'like';
+  if (parent && parent.post_id === post.id && parent.object_uri) {
+    ActivityPubService.sendInteraction(site, kind, parent.object_uri, parent.actor_uri)
+      .catch((e) => console.warn('[AP] reaction failed:', e.message));
+  }
+  res.redirect(`${res.locals.siteUrlBase || ''}/${post.slug}#fediverse`);
+});
+
 export default router;
 export { postNeighbors };

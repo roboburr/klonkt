@@ -302,7 +302,12 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
   display: flex;
   gap: 0.5rem;
   margin-top: 0.4rem;
+  flex-wrap: wrap;
+  align-items: center;
 }
+.fedi-owner-react { display: inline; }
+.fedi-owner-reply { display: inline-block; }
+.fedi-owner-reply[open] { flex-basis: 100%; }
 .comment-reply-btn, .comment-delete-btn {
   background: none;
   border: 0;

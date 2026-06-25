@@ -17,7 +17,17 @@
         <button type="submit" class="comment-delete-btn"><%= t('comments.delete') %></button>
       </form>
     <% } else if (!n.mine && typeof canManageSite !== 'undefined' && canManageSite && n.id && typeof postSlug !== 'undefined' && postSlug) { %>
-      <%# Owner: reply directly AS the site — no "your server" detour (it's your own site). %>
+      <%# Owner: like / boost / reply directly AS the site — no "your server" detour (it's your own site). %>
+      <form method="post" action="<%= _base %>/posts/<%= postSlug %>/fedi-react" class="fedi-owner-react">
+        <input type="hidden" name="interaction_id" value="<%= n.id %>">
+        <input type="hidden" name="kind" value="like">
+        <button type="submit" class="comment-reply-btn">⭐ <%= t('fedi.like_short') %></button>
+      </form>
+      <form method="post" action="<%= _base %>/posts/<%= postSlug %>/fedi-react" class="fedi-owner-react">
+        <input type="hidden" name="interaction_id" value="<%= n.id %>">
+        <input type="hidden" name="kind" value="boost">
+        <button type="submit" class="comment-reply-btn">🔁 <%= t('fedi.boost_short') %></button>
+      </form>
       <details class="fedi-owner-reply">
         <summary class="comment-reply-btn">
           <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
