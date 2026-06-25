@@ -388,6 +388,16 @@ export function initializeDatabase() {
       UNIQUE(slug, target)
     );
     CREATE INDEX IF NOT EXISTS idx_ap_blocks_target ON ap_blocks(target);
+    CREATE TABLE IF NOT EXISTS ap_delivery (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug TEXT NOT NULL,          -- our site/actor that signs the delivery
+      inbox TEXT NOT NULL,         -- recipient inbox URL
+      body TEXT NOT NULL,          -- the activity JSON to POST
+      attempts INTEGER NOT NULL DEFAULT 0,
+      next_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_ap_delivery_due ON ap_delivery(next_at);
   `);
 }
 

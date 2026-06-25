@@ -120,9 +120,23 @@ export function buildNote(base, site, post) {
   let body = post.content || '';
   for (const m of body.matchAll(/<img\b[^>]*\bsrc="([^"]+)"[^>]*>/gi)) urls.push(abs(m[1]));
   body = body.replace(/<img\b[^>]*>/gi, '');
-  // Strip Klonkt audio shortcodes ([[track:…]] etc.) — they'd federate raw as
-  // ugly text (audio federation itself is a later phase).
+  // Audio shortcodes: do NOT federate the raw audio file — Klonkt deliberately
+  // gates audio (the /audio/stream URL has friction), and shipping it as an AP
+  // audio attachment would hand Mastodon a plain, downloadable mp3 URL. Instead,
+  // replace the shortcodes with a "🎵 listen on the site" link so the post invites
+  // a click-through to the protected player (discovery without leaking the file).
+  const esc = (s) => String(s == null ? '' : s).replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+  const audioLabels = [];
+  try {
+    for (const m of body.matchAll(/\[\[track:([A-Za-z0-9_-]+)\]\]/g)) { const r = db.prepare('SELECT title FROM audio_tracks WHERE id = ?').get(m[1]); if (r && r.title) audioLabels.push(r.title); }
+    for (const m of body.matchAll(/\[\[album:([^\]]+)\]\]/g)) audioLabels.push(m[1].trim());
+  } catch { /* non-fatal */ }
+  const hadAudio = /\[\[(track|album|playlist):/i.test(body);
   body = body.replace(/\[\[(track|album|playlist):[^\]]+\]\]/gi, '');
+  if (hadAudio) {
+    const lbl = audioLabels.length ? esc(audioLabels.slice(0, 4).join(', ')) : '';
+    body += `<p>🎵 ${lbl ? `<strong>${lbl}</strong> — ` : ''}<a href="${human}">listen on ${esc(site.title || 'the site')}</a></p>`;
+  }
   const seen = new Set();
   const attachment = urls.filter(Boolean)
     .filter((u) => { if (seen.has(u)) return false; seen.add(u); return true; })
@@ -329,6 +343,59 @@ export async function fetchActor(url) {
   } catch { return null; }
 }
 
+// ── Delivery queue with retries ───────────────────────────────────
+// Outbound deliveries are tried immediately; on failure (down server, timeout,
+// non-2xx) they're queued and retried with backoff so a briefly-offline follower
+// doesn't silently miss the post. The signing key is NOT stored — the worker
+// re-derives it from the actor slug at send time.
+const DELIVERY_MAX_ATTEMPTS = 6;
+const DELIVERY_BACKOFF_MIN = [1, 5, 15, 60, 180, 360];
+let _insDeliv, _dueDeliv, _delDeliv, _bumpDeliv;
+function deliveryStmts() {
+  if (!_insDeliv) {
+    _insDeliv = db.prepare('INSERT INTO ap_delivery (slug, inbox, body, attempts, next_at) VALUES (?,?,?,0,CURRENT_TIMESTAMP)');
+    _dueDeliv = db.prepare("SELECT * FROM ap_delivery WHERE datetime(next_at) <= datetime('now') ORDER BY next_at LIMIT 30");
+    _delDeliv = db.prepare('DELETE FROM ap_delivery WHERE id = ?');
+    _bumpDeliv = db.prepare('UPDATE ap_delivery SET attempts = ?, next_at = ? WHERE id = ?');
+  }
+  return { ins: _insDeliv, due: _dueDeliv, del: _delDeliv, bump: _bumpDeliv };
+}
+export function enqueueDelivery(slug, inbox, activity) {
+  if (!slug || !inbox || !activity) return;
+  try { deliveryStmts().ins.run(slug, inbox, JSON.stringify(activity)); } catch { /* ignore */ }
+}
+// Deliver now; queue for retry if it fails.
+export async function deliverWithRetry(slug, inbox, activity, keyId, privPem) {
+  if (!inbox) return;
+  try { const st = await deliver(inbox, activity, keyId, privPem); if (st >= 200 && st < 300) return; } catch { /* queue below */ }
+  enqueueDelivery(slug, inbox, activity);
+}
+export async function processDeliveryQueue() {
+  let rows;
+  try { rows = deliveryStmts().due.all(); } catch { return; }
+  if (!rows || !rows.length) return;
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  for (const row of rows) {
+    let ok = false;
+    try {
+      const keys = getOrCreateKeys(row.slug);
+      const st = await deliver(row.inbox, JSON.parse(row.body), `${actorId(base, row.slug)}#main-key`, keys.private_pem);
+      ok = st >= 200 && st < 300;
+    } catch { ok = false; }
+    if (ok) { deliveryStmts().del.run(row.id); continue; }
+    const attempts = row.attempts + 1;
+    if (attempts >= DELIVERY_MAX_ATTEMPTS) { deliveryStmts().del.run(row.id); console.warn('[AP] delivery gave up after', attempts, 'tries →', row.inbox); continue; }
+    const mins = DELIVERY_BACKOFF_MIN[Math.min(attempts, DELIVERY_BACKOFF_MIN.length - 1)];
+    deliveryStmts().bump.run(attempts, new Date(Date.now() + mins * 60000).toISOString(), row.id);
+  }
+}
+let _delivTimer = null;
+export function startDeliveryWorker() {
+  if (_delivTimer) return;
+  _delivTimer = setInterval(() => { processDeliveryQueue().catch(() => {}); }, 60 * 1000);
+  if (_delivTimer.unref) _delivTimer.unref();
+}
+
 // Best-effort verification of an incoming signed request. Returns the sender's
 // actor doc if the signature checks out, else null. (Not gating yet — MVP.)
 export async function verifyRequest(req) {
@@ -478,7 +545,7 @@ export async function deliverCreate(site, post) {
   const keys = getOrCreateKeys(site.slug);
   const keyId = `${actorId(base, site.slug)}#main-key`;
   const create = buildCreate(base, site, post);
-  for (const inbox of inboxes) deliver(inbox, create, keyId, keys.private_pem).catch(() => { /* best-effort */ });
+  for (const inbox of inboxes) deliverWithRetry(site.slug, inbox, create, keyId, keys.private_pem);
 }
 
 // Tell followers a post is gone (Delete + Tombstone) so it's removed from their feeds.
@@ -499,7 +566,7 @@ export async function deliverDelete(site, post) {
     to: [PUBLIC],
     object: { id: nid, type: 'Tombstone' },
   };
-  for (const inbox of inboxes) deliver(inbox, del, `${me}#main-key`, keys.private_pem).catch(() => { /* best-effort */ });
+  for (const inbox of inboxes) deliverWithRetry(site.slug, inbox, del, `${me}#main-key`, keys.private_pem);
 }
 
 // ── outbound replies (Klonkt → fediverse) ─────────────────────────
@@ -837,4 +904,5 @@ export default {
   listOutbox, deliverOutboxDelete,
   webfingerResolve, followActor, unfollowActor, listFollowing, getTimeline, sendInteraction,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
+  deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
 };

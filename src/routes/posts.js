@@ -353,6 +353,16 @@ router.post('/posts/:slug/save', requireAuth, (req, res) => {
     }
   } catch (e) { /* FTS issues non-fatal */ }
 
+  // ActivityPub: federate when a post BECOMES published (draft/scheduled → published
+  // via the editor). A brand-new published post is handled in the create route.
+  if (finalStatus === 'published' && post.status !== 'published' && !fanOnly) {
+    ActivityPubService.deliverCreate(site, {
+      id: post.id, slug: finalSlug, title: title || finalSlug,
+      content: cleanContent, cover_image_url: cover_image_url || null,
+      published_at: publishedAt, created_at: post.created_at,
+    }).catch(() => { /* best-effort */ });
+  }
+
   res.redirect(`${res.locals.siteUrlBase || ''}/${finalSlug}`);
 });
 
