@@ -152,6 +152,24 @@ if (typeof post !== 'undefined' && post && post.slug) {
 <% } %>
 <% } %>
 <% if (_canonical) { %><meta property="og:url" content="<%= _e(_canonical) %>"><% } %>
+<%
+// Fediverse/social PLAYER card for posts with audio: instead of shipping the raw
+// mp3, point at our embeddable player (/embed?post=slug) so Mastodon shows an
+// inline player that streams via the gated /audio/stream (no downloadable file).
+const _postAudio = !!(typeof post !== 'undefined' && post
+  && /\[\[(track|album|playlist):/i.test(post.content || post.content_html || '')
+  && typeof premiumUnlocked !== 'undefined' && premiumUnlocked);
+const _embedUrl = _postAudio
+  ? ((typeof ogOrigin !== 'undefined' && ogOrigin ? ogOrigin : '') + safeUrlBase + '/embed?post=' + encodeURIComponent(post.slug))
+  : '';
+%>
+<% if (_postAudio) { %>
+<meta property="og:video"            content="<%= _e(_embedUrl) %>">
+<meta property="og:video:secure_url" content="<%= _e(_embedUrl) %>">
+<meta property="og:video:type"       content="text/html">
+<meta property="og:video:width"      content="480">
+<meta property="og:video:height"     content="160">
+<% } %>
 <% if (typeof post !== 'undefined' && post && post.published_at) { %>
 <meta property="article:published_time" content="<%= _e(post.published_at) %>">
 <% if (post.author_username) { %><meta property="article:author" content="<%= _e(post.author_username) %>"><% } %>
@@ -159,7 +177,12 @@ if (typeof post !== 'undefined' && post && post.slug) {
 <% if (safeSite.facebook_app_id) { %><meta property="fb:app_id" content="<%= _e(safeSite.facebook_app_id) %>"><% } %>
 
 <!-- Twitter Cards -->
-<meta name="twitter:card"        content="<%= _socialImage ? 'summary_large_image' : 'summary' %>">
+<meta name="twitter:card"        content="<%= _postAudio ? 'player' : (_socialImage ? 'summary_large_image' : 'summary') %>">
+<% if (_postAudio) { %>
+<meta name="twitter:player"        content="<%= _e(_embedUrl) %>">
+<meta name="twitter:player:width"  content="480">
+<meta name="twitter:player:height" content="160">
+<% } %>
 <meta name="twitter:title"       content="<%= _e(_socialTitle) %>">
 <meta name="twitter:description" content="<%= _e(_socialDescr) %>">
 <% if (_socialImage)         { %><meta name="twitter:image"   content="<%= _e(_socialImage) %>"><% } %>
