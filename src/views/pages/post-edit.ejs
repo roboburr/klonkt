@@ -18,6 +18,54 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
 
   <form method="post" action="<%= _base %><%= isNew ? '/posts/create' : '/posts/' + post.slug + '/save' %>" class="post-edit-form">
 
+    <%# ── TYPE (segmented) + type-specific inputs ────────────────
+        Post type lives at the TOP (above the body), and the selected type
+        reveals its own input: Audio → inline upload, Video → embed URL,
+        Foto → cover/insert hint. %>
+    <% var ptype = post.type || 'post'; %>
+    <% var TYPE_ICONS = { post: '📝', foto: '📷', video: '🎬', audio: '🎵' }; %>
+    <section class="pe-card pe-type-card">
+      <div class="pe-section-title"><%= t('pedit.s_type') %></div>
+      <input type="hidden" name="type" id="pe-type-input" value="<%= ptype %>">
+      <div class="pe-typeseg" role="radiogroup" aria-label="<%= t('pedit.s_type') %>">
+        <% ['post','foto','video','audio'].forEach(function (tt) { %>
+          <button type="button" class="pe-typeseg-btn<%= ptype === tt ? ' is-active' : '' %>"
+                  data-type="<%= tt %>" role="radio" aria-checked="<%= ptype === tt ? 'true' : 'false' %>">
+            <span class="pe-typeseg-ic" aria-hidden="true"><%= TYPE_ICONS[tt] %></span>
+            <span><%= t('pedit.type_' + tt) %></span>
+          </button>
+        <% }); %>
+      </div>
+
+      <%# Audio: inline upload (transcodes + drops [[track]] into the post) %>
+      <div class="pe-type-panel" data-panel="audio" hidden>
+        <div class="pe-audio-up" id="pe-audio-drop" tabindex="0" role="button" aria-label="<%= t('pedit.audio_up_drop') %>">
+          <input type="file" id="pe-audio-file" accept="audio/*,.mp3,.m4a,.ogg,.opus,.flac,.wav" multiple hidden>
+          <span class="pe-audio-up-ic" aria-hidden="true">🎵</span>
+          <strong><%= t('pedit.audio_up_drop') %></strong>
+          <small><%= t('pedit.audio_up_hint') %></small>
+        </div>
+        <ul class="pe-audio-list" id="pe-audio-list"></ul>
+      </div>
+
+      <%# Video: paste a URL → embed chip %>
+      <div class="pe-type-panel" data-panel="video" hidden>
+        <label class="pe-field">
+          <span><%= t('pedit.video_up_title') %></span>
+          <div class="pe-video-row">
+            <input type="url" id="pe-video-url" inputmode="url" autocapitalize="none" spellcheck="false"
+                   placeholder="<%= t('pedit.video_up_ph') %>">
+            <button type="button" class="pe-btn pe-btn-secondary" id="pe-video-insert"><%= t('pedit.video_up_btn') %></button>
+          </div>
+        </label>
+      </div>
+
+      <%# Foto: light hint toward cover + insert-image %>
+      <div class="pe-type-panel" data-panel="foto" hidden>
+        <p class="pe-foto-hint">🖼 <%= t('pedit.foto_up_hint') %></p>
+      </div>
+    </section>
+
     <%# ── IDENTITY ─────────────────────────────────────────────── %>
     <section class="pe-card">
       <label class="pe-field">
@@ -161,27 +209,15 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
     <%# ── META ─────────────────────────────────────────────────── %>
     <section class="pe-card">
       <div class="pe-section-title"><%= t('pedit.s_publication') %></div>
-      <div class="pe-row pe-row-2">
-        <label class="pe-field">
-          <span><%= t('pedit.f_status') %></span>
-          <% var _st = isNew ? 'published' : (post.status || 'draft'); %>
-          <select name="status">
-            <option value="published" <%= _st === 'published' ? 'selected' : '' %>><%= t('pedit.status_published') %></option>
-            <option value="draft"     <%= _st === 'draft'     ? 'selected' : '' %>><%= t('pedit.status_draft') %></option>
-            <option value="archived"  <%= _st === 'archived'  ? 'selected' : '' %>><%= t('pedit.status_archived') %></option>
-          </select>
-        </label>
-        <label class="pe-field">
-          <span><%= t('pedit.f_type') %></span>
-          <select name="type">
-            <% var ptype = post.type || 'post'; %>
-            <option value="post"  <%= ptype === 'post'  ? 'selected' : '' %>><%= t('pedit.type_post') %></option>
-            <option value="foto"  <%= ptype === 'foto'  ? 'selected' : '' %>><%= t('pedit.type_foto') %></option>
-            <option value="video" <%= ptype === 'video' ? 'selected' : '' %>><%= t('pedit.type_video') %></option>
-            <option value="audio" <%= ptype === 'audio' ? 'selected' : '' %>><%= t('pedit.type_audio') %></option>
-          </select>
-        </label>
-      </div>
+      <label class="pe-field">
+        <span><%= t('pedit.f_status') %></span>
+        <% var _st = isNew ? 'published' : (post.status || 'draft'); %>
+        <select name="status">
+          <option value="published" <%= _st === 'published' ? 'selected' : '' %>><%= t('pedit.status_published') %></option>
+          <option value="draft"     <%= _st === 'draft'     ? 'selected' : '' %>><%= t('pedit.status_draft') %></option>
+          <option value="archived"  <%= _st === 'archived'  ? 'selected' : '' %>><%= t('pedit.status_archived') %></option>
+        </select>
+      </label>
       <div class="pe-checkboxes">
         <div class="pe-pin">
           <label class="pe-checkbox">
@@ -438,6 +474,88 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
   .pe-cover-row { grid-template-columns: 88px 1fr; }
   .pe-cover-thumb { width: 88px; height: 88px; }
 }
+
+/* ─── Post type: segmented control + type-aware panels ──────────── */
+.pe-typeseg {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.4rem;
+}
+.pe-typeseg-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 0.25rem;
+  padding: 0.7rem 0.4rem;
+  border: 1px solid var(--rule);
+  border-radius: 9px;
+  background: var(--paper-2);
+  color: var(--ink-soft);
+  font-size: 0.85rem; font-weight: 600;
+  cursor: pointer;
+  transition: border-color 120ms, background 120ms, color 120ms;
+}
+.pe-typeseg-btn:hover { border-color: var(--accent); color: var(--ink); }
+.pe-typeseg-btn .pe-typeseg-ic { font-size: 1.3rem; line-height: 1; }
+.pe-typeseg-btn.is-active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--paper-2));
+  color: var(--ink);
+}
+.pe-typeseg-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+@media (max-width: 480px) {
+  .pe-typeseg-btn { font-size: 0.78rem; padding: 0.6rem 0.25rem; }
+  .pe-typeseg-btn .pe-typeseg-ic { font-size: 1.15rem; }
+}
+
+.pe-type-panel { margin-top: 0.2rem; }
+
+/* Audio drop/upload zone */
+.pe-audio-up {
+  display: flex; flex-direction: column; align-items: center; gap: 0.3rem;
+  text-align: center;
+  padding: 1.4rem 1rem;
+  border: 2px dashed var(--rule);
+  border-radius: 10px;
+  background: var(--paper-2);
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: border-color 120ms, background 120ms;
+}
+.pe-audio-up:hover,
+.pe-audio-up:focus-visible { border-color: var(--accent); outline: none; }
+.pe-audio-up.is-drag {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--paper-2));
+}
+.pe-audio-up .pe-audio-up-ic { font-size: 1.7rem; line-height: 1; }
+.pe-audio-up strong { color: var(--ink); font-size: 0.95rem; }
+.pe-audio-up small { font-size: 0.78rem; color: var(--ink-muted, var(--ink-soft)); max-width: 42ch; }
+
+.pe-audio-list { list-style: none; margin: 0.7rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.pe-audio-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--rule);
+  border-radius: 7px;
+  background: var(--paper-2);
+  font-size: 0.85rem;
+}
+.pe-audio-item-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pe-audio-item-state { flex: none; font-size: 0.8rem; color: var(--ink-soft); }
+.pe-audio-item.is-done { border-color: color-mix(in srgb, var(--accent) 50%, var(--rule)); }
+.pe-audio-item.is-done .pe-audio-item-state { color: var(--accent); }
+.pe-audio-item.is-fail .pe-audio-item-state { color: #d9534f; }
+
+/* Video URL row */
+.pe-video-row { display: flex; gap: 0.5rem; }
+.pe-video-row input { flex: 1 1 auto; min-width: 0; }
+.pe-video-row input {
+  box-sizing: border-box; padding: 0.6rem 0.75rem;
+  border: 1px solid var(--rule); border-radius: 6px;
+  background: var(--paper-2); color: var(--ink); font-size: 0.95rem;
+}
+.pe-video-row input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
+.pe-video-row .pe-btn { flex: none; }
+
+.pe-foto-hint { margin: 0; font-size: 0.88rem; color: var(--ink-soft); }
 
 /* ─── Editor frame (WYSIWYG: top toolbar, contenteditable body, status bar) ─── */
 .pe-editor-frame {
@@ -1815,6 +1933,105 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
       });
     });
   }
+
+  // ── Post type: segmented control + type-aware panels ──────────
+  (function () {
+    const typeInput = document.getElementById('pe-type-input');
+    const card = document.querySelector('.pe-type-card');
+    if (!typeInput || !card) return;
+    const seg = card.querySelector('.pe-typeseg');
+    const panels = card.querySelectorAll('.pe-type-panel');
+
+    function applyType(tt) {
+      typeInput.value = tt;
+      seg.querySelectorAll('.pe-typeseg-btn').forEach(b => {
+        const on = b.dataset.type === tt;
+        b.classList.toggle('is-active', on);
+        b.setAttribute('aria-checked', on ? 'true' : 'false');
+      });
+      panels.forEach(p => { p.hidden = (p.dataset.panel !== tt); });
+    }
+    seg.addEventListener('click', (e) => {
+      const btn = e.target.closest('.pe-typeseg-btn');
+      if (btn) applyType(btn.dataset.type);
+    });
+    applyType(typeInput.value || 'post');
+
+    // Video URL → [[embed:url]] chip
+    const vBtn = document.getElementById('pe-video-insert');
+    const vUrl = document.getElementById('pe-video-url');
+    if (vBtn && vUrl) {
+      const doInsert = () => {
+        const url = (vUrl.value || '').trim();
+        if (!/^https?:\/\//i.test(url)) { alert('<%= t('pedit.js_embed_invalid') %>'); return; }
+        insertChip('embed', url);
+        vUrl.value = '';
+      };
+      vBtn.addEventListener('click', doInsert);
+      vUrl.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); doInsert(); } });
+    }
+
+    // Audio: inline upload → transcodes server-side → [[track:id]] chip
+    const drop = document.getElementById('pe-audio-drop');
+    const fileInput = document.getElementById('pe-audio-file');
+    const list = document.getElementById('pe-audio-list');
+    if (drop && fileInput && list) {
+      const pick = () => fileInput.click();
+      drop.addEventListener('click', pick);
+      drop.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
+      ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('is-drag'); }));
+      ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('is-drag'); }));
+      drop.addEventListener('drop', (e) => { if (e.dataTransfer && e.dataTransfer.files) handleFiles(e.dataTransfer.files); });
+      fileInput.addEventListener('change', () => { handleFiles(fileInput.files); fileInput.value = ''; });
+
+      function clientDuration(f) {
+        return new Promise((resolve) => {
+          try {
+            const u = URL.createObjectURL(f);
+            const a = document.createElement('audio');
+            a.preload = 'metadata';
+            a.onloadedmetadata = () => { URL.revokeObjectURL(u); resolve(Number.isFinite(a.duration) ? Math.round(a.duration) : null); };
+            a.onerror = () => { URL.revokeObjectURL(u); resolve(null); };
+            a.src = u;
+          } catch (_) { resolve(null); }
+        });
+      }
+      async function handleFiles(files) {
+        for (const f of Array.from(files || [])) await uploadOne(f);
+      }
+      async function uploadOne(f) {
+        const li = document.createElement('li');
+        li.className = 'pe-audio-item';
+        const nameEl = document.createElement('span');
+        nameEl.className = 'pe-audio-item-name';
+        nameEl.textContent = f.name;
+        const stateEl = document.createElement('span');
+        stateEl.className = 'pe-audio-item-state';
+        stateEl.textContent = '⏳ <%= t('pedit.audio_up_busy') %>';
+        li.appendChild(nameEl); li.appendChild(stateEl);
+        list.appendChild(li);
+        try {
+          const dur = await clientDuration(f);
+          const fd = new FormData();
+          fd.append('audio', f);
+          if (dur) fd.append('duration', String(dur));
+          const res = await fetch('/admin/audio/upload', {
+            method: 'POST', body: fd,
+            headers: { 'Accept': 'application/json' },
+            credentials: 'same-origin',
+          });
+          const j = await res.json().catch(() => ({}));
+          if (!res.ok || !j.ok || !j.id) throw new Error(j.error || ('HTTP ' + res.status));
+          insertChip('track', j.id);
+          stateEl.textContent = '✓ <%= t('pedit.audio_up_done') %>';
+          li.classList.add('is-done');
+        } catch (err) {
+          stateEl.textContent = '✕ <%= t('pedit.audio_up_fail') %>: ' + err.message;
+          li.classList.add('is-fail');
+        }
+      }
+    }
+  })();
 
   // ── Submit: serialize editor contents into the hidden field
   if (form && hiddenField) {
