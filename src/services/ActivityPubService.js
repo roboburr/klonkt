@@ -1024,7 +1024,10 @@ export function getTimeline(slug, limit) { return tlStmts().list.all(slug, limit
 export async function followActor(site, handle) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   if (!base || !site || !site.slug) return { error: 'config' };
-  const actorUrl = await webfingerResolve(handle);
+  // Accept either an @user@host handle (WebFinger) or a profile/actor URL directly
+  // (the authorize_interaction Follow flow passes a URL).
+  const s = String(handle || '').trim();
+  const actorUrl = /^https?:\/\//i.test(s) ? (safeUrl(s) || null) : await webfingerResolve(s);
   if (!actorUrl) return { error: 'not_found' };
   const actor = await fetchActor(actorUrl).catch(() => null);
   if (!actor || !actor.id || !actor.inbox) return { error: 'unreachable' };
@@ -1038,6 +1041,19 @@ export async function followActor(site, handle) {
   catch (e) { console.warn('[AP] follow deliver failed:', e.message); }
   console.log('[AP] follow', site.slug, '→', actor.id);
   return { ok: true, name: ai.name, handle: ai.handle };
+}
+
+// Resolve a profile URL or @handle to a followable remote actor (for the
+// authorize_interaction "Follow" flow). Returns display fields + inbox, or null
+// when it isn't a reachable actor (e.g. the input was a post, not a profile).
+export async function resolveRemoteActor(input) {
+  const s = String(input || '').trim();
+  const actorUrl = /^https?:\/\//i.test(s) ? (safeUrl(s) || null) : await webfingerResolve(s);
+  if (!actorUrl) return null;
+  const actor = await fetchActor(actorUrl).catch(() => null);
+  if (!actor || !actor.id || !actor.inbox) return null;
+  const ai = actorInfo(actor, actor.id);
+  return { actor_uri: actor.id, actor_name: ai.name, actor_handle: ai.handle, actor_url: ai.url, actor_icon: ai.icon, inbox: actor.inbox };
 }
 
 export async function unfollowActor(site, actorUri) {
@@ -1161,7 +1177,7 @@ export default {
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
   getInteractions, getInteractionById, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete,
-  webfingerResolve, followActor, unfollowActor, listFollowing, getTimeline, sendInteraction,
+  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, getTimeline, sendInteraction,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
   getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,

@@ -484,14 +484,21 @@ router.get('/authorize_interaction', requireSiteManager, async (req, res) => {
   const site = res.locals.site;
   const uri = (req.query.uri || '').toString();
   const sent = !!req.query.sent;
-  let target = null;
-  if (!sent) { try { target = await ActivityPubService.resolveRemoteNote(uri); } catch { /* ignore */ } }
+  const followed = !!req.query.followed;
+  let target = null, followTarget = null;
+  if (!sent && !followed && uri) {
+    try { target = await ActivityPubService.resolveRemoteNote(uri); } catch { /* ignore */ }
+    // Not a post? Maybe the URI is a profile/actor → offer Follow, not reply.
+    if (!target) { try { followTarget = await ActivityPubService.resolveRemoteActor(uri); } catch { /* ignore */ } }
+  }
   renderPage(req, res, 'pages/authorize-interaction', {
     pageTitle: 'Interacteer via de fediverse',
     bodyClass: 'on-special',
     uri,
     target,
+    followTarget,
     sent,
+    followed,
     liked: !!req.query.liked,
     siteTitle: site ? site.title : '',
   });
@@ -507,6 +514,17 @@ router.post('/authorize_interaction/like', requireSiteManager, (req, res) => {
       .catch((e) => console.warn('[AP] remote like failed:', e.message));
   }
   res.redirect('/authorize_interaction?liked=1&uri=' + encodeURIComponent(uri));
+});
+
+// Follow a remote actor from your own site (when the target is a profile, not a post).
+router.post('/authorize_interaction/follow', requireSiteManager, (req, res) => {
+  const site = res.locals.site;
+  const uri = (req.body.uri || '').toString();
+  if (site && uri) {
+    ActivityPubService.followActor(site, uri)
+      .catch((e) => console.warn('[AP] remote follow failed:', e.message));
+  }
+  res.redirect('/authorize_interaction?followed=1&uri=' + encodeURIComponent(uri));
 });
 
 router.post('/authorize_interaction', requireSiteManager, (req, res) => {

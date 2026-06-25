@@ -26,6 +26,13 @@
       <% if (uri) { %><a class="btn" href="<%= uri %>" rel="nofollow noopener"><%= t('fedi.remote_view_original') %></a><% } %>
       <a class="btn btn-primary" href="/"><%= t('fedi.remote_back') %></a>
     </p>
+  <% } else if (typeof followed !== 'undefined' && followed) { %>
+    <h1 class="auth-interact-title"><%= t('fedi.followed_title') %></h1>
+    <p class="auth-interact-note"><%= t('fedi.followed_done') %></p>
+    <p class="auth-interact-actions">
+      <% if (uri) { %><a class="btn" href="<%= uri %>" rel="nofollow noopener"><%= t('fedi.view_profile') %></a><% } %>
+      <a class="btn btn-primary" href="/"><%= t('fedi.remote_back') %></a>
+    </p>
   <% } else if (typeof sent !== 'undefined' && sent) { %>
     <h1 class="auth-interact-title"><%= t('fedi.remote_sent_title') %></h1>
     <p class="auth-interact-note"><%= t('fedi.remote_sent') %></p>
@@ -33,6 +40,21 @@
       <% if (uri) { %><a class="btn" href="<%= uri %>" rel="nofollow noopener"><%= t('fedi.remote_view_original') %></a><% } %>
       <a class="btn btn-primary" href="/"><%= t('fedi.remote_back') %></a>
     </p>
+  <% } else if (typeof followTarget !== 'undefined' && followTarget) { %>
+  <h1 class="auth-interact-title"><%= t('fedi.follow_heading') %></h1>
+  <p class="auth-interact-meta">
+    <%= t('fedi.follow_intro') %>
+    <a href="<%= followTarget.actor_url %>" rel="nofollow noopener" target="_blank"><strong><%= followTarget.actor_name %></strong></a>
+    <span class="fedi-handle"><%= followTarget.actor_handle %></span>
+  </p>
+  <form method="post" action="/authorize_interaction/follow" class="auth-interact-form">
+    <input type="hidden" name="uri" value="<%= followTarget.actor_uri %>">
+    <div class="auth-interact-actions">
+      <button type="submit" class="btn btn-primary"><%= t('fedi.follow_btn') %></button>
+      <a href="/" class="btn"><%= t('comments.cancel') %></a>
+    </div>
+  </form>
+  <p class="auth-interact-note"><%= t('fedi.remote_as', { site: siteTitle }) %></p>
   <% } else { %>
   <h1 class="auth-interact-title"><%= t('fedi.remote_title') %></h1>
 
