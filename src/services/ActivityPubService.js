@@ -409,7 +409,7 @@ export function getInteractions(postId, base, site) {
   for (const r of rows) {
     if (r.kind !== 'reply') continue;
     nodes.push({
-      noteId: r.object_uri, parent: r.parent_uri || null, mine: false,
+      noteId: r.object_uri, parent: r.parent_uri || null, mine: false, id: r.id,
       actor_name: r.actor_name, actor_handle: r.actor_handle, actor_url: r.actor_url,
       actor_icon: r.actor_icon, content: r.content, created_at: r.published || r.created_at,
       children: [],

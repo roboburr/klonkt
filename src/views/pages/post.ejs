@@ -89,7 +89,7 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
       <% if (_fedi.thread && _fedi.thread.length) { %>
         <ol class="comments-list">
           <% _fedi.thread.forEach(function(n){ %>
-            <li class="comment"><%- include('../partials/fedi-node', { n: n, t: t, canManageSite: (typeof canManageSite !== 'undefined' ? canManageSite : false), _base: _base, siteAvatar: (typeof siteAvatar !== 'undefined' ? siteAvatar : null), formatDateTime: formatDateTime }) %></li>
+            <li class="comment"><%- include('../partials/fedi-node', { n: n, t: t, canManageSite: (typeof canManageSite !== 'undefined' ? canManageSite : false), _base: _base, siteAvatar: (typeof siteAvatar !== 'undefined' ? siteAvatar : null), formatDateTime: formatDateTime, postSlug: post.slug }) %></li>
           <% }); %>
         </ol>
       <% } %>
@@ -359,6 +359,9 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
 /* Show the reply form only AFTER clicking REPLY. The display:flex above would
    otherwise override the [hidden] attribute → form was always open. */
 .comment-reply-form[hidden] { display: none; }
+.fedi-owner-reply summary { list-style: none; cursor: pointer; }
+.fedi-owner-reply summary::-webkit-details-marker { display: none; }
+.fedi-owner-reply[open] summary { margin-bottom: .45rem; }
 /* DELETE button is inside a <form>; display:contents makes it a direct flex-sibling
    of REPLY → pixel-perfect alignment + equal gap. */
 .comment-actions form { display: contents; }

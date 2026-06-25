@@ -1,4 +1,4 @@
-<%# Renders one fediverse thread node (n). Expects: n, t, canManageSite, _base, siteAvatar, formatDateTime %>
+<%# Renders one fediverse thread node (n). Expects: n, t, canManageSite, _base, siteAvatar, formatDateTime, postSlug %>
 <div class="comment-avatar">
   <% if (n.actor_icon) { %><img src="<%= n.actor_icon %>" alt="" loading="lazy">
   <% } else { %><span><%= (n.actor_name || '?').charAt(0).toUpperCase() %></span><% } %>
@@ -16,6 +16,21 @@
       <form method="post" action="<%= _base %>/fediverse/<%= n.outboxId %>/delete" onsubmit="return confirm('<%= t('fedi.delete_confirm') %>')">
         <button type="submit" class="comment-delete-btn"><%= t('comments.delete') %></button>
       </form>
+    <% } else if (!n.mine && typeof canManageSite !== 'undefined' && canManageSite && n.id && typeof postSlug !== 'undefined' && postSlug) { %>
+      <%# Owner: reply directly AS the site — no "your server" detour (it's your own site). %>
+      <details class="fedi-owner-reply">
+        <summary class="comment-reply-btn">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+          <%= t('fedi.remote_reply_short') %>
+        </summary>
+        <form method="post" action="<%= _base %>/posts/<%= postSlug %>/fedi-reply" class="comment-reply-form">
+          <input type="hidden" name="interaction_id" value="<%= n.id %>">
+          <textarea name="text" rows="2" required placeholder="<%= t('fedi.reply_ph') %>"></textarea>
+          <div class="comment-reply-form-actions">
+            <button type="submit" class="btn"><%= t('fedi.send') %></button>
+          </div>
+        </form>
+      </details>
     <% } else if (!n.mine && n.noteId) { %>
       <button type="button" class="comment-reply-btn fedi-remote-reply-btn" data-fedi-uri="<%= n.noteId %>" data-fedi-ph="<%= t('fedi.remote_ph') %>">
         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
@@ -26,7 +41,7 @@
   <% if (n.children && n.children.length) { %>
     <ol class="comment-replies">
       <% n.children.forEach(function(c){ %>
-        <li class="comment comment-reply"><%- include('../partials/fedi-node', { n: c, t: t, canManageSite: (typeof canManageSite !== 'undefined' ? canManageSite : false), _base: _base, siteAvatar: (typeof siteAvatar !== 'undefined' ? siteAvatar : null), formatDateTime: formatDateTime }) %></li>
+        <li class="comment comment-reply"><%- include('../partials/fedi-node', { n: c, t: t, canManageSite: (typeof canManageSite !== 'undefined' ? canManageSite : false), _base: _base, siteAvatar: (typeof siteAvatar !== 'undefined' ? siteAvatar : null), formatDateTime: formatDateTime, postSlug: (typeof postSlug !== 'undefined' ? postSlug : null) }) %></li>
       <% }); %>
     </ol>
   <% } %>
