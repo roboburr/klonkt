@@ -692,45 +692,33 @@ router.post('/news/autoboost', requireSiteManager, (req, res) => {
   res.redirect('/following?success=' + encodeURIComponent(req.body.auto_boost ? 'Uitgelicht ✨' : 'Niet meer uitgelicht'));
 });
 
+// Like / unlike a feed post — a toggle. Fetch request → JSON {on} (stay on the page,
+// no banner); no-JS → redirect back.
 router.post('/news/like', requireSiteManager, async (req, res) => {
   const site = res.locals.site;
   const note = (req.body.note || '').toString();
+  let on = false;
   if (site && note) {
-    try { await ActivityPubService.sendInteraction(site, 'like', note, (req.body.author || '').toString()); } catch (e) { /* ignore */ }
-    ActivityPubService.markLiked(site.slug, note);
+    on = !ActivityPubService.getTimelineReaction(site.slug, note).liked;
+    try { await ActivityPubService.sendInteraction(site, on ? 'like' : 'unlike', note, (req.body.author || '').toString()); } catch (e) { /* ignore */ }
+    if (on) ActivityPubService.markLiked(site.slug, note); else ActivityPubService.unmarkLiked(site.slug, note);
   }
-  res.redirect('/news?success=' + encodeURIComponent('Geliket ⭐'));
+  if (req.get('X-Requested-With') === 'fetch') return res.json({ ok: true, on });
+  res.redirect('/news');
 });
 
-router.post('/news/unlike', requireSiteManager, async (req, res) => {
-  const site = res.locals.site;
-  const note = (req.body.note || '').toString();
-  if (site && note) {
-    try { await ActivityPubService.sendInteraction(site, 'unlike', note, (req.body.author || '').toString()); } catch (e) { /* ignore */ }
-    ActivityPubService.unmarkLiked(site.slug, note);
-  }
-  res.redirect('/news?success=' + encodeURIComponent('Like ingetrokken'));
-});
-
+// Boost / unboost a feed post — a toggle. markBoosted also surfaces it in the Cirkel.
 router.post('/news/boost', requireSiteManager, async (req, res) => {
   const site = res.locals.site;
   const note = (req.body.note || '').toString();
+  let on = false;
   if (site && note) {
-    try { await ActivityPubService.sendInteraction(site, 'boost', note, (req.body.author || '').toString()); } catch (e) { /* ignore */ }
-    ActivityPubService.markBoosted(site.slug, note); // also surface it in the Cirkel (mixed by date)
+    on = !ActivityPubService.getTimelineReaction(site.slug, note).boosted;
+    try { await ActivityPubService.sendInteraction(site, on ? 'boost' : 'unboost', note, (req.body.author || '').toString()); } catch (e) { /* ignore */ }
+    if (on) ActivityPubService.markBoosted(site.slug, note); else ActivityPubService.unmarkBoosted(site.slug, note);
   }
-  res.redirect('/news?success=' + encodeURIComponent('Geboost 🔁'));
-});
-
-// Unboost (retract): send Undo(Announce) + clear the local flag.
-router.post('/news/unboost', requireSiteManager, async (req, res) => {
-  const site = res.locals.site;
-  const note = (req.body.note || '').toString();
-  if (site && note) {
-    try { await ActivityPubService.sendInteraction(site, 'unboost', note, (req.body.author || '').toString()); } catch (e) { /* ignore */ }
-    ActivityPubService.unmarkBoosted(site.slug, note);
-  }
-  res.redirect('/news?success=' + encodeURIComponent('Boost ingetrokken'));
+  if (req.get('X-Requested-With') === 'fetch') return res.json({ ok: true, on });
+  res.redirect('/news');
 });
 
 // Notifications inbox (new followers + replies/likes/boosts on your posts).
