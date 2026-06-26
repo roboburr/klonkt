@@ -665,9 +665,9 @@ export async function handleInbox(req, slugParam) {
         }
         const media = JSON.stringify(_atts);
         // "Feature" = show in the Cirkel (local only). We do NOT auto-Announce
-        // incoming posts to the fediverse — that flooded followers (esp. on the
-        // initial backfill). Boosting to the fediverse is a deliberate, one-time
-        // "boost the latest 5" action at feature time (see boostLatestN).
+        // incoming posts to the fediverse — that flooded followers. Boosting to the
+        // fediverse is only ever a deliberate, manual per-post action (the 🔁 on
+        // the timeline).
         for (const s of subs) {
           tlStmts().ins.run(o.id, s.slug, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.url || null, o.published || null, media);
         }
@@ -1243,31 +1243,6 @@ export async function sendInteraction(site, kind, targetNoteId, authorUri) {
   return { ok: true, delivered };
 }
 
-// One-time "boost the latest N posts" of an account to the fediverse — the
-// deliberate, bounded alternative to auto-boosting every post. Opt-in at feature
-// time so featuring an artist never floods your followers with their whole backlog.
-export async function boostLatestN(site, actorUrl, n = 5) {
-  try {
-    const actor = await fetchActor(actorUrl).catch(() => null);
-    if (!actor || !actor.outbox) return { ok: false, boosted: 0 };
-    const getJson = async (u) => { try { const r = await fetch(u, { headers: { Accept: 'application/activity+json' } }); return r.ok ? await r.json() : null; } catch { return null; } };
-    let coll = await getJson(actor.outbox);
-    let items = (coll && coll.orderedItems) || [];
-    if (!items.length && coll && coll.first) {
-      const page = typeof coll.first === 'string' ? await getJson(coll.first) : coll.first;
-      items = (page && page.orderedItems) || [];
-    }
-    const noteIds = items
-      .filter((it) => it && it.type === 'Create' && it.object)
-      .map((it) => (typeof it.object === 'string' ? it.object : it.object.id))
-      .filter(Boolean)
-      .slice(0, n); // outbox is newest-first → the latest N
-    let boosted = 0;
-    for (const id of noteIds) { try { const r = await sendInteraction(site, 'boost', id, actorUrl); if (r && r.ok) boosted++; } catch { /* best-effort */ } }
-    return { ok: true, boosted };
-  } catch { return { ok: false, boosted: 0 }; }
-}
-
 // Notifications inbox: new followers + replies/likes/boosts on this site's posts.
 export function getNotifications(slug, limit) {
   const out = [];
@@ -1354,7 +1329,7 @@ export default {
   getInteractions, getInteractionById, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete,
   webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, getTimeline, sendInteraction,
-  autoBoostCount, boostedCount, markBoosted, unmarkBoosted, getCirkelPosts, getCirkelMembers, selfHealTimeline, boostLatestN,
+  autoBoostCount, boostedCount, markBoosted, unmarkBoosted, getCirkelPosts, getCirkelMembers, selfHealTimeline,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
   getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
