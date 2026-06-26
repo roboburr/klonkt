@@ -84,7 +84,7 @@ const RESERVED_SLUGS = new Set([
   'posts', 'media', 'audio', 'forum',
   'tag', 'type', 'user', 'users', 'artiesten', 'leden', 'favorieten', 'feed.xml', 'atom.xml', 'sitemap.xml',
   'manifest.webmanifest', 'sw.js', 'favicon.ico', 'favicon.svg', 'assets',
-  'authorize_interaction', 'fediverse', 'timeline', 'following', 'notifications', 'blocking',
+  'authorize_interaction', 'fediverse', 'newspaper', 'following', 'notifications', 'blocking',
 ]);
 
 /**
@@ -596,11 +596,11 @@ function timelineEmbedHtml(html) {
   return null;
 }
 
-router.get('/timeline', requireSiteManager, (req, res) => {
+router.get('/newspaper', requireSiteManager, (req, res) => {
   const site = res.locals.site;
   const timeline = (site ? ActivityPubService.getTimeline(site.slug, 60) : [])
     .map((p) => ({ ...p, embedHtml: timelineEmbedHtml(p.content) }));
-  renderPage(req, res, 'pages/timeline', {
+  renderPage(req, res, 'pages/newspaper', {
     pageTitle: 'Tijdlijn', bodyClass: 'on-special',
     timeline,
     success: req.query.success || null, error: req.query.error || null,
@@ -618,7 +618,7 @@ router.get('/following', requireSiteManager, (req, res) => {
   });
 });
 
-router.post('/timeline/follow', requireSiteManager, async (req, res) => {
+router.post('/newspaper/follow', requireSiteManager, async (req, res) => {
   const site = res.locals.site;
   const handle = (req.body.handle || '').toString();
   let q = 'success=' + encodeURIComponent('Volgverzoek verstuurd');
@@ -634,7 +634,7 @@ router.post('/timeline/follow', requireSiteManager, async (req, res) => {
   res.redirect('/following?' + q);
 });
 
-router.post('/timeline/unfollow', requireSiteManager, async (req, res) => {
+router.post('/newspaper/unfollow', requireSiteManager, async (req, res) => {
   const site = res.locals.site;
   const actorUri = (req.body.actor_uri || '').toString();
   if (site && actorUri) { try { await ActivityPubService.unfollowActor(site, actorUri); } catch (e) { /* ignore */ } }
@@ -642,38 +642,38 @@ router.post('/timeline/unfollow', requireSiteManager, async (req, res) => {
 });
 
 // Toggle "Featured" (show this account's posts in your Cirkel) on an account you follow.
-router.post('/timeline/autoboost', requireSiteManager, (req, res) => {
+router.post('/newspaper/autoboost', requireSiteManager, (req, res) => {
   const site = res.locals.site;
   const actorUri = (req.body.actor_uri || '').toString();
   if (site && actorUri) ActivityPubService.setAutoBoost(site.slug, actorUri, !!req.body.auto_boost);
   res.redirect('/following?success=' + encodeURIComponent(req.body.auto_boost ? 'Uitgelicht ✨' : 'Niet meer uitgelicht'));
 });
 
-router.post('/timeline/like', requireSiteManager, async (req, res) => {
+router.post('/newspaper/like', requireSiteManager, async (req, res) => {
   const site = res.locals.site;
   if (site) { try { await ActivityPubService.sendInteraction(site, 'like', (req.body.note || '').toString(), (req.body.author || '').toString()); } catch (e) { /* ignore */ } }
-  res.redirect('/timeline?success=' + encodeURIComponent('Geliket ⭐'));
+  res.redirect('/newspaper?success=' + encodeURIComponent('Geliket ⭐'));
 });
 
-router.post('/timeline/boost', requireSiteManager, async (req, res) => {
+router.post('/newspaper/boost', requireSiteManager, async (req, res) => {
   const site = res.locals.site;
   const note = (req.body.note || '').toString();
   if (site && note) {
     try { await ActivityPubService.sendInteraction(site, 'boost', note, (req.body.author || '').toString()); } catch (e) { /* ignore */ }
     ActivityPubService.markBoosted(site.slug, note); // also surface it in the Cirkel (mixed by date)
   }
-  res.redirect('/timeline?success=' + encodeURIComponent('Geboost 🔁'));
+  res.redirect('/newspaper?success=' + encodeURIComponent('Geboost 🔁'));
 });
 
 // Unboost (retract): send Undo(Announce) + clear the local flag.
-router.post('/timeline/unboost', requireSiteManager, async (req, res) => {
+router.post('/newspaper/unboost', requireSiteManager, async (req, res) => {
   const site = res.locals.site;
   const note = (req.body.note || '').toString();
   if (site && note) {
     try { await ActivityPubService.sendInteraction(site, 'unboost', note, (req.body.author || '').toString()); } catch (e) { /* ignore */ }
     ActivityPubService.unmarkBoosted(site.slug, note);
   }
-  res.redirect('/timeline?success=' + encodeURIComponent('Boost ingetrokken'));
+  res.redirect('/newspaper?success=' + encodeURIComponent('Boost ingetrokken'));
 });
 
 // Notifications inbox (new followers + replies/likes/boosts on your posts).
@@ -704,7 +704,7 @@ router.post('/blocking/add', requireSiteManager, async (req, res) => {
     } catch (e) { q = 'error=' + encodeURIComponent('Blokkeren mislukt'); }
   }
   const ref = req.get('Referer') || '';
-  res.redirect((ref.includes('/timeline') ? '/timeline?' : '/blocking?') + q);
+  res.redirect((ref.includes('/newspaper') ? '/newspaper?' : '/blocking?') + q);
 });
 
 router.post('/blocking/remove', requireSiteManager, (req, res) => {
