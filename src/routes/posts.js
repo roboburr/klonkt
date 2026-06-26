@@ -694,8 +694,22 @@ router.post('/news/autoboost', requireSiteManager, (req, res) => {
 
 router.post('/news/like', requireSiteManager, async (req, res) => {
   const site = res.locals.site;
-  if (site) { try { await ActivityPubService.sendInteraction(site, 'like', (req.body.note || '').toString(), (req.body.author || '').toString()); } catch (e) { /* ignore */ } }
+  const note = (req.body.note || '').toString();
+  if (site && note) {
+    try { await ActivityPubService.sendInteraction(site, 'like', note, (req.body.author || '').toString()); } catch (e) { /* ignore */ }
+    ActivityPubService.markLiked(site.slug, note);
+  }
   res.redirect('/news?success=' + encodeURIComponent('Geliket ⭐'));
+});
+
+router.post('/news/unlike', requireSiteManager, async (req, res) => {
+  const site = res.locals.site;
+  const note = (req.body.note || '').toString();
+  if (site && note) {
+    try { await ActivityPubService.sendInteraction(site, 'unlike', note, (req.body.author || '').toString()); } catch (e) { /* ignore */ }
+    ActivityPubService.unmarkLiked(site.slug, note);
+  }
+  res.redirect('/news?success=' + encodeURIComponent('Like ingetrokken'));
 });
 
 router.post('/news/boost', requireSiteManager, async (req, res) => {

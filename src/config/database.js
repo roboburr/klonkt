@@ -413,6 +413,7 @@ export function initializeDatabase() {
   ensureColumn('ap_following', 'auto_boost', 'INTEGER DEFAULT 0');
   // A timeline post you boosted (🔁) — also shown in the Cirkel (mixed by date).
   ensureColumn('ap_timeline', 'boosted', 'INTEGER DEFAULT 0');
+  ensureColumn('ap_timeline', 'liked', 'INTEGER DEFAULT 0'); // a feed post you liked (⭐) → toggle
 }
 
 function ensureColumn(table, column, definition) {

@@ -46,7 +46,11 @@
           <% if (p.url) { %><a class="tl-orig" href="<%= p.url %>" target="_blank" rel="nofollow noopener"><%= t('tl.view_original') %></a><% } %>
 
           <div class="tl-actions">
+            <% if (p.liked) { %>
+            <form method="post" action="/news/unlike" class="tl-act-form"><input type="hidden" name="note" value="<%= p.id %>"><input type="hidden" name="author" value="<%= p.author_uri %>"><button type="submit" class="tl-act tl-act-like is-on" title="<%= t('fedi.unlike_short') %>" aria-label="<%= t('fedi.unlike_short') %>"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.6l2.9 5.88 6.49.95-4.7 4.58 1.11 6.46L12 17.96l-5.8 3.06 1.1-6.46-4.69-4.58 6.49-.95z"/></svg></button></form>
+            <% } else { %>
             <form method="post" action="/news/like" class="tl-act-form"><input type="hidden" name="note" value="<%= p.id %>"><input type="hidden" name="author" value="<%= p.author_uri %>"><button type="submit" class="tl-act tl-act-like" title="<%= t('fedi.likes') %>" aria-label="<%= t('fedi.likes') %>"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.6l2.9 5.88 6.49.95-4.7 4.58 1.11 6.46L12 17.96l-5.8 3.06 1.1-6.46-4.69-4.58 6.49-.95z"/></svg></button></form>
+            <% } %>
             <% if (p.boosted) { %>
             <form method="post" action="/news/unboost" class="tl-act-form"><input type="hidden" name="note" value="<%= p.id %>"><input type="hidden" name="author" value="<%= p.author_uri %>"><button type="submit" class="tl-act tl-act-boost is-on" title="<%= t('tl.unboost') %>" aria-label="<%= t('tl.unboost') %>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></button></form>
             <% } else { %>
@@ -125,6 +129,7 @@
   .tl-act:active { transform: scale(.9); }
   .tl-act-like svg { color: #e8b04b; }
   .tl-act-like:hover { background: color-mix(in srgb, #e8b04b 15%, transparent); border-color: color-mix(in srgb, #e8b04b 50%, transparent); }
+  .tl-act-like.is-on { background: color-mix(in srgb, #e8b04b 18%, transparent); border-color: color-mix(in srgb, #e8b04b 60%, transparent); }
   .tl-act-boost svg { color: #2fa85a; }
   .tl-act-boost:hover { background: color-mix(in srgb, #2fa85a 15%, transparent); border-color: color-mix(in srgb, #2fa85a 50%, transparent); }
   .tl-act-boost.is-on { background: color-mix(in srgb, #2fa85a 18%, transparent); border-color: color-mix(in srgb, #2fa85a 60%, transparent); }
