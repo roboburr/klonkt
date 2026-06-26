@@ -20,15 +20,16 @@
 </div>
 <style>
 .fedi-bar { margin: 0 0 1.25rem; }
-.fedi-bar-back { margin: 0 0 1rem; }
-.fedi-tabs { display: flex; gap: .1rem; overflow-x: auto; scrollbar-width: thin; -webkit-overflow-scrolling: touch;
+/* Big, full-width "back to site" button at the top of the Fediverse section. */
+.fedi-bar-back { display: block; width: 100%; box-sizing: border-box; text-align: center; margin: 0 0 1rem; padding: .7rem 1rem; }
+/* Tabs centered, wrap onto multiple rows on narrow screens (no scrollbar). */
+.fedi-tabs { display: flex; flex-wrap: wrap; justify-content: center; gap: .1rem .25rem;
   border-bottom: 1px solid color-mix(in srgb, var(--ink, #000) 10%, transparent); }
-.fedi-tabs::-webkit-scrollbar { height: 4px; }
-.fedi-tab { flex: 0 0 auto; padding: .55rem .85rem; white-space: nowrap; text-decoration: none;
+.fedi-tab { padding: .55rem .85rem; white-space: nowrap; text-decoration: none;
   color: var(--ink-soft, #888); font-weight: 600; border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .fedi-tab:hover { color: var(--ink, #000); }
 .fedi-tab.is-active { color: var(--accent, #06c); border-bottom-color: var(--accent, #06c); }
 .fedi-tab-badge { display: inline-block; min-width: 1.15em; padding: 0 .3em; border-radius: 999px;
   background: var(--accent, #e8b04b); color: #fff; font-size: .68rem; line-height: 1.5; text-align: center; vertical-align: middle; }
-@media (max-width: 520px) { .fedi-tab { padding: .55rem .7rem; font-size: .92rem; } }
+@media (max-width: 520px) { .fedi-tab { padding: .55rem .6rem; font-size: .92rem; } }
 </style>
