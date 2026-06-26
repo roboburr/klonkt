@@ -62,6 +62,9 @@
     --font-mono: ui-monospace, Menlo, Consolas, monospace;
     --radius: 8px; --transition: 180ms cubic-bezier(.4,0,.2,1);
     --safe-top: env(safe-area-inset-top, 0); --safe-bot: env(safe-area-inset-bottom, 0);
+    /* iOS top inset: starts from env(), but a tiny boot script overrides it with a
+       real/measured value (env() resolves to 0 in some iOS standalone states). */
+    --ios-safe-top: env(safe-area-inset-top, 0px);
     color-scheme: light dark;
 }
 
@@ -506,7 +509,7 @@ hr { border: 0; border-top: 1px solid var(--rule); margin: 3em auto; max-width: 
 /* Masthead */
 .masthead {
     border-bottom: 1px solid var(--rule);
-    padding: calc(1rem + env(safe-area-inset-top, 0px)) 0 1rem;
+    padding: calc(1rem + var(--ios-safe-top, 0px)) 0 1rem;
     /* GEEN backdrop-filter hier: een voorouder met backdrop-filter blokkeert de
        frosted blur van het user-menu-dropdown eronder. Masthead is toch bijna
        dekkend, dus solide bg i.p.v. blur. */
@@ -1619,7 +1622,7 @@ body.audio-is-loading .audio-sheet-play::after {
         border-top-left-radius: 0;
         border-top-right-radius: 0;
         box-shadow: none;
-        padding-top: calc(.75rem + env(safe-area-inset-top, 0px));
+        padding-top: calc(.75rem + var(--ios-safe-top, 0px));
         padding-bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
     }
     /* v9.3 — Backdrop blijft visible op mobile zodat drag-gesture de blur
@@ -1677,7 +1680,7 @@ body.audio-is-loading .audio-sheet-play::after {
     min-width: 1.6em;
 }
 @media (max-width: 400px) {
-    .masthead { padding: calc(.5rem + env(safe-area-inset-top, 0px)) 0 .5rem; }
+    .masthead { padding: calc(.5rem + var(--ios-safe-top, 0px)) 0 .5rem; }
     .masthead-inner { gap: .25rem; }
     .site-title { font-size: 1.05rem; }
     .nav-btn, .nav-link {
@@ -2758,7 +2761,7 @@ body[data-grid-cols="4"] .grid-cols-btn[data-cols="4"] {
    ============================================================ */
 
 /* Masthead: compacter */
-.masthead { padding: calc(.55rem + env(safe-area-inset-top, 0px)) 0 .55rem; }
+.masthead { padding: calc(.55rem + var(--ios-safe-top, 0px)) 0 .55rem; }
 .masthead-inner { gap: 1rem; }
 .site-title { font-size: 1.25rem; }
 .nav-link, .nav-btn { padding: .4rem .7rem; min-height: 2rem; font-size: .82rem; }
