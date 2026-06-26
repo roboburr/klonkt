@@ -2203,7 +2203,8 @@ body.search-open { overflow: hidden; }
     transition: max-height .25s ease, margin .25s ease, opacity .2s;
 }
 .profile-links li { margin: 0; }
-.profile-links a {
+.profile-links a,
+.profile-links .profile-fedi-link {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -2215,7 +2216,8 @@ body.search-open { overflow: hidden; }
     text-decoration: none;
     transition: background .15s, color .15s;
 }
-.profile-links a:hover {
+.profile-links a:hover,
+.profile-links .profile-fedi-link:hover {
     background: color-mix(in srgb, var(--accent) 15%, transparent);
     color: var(--accent);
 }
@@ -2788,7 +2790,8 @@ main { padding-top: 1rem; }
 .profile-name { font-size: 1.2rem; }
 .profile-bio { font-size: .85rem; margin-top: .15rem; }
 .profile-links { margin-top: .5rem; gap: .4rem; }
-.profile-links a { width: 32px; height: 32px; }
+.profile-links a,
+.profile-links .profile-fedi-link { width: 32px; height: 32px; }
 
 @media (min-width: 768px) {
     .profile-header { padding: 1.35rem 0; }
