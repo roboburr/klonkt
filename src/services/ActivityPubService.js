@@ -568,6 +568,9 @@ export async function verifyRequest(req) {
 export async function handleInbox(req, slugParam) {
   const act = req.body || {};
   const type = act.type;
+  // Real client IP (behind the proxy via `trust proxy`) — logged on dropped/rejected/
+  // ignored inbox hits so an operator can see who is probing their fediverse inbox.
+  const ip = req.ip || (req.connection && req.connection.remoteAddress) || '?';
   const base = (process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
   const verified = await verifyRequest(req).catch(() => null);
 
@@ -576,11 +579,11 @@ export async function handleInbox(req, slugParam) {
   // forged replies/likes/follows/timeline posts). GET/discovery stays open.
   const claimedActor = typeof act.actor === 'string' ? act.actor : (act.actor && act.actor.id);
   // Blocked actor/domain → silently drop (202, don't reveal the block).
-  if (claimedActor && isBlockedAny(claimedActor)) { console.log('[AP] inbox dropped (blocked)', claimedActor); return 202; }
+  if (claimedActor && isBlockedAny(claimedActor)) { console.log('[AP] inbox dropped (blocked)', claimedActor, 'from', ip); return 202; }
   const GATED = ['Create', 'Like', 'Announce', 'Follow', 'Delete', 'Undo', 'Accept', 'Reject', 'Add', 'Remove', 'Update'];
   if (GATED.includes(type)) {
     if (!verified || !claimedActor || verified.id !== claimedActor) {
-      console.warn('[AP] inbox REJECTED (signature)', type, claimedActor || '?', verified ? '(signer mismatch)' : '(unsigned/invalid)');
+      console.warn('[AP] inbox REJECTED (signature)', type, claimedActor || '?', 'from', ip, verified ? '(signer mismatch)' : '(unsigned/invalid)');
       return 401;
     }
   }
@@ -707,7 +710,7 @@ export async function handleInbox(req, slugParam) {
     return 202;
   }
 
-  console.log('[AP] inbox', type || 'unknown', '→', slugParam || 'shared', '(ignored)');
+  console.log('[AP] inbox', type || 'unknown', '→', slugParam || 'shared', 'from', ip, '(ignored)');
   return 202;
 }
 
