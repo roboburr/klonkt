@@ -240,6 +240,13 @@ export function buildNote(base, site, post) {
     replies: `${id}/replies`,
   };
   if (attachment.length) note.attachment = attachment;
+  // Playable-audio posts suppress the cover attachment (player card). Still expose
+  // the cover via AS2 `image` so card/grid consumers (the Klonkt Cirkel) can show
+  // it — Mastodon ignores a Note's `image`, so the player card is unaffected.
+  if (post.cover_image_url && playable) {
+    const cov = abs(post.cover_image_url);
+    if (cov) note.image = { type: 'Image', mediaType: mediaType(cov), url: cov };
+  }
   return note;
 }
 
@@ -645,7 +652,15 @@ export async function handleInbox(req, slugParam) {
       if (subs.length) {
         const ai = actorInfo(await resolveActor(actorUri), actorUri);
         const html = HtmlSanitizerService.sanitize(o.content || '');
-        const media = JSON.stringify((Array.isArray(o.attachment) ? o.attachment : []).map((a) => ({ url: safeUrl(a && a.url), type: (a && a.mediaType) || '' })).filter((m) => m.url));
+        const _atts = (Array.isArray(o.attachment) ? o.attachment : []).map((a) => ({ url: safeUrl(a && a.url), type: (a && a.mediaType) || '' })).filter((m) => m.url);
+        // Fallback cover: a Note's `image` (set when the attachment was suppressed
+        // for a player-card post, e.g. hosted-audio posts).
+        if (!_atts.some((m) => !m.type || /image/i.test(m.type)) && o.image) {
+          const _im = Array.isArray(o.image) ? o.image[0] : o.image;
+          const _iu = safeUrl(typeof _im === 'string' ? _im : (_im && _im.url));
+          if (_iu) _atts.push({ url: _iu, type: (_im && _im.mediaType) || 'image/jpeg' });
+        }
+        const media = JSON.stringify(_atts);
         for (const s of subs) {
           tlStmts().ins.run(o.id, s.slug, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.url || null, o.published || null, media);
           // "Feature an artist": auto-boost (re-Announce) their new posts to our own followers.
