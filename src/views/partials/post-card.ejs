@@ -54,7 +54,7 @@ if (post.tags) {
 
   <div class="post-list-body">
     <div class="post-list-meta mono">
-      <% if (_isBoost) { %><span class="post-list-pin post-list-boost" aria-label="Boost">🔁</span><% } else if (_isPinned) { %><span class="post-list-pin" aria-label="Vastgepind">★</span><% } %>
+      <% if (_isBoost) { %><span class="post-list-pin post-list-boost" aria-label="Boost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></span><% } else if (_isPinned) { %><span class="post-list-pin" aria-label="Vastgepind"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24z"/></svg></span><% } %>
       <time datetime="<%= post.published_at || post.created_at %>"><%= _ddmmyyyy(post.published_at || post.created_at) %></time>
       <% if (_src) { %><span class="post-list-type">&middot; via <%= _src %></span><% } %>
       <% if (_typeLabel) { %>
@@ -212,8 +212,12 @@ if (post.tags) {
 .post-list-pin {
   color: var(--accent);
   margin-right: .35rem;
-  font-size: .9rem;
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
 }
+.post-list-pin svg { width: 13px; height: 13px; display: block; }
+.post-list-boost { color: #2fa85a; }
 .post-list-draft {
   color: var(--accent);
   font-style: italic;
