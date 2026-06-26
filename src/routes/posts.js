@@ -623,12 +623,12 @@ router.post('/tijdlijn/unfollow', requireSiteManager, async (req, res) => {
   res.redirect('/volgend?success=' + encodeURIComponent('Ontvolgd'));
 });
 
-// Toggle auto-boost ("feature this artist") on an account you already follow.
+// Toggle "Featured" (show this account's posts in your Cirkel) on an account you follow.
 router.post('/tijdlijn/autoboost', requireSiteManager, (req, res) => {
   const site = res.locals.site;
   const actorUri = (req.body.actor_uri || '').toString();
   if (site && actorUri) ActivityPubService.setAutoBoost(site.slug, actorUri, !!req.body.auto_boost);
-  res.redirect('/volgend?success=' + encodeURIComponent(req.body.auto_boost ? 'Auto-boost aan 🔁' : 'Auto-boost uit'));
+  res.redirect('/volgend?success=' + encodeURIComponent(req.body.auto_boost ? 'Uitgelicht ✨' : 'Niet meer uitgelicht'));
 });
 
 router.post('/tijdlijn/like', requireSiteManager, async (req, res) => {
