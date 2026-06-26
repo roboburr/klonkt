@@ -21,18 +21,15 @@
       <form method="post" action="<%= _base %>/posts/<%= postSlug %>/fedi-react" class="fedi-owner-react">
         <input type="hidden" name="interaction_id" value="<%= n.id %>">
         <input type="hidden" name="kind" value="like">
-        <button type="submit" class="comment-reply-btn">⭐ <%= t('fedi.like_short') %></button>
+        <button type="submit" class="fedi-cact fedi-cact-like" title="<%= t('fedi.like_short') %>" aria-label="<%= t('fedi.like_short') %>"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.6l2.9 5.88 6.49.95-4.7 4.58 1.11 6.46L12 17.96l-5.8 3.06 1.1-6.46-4.69-4.58 6.49-.95z"/></svg></button>
       </form>
       <form method="post" action="<%= _base %>/posts/<%= postSlug %>/fedi-react" class="fedi-owner-react">
         <input type="hidden" name="interaction_id" value="<%= n.id %>">
         <input type="hidden" name="kind" value="boost">
-        <button type="submit" class="comment-reply-btn">🔁 <%= t('fedi.boost_short') %></button>
+        <button type="submit" class="fedi-cact fedi-cact-boost<%= n.acted_boost ? ' is-on' : '' %>" title="<%= n.acted_boost ? t('tl.unboost') : t('fedi.boost_short') %>" aria-label="<%= n.acted_boost ? t('tl.unboost') : t('fedi.boost_short') %>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></button>
       </form>
       <details class="fedi-owner-reply">
-        <summary class="comment-reply-btn">
-          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
-          <%= t('fedi.remote_reply_short') %>
-        </summary>
+        <summary class="fedi-cact fedi-cact-reply" title="<%= t('fedi.remote_reply_short') %>" aria-label="<%= t('fedi.remote_reply_short') %>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg></summary>
         <form method="post" action="<%= _base %>/posts/<%= postSlug %>/fedi-reply" class="comment-reply-form">
           <input type="hidden" name="interaction_id" value="<%= n.id %>">
           <textarea name="text" rows="2" required placeholder="<%= t('fedi.reply_ph') %>"></textarea>

@@ -324,6 +324,24 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
 .comment-reply-btn:hover { color: var(--accent); }
 .comment-delete-btn:hover { color: #c33; }
 
+/* Owner comment-action icons — same visual language as the News feed, compact (30px). */
+.fedi-cact { width: 30px; height: 30px; flex: 0 0 30px; border-radius: 50%; padding: 0; box-sizing: border-box;
+  display: inline-flex; align-items: center; justify-content: center; list-style: none;
+  border: 1px solid color-mix(in srgb, var(--ink, #000) 14%, transparent);
+  background: color-mix(in srgb, var(--ink, #000) 3%, transparent);
+  color: var(--ink-soft, #888); cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: background .12s, border-color .12s, transform .1s; }
+.fedi-cact::-webkit-details-marker { display: none; }
+.fedi-cact svg { width: 15px; height: 15px; display: block; }
+.fedi-cact:active { transform: scale(.9); }
+.fedi-cact-like svg { color: #e8b04b; }
+.fedi-cact-like:hover { background: color-mix(in srgb, #e8b04b 15%, transparent); border-color: color-mix(in srgb, #e8b04b 50%, transparent); }
+.fedi-cact-boost svg { color: #2fa85a; }
+.fedi-cact-boost:hover { background: color-mix(in srgb, #2fa85a 15%, transparent); border-color: color-mix(in srgb, #2fa85a 50%, transparent); }
+.fedi-cact-boost.is-on { background: color-mix(in srgb, #2fa85a 18%, transparent); border-color: color-mix(in srgb, #2fa85a 60%, transparent); }
+.fedi-cact-reply svg { color: var(--accent, #06c); }
+.fedi-cact-reply:hover { background: color-mix(in srgb, var(--accent, #888) 14%, transparent); border-color: color-mix(in srgb, var(--accent, #888) 50%, transparent); }
+
 .comment-replies {
   margin-top: 1rem;
   margin-left: 0;
