@@ -2397,12 +2397,12 @@ body.on-cirkel[data-feed-view="grid"]  .feed-grid { display: block; }
 /* Bron-site (cirkel-feed): toont bij hover "van <site>" onder de titel. */
 .grid-tile-overlay-src {
     color: #fff; opacity: .85;
-    font-size: .72rem; margin-top: .2rem;
+    font-size: 1.44rem; margin-top: .2rem;
     display: inline-flex; align-items: center;
 }
 .grid-tile-overlay-src::before { content: "⛓"; margin-right: .25rem; font-size: .9em; }
 .grid-tile-gradient-src {
-    margin-top: .35rem; font-size: .72rem; opacity: .85;
+    margin-top: .35rem; font-size: 1.44rem; opacity: .85;
     color: var(--ink-soft);
     display: inline-flex; align-items: center;
 }

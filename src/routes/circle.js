@@ -32,12 +32,18 @@ router.get('/cirkel', (req, res, next) => {
 
   const posts = ActivityPubService.getCirkelPosts(site.slug, 80).map((r) => {
     const text = htmlToText(r.content);
+    // Show ONLY the title (the bold first line a Klonkt note carries), not the whole
+    // body. Title-less notes (e.g. plain Mastodon) fall back to a short text snippet.
+    const titleM = (r.content || '').match(/^\s*<p>\s*<strong>([\s\S]*?)<\/strong>/i);
+    const realTitle = titleM ? htmlToText(titleM[1]).trim() : '';
     const image = mediaImage(r.media_json);
     const name = r.author_name || r.author_handle || 'Onbekend';
     return {
       id: 'ap-' + r.id,
       slug: '',
-      title: text ? (text.length > 90 ? text.slice(0, 90) + '…' : text) : name,
+      title: realTitle
+        ? (realTitle.length > 90 ? realTitle.slice(0, 90) + '…' : realTitle)
+        : (text ? (text.length > 90 ? text.slice(0, 90) + '…' : text) : name),
       excerpt: '',
       cover_image_url: image ? image.url : null,
       published_at: r.published,
