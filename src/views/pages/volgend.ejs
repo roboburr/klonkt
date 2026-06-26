@@ -6,7 +6,6 @@
   <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
 
   <div class="tl-explain">
-    <h2 class="tl-explain-h"><%= t('tl.explain_heading') %></h2>
     <p><span class="tl-explain-tag">✨ <%= t('tl.autoboost') %></span> — <%= t('tl.autoboost_hint') %></p>
   </div>
 
@@ -47,7 +46,6 @@
   .tl-explain { margin: 0 0 1.25rem; padding: .85rem 1rem; border-radius: 12px;
     background: color-mix(in srgb, var(--accent, #888) 8%, transparent);
     border: 1px solid color-mix(in srgb, var(--accent, #888) 22%, transparent); }
-  .tl-explain-h { font-size: .95rem; margin: 0 0 .5rem; }
   .tl-explain p { margin: .3rem 0; font-size: .85rem; color: var(--ink-soft, #888); line-height: 1.5; }
   .tl-explain-tag { font-weight: 600; color: var(--ink, inherit); white-space: nowrap; }
   .tl-sub { font-size: 1.1rem; margin: 1.5rem 0 .75rem; }
