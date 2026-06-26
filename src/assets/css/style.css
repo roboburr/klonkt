@@ -2371,6 +2371,12 @@ body.on-cirkel[data-feed-view="grid"]  .feed-grid { display: block; }
     cursor: pointer;
     -webkit-tap-highlight-color: rgba(0,0,0,.1);
 }
+
+/* Transparent covers (PNG logos etc.) sit on white everywhere so they don't blend
+   into a dark theme. Opaque covers fully cover the white — no visible change. */
+.post-cover img,
+.post-list-cover img,
+.grid-tile:not(.grid-tile-gradient) { background-color: #fff; }
 .grid-tile:hover { transform: scale(0.98); }
 .grid-tile-overlay {
     position: absolute;
