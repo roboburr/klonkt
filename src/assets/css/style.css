@@ -506,7 +506,7 @@ hr { border: 0; border-top: 1px solid var(--rule); margin: 3em auto; max-width: 
 /* Masthead */
 .masthead {
     border-bottom: 1px solid var(--rule);
-    padding: calc(1rem + var(--safe-top)) 0 1rem;
+    padding: calc(1rem + env(safe-area-inset-top, 0px)) 0 1rem;
     /* GEEN backdrop-filter hier: een voorouder met backdrop-filter blokkeert de
        frosted blur van het user-menu-dropdown eronder. Masthead is toch bijna
        dekkend, dus solide bg i.p.v. blur. */
@@ -667,7 +667,7 @@ a.pagination-item.is-pinned:hover {
 @media (max-width: 800px) { .pagination { grid-template-columns: 1fr; } }
 
 /* Footer */
-.site-footer { padding: 2rem 0 calc(2rem + var(--safe-bot)); border-top: 1px solid var(--rule); margin-top: 4rem; font-family: var(--font-ui); font-size: .85rem; color: var(--ink-muted); }
+.site-footer { padding: 2rem 0 calc(2rem + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--rule); margin-top: 4rem; font-family: var(--font-ui); font-size: .85rem; color: var(--ink-muted); }
 .site-footer-inner { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem; align-items: center; }
 .site-footer a { color: var(--ink-muted); text-decoration-color: var(--rule); }
 .site-footer a:hover { color: var(--accent); }
@@ -1677,7 +1677,7 @@ body.audio-is-loading .audio-sheet-play::after {
     min-width: 1.6em;
 }
 @media (max-width: 400px) {
-    .masthead { padding: calc(.5rem + var(--safe-top)) 0 .5rem; }
+    .masthead { padding: calc(.5rem + env(safe-area-inset-top, 0px)) 0 .5rem; }
     .masthead-inner { gap: .25rem; }
     .site-title { font-size: 1.05rem; }
     .nav-btn, .nav-link {
@@ -2758,7 +2758,7 @@ body[data-grid-cols="4"] .grid-cols-btn[data-cols="4"] {
    ============================================================ */
 
 /* Masthead: compacter */
-.masthead { padding: calc(.55rem + var(--safe-top)) 0 .55rem; }
+.masthead { padding: calc(.55rem + env(safe-area-inset-top, 0px)) 0 .55rem; }
 .masthead-inner { gap: 1rem; }
 .site-title { font-size: 1.25rem; }
 .nav-link, .nav-btn { padding: .4rem .7rem; min-height: 2rem; font-size: .82rem; }
@@ -2786,7 +2786,7 @@ main { padding-top: 1rem; }
 .pagination-title { font-size: .95rem; }
 
 /* Site footer compacter */
-.site-footer { padding: 1.25rem 0 calc(1.25rem + var(--safe-bot)); margin-top: 2rem; font-size: .78rem; }
+.site-footer { padding: 1.25rem 0 calc(1.25rem + env(safe-area-inset-bottom, 0px)); margin-top: 2rem; font-size: .78rem; }
 .site-footer-inner { gap: .75rem; }
 
 /* Profiel-header: full mode iets minder riant (compact mode blijft hetzelfde) */
