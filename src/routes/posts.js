@@ -596,12 +596,41 @@ function timelineEmbedHtml(html) {
   return null;
 }
 
+// A federated Klonkt audio post renders as "🎵 … listen on <link>". Embed the remote
+// Klonkt player (its /embed?post=<slug>). A single-segment path = a Klonkt post slug
+// (skips Mastodon /@user/123). The origin is whitelisted in the response CSP frame-src.
+function klonktAudioEmbed(html, url) {
+  if (!html || !url || html.indexOf('🎵') < 0) return null;
+  let u; try { u = new URL(url); } catch { return null; }
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
+  const slug = u.pathname.replace(/^\/+|\/+$/g, '');
+  if (!slug || slug.indexOf('/') >= 0) return null; // single segment only
+  const src = u.origin + '/embed?post=' + encodeURIComponent(slug);
+  return { origin: u.origin, html: `<iframe class="tl-embed-frame tl-embed-klonkt" src="${src}" title="Audio" loading="lazy" frameborder="0" allow="autoplay; encrypted-media"></iframe>` };
+}
+
 router.get('/newspaper', requireSiteManager, (req, res) => {
   const site = res.locals.site;
-  const timeline = (site ? ActivityPubService.getTimeline(site.slug, 60) : [])
-    .map((p) => ({ ...p, embedHtml: timelineEmbedHtml(p.content) }));
+  const cspOrigins = new Set();
+  const timeline = (site ? ActivityPubService.getTimeline(site.slug, 60) : []).map((p) => {
+    let embedHtml = timelineEmbedHtml(p.content);
+    if (!embedHtml) {
+      const k = klonktAudioEmbed(p.content, p.url);
+      if (k) { embedHtml = k.html; cspOrigins.add(k.origin); }
+    }
+    return { ...p, embedHtml };
+  });
+  // Option A: allow the followed Klonkt sites' player iframes (you follow them) by
+  // extending ONLY this response's CSP frame-src. The global policy stays locked down.
+  if (cspOrigins.size) {
+    const csp = res.getHeader('Content-Security-Policy');
+    if (csp) {
+      const extra = [...cspOrigins].join(' ');
+      res.setHeader('Content-Security-Policy', String(csp).replace(/frame-src ([^;]*)/i, (m, g) => `frame-src ${g} ${extra}`));
+    }
+  }
   renderPage(req, res, 'pages/newspaper', {
-    pageTitle: 'Tijdlijn', bodyClass: 'on-special',
+    pageTitle: 'Newspaper', bodyClass: 'on-special',
     timeline,
     success: req.query.success || null, error: req.query.error || null,
   });
