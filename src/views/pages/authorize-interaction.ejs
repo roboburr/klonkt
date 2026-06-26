@@ -94,11 +94,17 @@
     <div class="auth-interact-react">
       <form method="post" action="/authorize_interaction/like">
         <input type="hidden" name="uri" value="<%= uri %>">
-        <button type="submit" class="btn btn-primary auth-like-btn">★ <%= t('fedi.like_btn') %></button>
+        <button type="submit" class="fedi-bigact fedi-bigact-like<%= (typeof reacted !== 'undefined' && reacted.liked) ? ' is-on' : '' %>">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.6l2.9 5.88 6.49.95-4.7 4.58 1.11 6.46L12 17.96l-5.8 3.06 1.1-6.46-4.69-4.58 6.49-.95z"/></svg>
+          <span><%= (typeof reacted !== 'undefined' && reacted.liked) ? t('fedi.unlike_short') : t('fedi.like_short') %></span>
+        </button>
       </form>
       <form method="post" action="/authorize_interaction/boost">
         <input type="hidden" name="uri" value="<%= uri %>">
-        <button type="submit" class="btn auth-boost-btn">🔁 <%= t('fedi.boost_btn') %></button>
+        <button type="submit" class="fedi-bigact fedi-bigact-boost<%= (typeof reacted !== 'undefined' && reacted.boosted) ? ' is-on' : '' %>">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+          <span><%= (typeof reacted !== 'undefined' && reacted.boosted) ? t('tl.unboost') : t('fedi.boost_short') %></span>
+        </button>
       </form>
     </div>
     <p class="auth-interact-or"><%= t('fedi.or_reply') %></p>
@@ -145,9 +151,18 @@
     background: color-mix(in srgb, var(--accent, #888) 10%, transparent); color: var(--accent, #06c);
     text-decoration: none; font-weight: 600; font-size: .92rem; transition: background .15s, border-color .15s; }
   .auth-view-src:hover { background: color-mix(in srgb, var(--accent, #888) 18%, transparent); border-color: var(--accent, #888); }
-  .auth-interact-react { display: flex; gap: .5rem; flex-wrap: wrap; margin: 0 0 .25rem; }
+  .auth-interact-react { display: flex; gap: .6rem; flex-wrap: wrap; margin: 0 0 .25rem; }
   .auth-interact-react form { margin: 0; }
-  .auth-boost-btn { white-space: nowrap; }
+  .fedi-bigact { display: inline-flex; align-items: center; gap: .5rem; padding: .55rem 1.1rem; border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--ink, #000) 14%, transparent);
+    background: color-mix(in srgb, var(--ink, #000) 4%, transparent);
+    color: var(--ink, inherit); font: inherit; font-weight: 600; font-size: .92rem; cursor: pointer; white-space: nowrap;
+    transition: background .12s, border-color .12s; }
+  .fedi-bigact svg { width: 17px; height: 17px; flex: 0 0 17px; }
+  .fedi-bigact-like svg { color: #e8b04b; }
+  .fedi-bigact-like:hover, .fedi-bigact-like.is-on { background: color-mix(in srgb, #e8b04b 16%, transparent); border-color: color-mix(in srgb, #e8b04b 55%, transparent); }
+  .fedi-bigact-boost svg { color: #2fa85a; }
+  .fedi-bigact-boost:hover, .fedi-bigact-boost.is-on { background: color-mix(in srgb, #2fa85a 16%, transparent); border-color: color-mix(in srgb, #2fa85a 55%, transparent); }
   .fedi-manage { list-style: none; padding: 0; margin: 1.25rem 0 1rem; display: flex; flex-direction: column; gap: .7rem; }
   .fedi-manage-item { padding: .85rem 1rem; border-radius: 14px; background: color-mix(in srgb, var(--ink, #000) 4%, transparent); border: 1px solid color-mix(in srgb, var(--ink, #000) 9%, transparent); }
   .fedi-manage-content { line-height: 1.5; overflow-wrap: anywhere; }

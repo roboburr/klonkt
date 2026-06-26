@@ -501,38 +501,43 @@ router.get('/authorize_interaction', requireSiteManager, async (req, res) => {
     followed,
     liked: !!req.query.liked,
     boosted: !!req.query.boosted,
+    reacted: (site && uri) ? ActivityPubService.getMyReactions(site.slug, uri) : { liked: false, boosted: false },
     siteTitle: site ? site.title : '',
   });
 });
 
-// ⭐ Like a remote post from your own site (the star flow lands here).
+// ⭐ Like / unlike a remote post from your own site (toggle on the interact page).
 router.post('/authorize_interaction/like', requireSiteManager, (req, res) => {
   const site = res.locals.site;
   const uri = (req.body.uri || '').toString();
   if (site && uri) {
+    const on = !ActivityPubService.getMyReactions(site.slug, uri).liked;
     ActivityPubService.resolveRemoteNote(uri)
-      .then((note) => note && ActivityPubService.sendInteraction(site, 'like', note.object_uri || uri, note.actor_uri))
+      .then((note) => note && ActivityPubService.sendInteraction(site, on ? 'like' : 'unlike', note.object_uri || uri, note.actor_uri))
       .catch((e) => console.warn('[AP] remote like failed:', e.message));
+    ActivityPubService.setMyReaction(site.slug, uri, 'like', on);
   }
-  res.redirect('/authorize_interaction?liked=1&uri=' + encodeURIComponent(uri));
+  res.redirect('/authorize_interaction?uri=' + encodeURIComponent(uri));
 });
 
-// 🔁 Boost a remote post from your own site. Also flags it for the Cirkel
-// (markBoosted is a no-op if the post isn't in your timeline).
+// 🔁 Boost / unboost a remote post from your own site (toggle on the interact page).
+// Also flags it for the Cirkel (markBoosted is a no-op if the post isn't in your timeline).
 router.post('/authorize_interaction/boost', requireSiteManager, (req, res) => {
   const site = res.locals.site;
   const uri = (req.body.uri || '').toString();
   if (site && uri) {
+    const on = !ActivityPubService.getMyReactions(site.slug, uri).boosted;
     ActivityPubService.resolveRemoteNote(uri)
       .then((note) => {
         if (!note) return;
         const id = note.object_uri || uri;
-        return Promise.resolve(ActivityPubService.sendInteraction(site, 'boost', id, note.actor_uri))
-          .then(() => ActivityPubService.markBoosted(site.slug, id));
+        return Promise.resolve(ActivityPubService.sendInteraction(site, on ? 'boost' : 'unboost', id, note.actor_uri))
+          .then(() => on ? ActivityPubService.markBoosted(site.slug, id) : ActivityPubService.unmarkBoosted(site.slug, id));
       })
       .catch((e) => console.warn('[AP] remote boost failed:', e.message));
+    ActivityPubService.setMyReaction(site.slug, uri, 'boost', on);
   }
-  res.redirect('/authorize_interaction?boosted=1&uri=' + encodeURIComponent(uri));
+  res.redirect('/authorize_interaction?uri=' + encodeURIComponent(uri));
 });
 
 // Follow a remote actor from your own site (when the target is a profile, not a post).

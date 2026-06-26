@@ -353,6 +353,14 @@ export function initializeDatabase() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     CREATE INDEX IF NOT EXISTS idx_ap_outbox_post ON ap_outbox(post_id);
+    -- Your like/boost state on a REMOTE post (the interact page), so those become toggles.
+    CREATE TABLE IF NOT EXISTS ap_my_reactions (
+      site_slug TEXT NOT NULL,
+      target_uri TEXT NOT NULL,
+      kind TEXT NOT NULL,             -- 'like' | 'boost'
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(site_slug, target_uri, kind)
+    );
   `);
   ensureColumn('ap_interactions', 'parent_uri', 'TEXT'); // nesting (existing DBs)
   ensureColumn('ap_interactions', 'acted_boost', 'INTEGER DEFAULT 0'); // owner boosted this comment (🔁) → can undo
