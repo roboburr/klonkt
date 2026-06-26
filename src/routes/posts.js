@@ -510,13 +510,15 @@ router.get('/authorize_interaction', requireSiteManager, async (req, res) => {
 router.post('/authorize_interaction/like', requireSiteManager, (req, res) => {
   const site = res.locals.site;
   const uri = (req.body.uri || '').toString();
+  let on = false;
   if (site && uri) {
-    const on = !ActivityPubService.getMyReactions(site.slug, uri).liked;
+    on = !ActivityPubService.getMyReactions(site.slug, uri).liked;
     ActivityPubService.resolveRemoteNote(uri)
       .then((note) => note && ActivityPubService.sendInteraction(site, on ? 'like' : 'unlike', note.object_uri || uri, note.actor_uri))
       .catch((e) => console.warn('[AP] remote like failed:', e.message));
     ActivityPubService.setMyReaction(site.slug, uri, 'like', on);
   }
+  if (req.get('X-Requested-With') === 'fetch') return res.json({ ok: true, on });
   res.redirect('/authorize_interaction?uri=' + encodeURIComponent(uri));
 });
 
@@ -525,8 +527,9 @@ router.post('/authorize_interaction/like', requireSiteManager, (req, res) => {
 router.post('/authorize_interaction/boost', requireSiteManager, (req, res) => {
   const site = res.locals.site;
   const uri = (req.body.uri || '').toString();
+  let on = false;
   if (site && uri) {
-    const on = !ActivityPubService.getMyReactions(site.slug, uri).boosted;
+    on = !ActivityPubService.getMyReactions(site.slug, uri).boosted;
     ActivityPubService.resolveRemoteNote(uri)
       .then((note) => {
         if (!note) return;
@@ -537,6 +540,7 @@ router.post('/authorize_interaction/boost', requireSiteManager, (req, res) => {
       .catch((e) => console.warn('[AP] remote boost failed:', e.message));
     ActivityPubService.setMyReaction(site.slug, uri, 'boost', on);
   }
+  if (req.get('X-Requested-With') === 'fetch') return res.json({ ok: true, on });
   res.redirect('/authorize_interaction?uri=' + encodeURIComponent(uri));
 });
 

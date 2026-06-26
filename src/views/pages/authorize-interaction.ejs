@@ -95,19 +95,20 @@
         <span><%= t('fedi.remote_view_original') %></span>
       </a>
     <% } %>
+    <% var _liked = (typeof reacted !== 'undefined' && reacted.liked); var _boosted = (typeof reacted !== 'undefined' && reacted.boosted); %>
     <div class="auth-interact-react">
-      <form method="post" action="/authorize_interaction/like">
+      <form method="post" action="/authorize_interaction/like" class="fedi-react-form">
         <input type="hidden" name="uri" value="<%= uri %>">
-        <button type="submit" class="fedi-bigact fedi-bigact-like<%= (typeof reacted !== 'undefined' && reacted.liked) ? ' is-on' : '' %>">
+        <button type="submit" class="fedi-bigact fedi-bigact-like<%= _liked ? ' is-on' : '' %>" data-on="<%= t('fedi.unlike_short') %>" data-off="<%= t('fedi.like_short') %>">
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.6l2.9 5.88 6.49.95-4.7 4.58 1.11 6.46L12 17.96l-5.8 3.06 1.1-6.46-4.69-4.58 6.49-.95z"/></svg>
-          <span><%= (typeof reacted !== 'undefined' && reacted.liked) ? t('fedi.unlike_short') : t('fedi.like_short') %></span>
+          <span class="fedi-bigact-label"><%= _liked ? t('fedi.unlike_short') : t('fedi.like_short') %></span>
         </button>
       </form>
-      <form method="post" action="/authorize_interaction/boost">
+      <form method="post" action="/authorize_interaction/boost" class="fedi-react-form">
         <input type="hidden" name="uri" value="<%= uri %>">
-        <button type="submit" class="fedi-bigact fedi-bigact-boost<%= (typeof reacted !== 'undefined' && reacted.boosted) ? ' is-on' : '' %>">
+        <button type="submit" class="fedi-bigact fedi-bigact-boost<%= _boosted ? ' is-on' : '' %>" data-on="<%= t('tl.unboost') %>" data-off="<%= t('fedi.boost_short') %>">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
-          <span><%= (typeof reacted !== 'undefined' && reacted.boosted) ? t('tl.unboost') : t('fedi.boost_short') %></span>
+          <span class="fedi-bigact-label"><%= _boosted ? t('tl.unboost') : t('fedi.boost_short') %></span>
         </button>
       </form>
     </div>
@@ -184,3 +185,31 @@
   .fedi-del-btn { display: inline-flex; align-items: center; gap: .35rem; border: 1px solid color-mix(in srgb, #d9534f 45%, transparent); background: color-mix(in srgb, #d9534f 12%, transparent); color: #e06b66; border-radius: 999px; padding: .3rem .8rem; font: inherit; font-size: .82rem; cursor: pointer; transition: background .15s ease; }
   .fedi-del-btn:hover { background: color-mix(in srgb, #d9534f 24%, transparent); }
 </style>
+
+<script>
+/* Like/Boost toggle in place — POST via fetch, flip the button, stay on the page. */
+(function(){
+  if (window.__fediReactWired) return; window.__fediReactWired = true;
+  document.addEventListener('submit', function(e){
+    var f = e.target.closest && e.target.closest('.fedi-react-form');
+    if (!f) return;
+    e.preventDefault();
+    var btn = f.querySelector('button'); if (!btn || btn.disabled) return;
+    btn.disabled = true;
+    var body = new URLSearchParams();
+    new FormData(f).forEach(function(v, k){ body.append(k, v); });
+    fetch(f.action, { method: 'POST', body: body, headers: { 'X-Requested-With': 'fetch' }, credentials: 'same-origin' })
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(j){
+        if (j) {
+          var on = !!j.on;
+          btn.classList.toggle('is-on', on);
+          var lbl = btn.querySelector('.fedi-bigact-label');
+          if (lbl) lbl.textContent = on ? (btn.getAttribute('data-on') || lbl.textContent) : (btn.getAttribute('data-off') || lbl.textContent);
+        }
+      })
+      .catch(function(){})
+      .then(function(){ btn.disabled = false; });
+  });
+})();
+</script>
