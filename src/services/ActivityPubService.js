@@ -641,12 +641,16 @@ export async function handleInbox(req, slugParam) {
     }
     // Home timeline (client): a top-level post from an account we follow.
     if (actorUri && !isLocalActor && !o.inReplyTo && o.id) {
-      let subs = []; try { subs = db.prepare('SELECT slug FROM ap_following WHERE actor_uri = ?').all(actorUri); } catch { /* table may not exist yet */ }
+      let subs = []; try { subs = db.prepare('SELECT slug, auto_boost FROM ap_following WHERE actor_uri = ?').all(actorUri); } catch { /* table may not exist yet */ }
       if (subs.length) {
         const ai = actorInfo(await resolveActor(actorUri), actorUri);
         const html = HtmlSanitizerService.sanitize(o.content || '');
         const media = JSON.stringify((Array.isArray(o.attachment) ? o.attachment : []).map((a) => ({ url: safeUrl(a && a.url), type: (a && a.mediaType) || '' })).filter((m) => m.url));
-        for (const s of subs) tlStmts().ins.run(o.id, s.slug, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.url || null, o.published || null, media);
+        for (const s of subs) {
+          tlStmts().ins.run(o.id, s.slug, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.url || null, o.published || null, media);
+          // "Feature an artist": auto-boost (re-Announce) their new posts to our own followers.
+          if (s.auto_boost) sendInteraction({ slug: s.slug }, 'boost', o.id, actorUri).catch(() => { /* best-effort */ });
+        }
         console.log('[AP] timeline +', actorUri, 'x' + subs.length);
       }
     }
@@ -996,18 +1000,25 @@ export async function webfingerResolve(handle) {
   } catch { return null; }
 }
 
-let _insFw, _delFw, _listFw, _accFw, _oneFw;
+let _insFw, _delFw, _listFw, _accFw, _oneFw, _setAB;
 function fwStmts() {
   if (!_insFw) {
-    _insFw = db.prepare('INSERT OR REPLACE INTO ap_following (slug, actor_uri, handle, name, icon, url, inbox, follow_id, status, created_at) VALUES (?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)');
+    _insFw = db.prepare('INSERT OR REPLACE INTO ap_following (slug, actor_uri, handle, name, icon, url, inbox, follow_id, status, auto_boost, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)');
     _delFw = db.prepare('DELETE FROM ap_following WHERE slug = ? AND actor_uri = ?');
     _listFw = db.prepare('SELECT * FROM ap_following WHERE slug = ? ORDER BY created_at DESC');
     _accFw = db.prepare("UPDATE ap_following SET status = 'accepted' WHERE follow_id = ?");
     _oneFw = db.prepare('SELECT * FROM ap_following WHERE slug = ? AND actor_uri = ?');
+    _setAB = db.prepare('UPDATE ap_following SET auto_boost = ? WHERE slug = ? AND actor_uri = ?');
   }
-  return { ins: _insFw, del: _delFw, list: _listFw, acc: _accFw, one: _oneFw };
+  return { ins: _insFw, del: _delFw, list: _listFw, acc: _accFw, one: _oneFw, setAB: _setAB };
 }
 export function listFollowing(slug) { return fwStmts().list.all(slug); }
+
+// Toggle auto-boost ("feature") on an account we already follow.
+export function setAutoBoost(slug, actorUri, on) {
+  try { fwStmts().setAB.run(on ? 1 : 0, slug, actorUri); } catch { /* ignore */ }
+  return { ok: true };
+}
 
 let _insTl, _listTl, _delTl;
 function tlStmts() {
@@ -1021,7 +1032,7 @@ function tlStmts() {
 export function getTimeline(slug, limit) { return tlStmts().list.all(slug, limit || 50); }
 
 // Follow a fediverse account by @handle (WebFinger → actor → signed Follow).
-export async function followActor(site, handle) {
+export async function followActor(site, handle, autoBoost = false) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   if (!base || !site || !site.slug) return { error: 'config' };
   // Accept either an @user@host handle (WebFinger) or a profile/actor URL directly
@@ -1035,7 +1046,7 @@ export async function followActor(site, handle) {
   const me = actorId(base, site.slug);
   const keys = getOrCreateKeys(site.slug);
   const followId = `${me}#follow-${Date.now()}-${rid()}`;
-  fwStmts().ins.run(site.slug, actor.id, ai.handle, ai.name, ai.icon, ai.url, actor.inbox, followId, 'pending');
+  fwStmts().ins.run(site.slug, actor.id, ai.handle, ai.name, ai.icon, ai.url, actor.inbox, followId, 'pending', autoBoost ? 1 : 0);
   const follow = { '@context': 'https://www.w3.org/ns/activitystreams', id: followId, type: 'Follow', actor: me, object: actor.id };
   try { await deliver(actor.inbox, follow, `${me}#main-key`, keys.private_pem); }
   catch (e) { console.warn('[AP] follow deliver failed:', e.message); }
@@ -1177,7 +1188,7 @@ export default {
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
   getInteractions, getInteractionById, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete,
-  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, getTimeline, sendInteraction,
+  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, getTimeline, sendInteraction,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
   getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,

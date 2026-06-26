@@ -577,7 +577,7 @@ router.post('/tijdlijn/follow', requireSiteManager, async (req, res) => {
   let q = 'success=' + encodeURIComponent('Volgverzoek verstuurd');
   if (site && handle.trim()) {
     try {
-      const r = await ActivityPubService.followActor(site, handle);
+      const r = await ActivityPubService.followActor(site, handle, !!req.body.auto_boost);
       if (r && r.error) q = 'error=' + encodeURIComponent(r.error === 'not_found' ? 'Account niet gevonden' : (r.error === 'unreachable' ? 'Server onbereikbaar' : 'Volgen mislukt'));
       else q = 'success=' + encodeURIComponent('Je volgt nu ' + ((r && r.name) || handle));
     } catch (e) { q = 'error=' + encodeURIComponent('Volgen mislukt'); }
@@ -590,6 +590,14 @@ router.post('/tijdlijn/unfollow', requireSiteManager, async (req, res) => {
   const actorUri = (req.body.actor_uri || '').toString();
   if (site && actorUri) { try { await ActivityPubService.unfollowActor(site, actorUri); } catch (e) { /* ignore */ } }
   res.redirect('/tijdlijn?success=' + encodeURIComponent('Ontvolgd'));
+});
+
+// Toggle auto-boost ("feature this artist") on an account you already follow.
+router.post('/tijdlijn/autoboost', requireSiteManager, (req, res) => {
+  const site = res.locals.site;
+  const actorUri = (req.body.actor_uri || '').toString();
+  if (site && actorUri) ActivityPubService.setAutoBoost(site.slug, actorUri, !!req.body.auto_boost);
+  res.redirect('/tijdlijn?success=' + encodeURIComponent(req.body.auto_boost ? 'Auto-boost aan 🔁' : 'Auto-boost uit'));
 });
 
 router.post('/tijdlijn/like', requireSiteManager, async (req, res) => {
