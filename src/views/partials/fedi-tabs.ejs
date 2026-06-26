@@ -5,8 +5,8 @@
 <% var _a = (typeof active !== 'undefined') ? active : ''; %>
 <% var _nu = (typeof notifUnread !== 'undefined') ? notifUnread : 0; %>
 <nav class="fedi-tabs" aria-label="Fediverse">
-  <a href="/newspaper" class="fedi-tab<%= _a === 'feed' ? ' is-active' : '' %>"
-     hx-get="/newspaper?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="/newspaper" hx-indicator="#pcms-loading"><%= t('tl.tab_feed') %></a>
+  <a href="/news" class="fedi-tab<%= _a === 'feed' ? ' is-active' : '' %>"
+     hx-get="/news?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="/news" hx-indicator="#pcms-loading"><%= t('tl.tab_feed') %></a>
   <a href="/following" class="fedi-tab<%= _a === 'following' ? ' is-active' : '' %>"
      hx-get="/following?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="/following" hx-indicator="#pcms-loading"><%= t('tl.tab_following') %></a>
   <a href="/fediverse" class="fedi-tab<%= _a === 'reacties' ? ' is-active' : '' %>"

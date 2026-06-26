@@ -84,7 +84,7 @@ const RESERVED_SLUGS = new Set([
   'posts', 'media', 'audio', 'forum',
   'tag', 'type', 'user', 'users', 'artiesten', 'leden', 'favorieten', 'feed.xml', 'atom.xml', 'sitemap.xml',
   'manifest.webmanifest', 'sw.js', 'favicon.ico', 'favicon.svg', 'assets',
-  'authorize_interaction', 'fediverse', 'newspaper', 'following', 'notifications', 'blocking',
+  'authorize_interaction', 'fediverse', 'news', 'following', 'notifications', 'blocking',
 ]);
 
 /**
@@ -613,7 +613,7 @@ function klonktAudioEmbed(html, url) {
   return { origin: u.origin, content, html: `<iframe class="tl-embed-frame tl-embed-klonkt" src="${src}" title="Audio" loading="lazy" frameborder="0" allow="autoplay; encrypted-media"></iframe>` };
 }
 
-router.get('/newspaper', requireSiteManager, (req, res) => {
+router.get('/news', requireSiteManager, (req, res) => {
   const site = res.locals.site;
   const cspOrigins = new Set();
   const timeline = (site ? ActivityPubService.getTimeline(site.slug, 60) : []).map((p) => {
@@ -634,8 +634,8 @@ router.get('/newspaper', requireSiteManager, (req, res) => {
       res.setHeader('Content-Security-Policy', String(csp).replace(/frame-src ([^;]*)/i, (m, g) => `frame-src ${g} ${extra}`));
     }
   }
-  renderPage(req, res, 'pages/newspaper', {
-    pageTitle: 'Newspaper', bodyClass: 'on-special',
+  renderPage(req, res, 'pages/news', {
+    pageTitle: 'News', bodyClass: 'on-special',
     timeline,
     success: req.query.success || null, error: req.query.error || null,
   });
@@ -652,7 +652,7 @@ router.get('/following', requireSiteManager, (req, res) => {
   });
 });
 
-router.post('/newspaper/follow', requireSiteManager, async (req, res) => {
+router.post('/news/follow', requireSiteManager, async (req, res) => {
   const site = res.locals.site;
   const handle = (req.body.handle || '').toString();
   let q = 'success=' + encodeURIComponent('Volgverzoek verstuurd');
@@ -668,7 +668,7 @@ router.post('/newspaper/follow', requireSiteManager, async (req, res) => {
   res.redirect('/following?' + q);
 });
 
-router.post('/newspaper/unfollow', requireSiteManager, async (req, res) => {
+router.post('/news/unfollow', requireSiteManager, async (req, res) => {
   const site = res.locals.site;
   const actorUri = (req.body.actor_uri || '').toString();
   if (site && actorUri) { try { await ActivityPubService.unfollowActor(site, actorUri); } catch (e) { /* ignore */ } }
@@ -676,38 +676,38 @@ router.post('/newspaper/unfollow', requireSiteManager, async (req, res) => {
 });
 
 // Toggle "Featured" (show this account's posts in your Cirkel) on an account you follow.
-router.post('/newspaper/autoboost', requireSiteManager, (req, res) => {
+router.post('/news/autoboost', requireSiteManager, (req, res) => {
   const site = res.locals.site;
   const actorUri = (req.body.actor_uri || '').toString();
   if (site && actorUri) ActivityPubService.setAutoBoost(site.slug, actorUri, !!req.body.auto_boost);
   res.redirect('/following?success=' + encodeURIComponent(req.body.auto_boost ? 'Uitgelicht ✨' : 'Niet meer uitgelicht'));
 });
 
-router.post('/newspaper/like', requireSiteManager, async (req, res) => {
+router.post('/news/like', requireSiteManager, async (req, res) => {
   const site = res.locals.site;
   if (site) { try { await ActivityPubService.sendInteraction(site, 'like', (req.body.note || '').toString(), (req.body.author || '').toString()); } catch (e) { /* ignore */ } }
-  res.redirect('/newspaper?success=' + encodeURIComponent('Geliket ⭐'));
+  res.redirect('/news?success=' + encodeURIComponent('Geliket ⭐'));
 });
 
-router.post('/newspaper/boost', requireSiteManager, async (req, res) => {
+router.post('/news/boost', requireSiteManager, async (req, res) => {
   const site = res.locals.site;
   const note = (req.body.note || '').toString();
   if (site && note) {
     try { await ActivityPubService.sendInteraction(site, 'boost', note, (req.body.author || '').toString()); } catch (e) { /* ignore */ }
     ActivityPubService.markBoosted(site.slug, note); // also surface it in the Cirkel (mixed by date)
   }
-  res.redirect('/newspaper?success=' + encodeURIComponent('Geboost 🔁'));
+  res.redirect('/news?success=' + encodeURIComponent('Geboost 🔁'));
 });
 
 // Unboost (retract): send Undo(Announce) + clear the local flag.
-router.post('/newspaper/unboost', requireSiteManager, async (req, res) => {
+router.post('/news/unboost', requireSiteManager, async (req, res) => {
   const site = res.locals.site;
   const note = (req.body.note || '').toString();
   if (site && note) {
     try { await ActivityPubService.sendInteraction(site, 'unboost', note, (req.body.author || '').toString()); } catch (e) { /* ignore */ }
     ActivityPubService.unmarkBoosted(site.slug, note);
   }
-  res.redirect('/newspaper?success=' + encodeURIComponent('Boost ingetrokken'));
+  res.redirect('/news?success=' + encodeURIComponent('Boost ingetrokken'));
 });
 
 // Notifications inbox (new followers + replies/likes/boosts on your posts).
@@ -738,7 +738,7 @@ router.post('/blocking/add', requireSiteManager, async (req, res) => {
     } catch (e) { q = 'error=' + encodeURIComponent('Blokkeren mislukt'); }
   }
   const ref = req.get('Referer') || '';
-  res.redirect((ref.includes('/newspaper') ? '/newspaper?' : '/blocking?') + q);
+  res.redirect((ref.includes('/news') ? '/news?' : '/blocking?') + q);
 });
 
 router.post('/blocking/remove', requireSiteManager, (req, res) => {
