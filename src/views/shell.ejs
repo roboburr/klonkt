@@ -216,12 +216,19 @@ const _embedUrl = _postAudio
     var p = document.createElement('div');
     p.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;padding-top:env(safe-area-inset-top,0px);visibility:hidden;pointer-events:none';
     document.body.appendChild(p);
-    var i = parseFloat(getComputedStyle(p).paddingTop) || 0;
+    var rawEnv = parseFloat(getComputedStyle(p).paddingTop) || 0;
     p.remove();
+    var i = rawEnv;
     if (i < 20 && Math.max(screen.width, screen.height) >= 812) i = standalone ? 59 : 47;
     document.documentElement.style.setProperty('--ios-safe-top', i + 'px');
     var mh = document.querySelector('.masthead');
     if (mh) mh.style.paddingTop = 'calc(.55rem + ' + i + 'px)';
+    /* TEMP DEBUG — remove after diagnosing the iOS PWA safe-area. Tap to dismiss. */
+    var d = document.getElementById('ios-dbg');
+    if (!d) { d = document.createElement('div'); d.id = 'ios-dbg'; d.onclick = function(){ d.remove(); };
+      d.style.cssText = 'position:fixed;left:6px;bottom:96px;z-index:2147483647;background:rgba(0,0,0,.86);color:#0f0;font:11px/1.4 monospace;padding:7px 9px;border-radius:6px;white-space:pre;max-width:92vw';
+      document.body.appendChild(d); }
+    d.textContent = 'env=' + rawEnv + '   final=' + i + '\nstandalone=' + standalone + '\nscreen=' + screen.width + 'x' + screen.height + '  dpr=' + window.devicePixelRatio + '\nmasthead pad=' + (mh ? getComputedStyle(mh).paddingTop : 'NOT FOUND');
   }
   if (document.body) apply(); else document.addEventListener('DOMContentLoaded', apply);
   document.addEventListener('htmx:afterSettle', apply);
