@@ -1072,9 +1072,12 @@ export function getCirkelMembers(slug) {
   try { if (!_cirkelMembers) _cirkelMembers = db.prepare('SELECT name, url, icon FROM ap_following WHERE slug = ? AND auto_boost = 1 ORDER BY name'); return _cirkelMembers.all(slug); } catch { return []; }
 }
 // Mark a timeline post as boosted so it shows in the Cirkel (mixed by date).
-let _markBoost, _boostedCount;
+let _markBoost, _unmarkBoost, _boostedCount;
 export function markBoosted(slug, noteId) {
   try { if (!_markBoost) _markBoost = db.prepare('UPDATE ap_timeline SET boosted = 1 WHERE slug = ? AND id = ?'); _markBoost.run(slug, noteId); } catch { /* ignore */ }
+}
+export function unmarkBoosted(slug, noteId) {
+  try { if (!_unmarkBoost) _unmarkBoost = db.prepare('UPDATE ap_timeline SET boosted = 0 WHERE slug = ? AND id = ?'); _unmarkBoost.run(slug, noteId); } catch { /* ignore */ }
 }
 export function boostedCount(slug) {
   try { if (!_boostedCount) _boostedCount = db.prepare('SELECT COUNT(*) AS n FROM ap_timeline WHERE slug = ? AND boosted = 1'); return _boostedCount.get(slug).n; } catch { return 0; }
@@ -1225,22 +1228,34 @@ export async function unfollowActor(site, actorUri) {
 export async function sendInteraction(site, kind, targetNoteId, authorUri) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   if (!base || !site || !site.slug || !targetNoteId) return { error: 'config' };
-  const type = kind === 'boost' ? 'Announce' : 'Like';
   const me = actorId(base, site.slug);
   const keys = getOrCreateKeys(site.slug);
-  const act = {
-    '@context': 'https://www.w3.org/ns/activitystreams',
-    id: `${me}#${type.toLowerCase()}-${Date.now()}-${rid()}`,
-    type, actor: me, object: targetNoteId,
-  };
-  if (type === 'Announce') { act.to = [PUBLIC]; act.cc = [`${me}/followers`]; }
+  // 'unboost' = Undo(Announce): retracts a boost so followers' servers remove the
+  // reblog (matched on actor+object — no record of the original Announce needed).
+  const fanout = (kind === 'boost' || kind === 'unboost'); // also goes to our followers
+  let act;
+  if (kind === 'unboost') {
+    act = {
+      '@context': 'https://www.w3.org/ns/activitystreams',
+      id: `${me}#undo-${Date.now()}-${rid()}`, type: 'Undo', actor: me,
+      to: [PUBLIC], cc: [`${me}/followers`],
+      object: { id: `${me}#announce-${Date.now()}-${rid()}`, type: 'Announce', actor: me, object: targetNoteId },
+    };
+  } else {
+    const type = kind === 'boost' ? 'Announce' : 'Like';
+    act = {
+      '@context': 'https://www.w3.org/ns/activitystreams',
+      id: `${me}#${type.toLowerCase()}-${Date.now()}-${rid()}`,
+      type, actor: me, object: targetNoteId,
+    };
+    if (type === 'Announce') { act.to = [PUBLIC]; act.cc = [`${me}/followers`]; }
+  }
   const inboxes = new Set();
   if (authorUri) { const a = await fetchActor(authorUri).catch(() => null); if (a) inboxes.add((a.endpoints && a.endpoints.sharedInbox) || a.inbox); }
-  // A boost is public → also deliver to our own followers so it shows for them.
-  if (type === 'Announce') { for (const f of fStmts().list.all(site.slug)) inboxes.add(f.shared_inbox || f.inbox); }
+  if (fanout) { for (const f of fStmts().list.all(site.slug)) inboxes.add(f.shared_inbox || f.inbox); }
   let delivered = 0;
   for (const inbox of [...inboxes].filter(Boolean)) { try { const st = await deliver(inbox, act, `${me}#main-key`, keys.private_pem); if (st >= 200 && st < 300) delivered++; } catch { /* best-effort */ } }
-  console.log('[AP]', type, site.slug, '→', targetNoteId, 'delivered', delivered);
+  console.log('[AP]', kind, site.slug, '→', targetNoteId, 'delivered', delivered);
   return { ok: true, delivered };
 }
 
@@ -1355,7 +1370,7 @@ export default {
   getInteractions, getInteractionById, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete,
   webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, getTimeline, sendInteraction,
-  autoBoostCount, boostedCount, markBoosted, getCirkelPosts, getCirkelMembers, autoMigrateCircles, selfHealTimeline, boostLatestN,
+  autoBoostCount, boostedCount, markBoosted, unmarkBoosted, getCirkelPosts, getCirkelMembers, autoMigrateCircles, selfHealTimeline, boostLatestN,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
   getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,

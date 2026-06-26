@@ -634,6 +634,17 @@ router.post('/tijdlijn/boost', requireSiteManager, async (req, res) => {
   res.redirect('/tijdlijn?success=' + encodeURIComponent('Geboost 🔁'));
 });
 
+// Unboost (retract): send Undo(Announce) + clear the local flag.
+router.post('/tijdlijn/unboost', requireSiteManager, async (req, res) => {
+  const site = res.locals.site;
+  const note = (req.body.note || '').toString();
+  if (site && note) {
+    try { await ActivityPubService.sendInteraction(site, 'unboost', note, (req.body.author || '').toString()); } catch (e) { /* ignore */ }
+    ActivityPubService.unmarkBoosted(site.slug, note);
+  }
+  res.redirect('/tijdlijn?success=' + encodeURIComponent('Boost ingetrokken'));
+});
+
 // Notifications inbox (new followers + replies/likes/boosts on your posts).
 router.get('/meldingen', requireSiteManager, (req, res) => {
   const site = res.locals.site;

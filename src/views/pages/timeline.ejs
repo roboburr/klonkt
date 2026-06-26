@@ -24,7 +24,11 @@
             <% if (p.url) { %><p class="tl-orig"><a href="<%= p.url %>" target="_blank" rel="nofollow noopener"><%= t('tl.view_original') %></a></p><% } %>
             <div class="tl-actions">
               <form method="post" action="/tijdlijn/like" class="tl-act-form"><input type="hidden" name="note" value="<%= p.id %>"><input type="hidden" name="author" value="<%= p.author_uri %>"><button type="submit" class="tl-act" title="<%= t('fedi.likes') %>">⭐</button></form>
+              <% if (p.boosted) { %>
+              <form method="post" action="/tijdlijn/unboost" class="tl-act-form"><input type="hidden" name="note" value="<%= p.id %>"><input type="hidden" name="author" value="<%= p.author_uri %>"><button type="submit" class="tl-act tl-act-on" title="<%= t('tl.unboost') %>">🔁</button></form>
+              <% } else { %>
               <form method="post" action="/tijdlijn/boost" class="tl-act-form"><input type="hidden" name="note" value="<%= p.id %>"><input type="hidden" name="author" value="<%= p.author_uri %>"><button type="submit" class="tl-act" title="<%= t('fedi.boosts') %>">🔁</button></form>
+              <% } %>
               <button type="button" class="tl-act fedi-remote-reply-btn" data-fedi-uri="<%= p.id %>" data-fedi-ph="<%= t('fedi.remote_ph') %>" title="<%= t('fedi.remote_reply') %>">↩</button>
               <form method="post" action="/blokkeren/add" class="tl-act-form" onsubmit="return confirm('<%= t('tl.block') %>?');"><input type="hidden" name="target" value="<%= p.author_uri %>"><button type="submit" class="tl-act" title="<%= t('tl.block') %>">🚫</button></form>
             </div>
@@ -69,6 +73,7 @@
   .tl-act-form { margin: 0; }
   .tl-act { background: none; border: 1px solid color-mix(in srgb, var(--ink, #000) 14%, transparent); border-radius: 999px; padding: .2rem .6rem; cursor: pointer; font-size: .9rem; color: var(--ink-soft, #888); }
   .tl-act:hover { color: var(--ink, #000); border-color: color-mix(in srgb, var(--accent, #888) 50%, transparent); }
+  .tl-act-on { color: var(--accent, #06c); border-color: color-mix(in srgb, var(--accent, #888) 60%, transparent); background: color-mix(in srgb, var(--accent, #888) 14%, transparent); }
 </style>
 
 <script>
