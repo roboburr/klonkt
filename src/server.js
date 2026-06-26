@@ -25,7 +25,6 @@ import { renderPage } from './middleware/render.js';
 import { audioEnabled } from './config/features.js';
 import authRoutes from './routes/auth.js';
 import accountRoutes from './routes/account.js';
-import notificationsRoutes from './routes/notifications.js';
 import adminRoutes from './routes/admin.js';
 import adminAudioRoutes from './routes/admin-audio.js';
 import adminPlaylistsRoutes from './routes/admin-playlists.js';
@@ -285,7 +284,9 @@ app.use((req, res, next) => {
 
 app.use('/auth', authRoutes);
 app.use('/account', accountRoutes);
-app.use('/notifications', notificationsRoutes);
+// NB: /notifications is the fediverse notifications page (in postsRoutes). The old
+// user-notifications route was removed — it collided with the fedi route after the
+// /meldingen -> /notifications rename, and the user-notifications system is dead.
 if (audioEnabled()) {
   app.use('/admin/audio', adminAudioRoutes);
   app.use('/admin/playlists', adminPlaylistsRoutes);
