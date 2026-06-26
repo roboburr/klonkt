@@ -12,7 +12,7 @@ import ActivityPubService from '../src/services/ActivityPubService.js';
 async function resolveActor(siteUrl) {
   try {
     const r = await fetch(siteUrl, { headers: { Accept: 'application/activity+json' }, redirect: 'manual' });
-    if (r.status >= 300 && r.status < 400) { const loc = r.headers.get('location'); if (loc) return loc; }
+    if (r.status >= 300 && r.status < 400) { const loc = r.headers.get('location'); if (loc) return new URL(loc, siteUrl).href; }
     if (r.ok) return siteUrl; // root already serves the actor
   } catch (e) { /* unreachable */ }
   return null;
