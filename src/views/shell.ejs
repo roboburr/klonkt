@@ -228,7 +228,14 @@ const _embedUrl = _postAudio
     if (!d) { d = document.createElement('div'); d.id = 'ios-dbg'; d.onclick = function(){ d.remove(); };
       d.style.cssText = 'position:fixed;left:6px;bottom:96px;z-index:2147483647;background:rgba(0,0,0,.86);color:#0f0;font:11px/1.4 monospace;padding:7px 9px;border-radius:6px;white-space:pre;max-width:92vw';
       document.body.appendChild(d); }
-    d.textContent = 'env=' + rawEnv + '   final=' + i + '\nstandalone=' + standalone + '\nscreen=' + screen.width + 'x' + screen.height + '  dpr=' + window.devicePixelRatio + '\nmasthead pad=' + (mh ? getComputedStyle(mh).paddingTop : 'NOT FOUND');
+    var ph = document.querySelector('.profile-header') || document.querySelector('#pcms-chrome');
+    var mr = mh ? mh.getBoundingClientRect() : null;
+    var pr = ph ? ph.getBoundingClientRect() : null;
+    var mhCS = mh ? getComputedStyle(mh) : null;
+    d.textContent = 'env=' + rawEnv + '  final=' + i + '  standalone=' + standalone
+      + '\nscreen=' + screen.width + 'x' + screen.height + ' dpr=' + window.devicePixelRatio + ' scrollY=' + Math.round(window.scrollY)
+      + '\nmh: pos=' + (mhCS ? mhCS.position : '-') + ' pad=' + (mhCS ? Math.round(parseFloat(mhCS.paddingTop)) : '-') + ' top=' + (mr ? Math.round(mr.top) : '-') + ' h=' + (mr ? Math.round(mr.height) : '-')
+      + '\nchrome/profile top=' + (pr ? Math.round(pr.top) : '-') + ' body.pt=' + Math.round(parseFloat(getComputedStyle(document.body).paddingTop));
   }
   if (document.body) apply(); else document.addEventListener('DOMContentLoaded', apply);
   document.addEventListener('htmx:afterSettle', apply);
