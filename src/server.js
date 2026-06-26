@@ -41,9 +41,6 @@ import usersRoutes from './routes/users.js';
 import feedRoutes from './routes/feed.js';
 import postsRoutes from './routes/posts.js';
 import langRoutes from './routes/lang.js';
-import federationRoutes from './routes/federation.js';
-import { startCircleSyncLoop } from './services/CircleService.js';
-import adminCircleRoutes from './routes/admin-circle.js';
 import adminUpdatesRoutes from './routes/admin-updates.js';
 import adminPatreonRoutes from './routes/admin-patreon.js';
 import adminStatsRoutes from './routes/admin-stats.js';
@@ -197,9 +194,6 @@ app.use('/media', express.static(process.env.MEDIA_PATH || './storage/media', {
 // (Removed) TWA / digital-asset-links — only needed for the APK/TWA variant.
 // Klonkt is PWA-only; assetlinks.json is no longer served.
 
-// Circles: periodic background sync of remote instances (no-op unless tenancy='circle').
-startCircleSyncLoop();
-
 // Bundle HTMX: copy from node_modules into our own assets dir so we can serve
 // it locally (no third-party CDN). Idempotent — only copies if size differs.
 (function ensureLocalHtmx() {
@@ -216,10 +210,6 @@ startCircleSyncLoop();
     console.warn('⚠️  Could not bundle HTMX:', e.message, '— run `npm install`');
   }
 })();
-
-// Circle federation: public, site-agnostic endpoints (/.klonkt/*).
-// Before resolveSite/theme — they don't need a site context.
-app.use(federationRoutes);
 
 // ActivityPub: WebFinger + /ap/* (site-agnostic, resolves the site by slug).
 app.use(apRoutes);
@@ -303,7 +293,6 @@ app.use('/admin/sites', adminSitesRoutes);
 app.use('/admin/users', adminUsersRoutes);
 app.use('/admin/settings', adminSettingsRoutes);
 app.use('/admin/seo', adminSeoRoutes);
-app.use('/admin/circle', adminCircleRoutes);
 app.use('/admin/updates', adminUpdatesRoutes);
 app.use('/admin/patreon', adminPatreonRoutes);
 app.use('/admin/stats', adminStatsRoutes);

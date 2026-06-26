@@ -39,14 +39,13 @@ export function setSetting(key, value) {
 }
 
 export function getTenancy() {
-  const v = getSetting('tenancy', 'solo');
-  // 'hub' is removed → coerce legacy values to 'solo'.
-  return v === 'circle' ? 'circle' : 'solo';
+  // Tenancy is retired: 'hub' and 'circle' were both removed. Every site is
+  // 'solo'. Cirkels are now an ActivityPub feature (auto-boost), not a mode.
+  return 'solo';
 }
 
-export function setTenancy(mode) {
-  const m = mode === 'circle' ? 'circle' : 'solo';
-  setSetting('tenancy', m);
+export function setTenancy() {
+  setSetting('tenancy', 'solo');
 }
 
 // ActivityPub / fediverse federation. ON by default. '0' = off: the site does

@@ -2,11 +2,6 @@
  * Public changelog / release page.
  *
  * GET /changelog  -> renders CHANGELOG.md (the source of truth for releases).
- *
- * The app version (footer, package.json) is intentionally decoupled from the
- * circle federation proto (KLONKT_PROTO): a version bump is cosmetic and does not
- * affect federation. We show the proto here explicitly so that each release
- * makes visible which federation version this instance speaks (circles = lockstep per proto).
  */
 
 import express from 'express';
@@ -15,7 +10,6 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { renderPage } from '../middleware/render.js';
 import { MarkdownService } from '../services/MarkdownService.js';
-import { KLONKT_PROTO } from '../services/CircleFederation.js';
 
 const router = express.Router();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -32,7 +26,6 @@ router.get('/changelog', (req, res) => {
     pageTitle: 'Wijzigingen',
     bodyClass: 'on-changelog',
     changelogHtml: html,
-    proto: KLONKT_PROTO,
   });
 });
 

@@ -5,31 +5,6 @@
   <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
   <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
 
-  <section class="set-card">
-    <h2><%= t('aset.mode') %></h2>
-    <p class="set-help">
-      <%= t('aset.mode_help') %>
-    </p>
-
-    <form method="post" action="/admin/settings" class="set-form">
-      <label class="set-opt">
-        <input type="radio" name="tenancy" value="solo" <%= tenancy === 'solo' ? 'checked' : '' %>>
-        <span>
-          <strong><%= t('aset.solo') %></strong> — <%= t('aset.solo_title') %>
-          <small><%= t('aset.solo_desc') %></small>
-        </span>
-      </label>
-      <label class="set-opt">
-        <input type="radio" name="tenancy" value="circle" <%= tenancy === 'circle' ? 'checked' : '' %>>
-        <span>
-          <strong><%= t('aset.circle') %></strong> &mdash; <%= t('aset.circle_title') %>
-          <small><%= t('aset.circle_desc') %></small>
-        </span>
-      </label>
-      <button type="submit" class="btn btn-primary"><%= t('aset.save') %></button>
-    </form>
-  </section>
-
   <%# ── Default language for visitors ── %>
   <section class="set-card" style="margin-top:1rem">
     <h2><%= t('aset.default_lang') %></h2>
@@ -69,17 +44,6 @@
   </section>
 
   <%# Mode-specific config — Circle settings below the mode card. (Hub removed.) %>
-  <% if (tenancy === 'circle') { %>
-  <section class="set-card set-card--mode" style="margin-top:1rem">
-    <h2>🔗 <%= t('aset.your_circle') %></h2>
-    <p class="set-help">
-      <%= t('aset.your_circle_help') %>
-    </p>
-    <div class="set-actions">
-      <a href="/admin/circle" class="btn btn-primary"><%= t('aset.manage_circle') %> &rarr;</a>
-    </div>
-  </section>
-  <% } %>
 
   <%# Premium (Patreon) — only visible when the self-hoster enables the premium layer
       (env KLONKT_PREMIUM_ENABLED=on). Hidden by default; nothing gated. %>

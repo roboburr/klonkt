@@ -3,8 +3,6 @@
   <h1><%= t('chlog.title') %></h1>
   <p class="cl-meta">
     <%= t('chlog.app_version') %> <strong>v<%= appVersion %></strong>
-    <span class="cl-sep">·</span>
-    <%= t('chlog.fed_proto') %> <strong><%= proto %></strong>
     <% if (typeof user !== 'undefined' && user && user.role === 'god') { %>
       <span class="cl-sep">·</span> <a href="/admin/updates"><%= t('chlog.manage_updates') %></a>
     <% } %>

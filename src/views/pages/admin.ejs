@@ -42,9 +42,6 @@
       <% } else { %>
         <a href="/admin/sites/new" class="btn"><%= t('admin.b_makesite') %></a>
       <% } %>
-      <% if (tenancy === 'circle') { %>
-        <a href="/admin/circle" class="btn"><%= t('admin.b_circle') %></a>
-      <% } %>
       <% if (primarySite) { %><a href="/admin/seo" class="btn"><%= t('admin.b_seo') %></a><% } %>
       <a href="/admin/settings" class="btn"><%= t('admin.b_settings') %></a>
     <% } %>
