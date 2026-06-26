@@ -626,7 +626,11 @@ router.post('/tijdlijn/like', requireSiteManager, async (req, res) => {
 
 router.post('/tijdlijn/boost', requireSiteManager, async (req, res) => {
   const site = res.locals.site;
-  if (site) { try { await ActivityPubService.sendInteraction(site, 'boost', (req.body.note || '').toString(), (req.body.author || '').toString()); } catch (e) { /* ignore */ } }
+  const note = (req.body.note || '').toString();
+  if (site && note) {
+    try { await ActivityPubService.sendInteraction(site, 'boost', note, (req.body.author || '').toString()); } catch (e) { /* ignore */ }
+    ActivityPubService.markBoosted(site.slug, note); // also surface it in the Cirkel (mixed by date)
+  }
   res.redirect('/tijdlijn?success=' + encodeURIComponent('Geboost 🔁'));
 });
 

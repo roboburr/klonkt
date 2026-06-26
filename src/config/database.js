@@ -399,9 +399,10 @@ export function initializeDatabase() {
     );
     CREATE INDEX IF NOT EXISTS idx_ap_delivery_due ON ap_delivery(next_at);
   `);
-  // Auto-boost a followed account's posts ("feature an artist"): their new
-  // top-level posts get re-Announced to our followers automatically.
+  // "Feature" a followed account: its posts show in the local Cirkel.
   ensureColumn('ap_following', 'auto_boost', 'INTEGER DEFAULT 0');
+  // A timeline post you boosted (🔁) — also shown in the Cirkel (mixed by date).
+  ensureColumn('ap_timeline', 'boosted', 'INTEGER DEFAULT 0');
 }
 
 function ensureColumn(table, column, definition) {

@@ -1055,12 +1055,14 @@ export function autoBoostCount(slug) {
 }
 export function getCirkelPosts(slug, limit) {
   try {
+    // Cirkel = posts from featured (auto_boost) accounts + posts you boosted
+    // (t.boosted), mixed by date. One row per note in ap_timeline → no duplicates.
     if (!_cirkelPosts) _cirkelPosts = db.prepare(`
       SELECT t.id, t.author_uri, t.author_name, t.author_handle, t.author_icon, t.author_url,
              t.content, t.url, t.published, t.media_json
       FROM ap_timeline t
-      JOIN ap_following f ON f.slug = t.slug AND f.actor_uri = t.author_uri AND f.auto_boost = 1
-      WHERE t.slug = ?
+      LEFT JOIN ap_following f ON f.slug = t.slug AND f.actor_uri = t.author_uri
+      WHERE t.slug = ? AND (f.auto_boost = 1 OR t.boosted = 1)
       ORDER BY COALESCE(t.published, t.created_at) DESC, t.rowid DESC
       LIMIT ?`);
     return _cirkelPosts.all(slug, limit || 60);
@@ -1068,6 +1070,14 @@ export function getCirkelPosts(slug, limit) {
 }
 export function getCirkelMembers(slug) {
   try { if (!_cirkelMembers) _cirkelMembers = db.prepare('SELECT name, url, icon FROM ap_following WHERE slug = ? AND auto_boost = 1 ORDER BY name'); return _cirkelMembers.all(slug); } catch { return []; }
+}
+// Mark a timeline post as boosted so it shows in the Cirkel (mixed by date).
+let _markBoost, _boostedCount;
+export function markBoosted(slug, noteId) {
+  try { if (!_markBoost) _markBoost = db.prepare('UPDATE ap_timeline SET boosted = 1 WHERE slug = ? AND id = ?'); _markBoost.run(slug, noteId); } catch { /* ignore */ }
+}
+export function boostedCount(slug) {
+  try { if (!_boostedCount) _boostedCount = db.prepare('SELECT COUNT(*) AS n FROM ap_timeline WHERE slug = ? AND boosted = 1'); return _boostedCount.get(slug).n; } catch { return 0; }
 }
 
 // One-time, best-effort migration of the old Cirkels (pull-protocol circle_links)
@@ -1345,7 +1355,7 @@ export default {
   getInteractions, getInteractionById, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete,
   webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, getTimeline, sendInteraction,
-  autoBoostCount, getCirkelPosts, getCirkelMembers, autoMigrateCircles, selfHealTimeline, boostLatestN,
+  autoBoostCount, boostedCount, markBoosted, getCirkelPosts, getCirkelMembers, autoMigrateCircles, selfHealTimeline, boostLatestN,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
   getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,

@@ -28,7 +28,7 @@ function htmlToText(html) {
 
 router.get('/cirkel', (req, res, next) => {
   const site = res.locals.site;
-  if (!site || !apEnabled() || ActivityPubService.autoBoostCount(site.slug) === 0) return next();
+  if (!site || !apEnabled() || (ActivityPubService.autoBoostCount(site.slug) === 0 && ActivityPubService.boostedCount(site.slug) === 0)) return next();
 
   const posts = ActivityPubService.getCirkelPosts(site.slug, 80).map((r) => {
     const text = htmlToText(r.content);
