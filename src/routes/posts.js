@@ -592,6 +592,8 @@ function timelineEmbedHtml(html) {
     if (p.provider === 'spotify') return `<iframe class="tl-embed-frame tl-embed-spotify" src="https://open.spotify.com/embed/${p.type}/${p.id}" title="Spotify" loading="lazy" frameborder="0" allow="encrypted-media"></iframe>`;
     if (p.provider === 'soundcloud') return `<iframe class="tl-embed-frame tl-embed-sc" src="https://w.soundcloud.com/player/?url=${encodeURIComponent(p.url)}&color=%23ff5500&visual=false" title="SoundCloud" loading="lazy" frameborder="0" allow="autoplay" scrolling="no"></iframe>`;
     if (p.provider === 'vimeo') return `<iframe class="tl-embed-frame" src="https://player.vimeo.com/video/${p.id}" title="Vimeo" loading="lazy" frameborder="0" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>`;
+    if (p.provider === 'bandcamp') return `<iframe class="tl-embed-frame tl-embed-bandcamp" src="https://bandcamp.com/EmbeddedPlayer/url=${encodeURIComponent(u)}/size=large/bgcol=faf8f3/linkcol=c2410c/tracklist=false/transparent=true/" title="Bandcamp" loading="lazy" frameborder="0" allow="encrypted-media"></iframe>`;
+    if (p.provider === 'applemusic') { const am = u.match(/music\.apple\.com\/([a-z]{2}\/(?:album|playlist|song)\/[^/?#]+\/[0-9]+)/i); if (am) return `<iframe class="tl-embed-frame tl-embed-apple" src="https://embed.music.apple.com/${am[1]}" title="Apple Music" loading="lazy" frameborder="0" allow="autoplay; encrypted-media"></iframe>`; }
   }
   return null;
 }

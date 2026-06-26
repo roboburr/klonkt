@@ -106,6 +106,8 @@
   .tl-embed-spotify { aspect-ratio: auto; height: 152px; }
   .tl-embed-sc { aspect-ratio: auto; height: 166px; }
   .tl-embed-klonkt { aspect-ratio: auto; height: 180px; background: var(--paper, #fff); }
+  .tl-embed-bandcamp { aspect-ratio: auto; height: 470px; }
+  .tl-embed-apple { aspect-ratio: auto; height: 175px; }
 
   .tl-orig { display: inline-block; margin: .7rem 0 0; font-size: .82rem; color: var(--accent, #06c); text-decoration: none; }
   .tl-orig:hover { text-decoration: underline; }
@@ -137,7 +139,7 @@
   if (window.__fediRemoteWired) return; window.__fediRemoteWired = true;
   var current = null, currentBtn = null;
   function close(){ if (current) { current.remove(); current = null; currentBtn = null; } }
-  function go(raw, uri){ var d=(raw||'').trim().replace(/^@?[^@\s]*@/,'').replace(/^https?:\/\//i,'').replace(/\/.*$/,'').trim(); if(d) location.href='https://'+d+'/authorize_interaction?uri='+encodeURIComponent(uri||''); }
+  function go(raw, uri){ var d=(raw||'').trim().replace(/^@?[^@\s]*@/,'').replace(/^https?:\/\//i,'').replace(/\/.*$/,'').trim(); if(d){ try{ localStorage.setItem('pcmsFediServer', d); }catch(e){} location.href='https://'+d+'/authorize_interaction?uri='+encodeURIComponent(uri||''); } }
   function place(f, b){ var r=b.getBoundingClientRect(); f.style.top=(r.bottom+window.scrollY+6)+'px'; f.style.left=Math.max(8, Math.min(r.left+window.scrollX, window.scrollX+window.innerWidth-340))+'px'; }
   document.addEventListener('click', function(e){
     if (e.target.closest && e.target.closest('.fedi-remote-cancel')) { close(); return; }
@@ -148,9 +150,10 @@
       if (currentBtn === b) { close(); return; }
       close();
       var f = document.createElement('form'); f.className='fedi-remote-form'; f.dataset.uri = b.getAttribute('data-fedi-uri')||'';
-      f.innerHTML = '<input type="text" autocomplete="off" spellcheck="false"><button type="submit" class="btn btn-primary fedi-remote-go" aria-label="ok">&rarr;</button><button type="button" class="fedi-remote-cancel" aria-label="x">&times;</button>';
-      f.querySelector('input').placeholder = b.getAttribute('data-fedi-ph') || 'mastodon.social';
-      document.body.appendChild(f); place(f, b); current=f; currentBtn=b; f.querySelector('input').focus();
+      f.innerHTML = '<input type="text" name="fediserver" autocomplete="on" list="pcms-fedi-srv" spellcheck="false"><button type="submit" class="btn btn-primary fedi-remote-go" aria-label="ok">&rarr;</button><button type="button" class="fedi-remote-cancel" aria-label="x">&times;</button><datalist id="pcms-fedi-srv"><option value="mastodon.social"></option><option value="mastodon.online"></option><option value="mas.to"></option><option value="fosstodon.org"></option><option value="hachyderm.io"></option></datalist>';
+      var _inp = f.querySelector('input'); _inp.placeholder = b.getAttribute('data-fedi-ph') || 'mastodon.social';
+      try{ var _sv = localStorage.getItem('pcmsFediServer'); if(_sv) _inp.value = _sv; }catch(e){}
+      document.body.appendChild(f); place(f, b); current=f; currentBtn=b; _inp.focus(); _inp.select();
       return;
     }
     if (current) close();

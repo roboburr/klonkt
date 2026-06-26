@@ -108,7 +108,7 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
     function close(){ if (current) { current.remove(); current = null; currentBtn = null; } }
     function go(raw, uri){
       var d = (raw||'').trim().replace(/^@?[^@\s]*@/, '').replace(/^https?:\/\//i, '').replace(/\/.*$/, '').trim();
-      if (d) location.href = 'https://' + d + '/authorize_interaction?uri=' + encodeURIComponent(uri||'');
+      if (d) { try { localStorage.setItem('pcmsFediServer', d); } catch(e){} location.href = 'https://' + d + '/authorize_interaction?uri=' + encodeURIComponent(uri||''); }
     }
     function place(f, b){
       var r = b.getBoundingClientRect();
@@ -126,13 +126,16 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
         var f = document.createElement('form');
         f.className = 'fedi-remote-form';
         f.dataset.uri = b.getAttribute('data-fedi-uri') || '';
-        f.innerHTML = '<input type="text" autocomplete="off" spellcheck="false">'
+        f.innerHTML = '<input type="text" name="fediserver" autocomplete="on" list="pcms-fedi-srv" spellcheck="false">'
           + '<button type="submit" class="btn btn-primary fedi-remote-go" aria-label="ok">&rarr;</button>'
-          + '<button type="button" class="fedi-remote-cancel" aria-label="x">&times;</button>';
-        f.querySelector('input').placeholder = b.getAttribute('data-fedi-ph') || 'mastodon.social';
+          + '<button type="button" class="fedi-remote-cancel" aria-label="x">&times;</button>'
+          + '<datalist id="pcms-fedi-srv"><option value="mastodon.social"></option><option value="mastodon.online"></option><option value="mas.to"></option><option value="fosstodon.org"></option><option value="hachyderm.io"></option></datalist>';
+        var _inp = f.querySelector('input');
+        _inp.placeholder = b.getAttribute('data-fedi-ph') || 'mastodon.social';
+        try { var _sv = localStorage.getItem('pcmsFediServer'); if (_sv) _inp.value = _sv; } catch(e){}
         document.body.appendChild(f);            // floating popover → no layout reflow
         place(f, b); current = f; currentBtn = b;
-        f.querySelector('input').focus();
+        _inp.focus(); _inp.select();
         return;
       }
       if (current) close(); // click anywhere else closes it
