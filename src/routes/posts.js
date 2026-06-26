@@ -608,7 +608,9 @@ function klonktAudioEmbed(html, url) {
   const slug = u.pathname.replace(/^\/+|\/+$/g, '');
   if (!slug || slug.indexOf('/') >= 0) return null; // single segment only
   const src = u.origin + '/embed?post=' + encodeURIComponent(slug);
-  return { origin: u.origin, html: `<iframe class="tl-embed-frame tl-embed-klonkt" src="${src}" title="Audio" loading="lazy" frameborder="0" allow="autoplay; encrypted-media"></iframe>` };
+  // Drop the now-redundant "🎵 … listen on <site>" line — the embedded player below shows it.
+  const content = html.replace(/<p>🎵[\s\S]*?<\/p>\s*/i, '');
+  return { origin: u.origin, content, html: `<iframe class="tl-embed-frame tl-embed-klonkt" src="${src}" title="Audio" loading="lazy" frameborder="0" allow="autoplay; encrypted-media"></iframe>` };
 }
 
 router.get('/newspaper', requireSiteManager, (req, res) => {
@@ -616,11 +618,12 @@ router.get('/newspaper', requireSiteManager, (req, res) => {
   const cspOrigins = new Set();
   const timeline = (site ? ActivityPubService.getTimeline(site.slug, 60) : []).map((p) => {
     let embedHtml = timelineEmbedHtml(p.content);
+    let content = p.content;
     if (!embedHtml) {
       const k = klonktAudioEmbed(p.content, p.url);
-      if (k) { embedHtml = k.html; cspOrigins.add(k.origin); }
+      if (k) { embedHtml = k.html; content = k.content; cspOrigins.add(k.origin); }
     }
-    return { ...p, embedHtml };
+    return { ...p, content, embedHtml };
   });
   // Option A: allow the followed Klonkt sites' player iframes (you follow them) by
   // extending ONLY this response's CSP frame-src. The global policy stays locked down.
