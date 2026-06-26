@@ -5,7 +5,7 @@
   <% if (typeof success !== 'undefined' && success) { %><div class="alert alert-success"><%= success %></div><% } %>
   <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
 
-  <form method="post" action="/blokkeren/add" class="bl-form">
+  <form method="post" action="/blocking/add" class="bl-form">
     <input type="text" name="target" placeholder="@naam@server.social  •  server.social" autocomplete="off" spellcheck="false" required>
     <button type="submit" class="btn btn-primary"><%= t('blk.block_btn') %></button>
   </form>
@@ -18,7 +18,7 @@
         <li class="bl-item">
           <span class="bl-kind"><%= b.kind === 'domain' ? '🌐' : '👤' %></span>
           <span class="bl-label"><%= b.label || b.target %></span>
-          <form method="post" action="/blokkeren/remove"><input type="hidden" name="target" value="<%= b.target %>"><button type="submit" class="bl-unblock"><%= t('blk.unblock') %></button></form>
+          <form method="post" action="/blocking/remove"><input type="hidden" name="target" value="<%= b.target %>"><button type="submit" class="bl-unblock"><%= t('blk.unblock') %></button></form>
         </li>
       <% }); %>
     </ul>

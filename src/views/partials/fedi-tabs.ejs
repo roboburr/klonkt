@@ -1,35 +1,34 @@
 <%# Shared tab bar for the unified Fediverse section. Owner/admin-only.
     Param: active = 'feed' | 'following' | 'reacties' | 'meldingen' | 'blokkeren'.
-    Responsive: horizontal tabs that scroll on narrow screens. %>
+    All tabs share the content width equally (flex:1) and always fit (ellipsis).
+    "Back to site" lives in the top nav, not here. %>
 <% var _a = (typeof active !== 'undefined') ? active : ''; %>
 <% var _nu = (typeof notifUnread !== 'undefined') ? notifUnread : 0; %>
-<div class="fedi-bar">
-  <a class="btn btn-primary fedi-bar-back" href="/"><%= t('nav.back_to_site') %></a>
-  <nav class="fedi-tabs" aria-label="Fediverse">
-    <a href="/tijdlijn" class="fedi-tab<%= _a === 'feed' ? ' is-active' : '' %>"
-       hx-get="/tijdlijn?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="/tijdlijn" hx-indicator="#pcms-loading"><%= t('tl.tab_feed') %></a>
-    <a href="/volgend" class="fedi-tab<%= _a === 'following' ? ' is-active' : '' %>"
-       hx-get="/volgend?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="/volgend" hx-indicator="#pcms-loading"><%= t('tl.tab_following') %></a>
-    <a href="/fediverse" class="fedi-tab<%= _a === 'reacties' ? ' is-active' : '' %>"
-       hx-get="/fediverse?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="/fediverse" hx-indicator="#pcms-loading"><%= t('tl.tab_replies') %></a>
-    <a href="/meldingen" class="fedi-tab<%= _a === 'meldingen' ? ' is-active' : '' %>"
-       hx-get="/meldingen?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="/meldingen" hx-indicator="#pcms-loading"><%= t('notif.title') %><% if (_nu > 0) { %> <span class="fedi-tab-badge"><%= _nu > 9 ? '9+' : _nu %></span><% } %></a>
-    <a href="/blokkeren" class="fedi-tab<%= _a === 'blokkeren' ? ' is-active' : '' %>"
-       hx-get="/blokkeren?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="/blokkeren" hx-indicator="#pcms-loading"><%= t('blk.title') %></a>
-  </nav>
-</div>
+<nav class="fedi-tabs" aria-label="Fediverse">
+  <a href="/timeline" class="fedi-tab<%= _a === 'feed' ? ' is-active' : '' %>"
+     hx-get="/timeline?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="/timeline" hx-indicator="#pcms-loading"><%= t('tl.tab_feed') %></a>
+  <a href="/following" class="fedi-tab<%= _a === 'following' ? ' is-active' : '' %>"
+     hx-get="/following?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="/following" hx-indicator="#pcms-loading"><%= t('tl.tab_following') %></a>
+  <a href="/fediverse" class="fedi-tab<%= _a === 'reacties' ? ' is-active' : '' %>"
+     hx-get="/fediverse?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="/fediverse" hx-indicator="#pcms-loading"><%= t('tl.tab_replies') %></a>
+  <a href="/notifications" class="fedi-tab<%= _a === 'meldingen' ? ' is-active' : '' %>"
+     hx-get="/notifications?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="/notifications" hx-indicator="#pcms-loading"><span class="fedi-tab-label"><%= t('notif.title') %></span><% if (_nu > 0) { %><span class="fedi-tab-badge"><%= _nu > 9 ? '9+' : _nu %></span><% } %></a>
+  <a href="/blocking" class="fedi-tab<%= _a === 'blokkeren' ? ' is-active' : '' %>"
+     hx-get="/blocking?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="/blocking" hx-indicator="#pcms-loading"><%= t('blk.title') %></a>
+</nav>
 <style>
-.fedi-bar { margin: 0 0 1.25rem; }
-/* Big, full-width "back to site" button at the top of the Fediverse section. */
-.fedi-bar-back { display: block; width: 100%; box-sizing: border-box; text-align: center; margin: 0 0 1rem; padding: .7rem 1rem; }
-/* Tabs centered, wrap onto multiple rows on narrow screens (no scrollbar). */
-.fedi-tabs { display: flex; flex-wrap: wrap; justify-content: center; gap: .1rem .25rem;
+/* All 5 tabs share the width equally and always fit (truncate with ellipsis if needed). */
+.fedi-tabs { display: flex; margin: 0 0 1.25rem;
   border-bottom: 1px solid color-mix(in srgb, var(--ink, #000) 10%, transparent); }
-.fedi-tab { padding: .55rem .85rem; white-space: nowrap; text-decoration: none;
-  color: var(--ink-soft, #888); font-weight: 600; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.fedi-tab { flex: 1 1 0; min-width: 0; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  padding: .6rem .4rem; text-decoration: none; font-weight: 600; font-size: .95rem;
+  color: var(--ink-soft, #888); border-bottom: 2px solid transparent; margin-bottom: -1px;
+  display: inline-flex; align-items: center; justify-content: center; gap: .3rem; }
 .fedi-tab:hover { color: var(--ink, #000); }
 .fedi-tab.is-active { color: var(--accent, #06c); border-bottom-color: var(--accent, #06c); }
-.fedi-tab-badge { display: inline-block; min-width: 1.15em; padding: 0 .3em; border-radius: 999px;
-  background: var(--accent, #e8b04b); color: #fff; font-size: .68rem; line-height: 1.5; text-align: center; vertical-align: middle; }
-@media (max-width: 520px) { .fedi-tab { padding: .55rem .6rem; font-size: .92rem; } }
+.fedi-tab-label { overflow: hidden; text-overflow: ellipsis; }
+.fedi-tab-badge { flex: 0 0 auto; min-width: 1.15em; padding: 0 .3em; border-radius: 999px;
+  background: var(--accent, #e8b04b); color: #fff; font-size: .66rem; line-height: 1.5; text-align: center; }
+@media (max-width: 520px) { .fedi-tab { padding: .55rem .25rem; font-size: .82rem; } }
+@media (max-width: 380px) { .fedi-tab { font-size: .74rem; } }
 </style>

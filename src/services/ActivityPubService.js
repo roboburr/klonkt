@@ -1093,7 +1093,7 @@ export function boostedCount(slug) {
 // REMOVED on 2026-06-26 — it auto-sent Follows on boot, which violates "the code
 // never throws anything into the fediverse automatically" (would surprise-Follow
 // for some operators at scale). The dead circle_links table stays as harmless dead
-// data; an operator restores an old cirkel by re-following in /volgend (their click).
+// data; an operator restores an old cirkel by re-following in /following (their click).
 async function resolveApActor(siteUrl) {
   try {
     const r = await fetch(siteUrl, { headers: { Accept: 'application/activity+json' }, redirect: 'manual' });

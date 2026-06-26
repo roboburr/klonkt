@@ -84,7 +84,7 @@ const RESERVED_SLUGS = new Set([
   'posts', 'media', 'audio', 'forum',
   'tag', 'type', 'user', 'users', 'artiesten', 'leden', 'favorieten', 'feed.xml', 'atom.xml', 'sitemap.xml',
   'manifest.webmanifest', 'sw.js', 'favicon.ico', 'favicon.svg', 'assets',
-  'authorize_interaction', 'fediverse', 'tijdlijn', 'meldingen', 'blokkeren',
+  'authorize_interaction', 'fediverse', 'timeline', 'following', 'notifications', 'blocking',
 ]);
 
 /**
@@ -596,7 +596,7 @@ function timelineEmbedHtml(html) {
   return null;
 }
 
-router.get('/tijdlijn', requireSiteManager, (req, res) => {
+router.get('/timeline', requireSiteManager, (req, res) => {
   const site = res.locals.site;
   const timeline = (site ? ActivityPubService.getTimeline(site.slug, 60) : [])
     .map((p) => ({ ...p, embedHtml: timelineEmbedHtml(p.content) }));
@@ -608,17 +608,17 @@ router.get('/tijdlijn', requireSiteManager, (req, res) => {
 });
 
 // Volgend — manage the accounts you follow (+ per-account auto-boost toggles).
-router.get('/volgend', requireSiteManager, (req, res) => {
+router.get('/following', requireSiteManager, (req, res) => {
   const site = res.locals.site;
   const following = site ? ActivityPubService.listFollowing(site.slug) : [];
-  renderPage(req, res, 'pages/volgend', {
+  renderPage(req, res, 'pages/following', {
     pageTitle: 'Volgend', bodyClass: 'on-special',
     following,
     success: req.query.success || null, error: req.query.error || null,
   });
 });
 
-router.post('/tijdlijn/follow', requireSiteManager, async (req, res) => {
+router.post('/timeline/follow', requireSiteManager, async (req, res) => {
   const site = res.locals.site;
   const handle = (req.body.handle || '').toString();
   let q = 'success=' + encodeURIComponent('Volgverzoek verstuurd');
@@ -631,53 +631,53 @@ router.post('/tijdlijn/follow', requireSiteManager, async (req, res) => {
       }
     } catch (e) { q = 'error=' + encodeURIComponent('Volgen mislukt'); }
   }
-  res.redirect('/volgend?' + q);
+  res.redirect('/following?' + q);
 });
 
-router.post('/tijdlijn/unfollow', requireSiteManager, async (req, res) => {
+router.post('/timeline/unfollow', requireSiteManager, async (req, res) => {
   const site = res.locals.site;
   const actorUri = (req.body.actor_uri || '').toString();
   if (site && actorUri) { try { await ActivityPubService.unfollowActor(site, actorUri); } catch (e) { /* ignore */ } }
-  res.redirect('/volgend?success=' + encodeURIComponent('Ontvolgd'));
+  res.redirect('/following?success=' + encodeURIComponent('Ontvolgd'));
 });
 
 // Toggle "Featured" (show this account's posts in your Cirkel) on an account you follow.
-router.post('/tijdlijn/autoboost', requireSiteManager, (req, res) => {
+router.post('/timeline/autoboost', requireSiteManager, (req, res) => {
   const site = res.locals.site;
   const actorUri = (req.body.actor_uri || '').toString();
   if (site && actorUri) ActivityPubService.setAutoBoost(site.slug, actorUri, !!req.body.auto_boost);
-  res.redirect('/volgend?success=' + encodeURIComponent(req.body.auto_boost ? 'Uitgelicht ✨' : 'Niet meer uitgelicht'));
+  res.redirect('/following?success=' + encodeURIComponent(req.body.auto_boost ? 'Uitgelicht ✨' : 'Niet meer uitgelicht'));
 });
 
-router.post('/tijdlijn/like', requireSiteManager, async (req, res) => {
+router.post('/timeline/like', requireSiteManager, async (req, res) => {
   const site = res.locals.site;
   if (site) { try { await ActivityPubService.sendInteraction(site, 'like', (req.body.note || '').toString(), (req.body.author || '').toString()); } catch (e) { /* ignore */ } }
-  res.redirect('/tijdlijn?success=' + encodeURIComponent('Geliket ⭐'));
+  res.redirect('/timeline?success=' + encodeURIComponent('Geliket ⭐'));
 });
 
-router.post('/tijdlijn/boost', requireSiteManager, async (req, res) => {
+router.post('/timeline/boost', requireSiteManager, async (req, res) => {
   const site = res.locals.site;
   const note = (req.body.note || '').toString();
   if (site && note) {
     try { await ActivityPubService.sendInteraction(site, 'boost', note, (req.body.author || '').toString()); } catch (e) { /* ignore */ }
     ActivityPubService.markBoosted(site.slug, note); // also surface it in the Cirkel (mixed by date)
   }
-  res.redirect('/tijdlijn?success=' + encodeURIComponent('Geboost 🔁'));
+  res.redirect('/timeline?success=' + encodeURIComponent('Geboost 🔁'));
 });
 
 // Unboost (retract): send Undo(Announce) + clear the local flag.
-router.post('/tijdlijn/unboost', requireSiteManager, async (req, res) => {
+router.post('/timeline/unboost', requireSiteManager, async (req, res) => {
   const site = res.locals.site;
   const note = (req.body.note || '').toString();
   if (site && note) {
     try { await ActivityPubService.sendInteraction(site, 'unboost', note, (req.body.author || '').toString()); } catch (e) { /* ignore */ }
     ActivityPubService.unmarkBoosted(site.slug, note);
   }
-  res.redirect('/tijdlijn?success=' + encodeURIComponent('Boost ingetrokken'));
+  res.redirect('/timeline?success=' + encodeURIComponent('Boost ingetrokken'));
 });
 
 // Notifications inbox (new followers + replies/likes/boosts on your posts).
-router.get('/meldingen', requireSiteManager, (req, res) => {
+router.get('/notifications', requireSiteManager, (req, res) => {
   const site = res.locals.site;
   const items = site ? ActivityPubService.getNotifications(site.slug, 80) : [];
   // viewing = seen → clears the bell badge. A viewer (kijker) may look but must not
@@ -687,13 +687,13 @@ router.get('/meldingen', requireSiteManager, (req, res) => {
 });
 
 // Blocking / defederation (owner-only).
-router.get('/blokkeren', requireSiteManager, (req, res) => {
+router.get('/blocking', requireSiteManager, (req, res) => {
   const site = res.locals.site;
   const blocks = site ? ActivityPubService.listBlocks(site.slug) : [];
   renderPage(req, res, 'pages/blocks', { pageTitle: 'Blokkeren', bodyClass: 'on-special', blocks, success: req.query.success || null, error: req.query.error || null });
 });
 
-router.post('/blokkeren/add', requireSiteManager, async (req, res) => {
+router.post('/blocking/add', requireSiteManager, async (req, res) => {
   const site = res.locals.site;
   let q = 'success=' + encodeURIComponent('Geblokkeerd');
   if (site) {
@@ -704,13 +704,13 @@ router.post('/blokkeren/add', requireSiteManager, async (req, res) => {
     } catch (e) { q = 'error=' + encodeURIComponent('Blokkeren mislukt'); }
   }
   const ref = req.get('Referer') || '';
-  res.redirect((ref.includes('/tijdlijn') ? '/tijdlijn?' : '/blokkeren?') + q);
+  res.redirect((ref.includes('/timeline') ? '/timeline?' : '/blocking?') + q);
 });
 
-router.post('/blokkeren/remove', requireSiteManager, (req, res) => {
+router.post('/blocking/remove', requireSiteManager, (req, res) => {
   const site = res.locals.site;
   if (site) { try { ActivityPubService.unblock(site, (req.body.target || '').toString()); } catch (e) { /* ignore */ } }
-  res.redirect('/blokkeren?success=' + encodeURIComponent('Deblokkeerd'));
+  res.redirect('/blocking?success=' + encodeURIComponent('Deblokkeerd'));
 });
 
 // ==================== VIEW POST (last route â€” catches /:slug) ====================
