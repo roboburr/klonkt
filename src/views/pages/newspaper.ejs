@@ -150,7 +150,7 @@
       if (currentBtn === b) { close(); return; }
       close();
       var f = document.createElement('form'); f.className='fedi-remote-form'; f.dataset.uri = b.getAttribute('data-fedi-uri')||'';
-      f.innerHTML = '<input type="text" name="fediserver" autocomplete="on" list="pcms-fedi-srv" spellcheck="false"><button type="submit" class="btn btn-primary fedi-remote-go" aria-label="ok">&rarr;</button><button type="button" class="fedi-remote-cancel" aria-label="x">&times;</button><datalist id="pcms-fedi-srv"><option value="mastodon.social"></option><option value="mastodon.online"></option><option value="mas.to"></option><option value="fosstodon.org"></option><option value="hachyderm.io"></option></datalist>';
+      f.innerHTML = '<input type="text" autocomplete="off" spellcheck="false"><button type="submit" class="btn btn-primary fedi-remote-go" aria-label="ok">&rarr;</button><button type="button" class="fedi-remote-cancel" aria-label="x">&times;</button>';
       var _inp = f.querySelector('input'); _inp.placeholder = b.getAttribute('data-fedi-ph') || 'mastodon.social';
       try{ var _sv = localStorage.getItem('pcmsFediServer'); if(_sv) _inp.value = _sv; }catch(e){}
       document.body.appendChild(f); place(f, b); current=f; currentBtn=b; _inp.focus(); _inp.select();
