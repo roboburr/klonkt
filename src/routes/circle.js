@@ -9,9 +9,14 @@
 import express from 'express';
 import { renderPage } from '../middleware/render.js';
 import db from '../config/database.js';
-import { getTenancy } from '../services/SettingsService.js';
+import { getTenancy, apEnabled } from '../services/SettingsService.js';
+import ActivityPubService from '../services/ActivityPubService.js';
 
 const router = express.Router();
+
+function htmlToText(html) {
+  return String(html || '').replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, ' ').trim();
+}
 
 function safeUrl(u) {
   return typeof u === 'string' && /^https?:\/\//i.test(u) ? u : null;
@@ -25,52 +30,75 @@ function mediaImage(media_json) {
 }
 
 // ── Overview ─────────────────────────────────────────────────
+// New model: the Cirkel = posts from the accounts this site auto-boosts
+// ("feature an artist"), sourced from ActivityPub. Cards link to the source
+// post (external_url). Legacy circle-tenancy remote_posts are merged in until
+// the old pull-protocol is removed (Phase 4).
 router.get('/cirkel', (req, res, next) => {
-  if (getTenancy() !== 'circle') return next();
+  const site = res.locals.site;
+  if (!site) return next();
+  const slug = site.slug;
+  const isCircle = getTenancy() === 'circle';
+  const abCount = apEnabled() ? ActivityPubService.autoBoostCount(slug) : 0;
+  if (!abCount && !isCircle) return next(); // no cirkel on this site
 
-  const rows = db.prepare(`
-    SELECT p.id, p.published, p.title, p.summary, p.media_json, p.tags,
-           a.name AS actor_name
-    FROM remote_posts p
-    JOIN remote_actors a ON a.id = p.actor_id
-    ORDER BY COALESCE(p.published, p.fetched_at) DESC
-    LIMIT 100
-  `).all();
+  let posts = [];
 
-  const posts = rows.map((r) => {
-    const image = mediaImage(r.media_json);
-    return {
-      id: r.id,
-      // Local reading page -> the card stays on the own site (post-card links
-      // locally + htmx, NO external_url).
-      slug: 'cirkel/' + encodeURIComponent(r.id),
-      title: r.title || '(zonder titel)',
-      excerpt: r.summary || '',
-      cover_image_url: image ? image.url : null,
-      published_at: r.published,
-      created_at: r.published,
-      type: 'post',
-      tags: r.tags || '',
-      pinned: 0,
-      status: 'published',
-      source_name: r.actor_name || 'Onbekend',
-    };
-  });
+  // Featured (auto-boosted) fediverse posts → link to the original.
+  if (abCount) {
+    posts = ActivityPubService.getCirkelPosts(slug, 80).map((r) => {
+      const text = htmlToText(r.content);
+      const image = mediaImage(r.media_json);
+      const name = r.author_name || r.author_handle || 'Onbekend';
+      return {
+        id: 'ap-' + r.id,
+        slug: '',
+        title: text ? (text.length > 90 ? text.slice(0, 90) + '…' : text) : name,
+        excerpt: '',
+        cover_image_url: image ? image.url : null,
+        published_at: r.published,
+        created_at: r.published,
+        type: 'post',
+        tags: '',
+        pinned: 0,
+        status: 'published',
+        source_name: name,
+        external_url: safeUrl(r.url),
+      };
+    });
+  }
 
-  // Sites in the circle — active links only (outdated/error ones are excluded, along
-  // with their posts). Used for the graphic header with avatars.
-  const sites = db.prepare(`
-    SELECT a.name, a.url, a.avatar
-    FROM remote_actors a
-    JOIN circle_links l ON l.remote_actor_id = a.id
-    WHERE l.status = 'active'
-    ORDER BY a.name
-  `).all()
-    .map((s) => ({
-      name: s.name || 'Onbekend',
-      url: safeUrl(s.url),
-      avatar: safeUrl(s.avatar),
-    }));
+  // Legacy circle-tenancy remote_posts (local reading page, no external_url).
+  if (isCircle) {
+    const rows = db.prepare(`
+      SELECT p.id, p.published, p.title, p.summary, p.media_json, p.tags, a.name AS actor_name
+      FROM remote_posts p JOIN remote_actors a ON a.id = p.actor_id
+      ORDER BY COALESCE(p.published, p.fetched_at) DESC LIMIT 100
+    `).all().map((r) => {
+      const image = mediaImage(r.media_json);
+      return {
+        id: r.id, slug: 'cirkel/' + encodeURIComponent(r.id),
+        title: r.title || '(zonder titel)', excerpt: r.summary || '',
+        cover_image_url: image ? image.url : null, published_at: r.published, created_at: r.published,
+        type: 'post', tags: r.tags || '', pinned: 0, status: 'published', source_name: r.actor_name || 'Onbekend',
+      };
+    });
+    posts = posts.concat(rows);
+  }
+
+  posts.sort((a, b) => String(b.published_at || '').localeCompare(String(a.published_at || '')));
+
+  // Members header (avatars): featured artists + legacy circle links.
+  let sites = abCount
+    ? ActivityPubService.getCirkelMembers(slug).map((s) => ({ name: s.name || 'Onbekend', url: safeUrl(s.url), avatar: safeUrl(s.icon) }))
+    : [];
+  if (isCircle) {
+    const old = db.prepare(`
+      SELECT a.name, a.url, a.avatar FROM remote_actors a
+      JOIN circle_links l ON l.remote_actor_id = a.id WHERE l.status = 'active' ORDER BY a.name
+    `).all().map((s) => ({ name: s.name || 'Onbekend', url: safeUrl(s.url), avatar: safeUrl(s.avatar) }));
+    sites = sites.concat(old);
+  }
 
   renderPage(req, res, 'pages/circle-feed', { pageTitle: 'Cirkel', bodyClass: 'on-cirkel', posts, sites });
 });

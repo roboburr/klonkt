@@ -22,7 +22,7 @@
       </a>
     </div>
     <% } %>
-    <% if (typeof tenancy !== 'undefined' && tenancy === 'circle') {
+    <% if (typeof hasCirkel !== 'undefined' && hasCirkel) {
          var _onCirkel = (typeof bodyClass === 'string' && bodyClass.indexOf('on-cirkel') >= 0);
          var _sb = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '';
     %>

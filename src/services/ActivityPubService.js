@@ -1031,6 +1031,28 @@ function tlStmts() {
 }
 export function getTimeline(slug, limit) { return tlStmts().list.all(slug, limit || 50); }
 
+// ── Cirkel = posts from the accounts you auto-boost ("feature an artist") ──
+let _abCount, _cirkelPosts, _cirkelMembers;
+export function autoBoostCount(slug) {
+  try { if (!_abCount) _abCount = db.prepare('SELECT COUNT(*) AS n FROM ap_following WHERE slug = ? AND auto_boost = 1'); return _abCount.get(slug).n; } catch { return 0; }
+}
+export function getCirkelPosts(slug, limit) {
+  try {
+    if (!_cirkelPosts) _cirkelPosts = db.prepare(`
+      SELECT t.id, t.author_uri, t.author_name, t.author_handle, t.author_icon, t.author_url,
+             t.content, t.url, t.published, t.media_json
+      FROM ap_timeline t
+      JOIN ap_following f ON f.slug = t.slug AND f.actor_uri = t.author_uri AND f.auto_boost = 1
+      WHERE t.slug = ?
+      ORDER BY COALESCE(t.published, t.created_at) DESC, t.rowid DESC
+      LIMIT ?`);
+    return _cirkelPosts.all(slug, limit || 60);
+  } catch { return []; }
+}
+export function getCirkelMembers(slug) {
+  try { if (!_cirkelMembers) _cirkelMembers = db.prepare('SELECT name, url, icon FROM ap_following WHERE slug = ? AND auto_boost = 1 ORDER BY name'); return _cirkelMembers.all(slug); } catch { return []; }
+}
+
 // Follow a fediverse account by @handle (WebFinger → actor → signed Follow).
 export async function followActor(site, handle, autoBoost = false) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
@@ -1189,6 +1211,7 @@ export default {
   getInteractions, getInteractionById, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete,
   webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, getTimeline, sendInteraction,
+  autoBoostCount, getCirkelPosts, getCirkelMembers,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
   getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,

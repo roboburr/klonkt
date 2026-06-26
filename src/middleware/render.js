@@ -122,6 +122,9 @@ export async function renderPage(req, res, viewName, data = {}) {
     canSeeBeheer,
     canManageFedi,
     apEnabled: apEnabled(),
+    // Cirkel = the artists you feature (auto-boost). Shown when AP is on and you
+    // auto-boost ≥1 account, or (legacy) on a circle-tenancy site.
+    hasCirkel: !!(_site && ((apEnabled() && ActivityPubService.autoBoostCount(_site.slug) > 0) || (res.locals.tenancy || 'solo') === 'circle')),
     isViewer: _isViewer,
     canMutate: !_isViewer,
     isPremium: isPremiumInstance(),
