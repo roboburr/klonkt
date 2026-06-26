@@ -18,6 +18,7 @@ const _src       = post.source_name || '';
 const _hasCover  = !!post.cover_image_url;
 const _typeLabel = (post.type && post.type !== 'overig' && post.type !== 'post') ? post.type : '';
 const _isPinned  = !!post.pinned;
+const _isBoost   = !!post.isBoost;
 const _isDraft   = post.status && post.status !== 'published';
 
 function _ddmmyyyy(iso) {
@@ -41,7 +42,7 @@ if (post.tags) {
   }
 }
 %>
-<li class="post-list-item<%= _hasCover ? ' has-cover' : '' %><%= _isPinned ? ' is-pinned' : '' %>">
+<li class="post-list-item<%= _hasCover ? ' has-cover' : '' %><%= (_isPinned || _isBoost) ? ' is-pinned' : '' %>">
 
   <% if (_hasCover) { %>
     <a class="post-list-cover" href="<%= _href %>"
@@ -53,7 +54,7 @@ if (post.tags) {
 
   <div class="post-list-body">
     <div class="post-list-meta mono">
-      <% if (_isPinned) { %><span class="post-list-pin" aria-label="Vastgepind">★</span><% } %>
+      <% if (_isBoost) { %><span class="post-list-pin post-list-boost" aria-label="Boost">🔁</span><% } else if (_isPinned) { %><span class="post-list-pin" aria-label="Vastgepind">★</span><% } %>
       <time datetime="<%= post.published_at || post.created_at %>"><%= _ddmmyyyy(post.published_at || post.created_at) %></time>
       <% if (_src) { %><span class="post-list-type">&middot; via <%= _src %></span><% } %>
       <% if (_typeLabel) { %>

@@ -45,6 +45,7 @@ router.get('/cirkel', (req, res, next) => {
       type: 'post',
       tags: '',
       pinned: 0,
+      isBoost: !!r.boosted, // a post YOU boosted → render in the pinned style with a Boost badge
       status: 'published',
       source_name: name,
       external_url: safeUrl(r.url),

@@ -1062,7 +1062,7 @@ export function getCirkelPosts(slug, limit) {
     // (t.boosted), mixed by date. One row per note in ap_timeline → no duplicates.
     if (!_cirkelPosts) _cirkelPosts = db.prepare(`
       SELECT t.id, t.author_uri, t.author_name, t.author_handle, t.author_icon, t.author_url,
-             t.content, t.url, t.published, t.media_json
+             t.content, t.url, t.published, t.media_json, t.boosted
       FROM ap_timeline t
       LEFT JOIN ap_following f ON f.slug = t.slug AND f.actor_uri = t.author_uri
       WHERE t.slug = ? AND (f.auto_boost = 1 OR t.boosted = 1)
