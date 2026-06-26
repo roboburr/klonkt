@@ -1053,6 +1053,38 @@ export function getCirkelMembers(slug) {
   try { if (!_cirkelMembers) _cirkelMembers = db.prepare('SELECT name, url, icon FROM ap_following WHERE slug = ? AND auto_boost = 1 ORDER BY name'); return _cirkelMembers.all(slug); } catch { return []; }
 }
 
+// One-time, best-effort migration of the old Cirkels (pull-protocol circle_links)
+// into ActivityPub follows with auto-boost. Runs once per instance at boot so a
+// site that updates past the old protocol keeps its cirkel without a manual step.
+async function resolveApActor(siteUrl) {
+  try {
+    const r = await fetch(siteUrl, { headers: { Accept: 'application/activity+json' }, redirect: 'manual' });
+    // A Klonkt site's root 302s to /ap/users/<slug> (Location may be relative).
+    if (r.status >= 300 && r.status < 400) { const loc = r.headers.get('location'); if (loc) return new URL(loc, siteUrl).href; }
+    if (r.ok) return siteUrl;
+  } catch { /* unreachable */ }
+  return null;
+}
+let _circlesMigrating = false;
+export async function autoMigrateCircles() {
+  if (_circlesMigrating) return; _circlesMigrating = true;
+  try {
+    let done; try { done = db.prepare('SELECT value FROM app_settings WHERE key = ?').get('circles_migrated_v1'); } catch { return; }
+    if (done && done.value === '1') return;
+    let links = [];
+    try { links = db.prepare("SELECT cl.remote_url AS url, s.id AS sid, s.slug AS slug FROM circle_links cl JOIN sites s ON s.id = cl.local_site_id WHERE cl.status = 'active'").all(); } catch { /* no legacy table */ }
+    let ok = 0;
+    for (const l of links) {
+      try {
+        const actor = await resolveApActor(l.url);
+        if (actor) { const r = await followActor({ id: l.sid, slug: l.slug }, actor, true); if (!(r && r.error)) ok++; }
+      } catch { /* best-effort per link */ }
+    }
+    try { db.prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)').run('circles_migrated_v1', '1'); } catch { /* ignore */ }
+    if (links.length) console.log(`[AP] circle migration: ${ok}/${links.length} legacy link(s) -> auto-boost`);
+  } catch { /* never block boot */ } finally { _circlesMigrating = false; }
+}
+
 // Follow a fediverse account by @handle (WebFinger → actor → signed Follow).
 export async function followActor(site, handle, autoBoost = false) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
@@ -1211,7 +1243,7 @@ export default {
   getInteractions, getInteractionById, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete,
   webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, getTimeline, sendInteraction,
-  autoBoostCount, getCirkelPosts, getCirkelMembers,
+  autoBoostCount, getCirkelPosts, getCirkelMembers, autoMigrateCircles,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
   getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
