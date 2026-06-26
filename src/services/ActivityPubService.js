@@ -1083,40 +1083,21 @@ export function boostedCount(slug) {
   try { if (!_boostedCount) _boostedCount = db.prepare('SELECT COUNT(*) AS n FROM ap_timeline WHERE slug = ? AND boosted = 1'); return _boostedCount.get(slug).n; } catch { return 0; }
 }
 
-// One-time, best-effort migration of the old Cirkels (pull-protocol circle_links)
-// into ActivityPub follows with auto-boost. Runs once per instance at boot so a
-// site that updates past the old protocol keeps its cirkel without a manual step.
+// Resolve a Klonkt/AP actor URL from a site root: a Klonkt site's root 302s to
+// /ap/users/<slug> (content negotiation; Location may be relative). Used by
+// followActor for bare-domain follows.
+// NB: the old auto-migration of legacy Cirkels (circle_links -> AP follows) was
+// REMOVED on 2026-06-26 — it auto-sent Follows on boot, which violates "the code
+// never throws anything into the fediverse automatically" (would surprise-Follow
+// for some operators at scale). The dead circle_links table stays as harmless dead
+// data; an operator restores an old cirkel by re-following in /volgend (their click).
 async function resolveApActor(siteUrl) {
   try {
     const r = await fetch(siteUrl, { headers: { Accept: 'application/activity+json' }, redirect: 'manual' });
-    // A Klonkt site's root 302s to /ap/users/<slug> (Location may be relative).
     if (r.status >= 300 && r.status < 400) { const loc = r.headers.get('location'); if (loc) return new URL(loc, siteUrl).href; }
     if (r.ok) return siteUrl;
   } catch { /* unreachable */ }
   return null;
-}
-let _circlesMigrating = false;
-export async function autoMigrateCircles() {
-  if (_circlesMigrating) return; _circlesMigrating = true;
-  try {
-    let done; try { done = db.prepare('SELECT value FROM app_settings WHERE key = ?').get('circles_migrated_v2'); } catch { return; }
-    if (done && done.value === '1') return;
-    // Migrate EVERY link the user added (not only status='active'): the old
-    // 'error'/'outdated' statuses came from the pull-protocol's health checks
-    // (now irrelevant) — e.g. a peer that removed /.klonkt/* shows up as error
-    // but still has a working AP actor.
-    let links = [];
-    try { links = db.prepare("SELECT cl.remote_url AS url, s.id AS sid, s.slug AS slug FROM circle_links cl JOIN sites s ON s.id = cl.local_site_id WHERE cl.status != 'removed'").all(); } catch { /* no legacy table */ }
-    let ok = 0;
-    for (const l of links) {
-      try {
-        const actor = await resolveApActor(l.url);
-        if (actor) { const r = await followActor({ id: l.sid, slug: l.slug }, actor, true); if (!(r && r.error)) ok++; }
-      } catch { /* best-effort per link */ }
-    }
-    try { db.prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)').run('circles_migrated_v2', '1'); } catch { /* ignore */ }
-    if (links.length) console.log(`[AP] circle migration: ${ok}/${links.length} legacy link(s) -> auto-boost`);
-  } catch { /* never block boot */ } finally { _circlesMigrating = false; }
 }
 
 // ── Self-heal: re-sync the fediverse cache (ap_timeline) after a DRASTIC update ──
@@ -1370,7 +1351,7 @@ export default {
   getInteractions, getInteractionById, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete,
   webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, getTimeline, sendInteraction,
-  autoBoostCount, boostedCount, markBoosted, unmarkBoosted, getCirkelPosts, getCirkelMembers, autoMigrateCircles, selfHealTimeline, boostLatestN,
+  autoBoostCount, boostedCount, markBoosted, unmarkBoosted, getCirkelPosts, getCirkelMembers, selfHealTimeline, boostLatestN,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
   getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,

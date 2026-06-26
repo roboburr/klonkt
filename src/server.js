@@ -57,7 +57,7 @@ import adminEpkRoutes from './routes/admin-epk.js';
 import changelogRoutes from './routes/changelog.js';
 import ogRoutes from './routes/og.js';
 import apRoutes from './routes/activitypub.js';
-import { apWants, startDeliveryWorker, autoMigrateCircles, selfHealTimeline } from './services/ActivityPubService.js';
+import { apWants, startDeliveryWorker, selfHealTimeline } from './services/ActivityPubService.js';
 
 // SESSION_SECRET: use the env var if set. Otherwise auto-generate a strong one
 // and persist it next to the database, so it stays stable across restarts and
@@ -160,7 +160,6 @@ if (!isDev) app.set('trust proxy', 1);
 initializeDatabase();
 startScheduler(); // release planning: publish scheduled posts when publish_at is reached
 startDeliveryWorker(); // retry failed fediverse deliveries with backoff
-autoMigrateCircles(); // one-time: convert legacy circle_links -> AP auto-boost follows
 selfHealTimeline(); // once per SELFHEAL_VERSION bump: re-sync the fediverse cache (covers/edits) after a drastic update
 
 // Safety net: guarantee that there is always a primary site (solo/hub/circle).
