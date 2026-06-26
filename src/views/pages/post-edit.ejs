@@ -637,6 +637,9 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
 .pe-editor-frame.pe-fs .pe-editor {
   flex: 1 1 auto; min-height: 0; height: auto; max-height: none;
 }
+/* iOS: in fullscreen the toolbar sits at the very top → push it below the
+   camera / Dynamic Island with the top safe-area inset. */
+.pe-editor-frame.pe-fs .pe-toolbar { padding-top: calc(.4rem + env(safe-area-inset-top, 0px)); }
 /* NB: deliberately NO overflow:hidden on html/body in fullscreen — that could get
    stuck (e.g. leaving fullscreen via navigation) and would block scrolling on the
    whole page. The fullscreen frame (position:fixed, inset:0) already covers the page,
