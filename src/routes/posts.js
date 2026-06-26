@@ -589,7 +589,15 @@ router.post('/tijdlijn/follow', requireSiteManager, async (req, res) => {
     try {
       const r = await ActivityPubService.followActor(site, handle, !!req.body.auto_boost);
       if (r && r.error) q = 'error=' + encodeURIComponent(r.error === 'not_found' ? 'Account niet gevonden' : (r.error === 'unreachable' ? 'Server onbereikbaar' : 'Volgen mislukt'));
-      else q = 'success=' + encodeURIComponent('Je volgt nu ' + ((r && r.name) || handle));
+      else {
+        let msg = 'Je volgt nu ' + ((r && r.name) || handle);
+        // Optional, one-time: boost their latest 5 posts to the fediverse.
+        if (req.body.boost5 && r && r.actor) {
+          const b = await ActivityPubService.boostLatestN(site, r.actor, 5).catch(() => null);
+          if (b && b.boosted) msg += ' — ' + b.boosted + ' post(s) geboost';
+        }
+        q = 'success=' + encodeURIComponent(msg);
+      }
     } catch (e) { q = 'error=' + encodeURIComponent('Volgen mislukt'); }
   }
   res.redirect('/volgend?' + q);

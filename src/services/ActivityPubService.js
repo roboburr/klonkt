@@ -661,10 +661,12 @@ export async function handleInbox(req, slugParam) {
           if (_iu) _atts.push({ url: _iu, type: (_im && _im.mediaType) || 'image/jpeg' });
         }
         const media = JSON.stringify(_atts);
+        // "Feature" = show in the Cirkel (local only). We do NOT auto-Announce
+        // incoming posts to the fediverse — that flooded followers (esp. on the
+        // initial backfill). Boosting to the fediverse is a deliberate, one-time
+        // "boost the latest 5" action at feature time (see boostLatestN).
         for (const s of subs) {
           tlStmts().ins.run(o.id, s.slug, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.url || null, o.published || null, media);
-          // "Feature an artist": auto-boost (re-Announce) their new posts to our own followers.
-          if (s.auto_boost) sendInteraction({ slug: s.slug }, 'boost', o.id, actorUri).catch(() => { /* best-effort */ });
         }
         console.log('[AP] timeline +', actorUri, 'x' + subs.length);
       }
@@ -1180,7 +1182,7 @@ export async function followActor(site, handle, autoBoost = false) {
   try { await deliver(actor.inbox, follow, `${me}#main-key`, keys.private_pem); }
   catch (e) { console.warn('[AP] follow deliver failed:', e.message); }
   console.log('[AP] follow', site.slug, '→', actor.id);
-  return { ok: true, name: ai.name, handle: ai.handle };
+  return { ok: true, name: ai.name, handle: ai.handle, actor: actor.id };
 }
 
 // Resolve a profile URL or @handle to a followable remote actor (for the
@@ -1230,6 +1232,31 @@ export async function sendInteraction(site, kind, targetNoteId, authorUri) {
   for (const inbox of [...inboxes].filter(Boolean)) { try { const st = await deliver(inbox, act, `${me}#main-key`, keys.private_pem); if (st >= 200 && st < 300) delivered++; } catch { /* best-effort */ } }
   console.log('[AP]', type, site.slug, '→', targetNoteId, 'delivered', delivered);
   return { ok: true, delivered };
+}
+
+// One-time "boost the latest N posts" of an account to the fediverse — the
+// deliberate, bounded alternative to auto-boosting every post. Opt-in at feature
+// time so featuring an artist never floods your followers with their whole backlog.
+export async function boostLatestN(site, actorUrl, n = 5) {
+  try {
+    const actor = await fetchActor(actorUrl).catch(() => null);
+    if (!actor || !actor.outbox) return { ok: false, boosted: 0 };
+    const getJson = async (u) => { try { const r = await fetch(u, { headers: { Accept: 'application/activity+json' } }); return r.ok ? await r.json() : null; } catch { return null; } };
+    let coll = await getJson(actor.outbox);
+    let items = (coll && coll.orderedItems) || [];
+    if (!items.length && coll && coll.first) {
+      const page = typeof coll.first === 'string' ? await getJson(coll.first) : coll.first;
+      items = (page && page.orderedItems) || [];
+    }
+    const noteIds = items
+      .filter((it) => it && it.type === 'Create' && it.object)
+      .map((it) => (typeof it.object === 'string' ? it.object : it.object.id))
+      .filter(Boolean)
+      .slice(0, n); // outbox is newest-first → the latest N
+    let boosted = 0;
+    for (const id of noteIds) { try { const r = await sendInteraction(site, 'boost', id, actorUrl); if (r && r.ok) boosted++; } catch { /* best-effort */ } }
+    return { ok: true, boosted };
+  } catch { return { ok: false, boosted: 0 }; }
 }
 
 // Notifications inbox: new followers + replies/likes/boosts on this site's posts.
@@ -1318,7 +1345,7 @@ export default {
   getInteractions, getInteractionById, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete,
   webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, getTimeline, sendInteraction,
-  autoBoostCount, getCirkelPosts, getCirkelMembers, autoMigrateCircles, selfHealTimeline,
+  autoBoostCount, getCirkelPosts, getCirkelMembers, autoMigrateCircles, selfHealTimeline, boostLatestN,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
   getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,

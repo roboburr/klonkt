@@ -8,7 +8,8 @@
   <form method="post" action="/tijdlijn/follow" class="tl-follow">
     <input type="text" name="handle" placeholder="@naam@server.social of site.com" autocomplete="off" spellcheck="false" required>
     <button type="submit" class="btn btn-primary"><%= t('tl.follow_btn') %></button>
-    <label class="tl-follow-ab" title="<%= t('tl.autoboost_hint') %>"><input type="checkbox" name="auto_boost" value="1"> 🔁 <%= t('tl.autoboost_follow') %></label>
+    <label class="tl-follow-ab" title="<%= t('tl.autoboost_hint') %>"><input type="checkbox" name="auto_boost" value="1"> ✨ <%= t('tl.autoboost_follow') %></label>
+    <label class="tl-follow-ab" title="<%= t('tl.boost5_hint') %>"><input type="checkbox" name="boost5" value="1"> 🔁 <%= t('tl.boost5_follow') %></label>
   </form>
 
   <% if (following && following.length) { %>
@@ -24,7 +25,7 @@
           </span>
           <form method="post" action="/tijdlijn/autoboost" class="tl-foll-ab" title="<%= t('tl.autoboost_hint') %>">
             <input type="hidden" name="actor_uri" value="<%= f.actor_uri %>">
-            <label><input type="checkbox" name="auto_boost" value="1" <%= f.auto_boost ? 'checked' : '' %> onchange="this.form.submit()"> 🔁 <%= t('tl.autoboost') %></label>
+            <label><input type="checkbox" name="auto_boost" value="1" <%= f.auto_boost ? 'checked' : '' %> onchange="this.form.submit()"> ✨ <%= t('tl.autoboost') %></label>
           </form>
           <form method="post" action="/tijdlijn/unfollow"><input type="hidden" name="actor_uri" value="<%= f.actor_uri %>"><button type="submit" class="tl-unfollow"><%= t('tl.unfollow') %></button></form>
         </li>
