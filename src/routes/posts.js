@@ -1021,8 +1021,11 @@ router.post('/posts/:slug/fedi-react', requireSiteManager, async (req, res) => {
         .catch((e) => console.warn('[AP] reaction failed:', e.message));
       ActivityPubService.setInteractionBoosted(parent.id, on);
     } else {
-      ActivityPubService.sendInteraction(site, 'like', parent.object_uri, parent.actor_uri)
+      // Toggle: like an unliked comment, or un-favourite (Undo Like) if already liked.
+      const on = !parent.acted_like;
+      ActivityPubService.sendInteraction(site, on ? 'like' : 'unlike', parent.object_uri, parent.actor_uri)
         .catch((e) => console.warn('[AP] reaction failed:', e.message));
+      ActivityPubService.setInteractionLiked(parent.id, on);
     }
   }
   res.redirect(`${res.locals.siteUrlBase || ''}/${post.slug}#fediverse`);

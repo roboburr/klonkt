@@ -356,6 +356,7 @@ export function initializeDatabase() {
   `);
   ensureColumn('ap_interactions', 'parent_uri', 'TEXT'); // nesting (existing DBs)
   ensureColumn('ap_interactions', 'acted_boost', 'INTEGER DEFAULT 0'); // owner boosted this comment (🔁) → can undo
+  ensureColumn('ap_interactions', 'acted_like', 'INTEGER DEFAULT 0'); // owner liked this comment (⭐) → can undo
 
   // Fediverse CLIENT: accounts WE follow (outbound) + the home timeline of their posts.
   db.exec(`

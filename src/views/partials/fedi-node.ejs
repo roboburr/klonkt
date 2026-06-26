@@ -21,7 +21,7 @@
       <form method="post" action="<%= _base %>/posts/<%= postSlug %>/fedi-react" class="fedi-owner-react">
         <input type="hidden" name="interaction_id" value="<%= n.id %>">
         <input type="hidden" name="kind" value="like">
-        <button type="submit" class="fedi-cact fedi-cact-like" title="<%= t('fedi.like_short') %>" aria-label="<%= t('fedi.like_short') %>"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.6l2.9 5.88 6.49.95-4.7 4.58 1.11 6.46L12 17.96l-5.8 3.06 1.1-6.46-4.69-4.58 6.49-.95z"/></svg></button>
+        <button type="submit" class="fedi-cact fedi-cact-like<%= n.acted_like ? ' is-on' : '' %>" title="<%= n.acted_like ? t('fedi.unlike_short') : t('fedi.like_short') %>" aria-label="<%= n.acted_like ? t('fedi.unlike_short') : t('fedi.like_short') %>"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.6l2.9 5.88 6.49.95-4.7 4.58 1.11 6.46L12 17.96l-5.8 3.06 1.1-6.46-4.69-4.58 6.49-.95z"/></svg></button>
       </form>
       <form method="post" action="<%= _base %>/posts/<%= postSlug %>/fedi-react" class="fedi-owner-react">
         <input type="hidden" name="interaction_id" value="<%= n.id %>">
