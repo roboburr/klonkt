@@ -1159,10 +1159,15 @@ export async function selfHealTimeline() {
 export async function followActor(site, handle, autoBoost = false) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   if (!base || !site || !site.slug) return { error: 'config' };
-  // Accept either an @user@host handle (WebFinger) or a profile/actor URL directly
-  // (the authorize_interaction Follow flow passes a URL).
+  // Accept any of: a profile/actor URL, an @user@host handle (WebFinger), or a
+  // bare site domain (site.com) — for a single-actor site (Klonkt etc.) the root
+  // resolves to its AP actor, so you can follow a site by just its domain.
   const s = String(handle || '').trim();
-  const actorUrl = /^https?:\/\//i.test(s) ? (safeUrl(s) || null) : await webfingerResolve(s);
+  let actorUrl;
+  if (/^https?:\/\//i.test(s)) actorUrl = safeUrl(s) || null;
+  else if (s.includes('@')) actorUrl = await webfingerResolve(s);
+  else if (/^[a-z0-9.-]+\.[a-z]{2,}/i.test(s)) actorUrl = await resolveApActor('https://' + s.replace(/^\/+|\/+$/g, ''));
+  else actorUrl = null;
   if (!actorUrl) return { error: 'not_found' };
   const actor = await fetchActor(actorUrl).catch(() => null);
   if (!actor || !actor.id || !actor.inbox) return { error: 'unreachable' };
