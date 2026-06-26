@@ -327,6 +327,10 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
    link is the only way back to the public site from /admin/*. */
 @media (max-width: 767px) {
   body:not(.on-admin) .masthead { display: none; }
+  /* The masthead is gone on mobile, so it can't carry the iOS safe-area top inset
+     (env() resolves to 0 in the home-screen PWA; --ios-safe-top is set by JS in shell).
+     Pad the body instead so the profile-header clears the Dynamic Island / notch. */
+  body:not(.on-admin) { padding-top: var(--ios-safe-top, 0px); }
 }
 
 /* On mobile, center the brand in the masthead */
