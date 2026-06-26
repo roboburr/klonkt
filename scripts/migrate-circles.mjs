@@ -23,7 +23,7 @@ try {
   links = db.prepare(`
     SELECT cl.remote_url AS url, s.id AS sid, s.slug AS slug
     FROM circle_links cl JOIN sites s ON s.id = cl.local_site_id
-    WHERE cl.status = 'active'
+    WHERE cl.status != 'removed'
   `).all();
 } catch (e) { console.log('no circle_links table — nothing to migrate'); process.exit(0); }
 
