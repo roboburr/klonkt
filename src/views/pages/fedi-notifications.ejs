@@ -1,4 +1,5 @@
 <div class="nt-wrap">
+  <p class="fedi-back"><a class="btn btn-primary" href="/"><%= t('nav.back_to_site') %></a></p>
   <h1 class="nt-title"><%= t('notif.title') %></h1>
   <% if (!items || !items.length) { %>
     <p class="nt-empty"><%= t('notif.empty') %></p>
@@ -30,6 +31,7 @@
 
 <style>
   .nt-wrap { max-width: 620px; margin: 2rem auto; padding: 0 1rem; }
+  .fedi-back { margin: 0 0 1.25rem; }
   .nt-title { margin: 0 0 1.25rem; }
   .nt-empty { color: var(--ink-soft, #888); }
   .nt-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .5rem; }

@@ -1,4 +1,5 @@
 <div class="tl-wrap">
+  <p class="fedi-back"><a class="btn btn-primary" href="/"><%= t('nav.back_to_site') %></a></p>
   <h1 class="tl-title"><%= t('tl.title') %></h1>
   <p class="tl-lead"><%= t('tl.lead') %></p>
   <%- include('../partials/tl-tabs', { active: 'feed' }) %>
@@ -41,6 +42,7 @@
 
 <style>
   .tl-wrap { max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
+  .fedi-back { margin: 0 0 1.25rem; }
   .tl-title { margin: 0 0 .25rem; }
   .tl-lead { color: var(--ink-soft, #888); margin: 0 0 1.25rem; }
   .tl-sub { font-size: 1.1rem; margin: 1.75rem 0 .75rem; }
