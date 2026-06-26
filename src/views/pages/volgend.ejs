@@ -1,7 +1,7 @@
 <div class="tl-wrap">
+  <%- include('../partials/fedi-tabs', { active: 'following' }) %>
   <h1 class="tl-title"><%= t('tl.title') %></h1>
   <p class="tl-lead"><%= t('tl.lead') %></p>
-  <%- include('../partials/tl-tabs', { active: 'following' }) %>
   <% if (typeof success !== 'undefined' && success) { %><div class="alert alert-success"><%= success %></div><% } %>
   <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
 

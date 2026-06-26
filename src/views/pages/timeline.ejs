@@ -1,8 +1,7 @@
 <div class="tl-wrap">
-  <p class="fedi-back"><a class="btn btn-primary" href="/"><%= t('nav.back_to_site') %></a></p>
+  <%- include('../partials/fedi-tabs', { active: 'feed' }) %>
   <h1 class="tl-title"><%= t('tl.title') %></h1>
   <p class="tl-lead"><%= t('tl.lead') %></p>
-  <%- include('../partials/tl-tabs', { active: 'feed' }) %>
   <% if (typeof success !== 'undefined' && success) { %><div class="alert alert-success"><%= success %></div><% } %>
   <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
 

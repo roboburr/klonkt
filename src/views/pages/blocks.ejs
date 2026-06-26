@@ -1,4 +1,5 @@
 <div class="bl-wrap">
+  <%- include('../partials/fedi-tabs', { active: 'blokkeren' }) %>
   <h1 class="bl-title"><%= t('blk.title') %></h1>
   <p class="bl-lead"><%= t('blk.lead') %></p>
   <% if (typeof success !== 'undefined' && success) { %><div class="alert alert-success"><%= success %></div><% } %>

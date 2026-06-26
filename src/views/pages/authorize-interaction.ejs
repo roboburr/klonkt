@@ -1,5 +1,6 @@
 <div class="auth-interact">
   <% if (typeof manage !== 'undefined' && manage) { %>
+    <%- include('../partials/fedi-tabs', { active: 'reacties' }) %>
     <h1 class="auth-interact-title"><%= t('fedi.manage_title') %></h1>
     <% if (!manage.length) { %>
       <p class="auth-interact-note"><%= t('fedi.manage_empty') %></p>

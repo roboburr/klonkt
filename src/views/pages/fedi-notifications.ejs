@@ -1,5 +1,5 @@
 <div class="nt-wrap">
-  <p class="fedi-back"><a class="btn btn-primary" href="/"><%= t('nav.back_to_site') %></a></p>
+  <%- include('../partials/fedi-tabs', { active: 'meldingen' }) %>
   <h1 class="nt-title"><%= t('notif.title') %></h1>
   <% if (!items || !items.length) { %>
     <p class="nt-empty"><%= t('notif.empty') %></p>
