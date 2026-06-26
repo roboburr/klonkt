@@ -1,0 +1,61 @@
+<div class="tl-wrap">
+  <h1 class="tl-title"><%= t('tl.title') %></h1>
+  <p class="tl-lead"><%= t('tl.lead') %></p>
+  <%- include('../partials/tl-tabs', { active: 'following' }) %>
+  <% if (typeof success !== 'undefined' && success) { %><div class="alert alert-success"><%= success %></div><% } %>
+  <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+  <form method="post" action="/tijdlijn/follow" class="tl-follow">
+    <input type="text" name="handle" placeholder="@naam@server.social" autocomplete="off" spellcheck="false" required>
+    <button type="submit" class="btn btn-primary"><%= t('tl.follow_btn') %></button>
+    <label class="tl-follow-ab" title="<%= t('tl.autoboost_hint') %>"><input type="checkbox" name="auto_boost" value="1"> 🔁 <%= t('tl.autoboost_follow') %></label>
+  </form>
+
+  <% if (following && following.length) { %>
+    <h2 class="tl-sub"><%= t('tl.following') %> (<%= following.length %>)</h2>
+    <ul class="tl-foll-list">
+      <% following.forEach(function(f){ %>
+        <li class="tl-foll">
+          <span class="tl-foll-av"><% if (f.icon) { %><img src="<%= f.icon %>" alt=""><% } else { %><%= (f.name || '?').charAt(0).toUpperCase() %><% } %></span>
+          <span class="tl-foll-meta">
+            <a href="<%= f.url || f.actor_uri %>" target="_blank" rel="nofollow noopener"><%= f.name || f.handle %></a>
+            <span class="tl-foll-handle"><%= f.handle %></span>
+            <% if (f.status === 'pending') { %><span class="tl-pending"><%= t('tl.pending') %></span><% } %>
+          </span>
+          <form method="post" action="/tijdlijn/autoboost" class="tl-foll-ab" title="<%= t('tl.autoboost_hint') %>">
+            <input type="hidden" name="actor_uri" value="<%= f.actor_uri %>">
+            <label><input type="checkbox" name="auto_boost" value="1" <%= f.auto_boost ? 'checked' : '' %> onchange="this.form.submit()"> 🔁 <%= t('tl.autoboost') %></label>
+          </form>
+          <form method="post" action="/tijdlijn/unfollow"><input type="hidden" name="actor_uri" value="<%= f.actor_uri %>"><button type="submit" class="tl-unfollow"><%= t('tl.unfollow') %></button></form>
+        </li>
+      <% }); %>
+    </ul>
+  <% } else { %>
+    <p class="tl-empty"><%= t('tl.empty_following') %></p>
+  <% } %>
+</div>
+
+<style>
+  .tl-wrap { max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
+  .tl-title { margin: 0 0 .25rem; }
+  .tl-lead { color: var(--ink-soft, #888); margin: 0 0 1.25rem; }
+  .tl-sub { font-size: 1.1rem; margin: 1.5rem 0 .75rem; }
+  .tl-follow { display: flex; gap: .5rem; margin: 0 0 1rem; flex-wrap: wrap; align-items: center; }
+  .tl-follow input { flex: 1; min-width: 200px; height: 2.4rem; padding: 0 .9rem; border-radius: 999px; font: inherit;
+    border: 1px solid color-mix(in srgb, var(--ink, #000) 18%, transparent); background: color-mix(in srgb, var(--ink, #000) 4%, transparent); color: var(--ink, #000); }
+  .tl-follow-ab { font-size: .85rem; color: var(--ink-soft, #888); display: inline-flex; align-items: center; gap: .3rem; cursor: pointer; }
+  .tl-foll-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .4rem; }
+  .tl-foll { display: flex; align-items: center; gap: .6rem; padding: .45rem .6rem; border-radius: 12px; background: color-mix(in srgb, var(--ink, #000) 4%, transparent); }
+  .tl-foll-av { flex: 0 0 36px; width: 36px; height: 36px; border-radius: 50%; overflow: hidden; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; background: color-mix(in srgb, var(--accent, #888) 20%, transparent); color: var(--accent, #555); }
+  .tl-foll-av img { width: 100%; height: 100%; object-fit: cover; }
+  .tl-foll-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+  .tl-foll-meta a { color: var(--ink, inherit); text-decoration: none; font-weight: 600; }
+  .tl-foll-meta a:hover { text-decoration: underline; }
+  .tl-foll-handle { color: var(--ink-soft, #888); font-size: .82rem; }
+  .tl-pending { font-size: .72rem; color: var(--ink-soft, #999); }
+  .tl-foll-ab { margin: 0; font-size: .8rem; color: var(--ink-soft, #888); cursor: pointer; }
+  .tl-foll-ab label { display: inline-flex; align-items: center; gap: .25rem; cursor: pointer; }
+  .tl-unfollow { background: none; border: 1px solid color-mix(in srgb, var(--ink, #000) 18%, transparent); border-radius: 8px; padding: .25rem .6rem; font-size: .8rem; color: var(--ink-soft, #888); cursor: pointer; }
+  .tl-unfollow:hover { color: var(--ink, #000); }
+  .tl-empty { color: var(--ink-soft, #888); }
+</style>

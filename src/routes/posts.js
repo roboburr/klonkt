@@ -562,11 +562,21 @@ router.post('/fediverse/:id/delete', requireSiteManager, async (req, res) => {
 // ==================== FEDIVERSE CLIENT: home timeline + following ====================
 router.get('/tijdlijn', requireSiteManager, (req, res) => {
   const site = res.locals.site;
-  const following = site ? ActivityPubService.listFollowing(site.slug) : [];
   const timeline = site ? ActivityPubService.getTimeline(site.slug, 60) : [];
   renderPage(req, res, 'pages/timeline', {
     pageTitle: 'Tijdlijn', bodyClass: 'on-special',
-    following, timeline,
+    timeline,
+    success: req.query.success || null, error: req.query.error || null,
+  });
+});
+
+// Volgend — manage the accounts you follow (+ per-account auto-boost toggles).
+router.get('/volgend', requireSiteManager, (req, res) => {
+  const site = res.locals.site;
+  const following = site ? ActivityPubService.listFollowing(site.slug) : [];
+  renderPage(req, res, 'pages/volgend', {
+    pageTitle: 'Volgend', bodyClass: 'on-special',
+    following,
     success: req.query.success || null, error: req.query.error || null,
   });
 });
@@ -582,14 +592,14 @@ router.post('/tijdlijn/follow', requireSiteManager, async (req, res) => {
       else q = 'success=' + encodeURIComponent('Je volgt nu ' + ((r && r.name) || handle));
     } catch (e) { q = 'error=' + encodeURIComponent('Volgen mislukt'); }
   }
-  res.redirect('/tijdlijn?' + q);
+  res.redirect('/volgend?' + q);
 });
 
 router.post('/tijdlijn/unfollow', requireSiteManager, async (req, res) => {
   const site = res.locals.site;
   const actorUri = (req.body.actor_uri || '').toString();
   if (site && actorUri) { try { await ActivityPubService.unfollowActor(site, actorUri); } catch (e) { /* ignore */ } }
-  res.redirect('/tijdlijn?success=' + encodeURIComponent('Ontvolgd'));
+  res.redirect('/volgend?success=' + encodeURIComponent('Ontvolgd'));
 });
 
 // Toggle auto-boost ("feature this artist") on an account you already follow.
@@ -597,7 +607,7 @@ router.post('/tijdlijn/autoboost', requireSiteManager, (req, res) => {
   const site = res.locals.site;
   const actorUri = (req.body.actor_uri || '').toString();
   if (site && actorUri) ActivityPubService.setAutoBoost(site.slug, actorUri, !!req.body.auto_boost);
-  res.redirect('/tijdlijn?success=' + encodeURIComponent(req.body.auto_boost ? 'Auto-boost aan 🔁' : 'Auto-boost uit'));
+  res.redirect('/volgend?success=' + encodeURIComponent(req.body.auto_boost ? 'Auto-boost aan 🔁' : 'Auto-boost uit'));
 });
 
 router.post('/tijdlijn/like', requireSiteManager, async (req, res) => {

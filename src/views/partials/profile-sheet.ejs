@@ -62,6 +62,16 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
           <svg class="psi-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
         </a>
       </li>
+      <% if (typeof canManageFedi !== 'undefined' && canManageFedi) { %>
+      <li role="none">
+        <a href="/tijdlijn" class="profile-sheet-item" role="menuitem" data-close-sheet
+           hx-get="/tijdlijn?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="/tijdlijn" hx-indicator="#pcms-loading">
+          <svg class="psi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          <span class="psi-label"><%= t('tl.title') %></span>
+          <svg class="psi-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+        </a>
+      </li>
+      <% } %>
       <% if (typeof canSeeBeheer !== 'undefined' && canSeeBeheer) { %>
       <li role="none">
         <a href="/admin" class="profile-sheet-item" role="menuitem" data-close-sheet>
