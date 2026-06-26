@@ -29,8 +29,8 @@
 .fedi-tab-label { overflow: hidden; text-overflow: ellipsis; }
 .fedi-tab-badge { flex: 0 0 auto; min-width: 1.15em; padding: 0 .3em; border-radius: 999px;
   background: var(--accent, #e8b04b); color: #fff; font-size: .66rem; line-height: 1.5; text-align: center; }
-/* Mobile: no desktop top-nav here, so clear the camera/notch + give headroom. */
-@media (max-width: 767px) { .fedi-tabs { margin-top: calc(.5rem + env(safe-area-inset-top, 0px)); } }
+/* Mobile: 1.5rem general headroom (Android too) + the iOS safe-area to clear the notch. */
+@media (max-width: 767px) { .fedi-tabs { margin-top: calc(1.5rem + env(safe-area-inset-top, 0px)); } }
 @media (max-width: 520px) { .fedi-tab { padding: .55rem .25rem; font-size: .82rem; } }
 @media (max-width: 380px) { .fedi-tab { font-size: .74rem; } }
 </style>
