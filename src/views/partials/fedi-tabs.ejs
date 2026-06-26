@@ -18,7 +18,7 @@
 </nav>
 <style>
 /* All 5 tabs share the width equally and always fit (truncate with ellipsis if needed). */
-.fedi-tabs { display: flex; margin: 1.25rem 0 1.5rem;
+.fedi-tabs { display: flex; margin: 0 0 1.25rem;
   border-bottom: 1px solid color-mix(in srgb, var(--ink, #000) 10%, transparent); }
 .fedi-tab { flex: 1 1 0; min-width: 0; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   padding: .6rem .4rem; text-decoration: none; font-weight: 600; font-size: .95rem;
@@ -29,8 +29,6 @@
 .fedi-tab-label { overflow: hidden; text-overflow: ellipsis; }
 .fedi-tab-badge { flex: 0 0 auto; min-width: 1.15em; padding: 0 .3em; border-radius: 999px;
   background: var(--accent, #e8b04b); color: #fff; font-size: .66rem; line-height: 1.5; text-align: center; }
-/* Mobile: no extra headroom — only the iOS safe-area inset to clear the notch. */
-@media (max-width: 767px) { .fedi-tabs { margin-top: env(safe-area-inset-top, 0px); } }
 @media (max-width: 520px) { .fedi-tab { padding: .55rem .25rem; font-size: .82rem; } }
 @media (max-width: 380px) { .fedi-tab { font-size: .74rem; } }
 </style>
