@@ -5,21 +5,28 @@
     <p class="nt-empty"><%= t('notif.empty') %></p>
   <% } else { %>
     <ul class="nt-list">
-      <% items.forEach(function(n){ %>
-        <li class="nt-item">
-          <span class="nt-icon"><%= n.type === 'follow' ? '👤' : (n.type === 'like' ? '⭐' : (n.type === 'announce' ? '🔁' : '💬')) %></span>
+      <% items.forEach(function(n){
+           var _ic = n.type === 'follow' ? 'follow' : (n.type === 'like' ? 'like' : (n.type === 'announce' ? 'boost' : 'reply'));
+      %>
+        <li class="nt-item nt-<%= _ic %>">
+          <span class="nt-icon" aria-hidden="true">
+            <% if (_ic === 'like') { %><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.6l2.9 5.88 6.49.95-4.7 4.58 1.11 6.46L12 17.96l-5.8 3.06 1.1-6.46-4.69-4.58 6.49-.95z"/></svg>
+            <% } else if (_ic === 'boost') { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+            <% } else if (_ic === 'follow') { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+            <% } else { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><% } %>
+          </span>
           <div class="nt-body">
             <div class="nt-line">
               <a class="nt-who" href="<%= n.url %>" target="_blank" rel="nofollow noopener"><%= n.name || n.handle %></a>
               <% if (n.handle && n.name) { %><span class="nt-handle"><%= n.handle %></span><% } %>
-              <span class="nt-what">
-                <% if (n.type === 'follow') { %><%= t('notif.followed') %>
-                <% } else if (n.type === 'like') { %><%= t('notif.liked') %>
-                <% } else if (n.type === 'announce') { %><%= t('notif.boosted') %>
-                <% } else { %><%= t('notif.replied') %><% } %>
-                <% if (n.post_slug) { %><a href="/<%= n.post_slug %>"><%= n.post_title || n.post_slug %></a><% } %>
-              </span>
               <% if (n.created_at) { %><span class="nt-time"><%= formatDateTime(n.created_at) %></span><% } %>
+            </div>
+            <div class="nt-what">
+              <% if (n.type === 'follow') { %><%= t('notif.followed') %>
+              <% } else if (n.type === 'like') { %><%= t('notif.liked') %>
+              <% } else if (n.type === 'announce') { %><%= t('notif.boosted') %>
+              <% } else { %><%= t('notif.replied') %><% } %>
+              <% if (n.post_slug) { %><a class="nt-post" href="/<%= n.post_slug %>"><%= n.post_title || n.post_slug %></a><% } %>
             </div>
             <% if (n.type === 'reply' && n.content) { %><div class="nt-content"><%- n.content %></div><% } %>
           </div>
@@ -34,17 +41,28 @@
   .fedi-back { margin: 0 0 1.25rem; }
   .nt-title { margin: 0 0 1.25rem; }
   .nt-empty { color: var(--ink-soft, #888); }
-  .nt-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .5rem; }
-  .nt-item { display: flex; gap: .7rem; padding: .7rem .9rem; border-radius: 12px; background: color-mix(in srgb, var(--ink, #000) 4%, transparent); border: 1px solid color-mix(in srgb, var(--ink, #000) 8%, transparent); }
-  .nt-icon { font-size: 1.1rem; flex: 0 0 1.4rem; text-align: center; }
+  .nt-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .6rem; }
+  .nt-item { display: flex; gap: .85rem; padding: .9rem 1rem; border-radius: 14px; align-items: flex-start;
+    background: color-mix(in srgb, var(--ink, #000) 3.5%, transparent);
+    border: 1px solid color-mix(in srgb, var(--ink, #000) 9%, transparent);
+    transition: border-color .15s ease, box-shadow .15s ease; }
+  .nt-item:hover { border-color: color-mix(in srgb, var(--accent, #888) 30%, transparent);
+    box-shadow: 0 2px 12px color-mix(in srgb, var(--ink, #000) 6%, transparent); }
+  .nt-icon { flex: 0 0 38px; width: 38px; height: 38px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center; }
+  .nt-icon svg { width: 18px; height: 18px; }
+  .nt-like .nt-icon { background: color-mix(in srgb, #e8b04b 16%, transparent); color: #e8b04b; }
+  .nt-boost .nt-icon { background: color-mix(in srgb, #2fa85a 16%, transparent); color: #2fa85a; }
+  .nt-follow .nt-icon, .nt-reply .nt-icon { background: color-mix(in srgb, var(--accent, #888) 16%, transparent); color: var(--accent, #06c); }
   .nt-body { flex: 1; min-width: 0; }
-  .nt-line { display: flex; align-items: baseline; gap: .35rem; flex-wrap: wrap; }
-  .nt-who { font-weight: 600; color: var(--ink, inherit); text-decoration: none; }
+  .nt-line { display: flex; align-items: baseline; gap: .4rem; }
+  .nt-who { font-weight: 700; color: var(--ink, inherit); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .nt-who:hover { text-decoration: underline; }
-  .nt-handle { color: var(--ink-soft, #888); font-size: .82rem; }
-  .nt-what { color: var(--ink-soft, #aaa); }
-  .nt-what a { color: var(--accent, #06c); }
-  .nt-time { color: var(--ink-soft, #999); font-size: .78rem; margin-left: auto; }
-  .nt-content { margin: .3rem 0 0; line-height: 1.45; color: var(--ink, inherit); overflow-wrap: anywhere; }
-  .nt-content p { margin: .2rem 0; } .nt-content p:first-child { margin-top: 0; }
+  .nt-handle { color: var(--ink-soft, #888); font-size: .82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .nt-time { color: var(--ink-soft, #999); font-size: .76rem; margin-left: auto; flex: 0 0 auto; white-space: nowrap; }
+  .nt-what { color: var(--ink-soft, #aaa); margin-top: .12rem; line-height: 1.4; }
+  .nt-post { color: var(--accent, #06c); font-weight: 600; }
+  .nt-content { margin: .45rem 0 0; padding: .55rem .75rem; border-radius: 10px; line-height: 1.5;
+    background: color-mix(in srgb, var(--ink, #000) 4%, transparent); color: var(--ink, inherit); overflow-wrap: anywhere; }
+  .nt-content p { margin: .2rem 0; } .nt-content p:first-child { margin-top: 0; } .nt-content p:last-child { margin-bottom: 0; }
 </style>

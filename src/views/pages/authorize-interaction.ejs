@@ -8,11 +8,15 @@
       <ul class="fedi-manage">
         <% manage.forEach(function(m){ %>
           <li class="fedi-manage-item">
+            <div class="fedi-manage-head">
+              <span class="fedi-manage-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg></span>
+              <% if (m.to_handle) { %><span class="fedi-manage-to"><%= m.to_handle %></span><% } %>
+              <% if (m.created_at && typeof formatDateTime === 'function') { %><span class="fedi-manage-time"><%= formatDateTime(m.created_at) %></span><% } %>
+            </div>
             <div class="fedi-manage-content"><%- m.content %></div>
             <div class="fedi-manage-foot">
-              <span class="fedi-manage-meta"><% if (m.to_handle) { %>→ <%= m.to_handle %><% } %><% if (m.created_at && typeof formatDateTime === 'function') { %> · <%= formatDateTime(m.created_at) %><% } %></span>
               <form method="post" action="/fediverse/<%= m.id %>/delete" onsubmit="return confirm('<%= t('fedi.delete_confirm') %>')">
-                <button type="submit" class="fedi-del-btn"><%= t('comments.delete') %></button>
+                <button type="submit" class="fedi-del-btn"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> <%= t('comments.delete') %></button>
               </form>
             </div>
           </li>
@@ -164,13 +168,19 @@
   .fedi-bigact-boost svg { color: #2fa85a; }
   .fedi-bigact-boost:hover, .fedi-bigact-boost.is-on { background: color-mix(in srgb, #2fa85a 16%, transparent); border-color: color-mix(in srgb, #2fa85a 55%, transparent); }
   .fedi-manage { list-style: none; padding: 0; margin: 1.25rem 0 1rem; display: flex; flex-direction: column; gap: .7rem; }
-  .fedi-manage-item { padding: .85rem 1rem; border-radius: 14px; background: color-mix(in srgb, var(--ink, #000) 4%, transparent); border: 1px solid color-mix(in srgb, var(--ink, #000) 9%, transparent); }
-  .fedi-manage-content { line-height: 1.5; overflow-wrap: anywhere; }
+  .fedi-manage-item { padding: .9rem 1rem; border-radius: 14px; background: color-mix(in srgb, var(--ink, #000) 3.5%, transparent); border: 1px solid color-mix(in srgb, var(--ink, #000) 9%, transparent); transition: border-color .15s ease, box-shadow .15s ease; }
+  .fedi-manage-item:hover { border-color: color-mix(in srgb, var(--accent, #888) 28%, transparent); box-shadow: 0 2px 12px color-mix(in srgb, var(--ink, #000) 6%, transparent); }
+  .fedi-manage-head { display: flex; align-items: center; gap: .5rem; margin: 0 0 .5rem; }
+  .fedi-manage-icon { flex: 0 0 26px; width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+    background: color-mix(in srgb, var(--accent, #888) 16%, transparent); color: var(--accent, #06c); }
+  .fedi-manage-icon svg { width: 14px; height: 14px; }
+  .fedi-manage-to { font-weight: 600; color: var(--ink, inherit); font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .fedi-manage-time { color: var(--ink-soft, #999); font-size: .76rem; margin-left: auto; flex: 0 0 auto; white-space: nowrap; }
+  .fedi-manage-content { line-height: 1.55; overflow-wrap: anywhere; padding-left: calc(26px + .5rem); }
   .fedi-manage-content p { margin: .15rem 0; }
   .fedi-manage-content p:first-child { margin-top: 0; }
   .fedi-manage-content p:last-child { margin-bottom: 0; }
-  .fedi-manage-foot { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: .6rem; flex-wrap: wrap; }
-  .fedi-manage-meta { color: var(--ink-soft, #999); font-size: .8rem; }
-  .fedi-del-btn { border: 1px solid color-mix(in srgb, #d9534f 50%, transparent); background: color-mix(in srgb, #d9534f 12%, transparent); color: #e06b66; border-radius: 8px; padding: .3rem .75rem; font-size: .82rem; cursor: pointer; transition: background .15s ease; }
+  .fedi-manage-foot { display: flex; justify-content: flex-end; margin-top: .65rem; }
+  .fedi-del-btn { display: inline-flex; align-items: center; gap: .35rem; border: 1px solid color-mix(in srgb, #d9534f 45%, transparent); background: color-mix(in srgb, #d9534f 12%, transparent); color: #e06b66; border-radius: 999px; padding: .3rem .8rem; font: inherit; font-size: .82rem; cursor: pointer; transition: background .15s ease; }
   .fedi-del-btn:hover { background: color-mix(in srgb, #d9534f 24%, transparent); }
 </style>
