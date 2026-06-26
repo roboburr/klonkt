@@ -199,28 +199,33 @@ const _embedUrl = _postAudio
 <!-- v9 stylesheet (full palette system) -->
 <link rel="stylesheet" href="/assets/css/style.css?v=54">
 <script>
-/* iOS safe-area, built by hand: env(safe-area-inset-top) resolves to 0 in some iOS
-   states (Safari + standalone) even with viewport-fit=cover. Measure it directly, and
-   if it comes back empty on a notch/Dynamic-Island iPhone, fall back to a fixed inset.
-   The masthead reads --ios-safe-top. */
+/* iOS safe-area, built by hand. env(safe-area-inset-top) resolves to 0 on this iOS in
+   BOTH Safari and the installed PWA (standalone), even with viewport-fit=cover, so the
+   masthead can't clear the camera. We measure env directly and, when it comes back empty
+   on a notched iPhone, fall back to a fixed inset (a bit larger in standalone for the
+   Dynamic Island). We set --ios-safe-top AND force the masthead padding inline — the
+   latter survives a stale cached stylesheet that lacks the var. Re-applied after htmx
+   chrome swaps (the top-nav is out-of-band swapped on navigation). */
 (function(){
   var ua = navigator.userAgent || '';
   var isIOS = /iP(hone|od|ad)/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   if (!isIOS) return;
-  function setInset(){
+  var standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+  function apply(){
     if (!document.body) return;
     var p = document.createElement('div');
     p.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;padding-top:env(safe-area-inset-top,0px);visibility:hidden;pointer-events:none';
     document.body.appendChild(p);
     var i = parseFloat(getComputedStyle(p).paddingTop) || 0;
     p.remove();
-    // env() gave nothing but this looks like a notched iPhone (logical height >= 812)
-    // -> use a fixed status-bar inset so the masthead clears the camera anyway.
-    if (i < 20 && Math.max(screen.width, screen.height) >= 812) i = 50;
+    if (i < 20 && Math.max(screen.width, screen.height) >= 812) i = standalone ? 59 : 47;
     document.documentElement.style.setProperty('--ios-safe-top', i + 'px');
+    var mh = document.querySelector('.masthead');
+    if (mh) mh.style.paddingTop = 'calc(.55rem + ' + i + 'px)';
   }
-  if (document.body) setInset(); else document.addEventListener('DOMContentLoaded', setInset);
-  window.addEventListener('orientationchange', function(){ setTimeout(setInset, 250); });
+  if (document.body) apply(); else document.addEventListener('DOMContentLoaded', apply);
+  document.addEventListener('htmx:afterSettle', apply);
+  window.addEventListener('orientationchange', function(){ setTimeout(apply, 250); });
 })();
 </script>
 
