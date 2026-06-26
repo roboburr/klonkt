@@ -6,32 +6,54 @@
   <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
 
   <% if (!timeline || !timeline.length) { %>
-    <p class="tl-empty"><%= t('tl.empty') %></p>
+    <div class="tl-empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+      <p><%= t('tl.empty') %></p>
+    </div>
   <% } else { %>
     <ol class="tl-feed">
       <% timeline.forEach(function(p){ %>
         <li class="tl-item">
-          <span class="tl-avatar"><% if (p.author_icon) { %><img src="<%= p.author_icon %>" alt="" loading="lazy"><% } else { %><%= (p.author_name || '?').charAt(0).toUpperCase() %><% } %></span>
-          <div class="tl-itembody">
-            <div class="tl-meta">
+          <div class="tl-head">
+            <span class="tl-avatar"><% if (p.author_icon) { %><img src="<%= p.author_icon %>" alt="" loading="lazy"><% } else { %><%= (p.author_name || '?').charAt(0).toUpperCase() %><% } %></span>
+            <span class="tl-id">
               <a class="tl-author" href="<%= p.author_url || p.author_uri %>" target="_blank" rel="nofollow noopener"><%= p.author_name %></a>
               <span class="tl-handle"><%= p.author_handle %></span>
-              <% if (p.published || p.created_at) { %><span class="tl-time"><%= formatDateTime(p.published || p.created_at) %></span><% } %>
+            </span>
+            <% if (p.published || p.created_at) { %><time class="tl-time"><%= formatDateTime(p.published || p.created_at) %></time><% } %>
+          </div>
+
+          <div class="tl-content"><%- p.content %></div>
+
+          <%
+            var media = []; try { media = JSON.parse(p.media_json || '[]'); } catch (e) { media = []; }
+            var imgs = media.filter(function(m){ return m && m.url && (!m.type || /^image\//.test(m.type)); });
+            var vids = media.filter(function(m){ return m && m.url && m.type && /^video\//.test(m.type); });
+            var auds = media.filter(function(m){ return m && m.url && m.type && /^audio\//.test(m.type); });
+          %>
+          <% if (imgs.length) { %>
+            <div class="tl-media-grid<%= imgs.length === 1 ? ' is-single' : '' %>" data-n="<%= imgs.length %>">
+              <% imgs.slice(0, 4).forEach(function(m){ %>
+                <a class="tl-media-img" href="<%= m.url %>" target="_blank" rel="noopener"><img src="<%= m.url %>" alt="" loading="lazy" decoding="async"></a>
+              <% }); %>
             </div>
-            <div class="tl-content"><%- p.content %></div>
-            <% var media = []; try { media = JSON.parse(p.media_json || '[]'); } catch (e) { media = []; } %>
-            <% media.filter(function(m){ return !m.type || /^image\//.test(m.type); }).forEach(function(m){ %><img class="tl-media" src="<%= m.url %>" alt="" loading="lazy"><% }); %>
-            <% if (p.url) { %><p class="tl-orig"><a href="<%= p.url %>" target="_blank" rel="nofollow noopener"><%= t('tl.view_original') %></a></p><% } %>
-            <div class="tl-actions">
-              <form method="post" action="/tijdlijn/like" class="tl-act-form"><input type="hidden" name="note" value="<%= p.id %>"><input type="hidden" name="author" value="<%= p.author_uri %>"><button type="submit" class="tl-act" title="<%= t('fedi.likes') %>">⭐</button></form>
-              <% if (p.boosted) { %>
-              <form method="post" action="/tijdlijn/unboost" class="tl-act-form"><input type="hidden" name="note" value="<%= p.id %>"><input type="hidden" name="author" value="<%= p.author_uri %>"><button type="submit" class="tl-act tl-act-on" title="<%= t('tl.unboost') %>">🔁</button></form>
-              <% } else { %>
-              <form method="post" action="/tijdlijn/boost" class="tl-act-form"><input type="hidden" name="note" value="<%= p.id %>"><input type="hidden" name="author" value="<%= p.author_uri %>"><button type="submit" class="tl-act" title="<%= t('fedi.boosts') %>">🔁</button></form>
-              <% } %>
-              <button type="button" class="tl-act fedi-remote-reply-btn" data-fedi-uri="<%= p.id %>" data-fedi-ph="<%= t('fedi.remote_ph') %>" title="<%= t('fedi.remote_reply') %>">↩</button>
-              <form method="post" action="/blokkeren/add" class="tl-act-form" onsubmit="return confirm('<%= t('tl.block') %>?');"><input type="hidden" name="target" value="<%= p.author_uri %>"><button type="submit" class="tl-act" title="<%= t('tl.block') %>">🚫</button></form>
-            </div>
+          <% } %>
+          <% vids.forEach(function(m){ %><video class="tl-media-video" src="<%= m.url %>" controls preload="metadata" playsinline></video><% }); %>
+          <% auds.forEach(function(m){ %><audio class="tl-media-audio" src="<%= m.url %>" controls preload="none"></audio><% }); %>
+
+          <% if (p.embedHtml) { %><div class="tl-embed"><%- p.embedHtml %></div><% } %>
+
+          <% if (p.url) { %><a class="tl-orig" href="<%= p.url %>" target="_blank" rel="nofollow noopener"><%= t('tl.view_original') %></a><% } %>
+
+          <div class="tl-actions">
+            <form method="post" action="/tijdlijn/like" class="tl-act-form"><input type="hidden" name="note" value="<%= p.id %>"><input type="hidden" name="author" value="<%= p.author_uri %>"><button type="submit" class="tl-act" title="<%= t('fedi.likes') %>">⭐</button></form>
+            <% if (p.boosted) { %>
+            <form method="post" action="/tijdlijn/unboost" class="tl-act-form"><input type="hidden" name="note" value="<%= p.id %>"><input type="hidden" name="author" value="<%= p.author_uri %>"><button type="submit" class="tl-act tl-act-on" title="<%= t('tl.unboost') %>">🔁</button></form>
+            <% } else { %>
+            <form method="post" action="/tijdlijn/boost" class="tl-act-form"><input type="hidden" name="note" value="<%= p.id %>"><input type="hidden" name="author" value="<%= p.author_uri %>"><button type="submit" class="tl-act" title="<%= t('fedi.boosts') %>">🔁</button></form>
+            <% } %>
+            <button type="button" class="tl-act fedi-remote-reply-btn" data-fedi-uri="<%= p.id %>" data-fedi-ph="<%= t('fedi.remote_ph') %>" title="<%= t('fedi.remote_reply') %>">↩</button>
+            <form method="post" action="/blokkeren/add" class="tl-act-form" onsubmit="return confirm('<%= t('tl.block') %>?');"><input type="hidden" name="target" value="<%= p.author_uri %>"><button type="submit" class="tl-act tl-act-block" title="<%= t('tl.block') %>">🚫</button></form>
           </div>
         </li>
       <% }); %>
@@ -40,41 +62,69 @@
 </div>
 
 <style>
-  .tl-wrap { max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
-  .fedi-back { margin: 0 0 1.25rem; }
-  .tl-title { margin: 0 0 .25rem; }
-  .tl-lead { color: var(--ink-soft, #888); margin: 0 0 1.25rem; }
-  .tl-sub { font-size: 1.1rem; margin: 1.75rem 0 .75rem; }
-  .tl-follow { display: flex; gap: .5rem; margin: 0 0 1rem; flex-wrap: wrap; }
-  .tl-follow input { flex: 1; min-width: 200px; height: 2.4rem; padding: 0 .9rem; border-radius: 999px; font: inherit;
-    border: 1px solid color-mix(in srgb, var(--ink, #000) 18%, transparent); background: color-mix(in srgb, var(--ink, #000) 4%, transparent); color: var(--ink, #000); }
-  .tl-foll-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .4rem; }
-  .tl-foll { display: flex; align-items: center; gap: .6rem; padding: .45rem .6rem; border-radius: 12px; background: color-mix(in srgb, var(--ink, #000) 4%, transparent); }
-  .tl-foll-av, .tl-avatar { flex: 0 0 36px; width: 36px; height: 36px; border-radius: 50%; overflow: hidden; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; background: color-mix(in srgb, var(--accent, #888) 20%, transparent); color: var(--accent, #555); }
-  .tl-foll-av img, .tl-avatar img { width: 100%; height: 100%; object-fit: cover; }
-  .tl-foll-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
-  .tl-foll-handle, .tl-handle { color: var(--ink-soft, #888); font-size: .82rem; }
-  .tl-pending { font-size: .72rem; color: var(--ink-soft, #999); }
-  .tl-unfollow { background: none; border: 1px solid color-mix(in srgb, var(--ink, #000) 18%, transparent); border-radius: 8px; padding: .25rem .6rem; font-size: .8rem; color: var(--ink-soft, #888); cursor: pointer; }
-  .tl-unfollow:hover { color: var(--ink, #000); }
-  .tl-empty { color: var(--ink-soft, #888); }
-  .tl-feed { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .9rem; }
-  .tl-item { display: flex; gap: .75rem; padding: .9rem 1rem; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--ink, #000) 9%, transparent); background: color-mix(in srgb, var(--ink, #000) 3%, transparent); }
-  .tl-itembody { flex: 1; min-width: 0; }
-  .tl-meta { display: flex; align-items: baseline; gap: .4rem; flex-wrap: wrap; }
-  .tl-author { font-weight: 600; color: var(--ink, inherit); text-decoration: none; }
+  .tl-wrap { max-width: 600px; margin: 1.5rem auto 3rem; padding: 0 1rem; }
+  .tl-title { margin: 0 0 .15rem; font-size: clamp(1.5rem, 4vw, 1.8rem); }
+  .tl-lead { color: var(--ink-soft, #888); margin: 0 0 1.5rem; }
+  .tl-empty { text-align: center; color: var(--ink-soft, #888); margin: 3rem auto; }
+  .tl-empty svg { width: 44px; height: 44px; color: color-mix(in srgb, var(--accent, #888) 60%, transparent); margin: 0 auto .75rem; display: block; }
+
+  .tl-feed { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 1rem; }
+  .tl-item { padding: 1.1rem 1.15rem; border-radius: 16px;
+    border: 1px solid color-mix(in srgb, var(--ink, #000) 8%, transparent);
+    background: color-mix(in srgb, var(--ink, #000) 2.5%, transparent);
+    transition: border-color .15s ease, box-shadow .15s ease; }
+  .tl-item:hover { border-color: color-mix(in srgb, var(--accent, #888) 32%, transparent);
+    box-shadow: 0 2px 14px color-mix(in srgb, var(--ink, #000) 6%, transparent); }
+
+  .tl-head { display: flex; align-items: center; gap: .65rem; margin: 0 0 .65rem; }
+  .tl-avatar { flex: 0 0 44px; width: 44px; height: 44px; border-radius: 50%; overflow: hidden;
+    display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.1rem;
+    background: color-mix(in srgb, var(--accent, #888) 22%, transparent); color: var(--accent, #555);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent, #888) 18%, transparent); }
+  .tl-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .tl-id { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+  .tl-author { font-weight: 700; color: var(--ink, inherit); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tl-author:hover { text-decoration: underline; }
-  .tl-time { color: var(--ink-soft, #999); font-size: .8rem; margin-left: auto; }
-  .tl-content { margin: .3rem 0 0; line-height: 1.5; overflow-wrap: anywhere; }
-  .tl-content p { margin: .25rem 0; } .tl-content p:first-child { margin-top: 0; }
-  .tl-media { max-width: 100%; height: auto; border-radius: 10px; margin: .5rem 0 0; display: block; }
-  .tl-orig { margin: .5rem 0 0; font-size: .82rem; }
-  .tl-orig a { color: var(--accent, #06c); }
-  .tl-actions { display: flex; gap: .35rem; margin-top: .55rem; }
+  .tl-handle { color: var(--ink-soft, #888); font-size: .82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tl-time { color: var(--ink-soft, #999); font-size: .78rem; flex: 0 0 auto; align-self: flex-start; white-space: nowrap; }
+
+  .tl-content { line-height: 1.55; overflow-wrap: anywhere; }
+  .tl-content p { margin: .4rem 0; } .tl-content p:first-child { margin-top: 0; } .tl-content p:last-child { margin-bottom: 0; }
+  .tl-content a { color: var(--accent, #06c); }
+  .tl-content img { max-width: 100%; height: auto; border-radius: 10px; }
+
+  .tl-media-grid { display: grid; gap: .3rem; margin: .75rem 0 0; grid-template-columns: 1fr 1fr;
+    border-radius: 14px; overflow: hidden; }
+  .tl-media-grid.is-single { grid-template-columns: 1fr; }
+  .tl-media-grid[data-n="3"] .tl-media-img:first-child { grid-row: span 2; }
+  .tl-media-img { display: block; aspect-ratio: 16/11; background: var(--paper-2, #111); overflow: hidden; }
+  .tl-media-grid.is-single .tl-media-img { aspect-ratio: auto; max-height: 480px; background: #000; }
+  .tl-media-img img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .25s ease; }
+  .tl-media-grid.is-single .tl-media-img img { object-fit: contain; max-height: 480px; }
+  .tl-media-img:hover img { transform: scale(1.03); }
+
+  .tl-media-video, .tl-media-audio { width: 100%; margin: .75rem 0 0; border-radius: 12px; display: block; }
+  .tl-media-video { max-height: 480px; background: #000; }
+
+  .tl-embed { margin: .75rem 0 0; border-radius: 12px; overflow: hidden; background: var(--paper-2, #111); }
+  .tl-embed-frame { width: 100%; border: 0; display: block; aspect-ratio: 16 / 9; }
+  .tl-embed-spotify { aspect-ratio: auto; height: 152px; }
+  .tl-embed-sc { aspect-ratio: auto; height: 166px; }
+
+  .tl-orig { display: inline-block; margin: .7rem 0 0; font-size: .82rem; color: var(--accent, #06c); text-decoration: none; }
+  .tl-orig:hover { text-decoration: underline; }
+
+  .tl-actions { display: flex; gap: .4rem; margin-top: .85rem; padding-top: .15rem; }
   .tl-act-form { margin: 0; }
-  .tl-act { background: none; border: 1px solid color-mix(in srgb, var(--ink, #000) 14%, transparent); border-radius: 999px; padding: .2rem .6rem; cursor: pointer; font-size: .9rem; color: var(--ink-soft, #888); }
-  .tl-act:hover { color: var(--ink, #000); border-color: color-mix(in srgb, var(--accent, #888) 50%, transparent); }
-  .tl-act-on { color: var(--accent, #06c); border-color: color-mix(in srgb, var(--accent, #888) 60%, transparent); background: color-mix(in srgb, var(--accent, #888) 14%, transparent); }
+  .tl-act { background: none; border: 1px solid color-mix(in srgb, var(--ink, #000) 12%, transparent);
+    border-radius: 999px; padding: .25rem .65rem; cursor: pointer; font-size: .92rem; line-height: 1;
+    color: var(--ink-soft, #888); transition: color .12s, border-color .12s, background .12s; }
+  .tl-act:hover { color: var(--ink, #000); border-color: color-mix(in srgb, var(--accent, #888) 50%, transparent);
+    background: color-mix(in srgb, var(--accent, #888) 8%, transparent); }
+  .tl-act-on { color: var(--accent, #06c); border-color: color-mix(in srgb, var(--accent, #888) 60%, transparent);
+    background: color-mix(in srgb, var(--accent, #888) 14%, transparent); }
+  .tl-act-block { margin-left: auto; }
+  .tl-act-block:hover { color: #e06b66; border-color: color-mix(in srgb, #d9534f 50%, transparent); background: color-mix(in srgb, #d9534f 12%, transparent); }
 </style>
 
 <script>

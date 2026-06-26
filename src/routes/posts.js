@@ -579,9 +579,27 @@ router.post('/fediverse/:id/delete', requireSiteManager, async (req, res) => {
 });
 
 // ==================== FEDIVERSE CLIENT: home timeline + following ====================
+// Build a direct embed iframe for the first embeddable link (YouTube/Spotify/
+// SoundCloud/Vimeo) in a remote post's content, so others' media plays inline.
+function timelineEmbedHtml(html) {
+  if (!html) return null;
+  const re = /href=["']([^"']+)["']/gi; let m; const seen = new Set();
+  while ((m = re.exec(html))) {
+    const u = m[1]; if (seen.has(u)) continue; seen.add(u);
+    let p; try { p = AudioEmbedService.detectProvider(u); } catch { p = null; }
+    if (!p) continue;
+    if (p.provider === 'youtube') return `<iframe class="tl-embed-frame" src="https://www.youtube-nocookie.com/embed/${p.id}" title="YouTube" loading="lazy" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`;
+    if (p.provider === 'spotify') return `<iframe class="tl-embed-frame tl-embed-spotify" src="https://open.spotify.com/embed/${p.type}/${p.id}" title="Spotify" loading="lazy" frameborder="0" allow="encrypted-media"></iframe>`;
+    if (p.provider === 'soundcloud') return `<iframe class="tl-embed-frame tl-embed-sc" src="https://w.soundcloud.com/player/?url=${encodeURIComponent(p.url)}&color=%23ff5500&visual=false" title="SoundCloud" loading="lazy" frameborder="0" allow="autoplay" scrolling="no"></iframe>`;
+    if (p.provider === 'vimeo') return `<iframe class="tl-embed-frame" src="https://player.vimeo.com/video/${p.id}" title="Vimeo" loading="lazy" frameborder="0" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>`;
+  }
+  return null;
+}
+
 router.get('/tijdlijn', requireSiteManager, (req, res) => {
   const site = res.locals.site;
-  const timeline = site ? ActivityPubService.getTimeline(site.slug, 60) : [];
+  const timeline = (site ? ActivityPubService.getTimeline(site.slug, 60) : [])
+    .map((p) => ({ ...p, embedHtml: timelineEmbedHtml(p.content) }));
   renderPage(req, res, 'pages/timeline', {
     pageTitle: 'Tijdlijn', bodyClass: 'on-special',
     timeline,
