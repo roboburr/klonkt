@@ -219,7 +219,13 @@ const _embedUrl = _postAudio
     var rawEnv = parseFloat(getComputedStyle(p).paddingTop) || 0;
     p.remove();
     var i = rawEnv;
-    if (i < 20 && Math.max(screen.width, screen.height) >= 812) i = standalone ? 59 : 47;
+    if (i < 20 && Math.max(screen.width, screen.height) >= 812) {
+      // Portrait: the island sits at the TOP → full inset (UNCHANGED: standalone?59:47).
+      // Landscape: the island moves to the SIDE, so the top inset is ~0 → no top padding
+      // (only the masthead's own base padding remains). env() can't tell us (returns 0),
+      // so we key off orientation directly.
+      i = (window.innerWidth > window.innerHeight) ? 0 : (standalone ? 59 : 47);
+    }
     document.documentElement.style.setProperty('--ios-safe-top', i + 'px');
     var mh = document.querySelector('.masthead');
     var mhHidden = !mh || getComputedStyle(mh).display === 'none' || mh.offsetHeight === 0;
