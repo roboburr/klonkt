@@ -500,6 +500,7 @@ router.get('/authorize_interaction', requireSiteManager, async (req, res) => {
     sent,
     followed,
     liked: !!req.query.liked,
+    boosted: !!req.query.boosted,
     siteTitle: site ? site.title : '',
   });
 });
@@ -514,6 +515,24 @@ router.post('/authorize_interaction/like', requireSiteManager, (req, res) => {
       .catch((e) => console.warn('[AP] remote like failed:', e.message));
   }
   res.redirect('/authorize_interaction?liked=1&uri=' + encodeURIComponent(uri));
+});
+
+// 🔁 Boost a remote post from your own site. Also flags it for the Cirkel
+// (markBoosted is a no-op if the post isn't in your timeline).
+router.post('/authorize_interaction/boost', requireSiteManager, (req, res) => {
+  const site = res.locals.site;
+  const uri = (req.body.uri || '').toString();
+  if (site && uri) {
+    ActivityPubService.resolveRemoteNote(uri)
+      .then((note) => {
+        if (!note) return;
+        const id = note.object_uri || uri;
+        return Promise.resolve(ActivityPubService.sendInteraction(site, 'boost', id, note.actor_uri))
+          .then(() => ActivityPubService.markBoosted(site.slug, id));
+      })
+      .catch((e) => console.warn('[AP] remote boost failed:', e.message));
+  }
+  res.redirect('/authorize_interaction?boosted=1&uri=' + encodeURIComponent(uri));
 });
 
 // Follow a remote actor from your own site (when the target is a profile, not a post).

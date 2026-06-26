@@ -26,6 +26,13 @@
       <% if (uri) { %><a class="btn" href="<%= uri %>" rel="nofollow noopener"><%= t('fedi.remote_view_original') %></a><% } %>
       <a class="btn btn-primary" href="/"><%= t('fedi.remote_back') %></a>
     </p>
+  <% } else if (typeof boosted !== 'undefined' && boosted) { %>
+    <h1 class="auth-interact-title">🔁 <%= t('fedi.boosted_title') %></h1>
+    <p class="auth-interact-note"><%= t('fedi.boosted_done') %></p>
+    <p class="auth-interact-actions">
+      <% if (uri) { %><a class="btn" href="<%= uri %>" rel="nofollow noopener"><%= t('fedi.remote_view_original') %></a><% } %>
+      <a class="btn btn-primary" href="/"><%= t('fedi.remote_back') %></a>
+    </p>
   <% } else if (typeof followed !== 'undefined' && followed) { %>
     <h1 class="auth-interact-title"><%= t('fedi.followed_title') %></h1>
     <p class="auth-interact-note"><%= t('fedi.followed_done') %></p>
@@ -76,14 +83,23 @@
       <% (target.images || []).forEach(function(im){ %>
         <img class="auth-interact-img" src="<%= im %>" alt="" loading="lazy">
       <% }); %>
-      <% if (target.url || uri) { %>
-        <p class="auth-interact-orig"><a href="<%= target.url || uri %>" target="_blank" rel="nofollow noopener"><%= t('fedi.remote_view_original') %></a></p>
-      <% } %>
     </blockquote>
-    <form method="post" action="/authorize_interaction/like" class="auth-interact-like">
-      <input type="hidden" name="uri" value="<%= uri %>">
-      <button type="submit" class="btn btn-primary auth-like-btn">★ <%= t('fedi.like_btn') %></button>
-    </form>
+    <% if (target.url || uri) { %>
+      <a class="auth-view-src" href="<%= target.url || uri %>" target="_blank" rel="nofollow noopener">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg>
+        <span><%= t('fedi.remote_view_original') %></span>
+      </a>
+    <% } %>
+    <div class="auth-interact-react">
+      <form method="post" action="/authorize_interaction/like">
+        <input type="hidden" name="uri" value="<%= uri %>">
+        <button type="submit" class="btn btn-primary auth-like-btn">★ <%= t('fedi.like_btn') %></button>
+      </form>
+      <form method="post" action="/authorize_interaction/boost">
+        <input type="hidden" name="uri" value="<%= uri %>">
+        <button type="submit" class="btn auth-boost-btn">🔁 <%= t('fedi.boost_btn') %></button>
+      </form>
+    </div>
     <p class="auth-interact-or"><%= t('fedi.or_reply') %></p>
     <p class="auth-interact-where">💬 <%= t('fedi.reply_where') %></p>
     <form method="post" action="/authorize_interaction" class="auth-interact-form">
@@ -123,6 +139,14 @@
   .auth-interact-img { max-width: 100%; height: auto; border-radius: 10px; margin: .5rem 0 0; display: block; }
   .auth-interact-orig { margin: .75rem 0 0; font-size: .85rem; }
   .auth-interact-orig a { color: var(--accent, #06c); }
+  .auth-view-src { display: inline-flex; align-items: center; gap: .5rem; margin: 0 0 1.1rem; padding: .6rem 1rem;
+    border: 1px solid color-mix(in srgb, var(--accent, #888) 45%, transparent); border-radius: 12px;
+    background: color-mix(in srgb, var(--accent, #888) 10%, transparent); color: var(--accent, #06c);
+    text-decoration: none; font-weight: 600; font-size: .92rem; transition: background .15s, border-color .15s; }
+  .auth-view-src:hover { background: color-mix(in srgb, var(--accent, #888) 18%, transparent); border-color: var(--accent, #888); }
+  .auth-interact-react { display: flex; gap: .5rem; flex-wrap: wrap; margin: 0 0 .25rem; }
+  .auth-interact-react form { margin: 0; }
+  .auth-boost-btn { white-space: nowrap; }
   .fedi-manage { list-style: none; padding: 0; margin: 1.25rem 0 1rem; display: flex; flex-direction: column; gap: .7rem; }
   .fedi-manage-item { padding: .85rem 1rem; border-radius: 14px; background: color-mix(in srgb, var(--ink, #000) 4%, transparent); border: 1px solid color-mix(in srgb, var(--ink, #000) 9%, transparent); }
   .fedi-manage-content { line-height: 1.5; overflow-wrap: anywhere; }

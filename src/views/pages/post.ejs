@@ -73,10 +73,10 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
     <section class="post-fediverse post-comments" id="fediverse">
       <h2 class="comments-heading"><%= t('fedi.heading') %></h2>
       <div class="fedi-stats">
-        <button type="button" class="fedi-stat fedi-stat-btn fedi-remote-reply-btn" data-fedi-uri="<%= _postAbsUrl %>" data-fedi-ph="<%= t('fedi.remote_ph') %>" title="<%= t('like.fedi_title') %>">
+        <span class="fedi-stat" title="<%= t('fedi.likes') %>">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
           <span><%= _fedi.likeCount %></span>
-        </button>
+        </span>
         <span class="fedi-stat" title="<%= t('fedi.boosts') %>">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
           <span><%= _fedi.announceCount %></span>
@@ -95,8 +95,8 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
       <% } %>
       <div class="post-fediverse-cta">
         <button type="button" class="btn fedi-remote-reply-btn" data-fedi-uri="<%= _postAbsUrl %>" data-fedi-ph="<%= t('fedi.remote_ph') %>">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
-          <%= t('fedi.remote_reply') %>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+          <%= t('fedi.remote_interact') %>
         </button>
       </div>
     </section>
