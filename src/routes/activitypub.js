@@ -16,8 +16,13 @@ import { readFileSync } from 'fs';
 import db from '../config/database.js';
 import AP from '../services/ActivityPubService.js';
 import { apReadLimiter, apInboxLimiter } from '../middleware/rate-limit.js';
+import { apEnabled } from '../services/SettingsService.js';
 
 const router = express.Router();
+// The whole fediverse layer can be turned off (solo "no federation" mode):
+// then /ap/*, WebFinger and NodeInfo are simply gone — the site is undiscoverable
+// and unfederatable.
+router.use((req, res, next) => { if (!apEnabled()) return res.status(404).end(); next(); });
 // Generous per-IP baseline over all /ap/* (reads). The inbox POST gets an
 // additional, tighter cap inline (it triggers outbound fetches).
 router.use(apReadLimiter);

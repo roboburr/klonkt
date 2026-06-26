@@ -69,7 +69,7 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
   <!-- Fediverse interactions — single place: ⭐ like (clickable) + 🔁/💬 counts + reply -->
   <% var _postAbsUrl = (typeof ogOrigin !== 'undefined' && ogOrigin ? ogOrigin : '') + (typeof _base !== 'undefined' && _base ? _base : '') + '/' + post.slug; %>
   <% var _fedi = (typeof fediverse !== 'undefined' && fediverse) ? fediverse : { thread: [], likeCount: 0, announceCount: 0 }; %>
-  <% if (post.status === 'published') { %>
+  <% if (post.status === 'published' && (typeof apEnabled === 'undefined' || apEnabled)) { %>
     <section class="post-fediverse post-comments" id="fediverse">
       <h2 class="comments-heading"><%= t('fedi.heading') %></h2>
       <div class="fedi-stats">

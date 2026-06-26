@@ -69,7 +69,7 @@ if (site && site.profile_links) {
 
       <%# Follow-via-fediverse: a compact icon in the links row (keeps the header
           short), and hidden for the owner — you don't follow yourself. %>
-      <% var _showFollow = (typeof canManageFedi === 'undefined' || !canManageFedi) && site && site.slug; %>
+      <% var _showFollow = (typeof canManageFedi === 'undefined' || !canManageFedi) && site && site.slug && (typeof apEnabled === 'undefined' || apEnabled); %>
       <% if (_profileLinks.length || _showFollow) { %>
         <% const _platforms = (typeof platforms_catalog !== 'undefined' && platforms_catalog) || {}; %>
         <ul class="profile-links" aria-label="External links">

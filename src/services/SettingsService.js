@@ -48,3 +48,10 @@ export function setTenancy(mode) {
   const m = mode === 'circle' ? 'circle' : 'solo';
   setSetting('tenancy', m);
 }
+
+// ActivityPub / fediverse federation. ON by default. '0' = off: the site does
+// not federate, /ap/* is gone, and the "from the fediverse" reactions disappear
+// — which (since native comments were removed) means no comments at all.
+export function apEnabled() {
+  return getSetting('ap_enabled', '1') !== '0';
+}

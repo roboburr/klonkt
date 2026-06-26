@@ -81,6 +81,7 @@ router.get('/', requireGod, (req, res) => {
     premium: entitlementStatus(),
     smtp: mailerStatus(),
     footerNewsletter: getSetting('footer_newsletter') === '1',
+    apEnabledSetting: getSetting('ap_enabled', '1') !== '0',
     success: req.query.success || null,
     error: req.query.error || null,
   });
@@ -163,6 +164,12 @@ router.post('/smtp', requireGod, (req, res) => {
 router.post('/footer', requireGod, (req, res) => {
   setSetting('footer_newsletter', req.body.footer_newsletter ? '1' : '0');
   res.redirect('/admin/settings?success=' + encodeURIComponent('Footer-instelling opgeslagen'));
+});
+
+// Fediverse (ActivityPub) on/off. Off = no federation + no fediverse reactions.
+router.post('/ap', requireGod, (req, res) => {
+  setSetting('ap_enabled', req.body.ap_enabled ? '1' : '0');
+  res.redirect('/admin/settings?success=' + encodeURIComponent('Fediverse-instelling opgeslagen'));
 });
 
 // Send a test email to a specified address (or the logged-in user).

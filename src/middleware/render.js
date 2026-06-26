@@ -16,7 +16,7 @@ import ejs from 'ejs';
 import db from '../config/database.js';
 import PermissionsService from '../services/PermissionsService.js';
 import { isViewer } from './auth.js';
-import { getSetting } from '../services/SettingsService.js';
+import { getSetting, apEnabled } from '../services/SettingsService.js';
 import { isPremium as isPremiumInstance, premiumEnabled, premiumUnlocked } from '../services/PatreonService.js';
 import ActivityPubService from '../services/ActivityPubService.js';
 import { audioEnabled as audioFeatureEnabled } from '../config/features.js';
@@ -121,6 +121,7 @@ export async function renderPage(req, res, viewName, data = {}) {
     userOwnsSite,
     canSeeBeheer,
     canManageFedi,
+    apEnabled: apEnabled(),
     isViewer: _isViewer,
     canMutate: !_isViewer,
     isPremium: isPremiumInstance(),
