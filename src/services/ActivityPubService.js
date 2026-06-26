@@ -1104,6 +1104,57 @@ export async function autoMigrateCircles() {
   } catch { /* never block boot */ } finally { _circlesMigrating = false; }
 }
 
+// ── Self-heal: re-sync the fediverse cache (ap_timeline) after a DRASTIC update ──
+// Runs ONCE per SELFHEAL_VERSION bump — NOT on every boot. Re-fetches each cached
+// note and refreshes content + media (recovers covers/edits that were delivered
+// during a flux window, e.g. a fleet-wide update), and drops notes that are gone
+// (404/410). Bump SELFHEAL_VERSION only on a release that warrants a re-sync.
+const SELFHEAL_VERSION = 1;
+async function fetchNoteAP(url) {
+  try {
+    const r = await fetch(url, { headers: { Accept: 'application/activity+json' } });
+    if (r.status === 404 || r.status === 410) return 404;
+    if (r.ok) return await r.json();
+  } catch { /* unreachable */ }
+  return null;
+}
+function mediaFromNote(note) {
+  const atts = (Array.isArray(note.attachment) ? note.attachment : []).map((a) => ({ url: safeUrl(a && a.url), type: (a && a.mediaType) || '' })).filter((m) => m.url);
+  if (!atts.some((m) => !m.type || /image/i.test(m.type)) && note.image) {
+    const im = Array.isArray(note.image) ? note.image[0] : note.image;
+    const iu = safeUrl(typeof im === 'string' ? im : (im && im.url));
+    if (iu) atts.push({ url: iu, type: (im && im.mediaType) || 'image/jpeg' });
+  }
+  return JSON.stringify(atts);
+}
+let _selfHealing = false;
+export async function selfHealTimeline() {
+  if (_selfHealing) return; _selfHealing = true;
+  try {
+    let cur = 0;
+    try { const r = db.prepare('SELECT value FROM app_settings WHERE key = ?').get('selfheal_version'); cur = r ? (parseInt(r.value, 10) || 0) : 0; } catch { return; }
+    if (cur >= SELFHEAL_VERSION) return; // already healed for this version — skip on normal boots
+    let rows = [];
+    try { rows = db.prepare('SELECT id, content, media_json FROM ap_timeline ORDER BY rowid DESC LIMIT 200').all(); } catch { /* no table */ }
+    let healed = 0;
+    for (const r of rows) {
+      try {
+        const note = await fetchNoteAP(r.id);
+        if (note === 404) { db.prepare('DELETE FROM ap_timeline WHERE id = ?').run(r.id); healed++; continue; }
+        if (!note || typeof note !== 'object') continue;
+        const html = HtmlSanitizerService.sanitize(note.content || '');
+        const media = mediaFromNote(note);
+        if ((html && html !== r.content) || media !== (r.media_json || '[]')) {
+          db.prepare('UPDATE ap_timeline SET content = ?, media_json = ? WHERE id = ?').run(html || r.content, media, r.id);
+          healed++;
+        }
+      } catch { /* per-note best-effort */ }
+    }
+    try { db.prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)').run('selfheal_version', String(SELFHEAL_VERSION)); } catch { /* ignore */ }
+    if (rows.length) console.log(`[AP] self-heal v${SELFHEAL_VERSION}: ${healed}/${rows.length} timeline notes`);
+  } catch { /* never block boot */ } finally { _selfHealing = false; }
+}
+
 // Follow a fediverse account by @handle (WebFinger → actor → signed Follow).
 export async function followActor(site, handle, autoBoost = false) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
@@ -1262,7 +1313,7 @@ export default {
   getInteractions, getInteractionById, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete,
   webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, getTimeline, sendInteraction,
-  autoBoostCount, getCirkelPosts, getCirkelMembers, autoMigrateCircles,
+  autoBoostCount, getCirkelPosts, getCirkelMembers, autoMigrateCircles, selfHealTimeline,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
   getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
