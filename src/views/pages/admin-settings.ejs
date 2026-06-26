@@ -5,6 +5,23 @@
   <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
   <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
 
+  <%# ── Mode: Solo or Cirkels (ActivityPub) — the primary, top-of-page choice ── %>
+  <section class="set-card set-card--mode" style="margin-top:1rem">
+    <h2><%= t('aset.mode') %></h2>
+    <p class="set-help"><%= t('aset.mode_help') %></p>
+    <form method="post" action="/admin/settings/ap" class="set-form">
+      <label class="set-opt">
+        <input type="radio" name="mode" value="solo" <%= (typeof apEnabledSetting !== 'undefined' && !apEnabledSetting) ? 'checked' : '' %>>
+        <span><strong><%= t('aset.mode_solo') %></strong><small><%= t('aset.mode_solo_help') %></small></span>
+      </label>
+      <label class="set-opt">
+        <input type="radio" name="mode" value="cirkels" <%= (typeof apEnabledSetting === 'undefined' || apEnabledSetting) ? 'checked' : '' %>>
+        <span><strong><%= t('aset.mode_cirkels') %></strong><small><%= t('aset.mode_cirkels_help') %></small></span>
+      </label>
+      <div class="set-actions"><button type="submit" class="btn btn-primary"><%= t('aset.save') %></button></div>
+    </form>
+  </section>
+
   <%# ── Default language for visitors ── %>
   <section class="set-card" style="margin-top:1rem">
     <h2><%= t('aset.default_lang') %></h2>
@@ -80,20 +97,6 @@
     </form>
   </section>
   <% } %>
-
-  <%# Fediverse (ActivityPub) on/off. Off = no federation + no fediverse reactions,
-      which (since native comments were removed) means no comments at all. %>
-  <section class="set-card" style="margin-top:1rem">
-    <h2><%= t('aset.fediverse') %></h2>
-    <p class="set-help"><%= t('aset.fediverse_help') %></p>
-    <form method="post" action="/admin/settings/ap" class="set-form">
-      <label class="set-toggle" style="display:flex;align-items:center;gap:.6rem;cursor:pointer">
-        <input type="checkbox" name="ap_enabled" value="1" <%= (typeof apEnabledSetting === 'undefined' || apEnabledSetting) ? 'checked' : '' %>>
-        <span><%= t('aset.fediverse_toggle') %></span>
-      </label>
-      <div class="set-actions"><button type="submit" class="btn btn-primary"><%= t('aset.save') %></button></div>
-    </form>
-  </section>
 
   <%# E-mail / SMTP — required for sending newsletters, notify-mails and password resets. %>
   <section class="set-card" style="margin-top:1rem">

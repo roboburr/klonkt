@@ -166,10 +166,14 @@ router.post('/footer', requireGod, (req, res) => {
   res.redirect('/admin/settings?success=' + encodeURIComponent('Footer-instelling opgeslagen'));
 });
 
-// Fediverse (ActivityPub) on/off. Off = no federation + no fediverse reactions.
+// Site mode: Solo (ap off → no federation, no comments) or Circles (ap on).
+// Driven by a radio (mode=solo|cirkels); legacy ap_enabled checkbox still accepted.
 router.post('/ap', requireGod, (req, res) => {
-  setSetting('ap_enabled', req.body.ap_enabled ? '1' : '0');
-  res.redirect('/admin/settings?success=' + encodeURIComponent('Fediverse-instelling opgeslagen'));
+  let enabled;
+  if (typeof req.body.mode !== 'undefined') enabled = req.body.mode === 'solo' ? '0' : '1';
+  else enabled = req.body.ap_enabled ? '1' : '0';
+  setSetting('ap_enabled', enabled);
+  res.redirect('/admin/settings?success=' + encodeURIComponent('Modus opgeslagen'));
 });
 
 // Send a test email to a specified address (or the logged-in user).
