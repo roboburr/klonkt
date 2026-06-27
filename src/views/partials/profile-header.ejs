@@ -151,8 +151,7 @@ let _sinceStr = ''; try { if (site && site.created_at) _sinceStr = new Date(site
     <h3 class="pf-follow-title"><%= t('fedi.follow_heading') %></h3>
     <p class="pf-follow-sub"><%= t('fedi.remote_prompt') %></p>
     <input type="text" class="pf-follow-input" inputmode="url" autocomplete="off" autocapitalize="none" spellcheck="false"
-           placeholder="<%= t('fedi.remote_ph') %>" list="pf-follow-servers">
-    <datalist id="pf-follow-servers"><option value="mastodon.social"></option><option value="mastodon.online"></option><option value="mas.to"></option><option value="fosstodon.org"></option><option value="hachyderm.io"></option></datalist>
+           placeholder="<%= t('fedi.remote_ph') %>">
     <div class="pf-follow-actions">
       <button type="button" class="pf-follow-cancel"><%= t('fedi.cancel') %></button>
       <button type="button" class="pf-follow-go"><%= t('fedi.follow_btn') %></button>
