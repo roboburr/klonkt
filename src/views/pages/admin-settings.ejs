@@ -9,7 +9,9 @@
   <section class="set-card set-card--mode" style="margin-top:1rem">
     <h2><%= t('aset.mode') %></h2>
     <p class="set-help"><%= t('aset.mode_help') %></p>
-    <form method="post" action="/admin/settings/ap" class="set-form">
+    <form method="post" action="/admin/settings/ap" class="set-form" id="mode-form"
+          data-was-cirkels="<%= (typeof apEnabledSetting === 'undefined' || apEnabledSetting) ? '1' : '0' %>"
+          data-confirm="<%= t('aset.mode_18plus_confirm') %>">
       <label class="set-opt">
         <input type="radio" name="mode" value="solo" <%= (typeof apEnabledSetting !== 'undefined' && !apEnabledSetting) ? 'checked' : '' %>>
         <span><strong><%= t('aset.mode_solo') %></strong><small><%= t('aset.mode_solo_help') %></small></span>
@@ -18,8 +20,21 @@
         <input type="radio" name="mode" value="cirkels" <%= (typeof apEnabledSetting === 'undefined' || apEnabledSetting) ? 'checked' : '' %>>
         <span><strong><%= t('aset.mode_cirkels') %></strong><small><%= t('aset.mode_cirkels_help') %></small></span>
       </label>
+      <p class="set-help" style="margin:.2rem 0 0;color:var(--accent);font-weight:600">🔞 <%= t('aset.mode_18plus') %></p>
       <div class="set-actions"><button type="submit" class="btn btn-primary"><%= t('aset.save') %></button></div>
     </form>
+    <script>
+    (function () {
+      var f = document.getElementById('mode-form');
+      if (!f || f.__age18wired) return; f.__age18wired = true;
+      f.addEventListener('submit', function (e) {
+        var sel = f.querySelector('input[name=mode]:checked');
+        if (sel && sel.value === 'cirkels' && f.getAttribute('data-was-cirkels') === '0') {
+          if (!window.confirm(f.getAttribute('data-confirm'))) e.preventDefault();
+        }
+      });
+    })();
+    </script>
   </section>
 
   <%# ── Default language for visitors ── %>
