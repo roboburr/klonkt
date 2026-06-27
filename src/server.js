@@ -124,16 +124,11 @@ app.use(helmet({
       // auto-skips every track. 'self'/https: do NOT imply blob:.
       mediaSrc: ["'self'", "https:", "blob:"],
       fontSrc: ["'self'"],
-      frameSrc: [
-        "'self'",
-        "https://open.spotify.com",
-        "https://w.soundcloud.com",
-        "https://bandcamp.com",
-        "https://embed.music.apple.com",
-        "https://www.youtube-nocookie.com",
-        "https://www.youtube.com",   // YouTube IFrame API sometimes creates a www.youtube.com iframe
-        "https://player.vimeo.com",
-      ],
+      // Embeds (platform players + cross-site Klonkt audio players) are framed broadly:
+      // ANY https origin, so embeds work in any context (feed, htmx/PWA nav, public pages).
+      // The sensitive /authorize_interaction page tightens frame-src back to 'self' in
+      // renderPage — it shows untrusted remote content next to the interact buttons.
+      frameSrc: ["'self'", "https:"],
     },
   },
   hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },

@@ -52,26 +52,6 @@ const formatDateTime = (iso) => {
   return new Date(iso).toLocaleString('nl-NL', { timeZone: siteTimezone(), dateStyle: 'medium', timeStyle: 'short' });
 };
 
-// Cross-site Klonkt audio embeds (a followed/boosted site's /embed player) need their
-// origins in the DOCUMENT CSP frame-src — the per-/news injection is ignored once you
-// navigate there via htmx (the document's CSP governs, not the partial's). Collect the
-// distinct origins from the site's timeline (followed + boosted). Cached 60s.
-const _embedOriginsCache = new Map(); // slug -> { origins, exp }
-function embedOriginsFor(slug) {
-  const now = Date.now();
-  const c = _embedOriginsCache.get(slug);
-  if (c && c.exp > now) return c.origins;
-  let origins = [];
-  try {
-    const rows = db.prepare('SELECT DISTINCT url FROM ap_timeline WHERE slug = ? AND url IS NOT NULL').all(slug);
-    const set = new Set();
-    for (const r of rows) { try { set.add(new URL(r.url).origin); } catch { /* skip bad url */ } }
-    origins = [...set];
-  } catch { origins = []; }
-  _embedOriginsCache.set(slug, { origins, exp: now + 60000 });
-  return origins;
-}
-
 export async function renderPage(req, res, viewName, data = {}) {
   // Decide: partial (HTMX) or full?
   const isPartial = req.headers['hx-request'] === 'true' || req.query.partial === '1';
@@ -113,20 +93,15 @@ export async function renderPage(req, res, viewName, data = {}) {
   // to hide/disable write buttons (post, save, delete).
   const _isViewer = isViewer(_u);
 
-  // Per-domain CSP: let a logged-in site manager frame the Klonkt players of the sites in
-  // their timeline (followed + boosted) on the DOCUMENT, so cross-site embeds also work
-  // after an htmx/PWA navigation. NEVER on authorize_interaction — that page shows
-  // untrusted remote content next to the interact buttons, so no embeds / no frame-src
-  // loosening there (clickjacking risk).
-  try {
-    if (_site && _site.slug && viewName !== 'pages/authorize-interaction' && _u && PermissionsService.canAdminSite(_u, _site)) {
-      const origins = embedOriginsFor(_site.slug);
-      if (origins.length) {
-        const csp = res.getHeader('Content-Security-Policy');
-        if (csp) res.setHeader('Content-Security-Policy', String(csp).replace(/frame-src ([^;]*)/i, (m, g) => `frame-src ${g} ${origins.join(' ')}`));
-      }
-    }
-  } catch { /* CSP extension is best-effort */ }
+  // Embeds are framed broadly (frame-src https: globally), EXCEPT on authorize_interaction:
+  // that page renders untrusted remote content next to the interact buttons, so lock its
+  // frame-src down to 'self' (no embeds → no clickjacking/overlay over the buttons).
+  if (viewName === 'pages/authorize-interaction') {
+    try {
+      const csp = res.getHeader('Content-Security-Policy');
+      if (csp) res.setHeader('Content-Security-Policy', String(csp).replace(/frame-src [^;]*/i, "frame-src 'self'"));
+    } catch { /* best-effort */ }
+  }
 
   // Who sees the "Admin" link? god/admin, a site owner (artist self-manage),
   // and a viewer (may view Admin read-only). One source of truth,
