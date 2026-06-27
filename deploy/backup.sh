@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# PrutCMS v10 — nightly backup script.
+# Klonkt — nightly backup script.
 #
 # Snapshots:
 #   • SQLite database (uses .backup so it's safe while the app is running)
@@ -12,13 +12,13 @@
 # Rotation: keeps the last $KEEP_DAYS dumps, prunes older.
 #
 # Recommended cron:
-#   0 3 * * * /home/robin/prutcms/deploy/backup.sh >> /home/robin/prutcms/logs/backup.log 2>&1
+#   0 3 * * * /home/robin/klonkt/deploy/backup.sh >> /home/robin/klonkt/logs/backup.log 2>&1
 
 set -euo pipefail
 
 # ── Config ────────────────────────────────────────────────────────
-APP_DIR="${APP_DIR:-/home/robin/prutcms}"
-BACKUP_DIR="${BACKUP_DIR:-/home/robin/backups/prutcms}"
+APP_DIR="${APP_DIR:-/home/robin/klonkt}"
+BACKUP_DIR="${BACKUP_DIR:-/home/robin/backups/klonkt}"
 KEEP_DAYS="${KEEP_DAYS:-14}"
 TS="$(date +%Y%m%d-%H%M%S)"
 
@@ -34,7 +34,7 @@ else
 fi
 
 # ── Tar the snapshot + storage subdirs ────────────────────────────
-ARCHIVE="$BACKUP_DIR/prutcms-$TS.tar.gz"
+ARCHIVE="$BACKUP_DIR/klonkt-$TS.tar.gz"
 tar -czf "$ARCHIVE" \
     -C "$BACKUP_DIR" "$(basename "$DB_SNAPSHOT")" \
     -C "$APP_DIR/storage" \
@@ -46,7 +46,7 @@ tar -czf "$ARCHIVE" \
 rm -f "$DB_SNAPSHOT"
 
 # ── Rotation ───────────────────────────────────────────────────────
-find "$BACKUP_DIR" -type f -name 'prutcms-*.tar.gz' -mtime "+$KEEP_DAYS" -delete
+find "$BACKUP_DIR" -type f -name 'klonkt-*.tar.gz' -mtime "+$KEEP_DAYS" -delete
 
 SIZE="$(du -h "$ARCHIVE" | cut -f1)"
 echo "[$TS] backup OK: $ARCHIVE ($SIZE)"

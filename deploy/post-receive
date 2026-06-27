@@ -1,8 +1,8 @@
 #!/bin/bash
-# PrutFolio deploy-hook — werkt zoals logboek-hook.
-# Bare repo is single source of truth.
-# /srv/prutfolio is de working tree — gevuld via "git --work-tree=..."
-# (geen .git submap erin), zelfde patroon als logboek->celine.
+# Klonkt deploy hook — works like the logboek hook.
+# The bare repo is the single source of truth.
+# /srv/prutfolio is the working tree — populated via "git --work-tree=..."
+# (no .git subdir inside), same pattern as logboek->celine.
 set -e
 
 DEPLOY=/srv/prutfolio
@@ -13,9 +13,9 @@ while read oldrev newrev refname ; do
 
     echo ">>> Deploying $newrev to $DEPLOY"
 
-    # 1. Heel zelden — als een eerdere bug git-internals los in $DEPLOY
-    #    heeft gedumpt (HEAD/objects/refs op root), eenmalig opruimen
-    #    zodat dit een echte working tree wordt.
+    # 1. Very rarely — if an earlier bug dumped git internals loose into
+    #    $DEPLOY (HEAD/objects/refs at the root), clean them up once so this
+    #    becomes a real working tree.
     if [ -f "$DEPLOY/HEAD" ] && [ -d "$DEPLOY/objects" ] && [ ! -d "$DEPLOY/.git" ]; then
         echo "    cleanup: stale bare-init artifacts in $DEPLOY"
         for f in branches config description FETCH_HEAD HEAD hooks info objects refs ORIG_HEAD; do
@@ -23,10 +23,10 @@ while read oldrev newrev refname ; do
         done
     fi
 
-    # 2. Force-checkout van bare-repo state naar working tree.
+    # 2. Force-checkout the bare-repo state into the working tree.
     git --git-dir="$GIT_DIR" --work-tree="$DEPLOY" checkout -f main
 
-    # 3. npm install alleen als package-lock.json wijzigde.
+    # 3. npm install only when package-lock.json changed.
     if [ -n "$oldrev" ] && [ "$oldrev" != "0000000000000000000000000000000000000000" ]; then
         if git --git-dir="$GIT_DIR" diff --name-only "$oldrev" "$newrev" | grep -q "^package-lock.json$"; then
             echo ">>> package-lock.json changed — npm ci --production"
@@ -37,5 +37,5 @@ while read oldrev newrev refname ; do
     # 4. pm2 reload — process is named "klonkt"
     pm2 reload klonkt 2>/dev/null || true
 
-    echo ">>> Done. App-files in $DEPLOY ongemoeid (.env, node_modules, storage)."
+    echo ">>> Done. App files in $DEPLOY left untouched (.env, node_modules, storage)."
 done

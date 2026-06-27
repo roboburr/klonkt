@@ -151,8 +151,7 @@ sudo systemctl status certbot.timer
 ```
 
 Now visit `https://YOUR-DOMAIN/`. You should see your site over HTTPS, with
-HSTS active and Prutter WebSocket working (browser dev-tools → Network →
-filter "WS" → see the `wss://YOUR-DOMAIN/ws/prutter` connection).
+HSTS active.
 
 ---
 

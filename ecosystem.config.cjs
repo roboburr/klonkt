@@ -3,11 +3,9 @@
  *
  * Single fork (NOT cluster mode) because:
  *  - SqliteSessionStore is in-process: cluster workers wouldn't share sessions.
- *  - PrutterService.wsConnections is in-process: WS broadcast wouldn't reach
- *    sockets attached to other workers.
  *  - better-sqlite3 is synchronous and not designed for multi-process writes.
- * If you ever need horizontal scaling, swap the session/Prutter stores for a
- * shared backend (Redis) first, then enable cluster mode.
+ * If you ever need horizontal scaling, swap the session store for a shared
+ * backend (Redis) first, then enable cluster mode.
  *
  * Usage:
  *   pm2 start ecosystem.config.cjs --env production

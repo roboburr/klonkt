@@ -1,6 +1,6 @@
--- PrutFolio v1 — initial schema
--- Forked from PrutCMS v9 (PHP, file-based) → SQLite/Node
--- Complete schema with v9 features (Prutter, Forum, Audio, Themes) + v10 CRDT
+-- Klonkt — initial schema
+-- Forked from a v9 PHP, file-based CMS → SQLite/Node
+-- Complete schema with the v9 features (Forum, Audio, Themes) + v10 CRDT
 
 -- ==================== USERS ====================
 CREATE TABLE IF NOT EXISTS users (

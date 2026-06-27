@@ -10,8 +10,8 @@
 // (oob=true) gerenderd. De logica staat hier zodat beide identiek zijn.
 //
 //   _isAuth     → focus-scherm (in/uitloggen): helemaal geen chrome.
-//   _headerless → hub-homepagina én de Prutter-chat: WÉL de mini topnav-balk,
-//                 GEEN profielkop (hub: hero = header; chat: full-height view).
+//   _headerless → hub-homepagina én full-height views: WÉL de mini topnav-balk,
+//                 GEEN profielkop (hub: hero = header).
 //   anders      → topnav + profielkop (+ view-switcher buiten admin).
 var _isAdmin   = typeof bodyClass === 'string' && bodyClass.indexOf('on-admin') >= 0;
 var _isAuth    = typeof bodyClass === 'string' && bodyClass.indexOf('on-auth') >= 0;
