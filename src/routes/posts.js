@@ -231,12 +231,13 @@ router.post('/posts/create', requireAuth, (req, res) => {
       ).run(HtmlSanitizerService.toPlainText(cleanContent), title || '', req.session.user.username, postId);
     } catch (e) { /* FTS index issues are non-fatal */ }
 
-    // ActivityPub: federate a freshly published public post to followers.
-    if (!fanOnly) {
+    // ActivityPub: federate a freshly published post to followers. fan_only → delivered
+    // to followers but addressed followers-only (option A: "fans" = your fedi followers).
+    if (status === 'published') {
       ActivityPubService.deliverCreate(site, {
         id: postId, slug: finalSlug, title: title || finalSlug,
         content: cleanContent, cover_image_url: cover_image_url || null,
-        published_at: publishedAt, created_at: now,
+        published_at: publishedAt, created_at: now, fan_only: fanOnly,
       }).catch(() => { /* best-effort */ });
     }
   }
@@ -355,12 +356,12 @@ router.post('/posts/:slug/save', requireAuth, (req, res) => {
 
   // ActivityPub: federate edits to followers. A post that BECOMES published →
   // Create (new post); an already-published post that's edited → Update (so
-  // Mastodon refreshes its cached copy). fan_only posts don't federate.
-  if (finalStatus === 'published' && !fanOnly) {
+  // Mastodon refreshes its cached copy). fan_only → followers-only (option A).
+  if (finalStatus === 'published') {
     const apPost = {
       id: post.id, slug: finalSlug, title: title || finalSlug,
       content: cleanContent, cover_image_url: cover_image_url || null,
-      published_at: publishedAt, created_at: post.created_at,
+      published_at: publishedAt, created_at: post.created_at, fan_only: fanOnly,
     };
     if (post.status !== 'published') ActivityPubService.deliverCreate(site, apPost).catch(() => { /* best-effort */ });
     else ActivityPubService.deliverUpdate(site, apPost).catch(() => { /* best-effort */ });
@@ -390,10 +391,10 @@ router.post('/posts/:slug/delete', requireAuth, (req, res) => {
     return res.status(403).send('No permission');
   }
 
-  // ActivityPub: tell followers the post is gone (Delete + Tombstone), but only
-  // if it was actually federated (published + not fan-only). Fire before the row
-  // is removed — we still have post.id (= the Note id).
-  if (post.status === 'published' && !post.fan_only) {
+  // ActivityPub: tell followers the post is gone (Delete + Tombstone) if it was
+  // federated (any published post now federates — fan_only goes followers-only).
+  // Fire before the row is removed — we still have post.id (= the Note id).
+  if (post.status === 'published') {
     ActivityPubService.deliverDelete(site, post).catch(() => { /* best-effort */ });
   }
 

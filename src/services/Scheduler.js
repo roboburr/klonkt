@@ -31,19 +31,17 @@ export function flipScheduledPosts() {
       // Delete-before-insert so a re-scheduled (previously published) post doesn't
       // get a duplicate FTS row → duplicate search hits.
       try { ftsDel.run(p.id); fts.run(HtmlSanitizerService.toPlainText(p.content || ''), p.title || '', p.username || '', p.id); } catch { /* FTS failure is non-fatal */ }
-      // ActivityPub: federate the now-published post to followers.
-      if (!p.fan_only) {
-        try {
-          const site = siteStmt.get(p.site_id);
-          if (site) {
-            ActivityPubService.deliverCreate(site, {
-              id: p.id, slug: p.slug, title: p.title || p.slug,
-              content: p.content, cover_image_url: p.cover_image_url || null,
-              published_at: p.published_at || p.publish_at, created_at: p.created_at,
-            }).catch(() => { /* best-effort */ });
-          }
-        } catch { /* non-fatal */ }
-      }
+      // ActivityPub: federate the now-published post to followers (fan_only → followers-only).
+      try {
+        const site = siteStmt.get(p.site_id);
+        if (site) {
+          ActivityPubService.deliverCreate(site, {
+            id: p.id, slug: p.slug, title: p.title || p.slug,
+            content: p.content, cover_image_url: p.cover_image_url || null,
+            published_at: p.published_at || p.publish_at, created_at: p.created_at, fan_only: p.fan_only,
+          }).catch(() => { /* best-effort */ });
+        }
+      } catch { /* non-fatal */ }
     }
     return due.length;
   } catch { return 0; }

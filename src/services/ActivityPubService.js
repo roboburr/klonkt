@@ -239,8 +239,10 @@ export function buildNote(base, site, post) {
     content: titleHtml + body,
     url: human,
     published: new Date(post.published_at || post.created_at || Date.now()).toISOString(),
-    to: [PUBLIC],
-    cc: [`${aId}/followers`],
+    // fan_only = "fans only" → followers-only visibility (delivered to your followers
+    // but not addressed to Public, so Mastodon shows it only to them and can't boost it).
+    to: post.fan_only ? [`${aId}/followers`] : [PUBLIC],
+    cc: post.fan_only ? [] : [`${aId}/followers`],
     tag: Array.isArray(post.tags) ? post.tags.map((t) => ({ type: 'Hashtag', name: '#' + String(t).replace(/\s+/g, '') })) : [],
     replies: `${id}/replies`,
   };
