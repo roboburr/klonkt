@@ -25,17 +25,24 @@ let _profileLinks = [];
 if (site && site.profile_links) {
   try { _profileLinks = JSON.parse(site.profile_links) || []; } catch (e) { _profileLinks = []; }
 }
+
+// Profile-summary (lightbox) helpers — used by the avatar + the summary modal.
+const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '';
+const _avatarUrl = (site && site.profile_photo) || ((typeof siteOwnerAvatar !== 'undefined' && siteOwnerAvatar) || '');
+const _platforms = (typeof platforms_catalog !== 'undefined' && platforms_catalog) || {};
+const _linkHref = function (p, u) { u = String(u || '').trim(); if (p === 'email' && u && u.indexOf('mailto:') !== 0) return 'mailto:' + u; if (p === 'phone' && u && !/^tel:/i.test(u)) return 'tel:' + u.replace(/[^\d+]/g, ''); return u; };
+const _linkVal = function (u) { return String(u || '').replace(/^(mailto:|tel:|https?:\/\/)/i, '').replace(/\/$/, ''); };
+const _isPrem = (typeof isPremium !== 'undefined' && isPremium);
+let _sinceStr = ''; try { if (site && site.created_at) _sinceStr = new Date(site.created_at).toLocaleDateString('nl-NL', { day: '2-digit', month: 'short', year: 'numeric' }); } catch (e) {}
 %>
 
 <% if (_showProfile) { %>
 <aside class="profile-header" aria-label="Site profile">
   <div class="container profile-header-inner">
 
-    <% var _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : ''; %>
-    <% var _avatarUrl = site.profile_photo || ((typeof siteOwnerAvatar !== 'undefined' && siteOwnerAvatar) || ''); %>
     <% if (_avatarUrl) { %>
-      <%# With a real photo: clicking opens a lightbox (enlarged view) instead of going home. %>
-      <button type="button" class="profile-photo" data-lightbox="<%= _avatarUrl %>" aria-label="<%= _displayName || 'Profile photo' %>">
+      <%# With a real photo: clicking opens the profile-summary modal (photo + details). %>
+      <button type="button" class="profile-photo" data-pf-summary aria-label="<%= _displayName || 'Profile' %>">
         <img src="<%= _avatarUrl %>" alt="">
       </button>
     <% } else { %>
@@ -103,6 +110,33 @@ if (site && site.profile_links) {
 
   </div>
 </aside>
+
+<%# Profile-summary modal — opened by clicking the avatar. Shows photo + title + subtitle
+    + contact details + start date + premium status. %>
+<% if (_avatarUrl) { %>
+<div class="pf-summary">
+  <div class="pf-summary-card" role="dialog" aria-label="<%= _displayName %>">
+    <button type="button" class="pf-summary-close" aria-label="Sluiten">&times;</button>
+    <img class="pf-summary-photo" src="<%= _avatarUrl %>" alt="">
+    <h3 class="pf-summary-name"><%= _displayName %></h3>
+    <span class="pf-summary-prem<%= _isPrem ? ' is-prem' : '' %>"><%= _isPrem ? '★ Premium' : t('profile.free') %></span>
+    <% if (_bioText) { %><p class="pf-summary-bio"><%= _bioText %></p><% } %>
+    <% if (_profileLinks.length) { %>
+      <ul class="pf-summary-links">
+        <% _profileLinks.forEach(function (l) { var meta = _platforms[l.platform]; if (!meta) return; var href = _linkHref(l.platform, l.url); var ext = (l.platform !== 'email' && l.platform !== 'phone'); %>
+          <li>
+            <a href="<%= href %>" <% if (ext) { %>target="_blank" rel="noopener noreferrer"<% } %> style="--brand: <%= meta.brand %>">
+              <span class="pf-summary-ico" aria-hidden="true"><%- meta.svg %></span>
+              <span class="pf-summary-rowtext"><span class="pf-summary-lbl"><%= meta.label %></span><span class="pf-summary-val"><%= _linkVal(l.url) %></span></span>
+            </a>
+          </li>
+        <% }); %>
+      </ul>
+    <% } %>
+    <% if (_sinceStr) { %><p class="pf-summary-since"><%= t('profile.since') %> <%= _sinceStr %></p><% } %>
+  </div>
+</div>
+<% } %>
 <script>
 (function () {
   if (window.__pcmsFediFollowWired) return;
@@ -120,24 +154,20 @@ if (site && site.profile_links) {
   });
 })();
 
-/* Lightbox: click the profile photo to see it enlarged. */
+/* Profile summary: click the avatar to open a modal with photo + details. */
 (function () {
   if (window.__pcmsLightboxWired) return; window.__pcmsLightboxWired = true;
-  var lb = null;
-  function close(){ if (lb) lb.classList.remove('is-open'); }
+  function close() { var m = document.querySelector('.pf-summary.is-open'); if (m) m.classList.remove('is-open'); }
   document.addEventListener('click', function (e) {
-    var t = e.target.closest && e.target.closest('.profile-photo[data-lightbox]');
+    if (e.target.closest && e.target.closest('.pf-summary-close')) { e.preventDefault(); close(); return; }
+    var open = document.querySelector('.pf-summary.is-open');
+    if (open && e.target === open) { close(); return; } /* click on backdrop */
+    var t = e.target.closest && e.target.closest('.profile-photo[data-pf-summary]');
     if (!t) return;
     e.preventDefault();
-    var url = t.getAttribute('data-lightbox'); if (!url) return;
-    if (!lb) {
-      lb = document.createElement('div'); lb.className = 'pcms-lightbox';
-      lb.innerHTML = '<img alt=""><button type="button" class="pcms-lightbox-close" aria-label="Sluiten">&times;</button>';
-      document.body.appendChild(lb);
-      lb.addEventListener('click', function (ev) { if (ev.target === lb || (ev.target.closest && ev.target.closest('.pcms-lightbox-close'))) close(); });
-    }
-    lb.querySelector('img').src = url;
-    lb.classList.add('is-open');
+    var root = (t.closest && t.closest('#pcms-chrome')) || document;
+    var modal = root.querySelector('.pf-summary') || document.querySelector('.pf-summary');
+    if (modal) modal.classList.add('is-open');
   });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
 })();
@@ -312,15 +342,34 @@ if (site && site.profile_links) {
    glyph at 18px — render it larger INSIDE the same 36px circle (circle unchanged). */
 .profile-fedi-link svg { width: 22px; height: 22px; }
 
-/* Profile-photo lightbox overlay */
-.pcms-lightbox { position: fixed; inset: 0; z-index: 2147483600; display: none;
+/* Profile-summary modal (click the avatar) */
+.profile-photo[data-pf-summary] { cursor: zoom-in; }
+.pf-summary { position: fixed; inset: 0; z-index: 2147483600; display: none;
   align-items: center; justify-content: center; padding: 4vmin;
-  background: rgba(0,0,0,.86); cursor: zoom-out; }
-.pcms-lightbox.is-open { display: flex; }
-.pcms-lightbox img { max-width: 92vw; max-height: 92vh; border-radius: 12px;
-  box-shadow: 0 10px 50px rgba(0,0,0,.55); cursor: default; }
-.pcms-lightbox-close { position: fixed; top: 1rem; right: 1.1rem; width: 44px; height: 44px;
-  border: 0; border-radius: 50%; background: rgba(255,255,255,.14); color: #fff;
-  font-size: 1.9rem; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-.pcms-lightbox-close:hover { background: rgba(255,255,255,.26); }
+  background: rgba(0,0,0,.7); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+.pf-summary.is-open { display: flex; }
+.pf-summary-card { position: relative; width: 100%; max-width: 380px; max-height: 90vh; overflow-y: auto;
+  background: var(--paper); color: var(--ink); border: 1px solid var(--rule); border-radius: 20px;
+  padding: 1.75rem 1.5rem; box-shadow: 0 20px 60px rgba(0,0,0,.4); text-align: center; }
+.pf-summary-close { position: absolute; top: .6rem; right: .7rem; width: 36px; height: 36px; border: 0;
+  border-radius: 50%; background: var(--paper-2); color: var(--ink-soft); font-size: 1.5rem; line-height: 1;
+  cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.pf-summary-close:hover { color: var(--ink); }
+.pf-summary-photo { width: 110px; height: 110px; border-radius: 50%; object-fit: cover; margin: 0 auto .9rem;
+  display: block; border: 3px solid var(--paper-2); background: #fff; }
+.pf-summary-name { font-family: var(--font-display, serif); font-size: 1.4rem; margin: 0 0 .35rem; }
+.pf-summary-prem { display: inline-block; margin: 0 0 .7rem; padding: .15rem .6rem; border-radius: 999px;
+  font-size: .75rem; font-weight: 600; background: var(--paper-2); color: var(--ink-soft); }
+.pf-summary-prem.is-prem { background: color-mix(in srgb, #e8b04b 22%, transparent); color: #b8860b; }
+.pf-summary-bio { color: var(--ink-soft); font-size: .92rem; line-height: 1.5; margin: 0 0 1rem; }
+.pf-summary-links { list-style: none; padding: 0; margin: .25rem 0 1rem; display: flex; flex-direction: column; gap: .4rem; text-align: left; }
+.pf-summary-links a { display: flex; align-items: center; gap: .7rem; padding: .5rem .7rem; border-radius: 12px;
+  text-decoration: none; color: var(--ink); background: var(--paper-2); transition: background .12s; }
+.pf-summary-links a:hover { background: color-mix(in srgb, var(--brand, var(--accent)) 16%, var(--paper-2)); }
+.pf-summary-ico { flex: 0 0 22px; width: 22px; height: 22px; color: var(--brand, var(--ink-soft)); display: inline-flex; }
+.pf-summary-ico svg { width: 22px; height: 22px; }
+.pf-summary-rowtext { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.pf-summary-lbl { font-size: .72rem; font-weight: 600; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .03em; }
+.pf-summary-val { font-size: .9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-summary-since { color: var(--ink-soft); font-size: .8rem; margin: 0; }
 </style>
