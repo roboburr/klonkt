@@ -14,8 +14,9 @@ yours. No algorithm, no ads, no platform sitting in between.
   see a home timeline, and reply/like back — Klonkt is a full fediverse client.
 - **Grow**: newsletter, download-for-email, EPK/press kit, link-in-bio,
   show calendar, and **cookie-free statistics**.
-- **Circles** — connect your site with other Klonkt sites and show each other's
-  public posts; decentralized, with no central platform (Ed25519-signed federation).
+- **Circles** — a curated feed of the makers you choose: feature accounts (other Klonkt
+  sites, Mastodon, PeerTube — any fediverse server) and their public posts appear in your
+  Circle. Decentralized, no central platform — built on ActivityPub.
 - **Themes & languages** — multiple palettes (light + dark), interface in EN/NL/DE.
 - **Installable (PWA)**, **privacy-first** (self-hosted fonts, no tracking).
 
@@ -164,7 +165,7 @@ registration then closes. Lost your password?
 - **DB:** better-sqlite3 (WAL), self-migrating on boot
 - **Templates:** EJS (server-rendered) + **htmx 1.9** (vendored, no build step)
 - **Audio:** ffmpeg-static (bundled)
-- **Circles:** Ed25519-signed pull (libsodium via Node crypto)
+- **Fediverse / Circles:** ActivityPub (HTTP Signatures) — federates with Mastodon, PeerTube and other Klonkt sites
 - **Fonts:** self-hosted variable woff2 (Fraunces / Plus Jakarta Sans)
 
 ## Project structure
