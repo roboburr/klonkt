@@ -964,6 +964,20 @@ export async function deliverReply(site, { postId, postSlug, parent, text }) {
   return { id, content, delivered };
 }
 
+// attributedTo may be a string, an object {id}, or an ARRAY — e.g. a PeerTube Video is
+// attributed to [Person (account), Group (channel)]. Pick a usable actor URI (prefer Person).
+function actorUriOf(att) {
+  if (!att) return null;
+  if (typeof att === 'string') return att;
+  if (Array.isArray(att)) {
+    const person = att.find((a) => a && typeof a === 'object' && a.type === 'Person' && a.id);
+    if (person) return person.id;
+    for (const a of att) { if (typeof a === 'string') return a; if (a && a.id) return a.id; }
+    return null;
+  }
+  return att.id || null;
+}
+
 // Resolve a remote post URL (any fediverse/Klonkt post) into a reply target.
 // Returns a parent-shaped object usable by deliverReply(), or null.
 export async function resolveRemoteNote(url) {
@@ -971,7 +985,7 @@ export async function resolveRemoteNote(url) {
   const note = await fetchActor(url).catch(() => null); // AP GET (content-negotiates)
   if (!note || !note.id) return null;
   const att = note.attributedTo;
-  const actorUri = typeof att === 'string' ? att : (att && att.id);
+  const actorUri = actorUriOf(att);
   if (!actorUri) return null;
   const actor = await fetchActor(actorUri).catch(() => null);
   const ai = actorInfo(actor, actorUri);
@@ -989,7 +1003,7 @@ export async function resolveRemoteNote(url) {
     if (!url) break;
     const pn = await fetchActor(url).catch(() => null);
     if (!pn) break;
-    const pa = typeof pn.attributedTo === 'string' ? pn.attributedTo : (pn.attributedTo && pn.attributedTo.id);
+    const pa = actorUriOf(pn.attributedTo);
     if (pa && pa !== actorUri) {
       const paDoc = await fetchActor(pa).catch(() => null);
       const inbox = paDoc && ((paDoc.endpoints && paDoc.endpoints.sharedInbox) || paDoc.inbox);
@@ -997,7 +1011,10 @@ export async function resolveRemoteNote(url) {
     }
     cursor = pn.inReplyTo; // climb to the next ancestor
   }
-  const rawHtml = String(note.content || '').replace(/\[\[(track|album|playlist):[^\]]+\]\]/gi, '');
+  // For non-Note objects (PeerTube Video, Article, …) the meaningful label is `name` (the
+  // title); prepend it so the reply page shows what you're replying to (sanitize cleans it).
+  let rawHtml = String(note.content || '').replace(/\[\[(track|album|playlist):[^\]]+\]\]/gi, '');
+  if (note.name && note.type && note.type !== 'Note') rawHtml = `<p><strong>${note.name}</strong></p>` + rawHtml;
   const images = (Array.isArray(note.attachment) ? note.attachment : [])
     .filter((a) => a && a.url && (!a.mediaType || /^image\//i.test(a.mediaType)))
     .map((a) => safeUrl(a.url)).filter(Boolean);
