@@ -20,7 +20,10 @@
         <input type="radio" name="mode" value="cirkels" <%= (typeof apEnabledSetting === 'undefined' || apEnabledSetting) ? 'checked' : '' %>>
         <span><strong><%= t('aset.mode_cirkels') %></strong><small><%= t('aset.mode_cirkels_help') %></small></span>
       </label>
-      <p class="set-help" style="margin:.2rem 0 0;color:var(--accent);font-weight:600">🔞 <%= t('aset.mode_18plus') %></p>
+      <div style="display:flex;gap:.6rem;align-items:flex-start;margin:.7rem 0 .2rem;padding:.7rem .85rem;border-radius:10px;border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);background:color-mix(in srgb,var(--accent) 7%,transparent)">
+        <span style="font-size:1.05rem;line-height:1.4;flex:0 0 auto" aria-hidden="true">🔞</span>
+        <span style="font-size:.85rem;line-height:1.5;color:var(--ink)"><%= t('aset.mode_18plus') %></span>
+      </div>
       <div class="set-actions"><button type="submit" class="btn btn-primary"><%= t('aset.save') %></button></div>
     </form>
     <script>
