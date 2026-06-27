@@ -27,6 +27,10 @@ Klonkt then runs as a lightweight **blog/photo/EPK/links site without ffmpeg** �
 ideal for minimal hosting. Circles and external embeds
 (YouTube/SoundCloud/Spotify) keep working.
 
+It's **fully reversible**: set `KLONKT_AUDIO` back to `on` (or remove the line)
+and restart — no reinstall. The flag only toggles the audio routes/UI; the
+database tables are never dropped, so any tracks you had are preserved.
+
 ## Self-hosting
 
 Klonkt is a **Node app** — run it on a **VPS, in Docker, or on a Node hosting
