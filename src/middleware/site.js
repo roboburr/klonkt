@@ -109,11 +109,14 @@ export function loadTheme(req, res, next) {
   const user = req.session?.user;
   const site = res.locals.site;
   
-  // Priority: user setting > site setting > default
-  const palette = (user && PALETTES.includes(user.palette) ? user.palette : null)
-                || (site && PALETTES.includes(site.palette) ? site.palette : null)
+  // A site always renders in ITS OWN palette, regardless of who is viewing. There is
+  // no per-user palette UI (user.palette is vestigial/stale data from old migrations),
+  // and the htmx pcmsNav path (render.js) already uses the site palette only — so reading
+  // user.palette here made a full page load (owner logged in) flip to the viewer's stale
+  // palette while htmx-nav kept the site's, i.e. "palette changes on hard refresh".
+  const palette = (site && PALETTES.includes(site.palette) ? site.palette : null)
                 || 'klonkt';
-  
+
   res.locals.palette = palette;
   res.locals.theme = (user && ['dark','light'].includes(user.theme)) ? user.theme : 'dark';
   
