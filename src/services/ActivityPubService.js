@@ -933,7 +933,8 @@ function buildHashtagList(base, tagsField, content) {
 // Extract Mention tag objects from already-linked content (class="u-url mention").
 function mentionTags(content) {
   const tags = [], seen = new Set();
-  const re = /<a href="([^"]+)" class="u-url mention">@([^<]+)<\/a>/gi;
+  // The link href is the human profile URL; the actor URI (for the Mention tag) is in data-actor.
+  const re = /<a href="[^"]*" class="u-url mention" data-actor="([^"]+)">@([^<]+)<\/a>/gi;
   let m;
   while ((m = re.exec(content || ''))) {
     const href = m[1];
@@ -958,9 +959,10 @@ async function resolveMentionsInText(base, html) {
     const actor = await fetchActor(actorUri).catch(() => null);
     const inbox = actor && ((actor.endpoints && actor.endpoints.sharedInbox) || actor.inbox);
     if (inbox) inboxes.push(inbox);
+    const profileUrl = actorInfo(actor, actorUri).url || actorUri; // human profile page → the link href
     const esc = h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     out = out.replace(new RegExp('(^|[\\s>])@' + esc + '(?![A-Za-z0-9_.-])', 'g'),
-      (full, pre) => `${pre}<a href="${actorUri}" class="u-url mention">@${h}</a>`);
+      (full, pre) => `${pre}<a href="${profileUrl}" class="u-url mention" data-actor="${actorUri}">@${h}</a>`);
   }
   return { html: out, inboxes };
 }
@@ -1004,7 +1006,7 @@ export async function deliverReply(site, { postId, postSlug, parent, text }) {
   const body = escHtml(String(text).trim()).replace(/\r?\n/g, '<br>');
   const mres = await resolveMentionsInText(base, body); // link inline @mentions + collect their inboxes
   const mention = parent.actor_uri
-    ? `<a href="${escHtml(parent.actor_uri || parent.actor_url)}" class="u-url mention">${escHtml(dispHandle)}</a> ` : '';
+    ? `<a href="${escHtml(parent.actor_url || parent.actor_uri)}" class="u-url mention" data-actor="${escHtml(parent.actor_uri)}">${escHtml(dispHandle)}</a> ` : '';
   const content = `<p>${mention}${linkHashtags(base, mres.html)}</p>`;
   // Dedup: skip if the exact same reply was already sent (double-submit guard).
   const dup = db.prepare('SELECT 1 FROM ap_outbox WHERE site_slug = ? AND IFNULL(in_reply_to, \'\') = ? AND content = ? LIMIT 1')
@@ -1157,8 +1159,12 @@ export async function deliverOutboxUpdate(site, outboxId, newText) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   if (!base) return false;
   const me = actorId(base, site.slug);
+  const toActor = row.to_actor ? await fetchActor(row.to_actor).catch(() => null) : null;
+  const toProfile = row.to_actor ? (actorInfo(toActor, row.to_actor).url || row.to_actor) : '';
+  const _h = row.to_handle || deriveHandle(row.to_actor);
+  const toHandle = _h && _h[0] === '@' ? _h : '@' + (_h || '');
   const mention = row.to_actor
-    ? `<a href="${escHtml(row.to_actor)}" class="u-url mention">${escHtml(row.to_handle || deriveHandle(row.to_actor))}</a> ` : '';
+    ? `<a href="${escHtml(toProfile)}" class="u-url mention" data-actor="${escHtml(row.to_actor)}">${escHtml(toHandle)}</a> ` : '';
   const mres = await resolveMentionsInText(base, escHtml(text).replace(/\r?\n/g, '<br>'));
   const content = `<p>${mention}${linkHashtags(base, mres.html)}</p>`;
   db.prepare('UPDATE ap_outbox SET content = ? WHERE id = ?').run(content, outboxId);
@@ -1171,8 +1177,9 @@ export async function deliverOutboxUpdate(site, outboxId, newText) {
   };
   const keys = getOrCreateKeys(site.slug);
   const inboxes = new Set();
-  if (row.to_actor) { const a = await fetchActor(row.to_actor).catch(() => null); if (a) inboxes.add((a.endpoints && a.endpoints.sharedInbox) || a.inbox); }
+  if (toActor) inboxes.add((toActor.endpoints && toActor.endpoints.sharedInbox) || toActor.inbox);
   for (const f of fStmts().list.all(site.slug)) inboxes.add(f.shared_inbox || f.inbox);
+  mres.inboxes.forEach((i) => inboxes.add(i)); // people @mentioned inline in the edit
   inboxes.delete(`${me}/inbox`); inboxes.delete(`${base}/ap/inbox`);
   let delivered = 0;
   for (const inbox of [...inboxes].filter(Boolean)) {
