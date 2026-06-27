@@ -930,6 +930,41 @@ function buildHashtagList(base, tagsField, content) {
   return out;
 }
 
+// Extract Mention tag objects from already-linked content (class="u-url mention").
+function mentionTags(content) {
+  const tags = [], seen = new Set();
+  const re = /<a href="([^"]+)" class="u-url mention">@([^<]+)<\/a>/gi;
+  let m;
+  while ((m = re.exec(content || ''))) {
+    const href = m[1];
+    if (seen.has(href)) continue; seen.add(href);
+    tags.push({ type: 'Mention', href, name: '@' + m[2] });
+  }
+  return tags;
+}
+// Resolve inline @user@domain mentions in reply/post text → link them (href = actor URI)
+// and collect the mentioned actors' inboxes so they get notified. Best-effort per mention.
+async function resolveMentionsInText(base, html) {
+  const inboxes = [];
+  const handles = new Set();
+  const re = /(^|[\s>])@([A-Za-z0-9_.-]+@[A-Za-z0-9.-]+)/g;
+  let m;
+  while ((m = re.exec(html || ''))) handles.add(m[2]);
+  let out = String(html || '');
+  for (const h of handles) {
+    let actorUri = null;
+    try { actorUri = await webfingerResolve('@' + h); } catch { actorUri = null; }
+    if (!actorUri) continue;
+    const actor = await fetchActor(actorUri).catch(() => null);
+    const inbox = actor && ((actor.endpoints && actor.endpoints.sharedInbox) || actor.inbox);
+    if (inbox) inboxes.push(inbox);
+    const esc = h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    out = out.replace(new RegExp('(^|[\\s>])@' + esc + '(?![A-Za-z0-9_.-])', 'g'),
+      (full, pre) => `${pre}<a href="${actorUri}" class="u-url mention">@${h}</a>`);
+  }
+  return { html: out, inboxes };
+}
+
 export function buildReplyNote(base, site, row) {
   const me = actorId(base, site.slug);
   return {
@@ -943,7 +978,7 @@ export function buildReplyNote(base, site, row) {
     to: row.to_actor ? [row.to_actor] : [PUBLIC],
     cc: [PUBLIC, `${me}/followers`],
     tag: [
-      ...(row.to_actor ? [{ type: 'Mention', href: row.to_actor, name: row.to_handle }] : []),
+      ...mentionTags(row.content),
       ...hashtagTags(base, row.content),
     ],
   };
@@ -965,10 +1000,12 @@ export async function deliverReply(site, { postId, postSlug, parent, text }) {
   if (!base || !site || !site.slug || !parent || !String(text || '').trim()) return null;
   const me = actorId(base, site.slug);
   const handle = parent.actor_handle || deriveHandle(parent.actor_uri);
+  const dispHandle = handle && handle[0] === '@' ? handle : '@' + (handle || '');
   const body = escHtml(String(text).trim()).replace(/\r?\n/g, '<br>');
+  const mres = await resolveMentionsInText(base, body); // link inline @mentions + collect their inboxes
   const mention = parent.actor_uri
-    ? `<a href="${escHtml(parent.actor_url || parent.actor_uri)}" class="u-url mention">${escHtml(handle)}</a> ` : '';
-  const content = `<p>${mention}${linkHashtags(base, body)}</p>`;
+    ? `<a href="${escHtml(parent.actor_uri || parent.actor_url)}" class="u-url mention">${escHtml(dispHandle)}</a> ` : '';
+  const content = `<p>${mention}${linkHashtags(base, mres.html)}</p>`;
   // Dedup: skip if the exact same reply was already sent (double-submit guard).
   const dup = db.prepare('SELECT 1 FROM ap_outbox WHERE site_slug = ? AND IFNULL(in_reply_to, \'\') = ? AND content = ? LIMIT 1')
     .get(site.slug, parent.object_uri || '', content);
@@ -992,6 +1029,7 @@ export async function deliverReply(site, { postId, postSlug, parent, text }) {
   if (parent.threadInbox) inboxes.add(parent.threadInbox); // back-compat (single)
   (parent.threadInboxes || []).forEach((i) => inboxes.add(i)); // whole ancestor chain
   for (const f of fStmts().list.all(site.slug)) inboxes.add(f.shared_inbox || f.inbox);
+  mres.inboxes.forEach((i) => inboxes.add(i)); // people @mentioned inline in the reply
   inboxes.delete(`${me}/inbox`);       // never deliver to ourselves (already in ap_outbox)
   inboxes.delete(`${base}/ap/inbox`);  // (our own shared inbox) → avoids a self-duplicate
   let delivered = 0;
@@ -1121,8 +1159,8 @@ export async function deliverOutboxUpdate(site, outboxId, newText) {
   const me = actorId(base, site.slug);
   const mention = row.to_actor
     ? `<a href="${escHtml(row.to_actor)}" class="u-url mention">${escHtml(row.to_handle || deriveHandle(row.to_actor))}</a> ` : '';
-  const body = escHtml(text).replace(/\r?\n/g, '<br>');
-  const content = `<p>${mention}${linkHashtags(base, body)}</p>`;
+  const mres = await resolveMentionsInText(base, escHtml(text).replace(/\r?\n/g, '<br>'));
+  const content = `<p>${mention}${linkHashtags(base, mres.html)}</p>`;
   db.prepare('UPDATE ap_outbox SET content = ? WHERE id = ?').run(content, outboxId);
   const note = buildReplyNote(base, site, iStmts().getO.get(outboxId));
   note.updated = new Date().toISOString();
