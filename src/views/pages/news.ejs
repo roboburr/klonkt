@@ -42,6 +42,7 @@
           <% auds.forEach(function(m){ %><audio class="tl-media-audio" src="<%= m.url %>" controls preload="none"></audio><% }); %>
 
           <% if (p.embedHtml) { %><div class="tl-embed"><%- p.embedHtml %></div><% } %>
+          <% if (p.embedUrl) { %><a class="tl-embed-open" href="<%= p.embedUrl %>" target="_blank" rel="noopener">▶ <%= t('tl.open_player') %></a><% } %>
 
           <% if (p.url) { %><a class="tl-orig" href="<%= p.url %>" target="_blank" rel="nofollow noopener"><%= t('tl.view_original') %></a><% } %>
 
@@ -104,6 +105,8 @@
   .tl-embed-klonkt { aspect-ratio: auto; height: 180px; background: var(--paper, #fff); }
   .tl-embed-bandcamp { aspect-ratio: auto; height: 470px; }
   .tl-embed-apple { aspect-ratio: auto; height: 175px; }
+  .tl-embed-open { display: inline-block; margin: .45rem .9rem 0 0; font-size: .82rem; font-weight: 600; color: var(--accent); text-decoration: none; }
+  .tl-embed-open:hover { text-decoration: underline; }
 
   .tl-orig { display: inline-block; margin: .7rem 0 0; font-size: .82rem; color: var(--accent, #06c); text-decoration: none; }
   .tl-orig:hover { text-decoration: underline; }

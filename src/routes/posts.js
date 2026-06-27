@@ -626,7 +626,7 @@ function klonktAudioEmbed(html, url) {
   const src = u.origin + '/embed?post=' + encodeURIComponent(slug);
   // Drop the now-redundant "🎵 … listen on <site>" line — the embedded player below shows it.
   const content = html.replace(/<p>🎵[\s\S]*?<\/p>\s*/i, '');
-  return { origin: u.origin, content, html: `<iframe class="tl-embed-frame tl-embed-klonkt" src="${src}" title="Audio" loading="lazy" frameborder="0" allow="autoplay; encrypted-media"></iframe>` };
+  return { origin: u.origin, embedUrl: src, content, html: `<iframe class="tl-embed-frame tl-embed-klonkt" src="${src}" title="Audio" loading="lazy" frameborder="0" allow="autoplay; encrypted-media"></iframe>` };
 }
 
 router.get('/news', requireSiteManager, (req, res) => {
@@ -635,11 +635,15 @@ router.get('/news', requireSiteManager, (req, res) => {
   const timeline = (site ? ActivityPubService.getTimeline(site.slug, 60) : []).map((p) => {
     let embedHtml = timelineEmbedHtml(p.content);
     let content = p.content;
+    let embedUrl = null;
     if (!embedHtml) {
       const k = klonktAudioEmbed(p.content, p.url);
-      if (k) { embedHtml = k.html; content = k.content; cspOrigins.add(k.origin); }
+      if (k) { embedHtml = k.html; content = k.content; embedUrl = k.embedUrl; cspOrigins.add(k.origin); }
     }
-    return { ...p, content, embedHtml };
+    // embedUrl = the player's direct /embed?post=… URL. Surfaced so the view can offer a
+    // top-level "open the player" link that works even when a browser shield/CSP blocks
+    // the cross-site iframe (a full-page navigation is not a cross-site frame).
+    return { ...p, content, embedHtml, embedUrl };
   });
   // Option A: allow the followed Klonkt sites' player iframes (you follow them) by
   // extending ONLY this response's CSP frame-src. The global policy stays locked down.
