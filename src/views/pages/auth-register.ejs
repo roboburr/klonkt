@@ -21,7 +21,8 @@
     </label>
     <label>
       <span><%= t('auth.f_username') %></span>
-      <input type="text" name="username" value="<%= username %>" required autocomplete="username" pattern="[a-zA-Z0-9_-]{3,32}">
+      <input type="text" id="setup-username" name="username" value="<%= username %>" required autocomplete="username" pattern="[a-zA-Z0-9_-]{3,32}">
+      <small class="setup-handle-hint"><%= t('setup.username_note') %> <code id="setup-handle">@username@…</code></small>
     </label>
     <label>
       <span><%= t('auth.f_email') %></span>
@@ -34,3 +35,20 @@
     <button type="submit" class="btn btn-primary"><%= t('setup.submit') %></button>
   </form>
 </div>
+
+<style>
+  .setup-handle-hint { display: block; margin-top: .35rem; font-size: .82rem; line-height: 1.4; color: var(--ink-soft, #888); }
+  .setup-handle-hint code { color: var(--accent); font-weight: 600; background: color-mix(in srgb, var(--accent) 12%, transparent); padding: .05rem .35rem; border-radius: 6px; white-space: nowrap; }
+</style>
+<script>
+(function () {
+  var u = document.getElementById('setup-username'), out = document.getElementById('setup-handle');
+  if (!u || !out) return;
+  function upd() {
+    var v = (u.value || '').toLowerCase().replace(/[^a-z0-9_-]/g, '') || 'username';
+    out.textContent = '@' + v + '@' + location.host;
+  }
+  u.addEventListener('input', upd);
+  upd();
+})();
+</script>
