@@ -683,9 +683,16 @@ const _embedUrl = _postAudio
 (function () {
   function autoSize(ta) {
     if (!ta || ta.tagName !== 'TEXTAREA') return;
-    ta.style.overflowY = 'hidden';
+    // Skip hidden textareas (e.g. inside a closed <details> or an unopened reply
+    // box): measuring scrollHeight there yields a bad height that sticks as inline
+    // style and makes the field open huge. They get sized on focus once visible.
+    if (ta.offsetParent === null && ta.offsetHeight === 0) return;
     ta.style.height = 'auto';
-    ta.style.height = ta.scrollHeight + 'px';
+    var maxH = parseFloat(getComputedStyle(ta).maxHeight);
+    var sh = ta.scrollHeight;
+    var h = (maxH && !isNaN(maxH)) ? Math.min(sh, maxH) : sh;   // respect a CSS max-height
+    ta.style.height = h + 'px';
+    ta.style.overflowY = sh > h ? 'auto' : 'hidden';
   }
   function sizeAll(root) {
     (root || document).querySelectorAll('textarea').forEach(autoSize);
