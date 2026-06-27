@@ -2395,18 +2395,20 @@ body.on-cirkel[data-feed-view="grid"]  .feed-grid { display: block; }
     pointer-events: none; /* klik moet naar de <a> eronder gaan, niet naar de overlay */
 }
 /* Bron-site (cirkel-feed): toont bij hover "van <site>" onder de titel. */
+/* Source label: small text that wraps to 2 lines if needed, with a big chain icon
+   beside it (the text was 1.44rem — bigger than the title — and overflowed on mobile). */
 .grid-tile-overlay-src {
     color: #fff; opacity: .85;
-    font-size: 1.44rem; margin-top: .2rem;
-    display: inline-flex; align-items: center;
+    font-size: .72rem; line-height: 1.2; margin-top: .25rem;
+    display: flex; align-items: center; gap: .3rem; width: 100%;
 }
-.grid-tile-overlay-src::before { content: "⛓"; margin-right: .25rem; font-size: .9em; }
+.grid-tile-overlay-src::before { content: "⛓"; font-size: 1.3rem; line-height: 1; flex: 0 0 auto; }
 .grid-tile-gradient-src {
-    margin-top: .35rem; font-size: 1.44rem; opacity: .85;
+    margin-top: .35rem; font-size: .72rem; line-height: 1.2; opacity: .85;
     color: var(--ink-soft);
-    display: inline-flex; align-items: center;
+    display: flex; align-items: center; gap: .3rem; width: 100%;
 }
-.grid-tile-gradient-src::before { content: "⛓"; margin-right: .25rem; font-size: .9em; }
+.grid-tile-gradient-src::before { content: "⛓"; font-size: 1.3rem; line-height: 1; flex: 0 0 auto; }
 .grid-tile-overlay strong {
     color: #fff;
     font-family: var(--font-display);

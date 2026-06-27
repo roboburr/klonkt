@@ -40,28 +40,22 @@ let _sinceStr = ''; try { if (site && site.created_at) _sinceStr = new Date(site
 <aside class="profile-header" aria-label="Site profile">
   <div class="container profile-header-inner">
 
-    <% if (_avatarUrl) { %>
-      <%# With a real photo: clicking opens the profile-summary modal (photo + details). %>
-      <button type="button" class="profile-photo" data-pf-summary aria-label="<%= _displayName || 'Profile' %>">
+    <%# Clicking the avatar — photo OR placeholder — opens the profile-summary modal. %>
+    <button type="button" class="profile-photo" data-pf-summary aria-label="<%= _displayName || 'Profile' %>">
+      <% if (_avatarUrl) { %>
         <img src="<%= _avatarUrl %>" alt="">
-      </button>
-    <% } else { %>
-      <a class="profile-photo" href="<%= _base %>/"
-         hx-get="<%= _base %>/?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
-         hx-push-url="<%= _base %>/" hx-indicator="#pcms-loading" aria-label="Home">
-        <% if (site.enable_audio_player && (typeof audioEnabled === 'undefined' || audioEnabled)) { %>
-          <span class="profile-photo-fallback profile-photo-fallback--music" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M9 17V5l12-2v12"/>
-              <circle cx="6" cy="17" r="3"/>
-              <circle cx="18" cy="15" r="3"/>
-            </svg>
-          </span>
-        <% } else { %>
-          <span class="profile-photo-fallback" aria-hidden="true"><%= (_displayName || '?').charAt(0).toUpperCase() %></span>
-        <% } %>
-      </a>
-    <% } %>
+      <% } else if (site.enable_audio_player && (typeof audioEnabled === 'undefined' || audioEnabled)) { %>
+        <span class="profile-photo-fallback profile-photo-fallback--music" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 17V5l12-2v12"/>
+            <circle cx="6" cy="17" r="3"/>
+            <circle cx="18" cy="15" r="3"/>
+          </svg>
+        </span>
+      <% } else { %>
+        <span class="profile-photo-fallback" aria-hidden="true"><%= (_displayName || '?').charAt(0).toUpperCase() %></span>
+      <% } %>
+    </button>
 
     <div class="profile-info">
       <h2 class="profile-name">
@@ -113,11 +107,18 @@ let _sinceStr = ''; try { if (site && site.created_at) _sinceStr = new Date(site
 
 <%# Profile-summary modal — opened by clicking the avatar. Shows photo + title + subtitle
     + contact details + start date + premium status. %>
-<% if (_avatarUrl) { %>
 <div class="pf-summary">
   <div class="pf-summary-card" role="dialog" aria-label="<%= _displayName %>">
     <button type="button" class="pf-summary-close" aria-label="Sluiten">&times;</button>
-    <img class="pf-summary-photo" src="<%= _avatarUrl %>" alt="">
+    <% if (_avatarUrl) { %>
+      <img class="pf-summary-photo" src="<%= _avatarUrl %>" alt="">
+    <% } else { %>
+      <div class="pf-summary-photo pf-summary-photo--ph" aria-hidden="true">
+        <% if (site.enable_audio_player && (typeof audioEnabled === 'undefined' || audioEnabled)) { %>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17V5l12-2v12"/><circle cx="6" cy="17" r="3"/><circle cx="18" cy="15" r="3"/></svg>
+        <% } else { %><span><%= (_displayName || '?').charAt(0).toUpperCase() %></span><% } %>
+      </div>
+    <% } %>
     <h3 class="pf-summary-name"><%= _displayName %></h3>
     <span class="pf-summary-prem<%= _isPrem ? ' is-prem' : '' %>"><%= _isPrem ? '★ Premium' : t('profile.free') %></span>
     <% if (_bioText) { %><p class="pf-summary-bio"><%= _bioText %></p><% } %>
@@ -142,7 +143,6 @@ let _sinceStr = ''; try { if (site && site.created_at) _sinceStr = new Date(site
     <% if (_sinceStr) { %><p class="pf-summary-since"><%= t('profile.since') %> <%= _sinceStr %></p><% } %>
   </div>
 </div>
-<% } %>
 <% if (_showFollow) { %>
 <%# Follow-via-fediverse modal — replaces the native prompt() (which looked ugly). %>
 <div class="pf-follow">
@@ -402,6 +402,9 @@ let _sinceStr = ''; try { if (site && site.created_at) _sinceStr = new Date(site
 .pf-summary-close:hover { color: var(--ink); }
 .pf-summary-photo { width: 110px; height: 110px; border-radius: 50%; object-fit: cover; margin: 0 auto .9rem;
   display: block; border: 3px solid var(--paper-2); background: #fff; }
+.pf-summary-photo--ph { display: flex; align-items: center; justify-content: center; background: var(--paper-2); }
+.pf-summary-photo--ph svg { width: 46px; height: 46px; color: var(--accent); }
+.pf-summary-photo--ph span { font-family: var(--font-display, serif); font-size: 2.6rem; font-weight: 700; color: var(--ink-soft); }
 .pf-summary-name { font-family: var(--font-display, serif); font-size: 1.4rem; margin: 0 0 .35rem; }
 .pf-summary-prem { display: inline-block; margin: 0 0 .7rem; padding: .15rem .6rem; border-radius: 999px;
   font-size: .75rem; font-weight: 600; background: var(--paper-2); color: var(--ink-soft); }
