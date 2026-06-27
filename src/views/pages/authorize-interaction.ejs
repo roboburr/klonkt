@@ -15,6 +15,9 @@
             </div>
             <div class="fedi-manage-content"><%- m.content %></div>
             <div class="fedi-manage-foot">
+              <% if (m.in_reply_to) { %>
+              <a class="fedi-goto-btn" href="<%= m.in_reply_to %>" target="_blank" rel="nofollow noopener"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg> <%= t('fedi.goto_post') %></a>
+              <% } else { %><span></span><% } %>
               <form method="post" action="/fediverse/<%= m.id %>/delete" onsubmit="return confirm('<%= t('fedi.delete_confirm') %>')">
                 <button type="submit" class="fedi-del-btn"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> <%= t('comments.delete') %></button>
               </form>
@@ -181,7 +184,9 @@
   .fedi-manage-content p { margin: .15rem 0; }
   .fedi-manage-content p:first-child { margin-top: 0; }
   .fedi-manage-content p:last-child { margin-bottom: 0; }
-  .fedi-manage-foot { display: flex; justify-content: flex-end; margin-top: .65rem; }
+  .fedi-manage-foot { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-top: .65rem; }
+  .fedi-goto-btn { display: inline-flex; align-items: center; gap: .35rem; border: 1px solid color-mix(in srgb, var(--accent, #888) 45%, transparent); background: color-mix(in srgb, var(--accent, #888) 12%, transparent); color: var(--accent, #06c); border-radius: 999px; padding: .3rem .8rem; font-size: .82rem; text-decoration: none; transition: background .15s ease; }
+  .fedi-goto-btn:hover { background: color-mix(in srgb, var(--accent, #888) 22%, transparent); }
   .fedi-del-btn { display: inline-flex; align-items: center; gap: .35rem; border: 1px solid color-mix(in srgb, #d9534f 45%, transparent); background: color-mix(in srgb, #d9534f 12%, transparent); color: #e06b66; border-radius: 999px; padding: .3rem .8rem; font: inherit; font-size: .82rem; cursor: pointer; transition: background .15s ease; }
   .fedi-del-btn:hover { background: color-mix(in srgb, #d9534f 24%, transparent); }
 </style>
