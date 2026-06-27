@@ -394,7 +394,7 @@ app.get('/sw.js', (req, res) => {
   res.set('Content-Type', 'application/javascript');
   res.set('Cache-Control', 'no-cache');
   res.send(`
-const CACHE_VERSION = 'pcms-v15-' + new Date().toISOString().split('T')[0];
+const CACHE_VERSION = 'pcms-v16-' + new Date().toISOString().split('T')[0];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE_VERSION).then(c => c.addAll(['/'])));
   self.skipWaiting();
@@ -413,6 +413,11 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   if (e.request.mode !== 'navigate') return; // page loads only
+  // Same-origin ONLY. A cross-origin navigate request is an <iframe> embed
+  // (YouTube/Spotify/SoundCloud …) — routing those through the SW yields an
+  // opaque/altered response the iframe cannot render → blank embeds in the
+  // installed PWA (which is always SW-controlled). Let the browser load them.
+  try { if (new URL(e.request.url).origin !== self.location.origin) return; } catch (err) { return; }
   e.respondWith(
     fetch(e.request).catch(() => caches.match('/').then(r => r || Response.error()))
   );
