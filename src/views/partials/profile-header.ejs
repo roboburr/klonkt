@@ -31,27 +31,30 @@ if (site && site.profile_links) {
 <aside class="profile-header" aria-label="Site profile">
   <div class="container profile-header-inner">
 
-    <a class="profile-photo" href="<%= (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '' %>/"
-       hx-get="<%= (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '' %>/?partial=1"
-       hx-target="#pcms-main" hx-swap="innerHTML"
-       hx-push-url="<%= (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '' %>/"
-       hx-indicator="#pcms-loading" aria-label="Home">
-      <% if (site.profile_photo) { %>
-        <img src="<%= site.profile_photo %>" alt="">
-      <% } else if (typeof siteOwnerAvatar !== 'undefined' && siteOwnerAvatar) { %>
-        <img src="<%= siteOwnerAvatar %>" alt="">
-      <% } else if (site.enable_audio_player && (typeof audioEnabled === 'undefined' || audioEnabled)) { %>
-        <span class="profile-photo-fallback profile-photo-fallback--music" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M9 17V5l12-2v12"/>
-            <circle cx="6" cy="17" r="3"/>
-            <circle cx="18" cy="15" r="3"/>
-          </svg>
-        </span>
-      <% } else { %>
-        <span class="profile-photo-fallback" aria-hidden="true"><%= (_displayName || '?').charAt(0).toUpperCase() %></span>
-      <% } %>
-    </a>
+    <% var _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : ''; %>
+    <% var _avatarUrl = site.profile_photo || ((typeof siteOwnerAvatar !== 'undefined' && siteOwnerAvatar) || ''); %>
+    <% if (_avatarUrl) { %>
+      <%# With a real photo: clicking opens a lightbox (enlarged view) instead of going home. %>
+      <button type="button" class="profile-photo" data-lightbox="<%= _avatarUrl %>" aria-label="<%= _displayName || 'Profile photo' %>">
+        <img src="<%= _avatarUrl %>" alt="">
+      </button>
+    <% } else { %>
+      <a class="profile-photo" href="<%= _base %>/"
+         hx-get="<%= _base %>/?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
+         hx-push-url="<%= _base %>/" hx-indicator="#pcms-loading" aria-label="Home">
+        <% if (site.enable_audio_player && (typeof audioEnabled === 'undefined' || audioEnabled)) { %>
+          <span class="profile-photo-fallback profile-photo-fallback--music" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 17V5l12-2v12"/>
+              <circle cx="6" cy="17" r="3"/>
+              <circle cx="18" cy="15" r="3"/>
+            </svg>
+          </span>
+        <% } else { %>
+          <span class="profile-photo-fallback" aria-hidden="true"><%= (_displayName || '?').charAt(0).toUpperCase() %></span>
+        <% } %>
+      </a>
+    <% } %>
 
     <div class="profile-info">
       <h2 class="profile-name">
@@ -116,6 +119,28 @@ if (site && site.profile_links) {
     location.href = 'https://' + server + '/authorize_interaction?uri=' + encodeURIComponent(actor);
   });
 })();
+
+/* Lightbox: click the profile photo to see it enlarged. */
+(function () {
+  if (window.__pcmsLightboxWired) return; window.__pcmsLightboxWired = true;
+  var lb = null;
+  function close(){ if (lb) lb.classList.remove('is-open'); }
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest && e.target.closest('.profile-photo[data-lightbox]');
+    if (!t) return;
+    e.preventDefault();
+    var url = t.getAttribute('data-lightbox'); if (!url) return;
+    if (!lb) {
+      lb = document.createElement('div'); lb.className = 'pcms-lightbox';
+      lb.innerHTML = '<img alt=""><button type="button" class="pcms-lightbox-close" aria-label="Sluiten">&times;</button>';
+      document.body.appendChild(lb);
+      lb.addEventListener('click', function (ev) { if (ev.target === lb || (ev.target.closest && ev.target.closest('.pcms-lightbox-close'))) close(); });
+    }
+    lb.querySelector('img').src = url;
+    lb.classList.add('is-open');
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+})();
 </script>
 <% } %>
 
@@ -141,13 +166,18 @@ if (site && site.profile_links) {
   display: block;
   width: 80px;
   height: 80px;
+  padding: 0;
   border-radius: 50%;
   overflow: hidden;
   background: var(--paper-2);
   border: 2px solid var(--rule);
   transition: width 250ms, height 250ms;
   cursor: pointer;
+  font: inherit;
+  -webkit-appearance: none;
+  appearance: none;
 }
+.profile-photo[data-lightbox] { cursor: zoom-in; }
 .profile-photo:hover {
   border-color: var(--accent);
 }
@@ -281,4 +311,16 @@ if (site && site.profile_links) {
 /* The fediverse logo is an open line-network, so it reads smaller than a solid
    glyph at 18px — render it larger INSIDE the same 36px circle (circle unchanged). */
 .profile-fedi-link svg { width: 22px; height: 22px; }
+
+/* Profile-photo lightbox overlay */
+.pcms-lightbox { position: fixed; inset: 0; z-index: 2147483600; display: none;
+  align-items: center; justify-content: center; padding: 4vmin;
+  background: rgba(0,0,0,.86); cursor: zoom-out; }
+.pcms-lightbox.is-open { display: flex; }
+.pcms-lightbox img { max-width: 92vw; max-height: 92vh; border-radius: 12px;
+  box-shadow: 0 10px 50px rgba(0,0,0,.55); cursor: default; }
+.pcms-lightbox-close { position: fixed; top: 1rem; right: 1.1rem; width: 44px; height: 44px;
+  border: 0; border-radius: 50%; background: rgba(255,255,255,.14); color: #fff;
+  font-size: 1.9rem; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.pcms-lightbox-close:hover { background: rgba(255,255,255,.26); }
 </style>
