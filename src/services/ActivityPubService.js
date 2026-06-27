@@ -1127,6 +1127,20 @@ export function unmarkLiked(slug, noteId) {
 export function getTimelineReaction(slug, noteId) {
   try { const r = db.prepare('SELECT liked, boosted FROM ap_timeline WHERE slug = ? AND id = ?').get(slug, noteId); return { liked: !!(r && r.liked), boosted: !!(r && r.boosted) }; } catch { return { liked: false, boosted: false }; }
 }
+// Boost a REMOTE post that may not be in your timeline (you don't follow the author):
+// store it in ap_timeline (INSERT OR IGNORE → no dup for followed posts) so it shows in
+// the Cirkel with a Boost badge, then flag it boosted.
+export function upsertBoostedNote(slug, note) {
+  if (!slug || !note || !note.object_uri) return;
+  const id = note.object_uri;
+  const media = JSON.stringify((note.images || []).map((u) => ({ url: u, type: 'image/jpeg' })));
+  try {
+    tlStmts().ins.run(id, slug, note.actor_uri || '', note.actor_name || '', note.actor_handle || '',
+      note.actor_icon || '', note.actor_url || '', note.content || '', note.url || null,
+      new Date().toISOString(), media);
+  } catch { /* ignore */ }
+  markBoosted(slug, id);
+}
 export function boostedCount(slug) {
   try { if (!_boostedCount) _boostedCount = db.prepare('SELECT COUNT(*) AS n FROM ap_timeline WHERE slug = ? AND boosted = 1'); return _boostedCount.get(slug).n; } catch { return 0; }
 }
@@ -1377,7 +1391,7 @@ export default {
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, setMyReaction, getMyReactions, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete,
   webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, getTimeline, sendInteraction,
-  autoBoostCount, boostedCount, markBoosted, unmarkBoosted, markLiked, unmarkLiked, getTimelineReaction, getCirkelPosts, getCirkelMembers, selfHealTimeline,
+  autoBoostCount, boostedCount, markBoosted, unmarkBoosted, markLiked, unmarkLiked, getTimelineReaction, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
   getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,

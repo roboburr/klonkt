@@ -536,7 +536,9 @@ router.post('/authorize_interaction/boost', requireSiteManager, (req, res) => {
         if (!note) return;
         const id = note.object_uri || uri;
         return Promise.resolve(ActivityPubService.sendInteraction(site, on ? 'boost' : 'unboost', id, note.actor_uri))
-          .then(() => on ? ActivityPubService.markBoosted(site.slug, id) : ActivityPubService.unmarkBoosted(site.slug, id));
+          // Boost → store the post in the timeline (even if you don't follow the author) so it
+          // surfaces in the Cirkel; unboost → just clear the flag.
+          .then(() => on ? ActivityPubService.upsertBoostedNote(site.slug, note) : ActivityPubService.unmarkBoosted(site.slug, id));
       })
       .catch((e) => console.warn('[AP] remote boost failed:', e.message));
     ActivityPubService.setMyReaction(site.slug, uri, 'boost', on);
