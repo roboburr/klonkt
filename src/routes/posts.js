@@ -176,6 +176,7 @@ router.post('/posts/create', requireAuth, (req, res) => {
   const { title, slug, content, excerpt, status, pinned, cover_image_url, tags, noindex, type } = req.body;
   const fanOnly = req.body.fan_only ? 1 : 0;
   const nsfw = req.body.nsfw ? 1 : 0;
+  const cw = (req.body.content_warning || '').trim().slice(0, 200);
 
   // Content arrives as user-authored HTML from the WYSIWYG editor — sanitize
   // before storage. Shortcode text tokens like [[track:UUID]] live in text
@@ -213,15 +214,15 @@ router.post('/posts/create', requireAuth, (req, res) => {
   db.prepare(`
     INSERT INTO posts (
       id, site_id, slug, author_id, title, content, excerpt,
-      status, cover_image_url, pinned, tags, type, noindex, fan_only, nsfw, publish_at,
+      status, cover_image_url, pinned, tags, type, noindex, fan_only, nsfw, content_warning, publish_at,
       created_at, updated_at, published_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     postId, site.id, finalSlug, req.session.user.id,
     title || finalSlug, cleanContent, excerpt || '',
     finalStatus, cover_image_url || null, parsePinnedRank(pinned),
     JSON.stringify((tags || '').split(',').map(t => t.trim()).filter(Boolean)),
-    finalType, noindex ? 1 : 0, fanOnly, nsfw, publishAt,
+    finalType, noindex ? 1 : 0, fanOnly, nsfw, cw, publishAt,
     now, now, publishedAt
   );
 
@@ -238,7 +239,7 @@ router.post('/posts/create', requireAuth, (req, res) => {
       ActivityPubService.deliverCreate(site, {
         id: postId, slug: finalSlug, title: title || finalSlug,
         content: cleanContent, cover_image_url: cover_image_url || null,
-        published_at: publishedAt, created_at: now, fan_only: fanOnly, nsfw,
+        published_at: publishedAt, created_at: now, fan_only: fanOnly, nsfw, content_warning: cw,
       }).catch(() => { /* best-effort */ });
     }
   }
@@ -297,6 +298,7 @@ router.post('/posts/:slug/save', requireAuth, (req, res) => {
   const { title, content, excerpt, status, pinned, cover_image_url, tags, noindex, type } = req.body;
   const fanOnly = req.body.fan_only ? 1 : 0;
   const nsfw = req.body.nsfw ? 1 : 0;
+  const cw = (req.body.content_warning || '').trim().slice(0, 200);
   const newSlug = req.body.slug;
   const action = req.body.action || 'save';
   const validTypes = new Set(['post', 'foto', 'video', 'audio']);
@@ -335,14 +337,14 @@ router.post('/posts/:slug/save', requireAuth, (req, res) => {
     UPDATE posts SET
       title = ?, content = ?, excerpt = ?, status = ?,
       cover_image_url = ?, pinned = ?, tags = ?,
-      type = ?, noindex = ?, fan_only = ?, nsfw = ?, publish_at = ?,
+      type = ?, noindex = ?, fan_only = ?, nsfw = ?, content_warning = ?, publish_at = ?,
       slug = ?, published_at = ?, updated_at = ?
     WHERE id = ?
   `).run(
     title, cleanContent, excerpt, finalStatus,
     cover_image_url || null, parsePinnedRank(pinned),
     JSON.stringify((tags || '').split(',').map(t => t.trim()).filter(Boolean)),
-    finalType, noindex ? 1 : 0, fanOnly, nsfw, publishAt,
+    finalType, noindex ? 1 : 0, fanOnly, nsfw, cw, publishAt,
     finalSlug, publishedAt, now, post.id
   );
 
@@ -363,7 +365,7 @@ router.post('/posts/:slug/save', requireAuth, (req, res) => {
     const apPost = {
       id: post.id, slug: finalSlug, title: title || finalSlug,
       content: cleanContent, cover_image_url: cover_image_url || null,
-      published_at: publishedAt, created_at: post.created_at, fan_only: fanOnly, nsfw,
+      published_at: publishedAt, created_at: post.created_at, fan_only: fanOnly, nsfw, content_warning: cw,
     };
     if (post.status !== 'published') ActivityPubService.deliverCreate(site, apPost).catch(() => { /* best-effort */ });
     else ActivityPubService.deliverUpdate(site, apPost).catch(() => { /* best-effort */ });

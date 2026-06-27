@@ -249,7 +249,7 @@ export function buildNote(base, site, post) {
     // (hides the whole post behind a "Gevoelige inhoud" button until the reader opens it).
     sensitive: !!post.nsfw,
   };
-  if (post.nsfw) note.summary = 'Gevoelige inhoud';
+  if (post.nsfw) note.summary = post.content_warning || 'Gevoelige inhoud';
   if (attachment.length) note.attachment = attachment;
   // Playable-audio posts suppress the cover attachment (player card). Still expose
   // the cover via AS2 `image` so card/grid consumers (the Klonkt Cirkel) can show
@@ -707,7 +707,7 @@ export async function handleInbox(req, slugParam) {
         // fediverse is only ever a deliberate, manual per-post action (the 🔁 on
         // the timeline).
         for (const s of subs) {
-          tlStmts().ins.run(o.id, s.slug, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.url || null, o.published || null, media);
+          tlStmts().ins.run(o.id, s.slug, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.url || null, o.published || null, media, o.sensitive ? 1 : 0, o.summary || null);
         }
         console.log('[AP] timeline +', actorUri, 'x' + subs.length);
       }
@@ -774,7 +774,7 @@ async function backfillNewFollower(base, slug, inbox) {
   const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(slug);
   if (!site) return;
   const recent = db.prepare(
-    `SELECT id, slug, title, content, cover_image_url, nsfw, published_at, created_at
+    `SELECT id, slug, title, content, cover_image_url, nsfw, content_warning, published_at, created_at
      FROM posts WHERE site_id = ? AND status = 'published' AND (fan_only IS NULL OR fan_only = 0)
      ORDER BY COALESCE(published_at, created_at) DESC LIMIT 20`
   ).all(site.id).reverse();
@@ -1010,6 +1010,8 @@ export async function resolveRemoteNote(url) {
     actor_icon: ai.icon,
     url: note.url || url,
     content: HtmlSanitizerService.sanitize(rawHtml),       // full, sanitized
+    sensitive: !!note.sensitive,                            // remote CW → blur in the Cirkel
+    cw: note.summary || '',
     images,
     threadInboxes,                                          // every ancestor author's inbox
     localPostId: localTgt ? localTgt.post_id : '',          // our post this belongs to (if any)
@@ -1082,7 +1084,7 @@ export function setAutoBoost(slug, actorUri, on) {
 let _insTl, _listTl, _delTl;
 function tlStmts() {
   if (!_insTl) {
-    _insTl = db.prepare('INSERT OR IGNORE INTO ap_timeline (id, slug, author_uri, author_name, author_handle, author_icon, author_url, content, url, published, media_json, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)');
+    _insTl = db.prepare('INSERT OR IGNORE INTO ap_timeline (id, slug, author_uri, author_name, author_handle, author_icon, author_url, content, url, published, media_json, nsfw, cw, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)');
     _listTl = db.prepare('SELECT * FROM ap_timeline WHERE slug = ? ORDER BY COALESCE(published, created_at) DESC LIMIT ?');
     _delTl = db.prepare('DELETE FROM ap_timeline WHERE id = ?');
   }
@@ -1101,7 +1103,7 @@ export function getCirkelPosts(slug, limit) {
     // (t.boosted), mixed by date. One row per note in ap_timeline → no duplicates.
     if (!_cirkelPosts) _cirkelPosts = db.prepare(`
       SELECT t.id, t.author_uri, t.author_name, t.author_handle, t.author_icon, t.author_url,
-             t.content, t.url, t.published, t.media_json, t.boosted
+             t.content, t.url, t.published, t.media_json, t.boosted, t.nsfw, t.cw
       FROM ap_timeline t
       LEFT JOIN ap_following f ON f.slug = t.slug AND f.actor_uri = t.author_uri
       WHERE t.slug = ? AND (f.auto_boost = 1 OR t.boosted = 1)
@@ -1141,7 +1143,7 @@ export function upsertBoostedNote(slug, note) {
   try {
     tlStmts().ins.run(id, slug, note.actor_uri || '', note.actor_name || '', note.actor_handle || '',
       note.actor_icon || '', note.actor_url || '', note.content || '', note.url || null,
-      new Date().toISOString(), media);
+      new Date().toISOString(), media, note.sensitive ? 1 : 0, note.cw || null);
   } catch { /* ignore */ }
   markBoosted(slug, id);
 }

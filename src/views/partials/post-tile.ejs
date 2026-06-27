@@ -36,5 +36,5 @@ const _ext = !!_external;
     <span class="grid-tile-title"><%= post.title || '(untitled)' %></span>
     <% if (_src) { %><span class="grid-tile-gradient-src">van <%= _src %></span><% } %>
   <% } %>
-  <% if (post.nsfw) { %><div class="nsfw-veil"><span class="nsfw-veil-label">🔞 <%= t('post.nsfw_warning') %></span><span class="nsfw-veil-btn"><%= t('post.nsfw_show') %></span></div><% } %>
+  <% if (post.nsfw) { %><div class="nsfw-veil"><span class="nsfw-veil-label">🔞 <%= post.content_warning || t('post.nsfw_warning') %></span><span class="nsfw-veil-btn"><%= t('post.nsfw_show') %></span></div><% } %>
 </a>

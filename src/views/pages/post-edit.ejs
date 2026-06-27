@@ -241,6 +241,9 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
           <input type="checkbox" name="nsfw" value="1" <%= post.nsfw ? 'checked' : '' %>>
           <span>🔞 <%= t('pedit.nsfw_label') %></span>
         </label>
+        <input type="text" name="content_warning" value="<%= post.content_warning || '' %>" maxlength="200"
+               placeholder="<%= t('pedit.nsfw_cw_ph') %>"
+               style="width:100%;box-sizing:border-box;margin:6px 0 2px;font-size:13px;padding:7px 9px">
         <% if (typeof premiumUnlocked === 'undefined' || premiumUnlocked) { %>
           <label class="pe-checkbox">
             <input type="checkbox" name="fan_only" value="1" <%= post.fan_only ? 'checked' : '' %>>

@@ -84,6 +84,7 @@ export function initializeDatabase() {
   ensureColumn('posts', 'publish_at', 'DATETIME');         // release planning (premium #3): scheduled go-live
   ensureColumn('posts', 'fan_only', 'INTEGER DEFAULT 0');  // fan-only preview (premium #3)
   ensureColumn('posts', 'nsfw',     'INTEGER DEFAULT 0');  // sensitive content → blur + click-to-reveal; fediverse sensitive
+  ensureColumn('posts', 'content_warning', 'TEXT');        // custom CW label (empty = default "Gevoelige inhoud")
   ensureColumn('posts', 'type',    "TEXT DEFAULT 'post'");  // post | foto | video | audio
 
   // Statistics (premium module) — bare counters, cookie-free.
@@ -415,6 +416,8 @@ export function initializeDatabase() {
   // A timeline post you boosted (🔁) — also shown in the Cirkel (mixed by date).
   ensureColumn('ap_timeline', 'boosted', 'INTEGER DEFAULT 0');
   ensureColumn('ap_timeline', 'liked', 'INTEGER DEFAULT 0'); // a feed post you liked (⭐) → toggle
+  ensureColumn('ap_timeline', 'nsfw', 'INTEGER DEFAULT 0');  // remote sensitive post → blur in the Cirkel
+  ensureColumn('ap_timeline', 'cw', 'TEXT');                 // remote content-warning text
 }
 
 function ensureColumn(table, column, definition) {

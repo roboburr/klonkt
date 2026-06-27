@@ -49,7 +49,7 @@ if (post.tags) {
        <% if (_ext) { %>target="_blank" rel="noopener"<% } else { %>hx-get="<%= _href %>?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="<%= _href %>" hx-indicator="#pcms-loading"<% } %>
        aria-label="<%= post.title || '(zonder titel)' %>" tabindex="-1">
       <img src="<%= post.cover_image_url %>" alt="" loading="lazy" decoding="async">
-      <% if (post.nsfw) { %><span class="nsfw-veil"><span class="nsfw-veil-label">🔞 <%= t('post.nsfw_warning') %></span><span class="nsfw-veil-btn"><%= t('post.nsfw_show') %></span></span><% } %>
+      <% if (post.nsfw) { %><span class="nsfw-veil"><span class="nsfw-veil-label">🔞 <%= post.content_warning || t('post.nsfw_warning') %></span><span class="nsfw-veil-btn"><%= t('post.nsfw_show') %></span></span><% } %>
     </a>
   <% } %>
 

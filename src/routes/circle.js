@@ -52,6 +52,8 @@ router.get('/cirkel', (req, res, next) => {
       tags: '',
       pinned: 0,
       isBoost: !!r.boosted, // a post YOU boosted → render in the pinned style with a Boost badge
+      nsfw: r.nsfw ? 1 : 0, // remote sensitive post → blur in the Cirkel (post-card/tile)
+      content_warning: r.cw || '',
       status: 'published',
       source_name: name,
       external_url: safeUrl(r.url),
