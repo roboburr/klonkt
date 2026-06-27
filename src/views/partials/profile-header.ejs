@@ -143,20 +143,59 @@ let _sinceStr = ''; try { if (site && site.created_at) _sinceStr = new Date(site
   </div>
 </div>
 <% } %>
+<% if (_showFollow) { %>
+<%# Follow-via-fediverse modal — replaces the native prompt() (which looked ugly). %>
+<div class="pf-follow">
+  <div class="pf-follow-card" role="dialog" aria-label="<%= t('fedi.follow_heading') %>">
+    <button type="button" class="pf-follow-cancel pf-follow-x" aria-label="Sluiten">&times;</button>
+    <h3 class="pf-follow-title"><%= t('fedi.follow_heading') %></h3>
+    <p class="pf-follow-sub"><%= t('fedi.remote_prompt') %></p>
+    <input type="text" class="pf-follow-input" inputmode="url" autocomplete="off" autocapitalize="none" spellcheck="false"
+           placeholder="<%= t('fedi.remote_ph') %>" list="pf-follow-servers">
+    <datalist id="pf-follow-servers"><option value="mastodon.social"></option><option value="mastodon.online"></option><option value="mas.to"></option><option value="fosstodon.org"></option><option value="hachyderm.io"></option></datalist>
+    <div class="pf-follow-actions">
+      <button type="button" class="pf-follow-cancel"><%= t('fedi.cancel') %></button>
+      <button type="button" class="pf-follow-go"><%= t('fedi.follow_btn') %></button>
+    </div>
+  </div>
+</div>
+<% } %>
 <script>
 (function () {
   if (window.__pcmsFediFollowWired) return;
   window.__pcmsFediFollowWired = true;
+  function modal() { return document.querySelector('.pf-follow'); }
+  function closeM() { var m = modal(); if (m) m.classList.remove('is-open'); }
+  function go() {
+    var m = modal(); if (!m) return;
+    var inp = m.querySelector('.pf-follow-input'), raw = inp ? inp.value : '';
+    // Strip a full @user@host handle (and any scheme/path) down to the server host.
+    var server = String(raw || '').trim().replace(/^@?[^@\s]*@/, '').replace(/^https?:\/\//i, '').replace(/\/.*$/, '').trim();
+    if (!server) { if (inp) inp.focus(); return; }
+    try { localStorage.setItem('pcmsFediServer', server); } catch (e) {}
+    var actor = location.origin + '/ap/users/' + encodeURIComponent(m.getAttribute('data-actor-slug') || '');
+    location.href = 'https://' + server + '/authorize_interaction?uri=' + encodeURIComponent(actor);
+  }
   document.addEventListener('click', function (e) {
     var b = e.target.closest && e.target.closest('.profile-fedi-link');
-    if (!b) return;
-    var raw = window.prompt(<%- JSON.stringify(t('fedi.remote_prompt')) %>, '');
-    if (!raw) return;
-    // Strip a full @user@host handle (and any scheme/path) down to the server host.
-    var server = raw.trim().replace(/^@?[^@\s]*@/, '').replace(/^https?:\/\//i, '').replace(/\/.*$/, '').trim();
-    if (!server) return;
-    var actor = location.origin + '/ap/users/' + encodeURIComponent(b.getAttribute('data-fedi-actor-slug') || '');
-    location.href = 'https://' + server + '/authorize_interaction?uri=' + encodeURIComponent(actor);
+    if (b) { e.preventDefault();
+      var m = modal(); if (!m) return;
+      m.setAttribute('data-actor-slug', b.getAttribute('data-fedi-actor-slug') || '');
+      var inp = m.querySelector('.pf-follow-input');
+      try { if (inp && !inp.value) inp.value = localStorage.getItem('pcmsFediServer') || ''; } catch (e2) {}
+      m.classList.add('is-open');
+      setTimeout(function () { if (inp) inp.focus(); }, 30);
+      return;
+    }
+    if (e.target.closest && e.target.closest('.pf-follow-go')) { e.preventDefault(); go(); return; }
+    if (e.target.closest && e.target.closest('.pf-follow-cancel')) { e.preventDefault(); closeM(); return; }
+    var open = document.querySelector('.pf-follow.is-open');
+    if (open && e.target === open) closeM(); /* click on backdrop */
+  });
+  document.addEventListener('keydown', function (e) {
+    var m = document.querySelector('.pf-follow.is-open'); if (!m) return;
+    if (e.key === 'Escape') { closeM(); }
+    else if (e.key === 'Enter' && e.target.closest && e.target.closest('.pf-follow')) { e.preventDefault(); go(); }
   });
 })();
 
@@ -383,4 +422,21 @@ let _sinceStr = ''; try { if (site && site.created_at) _sinceStr = new Date(site
   font: inherit; font-weight: 600; font-size: .88rem; cursor: pointer; transition: background .15s, color .15s; }
 .pf-summary-follow:hover { background: var(--accent); color: var(--paper); }
 .pf-summary-follow-ico { width: 18px; height: 18px; flex: 0 0 auto; }
+.pf-follow { position: fixed; inset: 0; z-index: 2147483601; display: none; align-items: center; justify-content: center; padding: 1rem; background: rgba(0,0,0,.55); }
+.pf-follow.is-open { display: flex; }
+.pf-follow-card { position: relative; width: 100%; max-width: 380px; text-align: left;
+  background: var(--paper); color: var(--ink); border: 1px solid var(--rule); border-radius: 16px;
+  padding: 1.5rem 1.4rem 1.3rem; box-shadow: 0 18px 50px rgba(0,0,0,.4); }
+.pf-follow-x { position: absolute; top: .55rem; right: .65rem; width: 2rem; height: 2rem; border: 0; border-radius: 999px;
+  background: transparent; color: var(--ink-soft); font-size: 1.4rem; line-height: 1; cursor: pointer; }
+.pf-follow-title { margin: 0 0 .35rem; font-size: 1.15rem; }
+.pf-follow-sub { margin: 0 0 .8rem; color: var(--ink-soft); font-size: .86rem; line-height: 1.45; }
+.pf-follow-input { width: 100%; box-sizing: border-box; padding: .6rem .8rem; border: 1.5px solid var(--rule);
+  border-radius: 10px; background: var(--paper-2); color: var(--ink); font: inherit; font-size: .95rem; }
+.pf-follow-input:focus { outline: none; border-color: var(--accent); }
+.pf-follow-actions { display: flex; justify-content: flex-end; gap: .6rem; margin-top: 1rem; }
+.pf-follow-actions button { padding: .5rem 1.1rem; border-radius: 999px; font: inherit; font-weight: 600; font-size: .88rem; cursor: pointer; border: 0; }
+.pf-follow-actions .pf-follow-cancel { background: transparent; border: 1.5px solid var(--rule); color: var(--ink); }
+.pf-follow-actions .pf-follow-go { background: var(--accent); color: var(--paper); }
+.pf-follow-actions .pf-follow-go:hover { filter: brightness(1.06); }
 </style>
