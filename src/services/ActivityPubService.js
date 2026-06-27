@@ -895,6 +895,24 @@ const escHtml = (s) => String(s || '').replace(/[<>&]/g, (c) => ({ '<': '&lt;', 
 const toISO = (v) => { if (!v) return new Date().toISOString(); const s = String(v); const d = new Date(/[TZ]/.test(s) ? s : s.replace(' ', 'T') + 'Z'); return isNaN(d) ? new Date().toISOString() : d.toISOString(); };
 
 // Build one of OUR outbound reply Notes from an ap_outbox row.
+// Turn #hashtags in reply text into Mastodon-style hashtag links (clickable + federated).
+function linkHashtags(base, html) {
+  return String(html || '').replace(/(^|[\s>])#([A-Za-z0-9_]+)/g, (m, pre, tag) =>
+    `${pre}<a href="${base}/tag/${encodeURIComponent(tag.toLowerCase())}" class="mention hashtag" rel="tag">#${tag}</a>`);
+}
+// Extract the AP Hashtag tag objects from already-linked reply content.
+function hashtagTags(base, content) {
+  const tags = [], seen = new Set();
+  const re = /class="[^"]*\bhashtag\b[^"]*"[^>]*>#([A-Za-z0-9_]+)</gi;
+  let m;
+  while ((m = re.exec(content || ''))) {
+    const k = m[1].toLowerCase();
+    if (seen.has(k)) continue; seen.add(k);
+    tags.push({ type: 'Hashtag', href: `${base}/tag/${encodeURIComponent(k)}`, name: '#' + m[1] });
+  }
+  return tags;
+}
+
 export function buildReplyNote(base, site, row) {
   const me = actorId(base, site.slug);
   return {
@@ -907,7 +925,10 @@ export function buildReplyNote(base, site, row) {
     published: toISO(row.created_at),
     to: row.to_actor ? [row.to_actor] : [PUBLIC],
     cc: [PUBLIC, `${me}/followers`],
-    tag: row.to_actor ? [{ type: 'Mention', href: row.to_actor, name: row.to_handle }] : [],
+    tag: [
+      ...(row.to_actor ? [{ type: 'Mention', href: row.to_actor, name: row.to_handle }] : []),
+      ...hashtagTags(base, row.content),
+    ],
   };
 }
 
@@ -930,7 +951,7 @@ export async function deliverReply(site, { postId, postSlug, parent, text }) {
   const body = escHtml(String(text).trim()).replace(/\r?\n/g, '<br>');
   const mention = parent.actor_uri
     ? `<a href="${escHtml(parent.actor_url || parent.actor_uri)}" class="u-url mention">${escHtml(handle)}</a> ` : '';
-  const content = `<p>${mention}${body}</p>`;
+  const content = `<p>${mention}${linkHashtags(base, body)}</p>`;
   // Dedup: skip if the exact same reply was already sent (double-submit guard).
   const dup = db.prepare('SELECT 1 FROM ap_outbox WHERE site_slug = ? AND IFNULL(in_reply_to, \'\') = ? AND content = ? LIMIT 1')
     .get(site.slug, parent.object_uri || '', content);
