@@ -45,7 +45,6 @@ export function initializeDatabase() {
   // Personal interface language (nl|en|de). Null = follow the default (site/env/browser).
   ensureColumn('users', 'lang', 'TEXT');
   // Site-level moderation toggle. 'trust' = auto-approve, 'moderate' = pending until reviewed.
-  ensureColumn('sites', 'comments_moderation_mode', "TEXT DEFAULT 'moderate'");
   // Circles: whether this site may appear in other sites' circles (surfacing opt-out).
   ensureColumn('sites', 'allow_circle', 'INTEGER DEFAULT 1');
 

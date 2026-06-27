@@ -39,8 +39,8 @@ export function ensurePrimarySite() {
       id, slug, title, description, tagline, owner_id,
       language, palette, accent, profile_photo,
       is_public, robots_index, require_login_to_comment, enable_audio_player,
-      feed_view_default, comments_moderation_mode, is_primary
-    ) VALUES (?, ?, ?, '', '', ?, 'en', 'klonkt', '#e8b04b', NULL, 1, 1, 1, 1, 'grid', 'moderate', 1)
+      feed_view_default, is_primary
+    ) VALUES (?, ?, ?, '', '', ?, 'en', 'klonkt', '#e8b04b', NULL, 1, 1, 1, 1, 'grid', 1)
   `).run(siteId, slug, defaultTitle(), owner.id);
 
   // site_members-entry zodat de owner door canAdminSite-checks komt.

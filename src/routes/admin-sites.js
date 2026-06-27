@@ -221,8 +221,8 @@ router.post('/create', requireGod, (req, res) => {
       id, slug, title, description, tagline, owner_id,
       language, palette, accent, profile_photo,
       is_public, robots_index, require_login_to_comment, enable_audio_player,
-      feed_view_default, comments_moderation_mode
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      feed_view_default
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     siteId, slug,
     (f.title || slug).slice(0, 200),
@@ -238,7 +238,6 @@ router.post('/create', requireGod, (req, res) => {
     f.require_login_to_comment ? 1 : 0,
     (f.enable_audio_player !== undefined ? (f.enable_audio_player ? 1 : 0) : 1),
     f.feed_view_default === 'timeline' ? 'timeline' : 'grid',
-    f.comments_moderation_mode === 'trust' ? 'trust' : 'moderate',
   );
 
   // The OWNER (not necessarily the creator) gets a site_members admin row → this
@@ -279,7 +278,6 @@ router.post('/:slug/save', requireSiteManagerBySlug, (req, res) => {
   if (!site) return res.redirect('/admin/sites?error=Not+found');
 
   const f = req.body;
-  const moderationMode = f.comments_moderation_mode === 'moderate' ? 'moderate' : 'trust';
   const feedViewDef = f.feed_view_default === 'grid' ? 'grid' : 'timeline';
   const profileLinksJson = buildProfileLinks(f);
 
@@ -299,7 +297,6 @@ router.post('/:slug/save', requireSiteManagerBySlug, (req, res) => {
       profile_links = ?,
       is_public = ?, robots_index = ?, require_login_to_comment = ?,
       enable_audio_player = ?,
-      comments_moderation_mode = ?,
       feed_view_default = ?, feed_view_switch = ?,
       show_search = ?, show_archive_link = ?,
       custom_css = ?, custom_head_html = ?, custom_foot_html = ?,
@@ -320,7 +317,6 @@ router.post('/:slug/save', requireSiteManagerBySlug, (req, res) => {
     f.robots_index ? 1 : 0,
     f.require_login_to_comment ? 1 : 0,
     f.enable_audio_player ? 1 : 0,
-    moderationMode,
     feedViewDef,
     f.feed_view_switch ? 1 : 0,
     f.show_search ? 1 : 0,
