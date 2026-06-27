@@ -39,6 +39,13 @@
                 <button type="submit" class="fedi-del-btn"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> <%= t('comments.delete') %></button>
               </form>
             </div>
+            <details class="fedi-edit">
+              <summary class="fedi-edit-toggle"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg> <%= t('fedi.edit') %></summary>
+              <form method="post" action="/fediverse/<%= m.id %>/edit" class="fedi-edit-form">
+                <textarea name="text" rows="3" maxlength="2000" class="fedi-edit-ta"><%= m.editable %></textarea>
+                <div class="fedi-edit-actions"><button type="submit" class="fedi-edit-save"><%= t('fedi.save_edit') %></button></div>
+              </form>
+            </details>
           </li>
         <% }); %>
       </ul>
@@ -216,6 +223,18 @@
   .fedi-bm-btn.nudge { animation: fedi-bm-nudge .6s ease; }
   @keyframes fedi-bm-nudge { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
   .fedi-bm-help { color: var(--ink-soft, #888); font-size: .82rem; line-height: 1.5; margin: .6rem 0 0; }
+  .fedi-edit { margin: .4rem 0 0; }
+  .fedi-edit > summary { display: inline-flex; align-items: center; gap: .35rem; cursor: pointer; list-style: none;
+    font-size: .78rem; font-weight: 600; color: var(--ink-soft, #888); padding: .2rem 0; }
+  .fedi-edit > summary::-webkit-details-marker { display: none; }
+  .fedi-edit[open] > summary { color: var(--accent); }
+  .fedi-edit-form { margin: .5rem 0 0; }
+  .fedi-edit-ta { width: 100%; box-sizing: border-box; min-height: 70px; resize: vertical; padding: .55rem .7rem;
+    border: 1.5px solid var(--rule, #333); border-radius: 10px; background: var(--paper-2, #14141a); color: var(--ink, #eee); font: inherit; font-size: .9rem; }
+  .fedi-edit-ta:focus { outline: none; border-color: var(--accent); }
+  .fedi-edit-actions { display: flex; justify-content: flex-end; margin-top: .5rem; }
+  .fedi-edit-save { padding: .4rem 1rem; border: 0; border-radius: 999px; background: var(--accent); color: var(--paper, #fff);
+    font: inherit; font-weight: 600; font-size: .82rem; cursor: pointer; }
 </style>
 
 <script>

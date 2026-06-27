@@ -594,6 +594,16 @@ router.post('/fediverse/:id/delete', requireSiteManager, async (req, res) => {
   res.redirect(req.get('Referer') || `${res.locals.siteUrlBase || ''}/fediverse`);
 });
 
+// Edit one of your own outbound fediverse replies (owner only) → sends an Update(Note).
+router.post('/fediverse/:id/edit', requireSiteManager, async (req, res) => {
+  const site = res.locals.site;
+  if (site && String(req.body.text || '').trim()) {
+    try { await ActivityPubService.deliverOutboxUpdate(site, req.params.id, req.body.text); }
+    catch (e) { console.warn('[AP] outbox edit failed:', e.message); }
+  }
+  res.redirect(req.get('Referer') || `${res.locals.siteUrlBase || ''}/fediverse`);
+});
+
 // ==================== FEDIVERSE CLIENT: home timeline + following ====================
 // Build a direct embed iframe for the first embeddable link (YouTube/Spotify/
 // SoundCloud/Vimeo) in a remote post's content, so others' media plays inline.

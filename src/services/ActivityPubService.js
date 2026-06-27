@@ -1075,9 +1075,19 @@ export async function resolveRemoteNote(url) {
 }
 
 // List a site's own outbound fediverse replies (for the manage/delete view).
+// The plain editable text of a stored reply (unwrap links → their text, <br> → newline)
+// so the manage view can prefill an edit box; the mention is re-added on save.
+function outboxEditableText(content) {
+  return String(content || '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<a\b[^>]*>([\s\S]*?)<\/a>/gi, '$1')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
+    .trim();
+}
 export function listOutbox(siteSlug) {
   return db.prepare('SELECT id, content, to_handle, in_reply_to, created_at FROM ap_outbox WHERE site_slug = ? ORDER BY created_at DESC')
-    .all(siteSlug).map((r) => ({ ...r, content: stripLeadingMentions(r.content) }));
+    .all(siteSlug).map((r) => { const c = stripLeadingMentions(r.content); return { ...r, content: c, editable: outboxEditableText(c) }; });
 }
 
 // Delete one of our outbound replies: send Delete(Tombstone) to recipients + remove it.
@@ -1097,6 +1107,41 @@ export async function deliverOutboxDelete(site, outboxId) {
   }
   db.prepare('DELETE FROM ap_outbox WHERE id = ?').run(outboxId);
   return true;
+}
+
+// Edit one of our outbound replies: rewrite the stored content (mention re-added + #tags
+// re-linked) and send an Update(Note) so recipients refresh their cached copy.
+export async function deliverOutboxUpdate(site, outboxId, newText) {
+  const row = iStmts().getO.get(outboxId);
+  if (!row || row.site_slug !== site.slug) return false;
+  const text = String(newText || '').trim();
+  if (!text) return false;
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  if (!base) return false;
+  const me = actorId(base, site.slug);
+  const mention = row.to_actor
+    ? `<a href="${escHtml(row.to_actor)}" class="u-url mention">${escHtml(row.to_handle || deriveHandle(row.to_actor))}</a> ` : '';
+  const body = escHtml(text).replace(/\r?\n/g, '<br>');
+  const content = `<p>${mention}${linkHashtags(base, body)}</p>`;
+  db.prepare('UPDATE ap_outbox SET content = ? WHERE id = ?').run(content, outboxId);
+  const note = buildReplyNote(base, site, iStmts().getO.get(outboxId));
+  note.updated = new Date().toISOString();
+  const update = {
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    id: `${note.id}#update-${Date.now()}-${rid()}`, type: 'Update', actor: me,
+    published: note.published, updated: note.updated, to: note.to, cc: note.cc, object: note,
+  };
+  const keys = getOrCreateKeys(site.slug);
+  const inboxes = new Set();
+  if (row.to_actor) { const a = await fetchActor(row.to_actor).catch(() => null); if (a) inboxes.add((a.endpoints && a.endpoints.sharedInbox) || a.inbox); }
+  for (const f of fStmts().list.all(site.slug)) inboxes.add(f.shared_inbox || f.inbox);
+  inboxes.delete(`${me}/inbox`); inboxes.delete(`${base}/ap/inbox`);
+  let delivered = 0;
+  for (const inbox of [...inboxes].filter(Boolean)) {
+    try { const st = await deliver(inbox, update, `${me}#main-key`, keys.private_pem); if (st >= 200 && st < 300) delivered++; } catch { /* best-effort */ }
+  }
+  console.log('[AP] outreply edit', site.slug, 'delivered', delivered);
+  return { ok: true, content, delivered };
 }
 
 // ── Fediverse CLIENT: follow accounts + home timeline ─────────────
@@ -1452,7 +1497,7 @@ export default {
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers, buildFeatured,
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, setMyReaction, getMyReactions, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
-  listOutbox, deliverOutboxDelete,
+  listOutbox, deliverOutboxDelete, deliverOutboxUpdate,
   webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, getTimeline, sendInteraction,
   autoBoostCount, boostedCount, markBoosted, unmarkBoosted, markLiked, unmarkLiked, getTimelineReaction, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
