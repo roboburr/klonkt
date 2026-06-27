@@ -222,6 +222,11 @@ export function buildNote(base, site, post) {
     const listenHref = playable ? `${human}?fc=${FEDI_CARD_VER}` : human;
     body += `<p>🎵 ${lbl ? `<strong>${lbl}</strong> — ` : ''}<a href="${listenHref}">listen on ${esc(site.title || 'the site')}</a></p>`;
   }
+  // Klonkt renders post content with white-space:pre-wrap, so raw newlines ARE line
+  // breaks on the site. Mastodon (plain HTML) collapses whitespace and would drop them,
+  // so convert newlines to <br> for the federated copy (content already made with
+  // shift+enter uses <br> and has no \n → this is a no-op there).
+  body = body.replace(/\r?\n/g, '<br>');
   const seen = new Set();
   const attachment = urls.filter(Boolean)
     .filter((u) => { if (seen.has(u)) return false; seen.add(u); return true; })
