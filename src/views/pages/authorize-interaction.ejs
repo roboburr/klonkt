@@ -2,6 +2,23 @@
   <% if (typeof manage !== 'undefined' && manage) { %>
     <%- include('../partials/fedi-tabs', { active: 'reacties' }) %>
     <h1 class="auth-interact-title"><%= t('fedi.manage_title') %></h1>
+
+    <%# Interact bookmarklet — drag to bookmarks bar, then click on any fediverse post. %>
+    <div class="fedi-bm">
+      <a class="fedi-bm-btn" id="fedi-bm-btn" href="#" draggable="true" title="<%= t('fedi.bm_help') %>">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+        <%= t('fedi.bm_label') %>
+      </a>
+      <p class="fedi-bm-help"><%= t('fedi.bm_help') %></p>
+    </div>
+    <script>
+    (function () {
+      if (window.__fediBmWired) return; window.__fediBmWired = true;
+      var a = document.getElementById('fedi-bm-btn'); if (!a) return;
+      a.setAttribute('href', "javascript:void(window.open('" + location.origin + "/authorize_interaction?uri='+encodeURIComponent(window.location.href)))");
+      a.addEventListener('click', function (e) { e.preventDefault(); a.classList.add('nudge'); setTimeout(function(){ a.classList.remove('nudge'); }, 600); });
+    })();
+    </script>
     <% if (!manage.length) { %>
       <p class="auth-interact-note"><%= t('fedi.manage_empty') %></p>
     <% } else { %>
@@ -189,6 +206,16 @@
   .fedi-goto-btn:hover { background: color-mix(in srgb, var(--accent, #888) 22%, transparent); }
   .fedi-del-btn { display: inline-flex; align-items: center; gap: .35rem; border: 1px solid color-mix(in srgb, #d9534f 45%, transparent); background: color-mix(in srgb, #d9534f 12%, transparent); color: #e06b66; border-radius: 999px; padding: .3rem .8rem; font: inherit; font-size: .82rem; cursor: pointer; transition: background .15s ease; }
   .fedi-del-btn:hover { background: color-mix(in srgb, #d9534f 24%, transparent); }
+  .fedi-bm { margin: 0 0 1.5rem; padding: 1rem; border-radius: 14px;
+    border: 1px dashed color-mix(in srgb, var(--accent, #888) 45%, transparent);
+    background: color-mix(in srgb, var(--accent, #888) 7%, transparent); }
+  .fedi-bm-btn { display: inline-flex; align-items: center; gap: .45rem; padding: .5rem 1rem; border-radius: 999px;
+    background: var(--accent, #06c); color: #fff; font: inherit; font-weight: 600; font-size: .9rem; text-decoration: none;
+    cursor: grab; user-select: none; box-shadow: 0 2px 8px color-mix(in srgb, var(--accent, #000) 30%, transparent); }
+  .fedi-bm-btn:active { cursor: grabbing; }
+  .fedi-bm-btn.nudge { animation: fedi-bm-nudge .6s ease; }
+  @keyframes fedi-bm-nudge { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+  .fedi-bm-help { color: var(--ink-soft, #888); font-size: .82rem; line-height: 1.5; margin: .6rem 0 0; }
 </style>
 
 <script>
