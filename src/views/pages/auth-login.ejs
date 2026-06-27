@@ -1,34 +1,12 @@
 <%
-  // adminLogin = the hidden admin login page (/auth/admin): shows the
-  // username/password form. The public /auth/login shows visitors
-  // ONLY Google login (listeners/fans). This keeps the admin login
-  // off the page where visitors are directed.
+  // The login page shows the admin username/password form. (Public listener
+  // login via Google was removed — interaction now runs via the fediverse.)
   var _admin = (typeof adminLogin !== 'undefined' && adminLogin);
 %>
 <div class="container auth-page">
   <h1><%= _admin ? t('auth.admin_login_title') : t('nav.login') %></h1>
   <% if (typeof success !== 'undefined' && success) { %><div class="alert alert-success"><%= success %></div><% } %>
-  <%
-    var GMAP = {
-      admin: { icon: '🔐', title: t('glog.admin_title'),
-        body: t('glog.admin_body'),
-        list: [t('glog.admin_li1'), t('glog.admin_li2'), t('glog.admin_li3')] },
-      session: { icon: '⏱️', title: t('glog.session_title'), body: t('glog.session_body') },
-      email: { icon: '✉️', title: t('glog.email_title'), body: t('glog.email_body') },
-      linked: { icon: '🔗', title: t('glog.linked_title'), body: t('glog.linked_body') },
-      unavailable: { icon: '🚫', title: t('glog.unavailable_title'), body: t('glog.unavailable_body') },
-      failed: { icon: '⚠️', title: t('glog.failed_title'), body: t('glog.failed_body') },
-    };
-    var _g = (typeof gerr !== 'undefined' && gerr && GMAP[gerr]) ? GMAP[gerr] : null;
-  %>
-  <% if (_g) { %>
-    <div class="auth-notice">
-      <div class="auth-notice-icon"><%= _g.icon %></div>
-      <h2 class="auth-notice-title"><%= _g.title %></h2>
-      <p><%= _g.body %></p>
-      <% if (_g.list) { %><ul class="auth-notice-list"><% _g.list.forEach(function(li){ %><li><%- li %></li><% }); %></ul><% } %>
-    </div>
-  <% } else if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+  <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
 
   <% if (_admin) { %>
     <%# Hidden admin login (password). %>
@@ -50,27 +28,3 @@
   <% } %>
 </div>
 
-<style>
-  .auth-notice { border: 1px solid rgba(128,128,128,.28); border-radius: 14px; padding: 18px 20px; margin-bottom: 18px; background: rgba(128,128,128,.06); }
-  .auth-notice-icon { font-size: 26px; }
-  .auth-notice-title { font-size: 17px; margin: 4px 0 8px; }
-  .auth-notice p { margin: 0 0 10px; line-height: 1.55; opacity: .9; }
-  .auth-notice-list { margin: 0; padding-left: 18px; line-height: 1.6; }
-  .auth-notice-list li { margin: 4px 0; }
-  .auth-sub { color: var(--ink-muted); margin: 0 0 1rem; text-align: center; }
-  /* Google button is white → keep text dark at all times, including hover (the global
-     a.btn:hover rule would otherwise make it near-white on white = unreadable). */
-  a.btn-google, a.btn-google:hover { color: #1f1f1f; }
-  .auth-admin-box {
-    display: flex; align-items: center; gap: .75rem;
-    margin-top: 1.25rem; padding: .8rem 1rem;
-    border: 1px solid var(--rule); border-radius: 12px;
-    background: var(--paper-2); color: var(--ink); text-decoration: none;
-    transition: border-color 120ms, background 120ms;
-  }
-  .auth-admin-box:hover { border-color: var(--accent); background: var(--paper); }
-  .auth-admin-box-icon { font-size: 1.3rem; }
-  .auth-admin-box-text { display: flex; flex-direction: column; line-height: 1.3; flex: 1; }
-  .auth-admin-box-text small { color: var(--ink-muted); font-size: .8rem; }
-  .auth-admin-box-arrow { color: var(--ink-muted); font-size: 1.1rem; }
-</style>

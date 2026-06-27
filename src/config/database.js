@@ -162,48 +162,6 @@ export function initializeDatabase() {
     );
   `);
 
-  // ── Circles (federation) ────────────────────────────────────
-  // Decentralised, asymmetric connections between solo instances.
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS circle_links (
-      id TEXT PRIMARY KEY,
-      local_site_id TEXT NOT NULL,
-      remote_url TEXT NOT NULL,
-      remote_actor_id TEXT,
-      label TEXT,
-      status TEXT DEFAULT 'active',
-      added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      last_synced DATETIME,
-      last_error TEXT,
-      UNIQUE(local_site_id, remote_url),
-      FOREIGN KEY (local_site_id) REFERENCES sites(id)
-    );
-    CREATE TABLE IF NOT EXISTS remote_actors (
-      id TEXT PRIMARY KEY,
-      url TEXT UNIQUE NOT NULL,
-      name TEXT,
-      summary TEXT,
-      avatar TEXT,
-      public_key TEXT NOT NULL,
-      fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE TABLE IF NOT EXISTS remote_posts (
-      id TEXT PRIMARY KEY,
-      actor_id TEXT NOT NULL,
-      published DATETIME,
-      title TEXT,
-      summary TEXT,
-      url TEXT,
-      media_json TEXT,
-      raw_json TEXT,
-      fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (actor_id) REFERENCES remote_actors(id)
-    );
-  `);
-
-  // Tags from the original post — shown in the circle feed (comma-separated string).
-  ensureColumn('remote_posts', 'tags', 'TEXT');
-
   // Newsletter / mailing list (premium). Subscribers per site; double opt-in when SMTP
   // is configured (status 'pending' until confirmed), otherwise single opt-in ('confirmed').
   // 'unsub' = unsubscribed. token = confirm/unsubscribe key (used in email links).
@@ -251,35 +209,6 @@ export function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_shows_site_date ON shows(site_id, date);
   `);
 
-  // Notifications: someone replies to your comment / post, or likes your post. Snapshots
-  // of name/title so the list can be shown cheaply without joins.
-  // NB: deliberately named 'user_notifications' — some older DBs still have a stale,
-  // unused 'notifications' table with a different schema (no read column).
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS user_notifications (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      type TEXT NOT NULL,
-      actor_id TEXT,
-      actor_name TEXT,
-      post_slug TEXT,
-      post_title TEXT,
-      url TEXT,
-      read INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
-  // Older DBs may have a user_notifications table predating these columns — add
-  // them before the index (which references `read`), else boot crashes.
-  ensureColumn('user_notifications', 'type', 'TEXT');
-  ensureColumn('user_notifications', 'actor_id', 'TEXT');
-  ensureColumn('user_notifications', 'actor_name', 'TEXT');
-  ensureColumn('user_notifications', 'post_slug', 'TEXT');
-  ensureColumn('user_notifications', 'post_title', 'TEXT');
-  ensureColumn('user_notifications', 'url', 'TEXT');
-  ensureColumn('user_notifications', 'read', 'INTEGER DEFAULT 0');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_unotif_user ON user_notifications(user_id, read, created_at);');
-
   // Link-in-bio click statistics (premium #6). One counter per (site, url); the
   // link-in-bio page links via /links/go/:i which counts the click and redirects.
   db.exec(`
@@ -292,19 +221,6 @@ export function initializeDatabase() {
     );
   `);
 
-  // Likes / favourites: a logged-in user can like a post. The set of
-  // posts a user liked = their favourites (/favorieten page). One row
-  // per (post, user); unique so that liking is idempotent.
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS post_likes (
-      post_id TEXT NOT NULL,
-      user_id TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      PRIMARY KEY (post_id, user_id)
-    );
-    CREATE INDEX IF NOT EXISTS idx_post_likes_user ON post_likes(user_id, created_at);
-    CREATE INDEX IF NOT EXISTS idx_post_likes_post ON post_likes(post_id);
-  `);
 
   // ── ActivityPub (fediverse bridge) ──────────────────────────
   // RSA keypair per actor (Mastodon-compatible HTTP Signatures; separate from

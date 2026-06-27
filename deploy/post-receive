@@ -34,8 +34,8 @@ while read oldrev newrev refname ; do
         fi
     fi
 
-    # 4. pm2 reload — proces heet "prutcms" (legacy naam)
-    pm2 reload prutcms 2>/dev/null || pm2 reload prutfolio 2>/dev/null || true
+    # 4. pm2 reload — process is named "klonkt"
+    pm2 reload klonkt 2>/dev/null || true
 
     echo ">>> Done. App-files in $DEPLOY ongemoeid (.env, node_modules, storage)."
 done
