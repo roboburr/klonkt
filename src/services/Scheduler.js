@@ -14,7 +14,7 @@ import ActivityPubService from './ActivityPubService.js';
 export function flipScheduledPosts() {
   try {
     const due = db.prepare(`
-      SELECT p.id, p.site_id, p.slug, p.title, p.content, p.cover_image_url, p.fan_only,
+      SELECT p.id, p.site_id, p.slug, p.title, p.content, p.cover_image_url, p.fan_only, p.nsfw,
              p.published_at, p.publish_at, p.created_at, u.username
       FROM posts p JOIN users u ON u.id = p.author_id
       WHERE p.status = 'scheduled' AND p.publish_at IS NOT NULL AND datetime(p.publish_at) <= datetime('now')
@@ -38,7 +38,7 @@ export function flipScheduledPosts() {
           ActivityPubService.deliverCreate(site, {
             id: p.id, slug: p.slug, title: p.title || p.slug,
             content: p.content, cover_image_url: p.cover_image_url || null,
-            published_at: p.published_at || p.publish_at, created_at: p.created_at, fan_only: p.fan_only,
+            published_at: p.published_at || p.publish_at, created_at: p.created_at, fan_only: p.fan_only, nsfw: p.nsfw,
           }).catch(() => { /* best-effort */ });
         }
       } catch { /* non-fatal */ }

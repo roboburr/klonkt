@@ -197,7 +197,7 @@ const _embedUrl = _postAudio
 <link rel="preload" href="/assets/fonts/fraunces-latin-full-normal.woff2" as="font" type="font/woff2" crossorigin>
 
 <!-- v9 stylesheet (full palette system) -->
-<link rel="stylesheet" href="/assets/css/style.css?v=55">
+<link rel="stylesheet" href="/assets/css/style.css?v=56">
 <script>
 /* iOS safe-area, built by hand. env(safe-area-inset-top) resolves to 0 on this iOS in
    BOTH Safari and the installed PWA (standalone), even with viewport-fit=cover, so the
@@ -721,6 +721,21 @@ const _embedUrl = _postAudio
     btn.hidden = true;
     deferred = null;
   });
+})();
+</script>
+
+<!-- NSFW / sensitive content: click a veil/reveal to un-blur. Capture-phase so the
+     click reveals instead of following the card link or firing htmx navigation. -->
+<script>
+(function () {
+  if (window.__nsfwWired) return; window.__nsfwWired = true;
+  document.addEventListener('click', function (e) {
+    var hit = e.target.closest && e.target.closest('.nsfw-veil, .nsfw-reveal');
+    if (!hit) return;
+    e.preventDefault(); e.stopPropagation();
+    var box = hit.closest('.nsfw-media, .nsfw-gate');
+    if (box) box.classList.add('is-shown');
+  }, true);
 })();
 </script>
 

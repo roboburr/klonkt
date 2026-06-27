@@ -83,6 +83,7 @@ export function initializeDatabase() {
   ensureColumn('posts', 'noindex', 'INTEGER DEFAULT 0');
   ensureColumn('posts', 'publish_at', 'DATETIME');         // release planning (premium #3): scheduled go-live
   ensureColumn('posts', 'fan_only', 'INTEGER DEFAULT 0');  // fan-only preview (premium #3)
+  ensureColumn('posts', 'nsfw',     'INTEGER DEFAULT 0');  // sensitive content → blur + click-to-reveal; fediverse sensitive
   ensureColumn('posts', 'type',    "TEXT DEFAULT 'post'");  // post | foto | video | audio
 
   // Statistics (premium module) — bare counters, cookie-free.

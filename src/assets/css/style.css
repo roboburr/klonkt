@@ -4538,3 +4538,39 @@ body:not(.has-audio-player) #pcms-audio-player.is-hidden {
 }
 .fedi-remote-form .fedi-remote-cancel { background: none; border: none; color: var(--ink-soft, #888); cursor: pointer; font-size: 1.1rem; line-height: 1; padding: .25rem .35rem; }
 .fedi-remote-form .fedi-remote-cancel:hover { color: var(--ink, #000); }
+
+/* ── NSFW / sensitive content — blur + click to reveal ───────────────── */
+.nsfw-media { position: relative; }
+.nsfw-veil {
+  position: absolute; inset: 0; z-index: 4; cursor: pointer; border-radius: inherit;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: .5rem; padding: .75rem; text-align: center;
+  background: color-mix(in srgb, var(--paper, #14141a) 50%, transparent);
+  backdrop-filter: blur(22px) saturate(.6); -webkit-backdrop-filter: blur(22px) saturate(.6);
+}
+.nsfw-media.is-shown > .nsfw-veil { display: none; }
+.nsfw-veil-label { font-weight: 700; font-size: .82rem; color: var(--ink, #f3f1ea); text-shadow: 0 1px 2px rgba(0,0,0,.5); }
+.nsfw-veil-btn {
+  font-size: .72rem; font-weight: 600; padding: .3rem .8rem; border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--ink, #fff) 55%, transparent);
+  background: color-mix(in srgb, var(--paper, #000) 35%, transparent); color: var(--ink, #f3f1ea);
+}
+/* Post page: blur cover + body behind a content-warning banner until revealed */
+.nsfw-gate .post-cover,
+.nsfw-gate .post-content { filter: blur(26px); pointer-events: none; user-select: none; transition: filter .2s ease; }
+.nsfw-gate.is-shown .post-cover,
+.nsfw-gate.is-shown .post-content { filter: none; pointer-events: auto; user-select: auto; }
+.nsfw-banner {
+  display: flex; align-items: center; gap: .7rem; flex-wrap: wrap; margin: 0 0 1.5rem;
+  padding: .8rem 1rem; border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent, #e8b04b) 45%, transparent);
+  background: color-mix(in srgb, var(--accent, #e8b04b) 9%, transparent);
+}
+.nsfw-gate.is-shown .nsfw-banner { display: none; }
+.nsfw-banner-icon { font-size: 1.2rem; }
+.nsfw-banner-text { font-weight: 600; font-size: .92rem; color: var(--ink); }
+.nsfw-banner-btn {
+  margin-left: auto; cursor: pointer; font: inherit; font-size: .82rem; font-weight: 600;
+  padding: .4rem 1rem; border-radius: 999px; border: 0;
+  background: var(--accent, #e8b04b); color: #1a1205;
+}

@@ -245,7 +245,11 @@ export function buildNote(base, site, post) {
     cc: post.fan_only ? [] : [`${aId}/followers`],
     tag: Array.isArray(post.tags) ? post.tags.map((t) => ({ type: 'Hashtag', name: '#' + String(t).replace(/\s+/g, '') })) : [],
     replies: `${id}/replies`,
+    // NSFW → Mastodon-style content warning: sensitive (blurs media) + a summary/spoiler
+    // (hides the whole post behind a "Gevoelige inhoud" button until the reader opens it).
+    sensitive: !!post.nsfw,
   };
+  if (post.nsfw) note.summary = 'Gevoelige inhoud';
   if (attachment.length) note.attachment = attachment;
   // Playable-audio posts suppress the cover attachment (player card). Still expose
   // the cover via AS2 `image` so card/grid consumers (the Klonkt Cirkel) can show
@@ -770,7 +774,7 @@ async function backfillNewFollower(base, slug, inbox) {
   const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(slug);
   if (!site) return;
   const recent = db.prepare(
-    `SELECT id, slug, title, content, cover_image_url, published_at, created_at
+    `SELECT id, slug, title, content, cover_image_url, nsfw, published_at, created_at
      FROM posts WHERE site_id = ? AND status = 'published' AND (fan_only IS NULL OR fan_only = 0)
      ORDER BY COALESCE(published_at, created_at) DESC LIMIT 20`
   ).all(site.id).reverse();
