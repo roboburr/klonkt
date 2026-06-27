@@ -55,15 +55,15 @@ bd close <id>         # Complete work
 ## Build & Test
 
 ```bash
-npm start          # productie: node src/server.js
-npm run dev        # watch-mode
-npm test           # unit-tests (ingebouwde node:test runner, geen extra deps)
+npm start          # production: node src/server.js
+npm run dev        # watch mode
+npm test           # unit tests (built-in node:test runner, no extra deps)
 ```
 
-Tests staan in `test/*.test.js` en draaien tegen een in-memory SQLite
-(`DATABASE_PATH=':memory:'`), dus ze raken geen echte data. Dek nieuwe
-permissie-/tenancy-logica met tests — `PermissionsService.canAdminSite` was ooit
-stil kapot; zie `test/hub-permissions.test.js`.
+Tests live in `test/*.test.js` and run against an in-memory SQLite
+(`DATABASE_PATH=':memory:'`), so they never touch real data. Cover new
+permission/tenancy logic with tests — `PermissionsService.canAdminSite` was once
+silently broken; see `test/hub-permissions.test.js`.
 
 ## Architecture Overview
 
