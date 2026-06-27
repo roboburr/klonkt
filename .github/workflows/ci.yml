@@ -21,5 +21,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # Bouwt het self-host image zodat een kapotte Dockerfile meteen opvalt.
+      # Build the self-host image so a broken Dockerfile is caught immediately.
       - run: docker build -t klonkt:ci .
