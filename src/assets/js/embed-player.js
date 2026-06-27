@@ -152,6 +152,35 @@
   };
   const LABEL = { youtube: 'YouTube', soundcloud: 'SoundCloud', spotify: 'Spotify' };
 
+  // Touch / coarse-pointer (phones, most tablets): the custom JS-mounted card is
+  // fragile — Safari tracking-protection blocks the platform API scripts AND the
+  // poster thumbnails (i.ytimg.com) → a black/blank box. Render the plain, reliable
+  // platform iframe directly instead (same approach the News feed uses). The
+  // padding-ratio wrapper reserves height on every browser incl. old iOS Safari
+  // (no `aspect-ratio` dependency). Desktop keeps the rich custom card.
+  const IS_TOUCH = !!(window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)').matches);
+
+  function mountPlain(el, provider, ref, url) {
+    el.classList.add('pcms-embed-card', 'pcms-embed-card--' + provider, 'pcms-embed-plain');
+    el.classList.remove('pcms-embed-loading');
+    let html = '';
+    if (provider === 'youtube') {
+      const id = ytId(ref, url);
+      html = id
+        ? '<div class="pcms-embed-ratio"><iframe src="https://www.youtube-nocookie.com/embed/' + encodeURIComponent(id) + '?rel=0" title="YouTube" loading="lazy" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>'
+        : '<a class="pcms-embed-plain-link" href="' + escAttr(safeHref(url)) + '" target="_blank" rel="noopener">YouTube</a>';
+    } else if (provider === 'soundcloud') {
+      html = '<iframe class="pcms-embed-plain-frame" style="height:166px" src="https://w.soundcloud.com/player/?url=' + encodeURIComponent(ref || url) + '&color=%23ff5500&visual=false" title="SoundCloud" loading="lazy" frameborder="0" allow="autoplay" scrolling="no"></iframe>';
+    } else if (provider === 'spotify') {
+      const m = (ref || '').match(/^spotify:(\w+):(\w+)$/);
+      const src = m ? 'https://open.spotify.com/embed/' + m[1] + '/' + m[2] : (url || '');
+      html = '<iframe class="pcms-embed-plain-frame" style="height:152px" src="' + escAttr(src) + '" title="Spotify" loading="lazy" frameborder="0" allow="encrypted-media"></iframe>';
+    } else {
+      html = '<a class="pcms-embed-plain-link" href="' + escAttr(safeHref(url)) + '" target="_blank" rel="noopener">' + (LABEL[provider] || provider) + '</a>';
+    }
+    el.innerHTML = html;
+  }
+
   // ============================================================
   // 3. Card controller — builds the on-brand card + delegates to an adapter
   // ============================================================
@@ -160,6 +189,7 @@
     const ref = el.dataset.embedRef || '';
     const url = el.dataset.embedUrl || '';
     if (!provider) return;
+    if (IS_TOUCH) { mountPlain(el, provider, ref, url); return; }
 
     el.classList.add('pcms-embed-card', 'pcms-embed-card--' + provider);
     el.classList.remove('pcms-embed-loading');

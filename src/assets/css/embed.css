@@ -274,3 +274,11 @@
 .pcms-embed-bigplay,
 .pcms-embed-pp,
 .pcms-embed-poster { -webkit-tap-highlight-color: transparent; }
+
+/* ---- Mobile / touch: plain platform iframe instead of the JS-mounted card.
+   padding-ratio reserves height on every browser (incl. old iOS Safari). ---- */
+.pcms-embed-plain { background: transparent; box-shadow: none; }
+.pcms-embed-ratio { position: relative; width: 100%; padding-bottom: 56.25%; height: 0; }
+.pcms-embed-ratio iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; border-radius: 10px; }
+.pcms-embed-plain-frame { width: 100%; border: 0; display: block; border-radius: 10px; }
+.pcms-embed-plain-link { display: inline-block; padding: .5rem .9rem; }
