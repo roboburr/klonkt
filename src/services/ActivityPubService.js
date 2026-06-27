@@ -413,6 +413,17 @@ function findThreadTarget(inReplyTo, base) {
   return null;
 }
 
+// Drop the leading @mention(s) a federated reply carries (the person being replied to),
+// so a comment reads "dope tekening ouwe" instead of "@jason@jasonhacky.nl dope …".
+// Keeps a leading <p> wrapper; handles mention <a> links and plain-text @user@domain.
+export function stripLeadingMentions(html) {
+  if (!html) return html;
+  let s = String(html);
+  s = s.replace(/^(\s*<p[^>]*>)?\s*(?:<a\b[^>]*>\s*@[^<]+<\/a>[  ]*)+/i, (m, p) => p || '');
+  s = s.replace(/^(\s*<p[^>]*>)?\s*(?:@[\w.-]+(?:@[\w.-]+)?[  ]+)+/i, (m, p) => p || '');
+  return s;
+}
+
 // View-ready threaded view of a post's fediverse activity (inbound replies +
 // our outbound replies, nested), plus like/boost counts.
 export function getInteractions(postId, base, site) {
@@ -433,7 +444,7 @@ export function getInteractions(postId, base, site) {
     nodes.push({
       noteId: r.object_uri, parent: r.parent_uri || null, mine: false, id: r.id,
       actor_name: r.actor_name, actor_handle: r.actor_handle, actor_url: r.actor_url,
-      actor_icon: r.actor_icon, content: r.content, created_at: r.published || r.created_at,
+      actor_icon: r.actor_icon, content: stripLeadingMentions(r.content), created_at: r.published || r.created_at,
       acted_boost: !!r.acted_boost, acted_like: !!r.acted_like,
       children: [],
     });
@@ -441,7 +452,7 @@ export function getInteractions(postId, base, site) {
   for (const o of s.listO.all(postId)) {
     nodes.push({
       noteId: baseClean ? `${baseClean}/ap/notes/${o.id}` : o.id, parent: o.in_reply_to || null,
-      mine: true, outboxId: o.id, content: o.content, created_at: o.created_at,
+      mine: true, outboxId: o.id, content: stripLeadingMentions(o.content), created_at: o.created_at,
       actor_name: siteName, actor_handle: siteHandle, actor_url: siteUrl, actor_icon: siteIcon,
       children: [],
     });
@@ -997,7 +1008,8 @@ export async function resolveRemoteNote(url) {
 
 // List a site's own outbound fediverse replies (for the manage/delete view).
 export function listOutbox(siteSlug) {
-  return db.prepare('SELECT id, content, to_handle, in_reply_to, created_at FROM ap_outbox WHERE site_slug = ? ORDER BY created_at DESC').all(siteSlug);
+  return db.prepare('SELECT id, content, to_handle, in_reply_to, created_at FROM ap_outbox WHERE site_slug = ? ORDER BY created_at DESC')
+    .all(siteSlug).map((r) => ({ ...r, content: stripLeadingMentions(r.content) }));
 }
 
 // Delete one of our outbound replies: send Delete(Tombstone) to recipients + remove it.
@@ -1290,7 +1302,7 @@ export function getNotifications(slug, limit) {
     `).all(slug);
     for (const r of rows) out.push({
       type: r.kind, name: r.actor_name, handle: r.actor_handle, url: r.actor_url,
-      content: r.content, post_slug: r.post_slug, post_title: r.post_title, created_at: r.created_at,
+      content: stripLeadingMentions(r.content), post_slug: r.post_slug, post_title: r.post_title, created_at: r.created_at,
     });
   } catch { /* ignore */ }
   out.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
