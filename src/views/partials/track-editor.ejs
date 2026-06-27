@@ -552,10 +552,8 @@ body.te-modal-open { overflow: hidden; }
     function onEsc(e) { if (e.key === 'Escape') close(); }
     document.addEventListener('keydown', onEsc);
 
-    backdrop.addEventListener('click', e => {
-      // Click on the backdrop itself (not modal content) closes
-      if (e.target === backdrop) close();
-    });
+    // A click on the backdrop does NOT close the editor — too easy to lose edits by
+    // mis-clicking outside. Close deliberately via ×, Cancel or Esc.
     $('.te-close').addEventListener('click', close);
     $('#te-cancel').addEventListener('click', close);
 
