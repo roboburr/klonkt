@@ -1173,7 +1173,7 @@ async function resolveApActor(siteUrl) {
 // note and refreshes content + media (recovers covers/edits that were delivered
 // during a flux window, e.g. a fleet-wide update), and drops notes that are gone
 // (404/410). Bump SELFHEAL_VERSION only on a release that warrants a re-sync.
-const SELFHEAL_VERSION = 1;
+const SELFHEAL_VERSION = 2;
 async function fetchNoteAP(url) {
   try {
     const r = await fetch(url, { headers: { Accept: 'application/activity+json' } });
@@ -1199,7 +1199,7 @@ export async function selfHealTimeline() {
     try { const r = db.prepare('SELECT value FROM app_settings WHERE key = ?').get('selfheal_version'); cur = r ? (parseInt(r.value, 10) || 0) : 0; } catch { return; }
     if (cur >= SELFHEAL_VERSION) return; // already healed for this version — skip on normal boots
     let rows = [];
-    try { rows = db.prepare('SELECT id, content, media_json FROM ap_timeline ORDER BY rowid DESC LIMIT 200').all(); } catch { /* no table */ }
+    try { rows = db.prepare('SELECT id, content, media_json, nsfw, cw FROM ap_timeline ORDER BY rowid DESC LIMIT 200').all(); } catch { /* no table */ }
     let healed = 0;
     for (const r of rows) {
       try {
@@ -1208,8 +1208,10 @@ export async function selfHealTimeline() {
         if (!note || typeof note !== 'object') continue;
         const html = HtmlSanitizerService.sanitize(note.content || '');
         const media = mediaFromNote(note);
-        if ((html && html !== r.content) || media !== (r.media_json || '[]')) {
-          db.prepare('UPDATE ap_timeline SET content = ?, media_json = ? WHERE id = ?').run(html || r.content, media, r.id);
+        const nsfw = note.sensitive ? 1 : 0;   // re-sync NSFW/sensitive + CW onto already-cached posts
+        const cw = note.summary || null;
+        if ((html && html !== r.content) || media !== (r.media_json || '[]') || nsfw !== (r.nsfw || 0) || (cw || '') !== (r.cw || '')) {
+          db.prepare('UPDATE ap_timeline SET content = ?, media_json = ?, nsfw = ?, cw = ? WHERE id = ?').run(html || r.content, media, nsfw, cw, r.id);
           healed++;
         }
       } catch { /* per-note best-effort */ }
