@@ -227,6 +227,7 @@ export function buildNote(base, site, post) {
   // so convert newlines to <br> for the federated copy (content already made with
   // shift+enter uses <br> and has no \n → this is a no-op there).
   body = body.replace(/\r?\n/g, '<br>');
+  body = linkHashtags(base, body); // link inline #hashtags in the post body too
   const seen = new Set();
   const attachment = urls.filter(Boolean)
     .filter((u) => { if (seen.has(u)) return false; seen.add(u); return true; })
@@ -243,7 +244,7 @@ export function buildNote(base, site, post) {
     // but not addressed to Public, so Mastodon shows it only to them and can't boost it).
     to: post.fan_only ? [`${aId}/followers`] : [PUBLIC],
     cc: post.fan_only ? [] : [`${aId}/followers`],
-    tag: Array.isArray(post.tags) ? post.tags.map((t) => ({ type: 'Hashtag', name: '#' + String(t).replace(/\s+/g, '') })) : [],
+    tag: buildHashtagList(base, post.tags, body),
     replies: `${id}/replies`,
     // NSFW → Mastodon-style content warning: sensitive (blurs media) + a summary/spoiler
     // (hides the whole post behind a "Gevoelige inhoud" button until the reader opens it).
@@ -911,6 +912,22 @@ function hashtagTags(base, content) {
     tags.push({ type: 'Hashtag', href: `${base}/tag/${encodeURIComponent(k)}`, name: '#' + m[1] });
   }
   return tags;
+}
+
+// Merge a post's tags field + the #hashtags linked inline in its body into one deduped
+// Hashtag tag list (with hrefs to our /tag page).
+function buildHashtagList(base, tagsField, content) {
+  const out = [], seen = new Set();
+  for (const t of (Array.isArray(tagsField) ? tagsField : [])) {
+    const name = String(t).replace(/\s+/g, ''); if (!name) continue;
+    const k = name.toLowerCase(); if (seen.has(k)) continue; seen.add(k);
+    out.push({ type: 'Hashtag', href: `${base}/tag/${encodeURIComponent(k)}`, name: '#' + name });
+  }
+  for (const h of hashtagTags(base, content)) {
+    const k = h.name.slice(1).toLowerCase(); if (seen.has(k)) continue; seen.add(k);
+    out.push(h);
+  }
+  return out;
 }
 
 export function buildReplyNote(base, site, row) {
