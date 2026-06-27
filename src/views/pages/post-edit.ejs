@@ -238,12 +238,21 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
           <span>🚫 <%= t('pedit.noindex_label') %></span>
         </label>
         <label class="pe-checkbox">
-          <input type="checkbox" name="nsfw" value="1" <%= post.nsfw ? 'checked' : '' %>>
+          <input type="checkbox" name="nsfw" value="1" id="pe-nsfw" <%= post.nsfw ? 'checked' : '' %>>
           <span>🔞 <%= t('pedit.nsfw_label') %></span>
         </label>
-        <input type="text" name="content_warning" value="<%= post.content_warning || '' %>" maxlength="200"
+        <input type="text" name="content_warning" id="pe-cw" value="<%= post.content_warning || '' %>" maxlength="200"
                placeholder="<%= t('pedit.nsfw_cw_ph') %>"
                style="width:100%;box-sizing:border-box;margin:6px 0 2px;font-size:13px;padding:7px 9px">
+        <script>
+        (function () {
+          var cw = document.getElementById('pe-cw'), nsfw = document.getElementById('pe-nsfw');
+          // Typing a warning text implies the post is sensitive → auto-tick NSFW.
+          if (cw && nsfw && !cw.__nsfwWired) { cw.__nsfwWired = true;
+            cw.addEventListener('input', function () { if (cw.value.trim()) nsfw.checked = true; });
+          }
+        })();
+        </script>
         <% if (typeof premiumUnlocked === 'undefined' || premiumUnlocked) { %>
           <label class="pe-checkbox">
             <input type="checkbox" name="fan_only" value="1" <%= post.fan_only ? 'checked' : '' %>>
