@@ -26,43 +26,22 @@
     <div class="ax-card-title"><%= t('acct.profile') %></div>
 
     <div class="ax-profile-id">
-      <% if (canMutate) { %>
-        <form action="/account/avatar" method="post" enctype="multipart/form-data" class="ax-avatar-form">
-          <label class="ax-avatar-wrap" title="<%= t('acct.avatar_change') %>">
-            <span class="ax-profile-avatar">
-              <% var _av = account.avatar_url || (typeof siteAvatar !== 'undefined' ? siteAvatar : null); %>
-              <% if (_av) { %>
-                <img src="<%= _av %>" alt="">
-              <% } else { %>
-                <span><%= account.username.charAt(0).toUpperCase() %></span>
-              <% } %>
-            </span>
-            <span class="ax-avatar-edit" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-            </span>
-            <input type="file" name="avatar" accept="image/jpeg,image/png,image/webp,image/gif" onchange="this.form.submit()" hidden>
-          </label>
-        </form>
-      <% } else { %>
-        <span class="ax-profile-avatar ax-profile-avatar-static">
-          <% var _av2 = account.avatar_url || (typeof siteAvatar !== 'undefined' ? siteAvatar : null); %>
-          <% if (_av2) { %>
-            <img src="<%= _av2 %>" alt="">
-          <% } else { %>
-            <span><%= account.username.charAt(0).toUpperCase() %></span>
-          <% } %>
-        </span>
-      <% } %>
+      <span class="ax-profile-avatar ax-profile-avatar-static">
+        <% var _av = (typeof siteAvatar !== 'undefined' ? siteAvatar : null); %>
+        <% if (_av) { %>
+          <img src="<%= _av %>" alt="">
+        <% } else { %>
+          <span><%= account.username.charAt(0).toUpperCase() %></span>
+        <% } %>
+      </span>
       <div class="ax-profile-meta">
         <div class="ax-profile-name"><%= account.username %></div>
         <div class="ax-profile-role"><%= account.role %> · <%= account.email %></div>
         <% if (account.created_at) { %>
           <div class="ax-profile-joined"><%= t('acct.member_since') %> <%= formatDate(account.created_at) %></div>
         <% } %>
-        <% if (account.avatar_url && canMutate) { %>
-          <form action="/account/avatar/remove" method="post" class="ax-avatar-remove">
-            <button type="submit" class="ax-linkbtn"><%= t('acct.avatar_remove') %></button>
-          </form>
+        <% if (canMutate) { %>
+          <div class="ax-profile-joined"><%- t('acct.photo_site_hint') %></div>
         <% } %>
       </div>
     </div>

@@ -70,24 +70,21 @@ export async function renderPage(req, res, viewName, data = {}) {
   // Refresh avatar + role from the DB so a stale session (e.g. after an
   // avatar change or role switch) heals itself without a new login.
   if (_u && _u.id) {
-    const _fresh = db.prepare('SELECT avatar_url, role, lang FROM users WHERE id = ?').get(_u.id);
-    if (_fresh) _u = { ..._u, avatar_url: _fresh.avatar_url, role: _fresh.role, lang: _fresh.lang };
-    // One identity: no own account avatar → fall back to the user's site photo,
-    // so the same picture shows everywhere (nav, account, comments).
-    if (_u && !_u.avatar_url) {
-      const _sp = db.prepare("SELECT profile_photo FROM sites WHERE owner_id = ? AND profile_photo IS NOT NULL ORDER BY is_primary DESC, created_at ASC LIMIT 1").get(_u.id);
-      if (_sp && _sp.profile_photo) _u = { ..._u, avatar_url: _sp.profile_photo };
-    }
+    const _fresh = db.prepare('SELECT role, lang FROM users WHERE id = ?').get(_u.id);
+    if (_fresh) _u = { ..._u, role: _fresh.role, lang: _fresh.lang };
+    // ONE image: a user's avatar everywhere (nav, account, comments) is simply their SITE
+    // photo — there is no separate account avatar. Falls back to the initial-letter
+    // placeholder when the site has no photo yet.
+    const _sp = db.prepare("SELECT profile_photo FROM sites WHERE owner_id = ? AND profile_photo IS NOT NULL ORDER BY is_primary DESC, created_at ASC LIMIT 1").get(_u.id);
+    _u = { ..._u, avatar_url: (_sp && _sp.profile_photo) || null };
   }
   const userOwnsSite = !!(_u && _u.role !== 'god' &&
     db.prepare('SELECT 1 FROM sites WHERE owner_id = ? LIMIT 1').get(_u.id));
 
-  // The avatar of the SITE OWNER (not the viewer!) — for the Klonkt site header,
-  // so the artist can use their own account photo as the site photo.
   const _site = data.site || res.locals.site || null;
-  const siteOwnerAvatar = (_site && _site.owner_id)
-    ? (db.prepare('SELECT avatar_url FROM users WHERE id = ?').get(_site.owner_id)?.avatar_url || null)
-    : null;
+  // The site header uses the SITE photo (site.profile_photo) — the one and only image,
+  // set in site settings. (No separate account-avatar fallback anymore.)
+  const siteOwnerAvatar = null;
 
   // Viewer mode: may view everything, change nothing. Views use canMutate
   // to hide/disable write buttons (post, save, delete).
