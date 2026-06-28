@@ -25,6 +25,8 @@ Versions follow [SemVer](https://semver.org/) (`1.0.0-beta.N` during the beta).
 - Uploaded images are automatically optimised to **WebP** for faster pages.
 - A roomier **mobile writing experience**: tap to open a distraction-free fullscreen
   editor, with the formatting toolbar staying in view above the keyboard.
+- **Long posts collapse in the News feed** with a *read more* toggle, so a long post no
+  longer fills the whole screen — tap to expand or collapse it.
 
 ### Changed
 - **Palettes revised to 8**: the neutral **Klonkt** (gold accent) is the new default,
@@ -38,6 +40,8 @@ Versions follow [SemVer](https://semver.org/) (`1.0.0-beta.N` during the beta).
 - **Local favourites (♥)** — replaced by the ⭐ fediverse like.
 
 ### Fixed
+- **Hashtags and mentions now work in every language and script** (e.g. Japanese, Cyrillic,
+  Arabic), both on your site and when federating — not just the Latin alphabet.
 - **Switching a site to solo (federation off) works again.** Turning the fediverse off could
   make the whole site return “page not found” instead of just disabling federation; it now
   cleanly switches federation off while the rest of the site keeps working. (Self-hosters:
