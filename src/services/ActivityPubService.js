@@ -602,11 +602,25 @@ export async function verifyRequest(req) {
   const pem = actor && actor.publicKey && actor.publicKey.publicKeyPem;
   if (!pem) return null;
   const hs = (p.headers || '(request-target) host date').split(/\s+/);
-  const line = hs.map((h) => h === '(request-target)'
-    ? `(request-target): ${req.method.toLowerCase()} ${req.originalUrl}`
-    : `${h}: ${req.headers[h] || ''}`).join('\n');
+  // Behind a reverse proxy the raw Host header is the backend bind (e.g. localhost:3000, when
+  // the proxy doesn't preserve it — Apache .htaccess [P] proxying), but the sender signed the
+  // HTTP-Signature over the PUBLIC host. Try each candidate host (the configured PUBLIC_BASE_URL
+  // host, the proxy's X-Forwarded-Host, and the raw Host) and accept if the signature verifies
+  // against any. An attacker can't forge a match (no private key), so this only rescues the
+  // legitimate proxied case. Also normalise a leading double-slash in the request-target.
+  let _pubHost = null;
+  if (process.env.PUBLIC_BASE_URL) { try { _pubHost = new URL(process.env.PUBLIC_BASE_URL).host; } catch { /* ignore */ } }
+  const _hosts = [...new Set([_pubHost, req.headers['x-forwarded-host'], req.headers['host']].filter(Boolean))];
+  const _target = `${req.method.toLowerCase()} ${String(req.originalUrl || '').replace(/^\/{2,}/, '/')}`;
+  const _sig = Buffer.from(p.signature, 'base64');
   let ok = false;
-  try { ok = crypto.verify('sha256', Buffer.from(line), pem, Buffer.from(p.signature, 'base64')); } catch { ok = false; }
+  for (const _h of _hosts) {
+    const line = hs.map((x) => x === '(request-target)'
+      ? `(request-target): ${_target}`
+      : x === 'host' ? `host: ${_h}`
+      : `${x}: ${req.headers[x] || ''}`).join('\n');
+    try { if (crypto.verify('sha256', Buffer.from(line), pem, _sig)) { ok = true; break; } } catch { /* try next host */ }
+  }
   if (ok && hs.includes('digest') && req.rawBody) {
     const exp = 'SHA-256=' + crypto.createHash('sha256').update(req.rawBody).digest('base64');
     if (req.headers['digest'] !== exp) ok = false;
