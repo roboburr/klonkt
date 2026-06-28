@@ -1931,13 +1931,20 @@ body.audio-is-loading .audio-sheet-play::after {
     aspect-ratio: 1;
     overflow: hidden;
     border-radius: var(--radius);
+    /* Accent-gradient placeholder while the cover image loads (image fades in over it). */
+    background-image: linear-gradient(135deg,
+        color-mix(in srgb, var(--accent, #888) 22%, var(--paper-2, var(--paper))) 0%,
+        color-mix(in srgb, var(--accent, #888) 6%, var(--paper-2, var(--paper))) 100%);
 }
 .post-list-cover img {
     width: 100%; height: 100%;
     object-fit: cover;
     display: block;
-    filter: blur(.4px); /* subtle smoothing of downscaled line-art covers */
+    background-color: #fff;            /* transparent logos sit on white once loaded */
+    filter: blur(.4px);               /* subtle smoothing of downscaled line-art covers */
+    transition: opacity .4s ease;
 }
+.post-list-cover img.is-loading { opacity: 0; }
 .post-list-body { display: flex; flex-direction: column; gap: .35rem; }
 .post-list-meta {
     color: var(--ink-muted);
