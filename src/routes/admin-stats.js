@@ -32,7 +32,7 @@ router.get('/', requireGod, (req, res) => {
   }
   const days = [7, 14, 30, 90].includes(parseInt(req.query.days, 10)) ? parseInt(req.query.days, 10) : 14;
   renderPage(req, res, 'pages/admin-stats', {
-    pageTitle: 'Statistieken',
+    pageTitleKey: 'admin.t_stats',
     bodyClass: 'on-admin',
     stats: getStats(days),
     linkClicks,

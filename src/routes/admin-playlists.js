@@ -63,7 +63,7 @@ router.get('/', requireGod, (req, res) => {
 
   const playlists = PlaylistService.list(site.id);
   renderPage(req, res, 'pages/admin-playlists', {
-    pageTitle: 'Playlists',
+    pageTitleKey: 'admin.t_playlists',
     playlists,
     bodyClass: 'on-admin',
   });

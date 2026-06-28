@@ -73,7 +73,7 @@ router.get('/', requireGod, (req, res) => {
   // (the fleet). A systemd install updates via `klonkt-update` (root) → show that.
   const canSelfUpdate = (() => { try { return fs.existsSync(UPDATE_SCRIPT); } catch { return false; } })();
   renderPage(req, res, 'pages/admin-updates', {
-    pageTitle: 'Updates',
+    pageTitleKey: 'admin.t_updates',
     bodyClass: 'on-admin',
     appVersion: appVersion(),
     currentSha: cur ? cur.slice(0, 8) : null,

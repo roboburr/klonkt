@@ -179,7 +179,10 @@ export async function renderPage(req, res, viewName, data = {}) {
       if (/^https?:\/\//i.test(url)) return imgProxyUrl(url, w || 128);
       return url;
     },
-    pageTitle: data.pageTitle || (data.site && data.site.title) || 'Klonkt',
+    // pageTitleKey (translated with the resolved language) wins over a raw pageTitle string,
+    // so admin page titles aren't hardcoded in one language. Falls back to the site title.
+    pageTitle: (data.pageTitleKey ? i18nT(_lang, data.pageTitleKey, data.pageTitleVars) : data.pageTitle)
+      || (data.site && data.site.title) || 'Klonkt',
     appVersion: APP_VERSION,
     bodyClass: data.bodyClass || 'on-home',
     socialDescr: data.socialDescr || '',

@@ -168,7 +168,7 @@ router.get('/', requireGod, (req, res) => {
   `).all();
 
   renderPage(req, res, 'pages/admin-sites', {
-    pageTitle: 'Sites',
+    pageTitleKey: 'admin.t_sites',
     bodyClass: 'on-admin',
     sites,
     success: req.query.success || null,
@@ -179,7 +179,7 @@ router.get('/', requireGod, (req, res) => {
 // ==================== NEW (form) ====================
 router.get('/new', requireGod, (req, res) => {
   renderPage(req, res, 'pages/admin-site-edit', {
-    pageTitle: 'New site',
+    pageTitleKey: 'admin.t_newsite',
     bodyClass: 'on-admin',
     isNew: true,
     // ?owner=<id> (from the users page: "give this user a Klonkt") is
@@ -258,7 +258,7 @@ router.get('/:slug/edit', requireSiteManagerBySlug, (req, res) => {
   }
 
   renderPage(req, res, 'pages/admin-site-edit', {
-    pageTitle: `Edit: ${site.title}`,
+    pageTitleKey: 'admin.t_editsite', pageTitleVars: { title: site.title },
     bodyClass: 'on-admin',
     isNew: false,
     site,

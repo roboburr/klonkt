@@ -111,7 +111,7 @@ router.get('/', requireGod, (req, res) => {
   const base = (process.env.PUBLIC_BASE_URL || ('https://' + (req.get('host') || ''))).replace(/\/$/, '');
   const embedUrl = base + (res.locals.siteUrlBase || '') + '/embed';
   renderPage(req, res, 'pages/admin-audio', {
-    pageTitle: 'Audio tracks',
+    pageTitleKey: 'admin.t_audio',
     bodyClass: 'on-admin',
     tracks,
     embedUrl,

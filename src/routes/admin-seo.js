@@ -35,7 +35,7 @@ router.get('/', requireGod, (req, res) => {
   const site = db.prepare('SELECT * FROM sites WHERE id = ?').get(primary.id);
 
   renderPage(req, res, 'pages/admin-seo', {
-    pageTitle: 'SEO',
+    pageTitleKey: 'admin.t_seo',
     bodyClass: 'on-admin',
     site,
     success: req.query.success || null,

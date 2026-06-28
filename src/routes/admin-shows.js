@@ -34,7 +34,7 @@ function render(req, res, extra = {}) {
   const site = res.locals.site;
   const shows = db.prepare('SELECT * FROM shows WHERE site_id = ? ORDER BY date DESC, time DESC').all(site.id);
   renderPage(req, res, 'pages/admin-shows', {
-    pageTitle: 'Agenda', bodyClass: 'on-admin',
+    pageTitleKey: 'admin.t_shows', bodyClass: 'on-admin',
     shows, smtp: mailerConfigured(), notifyCount: confirmedFor(site.id, 'notify').length,
     agendaEnabled: getSetting('agenda_enabled') === '1',
     ...extra,

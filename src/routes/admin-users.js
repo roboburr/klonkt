@@ -39,7 +39,7 @@ router.get('/', requireGod, (req, res) => {
   `).all();
 
   renderPage(req, res, 'pages/admin-users', {
-    pageTitle: 'Users',
+    pageTitleKey: 'admin.t_users',
     bodyClass: 'on-admin',
     users,
     success: req.query.success || null,

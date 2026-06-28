@@ -48,7 +48,7 @@ router.get('/', requireAuth, (req, res) => {
       published: db.prepare("SELECT COUNT(*) AS c FROM posts WHERE site_id = ? AND status = 'published'").get(mySite.id).c,
     };
     return renderPage(req, res, 'pages/my-site', {
-      pageTitle: 'Mijn Klonkt Hub',
+      pageTitleKey: 'admin.t_hub',
       bodyClass: 'on-admin',
       mySite,
       mine,
@@ -92,7 +92,7 @@ router.get('/', requireAuth, (req, res) => {
   const posts = primarySite ? sitePosts(primarySite.id, primarySite.slug, tenancy) : [];
 
   renderPage(req, res, 'pages/admin', {
-    pageTitle: 'Beheer',
+    pageTitleKey: 'admin.t_admin',
     bodyClass: 'on-admin',
     tenancy,
     primarySite,
@@ -107,7 +107,7 @@ router.get('/', requireAuth, (req, res) => {
 // who may view the admin panel (logged in); purely static help text, nothing sensitive.
 router.get('/handleiding', requireAuth, (req, res) => {
   renderPage(req, res, 'pages/admin-help', {
-    pageTitle: 'Handleiding',
+    pageTitleKey: 'admin.t_manual',
     bodyClass: 'on-admin',
     tenancy: getTenancy(),
   });

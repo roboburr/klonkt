@@ -45,7 +45,7 @@ function renderCompose(req, res, extra = {}) {
   ).all(site.id);
   const subscribeUrl = fullUrl(req, '/nieuwsbrief');
   renderPage(req, res, 'pages/admin-newsletter', {
-    pageTitle: 'Nieuwsbrief',
+    pageTitleKey: 'admin.t_newsletter',
     bodyClass: 'on-admin',
     nlCounts: c,
     nlHistory: history,
