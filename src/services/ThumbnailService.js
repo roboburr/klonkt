@@ -27,6 +27,28 @@ export const THUMB_SIZES = new Set([128, 320, 480, 640]);
 
 let _seq = 0;
 
+// Limit concurrent ffmpeg spawns. A cold-cache, image-heavy page fires many thumbnail
+// requests at once; without a cap each spawns its own ffmpeg → CPU saturation makes the
+// WHOLE instance slow (the thundering herd). With the cap, excess requests wait briefly
+// for a slot → bounded CPU, the page still loads (images just appear progressively).
+const MAX_CONCURRENT = 3;
+let _active = 0;
+const _waiters = [];
+function acquireSlot() {
+  if (_active < MAX_CONCURRENT) { _active++; return Promise.resolve(); }
+  return new Promise((resolve) => _waiters.push(resolve));
+}
+function releaseSlot() {
+  const next = _waiters.shift();
+  if (next) next();      // transfer the slot directly to the next waiter (_active unchanged)
+  else _active--;
+}
+async function runFfmpeg(args) {
+  await acquireSlot();
+  try { await execFileP(ffmpegPath, args, { timeout: 20000 }); }
+  finally { releaseSlot(); }
+}
+
 function mediaRoot() {
   return path.resolve(process.env.MEDIA_PATH || './storage/media');
 }
@@ -56,7 +78,7 @@ export async function getThumbnail(rel, width) {
   await fs.promises.mkdir(path.dirname(cached), { recursive: true });
   const tmp = `${cached}.tmp-${process.pid}-${_seq++}`;
   try {
-    await execFileP(ffmpegPath, [
+    await runFfmpeg([
       '-hide_banner', '-loglevel', 'error', '-y',
       '-i', orig,
       // Downscale to `width` (never upscale past the original) with lanczos; even height.
@@ -67,7 +89,7 @@ export async function getThumbnail(rel, width) {
       // can't infer the output format from it.
       '-f', 'webp',
       tmp,
-    ], { timeout: 20000 });
+    ]);
     await fs.promises.rename(tmp, cached);
     return cached;
   } catch (e) {
@@ -142,14 +164,14 @@ export async function getRemoteThumbnail(url, width) {
   const tmpOut = `${cached}.out-${process.pid}-${_seq++}`;
   try {
     await fs.promises.writeFile(tmpIn, buf);
-    await execFileP(ffmpegPath, [
+    await runFfmpeg([
       '-hide_banner', '-loglevel', 'error', '-y',
       '-i', tmpIn,
       '-vf', `scale='min(${width},iw)':-2:flags=lanczos`,
       '-frames:v', '1',
       '-c:v', 'libwebp', '-q:v', '82', '-f', 'webp',
       tmpOut,
-    ], { timeout: 20000 });
+    ]);
     await fs.promises.rename(tmpOut, cached);
     return cached;
   } catch (e) {
