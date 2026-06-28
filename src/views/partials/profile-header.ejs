@@ -43,7 +43,7 @@ let _sinceStr = ''; try { if (site && site.created_at) _sinceStr = new Date(site
     <%# Clicking the avatar — photo OR placeholder — opens the profile-summary modal. %>
     <button type="button" class="profile-photo" data-pf-summary aria-label="<%= _displayName || 'Profile' %>">
       <% if (_avatarUrl) { %>
-        <img src="<%= avatar(_avatarUrl, 320) %>" alt="">
+        <img src="<%= avatar(_avatarUrl, 256) %>" alt="">
       <% } else if (site.enable_audio_player && (typeof audioEnabled === 'undefined' || audioEnabled)) { %>
         <span class="profile-photo-fallback profile-photo-fallback--music" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
