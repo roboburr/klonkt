@@ -28,7 +28,7 @@
       </label>
       <label>
         <span><%= t('aseo.canonical') %> <small class="form-hint-inline">— <%= t('aseo.canonical_hint') %></small></span>
-        <input type="text" name="canonical" value="<%= site.canonical || '' %>" placeholder="https://jouw-domein.com" maxlength="200">
+        <input type="text" name="canonical" value="<%= site.canonical || '' %>" placeholder="https://yourdomain.com" maxlength="200">
       </label>
       <label>
         <span><%= t('aseo.author') %> <small class="form-hint-inline">— <%= t('aseo.author_hint') %></small></span>
@@ -40,7 +40,7 @@
       <legend><%= t('aseo.social_legend') %></legend>
       <label>
         <span><%= t('aseo.og_image') %> <small class="form-hint-inline">— <%= t('aseo.og_image_hint') %></small></span>
-        <input type="text" name="og_image_default" value="<%= site.og_image_default || '' %>" placeholder="https://jouw-domein.com/share.jpg" maxlength="500">
+        <input type="text" name="og_image_default" value="<%= site.og_image_default || '' %>" placeholder="https://yourdomain.com/share.jpg" maxlength="500">
       </label>
       <label>
         <span><%= t('aseo.og_locale') %> <small class="form-hint-inline">— <%= t('aseo.og_locale_hint_pre') %> <code>nl_NL</code> <%= t('aseo.og_locale_hint_or') %> <code>en_US</code></small></span>
@@ -71,11 +71,11 @@
       </label>
       <label>
         <span><%= t('aseo.publisher_url') %></span>
-        <input type="text" name="publisher_url" value="<%= site.publisher_url || '' %>" placeholder="https://jouw-domein.com" maxlength="200">
+        <input type="text" name="publisher_url" value="<%= site.publisher_url || '' %>" placeholder="https://yourdomain.com" maxlength="200">
       </label>
       <label>
         <span><%= t('aseo.publisher_logo') %></span>
-        <input type="text" name="publisher_logo" value="<%= site.publisher_logo || '' %>" placeholder="https://jouw-domein.com/logo.png" maxlength="500">
+        <input type="text" name="publisher_logo" value="<%= site.publisher_logo || '' %>" placeholder="https://yourdomain.com/logo.png" maxlength="500">
       </label>
     </fieldset>
 

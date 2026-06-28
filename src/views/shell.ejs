@@ -41,10 +41,12 @@ if (isSpecialPg && (currentPath === '/search' || /^\/(tag|type|archive|users)\//
   _shouldIndex = false;
 }
 
-// ── Canonical URL (only when we have one configured) ─────────────
+// ── Canonical URL: per-site override (admin SEO), else the .env base
+//    (PUBLIC_BASE_URL, via ogOrigin → falls back to the request host) ──
 let _canonical = null;
-if (safeSite.canonical) {
-  const _base = safeSite.canonical.replace(/\/+$/, '');
+const _canonBase = safeSite.canonical || (typeof ogOrigin !== 'undefined' ? ogOrigin : '');
+if (_canonBase) {
+  const _base = _canonBase.replace(/\/+$/, '');
   let _path = '/';
   if (typeof post !== 'undefined' && post && post.slug) _path = '/' + post.slug;
   else if (currentPath) _path = currentPath;
