@@ -20,6 +20,15 @@ import { getSetting, apEnabled } from '../services/SettingsService.js';
 import { isPremium as isPremiumInstance, premiumEnabled, premiumUnlocked } from '../services/PatreonService.js';
 import ActivityPubService from '../services/ActivityPubService.js';
 import { audioEnabled as audioFeatureEnabled } from '../config/features.js';
+
+// Add the per-request CSP nonce to every <script> tag that doesn't already have one, so the
+// strict script-src (nonce + 'strict-dynamic') allows them — including scripts in htmx
+// partials. HTML-escaped "&lt;script" in rendered content (e.g. sanitized post bodies) won't
+// match, so this only touches real tags.
+function injectCspNonce(html, nonce) {
+  if (!html || !nonce) return html;
+  return String(html).replace(/<script(?![^>]*\snonce=)/gi, () => `<script nonce="${nonce}"`);
+}
 import { PLATFORMS as PLATFORMS_CATALOG } from '../services/PlatformIcons.js';
 import { t as i18nT, resolveLang, SUPPORTED as LANGS, LANG_NAMES } from '../services/i18n.js';
 
@@ -203,12 +212,13 @@ export async function renderPage(req, res, viewName, data = {}) {
           { async: false },
         );
       } catch (e) { /* skip chrome OOB */ }
-      return res.send(pageContent + oobChrome);
+      return res.send(injectCspNonce(pageContent + oobChrome, res.locals.cspNonce));
     }
 
-    // Full: wrap content in shell
+    // Full: wrap content in shell (rendered to a string so we can inject the CSP nonce).
     locals.pageContent = pageContent;
-    res.render('shell', locals);
+    const shellHtml = await ejs.renderFile(path.join(VIEWS_DIR, 'shell.ejs'), locals, { async: false });
+    res.send(injectCspNonce(shellHtml, res.locals.cspNonce));
   } catch (err) {
     console.error('[renderPage] Error rendering', viewName, err);
     if (process.env.NODE_ENV === 'production') {

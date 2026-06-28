@@ -90,21 +90,23 @@ const isDev = process.env.NODE_ENV !== 'production';
 const app = express();
 const server = http.createServer(app);
 
+// Per-request CSP nonce for the strict script-src (nonce + strict-dynamic). Must be set
+// before helmet builds the CSP header below. The nonce is injected into every <script> tag
+// at render time (see middleware/render.js injectCspNonce).
+app.use((req, res, next) => { res.locals.cspNonce = crypto.randomBytes(16).toString('base64'); next(); });
+
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
+      // Strict CSP: a per-request nonce + 'strict-dynamic' (no 'unsafe-inline', no broad host
+      // sources — securityheaders/Observatory flag those). Trusted (nonce'd) scripts may load
+      // further scripts, which covers htmx-swapped inline scripts AND the external player APIs
+      // that embed-player.js injects (YouTube/SoundCloud/Spotify). The nonce is added to every
+      // <script> tag at render time (middleware/render.js injectCspNonce).
       scriptSrc: [
-        "'self'",
-        "'unsafe-inline'",
-        // Our custom embeds (embed-player.js) load the OFFICIAL player APIs
-        // from these hosts. Without this whitelist the CSP silently blocks them
-        // (only a console error) and the embed player fails.
-        "https://www.youtube.com",   // YouTube IFrame Player API (+ www-widgetapi.js)
-        "https://s.ytimg.com",       // YouTube player assets
-        "https://w.soundcloud.com",  // SoundCloud Widget API (api.js)
-        "https://open.spotify.com",  // Spotify iFrame API (loader)
-        "https://*.spotifycdn.com",  // Spotify iFrame API (real bundle: embed-cdn.spotifycdn.com)
+        "'strict-dynamic'",
+        (req, res) => `'nonce-${res.locals.cspNonce}'`,
       ],
       // Helmet's default sets script-src-attr to 'none', which blocks ALL inline
       // event handlers (onchange/onclick/onsubmit) — causing e.g. the avatar
