@@ -1,7 +1,80 @@
 <div class="tl-wrap">
   <%- include('../partials/fedi-tabs', { active: 'feed' }) %>
-  <h1 class="tl-title"><%= t('tl.title') %></h1>
+  <div class="tl-head">
+    <h1 class="tl-title"><%= t('tl.title') %></h1>
+    <button type="button" id="tl-paste-btn" class="tl-paste-btn" title="<%= t('fedi.remote_interact') %>" aria-label="<%= t('fedi.remote_interact') %>">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
+  </div>
   <p class="tl-lead"><%= t('tl.lead') %></p>
+
+  <div class="tl-paste" id="tl-paste">
+    <div class="tl-paste-card" role="dialog" aria-label="<%= t('fedi.remote_interact') %>">
+      <button type="button" class="tl-paste-x" aria-label="<%= t('fedi.cancel') %>">&times;</button>
+      <h3 class="tl-paste-title"><%= t('fedi.remote_interact') %></h3>
+      <input type="url" class="tl-paste-input" inputmode="url" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="<%= t('tl.paste_ph') %>">
+      <div class="tl-paste-actions">
+        <button type="button" class="tl-paste-cancel"><%= t('fedi.cancel') %></button>
+        <button type="button" class="tl-paste-go"><%= t('tl.paste_go') %></button>
+      </div>
+    </div>
+  </div>
+  <style>
+    .tl-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+    .tl-paste-btn { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px;
+      border: 1px solid var(--rule); border-radius: 999px; background: var(--paper-2); color: var(--ink-soft); cursor: pointer; transition: color .15s, border-color .15s, background .15s; }
+    .tl-paste-btn:hover { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, transparent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+    .tl-paste { position: fixed; inset: 0; z-index: 2147483601; display: none; align-items: center; justify-content: center; padding: 1rem; background: rgba(0,0,0,.55); }
+    .tl-paste.is-open { display: flex; }
+    .tl-paste-card { position: relative; width: 100%; max-width: 460px; background: var(--paper); color: var(--ink); border: 1px solid var(--rule);
+      border-radius: 16px; padding: 1.4rem 1.4rem 1.2rem; box-shadow: 0 18px 50px rgba(0,0,0,.4); }
+    .tl-paste-x { position: absolute; top: .5rem; right: .6rem; width: 2rem; height: 2rem; border: 0; border-radius: 999px; background: transparent; color: var(--ink-soft); font-size: 1.4rem; line-height: 1; cursor: pointer; }
+    .tl-paste-title { margin: 0 0 .8rem; font-size: 1.1rem; }
+    .tl-paste-input { width: 100%; box-sizing: border-box; padding: .6rem .8rem; border: 1.5px solid var(--rule); border-radius: 10px; background: var(--paper-2); color: var(--ink); font: inherit; font-size: .95rem; }
+    .tl-paste-input:focus { outline: none; border-color: var(--accent); }
+    .tl-paste-actions { display: flex; justify-content: flex-end; gap: .6rem; margin-top: 1rem; }
+    .tl-paste-actions button { padding: .5rem 1.1rem; border-radius: 999px; font: inherit; font-weight: 600; font-size: .88rem; cursor: pointer; border: 0; }
+    .tl-paste-cancel { background: transparent; border: 1.5px solid var(--rule); color: var(--ink); }
+    .tl-paste-go { background: var(--accent); color: var(--paper); }
+  </style>
+  <script>
+  (function () {
+    if (window.__tlPasteWired) return; window.__tlPasteWired = true;
+    function modal() { return document.getElementById('tl-paste'); }
+    function openM() {
+      var m = modal(); if (!m) return;
+      var inp = m.querySelector('.tl-paste-input');
+      m.classList.add('is-open');
+      if (inp) {
+        inp.value = ''; inp.focus();
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          navigator.clipboard.readText().then(function (t) {
+            t = (t || '').trim();
+            if (/^https?:\/\//i.test(t) && !inp.value) { inp.value = t; inp.select(); }
+          }).catch(function () {});
+        }
+      }
+    }
+    function closeM() { var m = modal(); if (m) m.classList.remove('is-open'); }
+    function go() {
+      var m = modal(); if (!m) return;
+      var inp = m.querySelector('.tl-paste-input'), v = (inp ? inp.value : '').trim();
+      if (!/^https?:\/\//i.test(v)) { if (inp) inp.focus(); return; }
+      location.href = '/authorize_interaction?uri=' + encodeURIComponent(v);
+    }
+    document.addEventListener('click', function (e) {
+      if (e.target.closest && e.target.closest('#tl-paste-btn')) { e.preventDefault(); openM(); return; }
+      if (e.target.closest && e.target.closest('.tl-paste-go')) { e.preventDefault(); go(); return; }
+      if (e.target.closest && (e.target.closest('.tl-paste-cancel') || e.target.closest('.tl-paste-x'))) { e.preventDefault(); closeM(); return; }
+      var op = document.querySelector('.tl-paste.is-open'); if (op && e.target === op) closeM();
+    });
+    document.addEventListener('keydown', function (e) {
+      var m = document.querySelector('.tl-paste.is-open'); if (!m) return;
+      if (e.key === 'Escape') closeM();
+      else if (e.key === 'Enter' && e.target.closest && e.target.closest('.tl-paste')) { e.preventDefault(); go(); }
+    });
+  })();
+  </script>
   <% if (typeof success !== 'undefined' && success) { %><div class="alert alert-success"><%= success %></div><% } %>
   <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
 
