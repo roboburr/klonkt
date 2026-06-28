@@ -16,6 +16,8 @@ import { requireSiteManager } from '../middleware/auth.js';
 import { premiumUnlocked } from '../services/PatreonService.js';
 import { mailerConfigured, sendMail } from '../config/mailer.js';
 import { confirmedFor, counts } from '../services/SubscriberService.js';
+import { t, resolveLang } from '../services/i18n.js';
+import { getSetting } from '../services/SettingsService.js';
 
 const router = express.Router();
 
@@ -32,7 +34,8 @@ function res_siteUrlBase(req) {
 
 function premiumGate(req, res, next) {
   if (!premiumUnlocked()) {
-    return res.status(403).send('Nieuwsbrief is premium — koppel Patreon in Beheer → Instellingen.');
+    const lang = resolveLang(req, { defaultLang: getSetting('default_lang') });
+    return res.status(403).send(t(lang, 'aset.premium_gate', { feature: t(lang, 'admin.t_newsletter') }));
   }
   next();
 }
