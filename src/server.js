@@ -98,7 +98,7 @@ app.use((req, res, next) => { res.locals.cspNonce = crypto.randomBytes(16).toStr
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
-      defaultSrc: ["'self'"],
+      defaultSrc: ["'none'"],
       // Strict CSP: a per-request nonce + 'strict-dynamic' (no 'unsafe-inline', no broad host
       // sources — securityheaders/Observatory flag those). Trusted (nonce'd) scripts may load
       // further scripts, which covers htmx-swapped inline scripts AND the external player APIs
@@ -131,6 +131,12 @@ app.use(helmet({
       // The sensitive /authorize_interaction page tightens frame-src back to 'self' in
       // renderPage — it shows untrusted remote content next to the interact buttons.
       frameSrc: ["'self'", "https:"],
+      // default-src is 'none' (deny by default), so resource types that were implicitly covered
+      // by the old default-src 'self' must be listed explicitly: the PWA manifest and the
+      // service worker. (base-uri/form-action/frame-ancestors/object-src 'none' come from
+      // Helmet's defaults; img/style/connect/media/font/frame are set above.)
+      manifestSrc: ["'self'"],
+      workerSrc: ["'self'", "blob:"],
     },
   },
   hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
