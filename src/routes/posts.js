@@ -945,13 +945,13 @@ router.get('/:slug', (req, res, next) => {
   // Excluding self via `id != ?`.
   const candidates = isHub
     ? db.prepare(`
-        SELECT p.id, p.slug, p.title, p.cover_image_url, p.published_at, p.tags, s.slug AS site_slug
+        SELECT p.id, p.slug, p.title, p.cover_image_url, p.published_at, p.tags, p.nsfw, p.content_warning, s.slug AS site_slug
         FROM posts p JOIN sites s ON s.id = p.site_id
         WHERE p.status = 'published' AND p.id != ?
         ORDER BY p.published_at DESC LIMIT 50
       `).all(post.id)
     : db.prepare(`
-        SELECT id, slug, title, cover_image_url, published_at, tags
+        SELECT id, slug, title, cover_image_url, published_at, tags, nsfw, content_warning
         FROM posts
         WHERE site_id = ? AND status = 'published' AND id != ?
         ORDER BY published_at DESC LIMIT 50
