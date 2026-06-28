@@ -2,7 +2,7 @@
   <header class="user-header">
     <div class="user-avatar-large">
       <% if (author.avatar_url) { %>
-        <img src="<%= author.avatar_url %>" alt="">
+        <img src="<%= avatar(author.avatar_url, 320) %>" alt="">
       <% } else { %>
         <span><%= author.username.charAt(0).toUpperCase() %></span>
       <% } %>

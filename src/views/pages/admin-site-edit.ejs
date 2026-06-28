@@ -49,7 +49,7 @@
         <span><%= t('asite.profile_photo') %></span>
         <div class="photo-picker" id="photo-picker">
           <div class="photo-thumb" id="photo-thumb" <%= site.profile_photo ? '' : 'data-empty' %>>
-            <img id="photo-preview" src="<%= site.profile_photo || '' %>" alt="" <%= site.profile_photo ? '' : 'hidden' %>>
+            <img id="photo-preview" src="<%= avatar(site.profile_photo || '', 128) %>" alt="" <%= site.profile_photo ? '' : 'hidden' %>>
             <span class="photo-empty" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             </span>

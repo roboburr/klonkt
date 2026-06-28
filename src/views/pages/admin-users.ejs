@@ -41,7 +41,7 @@
 
           <div class="ax-user-id">
             <% if (u.avatar_url) { %>
-              <img class="ax-avatar" src="<%= u.avatar_url %>" alt="">
+              <img class="ax-avatar" src="<%= avatar(u.avatar_url, 128) %>" alt="">
             <% } else { %>
               <span class="ax-avatar ax-avatar-empty"><%= u.username.charAt(0).toUpperCase() %></span>
             <% } %>

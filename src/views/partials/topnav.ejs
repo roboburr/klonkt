@@ -112,7 +112,7 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
         <details class="user-menu">
           <summary class="nav-btn user-toggle" aria-label="Gebruikersmenu">
             <% if (user.avatar_url) { %>
-              <img class="user-avatar user-avatar-img" src="<%= user.avatar_url %>" alt="">
+              <img class="user-avatar user-avatar-img" src="<%= avatar(user.avatar_url, 128) %>" alt="">
             <% } else { %>
               <span class="user-avatar"><%= user.username.charAt(0).toUpperCase() %></span>
             <% } %>
@@ -120,7 +120,7 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
           <div class="user-dropdown" role="menu">
             <div class="user-dropdown-header">
               <% if (user.avatar_url) { %>
-                <img class="udh-avatar" src="<%= user.avatar_url %>" alt="">
+                <img class="udh-avatar" src="<%= avatar(user.avatar_url, 128) %>" alt="">
               <% } else { %>
                 <span class="udh-avatar udh-avatar-fallback"><%= user.username.charAt(0).toUpperCase() %></span>
               <% } %>

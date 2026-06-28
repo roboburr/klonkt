@@ -8,7 +8,7 @@
 %>
 <section class="epk" <%= _accent ? ('style="--epk-accent:' + _accent + '"') : '' %>>
   <header class="epk-hero">
-    <% if (_photo) { %><div class="epk-photo"><img src="<%= _photo %>" alt="<%= site.title %>"></div><% } %>
+    <% if (_photo) { %><div class="epk-photo"><img src="<%= avatar(_photo, 320) %>" alt="<%= site.title %>"></div><% } %>
     <div class="epk-hero-text">
       <div class="epk-kicker"><%= t('epk.kicker') %><% if (typeof user !== 'undefined' && user && user.role === 'god') { %> <a class="epk-edit-link" href="/admin/epk">✎ <%= t('epk.edit') %></a><% } %></div>
       <h1 class="epk-title"><%= site.title %></h1>

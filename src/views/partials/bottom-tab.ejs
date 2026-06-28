@@ -84,7 +84,7 @@ else if (_p.indexOf('/auth/login') === 0) _active = 'login';
             data-profile-sheet-toggle
             aria-label="Profiel menu" aria-haspopup="dialog">
       <% if (user.avatar_url) { %>
-        <img class="bottom-tab-avatar bottom-tab-avatar-img" src="<%= user.avatar_url %>" alt="">
+        <img class="bottom-tab-avatar bottom-tab-avatar-img" src="<%= avatar(user.avatar_url, 128) %>" alt="">
       <% } else { %>
         <span class="bottom-tab-avatar"><%= user.username.charAt(0).toUpperCase() %></span>
       <% } %>

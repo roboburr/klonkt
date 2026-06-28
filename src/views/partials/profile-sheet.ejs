@@ -36,7 +36,7 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
     <!-- Identity header -->
     <div class="profile-sheet-header">
       <% if (user.avatar_url) { %>
-        <img class="profile-sheet-avatar profile-sheet-avatar-img" src="<%= user.avatar_url %>" alt="" aria-hidden="true">
+        <img class="profile-sheet-avatar profile-sheet-avatar-img" src="<%= avatar(user.avatar_url, 128) %>" alt="" aria-hidden="true">
       <% } else { %>
         <div class="profile-sheet-avatar" aria-hidden="true"><%= user.username.charAt(0).toUpperCase() %></div>
       <% } %>

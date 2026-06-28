@@ -43,7 +43,7 @@ let _sinceStr = ''; try { if (site && site.created_at) _sinceStr = new Date(site
     <%# Clicking the avatar — photo OR placeholder — opens the profile-summary modal. %>
     <button type="button" class="profile-photo" data-pf-summary aria-label="<%= _displayName || 'Profile' %>">
       <% if (_avatarUrl) { %>
-        <img src="<%= _avatarUrl %>" alt="">
+        <img src="<%= avatar(_avatarUrl, 320) %>" alt="">
       <% } else if (site.enable_audio_player && (typeof audioEnabled === 'undefined' || audioEnabled)) { %>
         <span class="profile-photo-fallback profile-photo-fallback--music" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -111,7 +111,7 @@ let _sinceStr = ''; try { if (site && site.created_at) _sinceStr = new Date(site
   <div class="pf-summary-card" role="dialog" aria-label="<%= _displayName %>">
     <button type="button" class="pf-summary-close" aria-label="Sluiten">&times;</button>
     <% if (_avatarUrl) { %>
-      <img class="pf-summary-photo" src="<%= _avatarUrl %>" alt="">
+      <img class="pf-summary-photo" src="<%= avatar(_avatarUrl, 128) %>" alt="">
     <% } else { %>
       <div class="pf-summary-photo pf-summary-photo--ph" aria-hidden="true">
         <% if (site.enable_audio_player && (typeof audioEnabled === 'undefined' || audioEnabled)) { %>

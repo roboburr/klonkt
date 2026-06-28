@@ -29,7 +29,7 @@
       <span class="ax-profile-avatar ax-profile-avatar-static">
         <% var _av = (typeof siteAvatar !== 'undefined' ? siteAvatar : null); %>
         <% if (_av) { %>
-          <img src="<%= _av %>" alt="">
+          <img src="<%= avatar(_av, 128) %>" alt="">
         <% } else { %>
           <span><%= account.username.charAt(0).toUpperCase() %></span>
         <% } %>
