@@ -180,7 +180,7 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
                       style="background-image: url('<%= rp.cover_image_url %>')"
                       aria-hidden="true"><% if (rp.nsfw) { %><span class="nsfw-veil"><span class="nsfw-veil-label">🔞 <%= rp.content_warning || t('post.nsfw_warning') %></span><span class="nsfw-veil-btn"><%= t('post.nsfw_show') %></span></span><% } %></span>
               <% } else { %>
-                <span class="post-related-cover post-related-cover--empty" aria-hidden="true"></span>
+                <span class="post-related-cover post-related-cover--empty<%= rp.nsfw ? ' nsfw-media' : '' %>" aria-hidden="true"><% if (rp.nsfw) { %><span class="nsfw-veil"><span class="nsfw-veil-label">🔞 <%= rp.content_warning || t('post.nsfw_warning') %></span><span class="nsfw-veil-btn"><%= t('post.nsfw_show') %></span></span><% } %></span>
               <% } %>
               <span class="post-related-meta">
                 <span class="post-related-date"><%= formatDate(rp.published_at) %></span>
