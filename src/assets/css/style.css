@@ -1936,6 +1936,7 @@ body.audio-is-loading .audio-sheet-play::after {
     width: 100%; height: 100%;
     object-fit: cover;
     display: block;
+    filter: blur(.4px); /* subtle smoothing of downscaled line-art covers */
 }
 .post-list-body { display: flex; flex-direction: column; gap: .35rem; }
 .post-list-meta {
@@ -2382,7 +2383,7 @@ body.on-cirkel[data-feed-view="grid"]  .feed-grid { display: block; }
 .grid-tile:not(.grid-tile-gradient) { background-color: #fff; }
 /* Cover as a real <img> (not background-image): browsers downsample <img> with the
    high-quality image pipeline, so high-res line-art covers don't go jagged when shrunk. */
-.grid-tile-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; display: block; }
+.grid-tile-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; display: block; filter: blur(.4px); }
 .grid-tile:hover { transform: scale(0.98); }
 .grid-tile-overlay {
     position: absolute;
