@@ -30,7 +30,9 @@
             var imgs = media.filter(function(m){ return m && m.url && (!m.type || /^image\//.test(m.type)); });
             var vids = media.filter(function(m){ return m && m.url && m.type && /^video\//.test(m.type); });
             var auds = media.filter(function(m){ return m && m.url && m.type && /^audio\//.test(m.type); });
+            var _nsfwVisual = !!p.nsfw && (imgs.length || vids.length || auds.length);
           %>
+          <% if (_nsfwVisual) { %><div class="nsfw-media"><% } %>
           <% if (imgs.length) { %>
             <div class="tl-media">
               <% imgs.forEach(function(m){ %>
@@ -40,6 +42,7 @@
           <% } %>
           <% vids.forEach(function(m){ %><video class="tl-media-video" src="<%= m.url %>" controls preload="metadata" playsinline></video><% }); %>
           <% auds.forEach(function(m){ %><audio class="tl-media-audio" src="<%= m.url %>" controls preload="none"></audio><% }); %>
+          <% if (_nsfwVisual) { %><div class="nsfw-veil"><span class="nsfw-veil-label">🔞 <%= p.cw || t('post.nsfw_warning') %></span><span class="nsfw-veil-btn"><%= t('post.nsfw_show') %></span></div></div><% } %>
 
           <% if (p.embedHtml) { %><div class="tl-embed"><%- p.embedHtml %></div><% } %>
           <% if (p.embedUrl) { %><a class="tl-embed-open" href="<%= p.embedUrl %>" target="_blank" rel="noopener">▶ <%= t('tl.open_player') %></a><% } %>
