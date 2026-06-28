@@ -2485,14 +2485,18 @@ body.on-cirkel[data-feed-view="grid"]  .feed-grid { display: block; }
     height: .95em;
     margin-top: -1px;
 }
-/* Pinned-tile overall highlight: accent border + subtle inner glow */
-.grid-tile.is-pinned {
-    outline: 3px solid var(--accent);
-    outline-offset: -3px;
+/* Pinned/boosted tile: accent ring. An outline on the tile is painted UNDER the absolute
+   cover <img>, so draw the ring as a pseudo-element overlay ABOVE the image (z-index above
+   the img, below the corner badges + nsfw veil). */
+.grid-tile.is-pinned { position: relative; z-index: 1; }
+.grid-tile.is-pinned::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border: 3px solid var(--accent);
+    border-radius: inherit;
+    pointer-events: none;
     z-index: 1;
-}
-.grid-tile.is-pinned:hover {
-    outline-offset: -2px;
 }
 .grid-tile-type {
     position: absolute;
