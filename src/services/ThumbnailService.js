@@ -22,8 +22,9 @@ import { safeFetch } from './ActivityPubService.js';
 
 const execFileP = promisify(execFile);
 
-// Allowed widths (whitelist → no arbitrary-size abuse). 128 = avatars; 480 ≈ 2× a grid tile.
-export const THUMB_SIZES = new Set([128, 320, 480, 640]);
+// Allowed widths (whitelist → no arbitrary-size abuse). 128 = avatars; 256 ≈ 2× a list
+// cover; 480 ≈ 2× a grid tile. Keep these ~2× the display size so line-art stays crisp.
+export const THUMB_SIZES = new Set([128, 256, 320, 480, 640]);
 
 let _seq = 0;
 
