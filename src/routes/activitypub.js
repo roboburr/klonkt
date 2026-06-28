@@ -21,8 +21,11 @@ import { apEnabled } from '../services/SettingsService.js';
 const router = express.Router();
 // The whole fediverse layer can be turned off (solo "no federation" mode):
 // then /ap/*, WebFinger and NodeInfo are simply gone — the site is undiscoverable
-// and unfederatable.
-router.use((req, res, next) => { if (!apEnabled()) return res.status(404).end(); next(); });
+// and unfederatable. CRITICAL: this router is mounted at root (app.use(apRoutes)), so a
+// blanket res.status(404) here ran for EVERY request and 404'd the whole site when AP was
+// off. Use next('router') to SKIP this router entirely and let the normal routes handle it
+// (the /ap/* paths then fall through to the app's normal 404, which is correct).
+router.use((req, res, next) => { if (!apEnabled()) return next('router'); next(); });
 // Generous per-IP baseline over all /ap/* (reads). The inbox POST gets an
 // additional, tighter cap inline (it triggers outbound fetches).
 router.use(apReadLimiter);
