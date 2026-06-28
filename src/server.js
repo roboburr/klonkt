@@ -19,6 +19,7 @@ import db, { initializeDatabase } from './config/database.js';
 import { startScheduler } from './services/Scheduler.js';
 import { SqliteSessionStore } from './services/SqliteSessionStore.js';
 import { ensurePrimarySite } from './services/ensurePrimarySite.js';
+import { getThumbnail, THUMB_SIZES } from './services/ThumbnailService.js';
 import { resolveSite, loadAudioTracks, loadTheme } from './middleware/site.js';
 import { isViewer } from './middleware/auth.js';
 import { renderPage } from './middleware/render.js';
@@ -212,6 +213,26 @@ const sessionMiddleware = session({
 app.use(sessionMiddleware);
 
 app.use('/assets', express.static(path.join(__dirname, 'assets'), { maxAge: isDev ? 0 : '1y' }));
+
+// On-demand cover thumbnails: /media/thumb/<w>/<path> → a small lanczos-downscaled WebP
+// (cached on disk), so the browser doesn't jaggily shrink a high-res cover for the grid/
+// list. Mounted BEFORE the /media static so it catches the thumb path first.
+app.get('/media/thumb/:w/*', async (req, res) => {
+  const w = parseInt(req.params.w, 10);
+  const rel = req.params[0] || '';
+  if (!THUMB_SIZES.has(w)) return res.status(400).end();
+  let file = null;
+  try { file = await getThumbnail(rel, w); } catch { /* fall through to original */ }
+  if (!file) {
+    // Generation unavailable/failed → serve the original instead of 404'ing.
+    return res.redirect(302, '/media/' + rel.split('/').map(encodeURIComponent).join('/'));
+  }
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.setHeader('Cache-Control', isDev ? 'no-cache' : 'public, max-age=31536000, immutable');
+  res.type('webp');
+  res.sendFile(file);
+});
+
 app.use('/media', express.static(process.env.MEDIA_PATH || './storage/media', {
   // Public media (post covers, avatars) must be cross-origin embeddable by other
   // Klonkt sites in their CIRCLE. Helmet sets CORP=same-origin by default, which

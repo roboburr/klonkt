@@ -159,6 +159,11 @@ export async function renderPage(req, res, viewName, data = {}) {
     permissions: PermissionsService,
     formatDate,
     formatDateTime,
+    // Rewrite a local /media/<file> cover to its on-demand downscaled thumbnail
+    // (crisp grid/list images). External URLs + already-thumb URLs pass through.
+    thumb: (url, w) => (typeof url === 'string' && url.startsWith('/media/') && !url.startsWith('/media/thumb/'))
+      ? `/media/thumb/${w || 480}/${url.slice(7)}`
+      : url,
     pageTitle: data.pageTitle || (data.site && data.site.title) || 'Klonkt',
     appVersion: APP_VERSION,
     bodyClass: data.bodyClass || 'on-home',
