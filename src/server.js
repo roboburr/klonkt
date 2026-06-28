@@ -95,6 +95,14 @@ const server = http.createServer(app);
 // at render time (see middleware/render.js injectCspNonce).
 app.use((req, res, next) => { res.locals.cspNonce = crypto.randomBytes(16).toString('base64'); next(); });
 
+// HSTS. The default ships a plain long max-age — safe on ANY domain. includeSubDomains +
+// preload are aggressive (they affect the operator's OTHER subdomains and can get their
+// domain baked into browsers near-permanently), so they're opt-in via HSTS_STRICT=1 — set
+// only on domains you fully own (e.g. the klonkt.com fleet). Self-hosters get the safe default.
+// NB: Helmet defaults includeSubDomains to true, so the safe default must disable it explicitly.
+const hstsOptions = { maxAge: 31536000, includeSubDomains: false, preload: false };
+if (process.env.HSTS_STRICT === '1') { hstsOptions.includeSubDomains = true; hstsOptions.preload = true; }
+
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -138,7 +146,7 @@ app.use(helmet({
       workerSrc: ["'self'", "blob:"],
     },
   },
-  hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+  hsts: hstsOptions,
   frameguard: { action: 'sameorigin' },
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
 }));
