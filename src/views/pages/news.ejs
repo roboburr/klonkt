@@ -117,7 +117,7 @@
           <% if (imgs.length) { %>
             <div class="tl-media">
               <% imgs.forEach(function(m){ %>
-                <a class="tl-media-img" href="<%= m.url %>" target="_blank" rel="noopener"><img src="<%= m.url %>" alt="" loading="lazy" decoding="async"></a>
+                <a class="tl-media-img" href="<%= m.url %>" target="_blank" rel="noopener"><img src="<%= thumb(m.url, 640) %>" alt="" loading="lazy" decoding="async"></a>
               <% }); %>
             </div>
           <% } %>

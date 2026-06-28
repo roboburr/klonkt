@@ -162,9 +162,14 @@ export async function renderPage(req, res, viewName, data = {}) {
     formatDateTime,
     // Rewrite a local /media/<file> cover to its on-demand downscaled thumbnail
     // (crisp grid/list images). External URLs + already-thumb URLs pass through.
-    thumb: (url, w) => (typeof url === 'string' && url.startsWith('/media/') && !url.startsWith('/media/thumb/'))
-      ? `/media/thumb/${w || 480}/${url.slice(7)}`
-      : url,
+    thumb: (url, w) => {
+      if (!url || typeof url !== 'string') return url;
+      // Local cover → local thumb route; remote (federated) cover → signed downscale
+      // proxy (same as avatars), so remote line-art covers aren't browser-downscaled jagged.
+      if (url.startsWith('/media/') && !url.startsWith('/media/thumb/')) return `/media/thumb/${w || 480}/${url.slice(7)}`;
+      if (/^https?:\/\//i.test(url)) return imgProxyUrl(url, w || 480);
+      return url;
+    },
     // Crisp avatars: a local /media avatar goes through the local thumb route; a REMOTE
     // (fediverse) avatar through the signed downscaling proxy. Same downscale, the remote
     // one is just fetched first. Default 128px (covers feed 44px → profile ~120px).
