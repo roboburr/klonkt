@@ -559,12 +559,21 @@
   attachSeek(seek);
   attachSeek(sheetSeek);
 
-  audio.volume = 0.8;
+  // Volume + mute persist across sessions/pages via localStorage.
+  const VOL_KEY = 'pcmsVolume', MUTE_KEY = 'pcmsMuted';
+  const saveVol = () => { try { localStorage.setItem(VOL_KEY, String(audio.volume)); localStorage.setItem(MUTE_KEY, audio.muted ? '1' : '0'); } catch (e) { /* private mode */ } };
+  let _initVol = parseFloat(localStorage.getItem(VOL_KEY));
+  if (!isFinite(_initVol) || _initVol < 0 || _initVol > 1) _initVol = 0.8;
+  audio.volume = _initVol;
+  volumeSlider.value = Math.round(_initVol * 100);
+  if (localStorage.getItem(MUTE_KEY) === '1') audio.muted = true;
+  root.classList.toggle('is-muted', audio.muted || audio.volume === 0);
   volumeSlider.addEventListener('input', () => {
     audio.volume = volumeSlider.value / 100;
     if (volumeSlider.value > 0) audio.muted = false;
+    saveVol();
   });
-  muteBtn.addEventListener('click', () => { audio.muted = !audio.muted; });
+  muteBtn.addEventListener('click', () => { audio.muted = !audio.muted; saveVol(); });
 
   // ============================================================
   // 6. Control wiring
