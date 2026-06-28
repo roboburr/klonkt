@@ -184,8 +184,14 @@
 
   /* Always show the FULL image at its natural ratio — never cropped, no letterbox. */
   .tl-media { display: flex; flex-direction: column; gap: .4rem; margin: .75rem 0 0; }
-  .tl-media-img { display: block; border-radius: 12px; overflow: hidden; background: #fff; }
-  .tl-media-img img { width: 100%; height: auto; display: block; }
+  .tl-media-img { display: block; border-radius: 12px; overflow: hidden;
+    background-image: linear-gradient(135deg,
+      color-mix(in srgb, var(--accent, #888) 22%, var(--paper-2, var(--paper))) 0%,
+      color-mix(in srgb, var(--accent, #888) 6%, var(--paper-2, var(--paper))) 100%); }
+  .tl-media-img img { width: 100%; height: auto; display: block; background: #fff; transition: opacity .4s ease; }
+  .tl-media-img img.is-loading { opacity: 0; }
+  /* Reserve placeholder space while the (natural-aspect) feed image loads. */
+  .tl-media-img:has(img.is-loading) { min-height: 220px; }
 
   .tl-media-video, .tl-media-audio { width: 100%; margin: .75rem 0 0; border-radius: 12px; display: block; }
   .tl-media-video { max-height: 480px; background: #000; }
