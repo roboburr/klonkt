@@ -948,13 +948,13 @@ const toISO = (v) => { if (!v) return new Date().toISOString(); const s = String
 // Build one of OUR outbound reply Notes from an ap_outbox row.
 // Turn #hashtags in reply text into Mastodon-style hashtag links (clickable + federated).
 function linkHashtags(base, html) {
-  return String(html || '').replace(/(^|[\s>])#([A-Za-z0-9_]+)/g, (m, pre, tag) =>
+  return String(html || '').replace(/(^|[\s>])#([\p{L}\p{M}\p{N}_]+)/gu, (m, pre, tag) =>
     `${pre}<a href="${base}/tag/${encodeURIComponent(tag.toLowerCase())}" class="mention hashtag" rel="tag">#${tag}</a>`);
 }
 // Extract the AP Hashtag tag objects from already-linked reply content.
 function hashtagTags(base, content) {
   const tags = [], seen = new Set();
-  const re = /class="[^"]*\bhashtag\b[^"]*"[^>]*>#([A-Za-z0-9_]+)</gi;
+  const re = /class="[^"]*\bhashtag\b[^"]*"[^>]*>#([\p{L}\p{M}\p{N}_]+)</giu;
   let m;
   while ((m = re.exec(content || ''))) {
     const k = m[1].toLowerCase();
@@ -978,7 +978,7 @@ function normalizeTags(t) {
 // name (Mastodon hashtags can't contain spaces; CamelCase is the accessibility norm); the
 // slug/href stays lowercase ("livemusic").
 function tagParts(raw) {
-  const words = String(raw || '').trim().split(/[\s_]+/).map((w) => w.replace(/[^A-Za-z0-9]/g, '')).filter(Boolean);
+  const words = String(raw || '').trim().split(/[\s_]+/).map((w) => w.replace(/[^\p{L}\p{M}\p{N}]/gu, '')).filter(Boolean);
   if (!words.length) return null;
   const slug = words.join('').toLowerCase();
   if (!slug) return null;
@@ -1018,7 +1018,7 @@ function mentionTags(content) {
 async function resolveMentionsInText(base, html) {
   const inboxes = [];
   const handles = new Set();
-  const re = /(^|[\s>])@([A-Za-z0-9_.-]+@[A-Za-z0-9.-]+)/g;
+  const re = /(^|[\s>])@([\p{L}\p{M}\p{N}_.-]+@[\p{L}\p{M}\p{N}.-]+)/gu;
   let m;
   while ((m = re.exec(html || ''))) handles.add(m[2]);
   let out = String(html || '');
@@ -1031,7 +1031,7 @@ async function resolveMentionsInText(base, html) {
     if (inbox) inboxes.push(inbox);
     const profileUrl = actorInfo(actor, actorUri).url || actorUri; // human profile page → the link href
     const esc = h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    out = out.replace(new RegExp('(^|[\\s>])@' + esc + '(?![A-Za-z0-9_.-])', 'g'),
+    out = out.replace(new RegExp('(^|[\\s>])@' + esc + '(?![\\p{L}\\p{M}\\p{N}_.-])', 'gu'),
       (full, pre) => `${pre}<a href="${profileUrl}" class="u-url mention" data-actor="${actorUri}">@${h}</a>`);
   }
   return { html: out, inboxes };
