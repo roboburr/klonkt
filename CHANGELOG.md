@@ -38,6 +38,12 @@ Versions follow [SemVer](https://semver.org/) (`1.0.0-beta.N` during the beta).
 - **Local favourites (♥)** — replaced by the ⭐ fediverse like.
 
 ### Fixed
+- **Switching a site to solo (federation off) works again.** Turning the fediverse off could
+  make the whole site return “page not found” instead of just disabling federation; it now
+  cleanly switches federation off while the rest of the site keeps working. (Self-hosters:
+  update to pick up the fix.)
+- The Fediverse and Notifications items now disappear from the menu when federation is off,
+  instead of lingering.
 - The mini-player jumps and scrolls to the track that's playing — also from an album or
   playlist — and keeps it highlighted.
 - Empty album/playlist covers now fall back to the first track's cover.
