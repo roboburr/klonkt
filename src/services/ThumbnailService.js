@@ -23,9 +23,10 @@ import { safeFetch } from './ActivityPubService.js';
 const execFileP = promisify(execFile);
 
 // Allowed widths (whitelist → no arbitrary-size abuse). 96 = small feed/comment avatars
-// (~44px); 128 = nav/profile avatars; 256 ≈ 2× a list cover; 480 ≈ 2× a grid tile. Keep
-// these ~2× the display size so line-art stays crisp (the browser barely downscales).
-export const THUMB_SIZES = new Set([96, 128, 256, 320, 480, 640]);
+// (~44px); 128 = nav/profile avatars; 256 ≈ 2× a list cover; 480 ≈ 2× a grid tile; 1280 =
+// full-width timeline media (crisp on mobile retina, ~430px × 3 DPR). Keep these ~2× the
+// display size so the browser barely scales (avoids both jaggies and upscaling blur).
+export const THUMB_SIZES = new Set([96, 128, 256, 320, 480, 640, 1280]);
 
 let _seq = 0;
 
