@@ -728,11 +728,36 @@ export async function handleInbox(req, slugParam) {
   }
   if (type === 'Like' || type === 'Announce') {
     const tgt = act.object;
-    const pid = postIdFromNoteUrl(typeof tgt === 'string' ? tgt : (tgt && tgt.id), base);
+    const objUrl = typeof tgt === 'string' ? tgt : (tgt && tgt.id);
+    const pid = postIdFromNoteUrl(objUrl, base);
     if (pid && actorUri && !isLocalActor && localPostExists(pid)) {
       const ai = actorInfo(await resolveActor(actorUri), actorUri);
       iStmts().ins.run(type.toLowerCase(), pid, '', actorUri, ai.name, ai.handle, ai.url, ai.icon, null, null, null);
       console.log('[AP]', type === 'Like' ? 'like' : 'boost', actorUri, '→', pid);
+    } else if (type === 'Announce' && objUrl && actorUri && !isLocalActor) {
+      // A boost FROM an account we follow, of a REMOTE post → show it in the News feed.
+      // We only STORE it for display; we NEVER auto-Announce it onward (anti-feedback-loop:
+      // re-announcing an incoming Announce would cascade boosts across the network).
+      let subs = []; try { subs = db.prepare('SELECT slug FROM ap_following WHERE actor_uri = ?').all(actorUri); } catch { /* table may not exist */ }
+      if (subs.length) {
+        const bn = await fetchNoteAP(objUrl);
+        if (bn && bn !== 404 && (bn.type === 'Note' || bn.type === 'Article') && bn.id) {
+          const origUri = actorUriOf(bn.attributedTo);
+          const oai = actorInfo(await resolveActor(origUri), origUri);
+          const html = HtmlSanitizerService.sanitize(bn.content || '');
+          const media = mediaFromNote(bn);
+          const booster = actorInfo(await resolveActor(actorUri), actorUri);
+          for (const s of subs) {
+            // published = now → the boost shows as fresh activity at the top (Mastodon shows
+            // reblogs at reblog-time, not the original's date). INSERT OR IGNORE: if we already
+            // have the note (e.g. we also follow the author), keep it and DON'T relabel it.
+            let inserted = false;
+            try { const r = tlStmts().ins.run(bn.id, s.slug, origUri || '', oai.name, oai.handle, oai.icon, oai.url, html, bn.url || null, new Date().toISOString(), media, bn.sensitive ? 1 : 0, bn.summary || null); inserted = r.changes > 0; } catch { /* ignore */ }
+            if (inserted) { try { db.prepare('UPDATE ap_timeline SET reblog_name = ?, reblog_handle = ?, reblog_icon = ? WHERE slug = ? AND id = ?').run(booster.name, booster.handle, booster.icon, s.slug, bn.id); } catch { /* ignore */ } }
+          }
+          console.log('[AP] timeline boost +', actorUri, 'x' + subs.length);
+        }
+      }
     }
     return 202;
   }
