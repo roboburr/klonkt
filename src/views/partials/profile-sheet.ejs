@@ -55,6 +55,7 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
           <svg class="psi-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
         </a>
       </li>
+      <% if (typeof canManageFedi !== 'undefined' && canManageFedi && apEnabled) { %>
       <li role="none">
         <a href="/notifications" class="profile-sheet-item" role="menuitem" data-close-sheet>
           <svg class="psi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
@@ -62,7 +63,8 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
           <svg class="psi-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
         </a>
       </li>
-      <% if (typeof canManageFedi !== 'undefined' && canManageFedi) { %>
+      <% } %>
+      <% if (typeof canManageFedi !== 'undefined' && canManageFedi && apEnabled) { %>
       <li role="none">
         <a href="/news" class="profile-sheet-item" role="menuitem" data-close-sheet
            hx-get="/news?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="/news" hx-indicator="#pcms-loading">

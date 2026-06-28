@@ -100,7 +100,7 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
         </details>
       <% } %>
 
-      <% if (user && typeof canManageFedi !== 'undefined' && canManageFedi) { %>
+      <% if (user && typeof canManageFedi !== 'undefined' && canManageFedi && apEnabled) { %>
         <a class="nav-btn nav-notif" href="/notifications" aria-label="<%= t('notif.title') %>" title="<%= t('notif.title') %>"
            hx-get="/notifications?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="/notifications" hx-indicator="#pcms-loading">
           <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
@@ -156,7 +156,7 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
                   <span><%= t('nav.new_post') %></span>
                 </a>
               <% } %>
-              <% if (typeof canManageFedi !== 'undefined' && canManageFedi) { %>
+              <% if (typeof canManageFedi !== 'undefined' && canManageFedi && apEnabled) { %>
                 <a href="/news" role="menuitem" class="udi"
                    hx-get="/news?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
                    hx-push-url="/news" hx-indicator="#pcms-loading">
