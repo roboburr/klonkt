@@ -1,9 +1,14 @@
 <%
 // ── Helpers used inside this template ─────────────────────────────
+// Escape for double-quoted HTML attributes. IMPORTANT: emit this with the RAW EJS output
+// tag, never the escaping one — escaping it a second time turned og:title "Jason's" into the
+// double-escaped "Jason&amp;#39;s", and naive OG scrapers (Signal/WhatsApp) show that literally.
+// We deliberately do NOT escape the apostrophe: it is safe inside a double-quoted attribute and
+// a literal apostrophe is what link-preview scrapers expect.
 function _e(s) {
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    .replace(/"/g, '&quot;');
 }
 
 const safeSite     = site || {};
@@ -103,57 +108,57 @@ if (typeof post !== 'undefined' && post && post.slug) {
   };
 }
 %><!DOCTYPE html>
-<html lang="<%= _e(lang) %>" data-palette="<%= _e((typeof palette !== 'undefined' && palette) ? palette : (safeSite.palette || 'klonkt')) %>">
+<html lang="<%- _e(lang) %>" data-palette="<%- _e((typeof palette !== 'undefined' && palette) ? palette : (safeSite.palette || 'klonkt')) %>">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="color-scheme" content="dark light">
 
 <title><%= _finalTitle %></title>
-<meta name="description" content="<%= _e(_socialDescr) %>">
-<meta name="theme-color" content="<%= _e(safeAccent) %>">
+<meta name="description" content="<%- _e(_socialDescr) %>">
+<meta name="theme-color" content="<%- _e(safeAccent) %>">
 <meta name="robots" content="<%= _shouldIndex ? 'index,follow' : 'noindex,nofollow' %>">
-<% if (safeSite.author) { %><meta name="author" content="<%= _e(safeSite.author) %>"><% } %>
-<% if (_canonical) { %><link rel="canonical" href="<%= _e(_canonical) %>"><% } %>
+<% if (safeSite.author) { %><meta name="author" content="<%- _e(safeSite.author) %>"><% } %>
+<% if (_canonical) { %><link rel="canonical" href="<%- _e(_canonical) %>"><% } %>
 
 <!-- Search-engine verification -->
-<% if (safeSite.google_verification)    { %><meta name="google-site-verification" content="<%= _e(safeSite.google_verification) %>"><% } %>
-<% if (safeSite.bing_verification)      { %><meta name="msvalidate.01" content="<%= _e(safeSite.bing_verification) %>"><% } %>
-<% if (safeSite.pinterest_verification) { %><meta name="p:domain_verify" content="<%= _e(safeSite.pinterest_verification) %>"><% } %>
-<% if (safeSite.yandex_verification)    { %><meta name="yandex-verification" content="<%= _e(safeSite.yandex_verification) %>"><% } %>
+<% if (safeSite.google_verification)    { %><meta name="google-site-verification" content="<%- _e(safeSite.google_verification) %>"><% } %>
+<% if (safeSite.bing_verification)      { %><meta name="msvalidate.01" content="<%- _e(safeSite.bing_verification) %>"><% } %>
+<% if (safeSite.pinterest_verification) { %><meta name="p:domain_verify" content="<%- _e(safeSite.pinterest_verification) %>"><% } %>
+<% if (safeSite.yandex_verification)    { %><meta name="yandex-verification" content="<%- _e(safeSite.yandex_verification) %>"><% } %>
 
 <!-- Feed autodiscovery -->
 <% if (site) { %>
-<link rel="alternate" type="application/rss+xml"  title="<%= _e(_siteTitle) %> — RSS"  href="<%= _e(safeUrlBase + '/feed.xml') %>">
-<link rel="alternate" type="application/atom+xml" title="<%= _e(_siteTitle) %> — Atom" href="<%= _e(safeUrlBase + '/atom.xml') %>">
+<link rel="alternate" type="application/rss+xml"  title="<%- _e(_siteTitle) %> — RSS"  href="<%- _e(safeUrlBase + '/feed.xml') %>">
+<link rel="alternate" type="application/atom+xml" title="<%- _e(_siteTitle) %> — Atom" href="<%- _e(safeUrlBase + '/atom.xml') %>">
 <% } %>
 
 <!-- PWA -->
-<link rel="manifest" href="<%= _e(safeUrlBase + '/manifest.webmanifest') %>">
+<link rel="manifest" href="<%- _e(safeUrlBase + '/manifest.webmanifest') %>">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="<%= _e(_siteTitle.slice(0, 16)) %>">
-<link rel="apple-touch-icon" href="<%= _e(safeSite.profile_photo || '/favicon.ico') %>">
+<meta name="apple-mobile-web-app-title" content="<%- _e(_siteTitle.slice(0, 16)) %>">
+<link rel="apple-touch-icon" href="<%- _e(safeSite.profile_photo || '/favicon.ico') %>">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=sf">
 <link rel="alternate icon" href="/favicon.ico?v=sf">
 
 <!-- OpenGraph -->
 <meta property="og:type"        content="<%= _ogType %>">
-<meta property="og:title"       content="<%= _e(_socialTitle) %>">
-<meta property="og:description" content="<%= _e(_socialDescr) %>">
-<meta property="og:site_name"   content="<%= _e(_siteTitle) %>">
-<meta property="og:locale"      content="<%= _e(ogLocale) %>">
+<meta property="og:title"       content="<%- _e(_socialTitle) %>">
+<meta property="og:description" content="<%- _e(_socialDescr) %>">
+<meta property="og:site_name"   content="<%- _e(_siteTitle) %>">
+<meta property="og:locale"      content="<%- _e(ogLocale) %>">
 <% if (_socialImage) { %>
-<meta property="og:image"     content="<%= _e(_socialImage) %>">
-<meta property="og:image:alt" content="<%= _e(_socialTitle) %>">
+<meta property="og:image"     content="<%- _e(_socialImage) %>">
+<meta property="og:image:alt" content="<%- _e(_socialTitle) %>">
 <% if (_ogGenerated) { %>
 <meta property="og:image:width"  content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:type"   content="image/png">
 <% } %>
 <% } %>
-<% if (_canonical) { %><meta property="og:url" content="<%= _e(_canonical) %>"><% } %>
+<% if (_canonical) { %><meta property="og:url" content="<%- _e(_canonical) %>"><% } %>
 <%
 // Fediverse/social PLAYER card for posts with audio: instead of shipping the raw
 // mp3, point at our embeddable player (/embed?post=slug) so Mastodon shows an
@@ -166,29 +171,29 @@ const _embedUrl = _postAudio
   : '';
 %>
 <% if (_postAudio) { %>
-<meta property="og:video"            content="<%= _e(_embedUrl) %>">
-<meta property="og:video:secure_url" content="<%= _e(_embedUrl) %>">
+<meta property="og:video"            content="<%- _e(_embedUrl) %>">
+<meta property="og:video:secure_url" content="<%- _e(_embedUrl) %>">
 <meta property="og:video:type"       content="text/html">
 <meta property="og:video:width"      content="480">
 <meta property="og:video:height"     content="480">
 <% } %>
 <% if (typeof post !== 'undefined' && post && post.published_at) { %>
-<meta property="article:published_time" content="<%= _e(post.published_at) %>">
-<% if (post.author_username) { %><meta property="article:author" content="<%= _e(post.author_username) %>"><% } %>
+<meta property="article:published_time" content="<%- _e(post.published_at) %>">
+<% if (post.author_username) { %><meta property="article:author" content="<%- _e(post.author_username) %>"><% } %>
 <% } %>
-<% if (safeSite.facebook_app_id) { %><meta property="fb:app_id" content="<%= _e(safeSite.facebook_app_id) %>"><% } %>
+<% if (safeSite.facebook_app_id) { %><meta property="fb:app_id" content="<%- _e(safeSite.facebook_app_id) %>"><% } %>
 
 <!-- Twitter Cards -->
 <meta name="twitter:card"        content="<%= _postAudio ? 'player' : (_socialImage ? 'summary_large_image' : 'summary') %>">
 <% if (_postAudio) { %>
-<meta name="twitter:player"        content="<%= _e(_embedUrl) %>">
+<meta name="twitter:player"        content="<%- _e(_embedUrl) %>">
 <meta name="twitter:player:width"  content="480">
 <meta name="twitter:player:height" content="480">
 <% } %>
-<meta name="twitter:title"       content="<%= _e(_socialTitle) %>">
-<meta name="twitter:description" content="<%= _e(_socialDescr) %>">
-<% if (_socialImage)         { %><meta name="twitter:image"   content="<%= _e(_socialImage) %>"><% } %>
-<% if (safeSite.twitter)     { %><meta name="twitter:creator" content="<%= _e(safeSite.twitter) %>"><meta name="twitter:site" content="<%= _e(safeSite.twitter) %>"><% } %>
+<meta name="twitter:title"       content="<%- _e(_socialTitle) %>">
+<meta name="twitter:description" content="<%- _e(_socialDescr) %>">
+<% if (_socialImage)         { %><meta name="twitter:image"   content="<%- _e(_socialImage) %>"><% } %>
+<% if (safeSite.twitter)     { %><meta name="twitter:creator" content="<%- _e(safeSite.twitter) %>"><meta name="twitter:site" content="<%- _e(safeSite.twitter) %>"><% } %>
 
 <% if (_jsonLd) { %>
 <script type="application/ld+json"><%- JSON.stringify(_jsonLd) %></script>
@@ -265,9 +270,9 @@ const _embedUrl = _postAudio
 <style id="pcms-site-accent">
   :root,
   [data-palette] {
-    --accent: <%= _e(safeAccent) %>;
-    --accent-soft: color-mix(in srgb, <%= _e(safeAccent) %> 80%, white);
-    --accent-tint: color-mix(in srgb, <%= _e(safeAccent) %> 12%, transparent);
+    --accent: <%- _e(safeAccent) %>;
+    --accent-soft: color-mix(in srgb, <%- _e(safeAccent) %> 80%, white);
+    --accent-tint: color-mix(in srgb, <%- _e(safeAccent) %> 12%, transparent);
   }
 </style>
 
@@ -322,7 +327,7 @@ const _embedUrl = _postAudio
 <% } %>
 </head>
 
-<body class="<%= bodyClass || 'on-home' %> has-bottom-tab" data-feed-view="<%= _e(safeSite.feed_view_default || 'timeline') %>" data-grid-cols="3" data-site-base="<%= _e((typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '') %>">
+<body class="<%= bodyClass || 'on-home' %> has-bottom-tab" data-feed-view="<%- _e(safeSite.feed_view_default || 'timeline') %>" data-grid-cols="3" data-site-base="<%- _e((typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '') %>">
 
 <% if (typeof isViewer !== 'undefined' && isViewer) { %>
   <div class="viewer-banner" role="status">
