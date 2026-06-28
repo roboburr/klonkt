@@ -58,6 +58,10 @@ curl -fsSL https://klonkt.com/install.sh | sudo bash -s -- --domain yourdomain.c
 Then open `https://yourdomain.com` and finish setup in the browser. Update anytime
 with `klonkt-update`.
 
+Updates track the **`stable`** branch — it only advances to a version that's been verified,
+so `klonkt-update` never pulls work-in-progress. Want the bleeding edge instead? Install with
+`--branch main` (or set `KLONKT_BRANCH=main`).
+
 ### Option B — Docker
 
 **Good if:** you already use Docker, or want everything bundled in one isolated

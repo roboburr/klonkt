@@ -21,7 +21,10 @@ set -euo pipefail
 
 # ── Settings (override via env var or flag) ────────────────────────────────
 KLONKT_REPO="${KLONKT_REPO:-https://github.com/roboburr/klonkt.git}"
-KLONKT_BRANCH="${KLONKT_BRANCH:-main}"
+# `stable` = the release channel: it only moves forward to a version that has been verified,
+# so a self-host auto-update (klonkt-update) never pulls work-in-progress. Use `--branch main`
+# for the bleeding-edge dev branch instead.
+KLONKT_BRANCH="${KLONKT_BRANCH:-stable}"
 KLONKT_DIR="${KLONKT_DIR:-/opt/klonkt}"
 KLONKT_USER="${KLONKT_USER:-klonkt}"
 KLONKT_PORT="${KLONKT_PORT:-3000}"
