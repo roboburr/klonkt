@@ -148,6 +148,16 @@ app.use(bodyParser.json({ limit: '10mb' }));
 // cookies — sessions never persist past the redirect after login.
 if (!isDev) app.set('trust proxy', 1);
 
+// Collapse leading duplicate slashes in the path. A reverse proxy that proxies with
+// `RewriteRule ^(.*)$ http://localhost:3000/$1` (Apache [P]) sends "//" for the root and
+// "//path" for sub-paths (the captured $1 keeps its leading slash) → Express matches no
+// route → the whole site 404'd behind such a proxy. Normalising here makes Klonkt resilient
+// to that common reverse-proxy setup. (Only the leading slashes; the query string is intact.)
+app.use((req, res, next) => {
+  if (req.url.startsWith('//')) req.url = req.url.replace(/^\/+/, '/');
+  next();
+});
+
 // Create/migrate the schema BEFORE anything touches the DB: the session store
 // queries the `sessions` table on construction, so on a fresh install the tables
 // must exist first (otherwise: "no such table: sessions" → crash loop on first boot).
