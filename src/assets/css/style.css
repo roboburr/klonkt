@@ -2380,6 +2380,9 @@ body.on-cirkel[data-feed-view="grid"]  .feed-grid { display: block; }
 .post-cover img,
 .post-list-cover img,
 .grid-tile:not(.grid-tile-gradient) { background-color: #fff; }
+/* Cover as a real <img> (not background-image): browsers downsample <img> with the
+   high-quality image pipeline, so high-res line-art covers don't go jagged when shrunk. */
+.grid-tile-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; display: block; }
 .grid-tile:hover { transform: scale(0.98); }
 .grid-tile-overlay {
     position: absolute;

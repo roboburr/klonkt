@@ -176,9 +176,7 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
                hx-get="/<%= rp.slug %>?partial=1" hx-target="#pcms-main"
                hx-push-url="/<%= rp.slug %>" hx-indicator="#pcms-loading"<% } %>>
               <% if (rp.cover_image_url) { %>
-                <span class="post-related-cover<%= rp.nsfw ? ' nsfw-media' : '' %>"
-                      style="background-image: url('<%= rp.cover_image_url %>')"
-                      aria-hidden="true"><% if (rp.nsfw) { %><span class="nsfw-veil"><span class="nsfw-veil-label">🔞 <%= rp.content_warning || t('post.nsfw_warning') %></span><span class="nsfw-veil-btn"><%= t('post.nsfw_show') %></span></span><% } %></span>
+                <span class="post-related-cover<%= rp.nsfw ? ' nsfw-media' : '' %>" aria-hidden="true"><img class="post-related-img" src="<%= rp.cover_image_url %>" alt="" loading="lazy" decoding="async"><% if (rp.nsfw) { %><span class="nsfw-veil"><span class="nsfw-veil-label">🔞 <%= rp.content_warning || t('post.nsfw_warning') %></span><span class="nsfw-veil-btn"><%= t('post.nsfw_show') %></span></span><% } %></span>
               <% } else { %>
                 <span class="post-related-cover post-related-cover--empty<%= rp.nsfw ? ' nsfw-media' : '' %>" aria-hidden="true"><% if (rp.nsfw) { %><span class="nsfw-veil"><span class="nsfw-veil-label">🔞 <%= rp.content_warning || t('post.nsfw_warning') %></span><span class="nsfw-veil-btn"><%= t('post.nsfw_show') %></span></span><% } %></span>
               <% } %>
@@ -449,9 +447,12 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
 }
 .post-related-cover {
   display: block;
+  position: relative;
+  overflow: hidden;
   aspect-ratio: 16 / 10;
   background: var(--paper-2) center/cover no-repeat;
 }
+.post-related-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
 .post-related-cover--empty {
   background-image: linear-gradient(135deg,
     color-mix(in srgb, var(--accent) 12%, var(--paper-2)),

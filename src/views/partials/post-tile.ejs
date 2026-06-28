@@ -15,8 +15,10 @@ const _ext = !!_external;
 %>
 <a class="grid-tile<%= _hasCover ? '' : ' grid-tile-gradient' %><%= (_isPinned || _isBoost) ? ' is-pinned' : '' %><%= post.nsfw ? ' nsfw-media' : '' %>"
    href="<%= _href %>"
-   <% if (_hasCover) { %>style="background-image: url('<%= post.cover_image_url %>'); --tile-hue: <%= _tileHue %>;"<% } else { %>style="--tile-hue: <%= _tileHue %>;"<% } %>
+   style="--tile-hue: <%= _tileHue %>;"
    <% if (_ext) { %>target="_blank" rel="noopener"<% } else { %>hx-get="<%= _href %>?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="<%= _href %>" hx-indicator="#pcms-loading"<% } %>>
+
+  <% if (_hasCover) { %><img class="grid-tile-img" src="<%= post.cover_image_url %>" alt="" loading="lazy" decoding="async"><% } %>
 
   <% if (_typeLabel) { %>
     <span class="grid-tile-type"><%= _typeLabel %></span>
