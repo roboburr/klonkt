@@ -173,6 +173,14 @@
   .tl-content p { margin: .4rem 0; } .tl-content p:first-child { margin-top: 0; } .tl-content p:last-child { margin-bottom: 0; }
   .tl-content a { color: var(--accent, #06c); }
   .tl-content img { max-width: 100%; height: auto; border-radius: 10px; background: #fff; }
+  /* Long posts collapse to a max height with a fade + "read more" (added by JS only when it overflows). */
+  .tl-content.tl-clamp { max-height: 20em; overflow: hidden;
+    -webkit-mask-image: linear-gradient(180deg, #000 72%, transparent);
+    mask-image: linear-gradient(180deg, #000 72%, transparent); }
+  .tl-readmore { display: inline-block; margin: .15rem 0 .1rem; padding: .15rem 0;
+    background: none; border: 0; color: var(--accent, #06c); font: inherit; font-weight: 600;
+    font-size: .85rem; cursor: pointer; }
+  .tl-readmore:hover { text-decoration: underline; }
 
   /* Always show the FULL image at its natural ratio — never cropped, no letterbox. */
   .tl-media { display: flex; flex-direction: column; gap: .4rem; margin: .75rem 0 0; }
@@ -263,6 +271,27 @@
       .then(function(j){ if (j) btn.classList.toggle('is-on', !!j.on); })
       .catch(function(){})
       .then(function(){ btn.disabled = false; });
+  });
+})();
+</script>
+
+<script>
+// Collapse long post bodies to a max height with a "read more" toggle — only when the content
+// actually overflows. Runs on every /news render (full load + htmx swap); a per-element flag
+// prevents double-wiring.
+(function(){
+  var RM = '<%= t("tl.read_more") %>', SL = '<%= t("tl.show_less") %>';
+  document.querySelectorAll('.tl-content:not(.nsfw-media):not([data-rm])').forEach(function(c){
+    c.setAttribute('data-rm', '1');
+    if (c.scrollHeight > 360) {
+      c.classList.add('tl-clamp');
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'tl-readmore'; b.textContent = RM;
+      b.addEventListener('click', function(){
+        b.textContent = c.classList.toggle('tl-clamp') ? RM : SL;
+      });
+      c.insertAdjacentElement('afterend', b);
+    }
   });
 })();
 </script>
