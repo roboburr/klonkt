@@ -249,7 +249,13 @@ app.use((req, res, next) => {
   if (!origin) return next(); // no Origin → no browser CSRF vector
   let originHost;
   try { originHost = new URL(origin).host; } catch { return res.status(403).send('Ongeldige origin'); }
-  if (originHost !== req.get('host')) return res.status(403).send('Cross-origin request geweigerd');
+  // Behind a reverse proxy the raw Host is the backend bind (e.g. localhost:3000, when the
+  // proxy doesn't preserve it — common with Apache .htaccess proxying), so also accept the
+  // operator-configured PUBLIC_BASE_URL host and the proxy's X-Forwarded-Host. Both are
+  // operator/proxy-controlled and can't be forged via a victim's browser, so this is safe.
+  const allowedHosts = [req.get('host'), req.get('x-forwarded-host')];
+  if (process.env.PUBLIC_BASE_URL) { try { allowedHosts.push(new URL(process.env.PUBLIC_BASE_URL).host); } catch { /* ignore bad config */ } }
+  if (!allowedHosts.includes(originHost)) return res.status(403).send('Cross-origin request geweigerd');
   next();
 });
 
