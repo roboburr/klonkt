@@ -1,6 +1,6 @@
 <%# Renders one fediverse thread node (n). Expects: n, t, canManageSite, _base, siteAvatar, formatDateTime, postSlug %>
 <div class="comment-avatar">
-  <% if (n.actor_icon) { %><img src="<%= avatar(n.actor_icon, 128) %>" alt="" loading="lazy">
+  <% if (n.actor_icon) { %><img src="<%= avatar(n.actor_icon, 96) %>" alt="" loading="lazy">
   <% } else { %><span><%= (n.actor_name || '?').charAt(0).toUpperCase() %></span><% } %>
 </div>
 <div class="comment-body">
