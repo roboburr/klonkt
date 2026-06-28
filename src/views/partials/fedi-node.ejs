@@ -13,7 +13,7 @@
   <div class="comment-content"><%- n.content %></div>
   <div class="comment-actions">
     <% if (n.mine && typeof canManageSite !== 'undefined' && canManageSite && n.outboxId) { %>
-      <form method="post" action="<%= _base %>/fediverse/<%= n.outboxId %>/delete" onsubmit="return confirm('<%= t('fedi.delete_confirm') %>')">
+      <form method="post" action="<%= _base %>/fediverse/<%= n.outboxId %>/delete" data-confirm="<%= t('fedi.delete_confirm') %>">
         <button type="submit" class="comment-delete-btn"><%= t('comments.delete') %></button>
       </form>
     <% } else if (!n.mine && typeof canManageSite !== 'undefined' && canManageSite && n.id && typeof postSlug !== 'undefined' && postSlug) { %>

@@ -108,12 +108,11 @@ app.use(helmet({
         "'strict-dynamic'",
         (req, res) => `'nonce-${res.locals.cspNonce}'`,
       ],
-      // Helmet's default sets script-src-attr to 'none', which blocks ALL inline
-      // event handlers (onchange/onclick/onsubmit) — causing e.g. the avatar
-      // upload (<input onchange="this.form.submit()">) and the role dropdown to
-      // silently do nothing. We explicitly allow inline handlers, consistent with
-      // the already-allowed inline <script> above.
-      scriptSrcAttr: ["'unsafe-inline'"],
+      // No inline event handlers anywhere: every on* attribute was moved to a
+      // delegated data-* handler (the shared script in shell.ejs), so inline
+      // handlers are blocked entirely — this closes the last 'unsafe-inline' in
+      // the script directives.
+      scriptSrcAttr: ["'none'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       // blob: required for the image editor (Cropper) — it displays the chosen
       // photo via URL.createObjectURL(blob:…). Without blob: the CSP silently
@@ -143,6 +142,15 @@ app.use(helmet({
   frameguard: { action: 'sameorigin' },
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
 }));
+
+// Permissions-Policy: disable powerful features Klonkt never uses (camera, microphone,
+// geolocation) and opt out of the Topics API. Features that embeds legitimately need
+// (autoplay, fullscreen, encrypted-media, picture-in-picture) are left at their default
+// allowlist, so YouTube/Spotify/SoundCloud players keep working.
+app.use((req, res, next) => {
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), browsing-topics=()');
+  next();
+});
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));

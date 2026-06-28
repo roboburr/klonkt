@@ -67,7 +67,7 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
         </a>
       <% } %>
       <% if (permissions.canDeletePost(user, post, site)) { %>
-        <form method="post" action="<%= _base %>/posts/<%= post.slug %>/delete" style="display:inline" onsubmit="return confirm('Delete this post?')">
+        <form method="post" action="<%= _base %>/posts/<%= post.slug %>/delete" style="display:inline" data-confirm="Delete this post?">
           <button type="submit" class="btn btn-danger">🗑 Delete</button>
         </form>
       <% } %>

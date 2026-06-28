@@ -79,7 +79,7 @@
             <form method="post" action="/admin/users/<%= u.id %>/role" class="ax-role-form">
               <label class="ax-role">
                 <span><%= _u_rol %></span>
-                <select name="role" onchange="this.form.submit()" <% if (u.id === user.id || !canMutate) { %>disabled<% } %>>
+                <select name="role" data-autosubmit <% if (u.id === user.id || !canMutate) { %>disabled<% } %>>
                   <option value="kijker" <%= u.role === 'kijker' ? 'selected' : '' %>><%= _u_r_kijker %></option>
                   <option value="member" <%= u.role === 'member' ? 'selected' : '' %>><%= _u_r_member %></option>
                   <option value="admin"  <%= u.role === 'admin'  ? 'selected' : '' %>><%= _u_r_admin %></option>
@@ -93,7 +93,7 @@
                    ? (t('ausr.del_warn', { n: u.post_count }) + ' ')
                    : ''; %>
               <form method="post" action="/admin/users/<%= u.id %>/delete" class="ax-delete-form"
-                    onsubmit="return confirm('<%= t('ausr.del_confirm', { name: u.username }) %> <%= _warn %><%= t('ausr.del_undo') %>')">
+                    data-confirm="<%= t('ausr.del_confirm', { name: u.username }) %> <%= _warn %><%= t('ausr.del_undo') %>">
                 <button type="submit" class="ax-icon-btn ax-icon-btn-danger" aria-label="<%= _u_del %>" title="<%= _u_del %>">🗑</button>
               </form>
             <% } else { %>

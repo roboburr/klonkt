@@ -13,7 +13,7 @@
   <% var agOn = (typeof agendaEnabled !== 'undefined') && agendaEnabled; %>
   <form method="POST" action="<%= siteUrlBase %>/admin/shows/toggle" style="margin:0 0 14px">
     <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:600">
-      <input type="checkbox" name="enabled" value="1" <%= agOn ? 'checked' : '' %> onchange="this.form.submit()" style="width:18px;height:18px;accent-color:var(--accent)">
+      <input type="checkbox" name="enabled" value="1" <%= agOn ? 'checked' : '' %> data-autosubmit style="width:18px;height:18px;accent-color:var(--accent)">
       <span><%= t('ashow.show_toggle') %> <small style="font-weight:400;opacity:.7"><%= t('ashow.show_toggle_hint') %></small></span>
     </label>
     <noscript><button type="submit" class="btn"><%= t('ashow.save') %></button></noscript>
@@ -44,7 +44,7 @@
         <li class="ash-item">
           <span class="ash-when"><%= s.date %><% if (s.time) { %> <%= s.time %><% } %></span>
           <span class="ash-where"><%= s.city %><% if (s.venue) { %> — <%= s.venue %><% } %></span>
-          <form method="POST" action="<%= siteUrlBase %>/admin/shows/<%= s.id %>/delete" onsubmit="return confirm('<%= _delConfirm %>')" style="margin:0">
+          <form method="POST" action="<%= siteUrlBase %>/admin/shows/<%= s.id %>/delete" data-confirm="<%= _delConfirm %>" style="margin:0">
             <button type="submit" class="ash-del">🗑</button>
           </form>
         </li>

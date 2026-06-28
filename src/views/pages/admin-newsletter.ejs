@@ -23,14 +23,14 @@
   <p class="anl-share"><%= t('anews.share') %> <a href="<%= nlSubscribeUrl %>"><%= nlSubscribeUrl %></a></p>
 
   <% var _sendConfirm = t('anews.send_confirm', { n: c.confirmed }); %>
-  <form method="POST" action="<%= siteUrlBase %>/admin/newsletter/send" class="anl-form">
+  <form method="POST" action="<%= siteUrlBase %>/admin/newsletter/send" class="anl-form" data-confirm="<%= _sendConfirm %>">
     <label><%= t('anews.subject') %>
       <input type="text" name="subject" required maxlength="200" value="<%= (typeof nlSubject!=='undefined')?nlSubject:'' %>" placeholder="<%= t('anews.subject_ph') %>">
     </label>
     <label><%= t('anews.body') %>
       <textarea name="body" rows="10" required placeholder="<%= t('anews.body_ph') %>"><%= (typeof nlBody!=='undefined')?nlBody:'' %></textarea>
     </label>
-    <button type="submit" class="anl-send" <%= smtp ? '' : 'disabled' %> onclick="return confirm('<%= _sendConfirm %>')"><%= t('anews.send_btn', { n: c.confirmed }) %></button>
+    <button type="submit" class="anl-send" <%= smtp ? '' : 'disabled' %>><%= t('anews.send_btn', { n: c.confirmed }) %></button>
   </form>
 
   <% if (hist.length) { %>

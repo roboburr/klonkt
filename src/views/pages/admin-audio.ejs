@@ -120,7 +120,7 @@
                         aria-label="<%= t.downloadable ? _aaudDlOn : _aaudDlOff %>" title="<%= t.downloadable ? _aaudDlOn : _aaudDlOff %>"
                         style="<%= t.downloadable ? 'color:var(--accent,#6b8f71)' : 'opacity:.5' %>">⬇</button>
               <% } %>
-              <form action="/admin/audio/<%= t.id %>/delete" method="post" onsubmit="return confirm('<%= _aaudDelConfirm %>')" class="ax-track-delete">
+              <form action="/admin/audio/<%= t.id %>/delete" method="post" data-confirm="<%= _aaudDelConfirm %>" class="ax-track-delete">
                 <button type="submit" class="ax-icon-btn ax-icon-btn-danger" aria-label="<%= _aaudDelete %>" title="<%= _aaudDelete %>">🗑</button>
               </form>
             </div>
@@ -134,7 +134,7 @@
     <section class="ax-section" style="margin-top:1.5rem">
       <h2 style="margin:0 0 .4rem">🔊 <%= t('aaud.embed_player') %></h2>
       <p style="opacity:.75;font-size:.9rem;margin:0 0 .6rem"><%= t('aaud.embed_hint') %></p>
-      <textarea readonly rows="3" onclick="this.select()" style="width:100%;font-family:monospace;font-size:12px;padding:10px;border-radius:8px;border:1px solid var(--rule);background:var(--paper-2);color:inherit;">&lt;iframe src="<%= embedUrl %>" width="100%" height="420" frameborder="0" loading="lazy" style="border-radius:12px"&gt;&lt;/iframe&gt;</textarea>
+      <textarea readonly rows="3" data-selectall style="width:100%;font-family:monospace;font-size:12px;padding:10px;border-radius:8px;border:1px solid var(--rule);background:var(--paper-2);color:inherit;">&lt;iframe src="<%= embedUrl %>" width="100%" height="420" frameborder="0" loading="lazy" style="border-radius:12px"&gt;&lt;/iframe&gt;</textarea>
       <p style="margin:.6rem 0 0"><a class="btn" href="<%= embedUrl %>" target="_blank">▶ <%= t('aaud.preview_player') %></a></p>
     </section>
   <% } %>

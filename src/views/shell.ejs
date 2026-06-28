@@ -746,6 +746,42 @@ const _embedUrl = _postAudio
 })();
 </script>
 
+<script>
+// Delegated replacements for inline on* handlers, so the CSP needs no
+// script-src-attr 'unsafe-inline'. Document-level → also covers htmx-swapped content.
+(function () {
+  if (window.__pcmsHandlersWired) return; window.__pcmsHandlersWired = true;
+  // Confirm before submitting a form that carries data-confirm.
+  document.addEventListener('submit', function (e) {
+    var f = e.target;
+    if (f && f.dataset && f.dataset.confirm && !window.confirm(f.dataset.confirm)) e.preventDefault();
+  });
+  // Auto-submit a form / switch language when a <select> changes.
+  document.addEventListener('change', function (e) {
+    var el = e.target;
+    if (!el || !el.dataset) return;
+    if (el.dataset.autosubmit !== undefined && el.form) el.form.submit();
+    else if (el.dataset.langSwitch !== undefined) {
+      location.href = '/lang/' + encodeURIComponent(el.value) + '?r=' + encodeURIComponent(location.pathname + location.search);
+    }
+  });
+  // Misc click helpers (select-all in a field, history-back button).
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest && e.target.closest('[data-selectall],[data-back]');
+    if (!el) return;
+    if (el.dataset.selectall !== undefined && el.select) el.select();
+    if (el.dataset.back !== undefined) { e.preventDefault(); history.back(); }
+  });
+  // Image fallback (the error event doesn't bubble → capture phase).
+  document.addEventListener('error', function (e) {
+    var el = e.target;
+    if (el && el.tagName === 'IMG' && el.dataset && el.dataset.fallback !== undefined && el.parentElement) {
+      el.parentElement.innerHTML = '<span class="pl-cover-empty">⚠️</span>';
+    }
+  }, true);
+})();
+</script>
+
 <!-- Per-site custom footer HTML -->
 <% if (safeSite.custom_foot_html) { %>
 <%- safeSite.custom_foot_html %>

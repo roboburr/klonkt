@@ -21,7 +21,7 @@
     <div class="footer-meta">
       <% if (typeof langs !== 'undefined' && langs && langs.length > 1) { %>
         <select class="footer-lang" aria-label="<%= t('nav.language') %>"
-                onchange="location.href='/lang/'+this.value+'?r='+encodeURIComponent(location.pathname+location.search)">
+                data-lang-switch>
           <% langs.forEach(function(l){ %><option value="<%= l.code %>"<%= l.active ? ' selected' : '' %>><%= l.name %></option><% }); %>
         </select>
       <% } %>

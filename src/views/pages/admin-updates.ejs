@@ -39,7 +39,7 @@
 
     <% if (canCheck && canSelfUpdate) { %>
     <form method="post" action="/admin/updates/run" class="set-form"
-          onsubmit="return confirm('<%= t('aupd.run_confirm') %>');">
+          data-confirm="<%= t('aupd.run_confirm') %>">
       <button type="submit" class="btn btn-primary">
         <%= upToDate ? '↻ ' + t('aupd.redeploy') : '⬆ ' + t('aupd.update_now') %>
       </button>

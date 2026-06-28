@@ -92,13 +92,13 @@
           <div class="ax-site-controls">
             <% if (!s.is_primary && (typeof canMutate === 'undefined' || canMutate)) { %>
               <form method="post" action="/admin/sites/<%= s.slug %>/make-primary" style="margin:0;display:inline"
-                    onsubmit="return confirm('<%= _s_makeprim_c %>')">
+                    data-confirm="<%= _s_makeprim_c %>">
                 <button type="submit" class="ax-icon-btn" aria-label="<%= _s_makeprim %>" title="<%= _s_makeprim_t %>">★</button>
               </form>
             <% } %>
             <a href="/admin/sites/<%= s.slug %>/edit" class="ax-icon-btn" aria-label="<%= _s_edit %>" title="<%= _s_edit %>">✎</a>
             <form method="post" action="/admin/sites/<%= s.slug %>/delete" class="ax-delete-form"
-                  onsubmit="return confirm('<%= _s_del_c %>')">
+                  data-confirm="<%= _s_del_c %>">
               <button type="submit" class="ax-icon-btn ax-icon-btn-danger" aria-label="<%= _s_del %>" title="<%= _s_del %>">🗑</button>
             </form>
           </div>

@@ -27,7 +27,7 @@
           </span>
           <form method="post" action="/news/autoboost" class="tl-foll-ab" title="<%= t('tl.autoboost_hint') %>">
             <input type="hidden" name="actor_uri" value="<%= f.actor_uri %>">
-            <label><input type="checkbox" name="auto_boost" value="1" <%= f.auto_boost ? 'checked' : '' %> onchange="this.form.submit()"> ✨ <%= t('tl.autoboost') %></label>
+            <label><input type="checkbox" name="auto_boost" value="1" <%= f.auto_boost ? 'checked' : '' %> data-autosubmit> ✨ <%= t('tl.autoboost') %></label>
           </form>
           <form method="post" action="/news/unfollow"><input type="hidden" name="actor_uri" value="<%= f.actor_uri %>"><button type="submit" class="tl-unfollow"><%= t('tl.unfollow') %></button></form>
         </li>

@@ -441,7 +441,7 @@ const _csrf = (typeof csrfToken !== 'undefined' && csrfToken) || '';
     coverEl.addEventListener('input', () => {
       const u = coverEl.value.trim();
       coverThumb.innerHTML = u
-        ? `<img src="${esc(u)}" alt="" onerror="this.parentElement.innerHTML='<span class=\\'pl-cover-empty\\'>⚠️</span>'">`
+        ? `<img src="${esc(u)}" alt="" data-fallback>`
         : `<span class="pl-cover-empty">🎨</span>`;
     });
 
