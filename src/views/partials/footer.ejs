@@ -25,7 +25,7 @@
           <% langs.forEach(function(l){ %><option value="<%= l.code %>"<%= l.active ? ' selected' : '' %>><%= l.name %></option><% }); %>
         </select>
       <% } %>
-      <a class="footer-version" href="<%= (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '' %>/changelog" title="Bekijk wat er per release veranderd is">Klonkt Beta<%= (typeof appVersion !== 'undefined' && appVersion) ? ' v' + appVersion : '' %></a>
+      <a class="footer-version" href="<%= (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '' %>/changelog" title="Bekijk wat er per release veranderd is">Klonkt<%= (typeof appVersion !== 'undefined' && appVersion) ? ' v' + appVersion : '' %></a>
       <%# Mobile-only theme toggle. On desktop the topnav has its own toggle
           so we hide this one to avoid two visible toggles at once. The same
           toggleTheme handler in topnav.ejs picks this button up by id. %>

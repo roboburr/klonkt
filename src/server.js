@@ -448,7 +448,7 @@ app.use((req, res) => {
 server.listen(PORT, HOST, () => {
   const baseUrl = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   console.log('');
-  console.log('🪶 Klonkt Beta');
+  console.log('🪶 Klonkt');
   console.log(`   ${baseUrl || `http://localhost:${PORT}`}`);
   if (baseUrl) console.log(`   (bound to ${HOST}:${PORT})`);
   console.log('');

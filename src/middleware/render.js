@@ -153,7 +153,7 @@ export async function renderPage(req, res, viewName, data = {}) {
     permissions: PermissionsService,
     formatDate,
     formatDateTime,
-    pageTitle: data.pageTitle || (data.site && data.site.title) || 'Klonkt Beta',
+    pageTitle: data.pageTitle || (data.site && data.site.title) || 'Klonkt',
     appVersion: APP_VERSION,
     bodyClass: data.bodyClass || 'on-home',
     socialDescr: data.socialDescr || '',
