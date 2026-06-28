@@ -228,6 +228,17 @@ export function buildNote(base, site, post) {
   // shift+enter uses <br> and has no \n → this is a no-op there).
   body = body.replace(/\r?\n/g, '<br>');
   body = linkHashtags(base, body); // link inline #hashtags in the post body too
+  // Append the tags-field hashtags to the content so Mastodon renders them as clickable
+  // hashtags (a Hashtag that's only in the `tag` array isn't shown inline). CamelCase
+  // multi-word tags; skip any already present inline in the body.
+  {
+    const inlineTags = new Set(hashtagTags(base, body).map((h) => h.name.slice(1).toLowerCase()));
+    const addSeen = new Set();
+    const tagLinks = normalizeTags(post.tags).map(tagParts).filter(Boolean)
+      .filter((p) => !inlineTags.has(p.slug) && !addSeen.has(p.slug) && addSeen.add(p.slug))
+      .map((p) => `<a href="${base}/tag/${encodeURIComponent(p.slug)}" class="mention hashtag" rel="tag">#${p.label}</a>`);
+    if (tagLinks.length) body += `<p>${tagLinks.join(' ')}</p>`;
+  }
   const seen = new Set();
   const attachment = urls.filter(Boolean)
     .filter((u) => { if (seen.has(u)) return false; seen.add(u); return true; })
@@ -914,14 +925,34 @@ function hashtagTags(base, content) {
   return tags;
 }
 
+// Normalise a post's tags field (array, JSON-string, or comma-string) to an array.
+function normalizeTags(t) {
+  if (Array.isArray(t)) return t;
+  if (typeof t === 'string') {
+    const s = t.trim(); if (!s) return [];
+    if (s[0] === '[') { try { const a = JSON.parse(s); return Array.isArray(a) ? a : []; } catch { /* fall through */ } }
+    return s.split(',').map((x) => x.trim()).filter(Boolean);
+  }
+  return [];
+}
+// A tag → { label, slug }. Multi-word tags become CamelCase (#LiveMusic) for the display
+// name (Mastodon hashtags can't contain spaces; CamelCase is the accessibility norm); the
+// slug/href stays lowercase ("livemusic").
+function tagParts(raw) {
+  const words = String(raw || '').trim().split(/[\s_]+/).map((w) => w.replace(/[^A-Za-z0-9]/g, '')).filter(Boolean);
+  if (!words.length) return null;
+  const slug = words.join('').toLowerCase();
+  if (!slug) return null;
+  const label = words.length > 1 ? words.map((w) => w[0].toUpperCase() + w.slice(1)).join('') : words[0];
+  return { label, slug };
+}
 // Merge a post's tags field + the #hashtags linked inline in its body into one deduped
 // Hashtag tag list (with hrefs to our /tag page).
 function buildHashtagList(base, tagsField, content) {
   const out = [], seen = new Set();
-  for (const t of (Array.isArray(tagsField) ? tagsField : [])) {
-    const name = String(t).replace(/\s+/g, ''); if (!name) continue;
-    const k = name.toLowerCase(); if (seen.has(k)) continue; seen.add(k);
-    out.push({ type: 'Hashtag', href: `${base}/tag/${encodeURIComponent(k)}`, name: '#' + name });
+  for (const t of normalizeTags(tagsField)) {
+    const p = tagParts(t); if (!p || seen.has(p.slug)) continue; seen.add(p.slug);
+    out.push({ type: 'Hashtag', href: `${base}/tag/${encodeURIComponent(p.slug)}`, name: '#' + p.label });
   }
   for (const h of hashtagTags(base, content)) {
     const k = h.name.slice(1).toLowerCase(); if (seen.has(k)) continue; seen.add(k);
