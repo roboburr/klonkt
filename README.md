@@ -161,6 +161,7 @@ registration then closes. Lost your password?
 | `SMTP_HOST` / `_PORT` / `_USER` / `_PASS` / `_FROM` | — | Email for password reset + newsletter |
 | `KLONKT_DEFAULT_LANG` | — | Default language for visitors (`en`/`nl`/`de`) |
 | `KLONKT_AUDIO` | — | `off` = lite mode (no audio/ffmpeg) |
+| `HSTS_STRICT` | — | `1` = stricter HTTPS header (`includeSubDomains` + `preload`). Only set this if Klonkt owns the **whole** domain and all its subdomains are HTTPS — it forces every subdomain to HTTPS and can bake your domain into browsers near-permanently. Leave unset otherwise; the default is already safe. |
 
 ## Stack
 
