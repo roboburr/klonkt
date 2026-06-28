@@ -199,7 +199,7 @@ const _embedUrl = _postAudio
 <link rel="preload" href="/assets/fonts/fraunces-latin-full-normal.woff2" as="font" type="font/woff2" crossorigin>
 
 <!-- v9 stylesheet (full palette system) -->
-<link rel="stylesheet" href="/assets/css/style.css?v=60">
+<link rel="stylesheet" href="/assets/css/style.css?v=61">
 <script>
 /* iOS safe-area, built by hand. env(safe-area-inset-top) resolves to 0 on this iOS in
    BOTH Safari and the installed PWA (standalone), even with viewport-fit=cover, so the
@@ -735,6 +735,27 @@ const _embedUrl = _postAudio
 
 <!-- NSFW / sensitive content: click a veil/reveal to un-blur. Capture-phase so the
      click reveals instead of following the card link or firing htmx navigation. -->
+<script>
+// Cover fade-in: a cover image that's still loading is hidden so the accent-gradient
+// placeholder behind it shows; it fades in once loaded. Cached/complete images stay
+// visible (no flash). Runs on load + htmx swaps.
+(function () {
+  if (window.__coverFadeWired) return; window.__coverFadeWired = true;
+  function scan(root) {
+    (root || document).querySelectorAll('.grid-tile-img, .post-list-cover img').forEach(function (img) {
+      if (img.dataset.fade) return; img.dataset.fade = '1';
+      if (img.complete && img.naturalWidth > 0) return;   // already loaded → leave visible
+      img.classList.add('is-loading');
+      var done = function () { img.classList.remove('is-loading'); };
+      img.addEventListener('load', done, { once: true });
+      img.addEventListener('error', done, { once: true });
+    });
+  }
+  scan(document);
+  document.body.addEventListener('htmx:afterSettle', function (e) { scan(e.target); });
+})();
+</script>
+
 <script>
 (function () {
   if (window.__nsfwWired) return; window.__nsfwWired = true;
