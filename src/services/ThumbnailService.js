@@ -16,12 +16,14 @@ import { execFile } from 'child_process';
 import ffmpegPath from 'ffmpeg-static';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import { promisify } from 'util';
+import { safeFetch } from './ActivityPubService.js';
 
 const execFileP = promisify(execFile);
 
-// Allowed widths (whitelist → no arbitrary-size abuse). 480 ≈ 2× a grid tile (retina).
-export const THUMB_SIZES = new Set([320, 480, 640]);
+// Allowed widths (whitelist → no arbitrary-size abuse). 128 = avatars; 480 ≈ 2× a grid tile.
+export const THUMB_SIZES = new Set([128, 320, 480, 640]);
 
 let _seq = 0;
 
@@ -72,5 +74,89 @@ export async function getThumbnail(rel, width) {
     try { await fs.promises.unlink(tmp); } catch {}
     console.warn('[thumb] generation failed for', rel, '-', e.message);
     return null;
+  }
+}
+
+// ── Signed remote-image proxy ─────────────────────────────────────
+// Remote avatars/images (fediverse) live on OTHER servers, so we fetch them once
+// (SSRF-safe via safeFetch), downscale them identically, and cache. The proxy URL is
+// HMAC-signed so it can't be abused as an open image-resizer: only URLs that Klonkt
+// itself rendered are accepted.
+
+let _key;
+function imgKey() {
+  if (_key) return _key;
+  _key = process.env.SESSION_SECRET || '';
+  if (!_key) {
+    try {
+      const dataDir = path.dirname(path.resolve(process.env.DATABASE_PATH || './storage/database.sqlite'));
+      _key = fs.readFileSync(path.join(dataDir, '.session-secret'), 'utf8').trim();
+    } catch { _key = 'klonkt-img-proxy'; }
+  }
+  return _key;
+}
+
+function sign(url, w) {
+  return crypto.createHmac('sha256', imgKey()).update(`${w}:${url}`).digest('hex').slice(0, 24);
+}
+
+// Signed proxy URL for a remote image (used by the avatar() view helper).
+export function imgProxyUrl(url, width) {
+  return `/img/a/${width}?u=${encodeURIComponent(url)}&s=${sign(url, width)}`;
+}
+
+export function verifyImg(url, width, sig) {
+  if (!sig || !url) return false;
+  let want;
+  try { want = sign(url, width); } catch { return false; }
+  try { return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(want)); } catch { return false; }
+}
+
+/**
+ * Fetch a remote image (SSRF-safe), downscale to `width` (lanczos → WebP), cache it.
+ * @returns {Promise<string|null>} cached path, or null.
+ */
+export async function getRemoteThumbnail(url, width) {
+  if (!THUMB_SIZES.has(width) || !ffmpegPath || !url) return null;
+  const root = mediaRoot();
+  const hash = crypto.createHash('sha256').update(url).digest('hex');
+  // Remote filenames are content-hashed (Mastodon/Klonkt) → URL-keyed cache never stales.
+  const cached = path.join(root, '.thumbs', 'remote', String(width), `${hash}.webp`);
+  if (fs.existsSync(cached)) return cached;
+
+  let buf;
+  try {
+    const r = await safeFetch(url);
+    if (!r.ok) return null;
+    if (!(r.headers.get('content-type') || '').startsWith('image/')) return null;
+    if (parseInt(r.headers.get('content-length') || '0', 10) > 12 * 1024 * 1024) return null;
+    buf = Buffer.from(await r.arrayBuffer());
+  } catch (e) {
+    console.warn('[thumb-remote] fetch failed for', url, '-', e.message);
+    return null;
+  }
+  if (buf.length > 12 * 1024 * 1024) return null;
+
+  await fs.promises.mkdir(path.dirname(cached), { recursive: true });
+  const tmpIn = `${cached}.in-${process.pid}-${_seq++}`;
+  const tmpOut = `${cached}.out-${process.pid}-${_seq++}`;
+  try {
+    await fs.promises.writeFile(tmpIn, buf);
+    await execFileP(ffmpegPath, [
+      '-hide_banner', '-loglevel', 'error', '-y',
+      '-i', tmpIn,
+      '-vf', `scale='min(${width},iw)':-2:flags=lanczos`,
+      '-frames:v', '1',
+      '-c:v', 'libwebp', '-q:v', '82', '-f', 'webp',
+      tmpOut,
+    ], { timeout: 20000 });
+    await fs.promises.rename(tmpOut, cached);
+    return cached;
+  } catch (e) {
+    console.warn('[thumb-remote] downscale failed for', url, '-', e.message);
+    return null;
+  } finally {
+    fs.promises.unlink(tmpIn).catch(() => {});
+    fs.promises.unlink(tmpOut).catch(() => {});
   }
 }

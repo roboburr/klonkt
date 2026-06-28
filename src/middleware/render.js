@@ -19,6 +19,7 @@ import { isViewer } from './auth.js';
 import { getSetting, apEnabled } from '../services/SettingsService.js';
 import { isPremium as isPremiumInstance, premiumEnabled, premiumUnlocked } from '../services/PatreonService.js';
 import ActivityPubService from '../services/ActivityPubService.js';
+import { imgProxyUrl } from '../services/ThumbnailService.js';
 import { audioEnabled as audioFeatureEnabled } from '../config/features.js';
 
 // Add the per-request CSP nonce to every <script> tag that doesn't already have one, so the
@@ -164,6 +165,15 @@ export async function renderPage(req, res, viewName, data = {}) {
     thumb: (url, w) => (typeof url === 'string' && url.startsWith('/media/') && !url.startsWith('/media/thumb/'))
       ? `/media/thumb/${w || 480}/${url.slice(7)}`
       : url,
+    // Crisp avatars: a local /media avatar goes through the local thumb route; a REMOTE
+    // (fediverse) avatar through the signed downscaling proxy. Same downscale, the remote
+    // one is just fetched first. Default 128px (covers feed 44px → profile ~120px).
+    avatar: (url, w) => {
+      if (!url || typeof url !== 'string') return url;
+      if (url.startsWith('/media/') && !url.startsWith('/media/thumb/')) return `/media/thumb/${w || 128}/${url.slice(7)}`;
+      if (/^https?:\/\//i.test(url)) return imgProxyUrl(url, w || 128);
+      return url;
+    },
     pageTitle: data.pageTitle || (data.site && data.site.title) || 'Klonkt',
     appVersion: APP_VERSION,
     bodyClass: data.bodyClass || 'on-home',

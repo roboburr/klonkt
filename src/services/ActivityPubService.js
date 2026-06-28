@@ -59,7 +59,7 @@ async function assertPublicHost(hostname) {
   const addrs = await dns.promises.lookup(hostname, { all: true });
   if (!addrs.length || addrs.some((a) => isBlockedIp(a.address))) throw new Error('ssrf-blocked-host');
 }
-async function safeFetch(url, opts = {}, maxRedirects = 3) {
+export async function safeFetch(url, opts = {}, maxRedirects = 3) {
   let target = url;
   for (let hop = 0; ; hop++) {
     const u = new URL(target); // throws on malformed → caller's catch

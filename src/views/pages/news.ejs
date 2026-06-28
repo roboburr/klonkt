@@ -92,7 +92,7 @@
         <li class="tl-item">
           <% if (p.reblog_name) { %><div class="tl-boost-by"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg> <strong><%= p.reblog_name %></strong> <%= t('tl.boosted') %></div><% } %>
           <div class="tl-head">
-            <span class="tl-avatar"><% if (p.author_icon) { %><img src="<%= p.author_icon %>" alt="" loading="lazy"><% } else { %><%= (p.author_name || '?').charAt(0).toUpperCase() %><% } %></span>
+            <span class="tl-avatar"><% if (p.author_icon) { %><img src="<%= avatar(p.author_icon, 128) %>" alt="" loading="lazy"><% } else { %><%= (p.author_name || '?').charAt(0).toUpperCase() %><% } %></span>
             <span class="tl-id">
               <a class="tl-author" href="<%= p.author_url || p.author_uri %>" target="_blank" rel="nofollow noopener"><%= p.author_name %></a>
               <span class="tl-handle"><%= p.author_handle %></span>

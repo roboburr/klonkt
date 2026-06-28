@@ -19,7 +19,7 @@ import db, { initializeDatabase } from './config/database.js';
 import { startScheduler } from './services/Scheduler.js';
 import { SqliteSessionStore } from './services/SqliteSessionStore.js';
 import { ensurePrimarySite } from './services/ensurePrimarySite.js';
-import { getThumbnail, THUMB_SIZES } from './services/ThumbnailService.js';
+import { getThumbnail, getRemoteThumbnail, verifyImg, THUMB_SIZES } from './services/ThumbnailService.js';
 import { resolveSite, loadAudioTracks, loadTheme } from './middleware/site.js';
 import { isViewer } from './middleware/auth.js';
 import { renderPage } from './middleware/render.js';
@@ -229,6 +229,23 @@ app.get('/media/thumb/:w/*', async (req, res) => {
   }
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   res.setHeader('Cache-Control', isDev ? 'no-cache' : 'public, max-age=31536000, immutable');
+  res.type('webp');
+  res.sendFile(file);
+});
+
+// Signed remote-image proxy: downscale a REMOTE avatar/image (SSRF-safe via safeFetch)
+// to a cached WebP, so line-art fediverse avatars don't render jagged. Only HMAC-signed
+// URLs (produced by the avatar() view helper) are accepted — not an open resizer.
+app.get('/img/a/:w', async (req, res) => {
+  const w = parseInt(req.params.w, 10);
+  const url = typeof req.query.u === 'string' ? req.query.u : '';
+  const sig = typeof req.query.s === 'string' ? req.query.s : '';
+  if (!THUMB_SIZES.has(w) || !verifyImg(url, w, sig)) return res.status(400).end();
+  let file = null;
+  try { file = await getRemoteThumbnail(url, w); } catch { /* fall through to original */ }
+  if (!file) return res.redirect(302, url); // fetch/downscale failed → let the browser load the remote original
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.setHeader('Cache-Control', isDev ? 'no-cache' : 'public, max-age=604800');
   res.type('webp');
   res.sendFile(file);
 });
