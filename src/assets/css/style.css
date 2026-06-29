@@ -2474,6 +2474,12 @@ body.on-cirkel[data-feed-view="grid"]  .feed-grid { display: block; }
     -webkit-box-orient: vertical;
     overflow: hidden;
     z-index: 1;
+    /* Federated link posts can have a long bare URL as their title — break it so it wraps
+       inside the tile and clamps cleanly instead of overflowing past both edges. */
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    hyphens: auto;
 }
 
 .grid-tile-pin {
