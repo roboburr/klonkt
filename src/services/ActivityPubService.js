@@ -1499,6 +1499,12 @@ export async function sendInteraction(site, kind, targetNoteId, authorUri) {
   // 'unboost' = Undo(Announce): retracts a boost so followers' servers remove the
   // reblog (matched on actor+object — no record of the original Announce needed).
   const fanout = (kind === 'boost' || kind === 'unboost'); // also goes to our followers
+  const followersCol = `${me}/followers`;
+  // Address the original author in cc so their server (Mastodon, WordPress/ActivityPub, …)
+  // attributes the boost to their post and notifies them — without this, a shared-inbox
+  // receiver has nothing to route the Announce to. Non-fragment activity ids + a `published`
+  // stamp keep us aligned with what Mastodon emits.
+  const audience = authorUri ? [followersCol, authorUri] : [followersCol];
   let act;
   if (kind === 'unboost' || kind === 'unlike') {
     // Undo(Announce) retracts a boost; Undo(Like) un-favourites (matched on actor+object,
@@ -1506,26 +1512,31 @@ export async function sendInteraction(site, kind, targetNoteId, authorUri) {
     const inner = kind === 'unboost' ? 'Announce' : 'Like';
     act = {
       '@context': 'https://www.w3.org/ns/activitystreams',
-      id: `${me}#undo-${Date.now()}-${rid()}`, type: 'Undo', actor: me,
-      object: { id: `${me}#${inner.toLowerCase()}-${Date.now()}-${rid()}`, type: inner, actor: me, object: targetNoteId },
+      id: `${me}/undo/${Date.now()}-${rid()}`, type: 'Undo', actor: me,
+      object: { id: `${me}/${inner.toLowerCase()}/${Date.now()}-${rid()}`, type: inner, actor: me, object: targetNoteId },
     };
-    if (kind === 'unboost') { act.to = [PUBLIC]; act.cc = [`${me}/followers`]; }
+    if (kind === 'unboost') { act.to = [PUBLIC]; act.cc = audience; }
   } else {
     const type = kind === 'boost' ? 'Announce' : 'Like';
     act = {
       '@context': 'https://www.w3.org/ns/activitystreams',
-      id: `${me}#${type.toLowerCase()}-${Date.now()}-${rid()}`,
+      id: `${me}/${type.toLowerCase()}/${Date.now()}-${rid()}`,
       type, actor: me, object: targetNoteId,
     };
-    if (type === 'Announce') { act.to = [PUBLIC]; act.cc = [`${me}/followers`]; }
+    if (type === 'Announce') { act.published = new Date().toISOString(); act.to = [PUBLIC]; act.cc = audience; }
   }
   const inboxes = new Set();
-  if (authorUri) { const a = await fetchActor(authorUri).catch(() => null); if (a) inboxes.add((a.endpoints && a.endpoints.sharedInbox) || a.inbox); }
+  // Author first, via their PERSONAL inbox (not the shared one) so a multi-user receiver
+  // routes the Announce/Like to the right post unambiguously.
+  if (authorUri) { const a = await fetchActor(authorUri).catch(() => null); if (a) inboxes.add(a.inbox || (a.endpoints && a.endpoints.sharedInbox)); }
   if (fanout) { for (const f of fStmts().list.all(site.slug)) inboxes.add(f.shared_inbox || f.inbox); }
-  let delivered = 0;
-  for (const inbox of [...inboxes].filter(Boolean)) { try { const st = await deliver(inbox, act, `${me}#main-key`, keys.private_pem); if (st >= 200 && st < 300) delivered++; } catch { /* best-effort */ } }
-  console.log('[AP]', kind, site.slug, '→', targetNoteId, 'delivered', delivered);
-  return { ok: true, delivered };
+  // Queue each delivery (immediate attempt + backoff retries on failure via ap_delivery)
+  // instead of a single fire-and-forget POST, so a transient hiccup at the receiver doesn't
+  // silently lose the boost — same durability a new post (deliverCreate) already gets.
+  let queued = 0;
+  for (const inbox of [...inboxes].filter(Boolean)) { deliverWithRetry(site.slug, inbox, act, `${me}#main-key`, keys.private_pem); queued++; }
+  console.log('[AP]', kind, site.slug, '→', targetNoteId, 'queued', queued, 'inbox(es)');
+  return { ok: true, delivered: queued };
 }
 
 // Notifications inbox: new followers + replies/likes/boosts on this site's posts.
