@@ -1,9 +1,11 @@
 # Changelog — Klonkt
 
 All notable changes to Klonkt. Newest at the top.
-Versions follow [SemVer](https://semver.org/) (`1.0.0-beta.N` during the beta).
+Versions follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
+
+## [1.0.0] — 2026-06-30
 
 ### Added
 - **Klonkt is now on the fediverse (ActivityPub).** Your site is a real fediverse
@@ -27,10 +29,17 @@ Versions follow [SemVer](https://semver.org/) (`1.0.0-beta.N` during the beta).
   editor, with the formatting toolbar staying in view above the keyboard.
 - **Long posts collapse in the News feed** with a *read more* toggle, so a long post no
   longer fills the whole screen — tap to expand or collapse it.
+- **See everyone in a Circle**: when a Circle has more than five sites, the member count
+  opens a popup that lists them all, so a big Circle no longer hides its members.
 
 ### Changed
 - **Palettes revised to 8**: the neutral **Klonkt** (gold accent) is the new default,
   plus seven full-colour themes — Forest, Ocean, Teal, Lilac, Sunset, Candy and Amber.
+- **Your profile federates more completely**: the links on your profile, the date you
+  joined and the accounts you follow now travel along to other servers, so your profile
+  looks complete when someone views it from Mastodon or elsewhere.
+- **Cover images and avatars are sharper** — resized on the server instead of being
+  squeezed by the browser.
 
 ### Removed
 - **Hub mode** — Klonkt is now **solo or Circles**; you build a collective or label
@@ -54,6 +63,11 @@ Versions follow [SemVer](https://semver.org/) (`1.0.0-beta.N` during the beta).
 - A profile photo that broke in the header after the WebP switch now repairs itself.
 - Many **mobile post-editor** fixes: reliable scrolling, a formatting toolbar that stays
   put, no page jumps when you tap a button, and a Save bar that sits just above the keyboard.
+- **Boosts now reach the original poster** — their server registers the boost and notifies
+  them, just like a boost from Mastodon — and a boost is retried if a server is briefly
+  unreachable instead of being sent once and forgotten.
+- **Unfollowing an account now takes effect on the other server** (it could previously fail
+  to register, leaving you still following on their side).
 
 ## [1.0.0-beta.2] — 2026-06-19
 
