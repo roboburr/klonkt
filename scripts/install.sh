@@ -141,11 +141,13 @@ log "Fetching Klonkt source…"
 if [ -d "$KLONKT_DIR/.git" ]; then
   git -C "$KLONKT_DIR" remote set-url origin "$KLONKT_REPO"
   git -C "$KLONKT_DIR" fetch --depth 1 origin "$KLONKT_BRANCH"
-  # Reset to FETCH_HEAD, not origin/$KLONKT_BRANCH: a single-branch/shallow clone (or one
-  # originally on a different branch, e.g. main → stable) has no origin/<branch> tracking ref,
-  # so `reset --hard origin/stable` fails with "ambiguous argument". FETCH_HEAD always points
-  # at what we just fetched, regardless of refspec or which branch the clone started on.
-  git -C "$KLONKT_DIR" reset --hard FETCH_HEAD
+  # Check out FETCH_HEAD AS the target branch — not `reset --hard origin/$KLONKT_BRANCH`
+  # (a single-branch/shallow clone, or one that started on a different branch like main,
+  # has no origin/<branch> ref → "ambiguous argument 'origin/stable'"), and not a plain
+  # `reset --hard FETCH_HEAD` (that would leave the OLD local branch, e.g. main, pointing at
+  # a stable commit → `git status` reports it as diverged from origin/main). `checkout -f -B`
+  # makes the local branch BE $KLONKT_BRANCH at the fetched tip: robust, forced, no divergence.
+  git -C "$KLONKT_DIR" checkout -qf -B "$KLONKT_BRANCH" FETCH_HEAD
 else
   [ -e "$KLONKT_DIR" ] && [ -n "$(ls -A "$KLONKT_DIR" 2>/dev/null)" ] && die "$KLONKT_DIR already exists and is not a git checkout. Pick --dir, or clean it up."
   mkdir -p "$KLONKT_DIR"
@@ -239,7 +241,7 @@ set -euo pipefail
 D="${KLONKT_DIR}"
 B=\$(runuser -u ${KLONKT_USER} -- git -C "\$D" rev-parse HEAD 2>/dev/null || true)
 runuser -u ${KLONKT_USER} -- git -C "\$D" fetch --depth 1 origin ${KLONKT_BRANCH}
-runuser -u ${KLONKT_USER} -- git -C "\$D" reset --hard FETCH_HEAD
+runuser -u ${KLONKT_USER} -- git -C "\$D" checkout -qf -B ${KLONKT_BRANCH} FETCH_HEAD
 A=\$(runuser -u ${KLONKT_USER} -- git -C "\$D" rev-parse HEAD)
 if [ "\$B" = "\$A" ]; then
   echo "Klonkt is already up to date (\$A) — nothing to do."
