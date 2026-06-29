@@ -18,6 +18,7 @@ import { audioEnabled } from '../config/features.js';
 import { audioUrl } from '../services/AudioStreamService.js';
 import { toWebp } from '../services/ImageWebpService.js';
 import ActivityPubService from '../services/ActivityPubService.js';
+import MusicMeta from '../services/MusicMeta.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const POST_IMAGES_DIR = path.resolve(
@@ -1013,6 +1014,7 @@ router.get('/:slug', (req, res, next) => {
     canManageSite,
     siteAvatar,
     postHasPlayableAudio: ActivityPubService.hasPlayableAudio(post.content || '', site.id),
+    musicLd: MusicMeta.build((process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, ''), site, post),
     pageTitle: post.title + ' - ' + site.title,
     socialDescr: post.excerpt || '',
     socialImage: post.cover_image_url || '',

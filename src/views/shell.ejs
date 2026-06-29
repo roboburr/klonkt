@@ -198,6 +198,11 @@ const _embedUrl = _postAudio
 <% if (_jsonLd) { %>
 <script type="application/ld+json"><%- JSON.stringify(_jsonLd) %></script>
 <% } %>
+<% if (typeof musicLd !== 'undefined' && musicLd) { %>
+<%# Music posts also carry standard schema.org MusicRecording/MusicAlbum data (Phase 1 of
+    music federation): real web standard, read by search engines + generic consumers. %>
+<script type="application/ld+json"><%- JSON.stringify(musicLd) %></script>
+<% } %>
 
 <!-- Self-hosted fonts (privacy-first) -->
 <link rel="preload" href="/assets/fonts/literata-latin-opsz-normal.woff2" as="font" type="font/woff2" crossorigin>
