@@ -237,6 +237,10 @@ B=\$(runuser -u ${KLONKT_USER} -- git -C "\$D" rev-parse HEAD 2>/dev/null || tru
 runuser -u ${KLONKT_USER} -- git -C "\$D" fetch --depth 1 origin ${KLONKT_BRANCH}
 runuser -u ${KLONKT_USER} -- git -C "\$D" reset --hard origin/${KLONKT_BRANCH}
 A=\$(runuser -u ${KLONKT_USER} -- git -C "\$D" rev-parse HEAD)
+if [ "\$B" = "\$A" ]; then
+  echo "Klonkt is already up to date (\$A) — nothing to do."
+  exit 0
+fi
 if ! runuser -u ${KLONKT_USER} -- git -C "\$D" diff --quiet "\$B" "\$A" -- package-lock.json 2>/dev/null; then
   runuser -u ${KLONKT_USER} -- env HOME="\$D" bash -c "cd '\$D' && npm ci --omit=dev"
 fi
