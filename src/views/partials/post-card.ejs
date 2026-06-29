@@ -48,7 +48,10 @@ if (post.tags) {
     <a class="post-list-cover<%= post.nsfw ? ' nsfw-media' : '' %>" href="<%= _href %>"
        <% if (_ext) { %>target="_blank" rel="noopener"<% } else { %>hx-get="<%= _href %>?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="<%= _href %>" hx-indicator="#pcms-loading"<% } %>
        aria-label="<%= post.title || '(zonder titel)' %>" tabindex="-1">
-      <img src="<%= thumb(post.cover_image_url, 256) %>" alt="" loading="lazy" decoding="async">
+      <img src="<%= thumb(post.cover_image_url, 480) %>"
+           srcset="<%= thumb(post.cover_image_url, 320) %> 320w, <%= thumb(post.cover_image_url, 640) %> 640w, <%= thumb(post.cover_image_url, 1280) %> 1280w"
+           sizes="(min-width: 768px) 120px, 100vw"
+           alt="" loading="lazy" decoding="async">
       <% if (post.nsfw) { %><span class="nsfw-veil"><span class="nsfw-veil-label">🔞 <%= post.content_warning || t('post.nsfw_warning') %></span><span class="nsfw-veil-btn"><%= t('post.nsfw_show') %></span></span><% } %>
     </a>
   <% } else if (post.nsfw) { %>
