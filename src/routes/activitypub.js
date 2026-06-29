@@ -45,9 +45,15 @@ router.get('/.well-known/webfinger', (req, res) => {
   if (!site) return res.status(404).end();
   res.type('application/jrd+json; charset=utf-8');
   res.set('Cache-Control', 'public, max-age=300');
+  const actorUri = AP.actorId(baseUrl(req), site.slug);
+  const profileUrl = baseUrl(req) + (site.slug === primarySlug() ? '/' : `/user/${encodeURIComponent(site.slug)}`);
   res.send(JSON.stringify({
     subject: `acct:${site.slug}@${hostOf(req)}`,
-    links: [{ rel: 'self', type: 'application/activity+json', href: AP.actorId(baseUrl(req), site.slug) }],
+    aliases: [actorUri, profileUrl],
+    links: [
+      { rel: 'self', type: 'application/activity+json', href: actorUri },
+      { rel: 'http://webfinger.net/rel/profile-page', type: 'text/html', href: profileUrl },
+    ],
   }));
 });
 
@@ -82,6 +88,15 @@ router.get('/ap/users/:slug/followers', (req, res) => {
   if (!site) return res.status(404).end();
   const n = db.prepare('SELECT COUNT(*) n FROM ap_followers WHERE slug = ?').get(site.slug).n;
   AP.sendAP(res, AP.buildFollowers(baseUrl(req), site, n));
+});
+
+// ── Following (count only) ────────────────────────────────────────
+router.get('/ap/users/:slug/following', (req, res) => {
+  const site = publicSite(req.params.slug);
+  if (!site) return res.status(404).end();
+  let n = 0;
+  try { n = db.prepare("SELECT COUNT(*) n FROM ap_following WHERE slug = ? AND status = 'accepted'").get(site.slug).n; } catch { /* table may not exist */ }
+  AP.sendAP(res, AP.buildFollowing(baseUrl(req), site, n));
 });
 
 // ── Featured (pinned posts → Mastodon "Featured" tab) ─────────────
@@ -150,7 +165,8 @@ router.get('/.well-known/nodeinfo', (req, res) => {
 });
 router.get('/nodeinfo/2.1', (req, res) => {
   let users = 0; let posts = 0;
-  try { users = db.prepare('SELECT COUNT(*) c FROM users').get().c; } catch { /* */ }
+  // "users" = public AP actors (sites), not the admin/member account rows.
+  try { users = db.prepare('SELECT COUNT(*) c FROM sites WHERE (is_public IS NULL OR is_public = 1)').get().c; } catch { /* */ }
   try { posts = db.prepare("SELECT COUNT(*) c FROM posts WHERE status = 'published'").get().c; } catch { /* */ }
   res.type('application/json; charset=utf-8');
   res.set('Cache-Control', 'public, max-age=600');

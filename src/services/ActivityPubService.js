@@ -136,6 +136,7 @@ export function buildActor(base, site) {
     inbox: `${id}/inbox`,
     outbox: `${id}/outbox`,
     followers: `${id}/followers`,
+    following: `${id}/following`,
     featured: `${id}/featured`,
     endpoints: { sharedInbox: `${base}/ap/inbox` },
     publicKey: {
@@ -148,6 +149,24 @@ export function buildActor(base, site) {
     const u = /^https?:/.test(site.profile_photo) ? site.profile_photo : `${base}${site.profile_photo.startsWith('/') ? '' : '/'}${site.profile_photo}`;
     actor.icon = { type: 'Image', url: u };
   }
+  // Account creation date — shown by Mastodon + read by indexers (additive, standard AS2).
+  if (site.created_at) { try { actor.published = new Date(site.created_at).toISOString(); } catch { /* skip bad date */ } }
+  // Profile links → PropertyValue rows: Mastodon/PeerTube/WordPress-ActivityPub render these as
+  // profile metadata (rel=me enables link-back verification). Additive; ignored by simpler receivers.
+  try {
+    const links = JSON.parse(site.profile_links || '[]');
+    if (Array.isArray(links) && links.length) {
+      const esc = (s) => String(s).replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+      const rows = links
+        .filter((l) => l && l.url && /^https?:/i.test(l.url))
+        .map((l) => ({
+          type: 'PropertyValue',
+          name: esc(l.platform || 'Link'),
+          value: `<a href="${esc(l.url).replace(/"/g, '&quot;')}" rel="me nofollow noopener" target="_blank">${esc(String(l.url).replace(/^https?:\/\//, ''))}</a>`,
+        }));
+      if (rows.length) actor.attachment = rows;
+    }
+  } catch { /* skip malformed profile_links */ }
   return actor;
 }
 
@@ -336,6 +355,19 @@ export function buildFollowers(base, site, count) {
     type: 'OrderedCollection',
     totalItems: count || 0,
     orderedItems: [], // hidden for privacy; count only
+  };
+}
+
+// The accounts this site follows — count only, mirroring buildFollowers. The spec lists
+// `following` as a standard actor property; Hubzilla/Friendica + crawlers expect it.
+export function buildFollowing(base, site, count) {
+  const id = `${actorId(base, site.slug)}/following`;
+  return {
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    id,
+    type: 'OrderedCollection',
+    totalItems: count || 0,
+    orderedItems: [], // count only
   };
 }
 
@@ -1482,9 +1514,15 @@ export async function unfollowActor(site, actorUri) {
   const me = actorId(base, site.slug);
   const keys = getOrCreateKeys(site.slug);
   const row = fwStmts().one.get(site.slug, actorUri);
-  if (row && row.inbox) {
-    const undo = { '@context': 'https://www.w3.org/ns/activitystreams', id: `${me}#unfollow-${Date.now()}-${rid()}`, type: 'Undo', actor: me, object: { id: row.follow_id || `${me}#follow`, type: 'Follow', actor: me, object: actorUri } };
-    try { await deliver(row.inbox, undo, `${me}#main-key`, keys.private_pem); } catch { /* best-effort */ }
+  // Undo(Follow) MUST reference the original Follow's real id so the remote can correlate it
+  // and drop the follow. The old `${me}#follow` fallback never matched anything → the unfollow
+  // silently failed on the remote. With no stored follow id (legacy row), skip the network Undo
+  // rather than send an unmatchable one. Deliver durably via the retry queue.
+  if (row && row.inbox && row.follow_id) {
+    const undo = { '@context': 'https://www.w3.org/ns/activitystreams', id: `${me}/undo/${Date.now()}-${rid()}`, type: 'Undo', actor: me, object: { id: row.follow_id, type: 'Follow', actor: me, object: actorUri } };
+    deliverWithRetry(site.slug, row.inbox, undo, `${me}#main-key`, keys.private_pem);
+  } else if (row && row.inbox) {
+    console.warn('[AP] unfollow', site.slug, '→', actorUri, '— no stored follow id; removed locally only (legacy follow, remote may keep it)');
   }
   fwStmts().del.run(site.slug, actorUri);
   return { ok: true };
@@ -1620,7 +1658,7 @@ export function unblock(site, target) { blStmts().del.run(site.slug, target); re
 
 export default {
   getOrCreateKeys, apWants, sendAP, actorId, noteId,
-  buildActor, buildNote, buildCreate, buildOutbox, buildFollowers, buildFeatured,
+  buildActor, buildNote, buildCreate, buildOutbox, buildFollowers, buildFollowing, buildFeatured,
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, setMyReaction, getMyReactions, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate,
