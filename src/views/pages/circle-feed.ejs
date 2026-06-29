@@ -25,8 +25,30 @@
       <% }); %>
     </div>
     <% } else { %>
-      <%# More than 5: no chips (would become a wall) — show the count only. %>
-      <span class="cirkel-count"><%= t('cfeed.count', { n: sites.length }) %></span>
+      <%# More than 5: the count pill becomes a button that opens a modal listing every
+          member (avatar + name + link). CSS-only via a hidden checkbox — no JS, so it's
+          CSP- (no inline handler) and htmx-safe. Checkbox must precede .cirkel-modal so
+          the `:checked ~` sibling selector matches. %>
+      <input type="checkbox" id="cirkel-more-cb" class="cirkel-more-cb" hidden>
+      <label for="cirkel-more-cb" class="cirkel-count cirkel-count-btn" role="button" tabindex="0"><%= t('cfeed.count', { n: sites.length }) %></label>
+      <div class="cirkel-modal" role="dialog" aria-modal="true" aria-label="<%= t('cfeed.title') %>">
+        <label for="cirkel-more-cb" class="cirkel-modal-backdrop" aria-label="<%= t('cfeed.close') %>"></label>
+        <div class="cirkel-modal-card">
+          <label for="cirkel-more-cb" class="cirkel-modal-x" aria-label="<%= t('cfeed.close') %>" role="button" tabindex="0">&times;</label>
+          <h2 class="cirkel-modal-h"><%= t('cfeed.count', { n: sites.length }) %></h2>
+          <ul class="cirkel-modal-list">
+            <% sites.forEach(function(s){ %>
+              <li>
+                <% if (s.url) { %><a class="cirkel-modal-link" href="<%= s.url %>" target="_blank" rel="noopener"><% } else { %><span class="cirkel-modal-link"><% } %>
+                  <span class="cirkel-avatar"<% if (s.avatar) { %> style="background-image:url('<%= s.avatar %>');background-color:transparent"<% } %>><% if (!s.avatar) { %><%= (s.name || '?').charAt(0).toUpperCase() %><% } %></span>
+                  <span class="cirkel-member-name"><%= s.name %></span>
+                  <% if (s.url) { %><span class="cirkel-modal-go" aria-hidden="true">↗</span><% } %>
+                <% if (s.url) { %></a><% } else { %></span><% } %>
+              </li>
+            <% }); %>
+          </ul>
+        </div>
+      </div>
     <% } %>
   <% } %>
 </div>
@@ -82,6 +104,26 @@
 .cirkel-member-name { font-size: .9rem; font-weight: 600; }
 .cirkel-count { display: inline-block; color: var(--ink-muted); font-size: .92rem; font-weight: 600;
   padding: .35rem 1rem; border: 1px solid var(--rule); border-radius: 999px; background: var(--paper-2); }
+.cirkel-count-btn { cursor: pointer; user-select: none; transition: border-color .15s, color .15s, transform .15s; }
+.cirkel-count-btn:hover { border-color: var(--accent); color: var(--ink); transform: translateY(-1px); }
 .cirkel-empty { color: var(--ink-muted); text-align: center; margin: 2rem auto; }
 .cirkel-empty a { color: var(--accent); }
+/* CSS-only "more members" modal (toggled by the hidden checkbox, no JS) */
+.cirkel-more-cb { position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none; }
+.cirkel-modal { display: none; position: fixed; inset: 0; z-index: 1000; align-items: center; justify-content: center; padding: 1rem; }
+.cirkel-more-cb:checked ~ .cirkel-modal { display: flex; }
+.cirkel-modal-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.45); cursor: pointer; }
+.cirkel-modal-card { position: relative; background: var(--paper); color: var(--ink); border-radius: 18px;
+  padding: 1.4rem 1.2rem; width: min(420px, 92vw); max-height: 78vh; overflow-y: auto; text-align: left;
+  box-shadow: 0 20px 60px rgba(0,0,0,.32); }
+.cirkel-modal-x { position: absolute; top: .55rem; right: .65rem; width: 34px; height: 34px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer; font-size: 1.45rem;
+  line-height: 1; color: var(--ink-muted); background: var(--paper-2); }
+.cirkel-modal-x:hover { color: var(--ink); }
+.cirkel-modal-h { font-family: var(--font-display, serif); font-size: 1.3rem; margin: .1rem 0 1rem; text-align: center; }
+.cirkel-modal-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .25rem; }
+.cirkel-modal-link { display: flex; align-items: center; gap: .6rem; padding: .45rem .5rem; border-radius: 12px;
+  text-decoration: none; color: var(--ink); transition: background .15s; }
+.cirkel-modal-link:hover { background: var(--paper-2); }
+.cirkel-modal-go { margin-left: auto; color: var(--accent); font-weight: 700; }
 </style>
