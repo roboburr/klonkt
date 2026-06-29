@@ -24,6 +24,7 @@ KLONKT_REPO="${KLONKT_REPO:-https://github.com/roboburr/klonkt.git}"
 # `stable` = the release channel: it only moves forward to a version that has been verified,
 # so a self-host auto-update (klonkt-update) never pulls work-in-progress. Use `--branch main`
 # for the bleeding-edge dev branch instead.
+KLONKT_BRANCH_SET="${KLONKT_BRANCH:+1}"   # channel chosen via env? (empty = no, "1" = yes)
 KLONKT_BRANCH="${KLONKT_BRANCH:-stable}"
 KLONKT_DIR="${KLONKT_DIR:-/opt/klonkt}"
 KLONKT_USER="${KLONKT_USER:-klonkt}"
@@ -34,12 +35,13 @@ NODE_MAJOR="${NODE_MAJOR:-20}"
 NO_CADDY="${KLONKT_NO_CADDY:-}"     # set to 1 to NEVER install Caddy (own proxy)
 NODE_FORCE="${NODE_FORCE:-}"        # set to 1 to (re)install system Node anyway
 PORT_EXPLICIT=0
+BRANCH_EXPLICIT="${KLONKT_BRANCH_SET:-0}"   # 1 = operator chose the channel (env or --branch)
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --domain) KLONKT_DOMAIN="$2"; shift 2;;
     --repo)   KLONKT_REPO="$2";   shift 2;;
-    --branch) KLONKT_BRANCH="$2"; shift 2;;
+    --branch) KLONKT_BRANCH="$2"; BRANCH_EXPLICIT=1; shift 2;;
     --dir)    KLONKT_DIR="$2";    shift 2;;
     --port)   KLONKT_PORT="$2"; PORT_EXPLICIT=1; shift 2;;
     --lang)   KLONKT_LANG="$2";  shift 2;;
@@ -140,6 +142,14 @@ ok "user"
 log "Fetching Klonkt source…"
 if [ -d "$KLONKT_DIR/.git" ]; then
   git -C "$KLONKT_DIR" remote set-url origin "$KLONKT_REPO"
+  # Re-run on an EXISTING install: keep the channel this install already tracks — never
+  # silently switch it to the stable default. Only an explicit --branch / KLONKT_BRANCH
+  # overrides; a fresh install (else-branch) uses the stable default.
+  if [ "$BRANCH_EXPLICIT" != "1" ]; then
+    _cur=$(git -C "$KLONKT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+    [ -n "$_cur" ] && [ "$_cur" != "HEAD" ] && KLONKT_BRANCH="$_cur"
+  fi
+  log "Channel: $KLONKT_BRANCH"
   git -C "$KLONKT_DIR" fetch --depth 1 origin "$KLONKT_BRANCH"
   # Check out FETCH_HEAD AS the target branch — not `reset --hard origin/$KLONKT_BRANCH`
   # (a single-branch/shallow clone, or one that started on a different branch like main,
