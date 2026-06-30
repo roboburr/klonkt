@@ -82,8 +82,6 @@
         var _aaudEdit     = t('aaud.edit');
         var _aaudDlOn     = t('aaud.dl_on');
         var _aaudDlOff    = t('aaud.dl_off');
-        var _aaudFediOn   = t('aaud.fedi_on');
-        var _aaudFediOff  = t('aaud.fedi_off');
         var _aaudDelete   = t('aaud.delete');
         var _aaudCopy     = t('aaud.copy_click');
         var _aaudDelConfirm = t('aaud.delete_confirm');
@@ -122,9 +120,6 @@
                         aria-label="<%= t.downloadable ? _aaudDlOn : _aaudDlOff %>" title="<%= t.downloadable ? _aaudDlOn : _aaudDlOff %>"
                         style="<%= t.downloadable ? 'color:var(--accent,#6b8f71)' : 'opacity:.5' %>">⬇</button>
               <% } %>
-              <button type="button" class="ax-icon-btn" data-track-fedi data-id="<%= t.id %>" data-on="<%= t.fedi_open ? '1' : '0' %>"
-                      aria-label="<%= t.fedi_open ? _aaudFediOn : _aaudFediOff %>" title="<%= t.fedi_open ? _aaudFediOn : _aaudFediOff %>"
-                      style="<%= t.fedi_open ? 'color:var(--accent,#6b8f71)' : 'opacity:.5' %>">🌐</button>
               <form action="/admin/audio/<%= t.id %>/delete" method="post" data-confirm="<%= _aaudDelConfirm %>" class="ax-track-delete">
                 <button type="submit" class="ax-icon-btn ax-icon-btn-danger" aria-label="<%= _aaudDelete %>" title="<%= _aaudDelete %>">🗑</button>
               </form>
@@ -1001,31 +996,6 @@
         btn.title = want
           ? '<%= t('aaud.dl_on') %>'
           : '<%= t('aaud.dl_off') %>';
-      } catch (e) {
-        alert('<%= t('aaud.change_failed') %>: ' + (e.message || e));
-      } finally {
-        btn.disabled = false;
-      }
-    });
-  });
-
-  // Fediverse-share (fedi_open) toggle — AJAX, no page reload (mirrors the download toggle).
-  document.querySelectorAll('[data-track-fedi]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      if (btn.disabled) return;
-      const want = btn.dataset.on === '1' ? 0 : 1;
-      btn.disabled = true;
-      try {
-        const res = await fetch('/admin/audio/api/' + btn.dataset.id, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fedi_open: !!want }),
-        });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        btn.dataset.on = String(want);
-        btn.style.color = want ? 'var(--accent,#6b8f71)' : '';
-        btn.style.opacity = want ? '1' : '.5';
-        btn.title = want ? '<%= t('aaud.fedi_on') %>' : '<%= t('aaud.fedi_off') %>';
       } catch (e) {
         alert('<%= t('aaud.change_failed') %>: ' + (e.message || e));
       } finally {
