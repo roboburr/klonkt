@@ -366,10 +366,11 @@ export function buildNote(base, site, post) {
   };
   if (post.nsfw) note.summary = post.content_warning || 'Gevoelige inhoud';
   if (attachment.length) note.attachment = attachment;
-  // Playable-audio posts suppress the cover attachment (player card). Still expose
-  // the cover via AS2 `image` so card/grid consumers (the Klonkt Cirkel) can show
-  // it — Mastodon ignores a Note's `image`, so the player card is unaffected.
-  if (post.cover_image_url && playable) {
+  // When the cover attachment is suppressed (hosted audio OR an external embed/link-only track →
+  // so Mastodon shows the player/link card, not media), still expose the cover via AS2 `image` so
+  // card/grid consumers (the Klonkt Cirkel/News feed) can show it. Mastodon ignores a Note's
+  // `image`, so its card is unaffected — but a Klonkt receiver reads it (handleInbox o.image).
+  if (post.cover_image_url && noImages) {
     const cov = abs(post.cover_image_url);
     if (cov) note.image = { type: 'Image', mediaType: mediaType(cov), url: cov };
   }
