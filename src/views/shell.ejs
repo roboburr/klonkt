@@ -770,6 +770,34 @@ const _embedUrl = _postAudio
   scan(document);
   document.body.addEventListener('htmx:afterSettle', function (e) { scan(e.target); });
 })();
+
+// iOS animated-cover → video: an animated WebP is janky on iOS Safari, so on iOS we swap any
+// <img data-ios-mp4="…"> for a muted, looping, inline <video> (the WebP's matching MP4). Every
+// other browser keeps the crisp WebP. Runs on load + htmx swaps.
+(function () {
+  if (window.__iosVideoWired) return; window.__iosVideoWired = true;
+  var ua = navigator.userAgent || '';
+  var IS_IOS = /iP(hone|od|ad)/.test(navigator.platform || '') || /iPad|iPhone|iPod/.test(ua) ||
+               (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1); // iPadOS reports as Mac
+  if (!IS_IOS) return;
+  function swap(root) {
+    (root || document).querySelectorAll('img[data-ios-mp4]').forEach(function (img) {
+      var mp4 = img.getAttribute('data-ios-mp4');
+      if (!mp4 || img.dataset.iosSwapped) return;
+      img.dataset.iosSwapped = '1';
+      var v = document.createElement('video');
+      v.src = mp4; v.muted = true; v.loop = true; v.autoplay = true;
+      v.setAttribute('muted', ''); v.setAttribute('playsinline', ''); v.setAttribute('webkit-playsinline', '');
+      v.poster = img.getAttribute('src') || '';
+      v.className = img.className;
+      if (img.getAttribute('style')) v.setAttribute('style', img.getAttribute('style'));
+      if (img.parentNode) img.parentNode.replaceChild(v, img);
+      var p = v.play && v.play(); if (p && p.catch) p.catch(function () {});
+    });
+  }
+  swap(document);
+  document.body.addEventListener('htmx:afterSettle', function (e) { swap(e.target); });
+})();
 </script>
 
 <script>

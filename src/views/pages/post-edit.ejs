@@ -105,6 +105,8 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
                    inputmode="url" autocapitalize="none" spellcheck="false"
                    placeholder="<%= t('pedit.cover_url_placeholder') %>">
           </label>
+          <%# Muted loop MP4 for an animated cover (auto-made from an animated WebP). Hidden — set by the uploader. %>
+          <input type="hidden" name="cover_video_url" id="cover-video-field" value="<%= post.cover_video_url || '' %>">
           <div class="pe-cover-upload">
             <button type="button" class="pe-btn pe-btn-secondary" id="cover-upload-trigger">
               📷 <%= t('pedit.cover_upload_btn') %>
@@ -1169,6 +1171,7 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
   const coverField   = document.getElementById('cover-upload-field');
   const coverTrigger = document.getElementById('cover-upload-trigger');
   const coverUrl     = document.getElementById('cover-url-field');
+  const coverVideo   = document.getElementById('cover-video-field');
   const coverStatus  = document.getElementById('cover-upload-status');
   const coverWrap    = document.getElementById('cover-preview-wrap');
   const coverImg     = document.getElementById('cover-preview-img');
@@ -1328,8 +1331,9 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
       try {
         const j = await uploadImage(edited);
         coverUrl.value = j.url;
+        if (coverVideo) coverVideo.value = j.video || ''; // muted loop MP4 for an animated cover
         showCoverPreview(j.url);
-        coverStatus.textContent = '<%= t('pedit.js_uploaded') %> ✓';
+        coverStatus.textContent = (j.video ? '🎬 ' : '') + '<%= t('pedit.js_uploaded') %> ✓';
         setTimeout(() => { coverStatus.textContent = ''; }, 2000);
       } catch (e) {
         coverStatus.classList.add('is-error');
