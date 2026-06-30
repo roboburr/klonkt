@@ -1419,26 +1419,14 @@ function tlStmts() {
 export function getTimeline(slug, limit) { return tlStmts().list.all(slug, limit || 50); }
 
 // ── Cirkel = posts from the accounts you auto-boost ("feature an artist") ──
-let _abCount, _cirkelPosts, _cirkelPostsActor, _cirkelMembers;
+let _abCount, _cirkelPosts, _cirkelMembers;
 export function autoBoostCount(slug) {
   try { if (!_abCount) _abCount = db.prepare('SELECT COUNT(*) AS n FROM ap_following WHERE slug = ? AND auto_boost = 1'); return _abCount.get(slug).n; } catch { return 0; }
 }
-export function getCirkelPosts(slug, limit, actorUri) {
+export function getCirkelPosts(slug, limit) {
   try {
     // Cirkel = posts from featured (auto_boost) accounts + posts you boosted
     // (t.boosted), mixed by date. One row per note in ap_timeline → no duplicates.
-    // Optional actorUri → only that member's posts (the "Show this person" filter).
-    if (actorUri) {
-      if (!_cirkelPostsActor) _cirkelPostsActor = db.prepare(`
-        SELECT t.id, t.author_uri, t.author_name, t.author_handle, t.author_icon, t.author_url,
-               t.content, t.url, t.published, t.media_json, t.boosted, t.nsfw, t.cw
-        FROM ap_timeline t
-        LEFT JOIN ap_following f ON f.slug = t.slug AND f.actor_uri = t.author_uri
-        WHERE t.slug = ? AND t.author_uri = ? AND (f.auto_boost = 1 OR t.boosted = 1)
-        ORDER BY COALESCE(t.published, t.created_at) DESC, t.rowid DESC
-        LIMIT ?`);
-      return _cirkelPostsActor.all(slug, actorUri, limit || 60);
-    }
     if (!_cirkelPosts) _cirkelPosts = db.prepare(`
       SELECT t.id, t.author_uri, t.author_name, t.author_handle, t.author_icon, t.author_url,
              t.content, t.url, t.published, t.media_json, t.boosted, t.nsfw, t.cw
@@ -1451,7 +1439,7 @@ export function getCirkelPosts(slug, limit, actorUri) {
   } catch { return []; }
 }
 export function getCirkelMembers(slug) {
-  try { if (!_cirkelMembers) _cirkelMembers = db.prepare('SELECT actor_uri, name, url, icon FROM ap_following WHERE slug = ? AND auto_boost = 1 ORDER BY name'); return _cirkelMembers.all(slug); } catch { return []; }
+  try { if (!_cirkelMembers) _cirkelMembers = db.prepare('SELECT name, url, icon FROM ap_following WHERE slug = ? AND auto_boost = 1 ORDER BY name'); return _cirkelMembers.all(slug); } catch { return []; }
 }
 // Mark a timeline post as boosted so it shows in the Cirkel (mixed by date).
 let _markBoost, _unmarkBoost, _boostedCount;
