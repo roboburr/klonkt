@@ -665,7 +665,14 @@ function timelineEmbedHtml(html) {
   while ((m = re.exec(html))) {
     const u = m[1]; if (seen.has(u)) continue; seen.add(u);
     let p; try { p = AudioEmbedService.detectProvider(u); } catch { p = null; }
-    if (!p) continue;
+    if (!p) {
+      // PeerTube is decentralised (any instance), so it's not in detectProvider — match its watch URL
+      // (/w/<id> or /videos/watch/<id>) and embed the player. Host is validated (safe chars only), so
+      // it's safe to inline into the iframe src; a non-PeerTube /w/ URL just yields an empty iframe.
+      const pt = u.match(/^https?:\/\/([\w.-]+(?::\d+)?)\/(?:w|videos\/watch)\/([\w-]{6,})/i);
+      if (pt) return `<iframe class="tl-embed-frame" src="https://${pt[1]}/videos/embed/${pt[2]}" title="PeerTube" loading="lazy" frameborder="0" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>`;
+      continue;
+    }
     if (p.provider === 'youtube') return `<iframe class="tl-embed-frame" src="https://www.youtube-nocookie.com/embed/${p.id}" title="YouTube" loading="lazy" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`;
     if (p.provider === 'spotify') return `<iframe class="tl-embed-frame tl-embed-spotify" src="https://open.spotify.com/embed/${p.type}/${p.id}" title="Spotify" loading="lazy" frameborder="0" allow="encrypted-media"></iframe>`;
     if (p.provider === 'soundcloud') return `<iframe class="tl-embed-frame tl-embed-sc" src="https://w.soundcloud.com/player/?url=${encodeURIComponent(p.url)}&color=%23ff5500&visual=false" title="SoundCloud" loading="lazy" frameborder="0" allow="autoplay" scrolling="no"></iframe>`;
