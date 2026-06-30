@@ -771,6 +771,19 @@ const _embedUrl = _postAudio
   document.body.addEventListener('htmx:afterSettle', function (e) { scan(e.target); });
 })();
 
+// Light anti-grab friction: suppress the right-click menu on visual media (covers, images,
+// videos) so the art isn't one right-click away from "Save as". Friction, NOT protection —
+// the files are public and reachable via devtools/network. Middle/Ctrl-click (open in new
+// tab) still works; only the context menu is blocked. Delegated → covers htmx-swapped content.
+(function () {
+  if (window.__noMediaCtxWired) return; window.__noMediaCtxWired = true;
+  document.addEventListener('contextmenu', function (e) {
+    if (e.target.closest('img, video, .grid-tile, .post-list-cover, .post-cover, .tl-media-img')) {
+      e.preventDefault();
+    }
+  });
+})();
+
 // iOS animated-cover → video: an animated WebP is janky on iOS Safari, so on iOS we swap any
 // <img data-ios-mp4="…"> for a muted, looping, inline <video> (the WebP's matching MP4). Every
 // other browser keeps the crisp WebP. Runs on load + htmx swaps.
