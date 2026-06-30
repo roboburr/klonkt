@@ -18,9 +18,15 @@ function safeUrl(u) {
 function safeJson(s) {
   try { return s ? JSON.parse(s) : []; } catch { return []; }
 }
-function mediaImage(media_json) {
+// The cover image + (separately) a cover video from a remote note's media. NEVER use a video/audio
+// item as the cover image — that produced a broken <img> for an animated cover that federated as an
+// MP4 (the video becomes a <video> instead).
+function coverMedia(media_json) {
   const media = safeJson(media_json).map((m) => ({ ...m, url: safeUrl(m.url) })).filter((m) => m.url);
-  return media.find((m) => /image/i.test(m.type || '')) || media[0] || null;
+  const video = media.find((m) => /video/i.test(m.type || '')) || null;
+  const image = media.find((m) => /image/i.test(m.type || ''))
+    || (media[0] && !/(video|audio)/i.test(media[0].type || '') ? media[0] : null);
+  return { image, video };
 }
 function htmlToText(html) {
   return String(html || '').replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, ' ').trim();
@@ -36,7 +42,7 @@ router.get('/cirkel', (req, res, next) => {
     // body. Title-less notes (e.g. plain Mastodon) fall back to a short text snippet.
     const titleM = (r.content || '').match(/^\s*<p>\s*<strong>([\s\S]*?)<\/strong>/i);
     const realTitle = titleM ? htmlToText(titleM[1]).trim() : '';
-    const image = mediaImage(r.media_json);
+    const cover = coverMedia(r.media_json);
     const name = r.author_name || r.author_handle || 'Onbekend';
     return {
       id: 'ap-' + r.id,
@@ -45,7 +51,8 @@ router.get('/cirkel', (req, res, next) => {
         ? (realTitle.length > 90 ? realTitle.slice(0, 90) + '…' : realTitle)
         : (text ? (text.length > 90 ? text.slice(0, 90) + '…' : text) : name),
       excerpt: '',
-      cover_image_url: image ? image.url : null,
+      cover_image_url: cover.image ? cover.image.url : null,
+      cover_video_url: cover.video ? cover.video.url : null,
       published_at: r.published,
       created_at: r.published,
       type: 'post',

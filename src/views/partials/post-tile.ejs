@@ -5,7 +5,7 @@
 const _tileHue = ((post.id || post.slug || '0').charCodeAt(0) * 7) % 360;
 const _isPinned = !!post.pinned;
 const _isBoost = !!post.isBoost;
-const _hasCover = !!post.cover_image_url;
+const _hasCover = !!post.cover_image_url || !!post.cover_video_url;
 const _typeLabel = (post.type && post.type !== 'post') ? post.type : '';
 const _src = post.source_name || '';   // bron-site (cirkel-feed: van welke site komt deze post)
 const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '';
@@ -18,7 +18,7 @@ const _ext = !!_external;
    style="--tile-hue: <%= _tileHue %>;"
    <% if (_ext) { %>target="_blank" rel="noopener"<% } else { %>hx-get="<%= _href %>?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="<%= _href %>" hx-indicator="#pcms-loading"<% } %>>
 
-  <% if (_hasCover) { %><img class="grid-tile-img" src="<%= thumb(post.cover_image_url, 480) %>" alt="" loading="lazy" decoding="async"<% if (post.cover_video_url) { %> data-ios-mp4="<%= post.cover_video_url %>"<% } %>><% } %>
+  <% if (post.cover_image_url) { %><img class="grid-tile-img" src="<%= thumb(post.cover_image_url, 480) %>" alt="" loading="lazy" decoding="async"<% if (post.cover_video_url) { %> data-ios-mp4="<%= post.cover_video_url %>"<% } %>><% } else if (post.cover_video_url) { %><video class="grid-tile-img" src="<%= post.cover_video_url %>" autoplay loop muted playsinline></video><% } %>
 
   <% if (_typeLabel) { %>
     <span class="grid-tile-type"><%= _typeLabel %></span>
