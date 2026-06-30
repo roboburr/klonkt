@@ -39,7 +39,10 @@ async function compositeFrames(img) {
       }
     }
     const data = Buffer.from(await img.getFrameData(i)); // fr.width*fr.height*4 RGBA sub-region
-    const fx = fr.x, fy = fr.y, fw = fr.width, fh = fr.height, blend = fr.blend;
+    // node-webpmux returns the raw ANMF offset, which the WebP spec stores as actual/2 (frame
+    // offsets are always even); libwebp/webpmux double it. So ×2 the x/y to get the true pixel
+    // position — else partial frames land at half-offset and ghost over the base. width/height are fine.
+    const fx = fr.x * 2, fy = fr.y * 2, fw = fr.width, fh = fr.height, blend = fr.blend;
     if (fx === 0 && fy === 0 && fw === W && fh === H && !blend) {
       data.copy(canvas, 0); // full opaque overwrite (the typical base frame)
     } else {
