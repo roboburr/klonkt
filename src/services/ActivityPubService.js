@@ -818,6 +818,25 @@ export async function handleInbox(req, slugParam) {
     }
     return 202;
   }
+  // A remote post we cached was edited upstream → refresh our cached copy. This is the
+  // push-based edit-sync that keeps the Cirkel/timeline fresh without polling (selfHeal
+  // does it on a version bump; this does it live). Scope to the SIGNING actor so B can't
+  // edit A's note (the signature gate guarantees claimedActor == the verified signer).
+  if (type === 'Update' && act.object && (act.object.type === 'Note' || act.object.type === 'Article')) {
+    const o = act.object;
+    if (o.id && claimedActor) {
+      const html = HtmlSanitizerService.sanitize(o.content || '');
+      const media = mediaFromNote(o);
+      try {
+        const r = db.prepare('UPDATE ap_timeline SET content = ?, media_json = ?, nsfw = ?, cw = ? WHERE id = ? AND author_uri = ?')
+          .run(html, media, o.sensitive ? 1 : 0, o.summary || null, o.id, claimedActor);
+        if (r.changes) console.log('[AP] timeline update', claimedActor, '→', o.id);
+      } catch { /* ignore */ }
+      // If this note is a cached fediverse reply on one of our posts, refresh its text too.
+      try { db.prepare('UPDATE ap_interactions SET content = ? WHERE object_uri = ? AND actor_uri = ?').run(html, o.id, claimedActor); } catch { /* ignore */ }
+    }
+    return 202;
+  }
   if (type === 'Like' || type === 'Announce') {
     const tgt = act.object;
     const objUrl = typeof tgt === 'string' ? tgt : (tgt && tgt.id);
@@ -1370,6 +1389,9 @@ export function listFollowing(slug) { return fwStmts().list.all(slug); }
 // Toggle auto-boost ("feature") on an account we already follow.
 export function setAutoBoost(slug, actorUri, on) {
   try { fwStmts().setAB.run(on ? 1 : 0, slug, actorUri); } catch { /* ignore */ }
+  // Featuring an account → AP-native catch-up so the Cirkel isn't empty until they next
+  // post (push doesn't backfill history-before-follow). Fire-and-forget pull, sends nothing.
+  if (on) backfillFromOutbox(slug, actorUri).catch(() => {});
   return { ok: true };
 }
 
@@ -1483,6 +1505,52 @@ function mediaFromNote(note) {
   }
   return JSON.stringify(atts);
 }
+// A generic SSRF-safe AP GET (collections / pages).
+async function apGetJson(url) {
+  try {
+    const r = await safeFetch(url, { headers: { Accept: 'application/activity+json' } });
+    if (!r.ok) return null;
+    const len = Number(r.headers.get('content-length') || 0);
+    if (len > 3_000_000) return null;
+    return await r.json();
+  } catch { return null; }
+}
+// AP-native catch-up: pull an actor's standard `outbox` collection and merge their recent
+// top-level posts into the timeline for `slug`. Push (Create delivery) cannot backfill
+// history-from-before-you-followed or a delivery that was missed while you were down;
+// reading the outbox is the spec-conform way to catch up. PULL ONLY — sends nothing.
+export async function backfillFromOutbox(slug, actorUri, limit = 20) {
+  try {
+    if (!slug || !actorUri) return 0;
+    const actor = await fetchActor(actorUri);
+    if (!actor || !actor.outbox) return 0;
+    let page = await apGetJson(typeof actor.outbox === 'string' ? actor.outbox : actor.outbox.id);
+    let items = (page && (page.orderedItems || page.items)) || [];
+    if (!items.length && page && page.first) {
+      page = await apGetJson(typeof page.first === 'string' ? page.first : page.first.id);
+      items = (page && (page.orderedItems || page.items)) || [];
+    }
+    if (!Array.isArray(items) || !items.length) return 0;
+    const ai = actorInfo(actor, actorUri);
+    let added = 0;
+    for (const it of items.slice(0, limit)) {
+      // Each item is usually a Create wrapping a Note, or sometimes the Note itself.
+      const o = (it && typeof it.object === 'object' && it.object) ? it.object : it;
+      if (!o || !o.id) continue;
+      if (o.type && o.type !== 'Note' && o.type !== 'Article') continue; // skip boosts/other
+      if (o.inReplyTo) continue;                                          // top-level only
+      const auth = actorUriOf(o.attributedTo);
+      if (auth && auth !== actorUri) continue;                            // their OWN posts only
+      const html = HtmlSanitizerService.sanitize(o.content || '');
+      try {
+        const r = tlStmts().ins.run(o.id, slug, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.url || null, o.published || null, mediaFromNote(o), o.sensitive ? 1 : 0, o.summary || null);
+        if (r && r.changes > 0) added++;
+      } catch { /* ignore */ }
+    }
+    if (added) console.log('[AP] outbox backfill', actorUri, '→', slug, '+' + added);
+    return added;
+  } catch { return 0; }
+}
 let _selfHealing = false;
 export async function selfHealTimeline() {
   if (_selfHealing) return; _selfHealing = true;
@@ -1538,6 +1606,8 @@ export async function followActor(site, handle, autoBoost = false) {
   try { await deliver(actor.inbox, follow, `${me}#main-key`, keys.private_pem); }
   catch (e) { console.warn('[AP] follow deliver failed:', e.message); }
   console.log('[AP] follow', site.slug, '→', actor.id);
+  // Follow + feature in one step → backfill their recent posts into the Cirkel right away.
+  if (autoBoost) backfillFromOutbox(site.slug, actor.id).catch(() => {});
   return { ok: true, name: ai.name, handle: ai.handle, actor: actor.id };
 }
 
@@ -1707,7 +1777,7 @@ export default {
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, setMyReaction, getMyReactions, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate,
-  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, getTimeline, sendInteraction,
+  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, sendInteraction,
   autoBoostCount, boostedCount, markBoosted, unmarkBoosted, markLiked, unmarkLiked, getTimelineReaction, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
