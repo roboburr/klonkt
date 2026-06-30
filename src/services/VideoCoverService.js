@@ -21,6 +21,50 @@ const MAX_SECONDS = 60; // cap a cover loop at one minute
 let _lib = null;
 function ensureLib() { if (!_lib) _lib = WebP.Image.initLib(); return _lib; }
 
+// node-webpmux's getFrameData(i) returns ONLY frame i's own sub-region (x,y,width,height) — it does
+// NOT composite onto the canvas. Real (tool-made) animated WebPs use partial frames of varying size,
+// so we composite each onto a persistent W×H canvas (honoring blend + dispose) and emit consistent
+// full frames. Feeding ffmpeg the raw varying-size sub-regions desyncs the stream → a torn/tiled video.
+async function compositeFrames(img) {
+  const W = img.width, H = img.height, frames = img.anim.frames;
+  const canvas = Buffer.alloc(W * H * 4); // transparent black
+  const out = [];
+  let prev = null; // previous frame's rect + dispose
+  for (let i = 0; i < frames.length; i++) {
+    const fr = frames[i];
+    if (prev && prev.dispose) { // dispose-to-background: clear the previous frame's rect first
+      for (let row = 0; row < prev.h; row++) {
+        const y = prev.y + row; if (y < 0 || y >= H) continue;
+        canvas.fill(0, (y * W + prev.x) * 4, (y * W + prev.x + prev.w) * 4);
+      }
+    }
+    const data = Buffer.from(await img.getFrameData(i)); // fr.width*fr.height*4 RGBA sub-region
+    const fx = fr.x, fy = fr.y, fw = fr.width, fh = fr.height, blend = fr.blend;
+    if (fx === 0 && fy === 0 && fw === W && fh === H && !blend) {
+      data.copy(canvas, 0); // full opaque overwrite (the typical base frame)
+    } else {
+      for (let row = 0; row < fh; row++) {
+        const cy = fy + row; if (cy < 0 || cy >= H) continue;
+        for (let col = 0; col < fw; col++) {
+          const cx = fx + col; if (cx < 0 || cx >= W) continue;
+          const s = (row * fw + col) * 4, d = (cy * W + cx) * 4, sa = data[s + 3];
+          if (!blend || sa === 255) { canvas[d] = data[s]; canvas[d + 1] = data[s + 1]; canvas[d + 2] = data[s + 2]; canvas[d + 3] = sa; }
+          else if (sa !== 0) { // alpha-over the existing canvas pixel
+            const a = sa / 255, ia = 1 - a;
+            canvas[d]     = (data[s]     * a + canvas[d]     * ia) | 0;
+            canvas[d + 1] = (data[s + 1] * a + canvas[d + 1] * ia) | 0;
+            canvas[d + 2] = (data[s + 2] * a + canvas[d + 2] * ia) | 0;
+            canvas[d + 3] = Math.min(255, sa + ((canvas[d + 3] * ia) | 0));
+          }
+        }
+      }
+    }
+    out.push(Buffer.from(canvas)); // snapshot the full composited canvas
+    prev = { x: fx, y: fy, w: fw, h: fh, dispose: fr.dispose };
+  }
+  return Buffer.concat(out);
+}
+
 // True if the file is an animated WebP (a VP8X chunk with the animation flag set).
 export function isAnimatedWebp(filePath) {
   try {
@@ -43,14 +87,11 @@ export async function animatedWebpToVideo(srcPath, outDir, baseName) {
     const img = new WebP.Image();
     await img.load(srcPath);
     if (!img.hasAnim || !img.anim || !Array.isArray(img.anim.frames) || img.anim.frames.length < 2) return null;
-    const W = img.width, H = img.height, n = img.anim.frames.length;
+    const W = img.width, H = img.height;
     const fps = Math.max(1, Math.min(30, Math.round(1000 / (img.anim.frames[0].delay || 100))));
-    // getFrameData(i) returns the FULL-canvas RGBA (W*H*4) for frame i (already composited).
-    const bufs = [];
-    for (let i = 0; i < n; i++) bufs.push(Buffer.from(await img.getFrameData(i)));
     await fs.promises.mkdir(outDir, { recursive: true });
     rawPath = path.join(outDir, baseName + '.rgba.tmp');
-    await fs.promises.writeFile(rawPath, Buffer.concat(bufs));
+    await fs.promises.writeFile(rawPath, await compositeFrames(img)); // full composited W×H frames
     const videoPath = path.join(outDir, baseName + '.mp4');
     const posterPath = path.join(outDir, baseName + '.jpg');
     await execFileP(ffmpegPath, ['-hide_banner', '-loglevel', 'error',
