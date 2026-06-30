@@ -17,6 +17,7 @@ import PlaylistService from '../services/PlaylistService.js';
 import { audioEnabled } from '../config/features.js';
 import { audioUrl } from '../services/AudioStreamService.js';
 import { toWebp } from '../services/ImageWebpService.js';
+import VideoCoverService from '../services/VideoCoverService.js';
 import ActivityPubService from '../services/ActivityPubService.js';
 import MusicMeta from '../services/MusicMeta.js';
 
@@ -71,11 +72,23 @@ const router = express.Router();
 // Returns JSON {url} so the editor can stick it into the cover field or
 // insert a markdown ![](url) into content.
 router.post('/posts/upload-image', requireAuth, (req, res) => {
-  imageUpload.single('image')(req, res, (err) => {
+  imageUpload.single('image')(req, res, async (err) => {
     if (err) return res.status(400).json({ error: err.message });
     if (!req.file) return res.status(400).json({ error: 'No file' });
-    const url = '/media/post-images/' + toWebp(req.file);
-    res.json({ url, size: req.file.size, mime: req.file.mimetype });
+    const name = toWebp(req.file);
+    const url = '/media/post-images/' + name;
+    // An animated WebP cover → also make a muted loop MP4 (Safari plays it smoothly where the
+    // animated WebP is janky on iOS). Best-effort; on failure we just return the still image.
+    // The editor stores `video` in the hidden cover_video_url field for the cover.
+    let video = null;
+    try {
+      const src = path.join(POST_IMAGES_DIR, name);
+      if (VideoCoverService.isAnimatedWebp(src)) {
+        const r = await VideoCoverService.animatedWebpToVideo(src, POST_IMAGES_DIR, path.basename(name, path.extname(name)) + '-v');
+        if (r) video = '/media/post-images/' + path.basename(r.videoPath);
+      }
+    } catch { /* keep the still image */ }
+    res.json({ url, video, size: req.file.size, mime: req.file.mimetype });
   });
 });
 
@@ -244,13 +257,13 @@ router.post('/posts/create', requireAuth, (req, res) => {
   db.prepare(`
     INSERT INTO posts (
       id, site_id, slug, author_id, title, content, excerpt,
-      status, cover_image_url, pinned, tags, type, noindex, fan_only, nsfw, content_warning, publish_at,
+      status, cover_image_url, cover_video_url, pinned, tags, type, noindex, fan_only, nsfw, content_warning, publish_at,
       created_at, updated_at, published_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     postId, site.id, finalSlug, req.session.user.id,
     title || finalSlug, cleanContent, excerpt || '',
-    finalStatus, cover_image_url || null, parsePinnedRank(pinned),
+    finalStatus, cover_image_url || null, (req.body.cover_video_url || null), parsePinnedRank(pinned),
     JSON.stringify((tags || '').split(',').map(t => t.trim()).filter(Boolean)),
     finalType, noindex ? 1 : 0, fanOnly, nsfw, cw, publishAt,
     now, now, publishedAt
@@ -371,13 +384,13 @@ router.post('/posts/:slug/save', requireAuth, (req, res) => {
   db.prepare(`
     UPDATE posts SET
       title = ?, content = ?, excerpt = ?, status = ?,
-      cover_image_url = ?, pinned = ?, tags = ?,
+      cover_image_url = ?, cover_video_url = ?, pinned = ?, tags = ?,
       type = ?, noindex = ?, fan_only = ?, nsfw = ?, content_warning = ?, publish_at = ?,
       slug = ?, published_at = ?, updated_at = ?
     WHERE id = ?
   `).run(
     title, cleanContent, excerpt, finalStatus,
-    cover_image_url || null, parsePinnedRank(pinned),
+    cover_image_url || null, (req.body.cover_video_url || null), parsePinnedRank(pinned),
     JSON.stringify((tags || '').split(',').map(t => t.trim()).filter(Boolean)),
     finalType, noindex ? 1 : 0, fanOnly, nsfw, cw, publishAt,
     finalSlug, publishedAt, now, post.id
