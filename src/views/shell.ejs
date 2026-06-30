@@ -806,10 +806,21 @@ const _embedUrl = _postAudio
   });
   // Misc click helpers (select-all in a field, history-back button).
   document.addEventListener('click', function (e) {
-    var el = e.target.closest && e.target.closest('[data-selectall],[data-back]');
+    var el = e.target.closest && e.target.closest('[data-selectall],[data-back],[data-share]');
     if (!el) return;
     if (el.dataset.selectall !== undefined && el.select) el.select();
     if (el.dataset.back !== undefined) { e.preventDefault(); history.back(); }
+    if (el.dataset.share !== undefined) {
+      e.preventDefault();
+      var url = location.href, title = el.dataset.shareTitle || document.title;
+      if (navigator.share) { navigator.share({ title: title, url: url }).catch(function () {}); }
+      else if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(function () {
+          var fb = document.getElementById('post-share-feedback');
+          if (fb) { fb.hidden = false; setTimeout(function () { fb.hidden = true; }, 2000); }
+        }).catch(function () { window.prompt('Copy link:', url); });
+      } else { window.prompt('Copy link:', url); }
+    }
   });
   // Image fallback (the error event doesn't bubble → capture phase).
   document.addEventListener('error', function (e) {

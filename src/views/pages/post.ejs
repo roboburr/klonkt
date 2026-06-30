@@ -56,6 +56,11 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
     </div>
   <% } %>
 
+  <div class="post-share" style="margin:1.25rem 0;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+    <button type="button" class="btn post-share-btn" data-share data-share-title="<%= post.title %>">🔗 <%= t('post.share') %></button>
+    <span class="post-share-feedback" id="post-share-feedback" style="color:var(--accent);font-size:.85rem" hidden><%= t('post.share_copied') %></span>
+  </div>
+
   <!-- Inline admin actions: only visible if user has permission -->
   <% if (user && (permissions.canEditPost(user, post, site) || permissions.canDeletePost(user, post, site))) { %>
     <aside class="post-actions">
