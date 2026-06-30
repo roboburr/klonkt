@@ -42,8 +42,9 @@ function rgb(a) {
 function mix(a, b, t) { const A = hx(a), B = hx(b); return rgb(A.map((v, i) => v + (B[i] - v) * t)); }
 function esc(s) { return String(s == null ? '' : s).replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c])); }
 
-function buildSvg(site, palette, accent) {
-  const pal = (ThemeService.PALETTES[palette] || ThemeService.PALETTES.klonkt).dark;
+function buildSvg(site, palette, accent, theme) {
+  const _p = ThemeService.PALETTES[palette] || ThemeService.PALETTES.klonkt;
+  const pal = _p[theme] || _p.dark;
   const paper = pal.paper, ink = pal.ink;
   const paper2 = mix(paper, ink, 0.08);
   const muted = mix(ink, paper, 0.42);
@@ -88,16 +89,19 @@ export function ogImageFor(site) {
   if (!Resvg || !site || !site.slug) return null;
 
   const palette = ThemeService.PALETTES[site.palette] ? site.palette : 'klonkt';
-  const accent = site.accent || (ThemeService.PALETTES[palette] || ThemeService.PALETTES.klonkt).dark.accent;
+  // Follow the site's "default theme for new visitors" (theme_override): a light card when the site
+  // is set to Light, otherwise dark (an OG image is static, so Auto/Dark → dark).
+  const theme = site.theme_override === 'light' ? 'light' : 'dark';
+  const accent = site.accent || ((ThemeService.PALETTES[palette] || ThemeService.PALETTES.klonkt)[theme] || ThemeService.PALETTES.klonkt.dark).accent;
   const key = crypto.createHash('sha1')
-    .update([TEMPLATE_VERSION, site.slug, palette, accent, site.title || '', site.tagline || site.description || ''].join('\x1f'))
+    .update([TEMPLATE_VERSION, site.slug, palette, accent, theme, site.title || '', site.tagline || site.description || ''].join('\x1f'))
     .digest('hex').slice(0, 16);
   const file = path.join(CACHE_DIR, key + '.png');
 
   try { return fs.readFileSync(file); } catch { /* not cached yet */ }
 
   try {
-    const svg = buildSvg(site, palette, accent);
+    const svg = buildSvg(site, palette, accent, theme);
     const png = new Resvg(svg, {
       font: { fontFiles: [FONT], loadSystemFonts: false },
       fitTo: { mode: 'width', value: 1200 },

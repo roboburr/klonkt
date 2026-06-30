@@ -13,7 +13,7 @@ router.get('/:slug.png', (req, res) => {
   let site;
   try {
     site = db.prepare(
-      'SELECT slug, title, tagline, description, palette, accent FROM sites WHERE slug = ?'
+      'SELECT slug, title, tagline, description, palette, accent, theme_override FROM sites WHERE slug = ?'
     ).get(req.params.slug);
   } catch { /* db error → 404 below */ }
   if (!site) return res.status(404).end();
