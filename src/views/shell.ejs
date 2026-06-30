@@ -758,7 +758,7 @@ const _embedUrl = _postAudio
 (function () {
   if (window.__coverFadeWired) return; window.__coverFadeWired = true;
   function scan(root) {
-    (root || document).querySelectorAll('.grid-tile-img, .post-list-cover img, .tl-media-img img').forEach(function (img) {
+    (root || document).querySelectorAll('img.grid-tile-img, .post-list-cover img, .tl-media-img img').forEach(function (img) {
       if (img.dataset.fade) return; img.dataset.fade = '1';
       if (img.complete && img.naturalWidth > 0) return;   // already loaded → leave visible
       img.classList.add('is-loading');
