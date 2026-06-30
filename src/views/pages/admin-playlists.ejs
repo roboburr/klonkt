@@ -6,7 +6,7 @@ const _csrf = (typeof csrfToken !== 'undefined' && csrfToken) || '';
 %>
 <div class="container ax-page">
 
-  <p><a href="/admin" class="btn">&larr; Beheer</a></p>
+  <p><a href="/admin" class="btn">&larr; <%= t('nav.admin') %></a></p>
   <header class="ax-header">
     <div>
       <h1><%= t('apl.title') %></h1>

@@ -22,7 +22,7 @@
     <p class="admin-tagline"><%= t('admin.tagline_solo') %></p>
   <% } %>
 
-  <nav class="admin-quick-links" aria-label="Beheer-snelkoppelingen">
+  <nav class="admin-quick-links" aria-label="<%= t('nav.admin') %>">
     <% if (tenancy === 'hub') { %>
       <a href="/admin/sites" class="btn"><%= t('admin.b_sites') %></a>
       <a href="/admin/users" class="btn"><%= t('admin.b_users') %></a>
