@@ -880,6 +880,15 @@ export async function handleInbox(req, slugParam) {
     if (oid && claimedActor) {
       try { db.prepare('DELETE FROM ap_interactions WHERE object_uri = ? AND actor_uri = ?').run(oid, claimedActor); } catch { /* ignore */ }
       try { db.prepare('DELETE FROM ap_timeline WHERE id = ? AND author_uri = ?').run(oid, claimedActor); } catch { /* ignore */ }
+      // Also clear a boost/like YOU made of this now-deleted remote post (the interact-page
+      // ap_my_reactions state), so it can't stay stuck as "boosted" on a post that's gone.
+      // Guard: only when the deleter owns the note's domain (B mustn't clear your reactions
+      // to A's posts).
+      try {
+        let sameHost = false;
+        try { sameHost = new URL(oid).host === new URL(claimedActor).host; } catch { sameHost = false; }
+        if (sameHost) db.prepare('DELETE FROM ap_my_reactions WHERE target_uri = ?').run(oid);
+      } catch { /* ignore */ }
     }
     return 202;
   }
