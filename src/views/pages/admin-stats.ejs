@@ -3,6 +3,14 @@
   <h1><%= t('astat.title') %></h1>
   <p class="stats-note"><%= t('astat.intro') %></p>
 
+  <% if (typeof myIp !== 'undefined' && myIp) { %>
+  <form method="post" action="/admin/stats/exclude-ip" class="stats-note" style="margin:.2rem 0 1.2rem;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;">
+    <span><%= t('astat.your_ip') %> <code><%= myIp %></code> —
+      <% if (ipExcluded) { %><strong><%= t('astat.ip_not_counted') %></strong><% } else { %><%= t('astat.ip_counted') %><% } %></span>
+    <button type="submit" class="btn" style="padding:3px 10px;font-size:.85rem;"><%= ipExcluded ? t('astat.ip_count') : t('astat.ip_exclude') %></button>
+  </form>
+  <% } %>
+
   <% var s = stats; var _max = Math.max(1, ...s.series.map(function(d){ return d.pageviews; })); %>
 
   <div class="stats-cards">

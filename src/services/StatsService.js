@@ -53,6 +53,29 @@ function isBot(req) {
   return BOT_RE.test(ua);
 }
 
+// The client IP (trust-proxy gives the real one), normalised: drop an IPv4-mapped-IPv6 prefix
+// and a trailing :port so it matches what the admin sees + stores.
+function clientIp(req) {
+  let ip = (req && (req.ip || (req.socket && req.socket.remoteAddress))) || '';
+  if (ip.startsWith('::ffff:')) ip = ip.slice(7);
+  if (/^\d{1,3}(\.\d{1,3}){3}:\d+$/.test(ip)) ip = ip.split(':')[0];
+  return ip;
+}
+export function currentIp(req) { return clientIp(req); }
+
+// Admin-configured IPs to skip — so an owner browsing logged-OUT (incognito, another browser)
+// doesn't inflate their own stats. Stored as a comma-separated app_setting.
+export function getExcludedIps() {
+  return (getSetting('stats_exclude_ips', '') || '').split(',').map((s) => s.trim()).filter(Boolean);
+}
+export function setExcludedIps(list) {
+  const clean = [...new Set((list || []).map((s) => String(s).trim()).filter(Boolean))].slice(0, 20);
+  setSetting('stats_exclude_ips', clean.join(','));
+}
+function isExcludedIp(req) {
+  try { const ip = clientIp(req); return !!ip && getExcludedIps().includes(ip); } catch { return false; }
+}
+
 // Lazy prepares — tables only exist after initializeDatabase(); this module is
 // imported before that call.
 let _s = null;
@@ -89,7 +112,7 @@ function recordReferrer(siteId, req) {
 }
 
 export function recordPageview(siteId, req) {
-  if (!siteId || isOperator(req) || isBot(req)) return;
+  if (!siteId || isOperator(req) || isBot(req) || isExcludedIp(req)) return;
   try {
     const d = today();
     stmts().bumpDaily.run(siteId, d);
@@ -99,7 +122,7 @@ export function recordPageview(siteId, req) {
 }
 
 export function recordPostView(post, req) {
-  if (!post || !post.id || isOperator(req) || isBot(req)) return;
+  if (!post || !post.id || isOperator(req) || isBot(req) || isExcludedIp(req)) return;
   try {
     stmts().bumpPost.run(post.id);
     recordPageview(post.site_id, req);
