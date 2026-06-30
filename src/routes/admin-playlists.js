@@ -87,7 +87,7 @@ router.get('/api/tracks', requireGod, (req, res) => {
 
   const tracks = db.prepare(`
     SELECT t.id, t.title, t.artist, t.duration, t.cover_url,
-           m.filename
+           t.link_spotify, t.link_youtube, t.link_soundcloud, m.filename
     FROM audio_tracks t
     LEFT JOIN media m ON m.id = t.media_id
     WHERE t.site_id = ?
@@ -102,7 +102,9 @@ router.get('/api/tracks', requireGod, (req, res) => {
       artist: t.artist || '',
       duration: t.duration || 0,
       cover: t.cover_url || '',
-      playable: !!t.filename,
+      // Insertable if it has a hosted file OR an external link — a link-only track ([[track:]])
+      // still renders its Spotify/YouTube card on the post, so it must not be disabled in the picker.
+      playable: !!t.filename || !!(t.link_spotify || t.link_youtube || t.link_soundcloud),
     })),
   });
 });
