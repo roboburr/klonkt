@@ -5,6 +5,45 @@ Versions follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-06-30
+
+### Added
+- **Animated covers play smoothly everywhere.** Upload an animated WebP as a cover and Klonkt also
+  makes a muted, looping video of it. iOS Safari — where animated WebP is janky — gets the smooth
+  video, every other browser keeps the crisp WebP, and on the fediverse the cover federates as a
+  video that plays in Mastodon and its apps. Shown on the post, the grid, the feed and related posts.
+- **Media library (Admin → Media).** See every uploaded image, where each one is used, copy its URL,
+  and clean up unused files in one click — including the leftover video/poster of an animated cover.
+  Images, Audio and Playlists now share one tab bar.
+- **Share button** at the bottom of every post (native share sheet, or copy link).
+- **Replace a track's audio file** without re-creating the track.
+- **Music on the fediverse (first step).** Audio posts now carry schema.org *MusicRecording* /
+  *MusicAlbum* data, and a per-post toggle can share a hosted track as a real fediverse audio
+  attachment that plays in followers' feeds.
+
+### Changed
+- **Cleaner embeds on Mastodon.** A post with a YouTube/Spotify/SoundCloud link now lets Mastodon
+  show its player card; link-only tracks share their streaming links. The cover still shows in other
+  Klonkt feeds. (On your own site nothing changes — the player and cover render as before.)
+- **Circles stay in sync the fediverse way** — edits and missed posts catch up automatically via
+  standard ActivityPub, so a Circle no longer drifts out of date.
+- **Everything Klonkt federates is now valid AS2 / JSON-LD**, guarded by a test, so stricter servers
+  accept it.
+- The track list is sorted **newest-first**.
+
+### Fixed
+- **Animated WebP covers are no longer frozen to a single frame** (the crop editor and the thumbnailer
+  left them static).
+- **Link-only tracks** (Spotify/YouTube, no uploaded file) can be inserted into a post again.
+- **Link previews** (og:image / Twitter card) now use absolute image URLs, so they show on Signal,
+  WhatsApp and other scrapers.
+- Several **fediverse delivery fixes**: covers/links no longer turn into a black tile on Mastodon,
+  raw audio files don't clutter a post that already has a player, and dead links from a renamed
+  remote post heal themselves.
+- The **mobile feed** loads full-resolution covers; long titles wrap instead of overflowing.
+- **Self-hosting updates** are more reliable: re-running the installer keeps your channel, and the
+  updater no longer restarts or claims an update when you're already up to date.
+
 ## [1.0.0] — 2026-06-30
 
 ### Added
