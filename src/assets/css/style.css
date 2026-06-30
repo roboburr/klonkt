@@ -2400,6 +2400,9 @@ body.on-cirkel[data-feed-view="grid"]  .feed-grid { display: block; }
    Fades in on load (.is-loading removed) so the placeholder shows meanwhile. */
 .grid-tile-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; display: block; transition: opacity .4s ease; }
 .grid-tile-img.is-loading { opacity: 0; }
+/* A video cover keeps its own aspect ratio inside the square tile (centered, letterboxed) instead
+   of zoom-cropping a wide video to fill. Images stay object-fit:cover. */
+video.grid-tile-img { object-fit: contain; background: var(--paper-2, #0a0e1a); }
 .grid-tile:hover { transform: scale(0.98); }
 .grid-tile-overlay {
     position: absolute;
