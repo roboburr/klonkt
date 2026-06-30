@@ -254,7 +254,7 @@ export function buildNote(base, site, post) {
     const addRow = (r) => {
       const fn = r.filename || (r.storage_path || '').split('/').pop();
       if (!fn || seenA.has(fn)) return; seenA.add(fn);
-      openAudio.push({ type: 'Document', mediaType: r.mime_type || 'audio/mpeg', url: `${base}/audio/stream/${encodeURIComponent(fn)}`, name: r.title || 'Audio' });
+      openAudio.push({ type: 'Audio', mediaType: r.mime_type || 'audio/mpeg', url: `${base}/audio/stream/${encodeURIComponent(fn)}`, name: r.title || 'Audio' });
     };
     const SEL = 'SELECT t.title, m.filename, m.storage_path, m.mime_type FROM audio_tracks t JOIN media m ON m.id = t.media_id WHERE t.fedi_open = 1 AND ';
     try {
@@ -300,7 +300,9 @@ export function buildNote(base, site, post) {
   const seen = new Set();
   const attachment = urls.filter(Boolean)
     .filter((u) => { if (seen.has(u)) return false; seen.add(u); return true; })
-    .map((u) => ({ type: 'Document', mediaType: mediaType(u), url: u }));
+    .map((u) => { const mt = mediaType(u); // specific AS2 subtype (Image/Audio/Video) over generic Document
+      const ty = /^image\//i.test(mt) ? 'Image' : /^video\//i.test(mt) ? 'Video' : /^audio\//i.test(mt) ? 'Audio' : 'Document';
+      return { type: ty, mediaType: mt, url: u }; });
   for (const a of openAudio) attachment.push(a); // fedi_open tracks → native Audio players
 
   const note = {
