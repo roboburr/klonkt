@@ -439,6 +439,15 @@ body.te-modal-open { overflow: hidden; }
             </div>
 
             <div class="te-field">
+              <span>Audiobestand</span>
+              <div class="te-cover-btn-row">
+                <input type="file" id="te-audio-file" accept="audio/*,.mp3,.wav,.m4a,.flac,.ogg,.aac" hidden>
+                <button type="button" class="te-cover-btn" id="te-audio-pick">${track.stream_url ? '🔁 Vervang audiobestand' : '🎵 Audiobestand kiezen'}</button>
+                <span class="te-cover-status" id="te-audio-status"></span>
+              </div>
+            </div>
+
+            <div class="te-field">
               <span>Cover</span>
               <div class="te-cover-row">
                 <div class="te-cover-thumb" id="te-cover-thumb" tabindex="0" role="button"
@@ -632,6 +641,32 @@ body.te-modal-open { overflow: hidden; }
         urlInput.value = '';
         setThumb('');
         removeBtn.remove();
+      });
+    }
+
+    // ── Replace the audio file of this track ──────────────────
+    const aPick = $('#te-audio-pick');
+    const aFile = $('#te-audio-file');
+    const aStatus = $('#te-audio-status');
+    if (aPick && aFile) {
+      aPick.addEventListener('click', () => aFile.click());
+      aFile.addEventListener('change', async (e) => {
+        const f = e.target.files && e.target.files[0];
+        aFile.value = '';
+        if (!f) return;
+        aStatus.textContent = '⏳ Converteren… (kan even duren)'; aStatus.className = 'te-cover-status';
+        aPick.disabled = true;
+        try {
+          const fd = new FormData();
+          fd.append('audio', f);
+          const j = await api('POST', '/admin/audio/api/' + encodeURIComponent(id) + '/replace-audio', fd);
+          if (!j.ok) throw new Error(j.error || 'mislukt');
+          aStatus.textContent = '✓ Vervangen'; aStatus.className = 'te-cover-status is-ok';
+          track.stream_url = j.stream_url || track.stream_url;
+          if (j.duration) { const d = $('#te-duration'); if (d) d.value = j.duration; }
+        } catch (err) {
+          aStatus.textContent = 'Mislukt: ' + err.message; aStatus.className = 'te-cover-status is-error';
+        } finally { aPick.disabled = false; }
       });
     }
 

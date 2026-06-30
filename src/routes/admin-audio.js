@@ -581,4 +581,54 @@ router.post('/api/:id/cover', requireGod, (req, res) => {
   });
 });
 
+// Replace the audio FILE of an existing track (keeps all metadata + the track id, so any
+// [[track:id]] in posts keeps pointing here). Transcodes the new upload to a uniform mp3,
+// swaps the track's media_id + duration, and deletes the old media file/row.
+router.post('/api/:id/replace-audio', requireGod, (req, res) => {
+  const site = res.locals.site;
+  if (!site) return res.status(404).json({ ok: false, error: 'Site required' });
+  const track = db.prepare('SELECT id, media_id FROM audio_tracks WHERE id = ? AND site_id = ?').get(req.params.id, site.id);
+  if (!track) return res.status(404).json({ ok: false, error: 'Track niet gevonden' });
+
+  upload.single('audio')(req, res, async (err) => {
+    if (err) return res.status(400).json({ ok: false, error: err.message });
+    const file = req.file;
+    if (!file) return res.status(400).json({ ok: false, error: 'Geen bestand' });
+    const ext = path.extname(file.originalname).toLowerCase();
+    const limit = audioByteLimitFor(ext);
+    if (file.size > limit) {
+      try { fs.unlinkSync(file.path); } catch {}
+      return res.status(413).json({ ok: false, error: `Te groot (max ${Math.round(limit / 1024 / 1024)}MB voor ${ext || 'dit type'})` });
+    }
+
+    let transcoded;
+    try {
+      transcoded = await transcodeToMp3({
+        inputPath: file.path, outputDir: AUDIO_DIR,
+        outputBaseName: path.basename(file.filename, path.extname(file.filename)), tags: {},
+      });
+    } catch (e) {
+      try { fs.unlinkSync(file.path); } catch {}
+      return res.status(500).json({ ok: false, error: 'Conversie mislukt: ' + e.message });
+    }
+
+    const newMediaId = uuid();
+    try {
+      db.prepare('INSERT INTO media (id, site_id, filename, mime_type, size, storage_path) VALUES (?,?,?,?,?,?)')
+        .run(newMediaId, site.id, transcoded.filename, transcoded.mimeType, transcoded.size, transcoded.path);
+      db.prepare('UPDATE audio_tracks SET media_id = ? WHERE id = ? AND site_id = ?').run(newMediaId, track.id, site.id);
+      const dur = (transcoded.durationSec != null && transcoded.durationSec > 0) ? transcoded.durationSec : null;
+      if (dur) db.prepare('UPDATE audio_tracks SET duration = ? WHERE id = ?').run(dur, track.id);
+      // Remove the OLD media (file + row), best-effort.
+      if (track.media_id && track.media_id !== newMediaId) {
+        try { const old = db.prepare('SELECT storage_path FROM media WHERE id = ?').get(track.media_id); if (old && old.storage_path) fs.unlinkSync(old.storage_path); } catch {}
+        try { db.prepare('DELETE FROM media WHERE id = ?').run(track.media_id); } catch {}
+      }
+      return res.json({ ok: true, stream_url: audioUrl(transcoded.filename), duration: dur });
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+});
+
 export default router;
