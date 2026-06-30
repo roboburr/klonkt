@@ -99,7 +99,7 @@ router.get('/', requireGod, (req, res) => {
     FROM audio_tracks t
     LEFT JOIN media m ON m.id = t.media_id
     WHERE t.site_id = ?
-    ORDER BY t.position ASC, t.created_at ASC
+    ORDER BY t.created_at DESC, t.position DESC
   `).all(site.id);
 
   // Build each track's stream URL so admins can preview audio inline.
