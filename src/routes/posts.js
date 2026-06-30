@@ -285,7 +285,7 @@ router.post('/posts/create', requireAuth, (req, res) => {
     if (status === 'published') {
       ActivityPubService.deliverCreate(site, {
         id: postId, slug: finalSlug, title: title || finalSlug,
-        content: cleanContent, cover_image_url: cover_image_url || null,
+        content: cleanContent, cover_image_url: cover_image_url || null, cover_video_url: req.body.cover_video_url || null,
         published_at: publishedAt, created_at: now, fan_only: fanOnly, nsfw, content_warning: cw,
       }).catch(() => { /* best-effort */ });
     }
@@ -416,7 +416,7 @@ router.post('/posts/:slug/save', requireAuth, (req, res) => {
   if (finalStatus === 'published') {
     const apPost = {
       id: post.id, slug: finalSlug, title: title || finalSlug,
-      content: cleanContent, cover_image_url: cover_image_url || null,
+      content: cleanContent, cover_image_url: cover_image_url || null, cover_video_url: req.body.cover_video_url || null,
       published_at: publishedAt, created_at: post.created_at, fan_only: fanOnly, nsfw, content_warning: cw,
     };
     if (post.status !== 'published') ActivityPubService.deliverCreate(site, apPost).catch(() => { /* best-effort */ });

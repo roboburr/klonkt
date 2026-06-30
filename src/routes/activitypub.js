@@ -75,7 +75,7 @@ router.get('/ap/users/:slug/outbox', (req, res) => {
   const site = publicSite(req.params.slug);
   if (!site) return res.status(404).end();
   const posts = db.prepare(
-    `SELECT id, slug, title, content, cover_image_url, nsfw, content_warning, published_at, created_at
+    `SELECT id, slug, title, content, cover_image_url, cover_video_url, nsfw, content_warning, published_at, created_at
      FROM posts WHERE site_id = ? AND status = 'published' AND (fan_only IS NULL OR fan_only = 0)
      ORDER BY COALESCE(published_at, created_at) DESC LIMIT 20`
   ).all(site.id);
@@ -107,7 +107,7 @@ router.get('/ap/users/:slug/featured', (req, res) => {
   // last-processed-first). So we emit it reversed (lowest pin priority first,
   // rank 1 last) → Mastodon flips it back to pin-rank ascending on the profile.
   const posts = db.prepare(
-    `SELECT id, slug, title, content, cover_image_url, nsfw, content_warning, published_at, created_at
+    `SELECT id, slug, title, content, cover_image_url, cover_video_url, nsfw, content_warning, published_at, created_at
      FROM posts WHERE site_id = ? AND status = 'published' AND (fan_only IS NULL OR fan_only = 0)
        AND pinned IS NOT NULL AND pinned > 0
      ORDER BY pinned DESC, COALESCE(published_at, created_at) ASC LIMIT 20`

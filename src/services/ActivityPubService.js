@@ -221,7 +221,7 @@ export function buildNote(base, site, post) {
   const abs = (u) => !u ? null : (/^https?:/i.test(u) ? u : `${base}${u.startsWith('/') ? '' : '/'}${u}`);
   const mediaType = (u) => {
     const e = ((u || '').split('?')[0].match(/\.(\w+)$/) || [])[1];
-    return ({ jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', avif: 'image/avif' })[(e || '').toLowerCase()] || 'image/jpeg';
+    return ({ jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', avif: 'image/avif', mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime' })[(e || '').toLowerCase()] || 'image/jpeg';
   };
   const hadAudio = /\[\[(track|album|playlist):/i.test(post.content || '');
   const playable = hasPlayableAudio(post.content || '', site && site.id);
@@ -255,7 +255,10 @@ export function buildNote(base, site, post) {
   // the player CARD (twitter:player) instead of the cover — media attachment and
   // link/player card are mutually exclusive on Mastodon. Link-only audio (external)
   // keeps its cover (no player card to show).
-  if (post.cover_image_url && !noImages) urls.push(abs(post.cover_image_url));
+  // An animated cover federates as the muted loop MP4 (→ a Video attachment): animated WebP is
+  // unreliable on Mastodon and its iOS apps; the MP4 plays everywhere. Else the still cover image.
+  if (post.cover_video_url && !noImages) urls.push(abs(post.cover_video_url));
+  else if (post.cover_image_url && !noImages) urls.push(abs(post.cover_image_url));
   let body = post.content || '';
   // Only federate inline images we can actually serve: absolute http(s) URLs, or our own
   // /media/ uploads. A relative path we don't host (e.g. a stale /images/... ref) would 404
@@ -975,7 +978,7 @@ async function backfillNewFollower(base, slug, inbox) {
   const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(slug);
   if (!site) return;
   const recent = db.prepare(
-    `SELECT id, slug, title, content, cover_image_url, nsfw, content_warning, published_at, created_at
+    `SELECT id, slug, title, content, cover_image_url, cover_video_url, nsfw, content_warning, published_at, created_at
      FROM posts WHERE site_id = ? AND status = 'published' AND (fan_only IS NULL OR fan_only = 0)
      ORDER BY COALESCE(published_at, created_at) DESC LIMIT 20`
   ).all(site.id).reverse();
