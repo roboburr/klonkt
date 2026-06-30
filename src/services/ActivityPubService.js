@@ -231,7 +231,13 @@ export function buildNote(base, site, post) {
   // keeps its cover (no player card to show).
   if (post.cover_image_url && !playable) urls.push(abs(post.cover_image_url));
   let body = post.content || '';
-  if (!playable) for (const m of body.matchAll(/<img\b[^>]*\bsrc="([^"]+)"[^>]*>/gi)) urls.push(abs(m[1]));
+  // Only federate inline images we can actually serve: absolute http(s) URLs, or our own
+  // /media/ uploads. A relative path we don't host (e.g. a stale /images/... ref) would 404
+  // and show up as a black tile in Mastodon's attachment grid.
+  if (!playable) for (const m of body.matchAll(/<img\b[^>]*\bsrc="([^"]+)"[^>]*>/gi)) {
+    const src = m[1];
+    if (/^https?:\/\//i.test(src) || src.startsWith('/media/')) urls.push(abs(src));
+  }
   body = body.replace(/<img\b[^>]*>/gi, '');
   // Audio shortcodes: do NOT federate the raw audio file — Klonkt deliberately
   // gates audio (the /audio/stream URL has friction), and shipping it as an AP
