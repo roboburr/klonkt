@@ -3,10 +3,7 @@
   <a href="/admin" class="btn" style="margin-bottom:1rem;display:inline-block;">← <%= t('nav.admin') %></a>
   <h1 style="font-family:var(--display,serif);margin:.2rem 0 1rem;"><%= t('admin.t_media') %></h1>
 
-  <div style="display:flex;gap:.5rem;margin-bottom:1.25rem;border-bottom:1px solid var(--rule,rgba(128,128,128,.3));padding-bottom:.5rem;">
-    <span class="btn" style="border-bottom:2px solid var(--accent);border-radius:0;font-weight:600;"><%= t('admin.media_images') %></span>
-    <% if (audioOn) { %><a href="/admin/audio" class="btn" style="border-radius:0;opacity:.85;"><%= t('admin.b_audio') %> →</a><% } %>
-  </div>
+  <%- include('../partials/media-tabs', { active: 'images', audioOn: audioOn }) %>
 
   <% if (success) { %><p style="background:rgba(60,160,90,.15);border:1px solid rgba(60,160,90,.4);padding:.5rem .8rem;border-radius:8px;"><%= success %></p><% } %>
 

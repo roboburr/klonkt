@@ -7,6 +7,7 @@ const _csrf = (typeof csrfToken !== 'undefined' && csrfToken) || '';
 <div class="container ax-page">
 
   <p><a href="/admin" class="btn">&larr; <%= t('nav.admin') %></a></p>
+  <%- include('../partials/media-tabs', { active: 'playlists', audioOn: true }) %>
   <header class="ax-header">
     <div>
       <h1><%= t('apl.title') %></h1>

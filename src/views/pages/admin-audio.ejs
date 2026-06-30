@@ -1,6 +1,7 @@
 <div class="container ax-page">
 
-  <p><a href="/admin" class="btn">&larr; <%= t('nav.admin') %></a> <a href="/admin/playlists" class="btn">🎵 <%= t('admin.b_playlists') %></a></p>
+  <p><a href="/admin" class="btn">&larr; <%= t('nav.admin') %></a></p>
+  <%- include('../partials/media-tabs', { active: 'audio', audioOn: true }) %>
   <header class="ax-header">
     <div>
       <h1><%= t('aaud.title') %></h1>

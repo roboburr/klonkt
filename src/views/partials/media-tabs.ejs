@@ -1,0 +1,9 @@
+<%# Shared Media tab bar (Afbeeldingen / Audio / Playlists). Params: active = 'images'|'audio'|'playlists'; audioOn (bool, default true). %>
+<% var _a = (typeof audioOn === 'undefined') ? true : audioOn; %>
+<nav class="media-tabs" aria-label="Media" style="display:flex;gap:.4rem;margin:0 0 1.25rem;border-bottom:1px solid var(--rule,rgba(128,128,128,.3));flex-wrap:wrap;">
+  <a href="/admin/media" class="btn" style="border-radius:8px 8px 0 0;<%= active === 'images' ? 'border-bottom:2px solid var(--accent,#e8b04b);font-weight:600;' : 'opacity:.8;' %>"><%= t('admin.media_images') %></a>
+  <% if (_a) { %>
+  <a href="/admin/audio" class="btn" style="border-radius:8px 8px 0 0;<%= active === 'audio' ? 'border-bottom:2px solid var(--accent,#e8b04b);font-weight:600;' : 'opacity:.8;' %>"><%= t('admin.b_audio') %></a>
+  <a href="/admin/playlists" class="btn" style="border-radius:8px 8px 0 0;<%= active === 'playlists' ? 'border-bottom:2px solid var(--accent,#e8b04b);font-weight:600;' : 'opacity:.8;' %>"><%= t('admin.b_playlists') %></a>
+  <% } %>
+</nav>
