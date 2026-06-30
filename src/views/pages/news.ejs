@@ -122,7 +122,10 @@
             </div>
           <% } %>
           <% vids.forEach(function(m){ %><video class="tl-media-video" src="<%= m.url %>" controls preload="metadata" playsinline></video><% }); %>
-          <% auds.forEach(function(m){ %><audio class="tl-media-audio" src="<%= m.url %>" controls preload="none"></audio><% }); %>
+          <% /* A Klonkt audio post carries an embed player (embedHtml/embedUrl) that already
+                covers these tracks, so don't ALSO render the raw Audio attachments as bare
+                players here. Posts without a Klonkt embed (e.g. a plain remote audio) keep them. */ %>
+          <% if (!p.embedHtml && !p.embedUrl) { auds.forEach(function(m){ %><audio class="tl-media-audio" src="<%= m.url %>" controls preload="none"></audio><% }); } %>
           <% if (_nsfwVisual) { %><div class="nsfw-veil"><span class="nsfw-veil-label">🔞 <%= p.cw || t('post.nsfw_warning') %></span><span class="nsfw-veil-btn"><%= t('post.nsfw_show') %></span></div></div><% } %>
 
           <% if (p.embedHtml) { %><div class="tl-embed"><%- p.embedHtml %></div><% } %>
