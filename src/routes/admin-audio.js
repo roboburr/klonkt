@@ -493,6 +493,9 @@ router.post('/api/:id', requireGod, express.json(), async (req, res) => {
   if (Object.prototype.hasOwnProperty.call(body, 'downloadable')) {
     fields.push('downloadable = ?'); values.push(body.downloadable ? 1 : 0);
   }
+  if (Object.prototype.hasOwnProperty.call(body, 'fedi_open')) {
+    fields.push('fedi_open = ?'); values.push(body.fedi_open ? 1 : 0);
+  }
   if (Object.prototype.hasOwnProperty.call(body, 'credit')) {
     fields.push('credit = ?'); values.push(String(body.credit || '').trim() || null);
   }
