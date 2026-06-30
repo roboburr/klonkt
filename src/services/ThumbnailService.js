@@ -64,6 +64,24 @@ function safeOriginal(rel) {
   return orig;
 }
 
+// Is the source an animated image (animated WebP or GIF)? If so the thumbnail must keep ALL
+// frames (a downscaled animated WebP) instead of grabbing a single frame — otherwise an
+// animated cover shows up frozen on the site.
+function isAnimatedSrc(filePath) {
+  try {
+    const ext = path.extname(filePath).toLowerCase();
+    if (ext === '.gif') return true; // a flattened GIF would lose its animation too
+    if (ext !== '.webp') return false;
+    const fd = fs.openSync(filePath, 'r');
+    try {
+      const buf = Buffer.alloc(40);
+      const n = fs.readSync(fd, buf, 0, 40, 0);
+      // RIFF…WEBP, then a VP8X chunk (bytes 12-15) whose flags byte (20) has the animation bit.
+      return n >= 21 && buf.toString('ascii', 12, 16) === 'VP8X' && (buf[20] & 0x02) !== 0;
+    } finally { fs.closeSync(fd); }
+  } catch { return false; }
+}
+
 /**
  * Return the on-disk path of the cached thumbnail, generating it if needed.
  * @returns {Promise<string|null>} absolute path, or null if it can't be produced.
@@ -77,6 +95,11 @@ export async function getThumbnail(rel, width) {
   // Cache under <media>/.thumbs/<w>/<rel>.webp (dotted dir → never collides with media).
   const cached = path.join(root, '.thumbs', String(width), rel) + '.webp';
   if (fs.existsSync(cached)) return cached;
+
+  // ffmpeg-static can't decode an animated WebP ("image data not found"), so we can't make a
+  // scaled animated thumbnail. Return null → the route serves the ORIGINAL instead, which keeps
+  // animating. (Animated covers are usually already small, so skipping the downscale is fine.)
+  if (isAnimatedSrc(orig)) return null;
 
   await fs.promises.mkdir(path.dirname(cached), { recursive: true });
   const tmp = `${cached}.tmp-${process.pid}-${_seq++}`;
