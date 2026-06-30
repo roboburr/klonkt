@@ -289,6 +289,12 @@ export function buildNote(base, site, post) {
     const cov = abs(post.cover_image_url);
     if (cov) note.image = { type: 'Image', mediaType: mediaType(cov), url: cov };
   }
+  // Experiment (mirrors PeerTube / schema.org `embedUrl`): point at the GATED player page
+  // (/embed) so a client that honours embedUrl can show an inline player WITHOUT ever
+  // getting the audio file — the anti-steal posture is untouched. `embedUrl` is a real
+  // standard field name (not a Klonkt invention); if Mastodon's apps honour it on a Note we
+  // make it JSON-LD-clean with a context term, otherwise it degrades to the player card.
+  if (playable) note.embedUrl = `${base}/embed?post=${encodeURIComponent(post.slug)}`;
   return note;
 }
 
