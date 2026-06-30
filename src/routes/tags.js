@@ -21,7 +21,7 @@ router.get('/:tag', (req, res) => {
   let posts = [];
   try {
     posts = db.prepare(`
-      SELECT DISTINCT p.id, p.slug, p.title, p.excerpt, p.cover_image_url,
+      SELECT DISTINCT p.id, p.slug, p.title, p.excerpt, p.cover_image_url, p.cover_video_url,
                       p.published_at, u.username AS author_username
       FROM posts p, json_each(p.tags) j
       JOIN users u ON u.id = p.author_id
@@ -34,7 +34,7 @@ router.get('/:tag', (req, res) => {
   } catch (e) {
     // Fall back to a LIKE match if json_each isn't available for some reason
     posts = db.prepare(`
-      SELECT p.id, p.slug, p.title, p.excerpt, p.cover_image_url,
+      SELECT p.id, p.slug, p.title, p.excerpt, p.cover_image_url, p.cover_video_url,
              p.published_at, u.username AS author_username
       FROM posts p JOIN users u ON u.id = p.author_id
       WHERE p.site_id = ?

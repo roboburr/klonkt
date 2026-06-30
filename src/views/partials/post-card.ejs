@@ -51,7 +51,7 @@ if (post.tags) {
       <img src="<%= thumb(post.cover_image_url, 480) %>"
            srcset="<%= thumb(post.cover_image_url, 320) %> 320w, <%= thumb(post.cover_image_url, 640) %> 640w, <%= thumb(post.cover_image_url, 1280) %> 1280w"
            sizes="(min-width: 768px) 120px, 100vw"
-           alt="" loading="lazy" decoding="async">
+           alt="" loading="lazy" decoding="async"<% if (post.cover_video_url) { %> data-ios-mp4="<%= post.cover_video_url %>"<% } %>>
       <% if (post.nsfw) { %><span class="nsfw-veil"><span class="nsfw-veil-label">🔞 <%= post.content_warning || t('post.nsfw_warning') %></span><span class="nsfw-veil-btn"><%= t('post.nsfw_show') %></span></span><% } %>
     </a>
   <% } else if (post.nsfw) { %>

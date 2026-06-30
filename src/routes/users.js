@@ -26,7 +26,7 @@ router.get('/:username', (req, res) => {
   if (!author) return res.status(404).send('User not found');
 
   const posts = db.prepare(`
-    SELECT p.id, p.slug, p.title, p.excerpt, p.cover_image_url, p.published_at
+    SELECT p.id, p.slug, p.title, p.excerpt, p.cover_image_url, p.cover_video_url, p.published_at
     FROM posts p
     WHERE p.author_id = ? AND p.site_id = ? AND p.status = 'published'
     ORDER BY p.published_at DESC

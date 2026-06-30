@@ -20,7 +20,7 @@ router.get('/:type', (req, res) => {
   if (!VALID_TYPES.has(type)) return res.status(404).send('Unknown type');
 
   const posts = db.prepare(`
-    SELECT p.id, p.slug, p.title, p.excerpt, p.cover_image_url,
+    SELECT p.id, p.slug, p.title, p.excerpt, p.cover_image_url, p.cover_video_url,
            p.published_at, p.type, u.username AS author_username
     FROM posts p JOIN users u ON u.id = p.author_id
     WHERE p.site_id = ? AND p.status = 'published' AND p.type = ?
