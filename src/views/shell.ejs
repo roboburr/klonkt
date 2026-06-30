@@ -73,6 +73,12 @@ else if (safeSite.slug && typeof ogOrigin !== 'undefined' && ogOrigin) {
   _socialImage = ogOrigin + '/og/' + encodeURIComponent(safeSite.slug) + '.png';
   _ogGenerated = true;
 }
+// og:image / twitter:image / JSON-LD image MUST be absolute (OGP spec). A post cover arrives as
+// a relative /media/... path; strict scrapers (WhatsApp/Signal/some fediverse clients) won't
+// resolve it against the page URL → no preview image. Absolutize against the canonical origin.
+if (_socialImage && _socialImage.charAt(0) === '/' && _socialImage.charAt(1) !== '/' && typeof ogOrigin !== 'undefined' && ogOrigin) {
+  _socialImage = ogOrigin + _socialImage;
+}
 const _ogType = isPostPage ? 'article' : 'website';
 
 // ── JSON-LD ───────────────────────────────────────────────────────
