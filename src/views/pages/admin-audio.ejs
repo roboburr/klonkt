@@ -82,6 +82,8 @@
         var _aaudEdit     = t('aaud.edit');
         var _aaudDlOn     = t('aaud.dl_on');
         var _aaudDlOff    = t('aaud.dl_off');
+        var _aaudFediOn   = t('aaud.fedi_on');
+        var _aaudFediOff  = t('aaud.fedi_off');
         var _aaudDelete   = t('aaud.delete');
         var _aaudCopy     = t('aaud.copy_click');
         var _aaudDelConfirm = t('aaud.delete_confirm');
@@ -120,6 +122,11 @@
                         aria-label="<%= t.downloadable ? _aaudDlOn : _aaudDlOff %>" title="<%= t.downloadable ? _aaudDlOn : _aaudDlOff %>"
                         style="<%= t.downloadable ? 'color:var(--accent,#6b8f71)' : 'opacity:.5' %>">⬇</button>
               <% } %>
+              <form action="/admin/audio/<%= t.id %>/fedi-open" method="post" class="ax-track-fedi" style="display:inline">
+                <button type="submit" class="ax-icon-btn"
+                        aria-label="<%= t.fedi_open ? _aaudFediOn : _aaudFediOff %>" title="<%= t.fedi_open ? _aaudFediOn : _aaudFediOff %>"
+                        style="<%= t.fedi_open ? 'color:var(--accent,#6b8f71)' : 'opacity:.5' %>">🌐</button>
+              </form>
               <form action="/admin/audio/<%= t.id %>/delete" method="post" data-confirm="<%= _aaudDelConfirm %>" class="ax-track-delete">
                 <button type="submit" class="ax-icon-btn ax-icon-btn-danger" aria-label="<%= _aaudDelete %>" title="<%= _aaudDelete %>">🗑</button>
               </form>

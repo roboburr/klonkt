@@ -224,6 +224,25 @@ export function buildNote(base, site, post) {
     for (const m of body.matchAll(/\[\[track:([A-Za-z0-9_-]+)\]\]/g)) { const r = db.prepare('SELECT title FROM audio_tracks WHERE id = ?').get(m[1]); if (r && r.title) audioLabels.push(r.title); }
     for (const m of body.matchAll(/\[\[album:([^\]]+)\]\]/g)) audioLabels.push(m[1].trim());
   } catch { /* non-fatal */ }
+  // fedi_open tracks → real AS2 Audio attachments (the actual file URL, served ungated) so
+  // EVERY client incl. the Mastodon apps plays them inline natively. Gated tracks (default)
+  // stay link/card-only — the file is never exposed for them. Resolve from post.content so a
+  // later body mutation can't affect it.
+  const openAudio = [];
+  if (hadAudio) {
+    const seenA = new Set();
+    const addRow = (r) => {
+      const fn = r.filename || (r.storage_path || '').split('/').pop();
+      if (!fn || seenA.has(fn)) return; seenA.add(fn);
+      openAudio.push({ type: 'Document', mediaType: r.mime_type || 'audio/mpeg', url: `${base}/audio/stream/${encodeURIComponent(fn)}`, name: r.title || 'Audio' });
+    };
+    const SEL = 'SELECT t.title, m.filename, m.storage_path, m.mime_type FROM audio_tracks t JOIN media m ON m.id = t.media_id WHERE t.fedi_open = 1 AND ';
+    try {
+      for (const mm of (post.content || '').matchAll(/\[\[track:([A-Za-z0-9_-]+)\]\]/g)) { const r = db.prepare(SEL + 't.id = ?').get(mm[1]); if (r) addRow(r); }
+      for (const mm of (post.content || '').matchAll(/\[\[album:([^\]]+)\]\]/g)) for (const r of db.prepare(SEL + 't.site_id = ? AND t.album = ? ORDER BY t.rowid').all(site.id, mm[1].trim())) addRow(r);
+      for (const mm of (post.content || '').matchAll(/\[\[playlist:([A-Za-z0-9_-]+)\]\]/g)) for (const r of db.prepare('SELECT t.title, m.filename, m.storage_path, m.mime_type FROM playlist_tracks pt JOIN audio_tracks t ON t.id = pt.track_id JOIN media m ON m.id = t.media_id WHERE t.fedi_open = 1 AND pt.playlist_id = ? ORDER BY pt.position').all(mm[1])) addRow(r);
+    } catch { /* non-fatal */ }
+  }
   body = body.replace(/\[\[(track|album|playlist):[^\]]+\]\]/gi, '');
   // External embeds ([[embed:url]]) → emit the bare URL as a link so Mastodon
   // renders its OWN preview/player card (YouTube/Spotify/SoundCloud/etc) instead
@@ -262,6 +281,7 @@ export function buildNote(base, site, post) {
   const attachment = urls.filter(Boolean)
     .filter((u) => { if (seen.has(u)) return false; seen.add(u); return true; })
     .map((u) => ({ type: 'Document', mediaType: mediaType(u), url: u }));
+  for (const a of openAudio) attachment.push(a); // fedi_open tracks → native Audio players
 
   const note = {
     id,

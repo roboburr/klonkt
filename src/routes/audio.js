@@ -53,17 +53,27 @@ const MIME = {
   '.webm': 'audio/webm',
 };
 
-// Access gate: allow only same-origin browser fetches / media loads.
-function isAllowedAudioRequest(req) {
+// Access gate: same-origin browser fetches / media loads — PLUS fediverse-shared tracks.
+function isAllowedAudioRequest(req, filename) {
   if (req.get('X-Audio-Player') === '1') return true;  // our blob fetch
   const site = req.get('Sec-Fetch-Site');              // set by modern browsers
-  return site === 'same-origin' || site === 'same-site';
+  if (site === 'same-origin' || site === 'same-site') return true;
+  // fedi_open tracks are deliberately served ungated so remote servers (Mastodon, …) can
+  // fetch + play the file inline. The operator opted this specific track in (per-track flag).
+  if (filename) {
+    try {
+      const r = db.prepare(`SELECT 1 FROM audio_tracks t JOIN media m ON t.media_id = m.id
+        WHERE t.fedi_open = 1 AND (m.storage_path = ? OR m.storage_path LIKE ?) LIMIT 1`).get(filename, '%' + filename);
+      if (r) return true;
+    } catch { /* ignore */ }
+  }
+  return false;
 }
 
 router.get('/stream/:filename', (req, res) => {
   const { filename } = req.params;
 
-  if (!isAllowedAudioRequest(req)) {
+  if (!isAllowedAudioRequest(req, filename)) {
     return res.status(403).send('Direct access not allowed');
   }
 

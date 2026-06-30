@@ -95,7 +95,7 @@ router.get('/', requireGod, (req, res) => {
 
   const rows = db.prepare(`
     SELECT t.id, t.title, t.artist, t.album, t.duration, t.cover_url,
-           t.position, t.created_at, t.downloadable, m.filename, m.size, m.mime_type
+           t.position, t.created_at, t.downloadable, t.fedi_open, m.filename, m.size, m.mime_type
     FROM audio_tracks t
     LEFT JOIN media m ON m.id = t.media_id
     WHERE t.site_id = ?
@@ -283,6 +283,20 @@ router.post('/:id/downloadable', requireGod, (req, res) => {
   if (row) {
     db.prepare('UPDATE audio_tracks SET downloadable = ? WHERE id = ? AND site_id = ?')
       .run(row.downloadable ? 0 : 1, req.params.id, site.id);
+  }
+  res.redirect('/admin/audio');
+});
+
+// Federate-the-file (fedi_open) per track on/off. When on, this track's audio file is shared
+// as a real AS2 Audio attachment + served ungated → it plays inline in EVERY fediverse client
+// (incl. the Mastodon apps), but the file is downloadable. Off (default) = gated, web-player only.
+router.post('/:id/fedi-open', requireGod, (req, res) => {
+  const site = res.locals.site;
+  if (!site) return res.status(404).send('Site required');
+  const row = db.prepare('SELECT fedi_open FROM audio_tracks WHERE id = ? AND site_id = ?').get(req.params.id, site.id);
+  if (row) {
+    db.prepare('UPDATE audio_tracks SET fedi_open = ? WHERE id = ? AND site_id = ?')
+      .run(row.fedi_open ? 0 : 1, req.params.id, site.id);
   }
   res.redirect('/admin/audio');
 });

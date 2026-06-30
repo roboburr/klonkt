@@ -95,6 +95,10 @@ export function initializeDatabase() {
   ensureColumn('audio_tracks', 'link_spotify',    'TEXT');  // "open in" links per track
   ensureColumn('audio_tracks', 'link_youtube',    'TEXT');
   ensureColumn('audio_tracks', 'link_soundcloud', 'TEXT');
+  // Per-track: federate the actual audio file as an AS2 Audio attachment so it plays inline
+  // in EVERY fediverse client (incl. the Mastodon apps). Default 0 = gated (web player only,
+  // file not exposed). Opt-in 1 = the file is served ungated + shared on the fediverse.
+  ensureColumn('audio_tracks', 'fedi_open', 'INTEGER DEFAULT 0');
 
   // Playlists (v9 feature) — first-class entity. CREATE IF NOT EXISTS is
   // idempotent so it's safe to run on every boot regardless of DB age.
