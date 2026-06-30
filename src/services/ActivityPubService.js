@@ -828,8 +828,11 @@ export async function handleInbox(req, slugParam) {
       const html = HtmlSanitizerService.sanitize(o.content || '');
       const media = mediaFromNote(o);
       try {
-        const r = db.prepare('UPDATE ap_timeline SET content = ?, media_json = ?, nsfw = ?, cw = ? WHERE id = ? AND author_uri = ?')
-          .run(html, media, o.sensitive ? 1 : 0, o.summary || null, o.id, claimedActor);
+        // Refresh url too (COALESCE keeps the old one if the Update omits it): a remote slug
+        // rename keeps the same AP id but changes the human url, so without this the cached
+        // post would keep linking to the old, now-dead URL.
+        const r = db.prepare('UPDATE ap_timeline SET content = ?, media_json = ?, nsfw = ?, cw = ?, url = COALESCE(?, url) WHERE id = ? AND author_uri = ?')
+          .run(html, media, o.sensitive ? 1 : 0, o.summary || null, o.url || null, o.id, claimedActor);
         if (r.changes) console.log('[AP] timeline update', claimedActor, '→', o.id);
       } catch { /* ignore */ }
       // If this note is a cached fediverse reply on one of our posts, refresh its text too.
