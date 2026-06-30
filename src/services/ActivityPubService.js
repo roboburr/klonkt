@@ -235,7 +235,21 @@ export function buildNote(base, site, post) {
     for (const m of c.matchAll(/https?:\/\/[^\s"'<>]+/gi)) if (AudioEmbedService.detectProvider(m[0])) return true;
     return false;
   })();
-  const noImages = playable || hasEmbed; // suppress image attachments → let the player/embed card show
+  // Link-only tracks (external Spotify/YouTube/SoundCloud, no hosted file): collect their links
+  // so we federate them — Mastodon cards the first (its player), the rest show as clickable links
+  // — instead of a bare "listen on site" link, and we suppress the cover so the card can show.
+  const trackEmbedLinks = (() => {
+    if (playable) return [];
+    const out = [];
+    try {
+      for (const m of (post.content || '').matchAll(/\[\[track:([A-Za-z0-9_-]+)\]\]/g)) {
+        const r = db.prepare('SELECT media_id, link_spotify, link_youtube, link_soundcloud FROM audio_tracks WHERE id = ?').get(m[1]);
+        if (r && !r.media_id) for (const u of [r.link_spotify, r.link_youtube, r.link_soundcloud]) if (u && /^https?:\/\//i.test(u)) out.push(u);
+      }
+    } catch { /* non-fatal */ }
+    return [...new Set(out)].slice(0, 6);
+  })();
+  const noImages = playable || hasEmbed || trackEmbedLinks.length > 0; // suppress images → let the player/embed card show
   const urls = [];
   // Posts with PLAYABLE hosted audio suppress image attachments so Mastodon renders
   // the player CARD (twitter:player) instead of the cover — media attachment and
@@ -291,12 +305,19 @@ export function buildNote(base, site, post) {
   });
   if (hadAudio) {
     const lbl = audioLabels.length ? esc(audioLabels.slice(0, 4).join(', ')) : '';
-    // For playable posts, append a version param to the listen-link so Mastodon
-    // sees a NEW card URL and re-crawls it (fresh SQUARE player card) instead of
-    // reusing the cached landscape one. Invisible: the link TEXT stays clean, the
-    // page ignores the param. Bump FEDI_CARD_VER when the card dimensions change.
-    const listenHref = playable ? `${human}?fc=${FEDI_CARD_VER}` : human;
-    body += `<p>🎵 ${lbl ? `<strong>${lbl}</strong> — ` : ''}<a href="${listenHref}">listen on ${esc(site.title || 'the site')}</a></p>`;
+    if (trackEmbedLinks.length) {
+      // Link-only track(s): emit the external link(s). Mastodon cards the first (Spotify → its
+      // player), the rest render as clickable links — the fediverse-native "embed + links".
+      body += `<p>🎵 ${lbl ? `<strong>${lbl}</strong>` : ''}</p>`;
+      for (const u of trackEmbedLinks) { const eu = esc(u); body += `<p><a href="${eu}">${eu}</a></p>`; }
+    } else {
+      // For playable posts, append a version param to the listen-link so Mastodon
+      // sees a NEW card URL and re-crawls it (fresh SQUARE player card) instead of
+      // reusing the cached landscape one. Invisible: the link TEXT stays clean, the
+      // page ignores the param. Bump FEDI_CARD_VER when the card dimensions change.
+      const listenHref = playable ? `${human}?fc=${FEDI_CARD_VER}` : human;
+      body += `<p>🎵 ${lbl ? `<strong>${lbl}</strong> — ` : ''}<a href="${listenHref}">listen on ${esc(site.title || 'the site')}</a></p>`;
+    }
   }
   // Klonkt renders post content with white-space:pre-wrap, so raw newlines ARE line
   // breaks on the site. Mastodon (plain HTML) collapses whitespace and would drop them,
