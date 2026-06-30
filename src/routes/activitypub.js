@@ -131,7 +131,7 @@ router.get('/ap/notes/:id', (req, res) => {
         ? note.inReplyTo : (baseUrl(req) + '/');
       return res.redirect(302, src);
     }
-    return AP.sendAP(res, { '@context': 'https://www.w3.org/ns/activitystreams', ...note });
+    return AP.sendAP(res, { '@context': AP.AP_CONTEXT, ...note });
   }
   const site = db.prepare('SELECT * FROM sites WHERE id = ?').get(post.site_id);
   if (!site) return res.status(404).end();
@@ -141,7 +141,7 @@ router.get('/ap/notes/:id', (req, res) => {
     // (which shows the post + its "from the fediverse" reactions).
     return res.redirect(302, note.url || (baseUrl(req) + '/'));
   }
-  AP.sendAP(res, { '@context': 'https://www.w3.org/ns/activitystreams', ...note });
+  AP.sendAP(res, { '@context': AP.AP_CONTEXT, ...note });
 });
 
 // ── Replies collection ── lets remote servers fetch a post's whole thread.
@@ -149,7 +149,7 @@ router.get('/ap/notes/:id/replies', (req, res) => {
   const base = baseUrl(req);
   const items = AP.getReplyUris(base, req.params.id);
   AP.sendAP(res, {
-    '@context': 'https://www.w3.org/ns/activitystreams',
+    '@context': AP.AP_CONTEXT,
     id: `${base}/ap/notes/${req.params.id}/replies`,
     type: 'OrderedCollection',
     totalItems: items.length,

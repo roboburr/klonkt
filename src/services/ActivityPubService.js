@@ -22,6 +22,26 @@ import db from '../config/database.js';
 import HtmlSanitizerService from './HtmlSanitizerService.js';
 
 const PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
+// Full JSON-LD context for every AP object we emit: AS2 core + security (publicKey) + the
+// extension terms we actually use (Mastodon/toot + schema.org), each with a term definition
+// so a strict JSON-LD processor resolves them instead of dropping them → valid AS2/JSON-LD.
+// This is the same context shape Mastodon publishes, so Mastodon sees no change.
+const AP_CONTEXT = [
+  'https://www.w3.org/ns/activitystreams',
+  'https://w3id.org/security/v1',
+  {
+    toot: 'http://joinmastodon.org/ns#',
+    schema: 'http://schema.org#',
+    sensitive: 'as:sensitive',
+    Hashtag: 'as:Hashtag',
+    manuallyApprovesFollowers: 'as:manuallyApprovesFollowers',
+    discoverable: 'toot:discoverable',
+    featured: { '@id': 'toot:featured', '@type': '@id' },
+    PropertyValue: 'schema:PropertyValue',
+    value: 'schema:value',
+    embedUrl: { '@id': 'schema:embedUrl', '@type': '@id' },
+  },
+];
 
 // Short random suffix so two activity ids minted in the same millisecond (e.g.
 // parallel saves) don't collide and get deduped by a receiver.
@@ -124,7 +144,7 @@ export function buildActor(base, site) {
   const id = actorId(base, site.slug);
   const keys = getOrCreateKeys(site.slug);
   const actor = {
-    '@context': ['https://www.w3.org/ns/activitystreams', 'https://w3id.org/security/v1'],
+    '@context': AP_CONTEXT,
     id,
     type: 'Person',
     preferredUsername: site.slug,
@@ -350,7 +370,7 @@ export function countUnseenNotifications(slug) {
 export function buildCreate(base, site, post) {
   const note = buildNote(base, site, post);
   return {
-    '@context': 'https://www.w3.org/ns/activitystreams',
+    '@context': AP_CONTEXT,
     id: note.id + '#create',
     type: 'Create',
     actor: actorId(base, site.slug),
@@ -365,7 +385,7 @@ export function buildOutbox(base, site, posts) {
   const id = `${actorId(base, site.slug)}/outbox`;
   const items = (posts || []).slice(0, MAX_OUTBOX).map((p) => buildCreate(base, site, p));
   return {
-    '@context': 'https://www.w3.org/ns/activitystreams',
+    '@context': AP_CONTEXT,
     id,
     type: 'OrderedCollection',
     totalItems: items.length,
@@ -376,7 +396,7 @@ export function buildOutbox(base, site, posts) {
 export function buildFollowers(base, site, count) {
   const id = `${actorId(base, site.slug)}/followers`;
   return {
-    '@context': 'https://www.w3.org/ns/activitystreams',
+    '@context': AP_CONTEXT,
     id,
     type: 'OrderedCollection',
     totalItems: count || 0,
@@ -389,7 +409,7 @@ export function buildFollowers(base, site, count) {
 export function buildFollowing(base, site, count) {
   const id = `${actorId(base, site.slug)}/following`;
   return {
-    '@context': 'https://www.w3.org/ns/activitystreams',
+    '@context': AP_CONTEXT,
     id,
     type: 'OrderedCollection',
     totalItems: count || 0,
@@ -404,7 +424,7 @@ export function buildFeatured(base, site, posts) {
   const id = `${actorId(base, site.slug)}/featured`;
   const items = (posts || []).map((p) => buildNote(base, site, p));
   return {
-    '@context': 'https://www.w3.org/ns/activitystreams',
+    '@context': AP_CONTEXT,
     id,
     type: 'OrderedCollection',
     totalItems: items.length,
@@ -720,7 +740,7 @@ export async function handleInbox(req, slugParam) {
     fStmts().ins.run(slug, who, remote.inbox, sharedInbox);
     const me = actorId(base, slug);
     const keys = getOrCreateKeys(slug);
-    const accept = { '@context': 'https://www.w3.org/ns/activitystreams', id: `${me}#accept-${Date.now()}-${rid()}`, type: 'Accept', actor: me, object: act };
+    const accept = { '@context': AP_CONTEXT, id: `${me}#accept-${Date.now()}-${rid()}`, type: 'Accept', actor: me, object: act };
     deliver(remote.inbox, accept, `${me}#main-key`, keys.private_pem).catch((e) => console.warn('[AP] Accept delivery failed:', e.message));
     // Auto-backfill: send our recent posts as Create so the instance has our history
     // (Mastodon doesn't fetch history on follow). ONCE PER REMOTE INSTANCE only —
@@ -908,7 +928,7 @@ export async function deliverDelete(site, post) {
   const me = actorId(base, site.slug);
   const nid = noteId(base, post.id);
   const del = {
-    '@context': 'https://www.w3.org/ns/activitystreams',
+    '@context': AP_CONTEXT,
     id: `${nid}#delete-${Date.now()}-${rid()}`,
     type: 'Delete',
     actor: me,
@@ -931,7 +951,7 @@ export async function deliverUpdate(site, post) {
   const note = buildNote(base, site, post);
   note.updated = new Date().toISOString();
   const update = {
-    '@context': 'https://www.w3.org/ns/activitystreams',
+    '@context': AP_CONTEXT,
     id: `${noteId(base, post.id)}#update-${Date.now()}-${rid()}`,
     type: 'Update', actor: me, to: [PUBLIC], cc: [`${me}/followers`],
     object: note,
@@ -951,7 +971,7 @@ export async function deliverActorUpdate(site) {
   const keys = getOrCreateKeys(site.slug);
   const me = actorId(base, site.slug);
   const update = {
-    '@context': ['https://www.w3.org/ns/activitystreams', 'https://w3id.org/security/v1'],
+    '@context': AP_CONTEXT,
     id: `${me}#update-${Date.now()}-${rid()}`,
     type: 'Update', actor: me, to: [PUBLIC], cc: [`${me}/followers`],
     object: buildActor(base, site),
@@ -975,7 +995,6 @@ export async function resyncFeaturedPins(site, alsoRemove = []) {
   const me = actorId(base, site.slug);
   const keyId = `${me}#main-key`;
   const featured = `${me}/featured`;
-  const AS = 'https://www.w3.org/ns/activitystreams';
   const note = (id) => noteId(base, id);
   const pinned = db.prepare(
     `SELECT id FROM posts WHERE site_id = ? AND status = 'published' AND (fan_only IS NULL OR fan_only = 0)
@@ -985,14 +1004,14 @@ export async function resyncFeaturedPins(site, alsoRemove = []) {
   const removeIds = [...new Set([...pinned.map((p) => p.id), ...alsoRemove])];
   // 1. Remove every current pin so Mastodon can recreate them in order.
   for (const id of removeIds) {
-    const rm = { '@context': AS, id: `${me}#rm-${id}-${Date.now()}-${rid()}`, type: 'Remove', actor: me, object: note(id), target: featured, to: [PUBLIC] };
+    const rm = { '@context': AP_CONTEXT, id: `${me}#rm-${id}-${Date.now()}-${rid()}`, type: 'Remove', actor: me, object: note(id), target: featured, to: [PUBLIC] };
     for (const inbox of inboxes) deliver(inbox, rm, keyId, keys.private_pem).catch(() => { /* best-effort */ });
   }
   if (!pinned.length) { console.log('[AP] unpinned all featured for', site.slug); return; }
   await new Promise((r) => setTimeout(r, 5000)); // let the Removes land first
   // 2. Add in rank-DESC order, gaps so each StatusPin gets an increasing created_at.
   for (const p of pinned) {
-    const add = { '@context': AS, id: `${me}#add-${p.id}-${Date.now()}-${rid()}`, type: 'Add', actor: me, object: note(p.id), target: featured, to: [PUBLIC], cc: [`${me}/followers`] };
+    const add = { '@context': AP_CONTEXT, id: `${me}#add-${p.id}-${Date.now()}-${rid()}`, type: 'Add', actor: me, object: note(p.id), target: featured, to: [PUBLIC], cc: [`${me}/followers`] };
     for (const inbox of inboxes) deliver(inbox, add, keyId, keys.private_pem).catch(() => { /* best-effort */ });
     await new Promise((r) => setTimeout(r, 2000));
   }
@@ -1145,7 +1164,7 @@ export async function deliverReply(site, { postId, postSlug, parent, text }) {
   const row = iStmts().getO.get(id);
   const note = buildReplyNote(base, site, row);
   const create = {
-    '@context': 'https://www.w3.org/ns/activitystreams',
+    '@context': AP_CONTEXT,
     id: note.id + '#create', type: 'Create', actor: me,
     published: note.published, to: note.to, cc: note.cc, object: note,
   };
@@ -1266,7 +1285,7 @@ export async function deliverOutboxDelete(site, outboxId) {
   if (base) {
     const me = actorId(base, site.slug);
     const nid = noteId(base, row.id);
-    const del = { '@context': 'https://www.w3.org/ns/activitystreams', id: `${nid}#delete-${Date.now()}-${rid()}`, type: 'Delete', actor: me, to: [PUBLIC], object: { id: nid, type: 'Tombstone' } };
+    const del = { '@context': AP_CONTEXT, id: `${nid}#delete-${Date.now()}-${rid()}`, type: 'Delete', actor: me, to: [PUBLIC], object: { id: nid, type: 'Tombstone' } };
     const keys = getOrCreateKeys(site.slug);
     const inboxes = new Set();
     if (row.to_actor) { const a = await fetchActor(row.to_actor).catch(() => null); if (a) inboxes.add((a.endpoints && a.endpoints.sharedInbox) || a.inbox); }
@@ -1299,7 +1318,7 @@ export async function deliverOutboxUpdate(site, outboxId, newText) {
   const note = buildReplyNote(base, site, iStmts().getO.get(outboxId));
   note.updated = new Date().toISOString();
   const update = {
-    '@context': 'https://www.w3.org/ns/activitystreams',
+    '@context': AP_CONTEXT,
     id: `${note.id}#update-${Date.now()}-${rid()}`, type: 'Update', actor: me,
     published: note.published, updated: note.updated, to: note.to, cc: note.cc, object: note,
   };
@@ -1515,7 +1534,7 @@ export async function followActor(site, handle, autoBoost = false) {
   const keys = getOrCreateKeys(site.slug);
   const followId = `${me}#follow-${Date.now()}-${rid()}`;
   fwStmts().ins.run(site.slug, actor.id, ai.handle, ai.name, ai.icon, ai.url, actor.inbox, followId, 'pending', autoBoost ? 1 : 0);
-  const follow = { '@context': 'https://www.w3.org/ns/activitystreams', id: followId, type: 'Follow', actor: me, object: actor.id };
+  const follow = { '@context': AP_CONTEXT, id: followId, type: 'Follow', actor: me, object: actor.id };
   try { await deliver(actor.inbox, follow, `${me}#main-key`, keys.private_pem); }
   catch (e) { console.warn('[AP] follow deliver failed:', e.message); }
   console.log('[AP] follow', site.slug, '→', actor.id);
@@ -1545,7 +1564,7 @@ export async function unfollowActor(site, actorUri) {
   // silently failed on the remote. With no stored follow id (legacy row), skip the network Undo
   // rather than send an unmatchable one. Deliver durably via the retry queue.
   if (row && row.inbox && row.follow_id) {
-    const undo = { '@context': 'https://www.w3.org/ns/activitystreams', id: `${me}/undo/${Date.now()}-${rid()}`, type: 'Undo', actor: me, object: { id: row.follow_id, type: 'Follow', actor: me, object: actorUri } };
+    const undo = { '@context': AP_CONTEXT, id: `${me}/undo/${Date.now()}-${rid()}`, type: 'Undo', actor: me, object: { id: row.follow_id, type: 'Follow', actor: me, object: actorUri } };
     deliverWithRetry(site.slug, row.inbox, undo, `${me}#main-key`, keys.private_pem);
   } else if (row && row.inbox) {
     console.warn('[AP] unfollow', site.slug, '→', actorUri, '— no stored follow id; removed locally only (legacy follow, remote may keep it)');
@@ -1575,7 +1594,7 @@ export async function sendInteraction(site, kind, targetNoteId, authorUri) {
     // no record of the original activity needed — Mastodon honours both).
     const inner = kind === 'unboost' ? 'Announce' : 'Like';
     act = {
-      '@context': 'https://www.w3.org/ns/activitystreams',
+      '@context': AP_CONTEXT,
       id: `${me}/undo/${Date.now()}-${rid()}`, type: 'Undo', actor: me,
       object: { id: `${me}/${inner.toLowerCase()}/${Date.now()}-${rid()}`, type: inner, actor: me, object: targetNoteId },
     };
@@ -1583,7 +1602,7 @@ export async function sendInteraction(site, kind, targetNoteId, authorUri) {
   } else {
     const type = kind === 'boost' ? 'Announce' : 'Like';
     act = {
-      '@context': 'https://www.w3.org/ns/activitystreams',
+      '@context': AP_CONTEXT,
       id: `${me}/${type.toLowerCase()}/${Date.now()}-${rid()}`,
       type, actor: me, object: targetNoteId,
     };
@@ -1683,7 +1702,7 @@ export async function blockTarget(site, input) {
 export function unblock(site, target) { blStmts().del.run(site.slug, target); return { ok: true }; }
 
 export default {
-  getOrCreateKeys, apWants, sendAP, actorId, noteId,
+  AP_CONTEXT, getOrCreateKeys, apWants, sendAP, actorId, noteId,
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers, buildFollowing, buildFeatured,
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, setMyReaction, getMyReactions, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
