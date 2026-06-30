@@ -1205,12 +1205,23 @@ body:has(.post-edit-page) .audio-player { bottom: 0; }
     return _cropperReady;
   }
 
+  // True for an animated WebP (VP8X chunk with the animation flag set) — like a GIF it must skip
+  // the canvas editor, otherwise it'd be flattened to a single static frame.
+  async function isAnimatedWebpFile(file) {
+    if (!file || file.type !== 'image/webp') return false;
+    try {
+      const b = new Uint8Array(await file.slice(0, 40).arrayBuffer());
+      return b.length >= 21 && String.fromCharCode(b[12], b[13], b[14], b[15]) === 'VP8X' && (b[20] & 0x02) !== 0;
+    } catch (_) { return false; }
+  }
+
   // Opens the editor for a chosen file; resolves with an edited File,
-  // or null if the user cancels. Animated GIFs are not sent through the
+  // or null if the user cancels. Animated images (GIF / animated WebP) are NOT sent through the
   // canvas editor (they would become static) — those upload directly.
   async function openImageEditor(file) {
     if (!file || !file.type || !file.type.startsWith('image/')) return file;
-    if (file.type === 'image/gif') return file; // preserve animation
+    if (file.type === 'image/gif') return file;               // preserve animation
+    if (await isAnimatedWebpFile(file)) return file;          // animated WebP → preserve animation
     try { await ensureCropper(); } catch (_) { return file; } // editor unavailable → upload directly
 
     return new Promise((resolve) => {
