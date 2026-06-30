@@ -30,7 +30,14 @@ router.get('/cirkel', (req, res, next) => {
   const site = res.locals.site;
   if (!site || !apEnabled() || (ActivityPubService.autoBoostCount(site.slug) === 0 && ActivityPubService.boostedCount(site.slug) === 0)) return next();
 
-  const posts = ActivityPubService.getCirkelPosts(site.slug, 80).map((r) => {
+  const members = ActivityPubService.getCirkelMembers(site.slug);
+  // Optional ?actor=<uri> → show only that member's posts. Only honour a uri that is
+  // actually a featured member (so it can't be used to probe arbitrary timeline rows).
+  const reqActor = safeUrl(req.query.actor);
+  const activeMember = reqActor ? members.find((m) => m.actor_uri === reqActor) : null;
+  const activeActor = activeMember ? activeMember.actor_uri : null;
+
+  const posts = ActivityPubService.getCirkelPosts(site.slug, 80, activeActor).map((r) => {
     const text = htmlToText(r.content);
     // Show ONLY the title (the bold first line a Klonkt note carries), not the whole
     // body. Title-less notes (e.g. plain Mastodon) fall back to a short text snippet.
@@ -60,10 +67,15 @@ router.get('/cirkel', (req, res, next) => {
     };
   });
 
-  const sites = ActivityPubService.getCirkelMembers(site.slug)
-    .map((s) => ({ name: s.name || 'Onbekend', url: safeUrl(s.url), avatar: safeUrl(s.icon) }));
+  const sites = members.map((s) => ({
+    name: s.name || 'Onbekend', url: safeUrl(s.url), avatar: safeUrl(s.icon),
+    actor_uri: s.actor_uri, active: !!(activeActor && s.actor_uri === activeActor),
+  }));
 
-  renderPage(req, res, 'pages/circle-feed', { pageTitle: 'Cirkel', bodyClass: 'on-cirkel', posts, sites });
+  renderPage(req, res, 'pages/circle-feed', {
+    pageTitle: 'Cirkel', bodyClass: 'on-cirkel', posts, sites,
+    activeActor, activeName: activeMember ? (activeMember.name || '') : '',
+  });
 });
 
 export default router;
