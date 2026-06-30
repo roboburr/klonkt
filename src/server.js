@@ -44,6 +44,7 @@ import langRoutes from './routes/lang.js';
 import adminUpdatesRoutes from './routes/admin-updates.js';
 import adminPatreonRoutes from './routes/admin-patreon.js';
 import adminStatsRoutes from './routes/admin-stats.js';
+import adminMediaRoutes from './routes/admin-media.js';
 import circleRoutes from './routes/circle.js';
 import epkRoutes from './routes/epk.js';
 import newsletterRoutes from './routes/newsletter.js';
@@ -364,6 +365,7 @@ if (audioEnabled()) {
   app.use('/admin/audio', adminAudioRoutes);
   app.use('/admin/playlists', adminPlaylistsRoutes);
 }
+app.use('/admin/media', adminMediaRoutes); // image library + cleanup (works in lite mode too)
 app.use('/admin/sites', adminSitesRoutes);
 app.use('/admin/users', adminUsersRoutes);
 app.use('/admin/settings', adminSettingsRoutes);
