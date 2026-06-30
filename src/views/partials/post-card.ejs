@@ -153,8 +153,6 @@ if (post.tags) {
     transition: opacity .4s ease;
   }
   .post-list-cover img.is-loading { opacity: 0; }
-  /* A video cover keeps its aspect ratio (centered, letterboxed) in the square slot, not zoom-cropped. */
-  .post-list-cover video { object-fit: contain; background: var(--paper-2, #0a0e1a); }
 
   /* Re-apply rounded corners on slightly larger phones */
   @media (min-width: 480px) {

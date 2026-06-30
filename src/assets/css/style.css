@@ -1936,9 +1936,10 @@ body.audio-is-loading .audio-sheet-play::after {
         color-mix(in srgb, var(--accent, #888) 22%, var(--paper-2, var(--paper))) 0%,
         color-mix(in srgb, var(--accent, #888) 6%, var(--paper-2, var(--paper))) 100%);
 }
-.post-list-cover img {
+.post-list-cover img, .post-list-cover video {
     width: 100%; height: 100%;
-    object-fit: cover;
+    object-fit: cover;                 /* fill the square, keep aspect, crop the overflow, centered */
+    object-position: center;
     display: block;
     background-color: #fff;            /* transparent logos sit on white once loaded */
     transition: opacity .4s ease;
@@ -2400,9 +2401,6 @@ body.on-cirkel[data-feed-view="grid"]  .feed-grid { display: block; }
    Fades in on load (.is-loading removed) so the placeholder shows meanwhile. */
 .grid-tile-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; display: block; transition: opacity .4s ease; }
 .grid-tile-img.is-loading { opacity: 0; }
-/* A video cover keeps its own aspect ratio inside the square tile (centered, letterboxed) instead
-   of zoom-cropping a wide video to fill. Images stay object-fit:cover. */
-video.grid-tile-img { object-fit: contain; background: var(--paper-2, #0a0e1a); }
 .grid-tile:hover { transform: scale(0.98); }
 .grid-tile-overlay {
     position: absolute;
