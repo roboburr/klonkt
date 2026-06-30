@@ -5,6 +5,47 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-06-30
+
+### Toegevoegd
+- **Geanimeerde covers spelen overal soepel.** Upload een geanimeerde WebP als cover en Klonkt maakt
+  er ook een geluidloze, doorlopende video van. iOS Safari — waar geanimeerde WebP hapert — krijgt de
+  soepele video, elke andere browser houdt de scherpe WebP, en op de fediverse federeert de cover als
+  een video die in Mastodon en z'n apps speelt. Te zien op de post, het grid, de feed en gerelateerde posts.
+- **Mediabibliotheek (Beheer → Media).** Zie elke geüploade afbeelding, waar elke wordt gebruikt,
+  kopieer de URL, en ruim ongebruikte bestanden in één klik op — inclusief de overgebleven video/poster
+  van een geanimeerde cover. Afbeeldingen, Audio en Playlists delen nu één tab-balk.
+- **Deel-knop** onderaan elke post (native deelmenu, of link kopiëren).
+- **Vervang het audiobestand van een track** zonder de track opnieuw aan te maken.
+- **Muziek op de fediverse (eerste stap).** Audio-posts dragen nu schema.org *MusicRecording* /
+  *MusicAlbum*-data, en een per-post-schakelaar kan een gehoste track delen als een echte
+  fediverse-audiobijlage die in de feeds van volgers speelt.
+
+### Gewijzigd
+- **Nettere embeds op Mastodon.** Een post met een YouTube/Spotify/SoundCloud-link laat Mastodon nu
+  z'n player-kaart tonen; link-only tracks delen hun streaming-links. De cover blijft zichtbaar in
+  andere Klonkt-feeds. (Op je eigen site verandert niets — de speler en cover renderen zoals voorheen.)
+- **Cirkels blijven gesynct op de fediverse-manier** — bewerkingen en gemiste posts lopen automatisch
+  bij via standaard ActivityPub, zodat een Cirkel niet meer uit sync raakt.
+- **Alles wat Klonkt federeert is nu valide AS2 / JSON-LD**, bewaakt door een test, zodat striktere
+  servers het accepteren.
+- De tracklijst staat **nieuwste eerst**.
+
+### Opgelost
+- **Geanimeerde WebP-covers worden niet meer tot één frame bevroren** (de crop-editor en de
+  thumbnailer maakten ze statisch).
+- **Link-only tracks** (Spotify/YouTube, geen geüpload bestand) zijn weer in een post in te voegen.
+- **Link-previews** (og:image / Twitter-kaart) gebruiken nu absolute afbeeldings-URL's, zodat ze op
+  Signal, WhatsApp en andere scrapers verschijnen.
+- Diverse **fediverse-bezorgings-fixes**: covers/links worden geen zwarte tegel meer op Mastodon, rauwe
+  audiobestanden vervuilen geen post die al een speler heeft, en dode links van een hernoemde remote
+  post helen zichzelf.
+- De **mobiele feed** laadt covers op volledige resolutie; lange titels breken af i.p.v. over te lopen.
+- **Self-host-updates** zijn betrouwbaarder: de installer opnieuw draaien behoudt je kanaal, en de
+  updater herstart niet meer (of claimt geen update) als je al up-to-date bent.
+
+## [1.0.0] — 2026-06-30
+
 ### Toegevoegd
 - **Klonkt zit nu op de fediverse (ActivityPub).** Je site is een echt
   fediverse-account: mensen op **Mastodon** — of een andere **Klonkt** — kunnen je

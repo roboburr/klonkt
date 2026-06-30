@@ -5,6 +5,50 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-06-30
+
+### Hinzugefügt
+- **Animierte Cover spielen überall flüssig.** Lade ein animiertes WebP als Cover hoch, und Klonkt
+  erstellt zusätzlich ein stummes, sich wiederholendes Video davon. iOS Safari — wo animiertes WebP
+  ruckelt — bekommt das flüssige Video, jeder andere Browser behält das scharfe WebP, und im Fediverse
+  federiert das Cover als Video, das in Mastodon und seinen Apps abspielt. Sichtbar im Beitrag, im
+  Raster, im Feed und bei verwandten Beiträgen.
+- **Medienbibliothek (Verwaltung → Medien).** Sieh jedes hochgeladene Bild, wo es verwendet wird,
+  kopiere die URL und räume ungenutzte Dateien mit einem Klick auf — einschließlich des übrigen
+  Videos/Posters eines animierten Covers. Bilder, Audio und Playlists teilen sich jetzt eine Tab-Leiste.
+- **Teilen-Button** unter jedem Beitrag (natives Teilen-Menü oder Link kopieren).
+- **Ersetze die Audiodatei eines Tracks**, ohne den Track neu zu erstellen.
+- **Musik im Fediverse (erster Schritt).** Audio-Beiträge tragen jetzt schema.org *MusicRecording* /
+  *MusicAlbum*-Daten, und ein Schalter pro Beitrag kann einen gehosteten Track als echten
+  Fediverse-Audioanhang teilen, der in den Feeds der Follower abspielt.
+
+### Geändert
+- **Sauberere Embeds auf Mastodon.** Ein Beitrag mit einem YouTube/Spotify/SoundCloud-Link lässt
+  Mastodon jetzt seine Player-Karte anzeigen; Link-only-Tracks teilen ihre Streaming-Links. Das Cover
+  bleibt in anderen Klonkt-Feeds sichtbar. (Auf deiner eigenen Seite ändert sich nichts — Player und
+  Cover werden wie zuvor angezeigt.)
+- **Zirkel bleiben auf die Fediverse-Art synchron** — Bearbeitungen und verpasste Beiträge holen über
+  Standard-ActivityPub automatisch auf, sodass ein Zirkel nicht mehr veraltet.
+- **Alles, was Klonkt federiert, ist jetzt gültiges AS2 / JSON-LD**, durch einen Test abgesichert,
+  damit striktere Server es akzeptieren.
+- Die Trackliste ist **nach Neueste zuerst** sortiert.
+
+### Behoben
+- **Animierte WebP-Cover werden nicht mehr auf ein einzelnes Bild eingefroren** (der Zuschneide-Editor
+  und der Thumbnailer machten sie statisch).
+- **Link-only-Tracks** (Spotify/YouTube, keine hochgeladene Datei) lassen sich wieder in einen Beitrag
+  einfügen.
+- **Link-Vorschauen** (og:image / Twitter-Karte) verwenden jetzt absolute Bild-URLs, damit sie auf
+  Signal, WhatsApp und anderen Scrapern erscheinen.
+- Mehrere **Fediverse-Zustellungs-Fixes**: Cover/Links werden auf Mastodon keine schwarze Kachel mehr,
+  rohe Audiodateien überladen keinen Beitrag, der bereits einen Player hat, und tote Links eines
+  umbenannten Remote-Beitrags heilen sich selbst.
+- Der **mobile Feed** lädt Cover in voller Auflösung; lange Titel brechen um, statt überzulaufen.
+- **Self-Hosting-Updates** sind zuverlässiger: ein erneuter Lauf des Installers behält deinen Kanal,
+  und der Updater startet nicht mehr neu (oder behauptet kein Update), wenn du bereits aktuell bist.
+
+## [1.0.0] — 2026-06-30
+
 ### Hinzugefügt
 - **Klonkt ist jetzt im Fediverse (ActivityPub).** Deine Seite ist ein echtes
   Fediverse-Konto: Menschen auf **Mastodon** — oder auf einem anderen **Klonkt** — können
