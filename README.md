@@ -198,3 +198,10 @@ use, study, modify and distribute it. The AGPL does require that a modified
 version you offer as a network service makes its source code available to the
 users of that service. Made by robo.burr (Robin Genis) ·
 <https://klonkt.com>
+
+## Acknowledgements
+
+Klonkt stands on a lot of open-source work — Node.js, FFmpeg, SQLite, libwebp, resvg, htmx, EJS and
+more, plus the Fraunces, Plus Jakarta Sans and Literata fonts. See
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) for the full list and their licences. Thank you to
+everyone who made them.
