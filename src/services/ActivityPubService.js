@@ -20,6 +20,7 @@ import dns from 'dns';
 import net from 'net';
 import db from '../config/database.js';
 import HtmlSanitizerService from './HtmlSanitizerService.js';
+import AudioEmbedService from './AudioEmbedService.js';
 
 const PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
 // Full JSON-LD context for every AP object we emit: AS2 core + security (publicKey) + the
@@ -224,17 +225,28 @@ export function buildNote(base, site, post) {
   };
   const hadAudio = /\[\[(track|album|playlist):/i.test(post.content || '');
   const playable = hasPlayableAudio(post.content || '', site && site.id);
+  // A post with an external embed (Spotify/YouTube/SoundCloud/Vimeo/Bandcamp/Apple) should let
+  // Mastodon render the embed's player CARD. Mastodon shows EITHER media attachments OR a link
+  // card, never both — so when the post has an embed link we skip the image attachments so the
+  // card wins. (On Klonkt nothing changes: the cover + the embed player still render.)
+  const hasEmbed = (() => {
+    const c = post.content || '';
+    if (/\[\[embed:/i.test(c)) return true;
+    for (const m of c.matchAll(/https?:\/\/[^\s"'<>]+/gi)) if (AudioEmbedService.detectProvider(m[0])) return true;
+    return false;
+  })();
+  const noImages = playable || hasEmbed; // suppress image attachments → let the player/embed card show
   const urls = [];
   // Posts with PLAYABLE hosted audio suppress image attachments so Mastodon renders
   // the player CARD (twitter:player) instead of the cover — media attachment and
   // link/player card are mutually exclusive on Mastodon. Link-only audio (external)
   // keeps its cover (no player card to show).
-  if (post.cover_image_url && !playable) urls.push(abs(post.cover_image_url));
+  if (post.cover_image_url && !noImages) urls.push(abs(post.cover_image_url));
   let body = post.content || '';
   // Only federate inline images we can actually serve: absolute http(s) URLs, or our own
   // /media/ uploads. A relative path we don't host (e.g. a stale /images/... ref) would 404
   // and show up as a black tile in Mastodon's attachment grid.
-  if (!playable) for (const m of body.matchAll(/<img\b[^>]*\bsrc="([^"]+)"[^>]*>/gi)) {
+  if (!noImages) for (const m of body.matchAll(/<img\b[^>]*\bsrc="([^"]+)"[^>]*>/gi)) {
     const src = m[1];
     if (/^https?:\/\//i.test(src) || src.startsWith('/media/')) urls.push(abs(src));
   }
