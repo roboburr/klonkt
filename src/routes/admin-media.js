@@ -47,29 +47,36 @@ function usageMap(siteId) {
 function statSize(name) { try { return fs.statSync(path.join(POST_IMAGES_DIR, name)).size; } catch { return 0; } }
 function statMtime(name) { try { return fs.statSync(path.join(POST_IMAGES_DIR, name)).mtimeMs; } catch { return 0; } }
 
-router.get('/', requireGod, (req, res) => {
-  const site = res.locals.site;
-  if (!site) return res.status(404).send('Site required');
-  const used = usageMap(site.id);
+// All non-sibling images, each with its loop-MP4 sibling + how many posts use it. Shared by the
+// list view and the cleanup route so the readdir/filter/usage logic lives in one place.
+function imageEntries(siteId) {
+  const used = usageMap(siteId);
   let all = [];
   try { all = fs.readdirSync(POST_IMAGES_DIR).filter(f => !f.startsWith('.')); } catch { /* dir may not exist yet */ }
   const present = new Set(all);
-  const items = all
+  return all
     .filter(f => IMG_EXT.test(f) && !isSibling(f))
     .map(f => {
       const stem = f.replace(/\.[^.]+$/, '');
       const mp4 = `${stem}-v.mp4`;
       const hasVideo = present.has(mp4);
       const ids = new Set([...(used.get(f) || []), ...(hasVideo ? (used.get(mp4) || []) : [])]);
-      return {
-        file: f,
-        url: `/media/post-images/${f}`,
-        kb: Math.round((statSize(f) + (hasVideo ? statSize(mp4) : 0)) / 1024),
-        hasVideo,
-        usedCount: ids.size,
-        _mtime: statMtime(f),
-      };
-    })
+      return { file: f, stem, mp4, hasVideo, usedCount: ids.size };
+    });
+}
+
+router.get('/', requireGod, (req, res) => {
+  const site = res.locals.site;
+  if (!site) return res.status(404).send('Site required');
+  const items = imageEntries(site.id)
+    .map(e => ({
+      file: e.file,
+      url: `/media/post-images/${e.file}`,
+      kb: Math.round((statSize(e.file) + (e.hasVideo ? statSize(e.mp4) : 0)) / 1024),
+      hasVideo: e.hasVideo,
+      usedCount: e.usedCount,
+      _mtime: statMtime(e.file),
+    }))
     .sort((a, b) => b._mtime - a._mtime); // newest first
   renderPage(req, res, 'pages/admin-media', {
     pageTitleKey: 'admin.t_media',
@@ -100,17 +107,10 @@ router.post('/delete', requireGod, (req, res) => {
 router.post('/cleanup', requireGod, (req, res) => {
   const site = res.locals.site;
   if (!site) return res.status(404).json({ ok: false, error: 'Site required' });
-  const used = usageMap(site.id);
-  let all = [];
-  try { all = fs.readdirSync(POST_IMAGES_DIR).filter(f => !f.startsWith('.')); } catch { /* */ }
-  const present = new Set(all);
   let removed = 0;
-  for (const f of all.filter(x => IMG_EXT.test(x) && !isSibling(x))) {
-    const stem = f.replace(/\.[^.]+$/, '');
-    const mp4 = `${stem}-v.mp4`;
-    const ids = new Set([...(used.get(f) || []), ...(present.has(mp4) ? (used.get(mp4) || []) : [])]);
-    if (ids.size) continue; // still in use
-    for (const name of [f, mp4, `${stem}-v.jpg`]) {
+  for (const e of imageEntries(site.id)) {
+    if (e.usedCount) continue; // still in use
+    for (const name of [e.file, e.mp4, `${e.stem}-v.jpg`]) {
       try { fs.unlinkSync(path.join(POST_IMAGES_DIR, name)); removed++; } catch { /* */ }
     }
   }
