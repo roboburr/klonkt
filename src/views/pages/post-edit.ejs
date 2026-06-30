@@ -244,6 +244,10 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
         <input type="text" name="content_warning" id="pe-cw" value="<%= post.content_warning || '' %>" maxlength="200"
                placeholder="<%= t('pedit.nsfw_cw_ph') %>"
                style="width:100%;box-sizing:border-box;margin:6px 0 2px;font-size:13px;padding:7px 9px">
+        <label class="pe-checkbox">
+          <input type="checkbox" name="fedi_open_audio" value="1" <%= (typeof fediOpenAudio !== 'undefined' && fediOpenAudio) ? 'checked' : '' %>>
+          <span>🌐 <%= t('pedit.fedi_audio_label') %></span>
+        </label>
         <script>
         (function () {
           var cw = document.getElementById('pe-cw'), nsfw = document.getElementById('pe-nsfw');

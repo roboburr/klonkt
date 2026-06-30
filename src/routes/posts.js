@@ -168,6 +168,35 @@ router.get('/posts/new', requireAuth, (req, res) => {
 });
 
 // ==================== CREATE POST ====================
+// ── Per-post audio federation ──────────────────────────────────────────────
+// "Share audio on the fediverse" is a per-post choice in the editor, but the underlying
+// flag is per track (audio_tracks.fedi_open — it gates the file + drives the AS2 Audio
+// attachment). NB: the file gate is per file, so opening a track in one post makes its file
+// fetchable for every post that reuses it.
+function setAudioFediOpen(siteId, content, open) {
+  const val = open ? 1 : 0;
+  const c = content || '';
+  try {
+    for (const m of c.matchAll(/\[\[track:([A-Za-z0-9_-]+)\]\]/g)) db.prepare('UPDATE audio_tracks SET fedi_open = ? WHERE id = ? AND site_id = ?').run(val, m[1], siteId);
+    for (const m of c.matchAll(/\[\[album:([^\]]+)\]\]/g)) db.prepare('UPDATE audio_tracks SET fedi_open = ? WHERE site_id = ? AND album = ?').run(val, siteId, m[1].trim());
+    for (const m of c.matchAll(/\[\[playlist:([A-Za-z0-9_-]+)\]\]/g)) db.prepare('UPDATE audio_tracks SET fedi_open = ? WHERE id IN (SELECT track_id FROM playlist_tracks WHERE playlist_id = ?)').run(val, m[1]);
+  } catch { /* non-fatal */ }
+}
+// True when the post references hosted audio AND all of it is currently fedi_open (drives the
+// editor checkbox's initial state).
+function postAudioFediOpen(siteId, content) {
+  const c = content || '';
+  if (!/\[\[(track|album|playlist):/i.test(c)) return false;
+  let total = 0, open = 0;
+  const tally = (r) => { if (r && r.media_id) { total++; if (r.fedi_open) open++; } };
+  try {
+    for (const m of c.matchAll(/\[\[track:([A-Za-z0-9_-]+)\]\]/g)) tally(db.prepare('SELECT fedi_open, media_id FROM audio_tracks WHERE id = ? AND site_id = ?').get(m[1], siteId));
+    for (const m of c.matchAll(/\[\[album:([^\]]+)\]\]/g)) for (const r of db.prepare('SELECT fedi_open, media_id FROM audio_tracks WHERE site_id = ? AND album = ? AND media_id IS NOT NULL').all(siteId, m[1].trim())) tally(r);
+    for (const m of c.matchAll(/\[\[playlist:([A-Za-z0-9_-]+)\]\]/g)) for (const r of db.prepare('SELECT t.fedi_open, t.media_id FROM playlist_tracks pt JOIN audio_tracks t ON t.id = pt.track_id WHERE pt.playlist_id = ? AND t.media_id IS NOT NULL').all(m[1])) tally(r);
+  } catch { /* non-fatal */ }
+  return total > 0 && open === total;
+}
+
 router.post('/posts/create', requireAuth, (req, res) => {
   const site = res.locals.site;
   if (!site || !PermissionsService.canCreatePost(req.session.user, site)) {
@@ -227,6 +256,10 @@ router.post('/posts/create', requireAuth, (req, res) => {
     now, now, publishedAt
   );
 
+  // Per-post "share audio on the fediverse" → set fedi_open on this post's hosted tracks
+  // BEFORE federating, so the Create note carries the right Audio attachments.
+  setAudioFediOpen(site.id, cleanContent, req.body.fedi_open_audio);
+
   if (finalStatus === 'published') {
     try {
       db.prepare(
@@ -277,6 +310,7 @@ router.get('/posts/:slug/edit', requireAuth, (req, res) => {
   renderPage(req, res, 'pages/post-edit', {
     post,
     isNew: false,
+    fediOpenAudio: postAudioFediOpen(site.id, post.content),
     pageTitle: 'Edit: ' + (post.title || 'Untitled'),
     bodyClass: 'on-special',
   });
@@ -348,6 +382,10 @@ router.post('/posts/:slug/save', requireAuth, (req, res) => {
     finalType, noindex ? 1 : 0, fanOnly, nsfw, cw, publishAt,
     finalSlug, publishedAt, now, post.id
   );
+
+  // Per-post "share audio on the fediverse" → set fedi_open on this post's hosted tracks
+  // BEFORE federating, so the Update/Create note carries the right Audio attachments.
+  setAudioFediOpen(site.id, cleanContent, req.body.fedi_open_audio);
 
   // Update FTS
   try {
