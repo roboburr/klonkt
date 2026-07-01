@@ -1678,14 +1678,17 @@ export async function backfillFromOutbox(slug, actorUri, limit = 20) {
       // Each item is usually a Create wrapping a Note, or sometimes the Note itself.
       const o = (it && typeof it.object === 'object' && it.object) ? it.object : it;
       if (!o || !o.id) continue;
-      if (o.type && o.type !== 'Note' && o.type !== 'Article') continue; // skip boosts/other
+      if (o.type && o.type !== 'Note' && o.type !== 'Article' && o.type !== 'Question') continue; // skip boosts/other
       if (o.inReplyTo) continue;                                          // top-level only
       const auth = actorUriOf(o.attributedTo);
       if (auth && auth !== actorUri) continue;                            // their OWN posts only
       const html = HtmlSanitizerService.sanitize(o.content || '');
+      const poll = parsePoll(o); // a Question (poll) → carry its options/counts on backfill too
       try {
         const r = tlStmts().ins.run(o.id, slug, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.url || null, o.published || null, mediaFromNote(o), o.sensitive ? 1 : 0, o.summary || null);
         if (r && r.changes > 0) added++;
+        // Set poll_json if this is a poll and we don't already have it (COALESCE preserves a vote).
+        if (poll) { try { db.prepare('UPDATE ap_timeline SET poll_json = COALESCE(poll_json, ?) WHERE id = ? AND slug = ?').run(JSON.stringify(poll), o.id, slug); } catch { /* ignore */ } }
       } catch { /* ignore */ }
     }
     if (added) console.log('[AP] outbox backfill', actorUri, '→', slug, '+' + added);
