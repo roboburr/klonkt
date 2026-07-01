@@ -6,6 +6,9 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 ## [Unreleased]
 
 ### Toegevoegd
+- **Cover-art op openbaar gedeelde audio.** Een track die je openbaar op de fediverse deelt draagt
+  nu z'n cover-art mee (of de post-cover), zodat audiospelers die artwork ondersteunen die tonen in
+  plaats van een leeg vlak.
 - **Rapporteer een post op de fediverse.** Vanaf een fediverse-post kun je die nu melden bij de
   moderators van de eigen server van die post, met een optionele reden — en meldt iemand jouw site,
   dan verschijnt die melding in je fediverse-meldingen.

@@ -6,6 +6,8 @@ Versions follow [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Cover art on openly shared audio.** A track shared openly on the fediverse now carries its
+  cover art (or the post cover), so audio players that support artwork show it instead of a blank tile.
 - **Report a post to the fediverse.** From a fediverse post you can now report it to the moderators
   of its own home server, with an optional reason — and if someone reports your site, the report
   shows up in your fediverse notifications.

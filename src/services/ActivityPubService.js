@@ -298,13 +298,18 @@ export function buildNote(base, site, post) {
     const addRow = (r) => {
       const fn = r.filename || (r.storage_path || '').split('/').pop();
       if (!fn || seenA.has(fn)) return; seenA.add(fn);
-      openAudio.push({ type: 'Audio', mediaType: r.mime_type || 'audio/mpeg', url: `${base}/audio/stream/${encodeURIComponent(fn)}`, name: r.title || 'Audio' });
+      const a = { type: 'Audio', mediaType: r.mime_type || 'audio/mpeg', url: `${base}/audio/stream/${encodeURIComponent(fn)}`, name: r.title || 'Audio' };
+      // Cover art on the Audio attachment (AS2 `icon`): track cover, else the post cover.
+      // Mastodon renders it as the artwork thumbnail on its native audio player.
+      const art = abs(r.cover_url || post.cover_image_url || null);
+      if (art) a.icon = { type: 'Image', mediaType: mediaType(art), url: art };
+      openAudio.push(a);
     };
-    const SEL = 'SELECT t.title, m.filename, m.storage_path, m.mime_type FROM audio_tracks t JOIN media m ON m.id = t.media_id WHERE t.fedi_open = 1 AND ';
+    const SEL = 'SELECT t.title, t.cover_url, m.filename, m.storage_path, m.mime_type FROM audio_tracks t JOIN media m ON m.id = t.media_id WHERE t.fedi_open = 1 AND ';
     try {
       for (const mm of (post.content || '').matchAll(/\[\[track:([A-Za-z0-9_-]+)\]\]/g)) { const r = db.prepare(SEL + 't.id = ?').get(mm[1]); if (r) addRow(r); }
       for (const mm of (post.content || '').matchAll(/\[\[album:([^\]]+)\]\]/g)) for (const r of db.prepare(SEL + 't.site_id = ? AND t.album = ? ORDER BY t.rowid').all(site.id, mm[1].trim())) addRow(r);
-      for (const mm of (post.content || '').matchAll(/\[\[playlist:([A-Za-z0-9_-]+)\]\]/g)) for (const r of db.prepare('SELECT t.title, m.filename, m.storage_path, m.mime_type FROM playlist_tracks pt JOIN audio_tracks t ON t.id = pt.track_id JOIN media m ON m.id = t.media_id WHERE t.fedi_open = 1 AND pt.playlist_id = ? ORDER BY pt.position').all(mm[1])) addRow(r);
+      for (const mm of (post.content || '').matchAll(/\[\[playlist:([A-Za-z0-9_-]+)\]\]/g)) for (const r of db.prepare('SELECT t.title, t.cover_url, m.filename, m.storage_path, m.mime_type FROM playlist_tracks pt JOIN audio_tracks t ON t.id = pt.track_id JOIN media m ON m.id = t.media_id WHERE t.fedi_open = 1 AND pt.playlist_id = ? ORDER BY pt.position').all(mm[1])) addRow(r);
     } catch { /* non-fatal */ }
   }
   body = body.replace(/\[\[(track|album|playlist):[^\]]+\]\]/gi, '');

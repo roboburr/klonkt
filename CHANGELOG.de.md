@@ -6,6 +6,9 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 ## [Unreleased]
 
 ### Hinzugefügt
+- **Cover-Art bei offen geteiltem Audio.** Ein offen im Fediverse geteilter Track trägt jetzt sein
+  Cover (oder das Beitragscover) mit, sodass Audio-Player, die Artwork unterstützen, es statt einer
+  leeren Kachel anzeigen.
 - **Einen Beitrag im Fediverse melden.** Von einem Fediverse-Beitrag aus kannst du ihn jetzt den
   Moderatoren seines Heimatservers melden, mit optionaler Begründung — und meldet jemand deine Seite,
   erscheint die Meldung in deinen Fediverse-Benachrichtigungen.
