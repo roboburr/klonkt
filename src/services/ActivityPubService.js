@@ -1061,7 +1061,41 @@ export async function deliverActorUpdate(site) {
 // Mastodon's Add skips an already-pinned status, so we REMOVE every pin first, wait,
 // then ADD in rank-DESCENDING order (rank 1 added LAST → newest StatusPin → shown first,
 // because Mastodon displays pins newest-first). `alsoRemove` = ids to unpin too.
-export async function resyncFeaturedPins(site, alsoRemove = []) {
+// Serialize pin-resyncs per site: two concurrent /save calls would otherwise interleave
+// their Remove -> wait -> Add sequences and scramble the StatusPin order on Mastodon. A
+// resync already in flight for a site coalesces later requests into ONE rerun after it
+// finishes (accumulating their extra unpins), so rapid saves don't pile up N full resyncs.
+const _pinResync = new Map(); // slug -> { promise, pending, pendingRemove:Set, site }
+export function resyncFeaturedPins(site, alsoRemove = []) {
+  if (!site || !site.slug) return Promise.resolve();
+  const slug = site.slug;
+  const running = _pinResync.get(slug);
+  if (running) {
+    running.pending = true;
+    running.site = site; // use the latest site object on the rerun
+    for (const id of alsoRemove) running.pendingRemove.add(id);
+    return running.promise;
+  }
+  const state = { promise: null, pending: false, pendingRemove: new Set(), site };
+  state.promise = (async () => {
+    let extra = alsoRemove;
+    for (;;) {
+      try { await doResyncFeaturedPins(state.site, extra); }
+      catch (e) { console.warn('[AP] pin resync failed:', e.message); }
+      if (!state.pending) break;
+      state.pending = false;
+      extra = [...state.pendingRemove];
+      state.pendingRemove = new Set();
+    }
+    _pinResync.delete(slug);
+  })();
+  _pinResync.set(slug, state);
+  return state.promise;
+}
+
+// The actual resync work — do NOT call directly; go through resyncFeaturedPins() above so
+// it stays serialized per site.
+async function doResyncFeaturedPins(site, alsoRemove = []) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   if (!base || !site || !site.slug) return;
   const followers = fStmts().list.all(site.slug);
