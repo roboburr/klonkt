@@ -579,8 +579,9 @@ router.get('/authorize_interaction', requireSiteManager, async (req, res) => {
   const uri = (req.query.uri || '').toString();
   const sent = !!req.query.sent;
   const followed = !!req.query.followed;
+  const voted = !!req.query.voted;
   let target = null, followTarget = null;
-  if (!sent && !followed && uri) {
+  if (!sent && !followed && !voted && uri) {
     try { target = await ActivityPubService.resolveRemoteNote(uri); } catch { /* ignore */ }
     // Not a post? Maybe the URI is a profile/actor → offer Follow, not reply.
     if (!target) { try { followTarget = await ActivityPubService.resolveRemoteActor(uri); } catch { /* ignore */ } }
@@ -593,11 +594,24 @@ router.get('/authorize_interaction', requireSiteManager, async (req, res) => {
     followTarget,
     sent,
     followed,
+    voted: !!req.query.voted,
     liked: !!req.query.liked,
     boosted: !!req.query.boosted,
     reacted: (site && uri) ? ActivityPubService.getMyReactions(site.slug, uri) : { liked: false, boosted: false },
     siteTitle: site ? site.title : '',
   });
+});
+
+// 📊 Vote on a remote fediverse poll from the interact page (any poll by URL, not just
+// followed ones). Casts the Mastodon-standard ballot straight to the poll's author.
+router.post('/authorize_interaction/vote', requireSiteManager, async (req, res) => {
+  const site = res.locals.site;
+  const uri = (req.body.uri || '').toString();
+  let choice = req.body.choice;
+  if (choice == null) choice = [];
+  if (!Array.isArray(choice)) choice = [choice];
+  if (site && uri && choice.length) { try { await ActivityPubService.voteOnRemotePoll(site, uri, choice.map(String)); } catch { /* ignore */ } }
+  res.redirect('/authorize_interaction?voted=1&uri=' + encodeURIComponent(uri));
 });
 
 // ⭐ Like / unlike a remote post from your own site (toggle on the interact page).

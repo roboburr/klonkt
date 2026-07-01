@@ -1542,6 +1542,7 @@ export async function resolveRemoteNote(url) {
     images,
     threadInboxes,                                          // every ancestor author's inbox
     localPostId: localTgt ? localTgt.post_id : '',          // our post this belongs to (if any)
+    poll: parsePoll(note),                                  // a Question → its options/counts (else null)
     preview: HtmlSanitizerService.toPlainText(note.content || '').slice(0, 240),
   };
 }
@@ -2038,6 +2039,37 @@ export async function voteOnPoll(site, questionId, choices) {
   return { ok: true };
 }
 
+// Vote on ANY fediverse poll by URL (the interact page) — no timeline cache needed. Fetches
+// the Question fresh, validates the choice(s), and casts the Mastodon-standard ballot (a
+// Create(Note) with `name` + inReplyTo) straight to the poll's author. Used for polls you find
+// by URL, not just ones from accounts you follow (which go through voteOnPoll via /news).
+export async function voteOnRemotePoll(site, questionUrl, choices) {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  if (!base || !site || !site.slug || !/^https?:\/\//i.test(String(questionUrl || ''))) return { error: 'config' };
+  const q = await fetchActor(questionUrl).catch(() => null); // AP GET (SSRF-guarded)
+  if (!q || q.type !== 'Question' || !q.id) return { error: 'not_found' };
+  const poll = parsePoll(q);
+  if (!poll) return { error: 'not_found' };
+  if (poll.closed) return { error: 'closed' };
+  const valid = new Set(poll.options.map((o) => o.name));
+  const picks = (Array.isArray(choices) ? choices : [choices]).map(String).filter((c) => valid.has(c));
+  if (!picks.length) return { error: 'invalid' };
+  const chosen = poll.multiple ? [...new Set(picks)] : [picks[0]];
+  const authorUri = actorUriOf(q.attributedTo);
+  const author = authorUri ? await fetchActor(authorUri).catch(() => null) : null;
+  const inbox = author && (author.inbox || (author.endpoints && author.endpoints.sharedInbox));
+  if (!inbox) return { error: 'unreachable' };
+  const me = actorId(base, site.slug);
+  const keys = getOrCreateKeys(site.slug);
+  for (const name of chosen) {
+    const nid = `${me}/votes/${Date.now()}-${rid()}`;
+    const note = { id: nid, type: 'Note', attributedTo: me, to: [authorUri], name, inReplyTo: q.id, published: new Date().toISOString() };
+    const create = { '@context': AP_CONTEXT, id: `${nid}/activity`, type: 'Create', actor: me, to: note.to, object: note };
+    deliverWithRetry(site.slug, inbox, create, `${me}#main-key`, keys.private_pem);
+  }
+  return { ok: true };
+}
+
 export function isBlockedAny(actorUri) {
   if (!actorUri) return false;
   let domain = ''; try { domain = new URL(actorUri).host; } catch { /* ignore */ }
@@ -2092,7 +2124,7 @@ export default {
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, setMyReaction, getMyReactions, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate,
-  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, sendInteraction, voteOnPoll,
+  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, sendInteraction, voteOnPoll, voteOnRemotePoll,
   parseOwnPoll, pollTally, ownPollView, deliverPollUpdate,
   autoBoostCount, boostedCount, markBoosted, unmarkBoosted, markLiked, unmarkLiked, getTimelineReaction, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
