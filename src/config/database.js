@@ -16,6 +16,10 @@ if (!fs.existsSync(storageDir)) {
 const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
+// With WAL + several concurrent writers (request handlers, the delivery worker, the
+// background thread-crawler) a short write-lock should retry rather than throw SQLITE_BUSY.
+db.pragma('busy_timeout = 5000');   // wait up to 5s for a lock instead of failing immediately
+db.pragma('synchronous = NORMAL');  // safe with WAL (no torn writes); fewer fsyncs = faster writes
 
 export function initializeDatabase() {
   const tableExists = db.prepare(`
