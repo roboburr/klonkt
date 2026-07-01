@@ -142,7 +142,7 @@
         <span><%= t('fedi.remote_view_original') %></span>
       </a>
     <% } %>
-    <% if (target.poll) { var _pl = target.poll; var _tot = _pl.options.reduce(function(s,o){return s+(o.count||0);},0); %>
+    <% if (target.poll) { var _pl = target.poll; var _tot = _pl.options.reduce(function(s,o){return s+(o.count||0);},0); var _vn = (_pl.voters!=null?_pl.voters:_tot); %>
       <% if (!_pl.closed) { %>
         <form method="post" action="/authorize_interaction/vote" class="auth-poll">
           <input type="hidden" name="uri" value="<%= uri %>">
@@ -152,14 +152,14 @@
           <div class="auth-interact-actions">
             <button type="submit" class="btn btn-primary"><%= t('poll.vote') %></button>
           </div>
-          <p class="auth-poll-foot"><% if (_pl.multiple) { %><%= t('poll.multiple') %> · <% } %><%= (_pl.voters!=null?_pl.voters:_tot) %> <%= t('poll.votes') %></p>
+          <p class="auth-poll-foot"><%= _vn %> <%= _vn === 1 ? t('poll.voter_one') : t('poll.voter_many') %> · <%= t('poll.open') %><% if (_pl.endTime) { %> · <%= t('poll.closes') %> <%= new Date(_pl.endTime).toLocaleString() %><% } %><% if (_pl.multiple) { %> · <%= t('poll.multiple') %><% } %></p>
         </form>
       <% } else { %>
         <div class="auth-poll">
           <% _pl.options.forEach(function(o){ var _pct = _tot ? Math.round((o.count||0)*100/_tot) : 0; %>
             <div class="auth-poll-res"><span class="auth-poll-fill" style="width:<%= _pct %>%"></span><span class="auth-poll-name"><%= o.name %></span><span class="auth-poll-pct"><%= _pct %>%</span></div>
           <% }); %>
-          <p class="auth-poll-foot"><%= (_pl.voters!=null?_pl.voters:_tot) %> <%= t('poll.votes') %> · <%= t('poll.closed') %></p>
+          <p class="auth-poll-foot"><%= _vn %> <%= _vn === 1 ? t('poll.voter_one') : t('poll.voter_many') %> · <%= t('poll.closed') %><% if (_pl.multiple) { %> · <%= t('poll.multiple') %><% } %></p>
         </div>
       <% } %>
     <% } %>
