@@ -28,6 +28,11 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
   Die federeert als een echte fediverse-poll, dus je Mastodon-volgers kunnen stemmen vanuit hun eigen
   app; de live-resultaten staan op de post en de poll sluit zichzelf zodra de tijd om is.
 
+### Gewijzigd
+- **Audio openbaar delen is nu onomkeerbaar.** Zodra een track openbaar op de fediverse is gedeeld,
+  is het bestand verspreid — weer "sluiten" zou schijnveiligheid zijn. De editor vergrendelt de keuze
+  na het openen en waarschuwt je voordat je 'm aanvinkt.
+
 ## [1.2.0] — 2026-07-01
 
 ### Toegevoegd

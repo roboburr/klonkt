@@ -25,6 +25,11 @@ Versions follow [SemVer](https://semver.org/).
   duration). It federates as a real fediverse poll, so your Mastodon followers can vote from their own
   app; the live results show on the post and the poll closes itself when the time is up.
 
+### Changed
+- **Sharing audio openly is now one-way.** Once a track is shared openly on the fediverse the file
+  has spread, so "closing" it again would be false security — the editor now locks the choice after
+  opening and warns you before you tick it.
+
 ## [1.2.0] — 2026-07-01
 
 ### Added

@@ -211,13 +211,15 @@ router.get('/posts/new', requireAuth, (req, res) => {
 // flag is per track (audio_tracks.fedi_open — it gates the file + drives the AS2 Audio
 // attachment). NB: the file gate is per file, so opening a track in one post makes its file
 // fetchable for every post that reuses it.
+// ONE-WAY: opening is permanent. Once the file has federated it's out there — re-gating
+// would be false security (remote copies keep the URL), so we never write fedi_open back to 0.
 function setAudioFediOpen(siteId, content, open) {
-  const val = open ? 1 : 0;
+  if (!open) return; // never close — see one-way note above
   const c = content || '';
   try {
-    for (const m of c.matchAll(/\[\[track:([A-Za-z0-9_-]+)\]\]/g)) db.prepare('UPDATE audio_tracks SET fedi_open = ? WHERE id = ? AND site_id = ?').run(val, m[1], siteId);
-    for (const m of c.matchAll(/\[\[album:([^\]]+)\]\]/g)) db.prepare('UPDATE audio_tracks SET fedi_open = ? WHERE site_id = ? AND album = ?').run(val, siteId, m[1].trim());
-    for (const m of c.matchAll(/\[\[playlist:([A-Za-z0-9_-]+)\]\]/g)) db.prepare('UPDATE audio_tracks SET fedi_open = ? WHERE id IN (SELECT track_id FROM playlist_tracks WHERE playlist_id = ?)').run(val, m[1]);
+    for (const m of c.matchAll(/\[\[track:([A-Za-z0-9_-]+)\]\]/g)) db.prepare('UPDATE audio_tracks SET fedi_open = 1 WHERE id = ? AND site_id = ?').run(m[1], siteId);
+    for (const m of c.matchAll(/\[\[album:([^\]]+)\]\]/g)) db.prepare('UPDATE audio_tracks SET fedi_open = 1 WHERE site_id = ? AND album = ?').run(siteId, m[1].trim());
+    for (const m of c.matchAll(/\[\[playlist:([A-Za-z0-9_-]+)\]\]/g)) db.prepare('UPDATE audio_tracks SET fedi_open = 1 WHERE id IN (SELECT track_id FROM playlist_tracks WHERE playlist_id = ?)').run(m[1]);
   } catch { /* non-fatal */ }
 }
 // True when the post references hosted audio AND all of it is currently fedi_open (drives the

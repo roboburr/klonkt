@@ -261,10 +261,23 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
         <input type="text" name="content_warning" id="pe-cw" value="<%= post.content_warning || '' %>" maxlength="200"
                placeholder="<%= t('pedit.nsfw_cw_ph') %>"
                style="width:100%;box-sizing:border-box;margin:6px 0 2px;font-size:13px;padding:7px 9px">
+        <% var _fediOpen = (typeof fediOpenAudio !== 'undefined' && fediOpenAudio); %>
         <label class="pe-checkbox">
-          <input type="checkbox" name="fedi_open_audio" value="1" <%= (typeof fediOpenAudio !== 'undefined' && fediOpenAudio) ? 'checked' : '' %>>
+          <%# One-way: once opened, the file has federated — re-gating would be false security, so the box locks. %>
+          <input type="checkbox" name="fedi_open_audio" value="1" id="pe-fedi-audio" <%= _fediOpen ? 'checked disabled' : '' %>>
           <span>🌐 <%= t('pedit.fedi_audio_label') %></span>
         </label>
+        <% if (_fediOpen) { %>
+          <p style="font-size:12px;opacity:.7;margin:2px 0 0 26px"><%= t('pedit.fedi_audio_locked') %></p>
+        <% } else { %>
+          <p id="pe-fedi-audio-warn" style="font-size:12px;color:#c0392b;margin:2px 0 0 26px" hidden>⚠️ <%= t('pedit.fedi_audio_oneway') %></p>
+          <script>
+          (function () {
+            var cb = document.getElementById('pe-fedi-audio'), w = document.getElementById('pe-fedi-audio-warn');
+            if (cb && w && !cb.__wired) { cb.__wired = true; cb.addEventListener('change', function () { w.hidden = !cb.checked; }); }
+          })();
+          </script>
+        <% } %>
         <script>
         (function () {
           var cw = document.getElementById('pe-cw'), nsfw = document.getElementById('pe-nsfw');
@@ -297,7 +310,9 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
           .pe-poll-durlabel { display: block; font-size: 12.5px; opacity: .8; margin: 8px 0 4px; }
           .pe-poll-dur { padding: 7px 9px; border-radius: 7px; border: 1px solid var(--rule, rgba(128,128,128,.35)); background: transparent; color: inherit; font-size: 13px; }
         </style>
-        <div id="pe-poll-fields" class="pe-poll"<%= _poll ? '' : ' style="display:none"' %>>
+        <%# NB: keep the condition INSIDE the quoted attribute — escaped output (equals-tag)
+            turns a whole emitted style attribute into entity soup (fields showed always). %>
+        <div id="pe-poll-fields" class="pe-poll" style="<%= _poll ? '' : 'display:none' %>">
           <% if (_pollLocked) { %><p class="pe-poll-locked"><%= t('pedit.poll_locked') %></p><% } %>
           <div id="pe-poll-opts" data-ph="<%= t('pedit.poll_option_ph') %>" data-del="<%= t('pedit.poll_remove') %>">
             <% _pollOpts.forEach(function (o) { %>

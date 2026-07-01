@@ -30,6 +30,11 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
   Mastodon-Follower aus ihrer eigenen App abstimmen können; die Live-Ergebnisse stehen am Beitrag und
   die Umfrage schließt sich selbst, sobald die Zeit abgelaufen ist.
 
+### Geändert
+- **Audio offen zu teilen ist jetzt unumkehrbar.** Sobald ein Track offen im Fediverse geteilt wurde,
+  ist die Datei verbreitet — erneutes "Schließen" wäre Scheinsicherheit. Der Editor sperrt die Wahl
+  nach dem Öffnen und warnt dich, bevor du sie ankreuzt.
+
 ## [1.2.0] — 2026-07-01
 
 ### Hinzugefügt
