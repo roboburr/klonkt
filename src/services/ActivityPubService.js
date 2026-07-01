@@ -960,7 +960,8 @@ export async function handleInbox(req, slugParam) {
       try { const r = db.prepare('SELECT s.slug FROM posts p JOIN sites s ON s.id = p.site_id WHERE p.id = ? LIMIT 1').get(noteIds[0]); if (r) targetSlug = r.slug; } catch { /* ignore */ }
     }
     if (!targetSlug) return 202; // not about us / can't tell → drop
-    const ai = actorInfo(await resolveActor(claimedActor).catch(() => null), claimedActor);
+    // Flag is GATED, so `verified` is the signer's (reporter's) actor doc already.
+    const ai = actorInfo(verified || null, claimedActor);
     try {
       db.prepare('INSERT INTO ap_reports (slug, actor_uri, actor_name, actor_handle, actor_icon, content, objects, created_at) VALUES (?,?,?,?,?,?,?,CURRENT_TIMESTAMP)')
         .run(targetSlug, claimedActor || null, ai.name, ai.handle, ai.icon, HtmlSanitizerService.toPlainText(act.content || '').slice(0, 3000), JSON.stringify(objectUris.slice(0, 20)));
