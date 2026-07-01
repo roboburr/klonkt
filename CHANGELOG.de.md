@@ -5,16 +5,30 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-07-01
+
+### Hinzugefügt
+- **PeerTube-Videos im Feed.** Ein PeerTube-Link in einem Beitrag zeigt jetzt einen eingebetteten
+  Player im News-Feed, wie es YouTube, Spotify und SoundCloud bereits taten.
+- **Helle Teilen-Bilder.** Seiten mit einem hellen Standard-Theme erhalten beim Teilen einer Seite
+  nun eine passende helle Open-Graph-Karte statt immer einer dunklen.
+- **Eigene Besuche aus der Statistik ausschließen.** Als Administrator kannst du jetzt deine eigene
+  IP-Adresse aus deiner Seitenstatistik ausschließen, für ein wahreres Bild der echten Besucher.
+- **Rechtsklick „Speichern" ist bei Covern, Bildern und Videos deaktiviert** — eine leichte Hürde,
+  damit das Artwork nicht mit einem Klick gespeichert werden kann (Reibung, kein Schutz).
+
 ### Behoben
+- **Animierte Video-Cover werden jetzt überall korrekt angezeigt.** Im Zirkel und im Raster konnten
+  sie als kaputtes Bild oder leere Kachel erscheinen; sie werden nun als echtes, sich wiederholendes
+  Video angezeigt, das das Quadrat füllt, zentriert. Ein Rechtsklick auf ein Cover zeigt das normale
+  Link-Menü statt der Video-Steuerung des Browsers.
 - **Jemandem zu folgen bleibt nicht mehr hängen.** Eine Follow-Anfrage, deren erste Zustellung
   fehlschlägt (der andere Server kurz nicht erreichbar), wird jetzt automatisch mit Backoff erneut
   versucht, statt für immer auf „ausstehend" zu bleiben.
-- **Animierte Video-Cover werden in Feeds korrekt angezeigt.** Sie erscheinen nicht mehr leer in der
-  Rasteransicht.
-- **Cover-Videos sind wieder dekorativ.** Ein Rechtsklick auf ein Cover zeigt das normale Link-Menü
-  statt der Video-Steuerung des Browsers, und Rechtsklick „Speichern" ist bei Covern, Bildern und
-  Videos unterdrückt (leichte Reibung).
 - **Geboostete Beiträge zeigen ihren echten Text** im Zirkel, statt eines „RE: <Link>"-Präfixes.
+- **Robustere Fediverse-Verarbeitung** — strengere Signaturprüfungen bei eingehenden Aktivitäten,
+  Blockierungen erfassen jetzt auch einen Boost eines blockierten Autors, und die Synchronisierung
+  angehefteter Beiträge kollidiert nicht mehr, wenn du mehrmals schnell speicherst.
 
 ## [1.1.0] — 2026-06-30
 

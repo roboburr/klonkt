@@ -5,16 +5,30 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-07-01
+
+### Toegevoegd
+- **PeerTube-video's in de feed.** Een PeerTube-link in een post toont nu een ingesloten speler in de
+  News-feed, net zoals YouTube, Spotify en SoundCloud al deden.
+- **Lichte deel-afbeeldingen.** Sites met een licht standaardthema krijgen nu een bijpassende lichte
+  Open Graph-kaart bij het delen van een pagina, in plaats van altijd een donkere.
+- **Je eigen bezoeken buiten de statistieken laten.** Als beheerder kun je nu je eigen IP-adres
+  uitsluiten van je sitestatistieken, voor een eerlijker beeld van echte bezoekers.
+- **Rechtsklik "Opslaan" is uitgeschakeld op covers, afbeeldingen en video's** — een lichte drempel
+  zodat de artwork niet met één klik op te slaan is (frictie, geen bescherming).
+
 ### Opgelost
+- **Geanimeerde video-covers tonen nu overal correct.** In de Cirkel en het raster konden ze
+  verschijnen als een kapotte afbeelding of een leeg vak; ze tonen nu als een echte doorlopende video
+  die het vierkant vult, gecentreerd. Rechtsklikken op een cover geeft het normale link-menu in plaats
+  van de video-bediening van de browser.
 - **Iemand volgen blijft niet meer hangen.** Een volg-verzoek waarvan de eerste bezorging faalt (de
   andere server even onbereikbaar) wordt nu automatisch opnieuw geprobeerd, in plaats van eeuwig op
   "in behandeling" te blijven staan.
-- **Geanimeerde video-covers tonen correct in feeds.** Ze verschijnen niet meer als een leeg vak in
-  het raster.
-- **Cover-video's zijn weer decoratief.** Rechtsklikken op een cover geeft het normale link-menu in
-  plaats van de video-bediening van de browser, en rechtsklik "Opslaan" is onderdrukt op covers,
-  afbeeldingen en video's (lichte frictie).
 - **Geboooste posts tonen hun echte tekst** in de Cirkel, in plaats van een "RE: <link>"-prefix.
+- **Steviger fediverse-afhandeling** — strengere handtekening-controles op inkomende activiteit,
+  blokkades dekken nu ook een boost van een geblokkeerde auteur, en het synchroniseren van gepinde
+  posts racet niet meer als je snel achter elkaar opslaat.
 
 ## [1.1.0] — 2026-06-30
 

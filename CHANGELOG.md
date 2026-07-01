@@ -5,13 +5,27 @@ Versions follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-07-01
+
+### Added
+- **PeerTube videos in the feed.** A PeerTube link in a post now shows an inline player in the News
+  feed, like YouTube, Spotify and SoundCloud already did.
+- **Light share images.** Sites whose default theme is Light now get a matching light Open Graph card
+  when a page is shared, instead of always a dark one.
+- **Leave your own visits out of the stats.** As the admin you can now exclude your own IP address
+  from your site statistics, for a truer picture of real visitors.
+- **Right-click "Save" is turned off on covers, images and videos** — a light bit of friction so the
+  artwork isn't one click from being saved (it's friction, not protection).
+
 ### Fixed
+- **Animated video covers now render correctly everywhere.** In the Circle and the grid they could
+  show up as a broken image or a blank tile; they now display as a proper looping video that fills the
+  square, centred. Right-clicking a cover gives the normal link menu instead of the browser's video controls.
 - **Following someone no longer gets stuck.** A follow whose first delivery fails (the other server
   briefly unreachable) is now retried automatically with backoff, instead of staying on "pending" forever.
-- **Animated video covers show correctly in feeds.** They no longer appear blank in the grid view.
-- **Cover videos are decorative again.** Right-clicking a cover gives the normal link menu instead of the
-  browser's video controls, and right-click "Save" is suppressed on covers, images and videos (light friction).
 - **Boosted posts show their real text** in the Circle, instead of a "RE: <link>" prefix.
+- **Hardened fediverse handling** — stricter signature checks on incoming activity, blocks now also
+  cover a boost of a blocked author, and pinned-post syncing no longer races when you save several times quickly.
 
 ## [1.1.0] — 2026-06-30
 
