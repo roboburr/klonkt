@@ -14,7 +14,7 @@ import ActivityPubService from './ActivityPubService.js';
 export function flipScheduledPosts() {
   try {
     const due = db.prepare(`
-      SELECT p.id, p.site_id, p.slug, p.title, p.content, p.cover_image_url, p.cover_video_url, p.fan_only, p.nsfw, p.content_warning, p.poll_json,
+      SELECT p.id, p.site_id, p.slug, p.title, p.content, p.cover_image_url, p.cover_video_url, p.cover_alt, p.fan_only, p.nsfw, p.content_warning, p.poll_json,
              p.published_at, p.publish_at, p.created_at, u.username
       FROM posts p JOIN users u ON u.id = p.author_id
       WHERE p.status = 'scheduled' AND p.publish_at IS NOT NULL AND datetime(p.publish_at) <= datetime('now')
@@ -37,7 +37,7 @@ export function flipScheduledPosts() {
         if (site) {
           ActivityPubService.deliverCreate(site, {
             id: p.id, slug: p.slug, title: p.title || p.slug,
-            content: p.content, cover_image_url: p.cover_image_url || null, cover_video_url: p.cover_video_url || null,
+            content: p.content, cover_image_url: p.cover_image_url || null, cover_video_url: p.cover_video_url || null, cover_alt: p.cover_alt,
             published_at: p.published_at || p.publish_at, created_at: p.created_at, fan_only: p.fan_only, nsfw: p.nsfw, content_warning: p.content_warning, poll_json: p.poll_json,
           }).catch(() => { /* best-effort */ });
         }

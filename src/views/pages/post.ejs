@@ -19,7 +19,7 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
 
   <% if (post.cover_image_url) { %>
     <figure class="post-cover">
-      <img src="<%= post.cover_image_url %>" alt=""<% if (post.cover_video_url) { %> data-ios-mp4="<%= post.cover_video_url %>"<% } %>>
+      <img src="<%= post.cover_image_url %>" alt="<%= post.cover_alt || '' %>"<% if (post.cover_video_url) { %> data-ios-mp4="<%= post.cover_video_url %>"<% } %>>
     </figure>
   <% } %>
 

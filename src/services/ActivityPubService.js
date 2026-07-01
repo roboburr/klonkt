@@ -261,15 +261,20 @@ export function buildNote(base, site, post) {
   // keeps its cover (no player card to show).
   // An animated cover federates as the muted loop MP4 (→ a Video attachment): animated WebP is
   // unreliable on Mastodon and its iOS apps; the MP4 plays everywhere. Else the still cover image.
-  if (post.cover_video_url && !noImages) urls.push(abs(post.cover_video_url));
-  else if (post.cover_image_url && !noImages) urls.push(abs(post.cover_image_url));
+  // Each entry carries the media URL + its alt text (federated as the AS2 attachment `name`, for a11y).
+  if (post.cover_video_url && !noImages) urls.push({ url: abs(post.cover_video_url), name: post.cover_alt || '' });
+  else if (post.cover_image_url && !noImages) urls.push({ url: abs(post.cover_image_url), name: post.cover_alt || '' });
   let body = post.content || '';
   // Only federate inline images we can actually serve: absolute http(s) URLs, or our own
   // /media/ uploads. A relative path we don't host (e.g. a stale /images/... ref) would 404
-  // and show up as a black tile in Mastodon's attachment grid.
-  if (!noImages) for (const m of body.matchAll(/<img\b[^>]*\bsrc="([^"]+)"[^>]*>/gi)) {
-    const src = m[1];
-    if (/^https?:\/\//i.test(src) || src.startsWith('/media/')) urls.push(abs(src));
+  // and show up as a black tile in Mastodon's attachment grid. Carry the <img alt="…"> through
+  // as the attachment description.
+  if (!noImages) for (const m of body.matchAll(/<img\b[^>]*>/gi)) {
+    const tag = m[0];
+    const src = (tag.match(/\bsrc="([^"]+)"/i) || [])[1];
+    if (!src || !(/^https?:\/\//i.test(src) || src.startsWith('/media/'))) continue;
+    const alt = (tag.match(/\balt="([^"]*)"/i) || [])[1] || '';
+    urls.push({ url: abs(src), name: alt });
   }
   body = body.replace(/<img\b[^>]*>/gi, '');
   // Audio shortcodes: do NOT federate the raw audio file — Klonkt deliberately
@@ -344,11 +349,13 @@ export function buildNote(base, site, post) {
     if (tagLinks.length) body += `<p>${tagLinks.join(' ')}</p>`;
   }
   const seen = new Set();
-  const attachment = urls.filter(Boolean)
-    .filter((u) => { if (seen.has(u)) return false; seen.add(u); return true; })
-    .map((u) => { const mt = mediaType(u); // specific AS2 subtype (Image/Audio/Video) over generic Document
+  const attachment = urls.filter((x) => x && x.url)
+    .filter((x) => { if (seen.has(x.url)) return false; seen.add(x.url); return true; })
+    .map((x) => { const mt = mediaType(x.url); // specific AS2 subtype (Image/Audio/Video) over generic Document
       const ty = /^image\//i.test(mt) ? 'Image' : /^video\//i.test(mt) ? 'Video' : /^audio\//i.test(mt) ? 'Audio' : 'Document';
-      return { type: ty, mediaType: mt, url: u }; });
+      const a = { type: ty, mediaType: mt, url: x.url };
+      if (x.name) a.name = String(x.name).slice(0, 1500); // alt text / description (AS2 `name`)
+      return a; });
   for (const a of openAudio) attachment.push(a); // fedi_open tracks → native Audio players
 
   // Inline @user@host mentions: the Mention tag objects + the mentioned actor URIs. Only
@@ -384,7 +391,7 @@ export function buildNote(base, site, post) {
   // `image`, so its card is unaffected — but a Klonkt receiver reads it (handleInbox o.image).
   if (post.cover_image_url && noImages) {
     const cov = abs(post.cover_image_url);
-    if (cov) note.image = { type: 'Image', mediaType: mediaType(cov), url: cov };
+    if (cov) { note.image = { type: 'Image', mediaType: mediaType(cov), url: cov }; if (post.cover_alt) note.image.name = String(post.cover_alt).slice(0, 1500); }
   }
   // Experiment (mirrors PeerTube / schema.org `embedUrl`): point at the GATED player page
   // (/embed) so a client that honours embedUrl can show an inline player WITHOUT ever

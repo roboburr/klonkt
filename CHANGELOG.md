@@ -6,6 +6,8 @@ Versions follow [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Alt text for images.** Give your cover image a description (and inline images keep their own
+  alt text) — it federates to the fediverse and lets screen readers describe the picture.
 - **Mention people in a post.** Typing `@user@server` in a post now links to their profile and
   notifies them on the fediverse — even if they don't follow you — just like a mention in a reply.
 - **Short videos in the feed autoplay and loop.** An animated cover or a short (≤30s) clip in the

@@ -6,6 +6,8 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 ## [Unreleased]
 
 ### Hinzugefügt
+- **Alt-Text für Bilder.** Gib deinem Titelbild eine Beschreibung (Inline-Bilder behalten ihren
+  eigenen Alt-Text) — sie föderiert ins Fediverse und lässt Screenreader das Bild beschreiben.
 - **Erwähne Personen in einem Beitrag.** `@benutzer@server` in einem Beitrag verlinkt jetzt auf ihr
   Profil und benachrichtigt sie im Fediverse — auch wenn sie dir nicht folgen — wie eine Erwähnung
   in einer Antwort.

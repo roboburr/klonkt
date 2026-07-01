@@ -105,6 +105,12 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
                    inputmode="url" autocapitalize="none" spellcheck="false"
                    placeholder="<%= t('pedit.cover_url_placeholder') %>">
           </label>
+          <label class="pe-field">
+            <span><%= t('pedit.f_cover_alt') %></span>
+            <input type="text" name="cover_alt" id="cover-alt-field" maxlength="1500"
+                   value="<%= post.cover_alt || '' %>"
+                   placeholder="<%= t('pedit.cover_alt_placeholder') %>">
+          </label>
           <%# Muted loop MP4 for an animated cover (auto-made from an animated WebP). Hidden — set by the uploader. %>
           <input type="hidden" name="cover_video_url" id="cover-video-field" value="<%= post.cover_video_url || '' %>">
           <div class="pe-cover-upload">
