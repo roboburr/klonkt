@@ -5,6 +5,8 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-07-02
+
 ### Toegevoegd
 - **Kies een lichte of donkere deel-kaart.** De automatisch gemaakte deel-afbeelding volgt je
   site-thema; onder Beheer → SEO kun je 'm nu geforceerd licht of donker zetten.

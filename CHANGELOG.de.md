@@ -5,6 +5,8 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-07-02
+
 ### Hinzugefügt
 - **Wähle eine helle oder dunkle Teilen-Karte.** Das automatisch erzeugte Teilbild folgt deinem
   Site-Thema; unter Verwaltung → SEO kannst du es jetzt fest auf hell oder dunkel stellen.

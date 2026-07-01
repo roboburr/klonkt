@@ -5,6 +5,8 @@ Versions follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-07-02
+
 ### Added
 - **Choose a light or dark share card.** The auto-generated share image follows your site theme;
   under Admin → SEO you can now force it light or dark.
