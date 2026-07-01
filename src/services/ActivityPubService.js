@@ -659,6 +659,21 @@ export function getInteractions(postId, base, site) {
 
 // ── HTTP Signatures + delivery ────────────────────────────────────
 const slugFromActorUrl = (url) => { const m = String(url || '').match(/\/ap\/users\/([^/?#]+)/); return m ? decodeURIComponent(m[1]) : null; };
+// Which of OUR sites are named in a note's Mention tags? Only hrefs on our own base count
+// (an /ap/users/<slug> path on a remote host is someone else's actor), and the slug must be
+// an existing site. Deduped.
+export function localMentionSlugs(tags, base) {
+  if (!base) return [];
+  const out = [], seen = new Set();
+  for (const t of (Array.isArray(tags) ? tags : (tags ? [tags] : []))) {
+    if (!t || t.type !== 'Mention' || typeof t.href !== 'string') continue;
+    if (!t.href.startsWith(base + '/ap/users/')) continue;
+    const slug = slugFromActorUrl(t.href);
+    if (!slug || seen.has(slug)) continue; seen.add(slug);
+    try { if (db.prepare('SELECT 1 FROM sites WHERE slug = ?').get(slug)) out.push(slug); } catch { /* ignore */ }
+  }
+  return out;
+}
 
 // Sign + POST an activity to a remote inbox (draft-cavage HTTP Signatures, RSA-SHA256).
 export async function deliver(inboxUrl, bodyObj, keyId, privatePem) {
@@ -1072,6 +1087,24 @@ export async function handleInbox(req, slugParam) {
           if (poll) { try { db.prepare('UPDATE ap_timeline SET poll_json = ? WHERE id = ? AND slug = ?').run(JSON.stringify(poll), o.id, s.slug); } catch { /* ignore */ } }
         }
         console.log('[AP] timeline +', actorUri, 'x' + subs.length);
+      }
+    }
+    // Mentioned in a post that is NOT a reply to our content (a reply to us already returned
+    // above): store a mention notification for each of our actors named in the Mention tags.
+    // Requires our own base prefix on the tag href — /ap/users/<slug> on a REMOTE host is
+    // someone else's actor, not ours.
+    if (actorUri && !isLocalActor && o.id) {
+      const slugs = localMentionSlugs(o.tag, base);
+      if (slugs.length) {
+        const ai = actorInfo(await resolveActor(actorUri), actorUri);
+        const html = HtmlSanitizerService.sanitize(o.content || '');
+        for (const slug of slugs) {
+          try {
+            const r = db.prepare('INSERT OR IGNORE INTO ap_mentions (slug, object_uri, note_url, actor_uri, actor_name, actor_handle, actor_icon, actor_url, content, published, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)')
+              .run(slug, o.id, safeUrl(o.url) || null, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.published || null);
+            if (r.changes) console.log('[AP] mention', actorUri, '→', slug);
+          } catch { /* ignore */ }
+        }
       }
     }
     return 202;
@@ -2160,6 +2193,11 @@ export function getNotifications(slug, limit) {
       out.push({ type: 'report', name: r.actor_name, handle: r.actor_handle, url: r.actor_uri, icon: r.actor_icon, content: r.content, created_at: r.created_at });
     }
   } catch { /* ignore */ }
+  try {
+    for (const r of db.prepare('SELECT object_uri, note_url, actor_uri, actor_name, actor_handle, actor_icon, actor_url, content, created_at FROM ap_mentions WHERE slug = ? ORDER BY created_at DESC LIMIT 50').all(slug)) {
+      out.push({ type: 'mention', name: r.actor_name, handle: r.actor_handle, url: r.actor_url || r.actor_uri, icon: r.actor_icon, content: stripLeadingMentions(r.content), note_url: r.note_url || r.object_uri, created_at: r.created_at });
+    }
+  } catch { /* ignore */ }
   out.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   return out.slice(0, limit || 60);
 }
@@ -2334,7 +2372,7 @@ export default {
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, setMyReaction, getMyReactions, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate,
   webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, sendInteraction, voteOnPoll, voteOnRemotePoll,
-  parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread, sendReport,
+  parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread, sendReport, localMentionSlugs,
   autoBoostCount, boostedCount, markBoosted, unmarkBoosted, markLiked, unmarkLiked, getTimelineReaction, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,

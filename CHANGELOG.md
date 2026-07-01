@@ -6,6 +6,9 @@ Versions follow [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **A mention is now a notification.** When someone on the fediverse mentions you in a post —
+  even one that isn't a reply to you — it shows up in your fediverse notifications with a link
+  to the original.
 - **Cover art on openly shared audio.** A track shared openly on the fediverse now carries its
   cover art (or the post cover), so audio players that support artwork show it instead of a blank tile.
 - **Report a post to the fediverse.** From a fediverse post you can now report it to the moderators

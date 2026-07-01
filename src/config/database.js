@@ -346,6 +346,18 @@ export function initializeDatabase() {
       UNIQUE(post_id, actor_uri, choice)
     );
     CREATE INDEX IF NOT EXISTS idx_poll_votes_post ON poll_votes(post_id);
+    CREATE TABLE IF NOT EXISTS ap_mentions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug TEXT NOT NULL,           -- our mentioned site/actor
+      object_uri TEXT NOT NULL,     -- the remote note that mentions us
+      note_url TEXT,                -- its human URL (open/interact)
+      actor_uri TEXT, actor_name TEXT, actor_handle TEXT, actor_icon TEXT, actor_url TEXT,
+      content TEXT,                 -- sanitized HTML snippet of the mentioning note
+      published TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(slug, object_uri)
+    );
+    CREATE INDEX IF NOT EXISTS idx_ap_mentions_slug ON ap_mentions(slug, created_at);
     CREATE TABLE IF NOT EXISTS ap_reports (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       slug TEXT NOT NULL,           -- our site the report is about (its owner moderates)

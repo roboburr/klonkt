@@ -6,7 +6,7 @@
   <% } else { %>
     <ul class="nt-list">
       <% items.forEach(function(n){
-           var _ic = n.type === 'follow' ? 'follow' : (n.type === 'like' ? 'like' : (n.type === 'announce' ? 'boost' : (n.type === 'report' ? 'report' : 'reply')));
+           var _ic = n.type === 'follow' ? 'follow' : (n.type === 'like' ? 'like' : (n.type === 'announce' ? 'boost' : (n.type === 'report' ? 'report' : (n.type === 'mention' ? 'mention' : 'reply'))));
       %>
         <li class="nt-item nt-<%= _ic %>">
           <span class="nt-icon" aria-hidden="true">
@@ -14,6 +14,7 @@
             <% } else if (_ic === 'boost') { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
             <% } else if (_ic === 'follow') { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
             <% } else if (_ic === 'report') { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+            <% } else if (_ic === 'mention') { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94"/></svg>
             <% } else { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><% } %>
           </span>
           <div class="nt-body">
@@ -27,11 +28,13 @@
               <% } else if (n.type === 'like') { %><%= t('notif.liked') %>
               <% } else if (n.type === 'announce') { %><%= t('notif.boosted') %>
               <% } else if (n.type === 'report') { %><%= t('notif.reported') %>
+              <% } else if (n.type === 'mention') { %><%= t('notif.mentioned') %>
               <% } else { %><%= t('notif.replied') %><% } %>
               <% if (n.post_slug) { %><a class="nt-post" href="/<%= n.post_slug %>"><%= n.post_title || n.post_slug %></a><% } %>
+              <% if (n.type === 'mention' && n.note_url) { %><a class="nt-post" href="<%= n.note_url %>" target="_blank" rel="nofollow noopener"><%= t('tl.view_original') %></a><% } %>
             </div>
             <% if (n.type === 'report' && n.content) { %><div class="nt-content"><%= n.content %></div>
-            <% } else if (n.type === 'reply' && n.content) { %><div class="nt-content"><%- n.content %></div><% } %>
+            <% } else if ((n.type === 'reply' || n.type === 'mention') && n.content) { %><div class="nt-content"><%- n.content %></div><% } %>
           </div>
         </li>
       <% }); %>
@@ -58,6 +61,7 @@
   .nt-boost .nt-icon { background: color-mix(in srgb, #2fa85a 16%, transparent); color: #2fa85a; }
   .nt-follow .nt-icon, .nt-reply .nt-icon { background: color-mix(in srgb, var(--accent, #888) 16%, transparent); color: var(--accent, #06c); }
   .nt-report .nt-icon { background: color-mix(in srgb, #c0392b 16%, transparent); color: #c0392b; }
+  .nt-mention .nt-icon { background: color-mix(in srgb, #8e6cf0 16%, transparent); color: #8e6cf0; }
   .nt-body { flex: 1; min-width: 0; }
   .nt-line { display: flex; align-items: baseline; gap: .4rem; }
   .nt-who { font-weight: 700; color: var(--ink, inherit); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

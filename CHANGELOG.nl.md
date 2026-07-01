@@ -6,6 +6,9 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 ## [Unreleased]
 
 ### Toegevoegd
+- **Een vermelding is nu een melding.** Als iemand op de fediverse je noemt in een post — ook
+  eentje die geen reactie op jou is — verschijnt dat in je fediverse-meldingen met een link naar
+  het origineel.
 - **Cover-art op openbaar gedeelde audio.** Een track die je openbaar op de fediverse deelt draagt
   nu z'n cover-art mee (of de post-cover), zodat audiospelers die artwork ondersteunen die tonen in
   plaats van een leeg vlak.

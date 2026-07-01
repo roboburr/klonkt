@@ -6,6 +6,9 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 ## [Unreleased]
 
 ### Hinzugefügt
+- **Eine Erwähnung ist jetzt eine Benachrichtigung.** Wenn dich jemand im Fediverse in einem
+  Beitrag erwähnt — auch in einem, der keine Antwort an dich ist — erscheint das in deinen
+  Fediverse-Benachrichtigungen mit einem Link zum Original.
 - **Cover-Art bei offen geteiltem Audio.** Ein offen im Fediverse geteilter Track trägt jetzt sein
   Cover (oder das Beitragscover) mit, sodass Audio-Player, die Artwork unterstützen, es statt einer
   leeren Kachel anzeigen.
