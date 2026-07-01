@@ -264,6 +264,20 @@
   window.addEventListener('scroll', close, true);
 })();
 
+/* Short feed videos (gif/cover loops like an animated cover) autoplay + loop muted like a GIF;
+   longer real videos keep their controls. Decided on the actual duration once metadata loads. */
+(function(){
+  document.querySelectorAll('.tl-media-video').forEach(function(v){
+    if (v.dataset.gifWired) return; v.dataset.gifWired = '1';
+    var decide = function(){
+      if (v.duration && v.duration <= 30) {
+        v.removeAttribute('controls'); v.loop = true; v.muted = true; v.play().catch(function(){});
+      }
+    };
+    if (v.readyState >= 1) decide(); else v.addEventListener('loadedmetadata', decide, { once: true });
+  });
+})();
+
 /* Like/Boost toggle in place — POST via fetch, flip the button, stay on the page (no reload, no banner). */
 (function(){
   if (window.__newsReactWired) return; window.__newsReactWired = true;
