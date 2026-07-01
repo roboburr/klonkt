@@ -1835,6 +1835,99 @@ export async function backfillFromOutbox(slug, actorUri, limit = 20) {
     return added;
   } catch { return 0; }
 }
+
+// ── Remote thread crawl (fill the gaps in a local post's conversation) ────────────
+// Most replies reach us by delivery, but replies-to-replies that live on other servers and
+// aren't addressed to us are missed. This pulls the AS2 `replies` collections of the replies
+// we DO have, caching any newly-found ones in ap_interactions. Bounded (depth/fetch caps),
+// polite (serial), PULL only, and stale-while-revalidate: it never runs in a page request —
+// the view renders from cache; a stale post kicks off a background refresh for the NEXT view.
+const THREAD_TTL_MS = 15 * 60 * 1000;   // don't re-crawl a post more than ~4×/hour
+const THREAD_MAX_DEPTH = 3;             // replies-to-replies-to-replies
+const THREAD_MAX_FETCHES = 30;          // hard cap on remote GETs per crawl (be a good peer)
+const _crawlingThreads = new Set();     // per-post in-flight lock (no stampede across views)
+
+function threadCrawlTs(postId) {
+  try { const r = db.prepare('SELECT value FROM app_settings WHERE key = ?').get('thread_crawl:' + postId); return r ? (Number(r.value) || 0) : 0; }
+  catch { return 0; }
+}
+function setThreadCrawlTs(postId, ts) {
+  try { db.prepare('INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run('thread_crawl:' + postId, String(ts)); }
+  catch { /* ignore */ }
+}
+
+// Read a note's `replies` (string ref / Collection with `first` / paged CollectionPages) →
+// child note URIs. Every remote GET goes through `budget` so the whole crawl stays capped.
+async function collectReplyItems(repliesRef, maxPages, budget) {
+  const uris = [];
+  let node = typeof repliesRef === 'string' ? await budget.get(repliesRef) : repliesRef;
+  if (node && node.first) node = typeof node.first === 'string' ? await budget.get(node.first) : node.first;
+  let pages = 0;
+  while (node && pages++ < maxPages) {
+    for (const it of (node.items || node.orderedItems || [])) {
+      const u = typeof it === 'string' ? it : (it && it.id);
+      if (u && /^https?:\/\//i.test(u)) uris.push(u);
+    }
+    if (!node.next) break;
+    node = typeof node.next === 'string' ? await budget.get(node.next) : node.next;
+  }
+  return uris;
+}
+
+async function crawlThread(postId) {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  if (!base) return;
+  // Seed frontier = the remote reply note URIs we already have; also the dedup set.
+  let known;
+  try { known = new Set(db.prepare("SELECT object_uri FROM ap_interactions WHERE post_id = ? AND kind = 'reply' AND object_uri != ''").all(postId).map((r) => r.object_uri)); }
+  catch { return; }
+  const seeds = [...known].filter((u) => /^https?:\/\//i.test(u));
+  if (!seeds.length) return; // nothing remote to expand
+
+  let fetches = 0;
+  const budget = { get: async (u) => { if (fetches >= THREAD_MAX_FETCHES) return null; fetches++; return apGetJson(u); } };
+  const visited = new Set(); // notes whose replies collection we've already expanded
+  let frontier = seeds.slice();
+  let added = 0;
+
+  for (let depth = 0; depth < THREAD_MAX_DEPTH && frontier.length && fetches < THREAD_MAX_FETCHES; depth++) {
+    const nextFrontier = [];
+    for (const noteUri of frontier) {
+      if (visited.has(noteUri) || fetches >= THREAD_MAX_FETCHES) continue;
+      visited.add(noteUri);
+      const note = await budget.get(noteUri);
+      if (!note || !note.replies) continue;
+      const childUris = await collectReplyItems(note.replies, 2, budget);
+      for (const cu of childUris) {
+        if (known.has(cu) || fetches >= THREAD_MAX_FETCHES) continue;
+        known.add(cu);
+        const child = await budget.get(cu);
+        if (!child || !child.id || (child.type !== 'Note' && child.type !== 'Article')) continue;
+        const actorUri = actorUriOf(child.attributedTo);
+        if (!actorUri || isBlockedAny(actorUri)) continue; // skip blocked authors
+        const actor = await budget.get(actorUri); // may be null if budget spent → fallback handle
+        const ai = actorInfo(actor, actorUri);
+        const html = HtmlSanitizerService.sanitize(child.content || '');
+        // The child replies to `note` by construction (it's in note's replies collection).
+        try { iStmts().ins.run('reply', postId, child.id, actorUri, ai.name, ai.handle, ai.url, ai.icon, html, child.published || null, note.id || noteUri); added++; } catch { /* ignore */ }
+        nextFrontier.push(child.id); // expand this reply's own replies next depth
+      }
+    }
+    frontier = nextFrontier;
+  }
+  if (added) console.log('[AP] thread crawl', postId, '+' + added, 'remote replies (' + fetches + ' fetches)');
+}
+
+// Stale-while-revalidate entry point: call from the post view. Renders nothing, blocks nothing —
+// fires a background crawl only if this post hasn't been crawled within the TTL.
+export function maybeCrawlThread(postId) {
+  if (!postId || _crawlingThreads.has(postId)) return;
+  if (Date.now() - threadCrawlTs(postId) < THREAD_TTL_MS) return;
+  _crawlingThreads.add(postId);
+  setThreadCrawlTs(postId, Date.now()); // optimistic mark so concurrent/next views don't re-fire
+  crawlThread(postId).catch((e) => console.warn('[AP] thread crawl failed:', e && e.message)).finally(() => _crawlingThreads.delete(postId));
+}
+
 let _selfHealing = false;
 export async function selfHealTimeline() {
   if (_selfHealing) return; _selfHealing = true;
@@ -2139,7 +2232,7 @@ export default {
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, setMyReaction, getMyReactions, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate,
   webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, sendInteraction, voteOnPoll, voteOnRemotePoll,
-  parseOwnPoll, pollTally, ownPollView, deliverPollUpdate,
+  parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread,
   autoBoostCount, boostedCount, markBoosted, unmarkBoosted, markLiked, unmarkLiked, getTimelineReaction, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,

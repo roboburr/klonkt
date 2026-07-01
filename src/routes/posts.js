@@ -1121,6 +1121,9 @@ router.get('/:slug', (req, res, next) => {
   try {
     const _apBase = (process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
     fediverse = ActivityPubService.getInteractions(post.id, _apBase, site);
+    // Stale-while-revalidate: render from cache now; refresh the remote thread in the
+    // background (TTL-gated, non-blocking) so undelivered replies-to-replies fill in next view.
+    if (res.locals.apEnabled !== false) ActivityPubService.maybeCrawlThread(post.id);
   } catch { /* non-fatal */ }
   // Owner/admin of this site may reply back to a fediverse interaction.
   const canManageSite = !!(req.session?.user && PermissionsService.canAdminSite(req.session.user, site));
