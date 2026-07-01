@@ -346,6 +346,17 @@ export function initializeDatabase() {
       UNIQUE(post_id, actor_uri, choice)
     );
     CREATE INDEX IF NOT EXISTS idx_poll_votes_post ON poll_votes(post_id);
+    CREATE TABLE IF NOT EXISTS ap_reports (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug TEXT NOT NULL,           -- our site the report is about (its owner moderates)
+      actor_uri TEXT,               -- the reporter's actor URI
+      actor_name TEXT, actor_handle TEXT, actor_icon TEXT,
+      content TEXT,                 -- the reason (plain text)
+      objects TEXT,                 -- JSON array of reported object URIs (our actor + statuses)
+      seen INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_ap_reports_slug ON ap_reports(slug, created_at);
   `);
   // "Feature" a followed account: its posts show in the local Cirkel.
   ensureColumn('ap_following', 'auto_boost', 'INTEGER DEFAULT 0');

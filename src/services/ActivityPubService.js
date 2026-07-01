@@ -935,12 +935,38 @@ export async function handleInbox(req, slugParam) {
   const claimedActor = typeof act.actor === 'string' ? act.actor : (act.actor && act.actor.id);
   // Blocked actor/domain → silently drop (202, don't reveal the block).
   if (claimedActor && isBlockedAny(claimedActor)) { console.log('[AP] inbox dropped (blocked)', claimedActor, 'from', ip); return 202; }
-  const GATED = ['Create', 'Like', 'Announce', 'Follow', 'Delete', 'Undo', 'Accept', 'Reject', 'Add', 'Remove', 'Update'];
+  const GATED = ['Create', 'Like', 'Announce', 'Follow', 'Delete', 'Undo', 'Accept', 'Reject', 'Add', 'Remove', 'Update', 'Flag'];
   if (GATED.includes(type)) {
     if (!verified || !claimedActor || verified.id !== claimedActor) {
       console.warn('[AP] inbox REJECTED (signature)', type, claimedActor || '?', 'from', ip, verified ? '(signer mismatch)' : '(unsigned/invalid)');
       return 401;
     }
+  }
+
+  // A moderation report (Flag) about our content — store it for the targeted site's owner
+  // (each Klonkt site is moderated by its own owner). Signature is enforced (GATED).
+  if (type === 'Flag') {
+    const objs = Array.isArray(act.object) ? act.object : (act.object ? [act.object] : []);
+    const objectUris = objs.map((o) => (typeof o === 'string' ? o : (o && o.id))).filter(Boolean);
+    let targetSlug = null;
+    const noteIds = [];
+    for (const u of objectUris) {
+      const s = slugFromActorUrl(u);        // one of our actors?
+      if (s) { targetSlug = targetSlug || s; continue; }
+      const pid = postIdFromNoteUrl(u, base); // one of our notes?
+      if (pid) noteIds.push(pid);
+    }
+    if (!targetSlug && noteIds.length) {
+      try { const r = db.prepare('SELECT s.slug FROM posts p JOIN sites s ON s.id = p.site_id WHERE p.id = ? LIMIT 1').get(noteIds[0]); if (r) targetSlug = r.slug; } catch { /* ignore */ }
+    }
+    if (!targetSlug) return 202; // not about us / can't tell → drop
+    const ai = actorInfo(await resolveActor(claimedActor).catch(() => null), claimedActor);
+    try {
+      db.prepare('INSERT INTO ap_reports (slug, actor_uri, actor_name, actor_handle, actor_icon, content, objects, created_at) VALUES (?,?,?,?,?,?,?,CURRENT_TIMESTAMP)')
+        .run(targetSlug, claimedActor || null, ai.name, ai.handle, ai.icon, HtmlSanitizerService.toPlainText(act.content || '').slice(0, 3000), JSON.stringify(objectUris.slice(0, 20)));
+      console.log('[AP] report received for', targetSlug, 'from', claimedActor);
+    } catch { /* ignore */ }
+    return 202;
   }
 
   if (type === 'Follow') {
@@ -2108,6 +2134,11 @@ export function getNotifications(slug, limit) {
       type: r.kind, name: r.actor_name, handle: r.actor_handle, url: r.actor_url,
       content: stripLeadingMentions(r.content), post_slug: r.post_slug, post_title: r.post_title, created_at: r.created_at,
     });
+  } catch { /* ignore */ }
+  try {
+    for (const r of db.prepare('SELECT actor_uri, actor_name, actor_handle, actor_icon, content, created_at FROM ap_reports WHERE slug = ? ORDER BY created_at DESC LIMIT 50').all(slug)) {
+      out.push({ type: 'report', name: r.actor_name, handle: r.actor_handle, url: r.actor_uri, icon: r.actor_icon, content: r.content, created_at: r.created_at });
+    }
   } catch { /* ignore */ }
   out.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   return out.slice(0, limit || 60);
