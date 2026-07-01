@@ -36,6 +36,10 @@ Versions follow [SemVer](https://semver.org/).
   opening and warns you before you tick it.
 
 ### Fixed
+- **Remote videos show a preview frame.** A video in the News feed or a Circle tile (e.g. from
+  Loops or PeerTube) used to appear as a black box until you pressed play; it now shows a real
+  poster frame. (Longer videos keep their player controls by design — only clips under 30 seconds
+  autoplay like a GIF.)
 - **Mentions, hashtags and links inside brackets now work.** A mention like `(@user@server)`, a
   `(#hashtag)` or a bracketed URL federated as plain text — and the mentioned person was never
   notified. They now link (and notify) like their unbracketed forms.

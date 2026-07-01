@@ -184,13 +184,27 @@ export async function getRemoteThumbnail(url, width) {
   const cached = path.join(root, '.thumbs', 'remote', String(width), `${hash}.webp`);
   if (fs.existsSync(cached)) return cached;
 
-  let buf;
+  let buf, isVideo = false;
   try {
     const r = await safeFetch(url);
     if (!r.ok) return null;
-    if (!(r.headers.get('content-type') || '').startsWith('image/')) return null;
-    if (parseInt(r.headers.get('content-length') || '0', 10) > 12 * 1024 * 1024) return null;
-    buf = Buffer.from(await r.arrayBuffer());
+    const ct = r.headers.get('content-type') || '';
+    isVideo = ct.startsWith('video/');
+    if (!ct.startsWith('image/') && !isVideo) return null;
+    if (isVideo) {
+      // Remote video → poster frame (feed/tile posters). Don't buffer the whole file: re-fetch
+      // a bounded head (first 4MB) — enough for ffmpeg to decode the first frame of a faststart
+      // mp4 (the web-streaming norm). A moov-at-end file just fails → null → the route's 302
+      // fallback, same as before this path existed.
+      try { if (r.body && r.body.cancel) r.body.cancel(); } catch { /* ignore */ }
+      const rv = await safeFetch(url, { headers: { Range: 'bytes=0-4194303' } });
+      if (!rv.ok && rv.status !== 206) return null;
+      buf = Buffer.from(await rv.arrayBuffer());
+      if (!buf.length) return null;
+    } else {
+      if (parseInt(r.headers.get('content-length') || '0', 10) > 12 * 1024 * 1024) return null;
+      buf = Buffer.from(await r.arrayBuffer());
+    }
   } catch (e) {
     console.warn('[thumb-remote] fetch failed for', url, '-', e.message);
     return null;
@@ -198,8 +212,9 @@ export async function getRemoteThumbnail(url, width) {
   if (buf.length > 12 * 1024 * 1024) return null;
   // ffmpeg-static can't decode an animated WebP (the doomed downscale just logs an error), and a
   // flattened GIF/animated WebP loses its motion → skip it and let the route serve the ORIGINAL
-  // (keeps the animation; mirrors the local path's isAnimatedSrc guard).
-  if (isAnimatedBuf(buf)) return null;
+  // (keeps the animation; mirrors the local path's isAnimatedSrc guard). Video heads skip this
+  // (they're not webp/gif) and go straight to the single-frame extract.
+  if (!isVideo && isAnimatedBuf(buf)) return null;
 
   await fs.promises.mkdir(path.dirname(cached), { recursive: true });
   const tmpIn = `${cached}.in-${process.pid}-${_seq++}`;

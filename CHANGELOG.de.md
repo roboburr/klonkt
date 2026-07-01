@@ -41,6 +41,10 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
   nach dem Öffnen und warnt dich, bevor du sie ankreuzt.
 
 ### Behoben
+- **Entfernte Videos zeigen ein Vorschaubild.** Ein Video im News-Feed oder auf einer Zirkel-Kachel
+  (z.B. von Loops oder PeerTube) erschien als schwarze Fläche, bis man auf Abspielen drückte; jetzt
+  gibt es ein echtes Posterbild. (Längere Videos behalten bewusst ihre Steuerung — nur Clips unter
+  30 Sekunden laufen automatisch wie ein GIF.)
 - **Erwähnungen, Hashtags und Links in Klammern funktionieren jetzt.** Eine Erwähnung wie
   `(@benutzer@server)`, ein `(#hashtag)` oder eine URL in Klammern föderierte als reiner Text —
   und die erwähnte Person wurde nie benachrichtigt. Sie verlinken (und benachrichtigen) jetzt wie

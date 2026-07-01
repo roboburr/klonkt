@@ -39,6 +39,10 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
   na het openen en waarschuwt je voordat je 'm aanvinkt.
 
 ### Opgelost
+- **Remote video's tonen een preview-frame.** Een video in de News-feed of op een Cirkel-tegel
+  (bv. van Loops of PeerTube) verscheen als zwart vlak tot je op afspelen drukte; er staat nu een
+  echt poster-frame. (Langere video's houden bewust hun bediening — alleen clips onder de 30
+  seconden spelen automatisch als een GIF.)
 - **Vermeldingen, hashtags en links tussen haakjes werken nu.** Een vermelding als
   `(@gebruiker@server)`, een `(#hashtag)` of een URL tussen haakjes federeerde als platte tekst —
   en de genoemde persoon kreeg nooit een melding. Ze linken (en melden) nu net als zonder haakjes.

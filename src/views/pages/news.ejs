@@ -121,7 +121,7 @@
               <% }); %>
             </div>
           <% } %>
-          <% vids.forEach(function(m){ %><video class="tl-media-video" src="<%= m.url %>" controls preload="metadata" playsinline></video><% }); %>
+          <% vids.forEach(function(m){ %><video class="tl-media-video" src="<%= m.url %>" poster="<%= thumb(m.url, 1280) %>" controls preload="metadata" playsinline></video><% }); %>
           <% /* A Klonkt audio post carries an embed player (embedHtml/embedUrl) that already
                 covers these tracks, so don't ALSO render the raw Audio attachments as bare
                 players here. Posts without a Klonkt embed (e.g. a plain remote audio) keep them. */ %>
