@@ -1839,11 +1839,16 @@ export async function backfillFromOutbox(slug, actorUri, limit = 20) {
 // ── Remote thread crawl (fill the gaps in a local post's conversation) ────────────
 // Most replies reach us by delivery, but replies-to-replies that live on other servers and
 // aren't addressed to us are missed. This pulls the AS2 `replies` collections of the replies
-// we DO have, caching any newly-found ones in ap_interactions. Bounded (depth/fetch caps),
-// polite (serial), PULL only, and stale-while-revalidate: it never runs in a page request —
-// the view renders from cache; a stale post kicks off a background refresh for the NEXT view.
+// we DO have, caching any newly-found ones in ap_interactions.
+//
+// Matches Mastodon's behaviour: ONE level per crawl (like its FetchRepliesService), not a deep
+// recursive walk. Deeper levels fill in incrementally across crawls — once a fetched reply is
+// cached it becomes a seed itself, so its own replies are pulled on a later view (Mastodon's
+// per-status cascade). Bounded + polite (serial), PULL only, and stale-while-revalidate: it
+// never runs in a page request — the view renders from cache; a stale post kicks off a
+// background refresh for the NEXT view.
 const THREAD_TTL_MS = 15 * 60 * 1000;   // don't re-crawl a post more than ~4×/hour
-const THREAD_MAX_DEPTH = 3;             // replies-to-replies-to-replies
+const THREAD_MAX_DEPTH = 1;             // one hop per crawl (like Mastodon); deeper fills in over crawls
 const THREAD_MAX_FETCHES = 30;          // hard cap on remote GETs per crawl (be a good peer)
 const _crawlingThreads = new Set();     // per-post in-flight lock (no stampede across views)
 
