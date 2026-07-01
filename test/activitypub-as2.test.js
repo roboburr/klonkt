@@ -26,6 +26,7 @@ const AS2 = new Set([
   'content', 'name', 'summary', 'url', 'href', 'mediaType',
   'published', 'updated', 'attributedTo', 'inReplyTo', 'replies',
   'attachment', 'tag', 'icon', 'image', 'duration',
+  'contentMap', 'nameMap', 'summaryMap', // AS2 @language-map counterparts of content/name/summary
   'totalItems', 'orderedItems', 'items', 'first', 'last', 'partOf', 'next', 'prev',
   'preferredUsername', 'inbox', 'outbox', 'followers', 'following', 'endpoints', 'sharedInbox',
   'publicKey', 'owner', 'publicKeyPem',
@@ -46,6 +47,7 @@ function collect(obj, keys = new Set()) {
     for (const [k, v] of Object.entries(obj)) {
       keys.add(k);
       if (k === 'type' && typeof v === 'string') keys.add(v);
+      if (/Map$/.test(k)) continue; // a @language map (contentMap/…): its keys are BCP-47 tags, not vocab terms
       collect(v, keys);
     }
   }
@@ -69,7 +71,7 @@ site.primary_slug = 'demo';
 const post = {
   id: 'p1', slug: 'hello', title: 'Hi', content: '<p>hello #music</p>',
   nsfw: 1, content_warning: 'cw', tags: JSON.stringify(['mood']),
-  cover_image_url: '/media/c.webp',
+  cover_image_url: '/media/c.webp', cover_alt: 'A cover', language: 'en',
   published_at: '2026-01-01T00:00:00Z', created_at: '2026-01-01T00:00:00Z',
 };
 

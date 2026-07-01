@@ -399,6 +399,10 @@ export function buildNote(base, site, post) {
   // standard field name (not a Klonkt invention); if Mastodon's apps honour it on a Note we
   // make it JSON-LD-clean with a context term, otherwise it degrades to the player card.
   if (playable) note.embedUrl = `${base}/embed?post=${encodeURIComponent(post.slug)}`;
+  // Content language → AS2 contentMap (a BCP-47-keyed copy of the content). Mastodon reads the
+  // language from its key for the timeline language filter + the translate button. Emitted
+  // alongside `content` (Mastodon sends both); a plain receiver just uses `content`.
+  if (post.language && /^[a-z]{2,3}(-[A-Za-z]{2,4})?$/.test(post.language)) note.contentMap = { [post.language]: note.content };
   // A hosted poll → federate as an AS2 Question (options + live tally). Do this last so it
   // reuses the note's content/addressing/tags, then swaps the type and strips media.
   const ownPoll = parseOwnPoll(post.poll_json);

@@ -6,6 +6,8 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 ## [Unreleased]
 
 ### Toegevoegd
+- **Stel de taal van een post in.** Kies in welke taal je een post schreef — op de fediverse
+  werkt daarmee het taalfilter van de tijdlijn en de vertaal-knop.
 - **Alt-tekst voor afbeeldingen.** Geef je cover een beschrijving (en inline-afbeeldingen behouden
   hun eigen alt-tekst) — die federeert mee naar de fediverse en laat schermlezers de afbeelding beschrijven.
 - **Noem mensen in een post.** `@gebruiker@server` in een post linkt nu naar hun profiel en stuurt

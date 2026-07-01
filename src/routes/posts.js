@@ -246,6 +246,7 @@ router.post('/posts/create', requireAuth, (req, res) => {
   const nsfw = req.body.nsfw ? 1 : 0;
   const cw = (req.body.content_warning || '').trim().slice(0, 200);
   const coverAlt = (req.body.cover_alt || '').trim().slice(0, 1500) || null; // cover alt text (a11y)
+  const language = /^[a-z]{2,3}(-[A-Za-z]{2,4})?$/.test(req.body.language || '') ? req.body.language : (res.locals.lang || null); // BCP-47 content language
 
   // Content arrives as user-authored HTML from the WYSIWYG editor — sanitize
   // before storage. Shortcode text tokens like [[track:UUID]] live in text
@@ -284,13 +285,13 @@ router.post('/posts/create', requireAuth, (req, res) => {
   db.prepare(`
     INSERT INTO posts (
       id, site_id, slug, author_id, title, content, excerpt,
-      status, cover_image_url, cover_video_url, cover_alt, pinned, tags, type, noindex, fan_only, nsfw, content_warning, poll_json, publish_at,
+      status, cover_image_url, cover_video_url, cover_alt, language, pinned, tags, type, noindex, fan_only, nsfw, content_warning, poll_json, publish_at,
       created_at, updated_at, published_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     postId, site.id, finalSlug, req.session.user.id,
     title || finalSlug, cleanContent, excerpt || '',
-    finalStatus, cover_image_url || null, (req.body.cover_video_url || null), coverAlt, parsePinnedRank(pinned),
+    finalStatus, cover_image_url || null, (req.body.cover_video_url || null), coverAlt, language, parsePinnedRank(pinned),
     JSON.stringify((tags || '').split(',').map(t => t.trim()).filter(Boolean)),
     finalType, noindex ? 1 : 0, fanOnly, nsfw, cw, pollJson, publishAt,
     now, now, publishedAt
@@ -312,7 +313,7 @@ router.post('/posts/create', requireAuth, (req, res) => {
     if (status === 'published') {
       ActivityPubService.deliverCreate(site, {
         id: postId, slug: finalSlug, title: title || finalSlug,
-        content: cleanContent, cover_image_url: cover_image_url || null, cover_video_url: req.body.cover_video_url || null, cover_alt: coverAlt,
+        content: cleanContent, cover_image_url: cover_image_url || null, cover_video_url: req.body.cover_video_url || null, cover_alt: coverAlt, language,
         published_at: publishedAt, created_at: now, fan_only: fanOnly, nsfw, content_warning: cw, poll_json: pollJson,
       }).catch(() => { /* best-effort */ });
     }
@@ -380,6 +381,7 @@ router.post('/posts/:slug/save', requireAuth, (req, res) => {
   const nsfw = req.body.nsfw ? 1 : 0;
   const cw = (req.body.content_warning || '').trim().slice(0, 200);
   const coverAlt = (req.body.cover_alt || '').trim().slice(0, 1500) || null; // cover alt text (a11y)
+  const language = /^[a-z]{2,3}(-[A-Za-z]{2,4})?$/.test(req.body.language || '') ? req.body.language : (res.locals.lang || null); // BCP-47 content language
   const newSlug = req.body.slug;
   const action = req.body.action || 'save';
   const validTypes = new Set(['post', 'foto', 'video', 'audio']);
@@ -423,13 +425,13 @@ router.post('/posts/:slug/save', requireAuth, (req, res) => {
   db.prepare(`
     UPDATE posts SET
       title = ?, content = ?, excerpt = ?, status = ?,
-      cover_image_url = ?, cover_video_url = ?, cover_alt = ?, pinned = ?, tags = ?,
+      cover_image_url = ?, cover_video_url = ?, cover_alt = ?, language = ?, pinned = ?, tags = ?,
       type = ?, noindex = ?, fan_only = ?, nsfw = ?, content_warning = ?, poll_json = ?, publish_at = ?,
       slug = ?, published_at = ?, updated_at = ?
     WHERE id = ?
   `).run(
     title, cleanContent, excerpt, finalStatus,
-    cover_image_url || null, (req.body.cover_video_url || null), coverAlt, parsePinnedRank(pinned),
+    cover_image_url || null, (req.body.cover_video_url || null), coverAlt, language, parsePinnedRank(pinned),
     JSON.stringify((tags || '').split(',').map(t => t.trim()).filter(Boolean)),
     finalType, noindex ? 1 : 0, fanOnly, nsfw, cw, pollJson, publishAt,
     finalSlug, publishedAt, now, post.id
@@ -455,7 +457,7 @@ router.post('/posts/:slug/save', requireAuth, (req, res) => {
   if (finalStatus === 'published') {
     const apPost = {
       id: post.id, slug: finalSlug, title: title || finalSlug,
-      content: cleanContent, cover_image_url: cover_image_url || null, cover_video_url: req.body.cover_video_url || null, cover_alt: coverAlt,
+      content: cleanContent, cover_image_url: cover_image_url || null, cover_video_url: req.body.cover_video_url || null, cover_alt: coverAlt, language,
       published_at: publishedAt, created_at: post.created_at, fan_only: fanOnly, nsfw, content_warning: cw, poll_json: pollJson,
     };
     if (post.status !== 'published') ActivityPubService.deliverCreate(site, apPost).catch(() => { /* best-effort */ });

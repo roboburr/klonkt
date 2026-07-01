@@ -6,6 +6,8 @@ Versions follow [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Set a post's language.** Choose the language you wrote a post in — on the fediverse it enables
+  timeline language filtering and the translate button.
 - **Alt text for images.** Give your cover image a description (and inline images keep their own
   alt text) — it federates to the fediverse and lets screen readers describe the picture.
 - **Mention people in a post.** Typing `@user@server` in a post now links to their profile and

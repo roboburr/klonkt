@@ -87,6 +87,15 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
         <textarea name="excerpt" rows="2"><%= post.excerpt %></textarea>
         <small class="pe-hint" style="opacity:.7"><%- t('pedit.excerpt_hint') %></small>
       </label>
+      <% var _postLang = (typeof post.language !== 'undefined' && post.language) ? post.language : (typeof lang !== 'undefined' ? lang : 'en'); %>
+      <label class="pe-field">
+        <span><%= t('pedit.f_language') %> <small><%= t('pedit.language_hint') %></small></span>
+        <select name="language" id="pe-language" style="max-width:220px">
+          <% [['en','English'],['nl','Nederlands'],['de','Deutsch'],['fr','Français'],['es','Español'],['it','Italiano'],['pt','Português'],['pl','Polski'],['ru','Русский'],['uk','Українська'],['sv','Svenska'],['da','Dansk'],['nb','Norsk'],['fi','Suomi'],['tr','Türkçe'],['ja','日本語'],['zh','中文'],['ar','العربية']].forEach(function (l) { %>
+            <option value="<%= l[0] %>" <%= l[0] === _postLang ? 'selected' : '' %>><%= l[1] %></option>
+          <% }); %>
+        </select>
+      </label>
     </section>
 
     <%# ── COVER ────────────────────────────────────────────────── %>

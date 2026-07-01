@@ -89,6 +89,7 @@ export function initializeDatabase() {
   ensureColumn('posts', 'nsfw',     'INTEGER DEFAULT 0');  // sensitive content → blur + click-to-reveal; fediverse sensitive
   ensureColumn('posts', 'cover_video_url', 'TEXT');        // muted loop MP4 for an animated cover (Safari-smooth)
   ensureColumn('posts', 'cover_alt', 'TEXT');              // alt text / description for the cover (a11y → AS2 attachment `name`)
+  ensureColumn('posts', 'language', 'TEXT');               // BCP-47 content language → federates as AS2 contentMap (Mastodon language filter/translate)
   ensureColumn('posts', 'content_warning', 'TEXT');        // custom CW label (empty = default "Gevoelige inhoud")
   ensureColumn('posts', 'type',    "TEXT DEFAULT 'post'");  // post | foto | video | audio
   ensureColumn('posts', 'poll_json', 'TEXT');              // a poll WE host → federates as AS2 Question: {multiple,options[{name}],endTime,closed}
