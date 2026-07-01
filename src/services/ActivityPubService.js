@@ -1401,7 +1401,9 @@ const toISO = (v) => { if (!v) return new Date().toISOString(); const s = String
 // Build one of OUR outbound reply Notes from an ap_outbox row.
 // Turn #hashtags in reply text into Mastodon-style hashtag links (clickable + federated).
 function linkHashtags(base, html) {
-  return String(html || '').replace(/(^|[\s>])#([\p{L}\p{M}\p{N}_]+)/gu, (m, pre, tag) =>
+  // Prefix: start / whitespace / '>' / opening bracket — "(#tag" is a tag too. NO quote
+  // chars in this class: a quote precedes attribute values (alt="#…"), which must not match.
+  return String(html || '').replace(/(^|[\s>([{])#([\p{L}\p{M}\p{N}_]+)/gu, (m, pre, tag) =>
     `${pre}<a href="${base}/tag/${encodeURIComponent(tag.toLowerCase())}" class="mention hashtag" rel="tag">#${tag}</a>`);
 }
 // Auto-link bare http(s) URLs in already-safe HTML (federated copies). Splits on existing
@@ -1412,7 +1414,7 @@ function linkUrls(html) {
   const parts = String(html || '').split(/(<a\b[^>]*>[\s\S]*?<\/a>)/gi);
   for (let i = 0; i < parts.length; i++) {
     if (/^<a\b/i.test(parts[i])) continue; // already a link → leave as-is
-    parts[i] = parts[i].replace(/(^|[\s>])(https?:\/\/[^\s<]+?)([.,;:!?)\]»]*)(?=$|[\s<])/g,
+    parts[i] = parts[i].replace(/(^|[\s>([{])(https?:\/\/[^\s<]+?)([.,;:!?)\]»]*)(?=$|[\s<])/g,
       (m, pre, url, trail) => `${pre}<a href="${url.replace(/"/g, '%22')}" rel="nofollow noopener" target="_blank">${url}</a>${trail}`);
   }
   return parts.join('');
@@ -1484,7 +1486,9 @@ function mentionTags(content) {
 async function resolveMentionsInText(base, html) {
   const inboxes = [];
   const handles = new Set();
-  const re = /(^|[\s>])@([\p{L}\p{M}\p{N}_.-]+@[\p{L}\p{M}\p{N}.-]+)/gu;
+  // Prefix also allows opening brackets — "(@user@host + me)" is a mention too (real-world
+  // miss: a bracketed mention federated as plain text and its target was never notified).
+  const re = /(^|[\s>([{])@([\p{L}\p{M}\p{N}_.-]+@[\p{L}\p{M}\p{N}.-]+)/gu;
   let m;
   while ((m = re.exec(html || ''))) handles.add(m[2]);
   let out = String(html || '');
@@ -1497,7 +1501,7 @@ async function resolveMentionsInText(base, html) {
     if (inbox) inboxes.push(inbox);
     const profileUrl = actorInfo(actor, actorUri).url || actorUri; // human profile page → the link href
     const esc = h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    out = out.replace(new RegExp('(^|[\\s>])@' + esc + '(?![\\p{L}\\p{M}\\p{N}_.-])', 'gu'),
+    out = out.replace(new RegExp('(^|[\\s>([{])@' + esc + '(?![\\p{L}\\p{M}\\p{N}_.-])', 'gu'),
       (full, pre) => `${pre}<a href="${profileUrl}" class="u-url mention" data-actor="${actorUri}">@${h}</a>`);
   }
   return { html: out, inboxes };

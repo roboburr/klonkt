@@ -39,6 +39,10 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
   nach dem Öffnen und warnt dich, bevor du sie ankreuzt.
 
 ### Behoben
+- **Erwähnungen, Hashtags und Links in Klammern funktionieren jetzt.** Eine Erwähnung wie
+  `(@benutzer@server)`, ein `(#hashtag)` oder eine URL in Klammern föderierte als reiner Text —
+  und die erwähnte Person wurde nie benachrichtigt. Sie verlinken (und benachrichtigen) jetzt wie
+  ohne Klammern.
 - **Nackte Webadressen werden im Fediverse zu Links.** Eine einfache URL in einem Beitrag oder einer
   Antwort föderiert jetzt als klickbarer Link statt als reiner Text.
 

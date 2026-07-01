@@ -34,6 +34,9 @@ Versions follow [SemVer](https://semver.org/).
   opening and warns you before you tick it.
 
 ### Fixed
+- **Mentions, hashtags and links inside brackets now work.** A mention like `(@user@server)`, a
+  `(#hashtag)` or a bracketed URL federated as plain text — and the mentioned person was never
+  notified. They now link (and notify) like their unbracketed forms.
 - **Plain web addresses become links on the fediverse.** A bare URL typed in a post or reply now
   federates as a clickable link instead of plain text.
 

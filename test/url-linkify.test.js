@@ -39,6 +39,19 @@ test('an already-linked URL is not wrapped twice', () => {
   assert.equal((n.content.match(/<a /g) || []).length, 1);
 });
 
+test('a URL inside parentheses links, closing paren stays outside', () => {
+  const n = note('<p>site (https://example.com/a) hier</p>');
+  assert.match(n.content, /\(<a href="https:\/\/example\.com\/a"[^>]*>https:\/\/example\.com\/a<\/a>\)/);
+});
+
+test('a hashtag inside parentheses still links; quoted attribute values never match', () => {
+  const n = note('<p>leuk (#jazz) toch</p>');
+  assert.match(n.content, /\(<a [^>]*class="mention hashtag"[^>]*>#jazz<\/a>\)/);
+  // A quote precedes attribute values — the prefix class must NOT include quotes.
+  const n2 = note('<p>plaatje <a href="https://x.example/#frag">link</a></p>');
+  assert.equal((n2.content.match(/<a /g) || []).length, 1, 'href value untouched');
+});
+
 test('attribute values are untouched, standalone URLs still link (image stripped from content)', () => {
   const n = note('<p><img src="https://cdn.example.com/pic.png" alt=""> and https://example.org</p>');
   // <img> is stripped from federated content (travels as attachment) — no anchor made for its src.

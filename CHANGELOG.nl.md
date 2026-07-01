@@ -37,6 +37,9 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
   na het openen en waarschuwt je voordat je 'm aanvinkt.
 
 ### Opgelost
+- **Vermeldingen, hashtags en links tussen haakjes werken nu.** Een vermelding als
+  `(@gebruiker@server)`, een `(#hashtag)` of een URL tussen haakjes federeerde als platte tekst —
+  en de genoemde persoon kreeg nooit een melding. Ze linken (en melden) nu net als zonder haakjes.
 - **Kale webadressen worden links op de fediverse.** Een losse URL in een post of reactie federeert
   nu als klikbare link in plaats van platte tekst.
 
