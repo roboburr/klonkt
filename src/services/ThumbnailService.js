@@ -164,6 +164,18 @@ export function verifyImg(url, width, sig) {
  * Fetch a remote image (SSRF-safe), downscale to `width` (lanczos → WebP), cache it.
  * @returns {Promise<string|null>} cached path, or null.
  */
+// Same animation check as isAnimatedSrc but on an in-memory buffer (remote fetch): ffmpeg-static
+// can't decode an animated WebP, and flattening a GIF/animated WebP to one frame loses its motion.
+function isAnimatedBuf(buf) {
+  try {
+    if (!buf || buf.length < 21) return false;
+    if (buf.toString('ascii', 0, 3) === 'GIF') return true; // any GIF (a flattened one loses its animation)
+    // Animated WebP: RIFF…WEBP with a VP8X chunk whose flags byte (20) has the animation bit (0x02).
+    if (buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP'
+        && buf.toString('ascii', 12, 16) === 'VP8X' && (buf[20] & 0x02) !== 0) return true;
+    return false;
+  } catch { return false; }
+}
 export async function getRemoteThumbnail(url, width) {
   if (!THUMB_SIZES.has(width) || !ffmpegPath || !url) return null;
   const root = mediaRoot();
@@ -184,6 +196,10 @@ export async function getRemoteThumbnail(url, width) {
     return null;
   }
   if (buf.length > 12 * 1024 * 1024) return null;
+  // ffmpeg-static can't decode an animated WebP (the doomed downscale just logs an error), and a
+  // flattened GIF/animated WebP loses its motion → skip it and let the route serve the ORIGINAL
+  // (keeps the animation; mirrors the local path's isAnimatedSrc guard).
+  if (isAnimatedBuf(buf)) return null;
 
   await fs.promises.mkdir(path.dirname(cached), { recursive: true });
   const tmpIn = `${cached}.in-${process.pid}-${_seq++}`;
