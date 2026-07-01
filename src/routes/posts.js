@@ -584,8 +584,9 @@ router.get('/authorize_interaction', requireSiteManager, async (req, res) => {
   const sent = !!req.query.sent;
   const followed = !!req.query.followed;
   const voted = !!req.query.voted;
+  const reported = !!req.query.reported;
   let target = null, followTarget = null;
-  if (!sent && !followed && !voted && uri) {
+  if (!sent && !followed && !voted && !reported && uri) {
     try { target = await ActivityPubService.resolveRemoteNote(uri); } catch { /* ignore */ }
     // Not a post? Maybe the URI is a profile/actor → offer Follow, not reply.
     if (!target) { try { followTarget = await ActivityPubService.resolveRemoteActor(uri); } catch { /* ignore */ } }
@@ -599,6 +600,7 @@ router.get('/authorize_interaction', requireSiteManager, async (req, res) => {
     sent,
     followed,
     voted: !!req.query.voted,
+    reported: !!req.query.reported,
     liked: !!req.query.liked,
     boosted: !!req.query.boosted,
     reacted: (site && uri) ? ActivityPubService.getMyReactions(site.slug, uri) : { liked: false, boosted: false },
@@ -616,6 +618,16 @@ router.post('/authorize_interaction/vote', requireSiteManager, async (req, res) 
   if (!Array.isArray(choice)) choice = [choice];
   if (site && uri && choice.length) { try { await ActivityPubService.voteOnRemotePoll(site, uri, choice.map(String)); } catch { /* ignore */ } }
   res.redirect('/authorize_interaction?voted=1&uri=' + encodeURIComponent(uri));
+});
+
+// 🚩 Report a remote post/account to its home instance (sends an AS2 Flag).
+router.post('/authorize_interaction/report', requireSiteManager, async (req, res) => {
+  const site = res.locals.site;
+  const uri = (req.body.uri || '').toString();
+  const actorUri = (req.body.actor_uri || '').toString();
+  const reason = (req.body.reason || '').toString();
+  if (site && (uri || actorUri)) { try { await ActivityPubService.sendReport(site, { objectUri: uri, actorUri, reason }); } catch { /* ignore */ } }
+  res.redirect('/authorize_interaction?reported=1&uri=' + encodeURIComponent(uri || actorUri));
 });
 
 // ⭐ Like / unlike a remote post from your own site (toggle on the interact page).

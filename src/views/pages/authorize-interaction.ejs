@@ -92,6 +92,12 @@
       <% if (uri) { %><a class="btn btn-primary" href="<%= uri %>" rel="nofollow noopener"><%= t('fedi.remote_view_original') %></a><% } %>
       <a class="btn" href="/"><%= t('fedi.remote_back') %></a>
     </p>
+  <% } else if (typeof reported !== 'undefined' && reported) { %>
+    <h1 class="auth-interact-title">🚩 <%= t('fedi.reported_title') %></h1>
+    <p class="auth-interact-note"><%= t('fedi.reported_done') %></p>
+    <p class="auth-interact-actions">
+      <a class="btn" href="/"><%= t('fedi.remote_back') %></a>
+    </p>
   <% } else if (typeof voted !== 'undefined' && voted) { %>
     <h1 class="auth-interact-title">📊 <%= t('poll.voted_title') %></h1>
     <p class="auth-interact-note"><%= t('poll.voted_done') %></p>
@@ -191,6 +197,18 @@
       </div>
     </form>
     <p class="auth-interact-note"><%= t('fedi.remote_as', { site: siteTitle }) %></p>
+    <details class="auth-report">
+      <summary>🚩 <%= t('fedi.report_open') %></summary>
+      <form method="post" action="/authorize_interaction/report" class="auth-interact-form">
+        <input type="hidden" name="uri" value="<%= uri %>">
+        <input type="hidden" name="actor_uri" value="<%= target.actor_uri %>">
+        <p class="auth-report-note"><%= t('fedi.report_where', { handle: target.actor_handle }) %></p>
+        <textarea name="reason" rows="3" maxlength="3000" placeholder="<%= t('fedi.report_ph') %>"></textarea>
+        <div class="auth-interact-actions">
+          <button type="submit" class="btn btn-danger"><%= t('fedi.report_send') %></button>
+        </div>
+      </form>
+    </details>
   <% } %>
   <% } %>
 </div>
@@ -290,6 +308,11 @@
   .auth-poll-name { position: relative; z-index: 1; flex: 1; font-size: .95rem; }
   .auth-poll-pct { position: relative; z-index: 1; font-variant-numeric: tabular-nums; font-weight: 500; }
   .auth-poll-foot { font-size: .82rem; color: var(--ink-soft, #888); margin: .1rem 0 0; }
+  .auth-report { margin: .6rem 0 0; }
+  .auth-report summary { cursor: pointer; font-size: .85rem; color: var(--ink-soft, #888); }
+  .auth-report summary:hover, .auth-report[open] summary { color: #c0392b; }
+  .auth-report[open] summary { margin-bottom: .5rem; }
+  .auth-report-note { font-size: .82rem; color: var(--ink-muted, #999); margin: 0 0 .5rem; }
 </style>
 
 <script>

@@ -31,7 +31,7 @@ const AS2 = new Set([
   'preferredUsername', 'inbox', 'outbox', 'followers', 'following', 'endpoints', 'sharedInbox',
   'publicKey', 'owner', 'publicKeyPem',
   'Note', 'Person', 'Create', 'Update', 'Delete', 'Tombstone', 'Announce', 'Like', 'Follow',
-  'Accept', 'Reject', 'Undo', 'Add', 'Remove', 'Document', 'Image', 'Audio', 'Video',
+  'Accept', 'Reject', 'Undo', 'Add', 'Remove', 'Flag', 'Document', 'Image', 'Audio', 'Video',
   'Mention', 'Link', 'Collection', 'OrderedCollection', 'OrderedCollectionPage',
 ]);
 

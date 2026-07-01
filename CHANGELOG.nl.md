@@ -6,6 +6,8 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 ## [Unreleased]
 
 ### Toegevoegd
+- **Rapporteer een post op de fediverse.** Vanaf een fediverse-post kun je die nu melden bij de
+  moderators van de eigen server van die post, met een optionele reden.
 - **Stel de taal van een post in.** Kies in welke taal je een post schreef — op de fediverse
   werkt daarmee het taalfilter van de tijdlijn en de vertaal-knop.
 - **Alt-tekst voor afbeeldingen.** Geef je cover een beschrijving (en inline-afbeeldingen behouden

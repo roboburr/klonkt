@@ -6,6 +6,8 @@ Versions follow [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Report a post to the fediverse.** From a fediverse post you can now report it to the moderators
+  of its own home server, with an optional reason.
 - **Set a post's language.** Choose the language you wrote a post in — on the fediverse it enables
   timeline language filtering and the translate button.
 - **Alt text for images.** Give your cover image a description (and inline images keep their own

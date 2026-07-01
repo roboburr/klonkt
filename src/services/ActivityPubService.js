@@ -2193,6 +2193,41 @@ export async function voteOnRemotePoll(site, questionUrl, choices) {
   return { ok: true };
 }
 
+// Report a remote post or account to its home instance (moderation). Sends the Mastodon-standard
+// AS2 `Flag`: object = [reported account, reported status?], content = the reason, delivered to the
+// reported account's inbox so their instance's moderators receive it. objectUri = a post URL (its
+// author is resolved + included) OR pass actorUri to report an account directly.
+export async function sendReport(site, { objectUri, actorUri, reason }) {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  if (!base || !site || !site.slug) return { error: 'config' };
+  let targetActor = actorUri || null;
+  let noteUri = null;
+  if (objectUri && /^https?:\/\//i.test(objectUri)) {
+    const note = await apGetJson(objectUri).catch(() => null);
+    if (note && note.id) { noteUri = note.id; if (!targetActor) targetActor = actorUriOf(note.attributedTo); }
+    else if (!targetActor) return { error: 'not_found' };
+  }
+  if (!targetActor || !/^https?:\/\//i.test(targetActor)) return { error: 'not_found' };
+  const actor = await fetchActor(targetActor).catch(() => null);
+  const inbox = actor && (actor.inbox || (actor.endpoints && actor.endpoints.sharedInbox)); // personal inbox → their moderators
+  if (!inbox) return { error: 'unreachable' };
+  const me = actorId(base, site.slug);
+  const keys = getOrCreateKeys(site.slug);
+  const object = [targetActor];
+  if (noteUri && noteUri !== targetActor) object.push(noteUri);
+  const flag = {
+    '@context': AP_CONTEXT,
+    id: `${me}#report-${Date.now()}-${rid()}`,
+    type: 'Flag',
+    actor: me,
+    content: String(reason == null ? '' : reason).slice(0, 3000),
+    object, // [account, status?] — Mastodon's Flag shape
+    to: [targetActor],
+  };
+  deliverWithRetry(site.slug, inbox, flag, `${me}#main-key`, keys.private_pem);
+  return { ok: true };
+}
+
 export function isBlockedAny(actorUri) {
   if (!actorUri) return false;
   let domain = ''; try { domain = new URL(actorUri).host; } catch { /* ignore */ }
@@ -2248,7 +2283,7 @@ export default {
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, setMyReaction, getMyReactions, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate,
   webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, sendInteraction, voteOnPoll, voteOnRemotePoll,
-  parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread,
+  parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread, sendReport,
   autoBoostCount, boostedCount, markBoosted, unmarkBoosted, markLiked, unmarkLiked, getTimelineReaction, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
