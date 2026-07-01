@@ -131,6 +131,19 @@
           <% if (p.embedHtml) { %><div class="tl-embed"><%- p.embedHtml %></div><% } %>
           <% if (p.embedUrl) { %><a class="tl-embed-open" href="<%= p.embedUrl %>" target="_blank" rel="noopener">▶ <%= t('tl.open_player') %></a><% } %>
 
+          <% if (p.poll) { var _pl=p.poll; var _tot=_pl.options.reduce(function(s,o){return s+(o.count||0);},0); var _voteable=!_pl.closed&&!_pl.voted; %>
+          <div class="tl-poll">
+            <% if (_voteable) { %>
+              <form method="post" action="/news/vote" class="tl-poll-form">
+                <input type="hidden" name="note" value="<%= p.id %>">
+                <% _pl.options.forEach(function(o){ %><label class="tl-poll-choice"><input type="<%= _pl.multiple?'checkbox':'radio' %>" name="choice" value="<%= o.name %>"><span><%= o.name %></span></label><% }); %>
+                <button type="submit" class="btn btn-primary tl-poll-btn"><%= t('poll.vote') %></button>
+              </form>
+            <% } else { _pl.options.forEach(function(o){ var _pct=_tot?Math.round((o.count||0)*100/_tot):0; var _mine=_pl.voted&&(Array.isArray(_pl.voted)?_pl.voted.indexOf(o.name)>=0:_pl.voted===o.name); %><div class="tl-poll-res<%= _mine?' is-mine':'' %>"><span class="tl-poll-fill" style="width:<%= _pct %>%"></span><span class="tl-poll-name"><%= _mine?'✓ ':'' %><%= o.name %></span><span class="tl-poll-pct"><%= _pct %>%</span></div><% }); } %>
+            <div class="tl-poll-foot"><%= (_pl.voters!=null?_pl.voters:_tot) %> <%= t('poll.votes') %><% if(_pl.closed){ %> · <%= t('poll.closed') %><% } %></div>
+          </div>
+          <% } %>
+
           <% if (p.url) { %><a class="tl-orig" href="<%= p.url %>" target="_blank" rel="nofollow noopener"><%= t('tl.view_original') %></a><% } %>
 
           <div class="tl-actions">
@@ -198,6 +211,18 @@
 
   .tl-media-video, .tl-media-audio { width: 100%; margin: .75rem 0 0; border-radius: 12px; display: block; }
   .tl-media-video { max-height: 480px; background: #000; }
+  .tl-poll { margin: .75rem 0 0; display: flex; flex-direction: column; gap: 8px; }
+  .tl-poll-form { display: flex; flex-direction: column; gap: 8px; }
+  .tl-poll-choice { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line, rgba(128,128,128,.3)); border-radius: 10px; cursor: pointer; }
+  .tl-poll-choice:hover { border-color: var(--accent); }
+  .tl-poll-choice input { accent-color: var(--accent); }
+  .tl-poll-btn { align-self: flex-start; margin-top: 2px; }
+  .tl-poll-res { position: relative; padding: 9px 12px; border-radius: 10px; overflow: hidden; background: var(--paper-2, rgba(128,128,128,.08)); display: flex; align-items: center; gap: 8px; }
+  .tl-poll-fill { position: absolute; inset: 0 auto 0 0; background: color-mix(in srgb, var(--accent) 22%, transparent); z-index: 0; }
+  .tl-poll-res.is-mine .tl-poll-fill { background: color-mix(in srgb, var(--accent) 40%, transparent); }
+  .tl-poll-name { position: relative; z-index: 1; flex: 1; font-size: .95rem; }
+  .tl-poll-pct { position: relative; z-index: 1; font-variant-numeric: tabular-nums; font-weight: 500; }
+  .tl-poll-foot { font-size: .82rem; color: var(--ink-soft, #888); }
 
   .tl-embed { margin: .75rem 0 0; border-radius: 12px; overflow: hidden; background: var(--paper-2, #111); }
   .tl-embed-frame { width: 100%; border: 0; display: block; aspect-ratio: 16 / 9; }

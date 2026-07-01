@@ -341,6 +341,7 @@ export function initializeDatabase() {
   ensureColumn('ap_timeline', 'reblog_name', 'TEXT');        // a followed account boosted this → "X boosted"
   ensureColumn('ap_timeline', 'reblog_handle', 'TEXT');      //   the booster's @handle
   ensureColumn('ap_timeline', 'reblog_icon', 'TEXT');        //   the booster's avatar
+  ensureColumn('ap_timeline', 'poll_json', 'TEXT');          // a Question (poll): {multiple,options[{name,count}],endTime,closed,voters,voted}
 }
 
 function ensureColumn(table, column, definition) {

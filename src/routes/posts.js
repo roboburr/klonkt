@@ -712,7 +712,9 @@ router.get('/news', requireSiteManager, (req, res) => {
     // embedUrl = the player's direct /embed?post=… URL. Surfaced so the view can offer a
     // top-level "open the player" link that works even when a browser shield/CSP blocks
     // the cross-site iframe (a full-page navigation is not a cross-site frame).
-    return { ...p, content, embedHtml, embedUrl };
+    let poll = null;
+    if (p.poll_json) { try { poll = JSON.parse(p.poll_json); } catch { /* ignore */ } }
+    return { ...p, content, embedHtml, embedUrl, poll };
   });
   // Option A: allow the followed Klonkt sites' player iframes (you follow them) by
   // extending ONLY this response's CSP frame-src. The global policy stays locked down.
@@ -798,6 +800,17 @@ router.post('/news/boost', requireSiteManager, async (req, res) => {
     if (on) ActivityPubService.markBoosted(site.slug, note); else ActivityPubService.unmarkBoosted(site.slug, note);
   }
   if (req.get('X-Requested-With') === 'fetch') return res.json({ ok: true, on });
+  res.redirect('/news');
+});
+
+// Vote on a fediverse poll (a Question in the feed). Owner-only, like the other interactions.
+router.post('/news/vote', requireSiteManager, async (req, res) => {
+  const site = res.locals.site;
+  const note = (req.body.note || '').toString();
+  let choice = req.body.choice;
+  if (choice == null) choice = [];
+  if (!Array.isArray(choice)) choice = [choice];
+  if (site && note && choice.length) { try { await ActivityPubService.voteOnPoll(site, note, choice.map(String)); } catch (e) { /* ignore */ } }
   res.redirect('/news');
 });
 

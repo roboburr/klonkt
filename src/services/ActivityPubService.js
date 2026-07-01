@@ -768,6 +768,23 @@ export async function verifyRequest(req) {
   return ok ? actor : null;
 }
 
+// Parse a fediverse poll (an ActivityStreams `Question` — the Mastodon-standard poll form)
+// into our compact shape. `oneOf` = single choice, `anyOf` = multiple; each option is a Note
+// with a `name` and a `replies` collection whose `totalItems` is that option's vote count.
+function parsePoll(o) {
+  if (!o || o.type !== 'Question') return null;
+  const raw = Array.isArray(o.oneOf) ? o.oneOf : (Array.isArray(o.anyOf) ? o.anyOf : null);
+  if (!raw || !raw.length) return null;
+  const options = raw.slice(0, 12).map((opt) => ({
+    name: String((opt && opt.name) || '').slice(0, 300),
+    count: Math.max(0, Number(opt && opt.replies && opt.replies.totalItems) || 0),
+  })).filter((x) => x.name);
+  if (!options.length) return null;
+  const endTime = o.endTime || (typeof o.closed === 'string' ? o.closed : null);
+  const closed = !!o.closed || (endTime ? Date.parse(endTime) <= Date.now() : false);
+  return { multiple: Array.isArray(o.anyOf), options, endTime, closed, voters: Number(o.votersCount) || null, voted: null };
+}
+
 // Handle an incoming inbox POST. slugParam = null for the shared /ap/inbox.
 export async function handleInbox(req, slugParam) {
   const act = req.body || {};
@@ -843,7 +860,7 @@ export async function handleInbox(req, slugParam) {
   const isLocalActor = !!(base && actorUri && actorUri.startsWith(`${base}/ap/users/`));
 
   // Inbound reply: a Create whose object replies to one of our notes (post OR comment).
-  if (type === 'Create' && act.object && (act.object.type === 'Note' || act.object.type === 'Article')) {
+  if (type === 'Create' && act.object && (act.object.type === 'Note' || act.object.type === 'Article' || act.object.type === 'Question')) {
     const o = act.object;
     const tgt = findThreadTarget(o.inReplyTo, base);
     if (tgt && actorUri && !isLocalActor) {
@@ -868,12 +885,14 @@ export async function handleInbox(req, slugParam) {
           if (_iu) _atts.push({ url: _iu, type: (_im && _im.mediaType) || 'image/jpeg' });
         }
         const media = JSON.stringify(_atts);
+        const poll = parsePoll(o); // a Question (fediverse poll) → cache its options/counts
         // "Feature" = show in the Cirkel (local only). We do NOT auto-Announce
         // incoming posts to the fediverse — that flooded followers. Boosting to the
         // fediverse is only ever a deliberate, manual per-post action (the 🔁 on
         // the timeline).
         for (const s of subs) {
           tlStmts().ins.run(o.id, s.slug, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.url || null, o.published || null, media, o.sensitive ? 1 : 0, o.summary || null);
+          if (poll) { try { db.prepare('UPDATE ap_timeline SET poll_json = ? WHERE id = ? AND slug = ?').run(JSON.stringify(poll), o.id, s.slug); } catch { /* ignore */ } }
         }
         console.log('[AP] timeline +', actorUri, 'x' + subs.length);
       }
@@ -884,7 +903,7 @@ export async function handleInbox(req, slugParam) {
   // push-based edit-sync that keeps the Cirkel/timeline fresh without polling (selfHeal
   // does it on a version bump; this does it live). Scope to the SIGNING actor so B can't
   // edit A's note (the signature gate guarantees claimedActor == the verified signer).
-  if (type === 'Update' && act.object && (act.object.type === 'Note' || act.object.type === 'Article')) {
+  if (type === 'Update' && act.object && (act.object.type === 'Note' || act.object.type === 'Article' || act.object.type === 'Question')) {
     const o = act.object;
     if (o.id && claimedActor) {
       const html = HtmlSanitizerService.sanitize(o.content || '');
@@ -896,6 +915,17 @@ export async function handleInbox(req, slugParam) {
         const r = db.prepare('UPDATE ap_timeline SET content = ?, media_json = ?, nsfw = ?, cw = ?, url = COALESCE(?, url) WHERE id = ? AND author_uri = ?')
           .run(html, media, o.sensitive ? 1 : 0, o.summary || null, o.url || null, o.id, claimedActor);
         if (r.changes) console.log('[AP] timeline update', claimedActor, '→', o.id);
+        // A poll's Update carries the fresh vote counts / closed state. Refresh per-row so each
+        // site keeps its own `voted` state while the counts/closed update to the new totals.
+        const poll = parsePoll(o);
+        if (poll) {
+          const rows = db.prepare('SELECT rowid AS rid, poll_json FROM ap_timeline WHERE id = ? AND author_uri = ?').all(o.id, claimedActor);
+          const upd = db.prepare('UPDATE ap_timeline SET poll_json = ? WHERE rowid = ?');
+          for (const rw of rows) {
+            let voted = null; try { voted = rw.poll_json ? (JSON.parse(rw.poll_json).voted || null) : null; } catch { /* ignore */ }
+            upd.run(JSON.stringify({ ...poll, voted }), rw.rid);
+          }
+        }
       } catch { /* ignore */ }
       // If this note is a cached fediverse reply on one of our posts, refresh its text too.
       try { db.prepare('UPDATE ap_interactions SET content = ? WHERE object_uri = ? AND actor_uri = ?').run(html, o.id, claimedActor); } catch { /* ignore */ }
@@ -1844,6 +1874,42 @@ function blStmts() {
 export function listBlocks(slug) { return blStmts().list.all(slug); }
 
 // True if an actor (or its whole domain) is blocked anywhere on this instance.
+// Vote on a remote fediverse poll (a cached Question). A ballot = a Create(Note) carrying only a
+// `name` (the chosen option) + inReplyTo the Question, addressed to the poll's author — the
+// Mastodon-standard vote. Records our choice locally + optimistically bumps the counts; the
+// author's Update(Question) refreshes the authoritative totals when it arrives.
+export async function voteOnPoll(site, questionId, choices) {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  if (!base || !site || !site.slug || !questionId) return { error: 'config' };
+  let row; try { row = db.prepare('SELECT author_uri, poll_json FROM ap_timeline WHERE id = ? AND slug = ? LIMIT 1').get(questionId, site.slug); } catch { /* ignore */ }
+  if (!row || !row.poll_json) return { error: 'not_found' };
+  let poll; try { poll = JSON.parse(row.poll_json); } catch { return { error: 'not_found' }; }
+  if (poll.closed) return { error: 'closed' };
+  if (poll.voted) return { error: 'already' };
+  const valid = new Set(poll.options.map((o) => o.name));
+  const picks = (Array.isArray(choices) ? choices : [choices]).map(String).filter((c) => valid.has(c));
+  if (!picks.length) return { error: 'invalid' };
+  const chosen = poll.multiple ? [...new Set(picks)] : [picks[0]];
+  const me = actorId(base, site.slug);
+  const keys = getOrCreateKeys(site.slug);
+  const authorUri = row.author_uri || null;
+  const author = authorUri ? await fetchActor(authorUri).catch(() => null) : null;
+  const inbox = author && (author.inbox || (author.endpoints && author.endpoints.sharedInbox));
+  if (!inbox) return { error: 'unreachable' };
+  for (const name of chosen) {
+    const nid = `${me}/votes/${Date.now()}-${rid()}`;
+    const note = { id: nid, type: 'Note', attributedTo: me, to: authorUri ? [authorUri] : [], name, inReplyTo: questionId, published: new Date().toISOString() };
+    const create = { '@context': AP_CONTEXT, id: `${nid}/activity`, type: 'Create', actor: me, to: note.to, object: note };
+    deliverWithRetry(site.slug, inbox, create, `${me}#main-key`, keys.private_pem);
+  }
+  // Local optimistic update (authoritative counts arrive via the author's Update(Question)).
+  poll.voted = poll.multiple ? chosen : chosen[0];
+  for (const o of poll.options) if (chosen.includes(o.name)) o.count = (o.count || 0) + 1;
+  if (poll.voters != null) poll.voters += 1;
+  try { db.prepare('UPDATE ap_timeline SET poll_json = ? WHERE id = ? AND slug = ?').run(JSON.stringify(poll), questionId, site.slug); } catch { /* ignore */ }
+  return { ok: true };
+}
+
 export function isBlockedAny(actorUri) {
   if (!actorUri) return false;
   let domain = ''; try { domain = new URL(actorUri).host; } catch { /* ignore */ }
@@ -1898,7 +1964,7 @@ export default {
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, setMyReaction, getMyReactions, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate,
-  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, sendInteraction,
+  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, sendInteraction, voteOnPoll,
   autoBoostCount, boostedCount, markBoosted, unmarkBoosted, markLiked, unmarkLiked, getTimelineReaction, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
