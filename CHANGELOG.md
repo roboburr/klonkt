@@ -5,6 +5,10 @@ Versions follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Short videos in the feed autoplay and loop.** An animated cover or a short (≤30s) clip in the
+  News feed now plays automatically and loops muted, like a GIF; longer videos keep their controls.
+
 ## [1.2.0] — 2026-07-01
 
 ### Added

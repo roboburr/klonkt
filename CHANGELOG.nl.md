@@ -5,6 +5,11 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 
 ## [Unreleased]
 
+### Toegevoegd
+- **Korte video's in de feed spelen automatisch af en loopen.** Een geanimeerde cover of een korte
+  (≤30s) clip in de News-feed speelt nu automatisch geluidloos in een lus, als een GIF; langere
+  video's houden hun bediening.
+
 ## [1.2.0] — 2026-07-01
 
 ### Toegevoegd
