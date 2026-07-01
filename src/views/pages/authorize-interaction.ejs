@@ -202,7 +202,7 @@
       <form method="post" action="/authorize_interaction/report" class="auth-interact-form">
         <input type="hidden" name="uri" value="<%= uri %>">
         <input type="hidden" name="actor_uri" value="<%= target.actor_uri %>">
-        <p class="auth-report-note"><%= t('fedi.report_where', { handle: target.actor_handle }) %></p>
+        <p class="auth-report-note"><%= t('fedi.report_where') %></p>
         <textarea name="reason" rows="3" maxlength="3000" placeholder="<%= t('fedi.report_ph') %>"></textarea>
         <div class="auth-interact-actions">
           <button type="submit" class="btn btn-danger"><%= t('fedi.report_send') %></button>
