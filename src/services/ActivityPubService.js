@@ -342,6 +342,7 @@ export function buildNote(base, site, post) {
   // shift+enter uses <br> and has no \n → this is a no-op there).
   body = body.replace(/\r?\n/g, '<br>');
   body = linkHashtags(base, body); // link inline #hashtags in the post body too
+  body = linkUrls(body);           // bare URLs → clickable links on the federated copy
   // Append the tags-field hashtags to the content so Mastodon renders them as clickable
   // hashtags (a Hashtag that's only in the `tag` array isn't shown inline). CamelCase
   // multi-word tags; skip any already present inline in the body.
@@ -1370,6 +1371,19 @@ function linkHashtags(base, html) {
   return String(html || '').replace(/(^|[\s>])#([\p{L}\p{M}\p{N}_]+)/gu, (m, pre, tag) =>
     `${pre}<a href="${base}/tag/${encodeURIComponent(tag.toLowerCase())}" class="mention hashtag" rel="tag">#${tag}</a>`);
 }
+// Auto-link bare http(s) URLs in already-safe HTML (federated copies). Splits on existing
+// <a>…</a> so a linked URL is never wrapped twice; requires start/whitespace/'>' before the
+// URL so attribute values (src="https://…") never match. Trailing sentence punctuation stays
+// outside the link (Mastodon-style).
+function linkUrls(html) {
+  const parts = String(html || '').split(/(<a\b[^>]*>[\s\S]*?<\/a>)/gi);
+  for (let i = 0; i < parts.length; i++) {
+    if (/^<a\b/i.test(parts[i])) continue; // already a link → leave as-is
+    parts[i] = parts[i].replace(/(^|[\s>])(https?:\/\/[^\s<]+?)([.,;:!?)\]»]*)(?=$|[\s<])/g,
+      (m, pre, url, trail) => `${pre}<a href="${url.replace(/"/g, '%22')}" rel="nofollow noopener" target="_blank">${url}</a>${trail}`);
+  }
+  return parts.join('');
+}
 // Extract the AP Hashtag tag objects from already-linked reply content.
 function hashtagTags(base, content) {
   const tags = [], seen = new Set();
@@ -1496,7 +1510,7 @@ export async function deliverReply(site, { postId, postSlug, parent, text }) {
   const mres = await resolveMentionsInText(base, body); // link inline @mentions + collect their inboxes
   const mention = parent.actor_uri
     ? `<a href="${escHtml(parent.actor_url || parent.actor_uri)}" class="u-url mention" data-actor="${escHtml(parent.actor_uri)}">${escHtml(dispHandle)}</a> ` : '';
-  const content = `<p>${mention}${linkHashtags(base, mres.html)}</p>`;
+  const content = `<p>${mention}${linkUrls(linkHashtags(base, mres.html))}</p>`;
   // Dedup: skip if the exact same reply was already sent (double-submit guard).
   const dup = db.prepare('SELECT 1 FROM ap_outbox WHERE site_slug = ? AND IFNULL(in_reply_to, \'\') = ? AND content = ? LIMIT 1')
     .get(site.slug, parent.object_uri || '', content);
@@ -1656,7 +1670,7 @@ export async function deliverOutboxUpdate(site, outboxId, newText) {
   const mention = row.to_actor
     ? `<a href="${escHtml(toProfile)}" class="u-url mention" data-actor="${escHtml(row.to_actor)}">${escHtml(toHandle)}</a> ` : '';
   const mres = await resolveMentionsInText(base, escHtml(text).replace(/\r?\n/g, '<br>'));
-  const content = `<p>${mention}${linkHashtags(base, mres.html)}</p>`;
+  const content = `<p>${mention}${linkUrls(linkHashtags(base, mres.html))}</p>`;
   db.prepare('UPDATE ap_outbox SET content = ? WHERE id = ?').run(content, outboxId);
   const note = buildReplyNote(base, site, iStmts().getO.get(outboxId));
   note.updated = new Date().toISOString();

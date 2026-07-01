@@ -33,6 +33,10 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
   is het bestand verspreid — weer "sluiten" zou schijnveiligheid zijn. De editor vergrendelt de keuze
   na het openen en waarschuwt je voordat je 'm aanvinkt.
 
+### Opgelost
+- **Kale webadressen worden links op de fediverse.** Een losse URL in een post of reactie federeert
+  nu als klikbare link in plaats van platte tekst.
+
 ## [1.2.0] — 2026-07-01
 
 ### Toegevoegd

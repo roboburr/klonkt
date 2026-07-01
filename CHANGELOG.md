@@ -30,6 +30,10 @@ Versions follow [SemVer](https://semver.org/).
   has spread, so "closing" it again would be false security — the editor now locks the choice after
   opening and warns you before you tick it.
 
+### Fixed
+- **Plain web addresses become links on the fediverse.** A bare URL typed in a post or reply now
+  federates as a clickable link instead of plain text.
+
 ## [1.2.0] — 2026-07-01
 
 ### Added

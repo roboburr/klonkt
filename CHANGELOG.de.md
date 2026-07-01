@@ -35,6 +35,10 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
   ist die Datei verbreitet — erneutes "Schließen" wäre Scheinsicherheit. Der Editor sperrt die Wahl
   nach dem Öffnen und warnt dich, bevor du sie ankreuzt.
 
+### Behoben
+- **Nackte Webadressen werden im Fediverse zu Links.** Eine einfache URL in einem Beitrag oder einer
+  Antwort föderiert jetzt als klickbarer Link statt als reiner Text.
+
 ## [1.2.0] — 2026-07-01
 
 ### Hinzugefügt
