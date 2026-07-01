@@ -267,21 +267,38 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
           <input type="checkbox" name="poll_enabled" value="1" id="pe-poll-toggle" <%= _poll ? 'checked' : '' %> <%= _pollLocked ? 'disabled' : '' %>>
           <span>📊 <%= t('pedit.poll_label') %></span>
         </label>
-        <div id="pe-poll-fields" style="margin-top:6px<%= _poll ? '' : ';display:none' %>">
-          <% if (_pollLocked) { %><p style="font-size:12px;opacity:.7;margin:0 0 6px"><%= t('pedit.poll_locked') %></p><% } %>
-          <div id="pe-poll-opts">
+        <style>
+          .pe-poll { margin-top: 6px; }
+          .pe-poll-locked { font-size: 12px; opacity: .7; margin: 0 0 6px; }
+          .pe-poll-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+          .pe-poll-opt { flex: 1; min-width: 0; box-sizing: border-box; font-size: 13px; padding: 7px 9px; border-radius: 7px; border: 1px solid var(--rule, rgba(128,128,128,.35)); background: transparent; color: inherit; }
+          .pe-poll-opt:focus { outline: none; border-color: var(--accent); }
+          .pe-poll-del { flex: 0 0 auto; width: 30px; height: 32px; display: inline-flex; align-items: center; justify-content: center; font-size: 18px; line-height: 1; border: 1px solid var(--rule, rgba(128,128,128,.35)); border-radius: 7px; background: transparent; color: var(--ink-muted, #999); cursor: pointer; transition: color .12s, border-color .12s; }
+          .pe-poll-del:hover { border-color: #c0392b; color: #c0392b; }
+          .pe-poll-del[hidden] { display: none; }
+          .pe-poll-add { display: block; width: fit-content; font-size: 12.5px; padding: 6px 12px; border-radius: 7px; border: 1px dashed var(--rule, rgba(128,128,128,.45)); background: transparent; color: inherit; cursor: pointer; margin: 0 0 10px; transition: color .12s, border-color .12s; }
+          .pe-poll-add:hover { border-color: var(--accent); color: var(--accent); }
+          .pe-poll-add:disabled { opacity: .4; cursor: default; border-style: dashed; }
+          .pe-poll-durlabel { display: block; font-size: 12.5px; opacity: .8; margin: 8px 0 4px; }
+          .pe-poll-dur { padding: 7px 9px; border-radius: 7px; border: 1px solid var(--rule, rgba(128,128,128,.35)); background: transparent; color: inherit; font-size: 13px; }
+        </style>
+        <div id="pe-poll-fields" class="pe-poll"<%= _poll ? '' : ' style="display:none"' %>>
+          <% if (_pollLocked) { %><p class="pe-poll-locked"><%= t('pedit.poll_locked') %></p><% } %>
+          <div id="pe-poll-opts" data-ph="<%= t('pedit.poll_option_ph') %>" data-del="<%= t('pedit.poll_remove') %>">
             <% _pollOpts.forEach(function (o) { %>
-              <input type="text" name="poll_option" class="pe-poll-opt" maxlength="100" value="<%= (o && o.name) || '' %>" placeholder="<%= t('pedit.poll_option_ph') %>" <%= _pollLocked ? 'disabled' : '' %>
-                     style="display:block;width:100%;box-sizing:border-box;margin-bottom:5px;font-size:13px;padding:7px 9px;border-radius:7px;border:1px solid var(--rule,rgba(128,128,128,.35));background:transparent;color:inherit">
+              <div class="pe-poll-row">
+                <input type="text" name="poll_option" class="pe-poll-opt" maxlength="100" value="<%= (o && o.name) || '' %>" placeholder="<%= t('pedit.poll_option_ph') %>" <%= _pollLocked ? 'disabled' : '' %>>
+                <% if (!_pollLocked) { %><button type="button" class="pe-poll-del" aria-label="<%= t('pedit.poll_remove') %>" title="<%= t('pedit.poll_remove') %>">&times;</button><% } %>
+              </div>
             <% }); %>
           </div>
-          <button type="button" id="pe-poll-add" class="btn" data-ph="<%= t('pedit.poll_option_ph') %>" <%= _pollLocked ? 'disabled' : '' %> style="font-size:12.5px;padding:5px 10px">+ <%= t('pedit.poll_add') %></button>
-          <label class="pe-checkbox" style="margin-top:8px">
+          <% if (!_pollLocked) { %><button type="button" id="pe-poll-add" class="pe-poll-add">+ <%= t('pedit.poll_add') %></button><% } %>
+          <label class="pe-checkbox">
             <input type="checkbox" name="poll_multiple" value="1" <%= (_poll && _poll.multiple) ? 'checked' : '' %> <%= _pollLocked ? 'disabled' : '' %>>
             <span><%= t('pedit.poll_multiple') %></span>
           </label>
-          <label style="display:block;font-size:12.5px;opacity:.8;margin:6px 0 4px"><%= t('pedit.poll_duration') %></label>
-          <select name="poll_duration" <%= _pollLocked ? 'disabled' : '' %> style="padding:7px 9px;border-radius:7px;border:1px solid var(--rule,rgba(128,128,128,.35));background:transparent;color:inherit;font-size:13px">
+          <label class="pe-poll-durlabel"><%= t('pedit.poll_duration') %></label>
+          <select name="poll_duration" class="pe-poll-dur" <%= _pollLocked ? 'disabled' : '' %>>
             <% [['300','5m'],['1800','30m'],['3600','1h'],['21600','6h'],['43200','12h'],['86400','1d'],['259200','3d'],['604800','7d']].forEach(function (d) { %>
               <option value="<%= d[0] %>" <%= d[0] === '86400' ? 'selected' : '' %>><%= t('pedit.poll_dur_' + d[1]) %></option>
             <% }); %>
@@ -289,19 +306,29 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
         </div>
         <script>
         (function () {
-          var tog = document.getElementById('pe-poll-toggle'), box = document.getElementById('pe-poll-fields');
-          if (tog && box && !tog.__wired) { tog.__wired = true; tog.addEventListener('change', function () { box.style.display = tog.checked ? '' : 'none'; }); }
-          var add = document.getElementById('pe-poll-add'), opts = document.getElementById('pe-poll-opts');
-          if (add && opts && !add.__wired) { add.__wired = true;
-            add.addEventListener('click', function () {
-              if (opts.querySelectorAll('.pe-poll-opt').length >= 8) return;
-              var i = document.createElement('input');
-              i.type = 'text'; i.name = 'poll_option'; i.className = 'pe-poll-opt'; i.maxLength = 100;
-              i.placeholder = add.getAttribute('data-ph') || '';
-              i.setAttribute('style', 'display:block;width:100%;box-sizing:border-box;margin-bottom:5px;font-size:13px;padding:7px 9px;border-radius:7px;border:1px solid var(--rule,rgba(128,128,128,.35));background:transparent;color:inherit');
-              opts.appendChild(i);
-            });
+          var box = document.getElementById('pe-poll-fields');
+          var tog = document.getElementById('pe-poll-toggle');
+          var opts = document.getElementById('pe-poll-opts');
+          var add = document.getElementById('pe-poll-add');
+          if (!box || !opts) return;
+          if (tog && !tog.__wired) { tog.__wired = true; tog.addEventListener('change', function () { box.style.display = tog.checked ? '' : 'none'; }); }
+          var PH = opts.getAttribute('data-ph') || '', DEL = opts.getAttribute('data-del') || '';
+          function rows() { return opts.querySelectorAll('.pe-poll-row'); }
+          // A poll needs at least 2 options: hide the ✕ at the minimum, and cap adding at 8.
+          function refresh() {
+            var n = rows().length;
+            opts.querySelectorAll('.pe-poll-del').forEach(function (b) { b.hidden = n <= 2; });
+            if (add) add.disabled = n >= 8;
           }
+          function makeRow() {
+            var row = document.createElement('div'); row.className = 'pe-poll-row';
+            var i = document.createElement('input'); i.type = 'text'; i.name = 'poll_option'; i.className = 'pe-poll-opt'; i.maxLength = 100; i.placeholder = PH;
+            var d = document.createElement('button'); d.type = 'button'; d.className = 'pe-poll-del'; d.setAttribute('aria-label', DEL); d.title = DEL; d.innerHTML = '&times;';
+            row.appendChild(i); row.appendChild(d); return row;
+          }
+          if (add && !add.__wired) { add.__wired = true; add.addEventListener('click', function () { if (rows().length >= 8) return; opts.appendChild(makeRow()); refresh(); }); }
+          if (!opts.__wired) { opts.__wired = true; opts.addEventListener('click', function (e) { var d = e.target.closest('.pe-poll-del'); if (!d || rows().length <= 2) return; d.closest('.pe-poll-row').remove(); refresh(); }); }
+          refresh();
         })();
         </script>
         <% if (typeof premiumUnlocked === 'undefined' || premiumUnlocked) { %>
