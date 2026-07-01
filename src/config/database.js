@@ -81,6 +81,7 @@ export function initializeDatabase() {
   ensureColumn('sites', 'feed_view_switch',  'INTEGER DEFAULT 1');       // show switcher
   ensureColumn('sites', 'show_search',     'INTEGER DEFAULT 1');
   ensureColumn('sites', 'show_archive_link', 'INTEGER DEFAULT 1');
+  ensureColumn('sites', 'og_theme', 'TEXT');               // OG share-card variant: NULL=auto (follow site theme) | 'light' | 'dark'
 
   // Per-post noindex + type
   ensureColumn('posts', 'noindex', 'INTEGER DEFAULT 0');

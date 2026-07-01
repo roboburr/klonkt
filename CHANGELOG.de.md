@@ -6,6 +6,8 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 ## [Unreleased]
 
 ### Hinzugefügt
+- **Wähle eine helle oder dunkle Teilen-Karte.** Das automatisch erzeugte Teilbild folgt deinem
+  Site-Thema; unter Verwaltung → SEO kannst du es jetzt fest auf hell oder dunkel stellen.
 - **Eine Erwähnung ist jetzt eine Benachrichtigung.** Wenn dich jemand im Fediverse in einem
   Beitrag erwähnt — auch in einem, der keine Antwort an dich ist — erscheint das in deinen
   Fediverse-Benachrichtigungen mit einem Link zum Original.

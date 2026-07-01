@@ -6,6 +6,8 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 ## [Unreleased]
 
 ### Toegevoegd
+- **Kies een lichte of donkere deel-kaart.** De automatisch gemaakte deel-afbeelding volgt je
+  site-thema; onder Beheer → SEO kun je 'm nu geforceerd licht of donker zetten.
 - **Een vermelding is nu een melding.** Als iemand op de fediverse je noemt in een post — ook
   eentje die geen reactie op jou is — verschijnt dat in je fediverse-meldingen met een link naar
   het origineel.

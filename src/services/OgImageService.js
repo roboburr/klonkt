@@ -89,9 +89,12 @@ export function ogImageFor(site) {
   if (!Resvg || !site || !site.slug) return null;
 
   const palette = ThemeService.PALETTES[site.palette] ? site.palette : 'klonkt';
-  // Follow the site's "default theme for new visitors" (theme_override): a light card when the site
-  // is set to Light, otherwise dark (an OG image is static, so Auto/Dark → dark).
-  const theme = site.theme_override === 'light' ? 'light' : 'dark';
+  // Card variant: an explicit SEO override (og_theme) wins; else follow the site's "default
+  // theme for new visitors" (theme_override) — light when the site is set to Light, otherwise
+  // dark (an OG image is static, so Auto/Dark → dark).
+  const theme = (site.og_theme === 'light' || site.og_theme === 'dark')
+    ? site.og_theme
+    : (site.theme_override === 'light' ? 'light' : 'dark');
   const accent = site.accent || ((ThemeService.PALETTES[palette] || ThemeService.PALETTES.klonkt)[theme] || ThemeService.PALETTES.klonkt.dark).accent;
   const key = crypto.createHash('sha1')
     .update([TEMPLATE_VERSION, site.slug, palette, accent, theme, site.title || '', site.tagline || site.description || ''].join('\x1f'))

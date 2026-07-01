@@ -58,6 +58,7 @@ router.post('/', requireGod, (req, res) => {
       canonical = ?,
       default_description = ?,
       og_image_default = ?,
+      og_theme = ?,
       og_locale = ?,
       author = ?,
       twitter = ?,
@@ -78,6 +79,7 @@ router.post('/', requireGod, (req, res) => {
     trimOrNull(f.canonical, 200),
     trimOrNull(f.default_description, 500),
     trimOrNull(f.og_image_default, 500),
+    (f.og_theme === 'light' || f.og_theme === 'dark') ? f.og_theme : null, // null = auto (follow site theme)
     trimOrNull(f.og_locale, 32),
     trimOrNull(f.author, 120),
     trimOrNull(f.twitter, 64),

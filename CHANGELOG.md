@@ -6,6 +6,8 @@ Versions follow [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Choose a light or dark share card.** The auto-generated share image follows your site theme;
+  under Admin → SEO you can now force it light or dark.
 - **A mention is now a notification.** When someone on the fediverse mentions you in a post —
   even one that isn't a reply to you — it shows up in your fediverse notifications with a link
   to the original.

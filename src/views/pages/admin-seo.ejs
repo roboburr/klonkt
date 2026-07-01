@@ -43,6 +43,14 @@
         <input type="text" name="og_image_default" value="<%= site.og_image_default || '' %>" placeholder="https://yourdomain.com/share.jpg" maxlength="500">
       </label>
       <label>
+        <span><%= t('aseo.og_theme') %> <small class="form-hint-inline">— <%= t('aseo.og_theme_hint') %></small></span>
+        <select name="og_theme">
+          <option value="" <%= !site.og_theme ? 'selected' : '' %>><%= t('aseo.og_theme_auto') %></option>
+          <option value="light" <%= site.og_theme === 'light' ? 'selected' : '' %>><%= t('aseo.og_theme_light') %></option>
+          <option value="dark" <%= site.og_theme === 'dark' ? 'selected' : '' %>><%= t('aseo.og_theme_dark') %></option>
+        </select>
+      </label>
+      <label>
         <span><%= t('aseo.og_locale') %> <small class="form-hint-inline">— <%= t('aseo.og_locale_hint_pre') %> <code>nl_NL</code> <%= t('aseo.og_locale_hint_or') %> <code>en_US</code></small></span>
         <input type="text" name="og_locale" value="<%= site.og_locale || '' %>" placeholder="nl_NL" maxlength="32">
       </label>
