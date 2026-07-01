@@ -716,6 +716,9 @@ export function startDeliveryWorker() {
 
 // Best-effort verification of an incoming signed request. Returns the sender's
 // actor doc if the signature checks out, else null. (Not gating yet — MVP.)
+// Max clock skew for the signed Date header (replay window). Generous default to tolerate
+// federating servers with drifting clocks; an operator can widen it via env.
+const SIG_MAX_SKEW_MS = (Number(process.env.AP_SIG_MAX_SKEW_MIN) || 60) * 60 * 1000;
 export async function verifyRequest(req) {
   const sigH = req.headers['signature'];
   if (!sigH) return null;
@@ -744,9 +747,23 @@ export async function verifyRequest(req) {
       : `${x}: ${req.headers[x] || ''}`).join('\n');
     try { if (crypto.verify('sha256', Buffer.from(line), pem, _sig)) { ok = true; break; } } catch { /* try next host */ }
   }
-  if (ok && hs.includes('digest') && req.rawBody) {
-    const exp = 'SHA-256=' + crypto.createHash('sha256').update(req.rawBody).digest('base64');
-    if (req.headers['digest'] !== exp) ok = false;
+  // Replay defence: the Date header must be signed and recent. A captured signed request
+  // replayed later (or with a swapped body) is rejected.
+  if (ok) {
+    if (!hs.includes('date')) ok = false;
+    else {
+      const t = Date.parse(req.headers['date'] || '');
+      if (isNaN(t) || Math.abs(Date.now() - t) > SIG_MAX_SKEW_MS) ok = false;
+    }
+  }
+  // Digest is MANDATORY when the request carries a body: without a signed digest the body
+  // isn't covered by the signature and could be swapped on a replay.
+  if (ok && req.rawBody && req.rawBody.length) {
+    if (!hs.includes('digest')) ok = false;
+    else {
+      const exp = 'SHA-256=' + crypto.createHash('sha256').update(req.rawBody).digest('base64');
+      if (req.headers['digest'] !== exp) ok = false;
+    }
   }
   return ok ? actor : null;
 }
@@ -902,6 +919,9 @@ export async function handleInbox(req, slugParam) {
         const bn = await fetchNoteAP(objUrl);
         if (bn && bn !== 404 && (bn.type === 'Note' || bn.type === 'Article') && bn.id) {
           const origUri = actorUriOf(bn.attributedTo);
+          // Block completeness: even if you follow the booster, drop a boost whose ORIGINAL
+          // author is blocked — otherwise a block is bypassed via someone else's boost.
+          if (origUri && isBlockedAny(origUri)) { console.log('[AP] timeline boost dropped (blocked origin)', origUri, 'via', actorUri); return 202; }
           const oai = actorInfo(await resolveActor(origUri), origUri);
           const html = HtmlSanitizerService.sanitize(bn.content || '');
           const media = mediaFromNote(bn);
@@ -1834,10 +1854,17 @@ export function isBlockedAny(actorUri) {
 function purgeBlocked(kind, target) {
   try {
     if (kind === 'domain') {
-      const like = `%//${target}/%`;
-      db.prepare('DELETE FROM ap_interactions WHERE actor_uri LIKE ?').run(like);
-      db.prepare('DELETE FROM ap_timeline WHERE author_uri LIKE ?').run(like);
-      db.prepare('DELETE FROM ap_followers WHERE actor_uri LIKE ?').run(like);
+      // Exact host match (a URL LIKE over-/under-matches: it misses bare-domain or :port
+      // actor URIs and can catch look-alikes). Filter by parsed host, same as isBlockedAny.
+      const purge = (table, col) => {
+        let rows = [];
+        try { rows = db.prepare(`SELECT DISTINCT ${col} AS u FROM ${table} WHERE ${col} IS NOT NULL AND ${col} != ''`).all(); } catch { return; }
+        const del = db.prepare(`DELETE FROM ${table} WHERE ${col} = ?`);
+        for (const r of rows) { let h = ''; try { h = new URL(r.u).host; } catch { /* skip */ } if (h === target) { try { del.run(r.u); } catch { /* ignore */ } } }
+      };
+      purge('ap_interactions', 'actor_uri');
+      purge('ap_timeline', 'author_uri');
+      purge('ap_followers', 'actor_uri');
     } else {
       db.prepare('DELETE FROM ap_interactions WHERE actor_uri = ?').run(target);
       db.prepare('DELETE FROM ap_timeline WHERE author_uri = ?').run(target);
