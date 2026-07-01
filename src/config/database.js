@@ -86,6 +86,7 @@ export function initializeDatabase() {
   ensureColumn('posts', 'cover_video_url', 'TEXT');        // muted loop MP4 for an animated cover (Safari-smooth)
   ensureColumn('posts', 'content_warning', 'TEXT');        // custom CW label (empty = default "Gevoelige inhoud")
   ensureColumn('posts', 'type',    "TEXT DEFAULT 'post'");  // post | foto | video | audio
+  ensureColumn('posts', 'poll_json', 'TEXT');              // a poll WE host → federates as AS2 Question: {multiple,options[{name}],endTime,closed}
 
   // Statistics (premium module) — bare counters, cookie-free.
   ensureColumn('posts', 'view_count', 'INTEGER DEFAULT 0');         // views per post
@@ -330,6 +331,15 @@ export function initializeDatabase() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     CREATE INDEX IF NOT EXISTS idx_ap_delivery_due ON ap_delivery(next_at);
+    CREATE TABLE IF NOT EXISTS poll_votes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      post_id INTEGER NOT NULL,     -- our local poll post (posts.id)
+      actor_uri TEXT NOT NULL,      -- the remote voter's AP actor URI
+      choice TEXT NOT NULL,         -- the chosen option's name (matches poll_json options[].name)
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(post_id, actor_uri, choice)
+    );
+    CREATE INDEX IF NOT EXISTS idx_poll_votes_post ON poll_votes(post_id);
   `);
   // "Feature" a followed account: its posts show in the local Cirkel.
   ensureColumn('ap_following', 'auto_boost', 'INTEGER DEFAULT 0');

@@ -117,6 +117,31 @@ function parsePinnedRank(raw) {
   return n;
 }
 
+// Poll durations offered in the editor (seconds) — the Mastodon set (5m … 7d).
+const POLL_DURATIONS = new Set([300, 1800, 3600, 21600, 43200, 86400, 259200, 604800]);
+// Parse the editor's poll fields into the poll_json we store on the post (which
+// buildNote federates as an AS2 Question). Returns null when no valid poll (< 2
+// options or the poll checkbox is off). endTime is set from the chosen duration
+// (default 1 day) so the Scheduler can close it.
+function parsePollForm(body) {
+  if (!body || !body.poll_enabled) return null;
+  const raw = body.poll_option == null ? [] : (Array.isArray(body.poll_option) ? body.poll_option : [body.poll_option]);
+  const options = [];
+  const seen = new Set();
+  for (const o of raw) {
+    const name = String(o == null ? '' : o).trim().slice(0, 100);
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue; seen.add(key);
+    options.push({ name });
+    if (options.length >= 8) break;
+  }
+  if (options.length < 2) return null;
+  const dur = parseInt(body.poll_duration, 10);
+  const secs = POLL_DURATIONS.has(dur) ? dur : 86400;
+  return JSON.stringify({ multiple: !!body.poll_multiple, options, endTime: new Date(Date.now() + secs * 1000).toISOString(), closed: false });
+}
+
 // ==================== HOME (Posts list) ====================
 router.get('/', (req, res) => {
   const site = res.locals.site;
@@ -240,6 +265,7 @@ router.post('/posts/create', requireAuth, (req, res) => {
 
   const validTypes = new Set(['post', 'foto', 'video', 'audio']);
   const finalType = validTypes.has(type) ? type : 'post';
+  const pollJson = parsePollForm(req.body);   // AS2 Question definition, or null
   const postId = uuid();
   const now = new Date().toISOString();
   let finalStatus = status || 'draft';
@@ -257,15 +283,15 @@ router.post('/posts/create', requireAuth, (req, res) => {
   db.prepare(`
     INSERT INTO posts (
       id, site_id, slug, author_id, title, content, excerpt,
-      status, cover_image_url, cover_video_url, pinned, tags, type, noindex, fan_only, nsfw, content_warning, publish_at,
+      status, cover_image_url, cover_video_url, pinned, tags, type, noindex, fan_only, nsfw, content_warning, poll_json, publish_at,
       created_at, updated_at, published_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     postId, site.id, finalSlug, req.session.user.id,
     title || finalSlug, cleanContent, excerpt || '',
     finalStatus, cover_image_url || null, (req.body.cover_video_url || null), parsePinnedRank(pinned),
     JSON.stringify((tags || '').split(',').map(t => t.trim()).filter(Boolean)),
-    finalType, noindex ? 1 : 0, fanOnly, nsfw, cw, publishAt,
+    finalType, noindex ? 1 : 0, fanOnly, nsfw, cw, pollJson, publishAt,
     now, now, publishedAt
   );
 
@@ -286,7 +312,7 @@ router.post('/posts/create', requireAuth, (req, res) => {
       ActivityPubService.deliverCreate(site, {
         id: postId, slug: finalSlug, title: title || finalSlug,
         content: cleanContent, cover_image_url: cover_image_url || null, cover_video_url: req.body.cover_video_url || null,
-        published_at: publishedAt, created_at: now, fan_only: fanOnly, nsfw, content_warning: cw,
+        published_at: publishedAt, created_at: now, fan_only: fanOnly, nsfw, content_warning: cw, poll_json: pollJson,
       }).catch(() => { /* best-effort */ });
     }
   }
@@ -320,9 +346,14 @@ router.get('/posts/:slug/edit', requireAuth, (req, res) => {
     post.tags = [];
   }
 
+  // A poll with votes is frozen (options can't change) — flag it so the editor disables the poll fields.
+  let pollLocked = false;
+  try { pollLocked = !!(post.poll_json && db.prepare('SELECT 1 FROM poll_votes WHERE post_id = ? LIMIT 1').get(post.id)); } catch { /* ignore */ }
+
   renderPage(req, res, 'pages/post-edit', {
     post,
     isNew: false,
+    pollLocked,
     fediOpenAudio: postAudioFediOpen(site.id, post.content),
     pageTitle: 'Edit: ' + (post.title || 'Untitled'),
     bodyClass: 'on-special',
@@ -351,6 +382,12 @@ router.post('/posts/:slug/save', requireAuth, (req, res) => {
   const action = req.body.action || 'save';
   const validTypes = new Set(['post', 'foto', 'video', 'audio']);
   const finalType = validTypes.has(type) ? type : (post.type || 'post');
+
+  // A poll that has already received votes is frozen (you can still edit the surrounding
+  // post, but not the options) — changing options after votes would scramble the tally and
+  // is disallowed on the fediverse too. Otherwise re-parse the poll form (add/remove/disable).
+  const hasVotes = !!(post.poll_json && (() => { try { return db.prepare('SELECT 1 FROM poll_votes WHERE post_id = ? LIMIT 1').get(post.id); } catch { return false; } })());
+  const pollJson = hasVotes ? post.poll_json : parsePollForm(req.body);
 
   // Sanitize before storage — same pipeline as create.
   const cleanContent = HtmlSanitizerService.sanitize(content || '');
@@ -385,14 +422,14 @@ router.post('/posts/:slug/save', requireAuth, (req, res) => {
     UPDATE posts SET
       title = ?, content = ?, excerpt = ?, status = ?,
       cover_image_url = ?, cover_video_url = ?, pinned = ?, tags = ?,
-      type = ?, noindex = ?, fan_only = ?, nsfw = ?, content_warning = ?, publish_at = ?,
+      type = ?, noindex = ?, fan_only = ?, nsfw = ?, content_warning = ?, poll_json = ?, publish_at = ?,
       slug = ?, published_at = ?, updated_at = ?
     WHERE id = ?
   `).run(
     title, cleanContent, excerpt, finalStatus,
     cover_image_url || null, (req.body.cover_video_url || null), parsePinnedRank(pinned),
     JSON.stringify((tags || '').split(',').map(t => t.trim()).filter(Boolean)),
-    finalType, noindex ? 1 : 0, fanOnly, nsfw, cw, publishAt,
+    finalType, noindex ? 1 : 0, fanOnly, nsfw, cw, pollJson, publishAt,
     finalSlug, publishedAt, now, post.id
   );
 
@@ -417,7 +454,7 @@ router.post('/posts/:slug/save', requireAuth, (req, res) => {
     const apPost = {
       id: post.id, slug: finalSlug, title: title || finalSlug,
       content: cleanContent, cover_image_url: cover_image_url || null, cover_video_url: req.body.cover_video_url || null,
-      published_at: publishedAt, created_at: post.created_at, fan_only: fanOnly, nsfw, content_warning: cw,
+      published_at: publishedAt, created_at: post.created_at, fan_only: fanOnly, nsfw, content_warning: cw, poll_json: pollJson,
     };
     if (post.status !== 'published') ActivityPubService.deliverCreate(site, apPost).catch(() => { /* best-effort */ });
     else ActivityPubService.deliverUpdate(site, apPost).catch(() => { /* best-effort */ });
@@ -1078,6 +1115,7 @@ router.get('/:slug', (req, res, next) => {
 
   renderPage(req, res, 'pages/post', {
     post,
+    poll: ActivityPubService.ownPollView(post),
     newerPost,
     olderPost,
     relatedPosts,

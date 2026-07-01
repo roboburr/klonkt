@@ -44,6 +44,29 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
     <%- post.content_html %>
   </div>
 
+  <% if (typeof poll !== 'undefined' && poll) { %>
+    <section class="poll" aria-label="<%= t('poll.aria') %>">
+      <% poll.options.forEach(function(o){ var _lead = poll.total > 0 && o.count === Math.max.apply(null, poll.options.map(function(x){return x.count;})); %>
+        <div class="poll-opt<%= _lead ? ' is-lead' : '' %>">
+          <div class="poll-bar" style="width:<%= o.pct %>%"></div>
+          <span class="poll-name"><%= o.name %></span>
+          <span class="poll-pct"><%= o.pct %>%</span>
+        </div>
+      <% }); %>
+      <div class="poll-meta">
+        <span><%= poll.voters %> <%= poll.voters === 1 ? t('poll.voter_one') : t('poll.voter_many') %></span>
+        <span aria-hidden="true">·</span>
+        <% if (poll.closed) { %>
+          <span><%= t('poll.closed') %></span>
+        <% } else if (poll.endTime) { %>
+          <span><%= t('poll.closes') %> <%= new Date(poll.endTime).toLocaleString() %></span>
+        <% } %>
+        <% if (poll.multiple) { %><span aria-hidden="true">·</span><span><%= t('poll.multiple') %></span><% } %>
+      </div>
+      <p class="poll-note"><%= t('poll.fedi_only') %></p>
+    </section>
+  <% } %>
+
   <% if (post.tags && post.tags.length > 0) { %>
     <div class="post-tags">
       <% post.tags.forEach(t => { %>
@@ -209,6 +232,16 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
 .author:hover { color: var(--accent); }
 .post-content { font-family: var(--font-body, serif); font-size: 1.1rem; line-height: 1.7; color: var(--ink); }
 .post-content p { margin: 1.2em 0; }
+/* Poll (a hosted AS2 Question) — display-only; voting happens from the fediverse. */
+.poll { margin: 1.75rem 0; display: flex; flex-direction: column; gap: .5rem; }
+.poll-opt { position: relative; display: flex; align-items: center; gap: .5rem; padding: .55rem .75rem; border: 1px solid var(--line, rgba(128,128,128,.25)); border-radius: 8px; overflow: hidden; font-size: .98rem; }
+.poll-bar { position: absolute; inset: 0 auto 0 0; background: color-mix(in srgb, var(--accent) 18%, transparent); z-index: 0; transition: width .3s ease; }
+.poll-opt.is-lead .poll-bar { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+.poll-name { position: relative; z-index: 1; flex: 1; color: var(--ink); }
+.poll-opt.is-lead .poll-name { font-weight: 600; }
+.poll-pct { position: relative; z-index: 1; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.poll-meta { display: flex; flex-wrap: wrap; gap: .4rem; font-size: .85rem; color: var(--ink-muted); }
+.poll-note { font-size: .8rem; color: var(--ink-muted); margin: .1rem 0 0; }
 .like-btn {
   display: inline-flex; align-items: center; gap: 0.45rem;
   padding: 0.4rem 0.85rem; border: 1px solid var(--rule); border-radius: 999px;

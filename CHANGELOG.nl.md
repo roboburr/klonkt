@@ -12,6 +12,9 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 - **Stem op fediverse-polls.** Een poll van een account dat je volgt verschijnt nu in de News-feed
   met opties en de huidige resultaten, en je kunt je stem uitbrengen — die federeert terug zoals een
   gewone Mastodon-stem.
+- **Maak je eigen polls.** Een post kan nu een poll bevatten (enkel- of meerkeuze, met een looptijd).
+  Die federeert als een echte fediverse-poll, dus je Mastodon-volgers kunnen stemmen vanuit hun eigen
+  app; de live-resultaten staan op de post en de poll sluit zichzelf zodra de tijd om is.
 
 ## [1.2.0] — 2026-07-01
 

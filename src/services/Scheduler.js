@@ -14,7 +14,7 @@ import ActivityPubService from './ActivityPubService.js';
 export function flipScheduledPosts() {
   try {
     const due = db.prepare(`
-      SELECT p.id, p.site_id, p.slug, p.title, p.content, p.cover_image_url, p.cover_video_url, p.fan_only, p.nsfw, p.content_warning,
+      SELECT p.id, p.site_id, p.slug, p.title, p.content, p.cover_image_url, p.cover_video_url, p.fan_only, p.nsfw, p.content_warning, p.poll_json,
              p.published_at, p.publish_at, p.created_at, u.username
       FROM posts p JOIN users u ON u.id = p.author_id
       WHERE p.status = 'scheduled' AND p.publish_at IS NOT NULL AND datetime(p.publish_at) <= datetime('now')
@@ -38,7 +38,7 @@ export function flipScheduledPosts() {
           ActivityPubService.deliverCreate(site, {
             id: p.id, slug: p.slug, title: p.title || p.slug,
             content: p.content, cover_image_url: p.cover_image_url || null, cover_video_url: p.cover_video_url || null,
-            published_at: p.published_at || p.publish_at, created_at: p.created_at, fan_only: p.fan_only, nsfw: p.nsfw, content_warning: p.content_warning,
+            published_at: p.published_at || p.publish_at, created_at: p.created_at, fan_only: p.fan_only, nsfw: p.nsfw, content_warning: p.content_warning, poll_json: p.poll_json,
           }).catch(() => { /* best-effort */ });
         }
       } catch { /* non-fatal */ }
@@ -47,10 +47,36 @@ export function flipScheduledPosts() {
   } catch { return 0; }
 }
 
+// Close hosted polls whose endTime has passed: mark them closed (once) and push the final
+// tally + closed state to followers as Update(Question). The `closed` flag in poll_json
+// guards against re-sending — a poll is only processed on the tick that crosses its endTime.
+export function closeExpiredPolls() {
+  try {
+    const due = db.prepare(`
+      SELECT id, poll_json FROM posts
+      WHERE poll_json IS NOT NULL
+        AND status = 'published'
+        AND json_extract(poll_json, '$.endTime') IS NOT NULL
+        AND IFNULL(json_extract(poll_json, '$.closed'), 0) = 0
+        AND datetime(json_extract(poll_json, '$.endTime')) <= datetime('now')
+    `).all();
+    if (!due.length) return 0;
+    const upd = db.prepare('UPDATE posts SET poll_json = ? WHERE id = ?');
+    for (const p of due) {
+      let d; try { d = JSON.parse(p.poll_json); } catch { continue; }
+      d.closed = true;
+      upd.run(JSON.stringify(d), p.id);
+      ActivityPubService.deliverPollUpdate(p.id).catch(() => { /* best-effort */ });
+    }
+    return due.length;
+  } catch { return 0; }
+}
+
 let _timer = null;
+function tick() { flipScheduledPosts(); closeExpiredPolls(); }
 export function startScheduler() {
-  flipScheduledPosts();                 // run immediately on boot
+  tick();                               // run immediately on boot
   if (_timer) return;
-  _timer = setInterval(flipScheduledPosts, 60 * 1000); // every minute
+  _timer = setInterval(tick, 60 * 1000); // every minute
   if (_timer.unref) _timer.unref();
 }

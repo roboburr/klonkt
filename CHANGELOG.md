@@ -10,6 +10,9 @@ Versions follow [SemVer](https://semver.org/).
   News feed now plays automatically and loops muted, like a GIF; longer videos keep their controls.
 - **Vote on fediverse polls.** A poll from an account you follow now shows in the News feed with its
   options and current results, and you can cast your vote — it federates back like any Mastodon vote.
+- **Create your own polls.** A post can now carry a poll (single or multiple choice, with a set
+  duration). It federates as a real fediverse poll, so your Mastodon followers can vote from their own
+  app; the live results show on the post and the poll closes itself when the time is up.
 
 ## [1.2.0] — 2026-07-01
 

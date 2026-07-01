@@ -41,6 +41,10 @@ const AP_CONTEXT = [
     PropertyValue: 'schema:PropertyValue',
     value: 'schema:value',
     embedUrl: { '@id': 'schema:embedUrl', '@type': '@id' },
+    // Poll (Question) extension: Question/oneOf/anyOf/endTime/closed are AS2 core, but the
+    // per-poll unique-voter count is a Mastodon (toot) term — declare it so the emitted
+    // Question stays valid JSON-LD (a strict processor would otherwise drop votersCount).
+    votersCount: 'toot:votersCount',
   },
 ];
 
@@ -380,6 +384,10 @@ export function buildNote(base, site, post) {
   // standard field name (not a Klonkt invention); if Mastodon's apps honour it on a Note we
   // make it JSON-LD-clean with a context term, otherwise it degrades to the player card.
   if (playable) note.embedUrl = `${base}/embed?post=${encodeURIComponent(post.slug)}`;
+  // A hosted poll → federate as an AS2 Question (options + live tally). Do this last so it
+  // reuses the note's content/addressing/tags, then swaps the type and strips media.
+  const ownPoll = parseOwnPoll(post.poll_json);
+  if (ownPoll) applyPollToNote(note, post.id, ownPoll);
   return note;
 }
 
@@ -785,6 +793,113 @@ function parsePoll(o) {
   return { multiple: Array.isArray(o.anyOf), options, endTime, closed, voters: Number(o.votersCount) || null, voted: null };
 }
 
+// ── Polls WE host (a local post with a poll) ──────────────────────
+// Parse the poll definition stored on our own post (posts.poll_json). Counts are
+// NOT stored here — they're derived from the poll_votes ballots so a re-render always
+// reflects the authoritative tally.
+export function parseOwnPoll(pollJson) {
+  if (!pollJson) return null;
+  let d; try { d = typeof pollJson === 'string' ? JSON.parse(pollJson) : pollJson; } catch { return null; }
+  if (!d || !Array.isArray(d.options)) return null;
+  const options = d.options.map((o) => ({ name: String((o && o.name != null ? o.name : o) || '').slice(0, 300) })).filter((o) => o.name);
+  if (options.length < 2) return null;
+  const endTime = d.endTime || null;
+  const closed = !!d.closed || (endTime ? Date.parse(endTime) <= Date.now() : false);
+  return { multiple: !!d.multiple, options, endTime, closed };
+}
+
+// Live tally of a hosted poll from its ballots: per-option counts + unique voters.
+export function pollTally(postId) {
+  const counts = {}; let voters = 0;
+  try {
+    for (const r of db.prepare('SELECT choice, COUNT(*) AS n FROM poll_votes WHERE post_id = ? GROUP BY choice').all(postId)) counts[r.choice] = r.n;
+    voters = db.prepare('SELECT COUNT(DISTINCT actor_uri) AS n FROM poll_votes WHERE post_id = ?').get(postId).n || 0;
+  } catch { /* table may not exist yet */ }
+  return { counts, voters };
+}
+
+// Render-ready view of a hosted poll (options with counts + percentages, totals, state).
+// Voting is fediverse-only, so this is display-only on the site.
+export function ownPollView(post) {
+  const poll = parseOwnPoll(post && post.poll_json);
+  if (!poll) return null;
+  const { counts, voters } = pollTally(post.id);
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  const denom = poll.multiple ? voters : total; // multiple-choice %: share of voters (can sum >100%)
+  const options = poll.options.map((o) => {
+    const count = counts[o.name] || 0;
+    return { name: o.name, count, pct: denom ? Math.round((count / denom) * 100) : 0 };
+  });
+  return { multiple: poll.multiple, options, total, voters, endTime: poll.endTime, closed: poll.closed };
+}
+
+// Attach the AS2 Question shape to a note built for a hosted poll. Mastodon renders a
+// status with either media OR a poll (never both), so a poll federates as content +
+// options with no media attachment. oneOf = single choice, anyOf = multiple.
+function applyPollToNote(note, postId, poll) {
+  const { counts, voters } = pollTally(postId);
+  const opts = poll.options.map((o) => ({
+    type: 'Note',
+    name: o.name,
+    replies: { type: 'Collection', totalItems: counts[o.name] || 0 },
+  }));
+  note.type = 'Question';
+  note[poll.multiple ? 'anyOf' : 'oneOf'] = opts;
+  if (poll.endTime) note.endTime = new Date(poll.endTime).toISOString();
+  // Once closed, Mastodon expects a `closed` timestamp (the effective end).
+  if (poll.closed) note.closed = poll.endTime ? new Date(poll.endTime).toISOString() : new Date().toISOString();
+  note.votersCount = voters;
+  delete note.attachment;   // media + poll are mutually exclusive on Mastodon
+  delete note.image;
+  return note;
+}
+
+// Record an inbound ballot on one of OUR polls. A vote arrives as a Create(Note) whose
+// `name` is the chosen option and `inReplyTo` is our poll note — the Mastodon-standard
+// vote form. Returns { handled } — handled=true means it was addressed to a poll (so the
+// caller must NOT also store it as a reply), false means "not a poll, fall through".
+function recordPollBallot(postId, actorUri, rawChoice) {
+  const choice = String(rawChoice == null ? '' : rawChoice).slice(0, 300);
+  if (!choice) return { handled: false };
+  let post; try { post = db.prepare('SELECT poll_json FROM posts WHERE id = ?').get(postId); } catch { return { handled: false }; }
+  const poll = post && parseOwnPoll(post.poll_json);
+  if (!poll) return { handled: false };               // not a poll → let the reply logic handle it
+  if (poll.closed) return { handled: true };          // voting closed → drop
+  if (!poll.options.some((o) => o.name === choice)) return { handled: true }; // unknown option → drop
+  try {
+    // Single choice = one ballot per actor: ignore a later/different vote. Multiple choice
+    // allows one ballot per distinct option (the UNIQUE(post,actor,choice) dedupes repeats).
+    if (!poll.multiple && db.prepare('SELECT 1 FROM poll_votes WHERE post_id = ? AND actor_uri = ? LIMIT 1').get(postId, actorUri)) return { handled: true };
+    db.prepare('INSERT OR IGNORE INTO poll_votes (post_id, actor_uri, choice) VALUES (?, ?, ?)').run(postId, actorUri, choice);
+  } catch { return { handled: true }; }
+  schedulePollUpdate(postId);
+  return { handled: true };
+}
+
+// Coalesce a burst of votes into ONE Update(Question) per poll: the first vote schedules a
+// refresh ~15s out; further votes in that window ride the same pending update (which carries
+// the accumulated tally). Non-follower voters re-fetch the Question (live tally) themselves.
+const _pollUpdTimers = new Map();
+function schedulePollUpdate(postId) {
+  if (_pollUpdTimers.has(postId)) return;
+  const t = setTimeout(() => { _pollUpdTimers.delete(postId); deliverPollUpdate(postId).catch(() => { /* best-effort */ }); }, 15000);
+  if (t.unref) t.unref();
+  _pollUpdTimers.set(postId, t);
+}
+
+// Push the fresh poll tally (or closed state) to followers as Update(Question).
+export async function deliverPollUpdate(postId) {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  if (!base || !postId) return;
+  let post, site;
+  try {
+    post = db.prepare('SELECT * FROM posts WHERE id = ?').get(postId);
+    if (!post || !post.poll_json) return;
+    site = db.prepare('SELECT * FROM sites WHERE id = ?').get(post.site_id);
+  } catch { return; }
+  if (site) await deliverUpdate(site, post);
+}
+
 // Handle an incoming inbox POST. slugParam = null for the shared /ap/inbox.
 export async function handleInbox(req, slugParam) {
   const act = req.body || {};
@@ -862,6 +977,16 @@ export async function handleInbox(req, slugParam) {
   // Inbound reply: a Create whose object replies to one of our notes (post OR comment).
   if (type === 'Create' && act.object && (act.object.type === 'Note' || act.object.type === 'Article' || act.object.type === 'Question')) {
     const o = act.object;
+    // A poll ballot: a Note carrying a `name` (the chosen option) inReplyTo one of OUR poll
+    // posts. Record it (deduped per actor) BEFORE the reply logic so a vote is never stored
+    // as a comment. recordPollBallot returns handled=false only if the target isn't a poll.
+    if (o.name && o.inReplyTo && actorUri && !isLocalActor) {
+      const seg = postIdFromNoteUrl(o.inReplyTo, base);
+      if (seg && localPostExists(seg)) {
+        const rec = recordPollBallot(seg, actorUri, o.name);
+        if (rec.handled) { console.log('[AP] poll vote', actorUri, '→', seg); return 202; }
+      }
+    }
     const tgt = findThreadTarget(o.inReplyTo, base);
     if (tgt && actorUri && !isLocalActor) {
       const ai = actorInfo(await resolveActor(actorUri), actorUri);
@@ -1968,6 +2093,7 @@ export default {
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, setMyReaction, getMyReactions, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate,
   webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, sendInteraction, voteOnPoll,
+  parseOwnPoll, pollTally, ownPollView, deliverPollUpdate,
   autoBoostCount, boostedCount, markBoosted, unmarkBoosted, markLiked, unmarkLiked, getTimelineReaction, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,

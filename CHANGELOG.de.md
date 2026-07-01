@@ -12,6 +12,10 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 - **Über Fediverse-Umfragen abstimmen.** Eine Umfrage von einem Konto, dem du folgst, erscheint jetzt
   im News-Feed mit Optionen und aktuellen Ergebnissen, und du kannst abstimmen — das föderiert zurück
   wie eine normale Mastodon-Stimme.
+- **Erstelle eigene Umfragen.** Ein Beitrag kann jetzt eine Umfrage enthalten (Einfach- oder
+  Mehrfachauswahl, mit einer Laufzeit). Sie föderiert als echte Fediverse-Umfrage, sodass deine
+  Mastodon-Follower aus ihrer eigenen App abstimmen können; die Live-Ergebnisse stehen am Beitrag und
+  die Umfrage schließt sich selbst, sobald die Zeit abgelaufen ist.
 
 ## [1.2.0] — 2026-07-01
 
