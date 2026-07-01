@@ -9,6 +9,9 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 - **Korte video's in de feed spelen automatisch af en loopen.** Een geanimeerde cover of een korte
   (≤30s) clip in de News-feed speelt nu automatisch geluidloos in een lus, als een GIF; langere
   video's houden hun bediening.
+- **Stem op fediverse-polls.** Een poll van een account dat je volgt verschijnt nu in de News-feed
+  met opties en de huidige resultaten, en je kunt je stem uitbrengen — die federeert terug zoals een
+  gewone Mastodon-stem.
 
 ## [1.2.0] — 2026-07-01
 

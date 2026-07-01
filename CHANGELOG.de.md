@@ -9,6 +9,9 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 - **Kurze Videos im Feed spielen automatisch ab und wiederholen sich.** Ein animiertes Cover oder ein
   kurzer (≤30s) Clip im News-Feed wird jetzt automatisch stumm in Schleife abgespielt, wie ein GIF;
   längere Videos behalten ihre Steuerung.
+- **Über Fediverse-Umfragen abstimmen.** Eine Umfrage von einem Konto, dem du folgst, erscheint jetzt
+  im News-Feed mit Optionen und aktuellen Ergebnissen, und du kannst abstimmen — das föderiert zurück
+  wie eine normale Mastodon-Stimme.
 
 ## [1.2.0] — 2026-07-01
 
