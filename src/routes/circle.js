@@ -31,13 +31,22 @@ function coverMedia(media_json) {
 function htmlToText(html) {
   return String(html || '').replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, ' ').trim();
 }
+// Tidy a plain-text snippet for use as a card title: drop a leading "RE: <url>" (the
+// quote/reply prefix Misskey/Akkoma and some reply federation prepend) and any other
+// leading bare URL, so the title shows the actual prose, not link noise.
+function tidySnippet(text) {
+  return String(text || '')
+    .replace(/^RE:\s*https?:\/\/\S+\s*/i, '')
+    .replace(/^https?:\/\/\S+\s*/i, '')
+    .trim();
+}
 
 router.get('/cirkel', (req, res, next) => {
   const site = res.locals.site;
   if (!site || !apEnabled() || (ActivityPubService.autoBoostCount(site.slug) === 0 && ActivityPubService.boostedCount(site.slug) === 0)) return next();
 
   const posts = ActivityPubService.getCirkelPosts(site.slug, 80).map((r) => {
-    const text = htmlToText(r.content);
+    const text = tidySnippet(htmlToText(r.content));
     // Show ONLY the title (the bold first line a Klonkt note carries), not the whole
     // body. Title-less notes (e.g. plain Mastodon) fall back to a short text snippet.
     const titleM = (r.content || '').match(/^\s*<p>\s*<strong>([\s\S]*?)<\/strong>/i);
