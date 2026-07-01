@@ -5,6 +5,17 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 
 ## [Unreleased]
 
+### Opgelost
+- **Iemand volgen blijft niet meer hangen.** Een volg-verzoek waarvan de eerste bezorging faalt (de
+  andere server even onbereikbaar) wordt nu automatisch opnieuw geprobeerd, in plaats van eeuwig op
+  "in behandeling" te blijven staan.
+- **Geanimeerde video-covers tonen correct in feeds.** Ze verschijnen niet meer als een leeg vak in
+  het raster.
+- **Cover-video's zijn weer decoratief.** Rechtsklikken op een cover geeft het normale link-menu in
+  plaats van de video-bediening van de browser, en rechtsklik "Opslaan" is onderdrukt op covers,
+  afbeeldingen en video's (lichte frictie).
+- **Geboooste posts tonen hun echte tekst** in de Cirkel, in plaats van een "RE: <link>"-prefix.
+
 ## [1.1.0] — 2026-06-30
 
 ### Toegevoegd

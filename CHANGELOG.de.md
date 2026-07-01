@@ -5,6 +5,17 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 
 ## [Unreleased]
 
+### Behoben
+- **Jemandem zu folgen bleibt nicht mehr hängen.** Eine Follow-Anfrage, deren erste Zustellung
+  fehlschlägt (der andere Server kurz nicht erreichbar), wird jetzt automatisch mit Backoff erneut
+  versucht, statt für immer auf „ausstehend" zu bleiben.
+- **Animierte Video-Cover werden in Feeds korrekt angezeigt.** Sie erscheinen nicht mehr leer in der
+  Rasteransicht.
+- **Cover-Videos sind wieder dekorativ.** Ein Rechtsklick auf ein Cover zeigt das normale Link-Menü
+  statt der Video-Steuerung des Browsers, und Rechtsklick „Speichern" ist bei Covern, Bildern und
+  Videos unterdrückt (leichte Reibung).
+- **Geboostete Beiträge zeigen ihren echten Text** im Zirkel, statt eines „RE: <Link>"-Präfixes.
+
 ## [1.1.0] — 2026-06-30
 
 ### Hinzugefügt

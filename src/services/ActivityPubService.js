@@ -1661,8 +1661,10 @@ export async function followActor(site, handle, autoBoost = false) {
   const followId = `${me}#follow-${Date.now()}-${rid()}`;
   fwStmts().ins.run(site.slug, actor.id, ai.handle, ai.name, ai.icon, ai.url, actor.inbox, followId, 'pending', autoBoost ? 1 : 0);
   const follow = { '@context': AP_CONTEXT, id: followId, type: 'Follow', actor: me, object: actor.id };
-  try { await deliver(actor.inbox, follow, `${me}#main-key`, keys.private_pem); }
-  catch (e) { console.warn('[AP] follow deliver failed:', e.message); }
+  // Deliver via the retry queue: a Follow that fails the first attempt (peer down,
+  // timeout, transient 5xx) is retried with backoff instead of staying stuck on
+  // 'pending' forever — the Accept can only come back once the Follow lands.
+  await deliverWithRetry(site.slug, actor.inbox, follow, `${me}#main-key`, keys.private_pem);
   console.log('[AP] follow', site.slug, '→', actor.id);
   // Follow + feature in one step → backfill their recent posts into the Cirkel right away.
   if (autoBoost) backfillFromOutbox(site.slug, actor.id).catch(() => {});

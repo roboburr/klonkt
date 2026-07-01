@@ -5,6 +5,14 @@ Versions follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- **Following someone no longer gets stuck.** A follow whose first delivery fails (the other server
+  briefly unreachable) is now retried automatically with backoff, instead of staying on "pending" forever.
+- **Animated video covers show correctly in feeds.** They no longer appear blank in the grid view.
+- **Cover videos are decorative again.** Right-clicking a cover gives the normal link menu instead of the
+  browser's video controls, and right-click "Save" is suppressed on covers, images and videos (light friction).
+- **Boosted posts show their real text** in the Circle, instead of a "RE: <link>" prefix.
+
 ## [1.1.0] — 2026-06-30
 
 ### Added
