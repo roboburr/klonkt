@@ -6,6 +6,9 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 ## [Unreleased]
 
 ### Hinzugefügt
+- **Erwähne Personen in einem Beitrag.** `@benutzer@server` in einem Beitrag verlinkt jetzt auf ihr
+  Profil und benachrichtigt sie im Fediverse — auch wenn sie dir nicht folgen — wie eine Erwähnung
+  in einer Antwort.
 - **Kurze Videos im Feed spielen automatisch ab und wiederholen sich.** Ein animiertes Cover oder ein
   kurzer (≤30s) Clip im News-Feed wird jetzt automatisch stumm in Schleife abgespielt, wie ein GIF;
   längere Videos behalten ihre Steuerung.

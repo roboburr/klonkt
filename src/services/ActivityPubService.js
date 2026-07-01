@@ -351,6 +351,12 @@ export function buildNote(base, site, post) {
       return { type: ty, mediaType: mt, url: u }; });
   for (const a of openAudio) attachment.push(a); // fedi_open tracks → native Audio players
 
+  // Inline @user@host mentions: the Mention tag objects + the mentioned actor URIs. Only
+  // present when the content was already mention-linked (deliverCreate/Update resolve them
+  // at send time); a plain buildNote (outbox/notes) yields none.
+  const _mentionTags = mentionTags(body);
+  const _mentionCc = _mentionTags.map((t) => t.href);
+
   const note = {
     id,
     type: 'Note',
@@ -361,8 +367,10 @@ export function buildNote(base, site, post) {
     // fan_only = "fans only" → followers-only visibility (delivered to your followers
     // but not addressed to Public, so Mastodon shows it only to them and can't boost it).
     to: post.fan_only ? [`${aId}/followers`] : [PUBLIC],
-    cc: post.fan_only ? [] : [`${aId}/followers`],
-    tag: buildHashtagList(base, post.tags, body),
+    // Mentioned actors (from inline @user@host links the caller resolved) are addressed in cc
+    // so Mastodon notifies them; empty unless the content was mention-linked (delivery time).
+    cc: [...new Set([...(post.fan_only ? [] : [`${aId}/followers`]), ..._mentionCc])],
+    tag: [...buildHashtagList(base, post.tags, body), ..._mentionTags],
     replies: `${id}/replies`,
     // NSFW → Mastodon-style content warning: sensitive (blurs media) + a summary/spoiler
     // (hides the whole post behind a "Gevoelige inhoud" button until the reader opens it).
@@ -1137,12 +1145,16 @@ export async function handleInbox(req, slugParam) {
 export async function deliverCreate(site, post) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   if (!base || !site || !site.slug) return;
+  // Resolve inline @user@host mentions → link them in the note + collect their inboxes, so a
+  // mentioned person is notified even if they don't follow us (Mastodon-standard mention).
+  const mres = await resolveMentionsInText(base, post.content || '');
+  const post2 = mres.inboxes.length ? { ...post, content: mres.html } : post;
   const followers = fStmts().list.all(site.slug);
-  if (!followers.length) return;
-  const inboxes = [...new Set(followers.map((f) => f.shared_inbox || f.inbox).filter(Boolean))];
+  const inboxes = [...new Set([...followers.map((f) => f.shared_inbox || f.inbox), ...mres.inboxes].filter(Boolean))];
+  if (!inboxes.length) return; // no followers and no one mentioned
   const keys = getOrCreateKeys(site.slug);
   const keyId = `${actorId(base, site.slug)}#main-key`;
-  const create = buildCreate(base, site, post);
+  const create = buildCreate(base, site, post2);
   for (const inbox of inboxes) deliverWithRetry(site.slug, inbox, create, keyId, keys.private_pem);
 }
 
@@ -1194,17 +1206,19 @@ export async function deliverDelete(site, post) {
 export async function deliverUpdate(site, post) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   if (!base || !site || !site.slug || !post || !post.id) return;
+  const mres = await resolveMentionsInText(base, post.content || ''); // link mentions + collect inboxes
+  const post2 = mres.inboxes.length ? { ...post, content: mres.html } : post;
   const followers = fStmts().list.all(site.slug);
-  if (!followers.length) return;
-  const inboxes = [...new Set(followers.map((f) => f.shared_inbox || f.inbox).filter(Boolean))];
+  const inboxes = [...new Set([...followers.map((f) => f.shared_inbox || f.inbox), ...mres.inboxes].filter(Boolean))];
+  if (!inboxes.length) return;
   const keys = getOrCreateKeys(site.slug);
   const me = actorId(base, site.slug);
-  const note = buildNote(base, site, post);
+  const note = buildNote(base, site, post2);
   note.updated = new Date().toISOString();
   const update = {
     '@context': AP_CONTEXT,
     id: `${noteId(base, post.id)}#update-${Date.now()}-${rid()}`,
-    type: 'Update', actor: me, to: [PUBLIC], cc: [`${me}/followers`],
+    type: 'Update', actor: me, to: [PUBLIC], cc: note.cc,
     object: note,
   };
   for (const inbox of inboxes) deliverWithRetry(site.slug, inbox, update, `${me}#main-key`, keys.private_pem);

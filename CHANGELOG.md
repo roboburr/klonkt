@@ -6,6 +6,8 @@ Versions follow [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Mention people in a post.** Typing `@user@server` in a post now links to their profile and
+  notifies them on the fediverse — even if they don't follow you — just like a mention in a reply.
 - **Short videos in the feed autoplay and loop.** An animated cover or a short (≤30s) clip in the
   News feed now plays automatically and loops muted, like a GIF; longer videos keep their controls.
 - **Vote on fediverse polls.** A poll from an account you follow now shows in the News feed with its
