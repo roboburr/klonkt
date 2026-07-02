@@ -5,6 +5,11 @@ Versions follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- **The Updates page now works in the Android app.** It now shows the newest
+  available version, and the update button downloads and installs it right on
+  your phone (your posts and settings are kept).
+
 ## [1.3.1] — 2026-07-02
 
 ### Fixed

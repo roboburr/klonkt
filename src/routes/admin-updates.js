@@ -3,7 +3,7 @@
  *   GET  /admin/updates      -> current vs. latest version + status
  *   POST /admin/updates/run  -> fetch latest + restart (fleet only; see below)
  *
- * Two topologies are supported, detected automatically:
+ * Three topologies are supported, detected automatically:
  *   - CHECKOUT (external self-hoster): the app dir is itself a git clone with
  *     origin = GitHub. "Latest" = origin/<branch> (fetched on view). Updating is
  *     done out-of-band by `klonkt-update` (needs root for systemd), so the page
@@ -11,6 +11,11 @@
  *   - BARE (Robin's own VPS fleet): a bare repo at KLONKT_GIT_DIR; the app dir is
  *     a `checkout -f` work-tree (no .git). "Latest" = <branch>. The detached
  *     self-update script runs in-app (no root needed) → the button works.
+ *   - ANDROID (the Klonkt phone app, Termux — node reports platform 'android'):
+ *     installed from a prebuilt tarball, no git at all. "Latest" = the package
+ *     version on the klonkt STABLE branch (the channel the phone tarballs are
+ *     built from). The button runs the phone's own `klonkt-update` command
+ *     detached, which survives the server restart it causes.
  * git stderr is ignored so a foreign/missing repo never spams "fatal: ...".
  */
 
@@ -34,6 +39,24 @@ const UPDATE_SCRIPT = process.env.KLONKT_UPDATE_SCRIPT || path.join(HOME, 'bin/k
 // a repo that actually exists, so it never logs "fatal: not a git repository".
 const IS_CHECKOUT = (() => { try { return fs.existsSync(path.join(APP_DIR, '.git')); } catch { return false; } })();
 const REMOTE_REF = IS_CHECKOUT ? `origin/${BRANCH}` : BRANCH; // what "latest" resolves to
+
+// The Klonkt Android app (Termux): node there reports platform 'android'; the
+// filesystem check is belt-and-braces for exotic node builds.
+const IS_ANDROID = process.platform === 'android'
+  || (() => { try { return fs.existsSync('/data/data/com.termux/files/usr/bin'); } catch { return false; } })();
+// Phone tarballs are built from the stable branch → that's the phone's "latest".
+const ANDROID_LATEST_URL = 'https://raw.githubusercontent.com/roboburr/klonkt/stable/package.json';
+
+async function androidLatestVersion() {
+  try {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 8000);
+    const r = await fetch(ANDROID_LATEST_URL, { signal: ctl.signal });
+    clearTimeout(t);
+    if (!r.ok) return null;
+    return (await r.json()).version || null;
+  } catch { return null; }
+}
 
 function appVersion() {
   try { return JSON.parse(fs.readFileSync(path.join(APP_DIR, 'package.json'), 'utf8')).version || null; }
@@ -61,7 +84,30 @@ function recentChanges() {
   });
 }
 
-router.get('/', requireGod, (req, res) => {
+router.get('/', requireGod, async (req, res) => {
+  // ANDROID: version-based check against the stable branch; the update button
+  // runs the phone's klonkt-update (always present, the start script writes it).
+  if (IS_ANDROID) {
+    const cur = appVersion();
+    const latest = await androidLatestVersion();
+    return renderPage(req, res, 'pages/admin-updates', {
+      pageTitleKey: 'admin.t_updates',
+      bodyClass: 'on-admin',
+      appVersion: cur,
+      currentSha: cur ? 'v' + cur : null,
+      currentDesc: null,
+      latestSha: latest ? 'v' + latest : null,
+      latestDesc: null,
+      upToDate: !!(cur && latest && cur === latest),
+      canCheck: !!latest,
+      canSelfUpdate: true,
+      manualCommand: null,
+      behind: null,
+      changes: [],
+      success: req.query.success || null,
+      error: req.query.error || null,
+    });
+  }
   // For a GitHub checkout, refresh the remote ref so "latest" is current. Quiet +
   // shallow; offline just leaves the last-known ref. stderr ignored (no log noise).
   if (IS_CHECKOUT) {
@@ -92,6 +138,18 @@ router.get('/', requireGod, (req, res) => {
 });
 
 router.post('/run', requireGod, (req, res) => {
+  // ANDROID: run the phone's updater detached. It kills node (this process),
+  // swaps the code while keeping storage/.env, and restarts everything — the
+  // detached shell survives the pkill because it isn't a node process.
+  if (IS_ANDROID) {
+    try {
+      const child = spawn('bash', ['-c', 'klonkt-update >> "$HOME/klonkt-update.log" 2>&1'], { detached: true, stdio: 'ignore' });
+      child.unref();
+    } catch (e) {
+      return res.redirect('/admin/updates?error=' + encodeURIComponent('Kon update niet starten: ' + (e.message || e)));
+    }
+    return res.redirect('/admin/updates?success=' + encodeURIComponent('Bijwerken gestart — de site is ~1 minuut bezig (downloaden + herstarten). Ververs daarna deze pagina.'));
+  }
   if (!fs.existsSync(UPDATE_SCRIPT)) {
     return res.redirect('/admin/updates?error=' + encodeURIComponent('In-app updaten is hier niet beschikbaar — werk bij met `klonkt-update` op de server.'));
   }
