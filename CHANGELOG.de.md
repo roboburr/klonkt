@@ -5,6 +5,8 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 
 ## [Unreleased]
 
+## [1.3.1] — 2026-07-02
+
 ### Behoben
 - **Musik läuft auf Android im Hintergrund weiter.** Wenn ein Titel endete,
   während das Handy gesperrt oder die App im Hintergrund war, startete der

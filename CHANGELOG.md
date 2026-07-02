@@ -5,6 +5,8 @@ Versions follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.3.1] — 2026-07-02
+
 ### Fixed
 - **Music keeps playing in the background on Android.** When a track ended while
   your phone was locked or the app was in the background, the next track would

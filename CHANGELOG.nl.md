@@ -5,6 +5,8 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 
 ## [Unreleased]
 
+## [1.3.1] — 2026-07-02
+
 ### Opgelost
 - **Muziek blijft op Android doorspelen in de achtergrond.** Als een nummer
   afliep terwijl je telefoon op slot zat of de app in de achtergrond stond,
