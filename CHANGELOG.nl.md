@@ -5,6 +5,14 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 
 ## [Unreleased]
 
+### Opgelost
+- **Muziek blijft op Android doorspelen in de achtergrond.** Als een nummer
+  afliep terwijl je telefoon op slot zat of de app in de achtergrond stond,
+  startte het volgende nummer en stopte het na een seconde weer. De speler
+  voert de wachtrij nu als één doorlopende stream aan, waardoor het doorgaan
+  naar het volgende nummer niet meer telt als "nieuw" afspelen dat de browser
+  mag pauzeren.
+
 ## [1.3.0] — 2026-07-02
 
 ### Toegevoegd

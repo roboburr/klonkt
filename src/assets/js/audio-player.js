@@ -157,19 +157,36 @@
   let currentIndex = 0;
   let isPlaying = false;
   let albumName = '';
-  // Blob playback state. We fetch each track's bytes and play from a blob:
-  // object URL — no plain media URL is ever exposed to the page. currentObjectUrl
-  // is revoked when we move on, so we don't leak one Blob per track in memory.
+  // Playback pipeline. We fetch each track's bytes ourselves (X-Audio-Player
+  // gate; no plain media URL is ever exposed to the page) and feed them to the
+  // <audio> element through one of two engines:
+  //
+  //  1. MSE chain (Chrome/Firefox/Android): ONE MediaSource + SourceBuffer
+  //     ('audio/mpeg', sequence mode — every track is uniform transcoder mp3).
+  //     The next track's bytes are APPENDED into the same buffer, so the whole
+  //     queue is one continuous playback session. That is what keeps a
+  //     backgrounded tab/PWA playing across track changes: Chrome's background
+  //     media policy pauses NEW playback sessions started in the background
+  //     (the old per-track src-swap + load() + play()), but never interrupts a
+  //     continuing one. A track change becomes a timeline position, not a swap.
+  //  2. Blob fallback (iOS Safari — no MSE; or MSE failed at runtime): one
+  //     objectURL per track, the previous behaviour.
   let currentObjectUrl = null;
   // Monotonic load token: a fast prev/next can fire several loads before an
-  // earlier fetch resolves. Only the latest load may set audio.src.
+  // earlier fetch resolves. Only the latest load may touch the audio pipeline.
   let loadSeq = 0;
-  // Next-track prefetch. While the current track plays we download the *next*
-  // track's bytes into a held blob, so `ended` → next() can swap src instantly
-  // (no silent gap, and no long async window where the browser's autoplay
-  // activation can lapse and reject play()). At most one track ahead is held.
-  // Shape: { url, objUrl }  — objUrl is null while the fetch is still in flight.
+  // Next-track prefetch (blob engine; the MSE engine appends ahead instead).
+  // Shape: { url, bytes } — bytes is null while the fetch is still in flight.
   let preload = null;
+  // ── MSE chain state ──
+  const MSE_SUPPORTED = !!(window.MediaSource && MediaSource.isTypeSupported && MediaSource.isTypeSupported('audio/mpeg'));
+  let mseFailed = false;               // runtime bail → blob engine for the rest of this session
+  const useMse = () => MSE_SUPPORTED && !mseFailed;
+  let ms = null;                       // MediaSource
+  let sb = null;                       // SourceBuffer
+  let chain = [];                      // appended segments: { qIndex, start, end } (timeline seconds)
+  let chainFetching = false;           // a fetch+append for the NEXT track is in flight
+  let sbOps = Promise.resolve();       // serializes SourceBuffer operations
 
   // Hide initially
   root.classList.add('audio-player-hidden');
@@ -189,12 +206,12 @@
     }
   }
 
-  // Fetch the track bytes and hand back a blob: object URL. The X-Audio-Player
-  // header + same-origin credentials get us past the stream route's access gate.
+  // Fetch the track bytes (ArrayBuffer). The X-Audio-Player header +
+  // same-origin credentials get us past the stream route's access gate.
   // Retries a few times with backoff: a single transient network blip used to
   // bump the error counter and SKIP the song (auto-advance past it). Now one
   // hiccup just costs a retry, and we only give up after genuinely failing.
-  async function fetchAsObjectUrl(url, attempts) {
+  async function fetchTrackBytes(url, attempts) {
     attempts = attempts || 1;
     let lastErr;
     for (let i = 0; i < attempts; i++) {
@@ -204,8 +221,7 @@
           headers: { 'X-Audio-Player': '1' },
         });
         if (!r.ok) throw new Error('HTTP ' + r.status);
-        const blob = await r.blob();
-        return URL.createObjectURL(blob);
+        return await r.arrayBuffer();
       } catch (e) {
         lastErr = e;
         if (i < attempts - 1) {
@@ -216,11 +232,10 @@
     throw lastErr;
   }
 
-  // Apply a ready blob URL to the <audio> element. Single source of truth for
-  // "swap the playing source": used by both the cached-preload path and the
-  // fresh-fetch path so there's one place that touches audio.src.
-  function applyBlob(objUrl, autoplay, mySeq) {
-    if (mySeq !== loadSeq) { try { URL.revokeObjectURL(objUrl); } catch (e) {} return; }  // superseded
+  // Blob fallback engine: wrap the bytes in an objectURL and swap audio.src.
+  function applyBlobBytes(bytes, autoplay, mySeq) {
+    if (mySeq !== loadSeq) return;  // superseded
+    const objUrl = URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }));
     root.classList.remove('audio-loading');
     // Free the previously-playing track's blob — otherwise each track leaks a
     // copy. Never the same handle as objUrl (createObjectURL is unique), so this
@@ -247,29 +262,206 @@
     if (consecutiveErrors < 3 && queue.length > 1) setTimeout(next, 400);
   }
 
-  // Discard any held/in-flight preload and free its blob if resolved.
-  function dropPreload() {
-    if (preload && preload.objUrl) { try { URL.revokeObjectURL(preload.objUrl); } catch (e) {} }
-    preload = null;
-  }
+  // Discard any held/in-flight preload (plain bytes now — GC handles them).
+  function dropPreload() { preload = null; }
 
   // Prefetch the *next* track's bytes in the background. Idempotent: re-calling
   // while the same track is already cached / in flight is a no-op. Called from
-  // the `playing` event so the network is otherwise idle.
+  // the `playing` event so the network is otherwise idle. Blob engine only —
+  // the MSE engine "preloads" by appending ahead (ensureNextAppended).
   function preloadNext() {
     if (queue.length < 2) return;
     const ni = (currentIndex + 1) % queue.length;
     const t = queue[ni];
     if (!t || !t.url) return;
     if (preload && preload.url === t.url) return;  // already held or in flight
-    dropPreload();                                  // different track queued before → free it
-    const marker = { url: t.url, objUrl: null };
+    const marker = { url: t.url, bytes: null };
     preload = marker;
-    fetchAsObjectUrl(t.url, 2).then((obj) => {
-      // Only keep it if this is still the track we want next; otherwise free it.
-      if (preload === marker) { marker.objUrl = obj; }
-      else { try { URL.revokeObjectURL(obj); } catch (e) {} }
+    fetchTrackBytes(t.url, 2).then((bytes) => {
+      // Only keep it if this is still the track we want next.
+      if (preload === marker) marker.bytes = bytes;
     }).catch(() => { if (preload === marker) preload = null; });
+  }
+
+  // ============================================================
+  // 4a. MSE chain engine — one continuous playback session
+  // ============================================================
+  // All tracks are uniform transcoder mp3 (192kbps), so raw frames can be
+  // appended back-to-back into a single 'audio/mpeg' SourceBuffer (its
+  // byte-stream format generates continuous timestamps — sequence mode).
+  // Auto-advance = playback simply flowing into the next track's region.
+
+  // Strip ID3v2 (leading) / ID3v1 (trailing) tags: tag bytes between two
+  // appended tracks would glitch the MPEG frame parser.
+  function stripId3(buf) {
+    const u8 = new Uint8Array(buf);
+    let start = 0, end = u8.length;
+    if (end > 10 && u8[0] === 0x49 && u8[1] === 0x44 && u8[2] === 0x33) {  // "ID3"
+      const size = ((u8[6] & 0x7f) << 21) | ((u8[7] & 0x7f) << 14) | ((u8[8] & 0x7f) << 7) | (u8[9] & 0x7f);
+      const skip = 10 + size + ((u8[5] & 0x10) ? 10 : 0);  // +10 when a footer is flagged
+      if (skip < end) start = skip;
+    }
+    if (end - start > 128 && u8[end - 128] === 0x54 && u8[end - 127] === 0x41 && u8[end - 126] === 0x47) end -= 128;  // "TAG"
+    return (start === 0 && end === u8.length) ? buf : buf.slice(start, end);
+  }
+
+  function teardownChain() {
+    chain = [];
+    chainFetching = false;
+    sbOps = Promise.resolve();
+    sb = null;
+    ms = null;
+  }
+
+  // Serialize a SourceBuffer operation (append/remove): they throw if issued
+  // while the buffer is still updating, so everything funnels through a queue.
+  function sbRun(fn) {
+    const run = () => new Promise((resolve, reject) => {
+      if (!sb || !ms || ms.readyState !== 'open') return resolve();
+      const ok  = () => { cleanup(); resolve(); };
+      const err = (e) => { cleanup(); reject(e); };
+      function cleanup() { sb.removeEventListener('updateend', ok); sb.removeEventListener('error', err); }
+      sb.addEventListener('updateend', ok);
+      sb.addEventListener('error', err);
+      try { fn(); } catch (e) { cleanup(); reject(e); }
+    });
+    const p = sbOps.then(run, run);
+    sbOps = p.catch(() => {});
+    return p;
+  }
+
+  // Append one track's bytes as the next segment of the chain.
+  async function appendSegment(qIndex, bytes, mySeq) {
+    const clean = stripId3(bytes);
+    try {
+      await sbRun(() => sb.appendBuffer(clean));
+    } catch (e) {
+      if (e && e.name === 'QuotaExceededError' && chain.length > 1) {
+        // Evict already-played data and retry once.
+        const seg = currentSegment();
+        if (seg && seg.start > 1) {
+          await sbRun(() => sb.remove(0, seg.start - 0.5));
+          chain = chain.filter((s) => s.end > seg.start - 0.5);
+        }
+        await sbRun(() => sb.appendBuffer(clean));
+      } else {
+        throw e;
+      }
+    }
+    if (mySeq !== loadSeq || !sb) return;
+    const buffered = sb.buffered;
+    const chainEnd = buffered.length ? buffered.end(buffered.length - 1) : 0;
+    const start = chain.length ? chain[chain.length - 1].end : (buffered.length ? buffered.start(0) : 0);
+    chain.push({ qIndex, start, end: chainEnd });
+    if (queue.length === 1 && ms && ms.readyState === 'open') {
+      // Single-track queue: close the stream so `ended` fires (which replays
+      // it, matching the old engine's behaviour).
+      try { ms.endOfStream(); } catch (e) {}
+    }
+  }
+
+  // Keep exactly one full track appended ahead of the one playing.
+  function ensureNextAppended() {
+    if (!useMse() || !sb || !ms || ms.readyState !== 'open' || chainFetching) return;
+    if (queue.length < 2 || !chain.length) return;
+    const seg = currentSegment();
+    if (!seg || chain.length - 1 - chain.indexOf(seg) >= 1) return;  // already one ahead
+    const nextIdx = (chain[chain.length - 1].qIndex + 1) % queue.length;
+    const t = queue[nextIdx];
+    if (!t || !t.url) return;
+    chainFetching = true;
+    const mySeq = loadSeq;
+    const bytesP = (preload && preload.url === t.url && preload.bytes)
+      ? Promise.resolve(preload.bytes)
+      : fetchTrackBytes(t.url, 2);
+    bytesP.then((bytes) => {
+      if (mySeq !== loadSeq) return;
+      if (preload && preload.url === t.url) preload = null;
+      return appendSegment(nextIdx, bytes, mySeq);
+    }).catch((e) => {
+      console.warn('[pcms-audio] next-track append failed', e);
+    }).finally(() => { chainFetching = false; });
+  }
+
+  // Drop played-out data so the buffer holds ~2 tracks at most.
+  function pruneBuffer(curSeg) {
+    if (!useMse() || !sb || !ms || ms.readyState !== 'open') return;
+    const cut = curSeg.start - 0.5;
+    if (cut <= 1) return;
+    sbRun(() => sb.remove(0, cut)).catch(() => {});
+    chain = chain.filter((s) => s.end > cut);
+  }
+
+  function currentSegment() {
+    const t = audio.currentTime || 0;
+    for (let i = 0; i < chain.length; i++) if (t < chain[i].end - 0.05) return chain[i];
+    return chain[chain.length - 1] || null;
+  }
+
+  // Playback flowed across a track boundary (the gapless auto-advance):
+  // update chrome/metadata, top the buffer up, evict what's been played.
+  function maybeCrossBoundary() {
+    const seg = currentSegment();
+    if (!seg || seg.qIndex === currentIndex) return;
+    currentIndex = seg.qIndex;
+    const t = queue[currentIndex];
+    if (t) {
+      console.log('[pcms-audio] gapless auto-advance →', t.title);
+      updateTrackChrome(t);
+    }
+    ensureNextAppended();
+    pruneBuffer(seg);
+    updatePositionState();
+    savePlayerState();
+  }
+
+  // Start a fresh chain at queue[index]. Manual actions only (start/jump/
+  // prev/next/restore) — those happen in the foreground, where starting a
+  // new playback session is allowed.
+  function chainStart(index, autoplay, mySeq, bytes) {
+    teardownChain();
+    ms = new MediaSource();
+    const msUrl = URL.createObjectURL(ms);
+    if (currentObjectUrl && currentObjectUrl !== msUrl) {
+      try { URL.revokeObjectURL(currentObjectUrl); } catch (e) {}
+    }
+    currentObjectUrl = msUrl;
+    try { audio.pause(); } catch (e) {}
+    audio.src = msUrl;
+    try { audio.load(); } catch (e) {}
+    const bailToBlob = (e) => {
+      console.warn('[pcms-audio] MSE unavailable, using blob playback', e);
+      mseFailed = true;
+      teardownChain();
+      if (mySeq === loadSeq) applyBlobBytes(bytes, autoplay, mySeq);
+    };
+    ms.addEventListener('sourceopen', () => {
+      if (mySeq !== loadSeq || !ms) return;
+      try {
+        sb = ms.addSourceBuffer('audio/mpeg');
+      } catch (e) { return bailToBlob(e); }
+      appendSegment(index, bytes, mySeq).then(() => {
+        if (mySeq !== loadSeq) return;
+        // Session-restore: land at the saved in-track position.
+        if (pendingSeek > 0 && chain.length) {
+          const seg = chain[0];
+          try { audio.currentTime = Math.min(pendingSeek, (seg.end - seg.start) - 0.25); } catch (e) {}
+          pendingSeek = 0;
+        }
+        ensureNextAppended();
+      }).catch(bailToBlob);
+    }, { once: true });
+    if (autoplay) play();
+  }
+
+  // Current position/duration in TRACK coordinates (the MSE timeline is the
+  // whole chain; the UI always shows the single playing track).
+  function displayTimes() {
+    if (useMse() && chain.length) {
+      const seg = currentSegment();
+      if (seg) return { cur: Math.max(0, (audio.currentTime || 0) - seg.start), dur: seg.end - seg.start };
+    }
+    return { cur: audio.currentTime || 0, dur: audio.duration };
   }
 
   // metaOnly: show the track in the UI but DON'T download its bytes yet.
@@ -309,6 +501,23 @@
     } catch (e) { /* non-fatal */ }
   }
 
+  // All the visible per-track chrome: titles, covers, queue highlight, media
+  // session metadata. Called from loadTrack AND from the gapless boundary-cross.
+  function updateTrackChrome(t) {
+    titleEl.textContent  = t.title  || 'Untitled';
+    artistEl.textContent = t.artist || '';
+    sheetTitle.textContent  = t.title  || 'Untitled';
+    sheetArtist.textContent = t.artist || '';
+    sheetAlbum.textContent  = albumName || '';
+    setCoverImage(cover,      t.cover);
+    setCoverImage(sheetCover, t.cover);
+    root.classList.remove('audio-player-hidden');
+    document.body.classList.add('has-audio-player');
+    renderQueue();
+    markPlaying(t.id);
+    updateMediaMetadata(t);
+  }
+
   function loadTrack(index, autoplay, metaOnly) {
     if (!queue[index]) {
       console.warn('[pcms-audio] loadTrack: no track at index', index);
@@ -323,39 +532,31 @@
     console.log('[pcms-audio] loading', t.title, t.url, metaOnly ? '(meta only)' : '');
     // Metadata + chrome update synchronously so the UI reacts instantly while
     // the bytes download.
-    titleEl.textContent  = t.title  || 'Untitled';
-    artistEl.textContent = t.artist || '';
-    sheetTitle.textContent  = t.title  || 'Untitled';
-    sheetArtist.textContent = t.artist || '';
-    sheetAlbum.textContent  = albumName || '';
-    setCoverImage(cover,      t.cover);
-    setCoverImage(sheetCover, t.cover);
-    root.classList.remove('audio-player-hidden');
-    document.body.classList.add('has-audio-player');
-    renderQueue();
-    markPlaying(t.id);
-    updateMediaMetadata(t);
+    updateTrackChrome(t);
 
     if (metaOnly) return;
 
     const mySeq = ++loadSeq;
 
     // Fast path: the bytes for this exact track were already prefetched while
-    // the previous track played → swap in instantly, no gap, no fetch window.
-    if (preload && preload.url === t.url && preload.objUrl) {
-      const obj = preload.objUrl;
-      preload = null;  // ownership moves to applyBlob (becomes currentObjectUrl)
-      applyBlob(obj, autoplay, mySeq);
-      return;
+    // the previous track played → no gap, no fetch window.
+    let bytesP;
+    if (preload && preload.url === t.url && preload.bytes) {
+      bytesP = Promise.resolve(preload.bytes);
+      preload = null;
+    } else {
+      // Not preloaded (or still in flight) → drop any stale preload and fetch
+      // fresh, retrying transient failures before giving up.
+      dropPreload();
+      root.classList.add('audio-loading');
+      bytesP = fetchTrackBytes(t.url, 3);
     }
-
-    // Not preloaded (or preload still in flight) → drop any stale preload and
-    // fetch fresh, retrying transient failures before giving up.
-    dropPreload();
-    root.classList.add('audio-loading');
-    fetchAsObjectUrl(t.url, 3)
-      .then((objUrl) => applyBlob(objUrl, autoplay, mySeq))
-      .catch((err) => onLoadError(err, mySeq));
+    bytesP.then((bytes) => {
+      if (mySeq !== loadSeq) return;
+      root.classList.remove('audio-loading');
+      if (useMse()) chainStart(index, autoplay, mySeq, bytes);
+      else applyBlobBytes(bytes, autoplay, mySeq);
+    }).catch((err) => onLoadError(err, mySeq));
   }
 
   // True when the viewport is in the mobile sheet-layout — matches the CSS
@@ -428,7 +629,8 @@
     queue = [];
     albumName = '';
     loadSeq++;  // cancel any in-flight load
-    dropPreload();  // free any prefetched next-track blob
+    dropPreload();
+    teardownChain();
     if (currentObjectUrl) { try { URL.revokeObjectURL(currentObjectUrl); } catch (e) {} }
     currentObjectUrl = null;
     try { audio.removeAttribute('src'); audio.load(); } catch (e) {}
@@ -509,18 +711,54 @@
     wire('pause', () => pause());
     wire('previoustrack', () => prev());
     wire('nexttrack', () => next());
-    wire('seekto', (e) => { if (e && e.seekTime != null && audio.duration) { try { audio.currentTime = e.seekTime; } catch (er) {} } });
+    wire('seekto', (e) => {
+      if (!e || e.seekTime == null) return;
+      // Lock-screen scrubber works in TRACK coordinates (positionState below).
+      if (useMse() && chain.length) {
+        const seg = currentSegment();
+        if (seg) { try { audio.currentTime = seg.start + Math.min(e.seekTime, seg.end - seg.start - 0.1); } catch (er) {} }
+        return;
+      }
+      if (audio.duration) { try { audio.currentTime = e.seekTime; } catch (er) {} }
+    });
+  }
+  // Lock-screen / notification scrubber: report per-track position, not the
+  // whole-chain timeline.
+  function updatePositionState() {
+    if (!('mediaSession' in navigator) || !navigator.mediaSession.setPositionState) return;
+    try {
+      const dt = displayTimes();
+      if (!isFinite(dt.dur) || !dt.dur) return;
+      navigator.mediaSession.setPositionState({
+        duration: dt.dur,
+        playbackRate: audio.playbackRate || 1,
+        position: Math.min(dt.cur, dt.dur),
+      });
+    } catch (e) { /* non-fatal */ }
   }
   // Reset the error counter only on a REAL playback start (`playing`), not the
   // eager `play` event. `play` fires before any network/decode error, so resetting
   // there would prevent the 3-strikes stop from ever triggering on a broken
   // track → infinite "next" loop. `playing` only fires when audio is actually playing.
-  audio.addEventListener('playing', () => { consecutiveErrors = 0; preloadNext(); });
+  audio.addEventListener('playing', () => {
+    consecutiveErrors = 0;
+    if (useMse()) ensureNextAppended(); else preloadNext();
+    updatePositionState();
+  });
   audio.addEventListener('pause', () => { isPlaying = false; root.classList.remove('is-playing'); if ('mediaSession' in navigator) { try { navigator.mediaSession.playbackState = 'paused'; } catch (e) {} } });
   audio.addEventListener('ended', next);
   audio.addEventListener('error', (e) => {
     const code = audio.error ? audio.error.code : '?';
     console.error('[pcms-audio] playback error', code, audio.src, e);
+    if (useMse() && ms) {
+      // The MSE pipeline failed (decode/append) → permanently fall back to the
+      // blob engine for this session and retry the SAME track.
+      console.warn('[pcms-audio] MSE failed, falling back to blob playback');
+      mseFailed = true;
+      teardownChain();
+      if (queue[currentIndex]) loadTrack(currentIndex, true);
+      return;
+    }
     consecutiveErrors++;
     // On network/decode error: skip to next track instead of stalling.
     // Max 3 consecutive errors before giving up (otherwise infinite loop).
@@ -532,14 +770,18 @@
   audio.addEventListener('stalled', () => console.warn('[pcms-audio] stalled at', audio.currentTime));
   audio.addEventListener('volumechange', () => { root.classList.toggle('is-muted', audio.muted || audio.volume === 0); });
   audio.addEventListener('timeupdate', () => {
-    if (!audio.duration || isNaN(audio.duration)) return;
-    const pct = (audio.currentTime / audio.duration) * 100;
+    // Gapless boundary: in MSE mode a track change is just the timeline
+    // flowing past a segment edge — detect it here and update the chrome.
+    if (useMse() && chain.length) maybeCrossBoundary();
+    const dt = displayTimes();
+    if (!dt.dur || isNaN(dt.dur) || !isFinite(dt.dur)) return;
+    const pct = (dt.cur / dt.dur) * 100;
     seekFill.style.width = pct + '%';
     sheetSeekFill.style.width = pct + '%';
-    currentEl.textContent  = formatTime(audio.currentTime);
-    totalEl.textContent    = formatTime(audio.duration);
-    sheetCurrent.textContent = formatTime(audio.currentTime);
-    sheetTotal.textContent   = formatTime(audio.duration);
+    currentEl.textContent  = formatTime(dt.cur);
+    totalEl.textContent    = formatTime(dt.dur);
+    sheetCurrent.textContent = formatTime(dt.cur);
+    sheetTotal.textContent   = formatTime(dt.dur);
   });
 
   function formatTime(s) {
@@ -550,9 +792,18 @@
 
   function attachSeek(seekEl) {
     seekEl.addEventListener('click', (e) => {
-      if (!audio.duration) return;
       const rect = seekEl.getBoundingClientRect();
       const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      if (useMse() && chain.length) {
+        // Seek within the CURRENT track's segment of the chain timeline.
+        const seg = currentSegment();
+        if (seg) {
+          try { audio.currentTime = seg.start + ratio * (seg.end - seg.start); } catch (er) {}
+          updatePositionState();
+        }
+        return;
+      }
+      if (!audio.duration) return;
       audio.currentTime = ratio * audio.duration;
     });
   }
@@ -862,7 +1113,9 @@
       if (!queue.length) { sessionStorage.removeItem(PLAYER_STATE_KEY); return; }
       sessionStorage.setItem(PLAYER_STATE_KEY, JSON.stringify({
         queue, currentIndex, albumName,
-        time: audio.currentTime || 0,
+        // In-TRACK position (the MSE timeline spans the whole chain; a restore
+        // starts a fresh chain where this track begins at 0).
+        time: displayTimes().cur || 0,
         playing: !!audio.src && !audio.paused,
       }));
     } catch (e) {}

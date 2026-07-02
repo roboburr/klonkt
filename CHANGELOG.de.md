@@ -5,6 +5,14 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 
 ## [Unreleased]
 
+### Behoben
+- **Musik läuft auf Android im Hintergrund weiter.** Wenn ein Titel endete,
+  während das Handy gesperrt oder die App im Hintergrund war, startete der
+  nächste Titel und stoppte nach einer Sekunde wieder. Der Player führt die
+  Warteschlange jetzt als einen durchgehenden Stream zu, sodass das
+  Weiterspringen zum nächsten Titel nicht mehr als "neue" Wiedergabe zählt,
+  die der Browser pausieren darf.
+
 ## [1.3.0] — 2026-07-02
 
 ### Hinzugefügt

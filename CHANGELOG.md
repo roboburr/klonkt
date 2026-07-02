@@ -5,6 +5,13 @@ Versions follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- **Music keeps playing in the background on Android.** When a track ended while
+  your phone was locked or the app was in the background, the next track would
+  start and stop again after a second. The player now feeds the whole queue as
+  one continuous stream, so auto-advancing to the next track no longer counts
+  as "new" playback that the browser is allowed to pause.
+
 ## [1.3.0] — 2026-07-02
 
 ### Added
