@@ -5,6 +5,8 @@ Versions follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.3.2] — 2026-07-02
+
 ### Fixed
 - **The Updates page now works in the Android app.** It now shows the newest
   available version, and the update button downloads and installs it right on

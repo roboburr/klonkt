@@ -5,6 +5,8 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 
 ## [Unreleased]
 
+## [1.3.2] — 2026-07-02
+
 ### Opgelost
 - **De Updates-pagina werkt nu in de Android-app.** Hij toont voortaan de
   nieuwste beschikbare versie, en de bijwerk-knop downloadt en installeert die

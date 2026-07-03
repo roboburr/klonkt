@@ -1,6 +1,6 @@
 {
   "name": "klonkt",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "description": "Klonkt — self-hosted multi-site music & blog platform (solo, hub or circles). Node + SQLite + htmx.",
   "license": "AGPL-3.0-or-later",
   "type": "module",

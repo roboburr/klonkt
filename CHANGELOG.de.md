@@ -5,6 +5,8 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 
 ## [Unreleased]
 
+## [1.3.2] — 2026-07-02
+
 ### Behoben
 - **Die Updates-Seite funktioniert jetzt in der Android-App.** Sie zeigt ab
   sofort die neueste verfügbare Version, und der Aktualisieren-Button lädt und
