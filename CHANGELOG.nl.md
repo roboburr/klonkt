@@ -5,6 +5,11 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 
 ## [Unreleased]
 
+### Opgelost
+- **Polls behouden hun cover als ze geboost worden.** Een poll met muziek of een
+  embed federeerde zonder cover, waardoor een geboooste poll een leeg vak toonde;
+  de cover reist nu mee.
+
 ## [1.3.4] — 2026-07-04
 
 ### Opgelost

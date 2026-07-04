@@ -889,8 +889,10 @@ function applyPollToNote(note, postId, poll) {
   // Once closed, Mastodon expects a `closed` timestamp (the effective end).
   if (poll.closed) note.closed = poll.endTime ? new Date(poll.endTime).toISOString() : new Date().toISOString();
   note.votersCount = voters;
-  delete note.attachment;   // media + poll are mutually exclusive on Mastodon
-  delete note.image;
+  delete note.attachment;   // media ATTACHMENTS + a poll are mutually exclusive on Mastodon
+  // Keep note.image: it's the cover, which Mastodon ignores on a Question anyway
+  // (same as on any Note) but Klonkt reads to show the cover in feeds/the Cirkel.
+  // Deleting it stripped the cover off every boosted poll.
   return note;
 }
 

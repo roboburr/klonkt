@@ -43,6 +43,23 @@ test('a hosted poll federates as an AS2 Question with oneOf + tally', () => {
   assert.ok(!('attachment' in note), 'no media on a poll (mutually exclusive on Mastodon)');
 });
 
+test('a poll KEEPS its cover in note.image (feeds show it; Mastodon ignores it)', () => {
+  // An embed/music poll suppresses image attachments (so Mastodon shows the
+  // player/embed card) and carries the cover in note.image instead — exactly
+  // the case that lost its cover when applyPollToNote deleted image.
+  const withCover = {
+    ...singlePoll, id: 'p1', slug: 'fav',
+    content: '<p>Pick one</p> [[embed:https://www.youtube.com/watch?v=abcdefghijk]]',
+    cover_image_url: '/media/post-images/cover.webp', cover_alt: 'Album art',
+  };
+  const note = AP.buildNote(BASE, site, withCover);
+  assert.equal(note.type, 'Question', 'still a Question');
+  assert.ok(note.image && note.image.url, 'the cover survives as note.image');
+  assert.ok(note.image.url.endsWith('/media/post-images/cover.webp'), 'absolute cover url');
+  assert.equal(note.image.name, 'Album art', 'alt text kept');
+  assert.ok(!('attachment' in note), 'still no media attachment on a poll');
+});
+
 test('votersCount is a declared JSON-LD term (valid AS2)', () => {
   const ctx = new Set();
   for (const part of AP.AP_CONTEXT) if (part && typeof part === 'object') for (const k of Object.keys(part)) ctx.add(k);

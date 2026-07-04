@@ -5,6 +5,11 @@ Versions follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- **Polls keep their cover art when boosted.** A poll with music or an embed was
+  federating without its cover, so a boosted poll showed a blank tile; the cover
+  now travels with it.
+
 ## [1.3.4] — 2026-07-04
 
 ### Fixed

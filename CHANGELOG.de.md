@@ -5,6 +5,11 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 
 ## [Unreleased]
 
+### Behoben
+- **Umfragen behalten ihr Cover, wenn sie geboostet werden.** Eine Umfrage mit
+  Musik oder Embed wurde ohne Cover föderiert, sodass eine geteilte Umfrage eine
+  leere Kachel zeigte; das Cover reist jetzt mit.
+
 ## [1.3.4] — 2026-07-04
 
 ### Behoben
