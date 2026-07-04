@@ -5,6 +5,11 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 
 ## [Unreleased]
 
+### Behoben
+- **Geteilte Musikbeiträge behalten ihr Cover.** Wenn du einen Titel von jemandem
+  geteilt (geboostet) hast, dem du nicht folgst, fehlte das Cover; es wird jetzt
+  angezeigt, genau wie bei Personen, denen du folgst.
+
 ## [1.3.2] — 2026-07-02
 
 ### Behoben

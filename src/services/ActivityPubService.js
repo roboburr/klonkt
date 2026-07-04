@@ -1636,6 +1636,14 @@ export async function resolveRemoteNote(url) {
   const images = (Array.isArray(note.attachment) ? note.attachment : [])
     .filter((a) => a && a.url && (!a.mediaType || /^image\//i.test(a.mediaType)))
     .map((a) => safeUrl(a.url)).filter(Boolean);
+  // A Klonkt hosted-audio post strips its cover from `attachment` (so Mastodon
+  // shows the player card, not a loose image) and puts it in `image` instead.
+  // Same fallback as mediaFromNote() so a boosted music post keeps its cover.
+  if (!images.length && note.image) {
+    const im = Array.isArray(note.image) ? note.image[0] : note.image;
+    const iu = safeUrl(typeof im === 'string' ? im : (im && im.url));
+    if (iu) images.push(iu);
+  }
   return {
     object_uri: safeUrl(note.id) || note.id,
     actor_uri: actorUri,

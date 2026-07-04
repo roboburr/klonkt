@@ -5,6 +5,11 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 
 ## [Unreleased]
 
+### Opgelost
+- **Geboooste muziekposts houden hun cover.** Als je een nummer boostte van
+  iemand die je niet volgt, ontbrak de cover; die verschijnt nu wel, net als bij
+  mensen die je wél volgt.
+
 ## [1.3.2] — 2026-07-02
 
 ### Opgelost
