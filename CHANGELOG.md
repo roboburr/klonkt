@@ -5,6 +5,11 @@ Versions follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- **Boosts that lost their cover get it back automatically.** Posts you boosted
+  before the cover fix were cached without their artwork; they are refreshed
+  once on the next restart.
+
 ## [1.3.3] — 2026-07-03
 
 ### Fixed
