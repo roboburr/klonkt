@@ -5,6 +5,8 @@ Versions follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.3.3] — 2026-07-03
+
 ### Fixed
 - **Boosted music posts keep their cover.** When you boosted a track from
   someone you don't follow, the cover art went missing; it now shows, just like
