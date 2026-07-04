@@ -1838,9 +1838,16 @@ export function upsertBoostedNote(slug, note) {
   const id = note.object_uri;
   const media = JSON.stringify((note.images || []).map((u) => ({ url: u, type: 'image/jpeg' })));
   try {
-    tlStmts().ins.run(id, slug, note.actor_uri || '', note.actor_name || '', note.actor_handle || '',
+    const r = tlStmts().ins.run(id, slug, note.actor_uri || '', note.actor_name || '', note.actor_handle || '',
       note.actor_icon || '', note.actor_url || '', note.content || '', note.url || null,
       new Date().toISOString(), media, note.sensitive ? 1 : 0, note.cw || null);
+    if (!r.changes) {
+      // Row already cached (INSERT OR IGNORE) → refresh it with the freshly
+      // resolved note. Without this a row cached without its cover (or with
+      // stale content) stayed stale forever — even boosting again didn't heal it.
+      db.prepare('UPDATE ap_timeline SET content = ?, media_json = ?, nsfw = ?, cw = ?, url = COALESCE(?, url) WHERE slug = ? AND id = ?')
+        .run(note.content || '', media, note.sensitive ? 1 : 0, note.cw || null, note.url || null, slug, id);
+    }
   } catch { /* ignore */ }
   markBoosted(slug, id);
 }

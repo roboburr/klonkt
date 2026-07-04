@@ -8,7 +8,9 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 ### Behoben
 - **Boosts, die ihr Cover verloren hatten, bekommen es automatisch zurück.**
   Beiträge, die du vor dem Cover-Fix geboostet hast, waren ohne Artwork
-  gespeichert; sie werden beim nächsten Neustart einmalig aufgefrischt.
+  gespeichert; sie werden beim nächsten Neustart einmalig aufgefrischt. Einen
+  Beitrag erneut zu boosten aktualisiert jetzt ebenfalls die gespeicherte Kopie
+  (Cover, Inhalt) — ein veralteter Boost lässt sich also auch von Hand heilen.
 
 ## [1.3.3] — 2026-07-03
 
