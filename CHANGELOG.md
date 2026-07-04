@@ -9,6 +9,10 @@ Versions follow [SemVer](https://semver.org/).
 - **Polls keep their cover art when boosted.** A poll with music or an embed was
   federating without its cover, so a boosted poll showed a blank tile; the cover
   now travels with it.
+- **The Android app's Updates page shows what's actually installable.** It read
+  the newest release branch, which could be ahead of the phone build for a short
+  while — pressing update then reinstalled the same version. It now reads the
+  version of the phone bundle itself.
 
 ## [1.3.4] — 2026-07-04
 

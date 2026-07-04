@@ -9,6 +9,10 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 - **Umfragen behalten ihr Cover, wenn sie geboostet werden.** Eine Umfrage mit
   Musik oder Embed wurde ohne Cover föderiert, sodass eine geteilte Umfrage eine
   leere Kachel zeigte; das Cover reist jetzt mit.
+- **Die Updates-Seite der Android-App zeigt, was wirklich installierbar ist.**
+  Sie las den neuesten Release-Branch, der der Handy-Build kurzzeitig
+  vorauslaufen konnte — Aktualisieren installierte dann dieselbe Version erneut.
+  Sie liest jetzt die Version des Handy-Bundles selbst.
 
 ## [1.3.4] — 2026-07-04
 

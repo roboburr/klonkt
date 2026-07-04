@@ -44,15 +44,31 @@ const REMOTE_REF = IS_CHECKOUT ? `origin/${BRANCH}` : BRANCH; // what "latest" r
 // filesystem check is belt-and-braces for exotic node builds.
 const IS_ANDROID = process.platform === 'android'
   || (() => { try { return fs.existsSync('/data/data/com.termux/files/usr/bin'); } catch { return false; } })();
-// Phone tarballs are built from the stable branch → that's the phone's "latest".
-const ANDROID_LATEST_URL = 'https://raw.githubusercontent.com/roboburr/klonkt/stable/package.json';
+// "Latest" for a phone = what the update button can actually INSTALL: the version
+// of the prebuilt bundle on the release (BUILD-INFO.txt's bundle-version). Reading
+// the stable branch instead showed a new version during the CI window in which the
+// bundle was still being built — pressing update then reinstalled the old version.
+const ANDROID_BUILDINFO_URL = 'https://github.com/roboburr/klonkt-android/releases/download/termux-latest/BUILD-INFO.txt';
+const ANDROID_STABLE_URL = 'https://raw.githubusercontent.com/roboburr/klonkt/stable/package.json';
+
+async function fetchWithTimeout(url, ms) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), ms);
+  try { return await fetch(url, { signal: ctl.signal, redirect: 'follow' }); }
+  finally { clearTimeout(t); }
+}
 
 async function androidLatestVersion() {
   try {
-    const ctl = new AbortController();
-    const t = setTimeout(() => ctl.abort(), 8000);
-    const r = await fetch(ANDROID_LATEST_URL, { signal: ctl.signal });
-    clearTimeout(t);
+    const r = await fetchWithTimeout(ANDROID_BUILDINFO_URL, 8000);
+    if (r.ok) {
+      const m = (await r.text()).match(/^bundle-version:\s*(\S+)/m);
+      if (m) return m[1];
+    }
+  } catch { /* fall through */ }
+  // Older releases have no bundle-version line → fall back to the stable branch.
+  try {
+    const r = await fetchWithTimeout(ANDROID_STABLE_URL, 8000);
     if (!r.ok) return null;
     return (await r.json()).version || null;
   } catch { return null; }

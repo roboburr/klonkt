@@ -9,6 +9,10 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 - **Polls behouden hun cover als ze geboost worden.** Een poll met muziek of een
   embed federeerde zonder cover, waardoor een geboooste poll een leeg vak toonde;
   de cover reist nu mee.
+- **De Updates-pagina van de Android-app toont wat er écht te installeren valt.**
+  Hij las de nieuwste release-branch, die korte tijd vóór kon lopen op de
+  telefoon-build — bijwerken installeerde dan dezelfde versie opnieuw. Hij leest
+  nu de versie van de telefoonbundel zelf.
 
 ## [1.3.4] — 2026-07-04
 
