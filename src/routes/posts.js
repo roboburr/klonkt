@@ -866,7 +866,17 @@ router.post('/news/boost', requireSiteManager, async (req, res) => {
   if (site && note) {
     on = !ActivityPubService.getTimelineReaction(site.slug, note).boosted;
     try { await ActivityPubService.sendInteraction(site, on ? 'boost' : 'unboost', note, (req.body.author || '').toString()); } catch (e) { /* ignore */ }
-    if (on) ActivityPubService.markBoosted(site.slug, note); else ActivityPubService.unmarkBoosted(site.slug, note);
+    if (on) {
+      ActivityPubService.markBoosted(site.slug, note); // instant UI state
+      // Fire-and-forget: re-resolve the note so the cached row is refreshed
+      // (cover/content) — boosting again heals a stale copy from EVERY boost
+      // path, not just the interact page.
+      ActivityPubService.resolveRemoteNote(note)
+        .then((n) => { if (n) ActivityPubService.upsertBoostedNote(site.slug, n); })
+        .catch(() => { /* best-effort */ });
+    } else {
+      ActivityPubService.unmarkBoosted(site.slug, note);
+    }
   }
   if (req.get('X-Requested-With') === 'fetch') return res.json({ ok: true, on });
   res.redirect('/news');

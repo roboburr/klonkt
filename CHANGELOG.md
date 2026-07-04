@@ -8,8 +8,10 @@ Versions follow [SemVer](https://semver.org/).
 ### Fixed
 - **Boosts that lost their cover get it back automatically.** Posts you boosted
   before the cover fix were cached without their artwork; they are refreshed
-  once on the next restart. Boosting a post again now also refreshes its cached
-  copy (cover, content), so a stale boost can always be healed by hand too.
+  once on the next restart. If a post's home server is briefly unreachable at
+  that moment, it is retried on the next restarts instead of being skipped for
+  good. Boosting a post again now also refreshes its cached copy (cover,
+  content) — from the feed as well as the interact page.
 
 ## [1.3.3] — 2026-07-03
 

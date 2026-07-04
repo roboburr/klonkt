@@ -8,9 +8,11 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 ### Opgelost
 - **Boosts die hun cover kwijt waren krijgen 'm automatisch terug.** Posts die
   je vóór de cover-fix boostte waren zonder artwork opgeslagen; die worden bij
-  de volgende herstart eenmalig ververst. Een post opnieuw boosten ververst nu
-  ook de opgeslagen kopie (cover, inhoud), dus een oude boost is altijd ook
-  handmatig te genezen.
+  de volgende herstart eenmalig ververst. Is de thuis-server van een post op dat
+  moment even onbereikbaar, dan wordt het bij volgende herstarts opnieuw
+  geprobeerd in plaats van voorgoed overgeslagen. Een post opnieuw boosten
+  ververst nu ook de opgeslagen kopie (cover, inhoud) — vanuit de feed én de
+  interact-pagina.
 
 ## [1.3.3] — 2026-07-03
 

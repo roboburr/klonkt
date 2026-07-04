@@ -1877,7 +1877,7 @@ async function resolveApActor(siteUrl) {
 // note and refreshes content + media (recovers covers/edits that were delivered
 // during a flux window, e.g. a fleet-wide update), and drops notes that are gone
 // (404/410). Bump SELFHEAL_VERSION only on a release that warrants a re-sync.
-const SELFHEAL_VERSION = 6; // v6: re-fetch so boosted notes cached coverless (pre image-fallback in resolveRemoteNote) pick up their cover
+const SELFHEAL_VERSION = 7; // v7: rerun v6 with retry-until-clean semantics (origins briefly offline no longer stay stale forever)
 async function fetchNoteAP(url) {
   try {
     const r = await fetch(url, { headers: { Accept: 'application/activity+json' } });
@@ -2051,12 +2051,12 @@ export async function selfHealTimeline() {
     if (cur >= SELFHEAL_VERSION) return; // already healed for this version — skip on normal boots
     let rows = [];
     try { rows = db.prepare('SELECT id, content, media_json, nsfw, cw, url FROM ap_timeline ORDER BY rowid DESC LIMIT 200').all(); } catch { /* no table */ }
-    let healed = 0;
+    let healed = 0, failed = 0;
     for (const r of rows) {
       try {
         const note = await fetchNoteAP(r.id);
         if (note === 404) { db.prepare('DELETE FROM ap_timeline WHERE id = ?').run(r.id); healed++; continue; }
-        if (!note || typeof note !== 'object') continue;
+        if (!note || typeof note !== 'object') { failed++; continue; } // origin unreachable right now
         const html = HtmlSanitizerService.sanitize(note.content || '');
         const media = mediaFromNote(note);
         const nsfw = note.sensitive ? 1 : 0;   // re-sync NSFW/sensitive + CW onto already-cached posts
@@ -2066,10 +2066,23 @@ export async function selfHealTimeline() {
           db.prepare('UPDATE ap_timeline SET content = ?, media_json = ?, nsfw = ?, cw = ?, url = COALESCE(?, url) WHERE id = ?').run(html || r.content, media, nsfw, cw, url, r.id);
           healed++;
         }
-      } catch { /* per-note best-effort */ }
+      } catch { failed++; /* per-note best-effort */ }
     }
-    try { db.prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)').run('selfheal_version', String(SELFHEAL_VERSION)); } catch { /* ignore */ }
-    if (rows.length) console.log(`[AP] self-heal v${SELFHEAL_VERSION}: ${healed}/${rows.length} timeline notes`);
+    // Only mark this version DONE after a clean pass. Some origins are briefly
+    // offline exactly when we heal (phone-hosted instances!): skipping them and
+    // consuming the version would leave those rows stale forever. Instead retry
+    // on the next boots, giving up after a few attempts (permanently-dead
+    // origins answer 404/410 and are deleted above, so they don't loop).
+    const setSetting = (k, v) => { try { db.prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)').run(k, String(v)); } catch { /* ignore */ } };
+    let attempts = 0;
+    try { const a = db.prepare('SELECT value FROM app_settings WHERE key = ?').get('selfheal_attempts'); attempts = a ? (parseInt(a.value, 10) || 0) : 0; } catch { /* ignore */ }
+    if (failed === 0 || attempts >= 4) {
+      setSetting('selfheal_version', SELFHEAL_VERSION);
+      setSetting('selfheal_attempts', 0);
+    } else {
+      setSetting('selfheal_attempts', attempts + 1);
+    }
+    if (rows.length) console.log(`[AP] self-heal v${SELFHEAL_VERSION}: ${healed}/${rows.length} timeline notes${failed ? ` (${failed} unreachable — will retry next boot)` : ''}`);
   } catch { /* never block boot */ } finally { _selfHealing = false; }
 }
 
