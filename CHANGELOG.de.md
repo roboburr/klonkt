@@ -5,6 +5,8 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 
 ## [Unreleased]
 
+## [1.3.4] — 2026-07-04
+
 ### Behoben
 - **Boosts, die ihr Cover verloren hatten, bekommen es automatisch zurück.**
   Beiträge, die du vor dem Cover-Fix geboostet hast, waren ohne Artwork

@@ -5,6 +5,8 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 
 ## [Unreleased]
 
+## [1.3.4] — 2026-07-04
+
 ### Opgelost
 - **Boosts die hun cover kwijt waren krijgen 'm automatisch terug.** Posts die
   je vóór de cover-fix boostte waren zonder artwork opgeslagen; die worden bij
