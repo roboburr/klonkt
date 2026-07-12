@@ -192,15 +192,25 @@ export async function getRemoteThumbnail(url, width) {
     isVideo = ct.startsWith('video/');
     if (!ct.startsWith('image/') && !isVideo) return null;
     if (isVideo) {
-      // Remote video → poster frame (feed/tile posters). Don't buffer the whole file: re-fetch
-      // a bounded head (first 4MB) — enough for ffmpeg to decode the first frame of a faststart
-      // mp4 (the web-streaming norm). A moov-at-end file just fails → null → the route's 302
-      // fallback, same as before this path existed.
+      // Remote video → poster frame (feed/tile posters). A bounded head (first 4MB) only decodes
+      // a faststart mp4 (moov atom up front). Many platforms (Loops.video, phone exports) put the
+      // moov atom at the END, so a head-only fetch fails → no thumbnail. So: if the file is small
+      // enough (content-length within VIDEO_CAP) grab it WHOLE — that works regardless of moov
+      // position. Only when the size is unknown or very large do we fall back to a bounded head
+      // (best-effort; a large moov-at-end file still yields null → the route's 302 fallback).
+      const VIDEO_CAP = 64 * 1024 * 1024; // 64MB — covers short-form clips incl. moov-at-end
+      const clen = parseInt(r.headers.get('content-length') || '0', 10);
       try { if (r.body && r.body.cancel) r.body.cancel(); } catch { /* ignore */ }
-      const rv = await safeFetch(url, { headers: { Range: 'bytes=0-4194303' } });
-      if (!rv.ok && rv.status !== 206) return null;
+      let rv;
+      if (clen && clen <= VIDEO_CAP) {
+        rv = await safeFetch(url);
+        if (!rv.ok) return null;
+      } else {
+        rv = await safeFetch(url, { headers: { Range: 'bytes=0-8388607' } }); // 8MB head fallback
+        if (!rv.ok && rv.status !== 206) return null;
+      }
       buf = Buffer.from(await rv.arrayBuffer());
-      if (!buf.length) return null;
+      if (!buf.length || buf.length > VIDEO_CAP) return null;
     } else {
       if (parseInt(r.headers.get('content-length') || '0', 10) > 12 * 1024 * 1024) return null;
       buf = Buffer.from(await r.arrayBuffer());
@@ -209,7 +219,7 @@ export async function getRemoteThumbnail(url, width) {
     console.warn('[thumb-remote] fetch failed for', url, '-', e.message);
     return null;
   }
-  if (buf.length > 12 * 1024 * 1024) return null;
+  if (!isVideo && buf.length > 12 * 1024 * 1024) return null; // video already capped at VIDEO_CAP
   // ffmpeg-static can't decode an animated WebP (the doomed downscale just logs an error), and a
   // flattened GIF/animated WebP loses its motion → skip it and let the route serve the ORIGINAL
   // (keeps the animation; mirrors the local path's isAnimatedSrc guard). Video heads skip this
