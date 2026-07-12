@@ -1069,6 +1069,10 @@ router.get('/:slug', (req, res, next) => {
     html = AudioEmbedService.embedExternalLinkShortcodes(html);
     html = html.replace(/\[\[(track|album|playlist):[^\]]+\]\]/gi, '');
   }
+  // Linkify inline #hashtags and bare URLs for on-site display — same rules as the
+  // federated copy (buildNote). Was: only the Mastodon copy got links; the website
+  // showed raw "#tag"/URL text. Idempotent, so editor links + embeds are untouched.
+  html = ActivityPubService.linkifyBody('', html);
   post.content_html = html;
 
   if (post.tags) {

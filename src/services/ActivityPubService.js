@@ -1421,6 +1421,19 @@ function linkUrls(html) {
   }
   return parts.join('');
 }
+// Linkify inline #hashtags and bare URLs in BODY html for on-site DISPLAY, using the
+// EXACT same rules as the federated copy (linkHashtags/linkUrls), so the website and the
+// Mastodon copy agree instead of the website showing raw text. Idempotent: existing
+// <a>…</a> (editor links, embeds, shortcode buttons) are split out and left untouched, so
+// nothing is double-wrapped. Pass base='' → root-relative /tag/<slug> links.
+export function linkifyBody(base, html) {
+  const withTags = String(html || '')
+    .split(/(<a\b[^>]*>[\s\S]*?<\/a>)/gi)
+    .map((seg) => (/^<a\b/i.test(seg) ? seg : linkHashtags(base, seg)))
+    .join('');
+  return linkUrls(withTags);
+}
+
 // Extract the AP Hashtag tag objects from already-linked reply content.
 function hashtagTags(base, content) {
   const tags = [], seen = new Set();
@@ -2420,4 +2433,5 @@ export default {
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
   getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
+  linkifyBody,
 };
