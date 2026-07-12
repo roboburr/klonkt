@@ -24,19 +24,27 @@ const ALLOWED_TAGS = [
   // Inline
   'strong', 'em', 'b', 'i', 'u', 's', 'mark', 'small', 'sub', 'sup',
   'code', 'a', 'span', 'img',
+  // Native media (bare .webm/.mp4/.mp3 embeds + federated-in players)
+  'video', 'audio', 'source',
 ];
 
 // Per-tag attribute allowlist. '*' applies to every tag.
 const ALLOWED_ATTRS = {
-  '*': ['class', 'id', 'dir', 'lang', 'data-sc'],
-  a:   ['href', 'title', 'target', 'rel'],
-  img: ['src', 'alt', 'title', 'width', 'height', 'loading'],
+  '*':   ['class', 'id', 'dir', 'lang', 'data-sc'],
+  a:     ['href', 'title', 'target', 'rel'],
+  img:   ['src', 'alt', 'title', 'width', 'height', 'loading'],
+  video: ['src', 'controls', 'preload', 'poster', 'width', 'height', 'loop', 'muted', 'autoplay', 'playsinline'],
+  audio: ['src', 'controls', 'preload', 'loop', 'muted', 'autoplay'],
+  source: ['src', 'type'],
 };
 
 const ALLOWED_SCHEMES = ['http', 'https', 'mailto', 'tel'];
 const ALLOWED_SCHEMES_BY_TAG = {
-  img: ['http', 'https', 'data'],
-  a:   ['http', 'https', 'mailto', 'tel'],
+  img:    ['http', 'https', 'data'],
+  a:      ['http', 'https', 'mailto', 'tel'],
+  video:  ['http', 'https'],
+  audio:  ['http', 'https'],
+  source: ['http', 'https'],
 };
 
 class HtmlSanitizerService {

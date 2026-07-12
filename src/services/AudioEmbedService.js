@@ -83,6 +83,38 @@ class AudioEmbedService {
     return null;
   }
 
+  // Direct media files (video/audio) hosted anywhere → a native <video>/<audio>
+  // player. Kept OUT of detectProvider() on purpose: the timeline/cover callers
+  // switch on provider slugs (youtube/spotify/…) and a bare file has none, so
+  // overloading detectProvider would suppress e.g. a PeerTube fallback. Only
+  // autoembed() and [[embed:…]] use this.
+  static MEDIA_FILE_EXT = {
+    video: ['mp4', 'webm', 'm4v', 'mov', 'ogv'],
+    audio: ['mp3', 'ogg', 'oga', 'wav', 'm4a', 'flac', 'opus', 'aac'],
+  };
+
+  static detectMediaFile(url) {
+    if (!url || typeof url !== 'string') return null;
+    if (!/^https?:\/\//i.test(url)) return null;
+    let pathname;
+    try { pathname = new URL(url).pathname.toLowerCase(); } catch { return null; }
+    const ext = (pathname.match(/\.([a-z0-9]+)$/) || [])[1];
+    if (!ext) return null;
+    if (this.MEDIA_FILE_EXT.video.includes(ext)) return { kind: 'video', url };
+    if (this.MEDIA_FILE_EXT.audio.includes(ext)) return { kind: 'audio', url };
+    return null;
+  }
+
+  static mediaFileEmbed(url) {
+    const m = this.detectMediaFile(url);
+    if (!m) return null;
+    const src = this.escape(m.url);
+    if (m.kind === 'video') {
+      return `<figure class="folio-embed folio-embed--video"><video src="${src}" controls preload="metadata" playsinline></video></figure>`;
+    }
+    return `<figure class="folio-embed folio-embed--audio"><audio src="${src}" controls preload="metadata"></audio></figure>`;
+  }
+
   static generateIframe(provider, config) {
     switch (provider) {
       // Custom players (client-side via embed-player.js + the real platform APIs).
@@ -237,6 +269,9 @@ class AudioEmbedService {
           const iframe = this.generateIframe(detected.provider, detected);
           return iframe || match;
         }
+        // Bare media file (…/clip.webm, …/song.mp3) → native player.
+        const media = this.mediaFileEmbed(url);
+        if (media) return media;
         return match;
       }
     );
@@ -254,6 +289,9 @@ class AudioEmbedService {
       const url = rawUrl.trim().replace(/&amp;/g, '&');
       const detected = this.detectProvider(url);
       if (!detected) {
+        // Bare media file (…/clip.webm, …/song.mp3) → native player.
+        const media = this.mediaFileEmbed(url);
+        if (media) return media;
         return `<div class="post-embed-missing"><em>Embed: niet-ondersteunde of ongeldige URL.</em></div>`;
       }
       return this.generateIframe(detected.provider, detected) || match;
