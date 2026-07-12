@@ -30,7 +30,6 @@ const router = express.Router();
 
 const HOME = process.env.HOME || '';
 const APP_DIR = process.cwd();
-const BRANCH = process.env.KLONKT_BRANCH || 'main';
 const GIT_DIR = process.env.KLONKT_GIT_DIR || path.join(HOME, 'git-repos/prutfolio.git');
 const UPDATE_SCRIPT = process.env.KLONKT_UPDATE_SCRIPT || path.join(HOME, 'bin/klonkt-self-update.sh');
 
@@ -38,6 +37,20 @@ const UPDATE_SCRIPT = process.env.KLONKT_UPDATE_SCRIPT || path.join(HOME, 'bin/k
 // fall back to the BARE repo (fleet). This split keeps the version check pointed at
 // a repo that actually exists, so it never logs "fatal: not a git repository".
 const IS_CHECKOUT = (() => { try { return fs.existsSync(path.join(APP_DIR, '.git')); } catch { return false; } })();
+
+// A checkout must track the branch it is ACTUALLY on: a self-hoster who checked out
+// `stable` should be compared to origin/stable, not main — otherwise the update panel
+// shows main's commits as "latest" and a bogus "behind" count (confusing for stable
+// users). Env override wins (the bare fleet sets KLONKT_BRANCH); then the checkout's
+// current branch; then main as a last resort.
+const CHECKOUT_BRANCH = IS_CHECKOUT ? (() => {
+  try {
+    const b = execFileSync('git', ['-C', APP_DIR, 'rev-parse', '--abbrev-ref', 'HEAD'],
+      { encoding: 'utf8', timeout: 8000, stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    return (b && b !== 'HEAD') ? b : null;
+  } catch { return null; }
+})() : null;
+const BRANCH = process.env.KLONKT_BRANCH || CHECKOUT_BRANCH || 'main';
 const REMOTE_REF = IS_CHECKOUT ? `origin/${BRANCH}` : BRANCH; // what "latest" resolves to
 
 // The Klonkt Android app (Termux): node there reports platform 'android'; the
