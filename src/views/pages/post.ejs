@@ -21,6 +21,10 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
     <figure class="post-cover">
       <img src="<%= post.cover_image_url %>" alt="<%= post.cover_alt || '' %>"<% if (post.cover_video_url) { %> data-ios-mp4="<%= post.cover_video_url %>"<% } %>>
     </figure>
+  <% } else if (post.cover_video_url) { %>
+    <figure class="post-cover">
+      <video src="<%= post.cover_video_url %>" poster="<%= thumb(post.cover_video_url, 1280) %>" controls loop muted playsinline preload="metadata"></video>
+    </figure>
   <% } %>
 
   <header class="post-header">
