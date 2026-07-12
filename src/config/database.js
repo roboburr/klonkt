@@ -382,6 +382,10 @@ export function initializeDatabase() {
   ensureColumn('ap_timeline', 'reblog_handle', 'TEXT');      //   the booster's @handle
   ensureColumn('ap_timeline', 'reblog_icon', 'TEXT');        //   the booster's avatar
   ensureColumn('ap_timeline', 'poll_json', 'TEXT');          // a Question (poll): {multiple,options[{name,count}],endTime,closed,voters,voted}
+
+  // Delivery health per follower → surface dead accounts for manual cleanup.
+  ensureColumn('ap_followers', 'last_delivery_at', 'DATETIME'); // last SUCCESSFUL delivery to this follower's inbox
+  ensureColumn('ap_followers', 'last_error_at', 'DATETIME');    // last time a delivery to it gave up (max retries)
 }
 
 function ensureColumn(table, column, definition) {

@@ -812,6 +812,28 @@ router.get('/following', requireSiteManager, (req, res) => {
   });
 });
 
+// Followers (remote AP actors following us) + per-account delivery health, so dead
+// accounts (never/last-delivered long ago) can be pruned after a manual check.
+router.get('/followers', requireSiteManager, (req, res) => {
+  const site = res.locals.site;
+  const followers = site ? ActivityPubService.listFollowers(site.slug) : [];
+  renderPage(req, res, 'pages/followers', {
+    pageTitle: 'Volgers', bodyClass: 'on-special',
+    followers,
+    success: req.query.success || null, error: req.query.error || null,
+  });
+});
+
+router.post('/followers/:id/remove', requireSiteManager, (req, res) => {
+  const site = res.locals.site;
+  const base = res.locals.siteUrlBase || '';
+  if (!site) return res.redirect(`${base}/followers`);
+  const ok = ActivityPubService.removeFollower(site.slug, parseInt(req.params.id, 10) || 0);
+  return res.redirect(`${base}/followers?` + (ok
+    ? 'success=' + encodeURIComponent('Volger verwijderd')
+    : 'error=' + encodeURIComponent('Volger niet gevonden')));
+});
+
 router.post('/news/follow', requireSiteManager, async (req, res) => {
   const site = res.locals.site;
   const handle = (req.body.handle || '').toString();

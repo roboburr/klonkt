@@ -1,0 +1,58 @@
+<div class="tl-wrap">
+  <%- include('../partials/fedi-tabs', { active: 'followers' }) %>
+  <h1 class="tl-title"><%= t('tl.followers') %><% if (followers && followers.length) { %> (<%= followers.length %>)<% } %></h1>
+  <% if (typeof success !== 'undefined' && success) { %><div class="alert alert-success"><%= success %></div><% } %>
+  <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+  <p class="tl-lead"><%= t('tl.followers_lead') %></p>
+
+  <% if (followers && followers.length) { %>
+    <ul class="tl-foll-list">
+      <% followers.forEach(function(f){
+           var host='', user='';
+           try { var u = new URL(f.actor_uri); host = u.hostname; user = (u.pathname.split('/').filter(Boolean).pop() || ''); } catch (e) {}
+           var handle = user ? ('@' + user + '@' + host) : f.actor_uri;
+           var stale = !f.last_delivery_at || (f.last_error_at && (!f.last_delivery_at || f.last_error_at > f.last_delivery_at));
+      %>
+        <li class="tl-foll<%= stale ? ' is-stale' : '' %>">
+          <span class="tl-foll-av"><%= (user || host || '?').charAt(0).toUpperCase() %></span>
+          <span class="tl-foll-meta">
+            <a href="<%= f.actor_uri %>" target="_blank" rel="nofollow noopener"><%= handle %></a>
+            <span class="tl-foll-deliv">
+              <% if (f.last_delivery_at) { %>
+                <%= t('tl.last_delivery') %>: <%= formatDateTime(f.last_delivery_at) %>
+              <% } else { %>
+                <span class="tl-foll-never"><%= t('tl.never_delivered') %></span>
+              <% } %>
+              <% if (f.last_error_at) { %><span class="tl-foll-err">· <%= t('tl.delivery_failed') %>: <%= formatDateTime(f.last_error_at) %></span><% } %>
+            </span>
+          </span>
+          <form method="post" action="/followers/<%= f.id %>/remove" onsubmit="return confirm('<%= t('tl.remove_confirm') %>')">
+            <button type="submit" class="tl-unfollow"><%= t('tl.remove_follower') %></button>
+          </form>
+        </li>
+      <% }); %>
+    </ul>
+  <% } else { %>
+    <p class="tl-empty"><%= t('tl.empty_followers') %></p>
+  <% } %>
+</div>
+
+<style>
+  .tl-wrap { max-width: 640px; margin: 1rem auto; padding: 0 1rem; }
+  .tl-title { margin: 0 0 .25rem; }
+  .tl-lead { color: var(--ink-soft, #888); margin: 0 0 1.25rem; font-size: .9rem; line-height: 1.5; }
+  .tl-foll-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .4rem; }
+  .tl-foll { display: flex; align-items: center; gap: .6rem; padding: .45rem .6rem; border-radius: 12px; background: color-mix(in srgb, var(--ink, #000) 4%, transparent); }
+  .tl-foll.is-stale { background: color-mix(in srgb, #c0392b 10%, transparent); }
+  .tl-foll-av { flex: 0 0 36px; width: 36px; height: 36px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; background: color-mix(in srgb, var(--accent, #888) 20%, transparent); color: var(--accent, #555); }
+  .tl-foll-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
+  .tl-foll-meta a { color: var(--ink, inherit); text-decoration: none; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tl-foll-meta a:hover { text-decoration: underline; }
+  .tl-foll-deliv { color: var(--ink-soft, #888); font-size: .78rem; }
+  .tl-foll-never { color: #c0392b; font-weight: 600; }
+  .tl-foll-err { color: #c0392b; }
+  .tl-unfollow { background: none; border: 1px solid color-mix(in srgb, var(--ink, #000) 18%, transparent); border-radius: 8px; padding: .25rem .6rem; font-size: .8rem; color: var(--ink-soft, #888); cursor: pointer; white-space: nowrap; }
+  .tl-unfollow:hover { color: #c0392b; border-color: #c0392b; }
+  .tl-empty { color: var(--ink-soft, #888); }
+</style>

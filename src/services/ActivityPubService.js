@@ -523,6 +523,21 @@ function fStmts() {
 }
 export function followerCount(slug) { return fStmts().cnt.get(slug).n; }
 
+// Followers with delivery health, for the management list. Never-delivered accounts
+// first, then oldest successful delivery first — i.e. the cleanup candidates on top.
+export function listFollowers(slug) {
+  return db.prepare(
+    `SELECT id, actor_uri, inbox, shared_inbox, created_at, last_delivery_at, last_error_at
+     FROM ap_followers WHERE slug = ?
+     ORDER BY (last_delivery_at IS NULL) DESC, last_delivery_at ASC, created_at ASC`
+  ).all(slug);
+}
+// Manually drop a follower after a check (a still-live account would have to re-follow).
+export function removeFollower(slug, id) {
+  const info = db.prepare('DELETE FROM ap_followers WHERE slug = ? AND id = ?').run(slug, id);
+  return info.changes > 0;
+}
+
 // ── inbound interactions store (replies / likes / boosts) + our outbound replies ──
 let _insI, _delLA, _delReply, _listI, _getI, _insO, _listO, _getO;
 function iStmts() {
@@ -723,10 +738,24 @@ export function enqueueDelivery(slug, inbox, activity) {
   if (!slug || !inbox || !activity) return;
   try { deliveryStmts().ins.run(slug, inbox, JSON.stringify(activity)); } catch { /* ignore */ }
 }
+// Record delivery health per follower so the followers list can flag dead accounts.
+// Keyed by inbox: a shared-inbox POST reaches every follower behind it, so all of them
+// are marked. A non-follower inbox (inline @mention) simply matches 0 rows.
+let _fDelivOk, _fDelivErr;
+function markFollowerDelivery(slug, inbox, ok) {
+  if (!slug || !inbox) return;
+  try {
+    if (!_fDelivOk) {
+      _fDelivOk = db.prepare('UPDATE ap_followers SET last_delivery_at = CURRENT_TIMESTAMP WHERE slug = ? AND (inbox = ? OR shared_inbox = ?)');
+      _fDelivErr = db.prepare('UPDATE ap_followers SET last_error_at = CURRENT_TIMESTAMP WHERE slug = ? AND (inbox = ? OR shared_inbox = ?)');
+    }
+    (ok ? _fDelivOk : _fDelivErr).run(slug, inbox, inbox);
+  } catch { /* health tracking is non-fatal */ }
+}
 // Deliver now; queue for retry if it fails.
 export async function deliverWithRetry(slug, inbox, activity, keyId, privPem) {
   if (!inbox) return;
-  try { const st = await deliver(inbox, activity, keyId, privPem); if (st >= 200 && st < 300) return; } catch { /* queue below */ }
+  try { const st = await deliver(inbox, activity, keyId, privPem); if (st >= 200 && st < 300) { markFollowerDelivery(slug, inbox, true); return; } } catch { /* queue below */ }
   enqueueDelivery(slug, inbox, activity);
 }
 let _processingDeliv = false;
@@ -745,9 +774,9 @@ export async function processDeliveryQueue() {
         const st = await deliver(row.inbox, JSON.parse(row.body), `${actorId(base, row.slug)}#main-key`, keys.private_pem);
         ok = st >= 200 && st < 300;
       } catch { ok = false; }
-      if (ok) { deliveryStmts().del.run(row.id); continue; }
+      if (ok) { markFollowerDelivery(row.slug, row.inbox, true); deliveryStmts().del.run(row.id); continue; }
       const attempts = row.attempts + 1;
-      if (attempts >= DELIVERY_MAX_ATTEMPTS) { deliveryStmts().del.run(row.id); console.warn('[AP] delivery gave up after', attempts, 'tries →', row.inbox); continue; }
+      if (attempts >= DELIVERY_MAX_ATTEMPTS) { markFollowerDelivery(row.slug, row.inbox, false); deliveryStmts().del.run(row.id); console.warn('[AP] delivery gave up after', attempts, 'tries →', row.inbox); continue; }
       // Index the backoff on the CURRENT attempt count (row.attempts) so the first
       // retry uses the 1-min tier instead of skipping it.
       const mins = DELIVERY_BACKOFF_MIN[Math.min(row.attempts, DELIVERY_BACKOFF_MIN.length - 1)];
@@ -2433,5 +2462,5 @@ export default {
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
   getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
-  linkifyBody,
+  linkifyBody, listFollowers, removeFollower,
 };
