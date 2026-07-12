@@ -1578,7 +1578,10 @@ export async function deliverReply(site, { postId, postSlug, parent, text }) {
   inboxes.delete(`${base}/ap/inbox`);  // (our own shared inbox) → avoids a self-duplicate
   let delivered = 0;
   for (const inbox of [...inboxes].filter(Boolean)) {
-    try { const st = await deliver(inbox, create, keyId, keys.private_pem); if (st >= 200 && st < 300) delivered++; } catch { /* best-effort */ }
+    let ok = false;
+    try { const st = await deliver(inbox, create, keyId, keys.private_pem); ok = st >= 200 && st < 300; } catch { ok = false; }
+    if (ok) delivered++;
+    else enqueueDelivery(site.slug, inbox, create); // durable: retry a briefly-offline recipient (was silently dropped)
   }
   console.log('[AP] outreply', site.slug, '→', parent.actor_uri, 'delivered', delivered);
   return { id, content, delivered };
@@ -1694,7 +1697,10 @@ export async function deliverOutboxDelete(site, outboxId) {
     const inboxes = new Set();
     if (row.to_actor) { const a = await fetchActor(row.to_actor).catch(() => null); if (a) inboxes.add((a.endpoints && a.endpoints.sharedInbox) || a.inbox); }
     for (const f of fStmts().list.all(site.slug)) inboxes.add(f.shared_inbox || f.inbox);
-    for (const inbox of [...inboxes].filter(Boolean)) { try { await deliver(inbox, del, `${me}#main-key`, keys.private_pem); } catch { /* best-effort */ } }
+    for (const inbox of [...inboxes].filter(Boolean)) {
+      try { const st = await deliver(inbox, del, `${me}#main-key`, keys.private_pem); if (st >= 200 && st < 300) continue; } catch { /* queue below */ }
+      enqueueDelivery(site.slug, inbox, del); // durable: a failed comment-delete now retries (was silently dropped)
+    }
   }
   db.prepare('DELETE FROM ap_outbox WHERE id = ?').run(outboxId);
   return true;
@@ -1734,7 +1740,10 @@ export async function deliverOutboxUpdate(site, outboxId, newText) {
   inboxes.delete(`${me}/inbox`); inboxes.delete(`${base}/ap/inbox`);
   let delivered = 0;
   for (const inbox of [...inboxes].filter(Boolean)) {
-    try { const st = await deliver(inbox, update, `${me}#main-key`, keys.private_pem); if (st >= 200 && st < 300) delivered++; } catch { /* best-effort */ }
+    let ok = false;
+    try { const st = await deliver(inbox, update, `${me}#main-key`, keys.private_pem); ok = st >= 200 && st < 300; } catch { ok = false; }
+    if (ok) delivered++;
+    else enqueueDelivery(site.slug, inbox, update); // durable: retry the edit later (was silently dropped)
   }
   console.log('[AP] outreply edit', site.slug, 'delivered', delivered);
   return { ok: true, content, delivered };
