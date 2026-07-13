@@ -109,7 +109,7 @@
             var _nsfwText = !!p.nsfw && !(imgs.length || vids.length || auds.length);
           %>
           <% if (_nsfwText) { %>
-            <div class="tl-content nsfw-media"><span class="nsfw-veil"><span class="nsfw-veil-label">🔞 <%= p.cw || t('post.nsfw_warning') %></span><span class="nsfw-veil-btn"><%= t('post.nsfw_show') %></span></span><%- p.content %></div>
+            <div class="tl-content nsfw-media"><span class="nsfw-veil"><%- include('../partials/nsfw-veil', { cw: p.cw }) %></span><%- p.content %></div>
           <% } else { %>
             <div class="tl-content"><%- p.content %></div>
           <% } %>
@@ -126,7 +126,7 @@
                 covers these tracks, so don't ALSO render the raw Audio attachments as bare
                 players here. Posts without a Klonkt embed (e.g. a plain remote audio) keep them. */ %>
           <% if (!p.embedHtml && !p.embedUrl) { auds.forEach(function(m){ %><audio class="tl-media-audio" src="<%= m.url %>" controls preload="none"></audio><% }); } %>
-          <% if (_nsfwVisual) { %><div class="nsfw-veil"><span class="nsfw-veil-label">🔞 <%= p.cw || t('post.nsfw_warning') %></span><span class="nsfw-veil-btn"><%= t('post.nsfw_show') %></span></div></div><% } %>
+          <% if (_nsfwVisual) { %><div class="nsfw-veil"><%- include('../partials/nsfw-veil', { cw: p.cw }) %></div></div><% } %>
 
           <% if (p.embedHtml) { %><div class="tl-embed"><%- p.embedHtml %></div><% } %>
           <% if (p.embedUrl) { %><a class="tl-embed-open" href="<%= p.embedUrl %>" target="_blank" rel="noopener">▶ <%= t('tl.open_player') %></a><% } %>

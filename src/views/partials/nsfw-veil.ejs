@@ -1,0 +1,3 @@
+<%# NSFW veil contents (label + reveal button). The caller supplies the wrapper
+    element (<span|div> class="nsfw-veil"), which stays as-is so nothing shifts.
+    Param: cw = the post's content_warning (may be empty → generic warning). %><span class="nsfw-veil-label">🔞 <%= cw || t('post.nsfw_warning') %></span><span class="nsfw-veil-btn"><%= t('post.nsfw_show') %></span>
