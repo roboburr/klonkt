@@ -242,10 +242,21 @@ function postAudioFediOpen(siteId, content) {
 // page serves. Called after every create/edit. Non-fatal: the render route falls back to
 // baking on the fly if this ever fails.
 function cacheRenderedContent(postId, rawContent) {
+  const raw = rawContent || '';
+  // 1. Immediate + synchronous: bake #hashtags + URLs so the post renders enriched at once.
   try {
     db.prepare('UPDATE posts SET content_rendered = ? WHERE id = ?')
-      .run(ActivityPubService.bakePostContent(rawContent || ''), postId);
+      .run(ActivityPubService.bakePostContent(raw), postId);
   } catch (e) { /* fallback bake in the render route keeps display correct */ }
+  // 2. Async: resolve @mentions (webfinger, once) and re-store, WITHOUT blocking the save
+  //    response — a moment later the post's @mentions are clickable too. A slow/dead remote
+  //    server can't stall the save; on failure the sync bake from step 1 stands.
+  ActivityPubService.bakePostContentWithMentions(raw)
+    .then((html) => {
+      try { db.prepare('UPDATE posts SET content_rendered = ? WHERE id = ?').run(html, postId); }
+      catch (e) { /* keep the sync bake */ }
+    })
+    .catch(() => { /* keep the sync bake */ });
 }
 
 router.post('/posts/create', requireAuth, (req, res) => {

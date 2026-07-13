@@ -1471,6 +1471,17 @@ export function bakePostContent(source) {
   return linkifyBody('', source || '');
 }
 
+// Step 2: the full bake, incl. @mention links. Resolves @user@host via webfinger ONCE (the
+// same resolver the federated copy uses) and bakes the profile links into content_rendered,
+// so page views never do a per-view lookup. Unresolvable handles stay plain text; on any
+// failure it degrades to the sync #hashtag/URL bake. Async (webfinger) → callers run it off
+// the save response so the request never blocks on a slow/dead remote server.
+export async function bakePostContentWithMentions(source) {
+  const withHashUrls = bakePostContent(source);
+  try { const m = await resolveMentionsInText('', withHashUrls); return m.html; }
+  catch { return withHashUrls; }
+}
+
 // Extract the AP Hashtag tag objects from already-linked reply content.
 function hashtagTags(base, content) {
   const tags = [], seen = new Set();
@@ -2470,5 +2481,5 @@ export default {
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
   getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
-  linkifyBody, bakePostContent, listFollowers, removeFollower,
+  linkifyBody, bakePostContent, bakePostContentWithMentions, listFollowers, removeFollower,
 };
