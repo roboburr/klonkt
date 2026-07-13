@@ -237,6 +237,17 @@ function postAudioFediOpen(siteId, content) {
   return total > 0 && open === total;
 }
 
+// Bake + cache a post's display HTML (ActivityPub `source` model): `content` stays the raw
+// source (used by the editor + re-rendering), content_rendered holds the linkified render the
+// page serves. Called after every create/edit. Non-fatal: the render route falls back to
+// baking on the fly if this ever fails.
+function cacheRenderedContent(postId, rawContent) {
+  try {
+    db.prepare('UPDATE posts SET content_rendered = ? WHERE id = ?')
+      .run(ActivityPubService.bakePostContent(rawContent || ''), postId);
+  } catch (e) { /* fallback bake in the render route keeps display correct */ }
+}
+
 router.post('/posts/create', requireAuth, (req, res) => {
   const site = res.locals.site;
   if (!site || !PermissionsService.canCreatePost(req.session.user, site)) {
@@ -298,6 +309,7 @@ router.post('/posts/create', requireAuth, (req, res) => {
     finalType, noindex ? 1 : 0, fanOnly, nsfw, cw, pollJson, publishAt,
     now, now, publishedAt
   );
+  cacheRenderedContent(postId, cleanContent); // bake display HTML (ActivityPub `source` model)
 
   // Per-post "share audio on the fediverse" → set fedi_open on this post's hosted tracks
   // BEFORE federating, so the Create note carries the right Audio attachments.
@@ -438,6 +450,7 @@ router.post('/posts/:slug/save', requireAuth, (req, res) => {
     finalType, noindex ? 1 : 0, fanOnly, nsfw, cw, pollJson, publishAt,
     finalSlug, publishedAt, now, post.id
   );
+  cacheRenderedContent(post.id, cleanContent); // re-bake display HTML on edit (ActivityPub `source` model)
 
   // Per-post "share audio on the fediverse" → set fedi_open on this post's hosted tracks
   // BEFORE federating, so the Update/Create note carries the right Audio attachments.
@@ -993,10 +1006,14 @@ router.get('/:slug', (req, res, next) => {
   // Statistics: count the view (skips admins + unpublished own-preview).
   if (post.status === 'published') recordPostView(post, req);
 
-  // Render content. Content is now user-authored HTML (already sanitized on
-  // save). The pipeline still adds autoembed iframes and shortcode embeds:
-  //   stored HTML → autoembed → [[track]]/[[album]]/[[playlist]] → response
-  let html = post.content || '';
+  // Render content. Base = the pre-rendered ("baked") display HTML: #hashtags/URLs (and, later,
+  // @mentions) linkified once at SAVE and cached in content_rendered — the ActivityPub `source`
+  // model (content = raw source, kept for editing). Old posts with no baked copy fall back to
+  // baking on the fly (cheap, no network). The dynamic layer (autoembed + [[track/album/
+  // playlist]] + signed audio URLs) stays per-render on top, since it can't be cached.
+  let html = (post.content_rendered != null && post.content_rendered !== '')
+    ? post.content_rendered
+    : ActivityPubService.bakePostContent(post.content || '');
   if (audioEnabled()) {
   if (site.enable_audio_player !== 0) {
     html = AudioEmbedService.autoembed(html);
@@ -1091,10 +1108,7 @@ router.get('/:slug', (req, res, next) => {
     html = AudioEmbedService.embedExternalLinkShortcodes(html);
     html = html.replace(/\[\[(track|album|playlist):[^\]]+\]\]/gi, '');
   }
-  // Linkify inline #hashtags and bare URLs for on-site display — same rules as the
-  // federated copy (buildNote). Was: only the Mastodon copy got links; the website
-  // showed raw "#tag"/URL text. Idempotent, so editor links + embeds are untouched.
-  html = ActivityPubService.linkifyBody('', html);
+  // (linkify is baked into content_rendered at save now, not re-run here.)
   post.content_html = html;
 
   if (post.tags) {

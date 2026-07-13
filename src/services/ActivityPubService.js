@@ -1463,6 +1463,14 @@ export function linkifyBody(base, html) {
   return linkUrls(withTags);
 }
 
+// Bake a post's raw source into its display HTML (the ActivityPub `source` model): done ONCE
+// at save and cached in posts.content_rendered, so page views serve it statically instead of
+// re-linkifying every render. Step 1 = #hashtags + bare URLs (cheap, no network). Step 2 will
+// resolve @mentions here too (webfinger once at save instead of per page view).
+export function bakePostContent(source) {
+  return linkifyBody('', source || '');
+}
+
 // Extract the AP Hashtag tag objects from already-linked reply content.
 function hashtagTags(base, content) {
   const tags = [], seen = new Set();
@@ -2462,5 +2470,5 @@ export default {
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
   getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
-  linkifyBody, listFollowers, removeFollower,
+  linkifyBody, bakePostContent, listFollowers, removeFollower,
 };

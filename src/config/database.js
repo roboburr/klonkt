@@ -386,6 +386,11 @@ export function initializeDatabase() {
   // Delivery health per follower → surface dead accounts for manual cleanup.
   ensureColumn('ap_followers', 'last_delivery_at', 'DATETIME'); // last SUCCESSFUL delivery to this follower's inbox
   ensureColumn('ap_followers', 'last_error_at', 'DATETIME');    // last time a delivery to it gave up (max retries)
+
+  // ActivityPub `source` model: content_rendered = baked display HTML (#hashtags / URLs /
+  // @mentions linkified once at save). `content` stays the raw source used for editing and
+  // re-rendering. NULL on old posts → the render route bakes on the fly as a fallback.
+  ensureColumn('posts', 'content_rendered', 'TEXT');
 }
 
 function ensureColumn(table, column, definition) {
