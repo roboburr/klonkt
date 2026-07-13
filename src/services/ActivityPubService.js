@@ -209,7 +209,31 @@ export function hasPlayableAudio(content, siteId) {
 }
 
 // A single post as an AS2 Note (the object), and as a Create activity (for outbox/delivery).
-export function buildNote(base, site, post) {
+export function buildNote(base, site, post, opts = {}) {
+  // Replies are Notes too. buildNote is the single entry point for ALL Notes; a reply is
+  // (for now) the simple flavor: pre-baked content, no title/cover/image/audio/embed
+  // machinery, addressed to the parent actor + thread. This early branch keeps that output
+  // byte-identical to the old buildReplyNote. When rich replies land (images/audio/embeds),
+  // this branch collapses and replies flow through the full post pipeline below. `post` here
+  // is the ap_outbox reply row (id, in_reply_to, content, post_slug, created_at, to_actor).
+  if (opts.isReply) {
+    const meR = actorId(base, site.slug);
+    return {
+      id: noteId(base, post.id),
+      type: 'Note',
+      attributedTo: meR,
+      inReplyTo: post.in_reply_to || undefined,
+      content: post.content,
+      url: post.post_slug ? `${base}/${encodeURIComponent(post.post_slug)}` : undefined,
+      published: toISO(post.created_at),
+      to: post.to_actor ? [post.to_actor] : [PUBLIC],
+      cc: [PUBLIC, `${meR}/followers`],
+      tag: [
+        ...mentionTags(post.content),
+        ...hashtagTags(base, post.content),
+      ],
+    };
+  }
   const id = noteId(base, post.id);
   const aId = actorId(base, site.slug);
   const human = `${base}/${encodeURIComponent(post.slug)}`;
@@ -1571,22 +1595,8 @@ async function resolveMentionsInText(base, html) {
 }
 
 export function buildReplyNote(base, site, row) {
-  const me = actorId(base, site.slug);
-  return {
-    id: noteId(base, row.id),
-    type: 'Note',
-    attributedTo: me,
-    inReplyTo: row.in_reply_to || undefined,
-    content: row.content,
-    url: row.post_slug ? `${base}/${encodeURIComponent(row.post_slug)}` : undefined,
-    published: toISO(row.created_at),
-    to: row.to_actor ? [row.to_actor] : [PUBLIC],
-    cc: [PUBLIC, `${me}/followers`],
-    tag: [
-      ...mentionTags(row.content),
-      ...hashtagTags(base, row.content),
-    ],
-  };
+  // Thin delegate: replies are built by buildNote (the single Note entry point) in reply mode.
+  return buildNote(base, site, row, { isReply: true });
 }
 
 // Resolve one of our outbound reply Notes by id (for /ap/notes/:id fallback).
