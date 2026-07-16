@@ -5,6 +5,14 @@ Versions follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Connect: your following and followers on one page.** A single Connect tab
+  replaces the separate Following and Followers pages, showing each connection's
+  direction (following →, follower ←, mutual ↔) and, for accounts you deliver to,
+  when they were last reached. Accounts you can no longer reach move to a
+  collapsed "Unreachable" section for cleanup. Old /following and /followers
+  links redirect to /connect.
+
 ## [1.4.0] · 2026-07-14
 
 ### Added

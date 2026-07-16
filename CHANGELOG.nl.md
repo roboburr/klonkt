@@ -5,6 +5,14 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 
 ## [Unreleased]
 
+### Toegevoegd
+- **Connect: wie je volgt en wie jou volgt op één pagina.** Eén Connect-tab
+  vervangt de aparte Volgend- en Volgers-pagina's, met per connectie de richting
+  (volgend →, volger ←, wederzijds ↔) en, voor accounts waaraan je bezorgt,
+  wanneer ze voor het laatst bereikt zijn. Accounts die je niet meer bereikt
+  schuiven naar een ingeklapte "Niet bereikbaar"-sectie om op te ruimen. Oude
+  /following- en /followers-links leiden door naar /connect.
+
 ## [1.4.0] · 2026-07-14
 
 ### Toegevoegd

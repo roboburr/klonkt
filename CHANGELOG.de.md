@@ -5,6 +5,14 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 
 ## [Unreleased]
 
+### Hinzugefügt
+- **Connect: wem du folgst und wer dir folgt auf einer Seite.** Ein Connect-Tab
+  ersetzt die getrennten Folge-ich- und Follower-Seiten, mit Richtung pro
+  Verbindung (folge ich →, Follower ←, gegenseitig ↔) und, für Konten, an die du
+  zustellst, wann sie zuletzt erreicht wurden. Konten, die du nicht mehr
+  erreichst, wandern in einen eingeklappten Bereich "Nicht erreichbar" zum
+  Aufräumen. Alte /following- und /followers-Links leiten auf /connect um.
+
 ## [1.4.0] · 2026-07-14
 
 ### Hinzugefügt
