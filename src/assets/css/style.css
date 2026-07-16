@@ -563,7 +563,8 @@ page-container[contenteditable="true"] { outline: 2px dashed var(--accent); outl
 
 /* Embeds */
 .pcms-embed, .folio-embed { margin: 2rem 0; }
-.pcms-embed iframe, .folio-embed iframe { width: 100%; display: block; border: 0; border-radius: var(--radius); }
+.pcms-embed iframe, .pcms-embed video, .pcms-embed audio,
+.folio-embed iframe, .folio-embed video, .folio-embed audio { width: 100%; display: block; border: 0; border-radius: var(--radius); }
 
 /* Article footer */
 .article-footer { display: flex; justify-content: center; padding-top: 2rem; margin-top: 2rem; border-top: 1px solid var(--rule); }

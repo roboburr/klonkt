@@ -13,6 +13,11 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
   erreichst, wandern in einen eingeklappten Bereich "Nicht erreichbar" zum
   Aufräumen. Alte /following- und /followers-Links leiten auf /connect um.
 
+### Behoben
+- **Nackte Video/Audio-Embeds laufen nicht mehr über die Spalte hinaus.** Ein
+  `.webm` / `.mp4` / `.mp3`-Player passt jetzt in die Inhaltsbreite wie die
+  iframe-Embeds; die Breitenregel galt zuvor nur für `iframe`.
+
 ## [1.4.0] · 2026-07-14
 
 ### Hinzugefügt

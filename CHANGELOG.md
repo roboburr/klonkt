@@ -13,6 +13,11 @@ Versions follow [SemVer](https://semver.org/).
   collapsed "Unreachable" section for cleanup. Old /following and /followers
   links redirect to /connect.
 
+### Fixed
+- **Bare video/audio embeds no longer overflow their column.** A `.webm` /
+  `.mp4` / `.mp3` player now fits the content width like the iframe embeds do;
+  the width rule previously covered only `iframe`.
+
 ## [1.4.0] · 2026-07-14
 
 ### Added

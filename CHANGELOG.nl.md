@@ -13,6 +13,11 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
   schuiven naar een ingeklapte "Niet bereikbaar"-sectie om op te ruimen. Oude
   /following- en /followers-links leiden door naar /connect.
 
+### Opgelost
+- **Kale video/audio-embeds lopen niet meer buiten de kolom.** Een `.webm` /
+  `.mp4` / `.mp3`-speler past nu netjes in de kolombreedte, net als de
+  iframe-embeds; de breedte-regel gold voorheen alleen voor `iframe`.
+
 ## [1.4.0] · 2026-07-14
 
 ### Toegevoegd
