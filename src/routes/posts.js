@@ -826,34 +826,27 @@ router.get('/news', requireSiteManager, (req, res) => {
 });
 
 // Volgend — manage the accounts you follow (+ per-account auto-boost toggles).
-router.get('/following', requireSiteManager, (req, res) => {
+// Connect = who you follow + who follows you, merged into one page with direction
+// (following →, follower ←, mutual ↔) and per-account delivery health. Replaces the
+// separate Following/Followers pages, which redirect here so old links keep working.
+router.get('/connect', requireSiteManager, (req, res) => {
   const site = res.locals.site;
-  const following = site ? ActivityPubService.listFollowing(site.slug) : [];
-  renderPage(req, res, 'pages/following', {
-    pageTitle: 'Volgend', bodyClass: 'on-special',
-    following,
+  const connections = site ? ActivityPubService.listConnections(site.slug) : [];
+  renderPage(req, res, 'pages/connect', {
+    pageTitle: 'Connect', bodyClass: 'on-special',
+    connections,
     success: req.query.success || null, error: req.query.error || null,
   });
 });
-
-// Followers (remote AP actors following us) + per-account delivery health, so dead
-// accounts (never/last-delivered long ago) can be pruned after a manual check.
-router.get('/followers', requireSiteManager, (req, res) => {
-  const site = res.locals.site;
-  const followers = site ? ActivityPubService.listFollowers(site.slug) : [];
-  renderPage(req, res, 'pages/followers', {
-    pageTitle: 'Volgers', bodyClass: 'on-special',
-    followers,
-    success: req.query.success || null, error: req.query.error || null,
-  });
-});
+router.get('/following', requireSiteManager, (req, res) => res.redirect(`${res.locals.siteUrlBase || ''}/connect`));
+router.get('/followers', requireSiteManager, (req, res) => res.redirect(`${res.locals.siteUrlBase || ''}/connect`));
 
 router.post('/followers/:id/remove', requireSiteManager, (req, res) => {
   const site = res.locals.site;
   const base = res.locals.siteUrlBase || '';
-  if (!site) return res.redirect(`${base}/followers`);
+  if (!site) return res.redirect(`${base}/connect`);
   const ok = ActivityPubService.removeFollower(site.slug, parseInt(req.params.id, 10) || 0);
-  return res.redirect(`${base}/followers?` + (ok
+  return res.redirect(`${base}/connect?` + (ok
     ? 'success=' + encodeURIComponent('Volger verwijderd')
     : 'error=' + encodeURIComponent('Volger niet gevonden')));
 });

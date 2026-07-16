@@ -562,6 +562,37 @@ export function removeFollower(slug, id) {
   return info.changes > 0;
 }
 
+// Merge who-you-follow (ap_following, rich display) with who-follows-you (ap_followers,
+// delivery health) into ONE connections list, keyed by actor_uri. Each entry gets a
+// direction (following →, follower ←, mutual ↔) and, for accounts we deliver to, an
+// `unreachable` flag (never delivered, or last attempt failed after the last success) so
+// the view can split dead connections into their own section. Powers the Connect page.
+export function listConnections(slug) {
+  const byUri = new Map();
+  for (const f of listFollowing(slug)) {
+    byUri.set(f.actor_uri, {
+      actor_uri: f.actor_uri, name: f.name || null, handle: f.handle || null,
+      icon: f.icon || null, url: f.url || null, auto_boost: f.auto_boost ? 1 : 0,
+      status: f.status || null, following: true, follower: false,
+      last_delivery_at: null, last_error_at: null, follower_id: null,
+    });
+  }
+  for (const fo of listFollowers(slug)) {
+    const e = byUri.get(fo.actor_uri);
+    if (e) { e.follower = true; e.last_delivery_at = fo.last_delivery_at; e.last_error_at = fo.last_error_at; e.follower_id = fo.id; }
+    else byUri.set(fo.actor_uri, {
+      actor_uri: fo.actor_uri, name: null, handle: null, icon: null, url: null,
+      auto_boost: 0, status: null, following: false, follower: true,
+      last_delivery_at: fo.last_delivery_at, last_error_at: fo.last_error_at, follower_id: fo.id,
+    });
+  }
+  return [...byUri.values()].map((e) => {
+    e.direction = (e.following && e.follower) ? 'mutual' : (e.following ? 'following' : 'follower');
+    e.unreachable = e.follower && (!e.last_delivery_at || (!!e.last_error_at && (!e.last_delivery_at || e.last_error_at > e.last_delivery_at)));
+    return e;
+  });
+}
+
 // ── inbound interactions store (replies / likes / boosts) + our outbound replies ──
 let _insI, _delLA, _delReply, _listI, _getI, _insO, _listO, _getO;
 function iStmts() {
@@ -2491,5 +2522,5 @@ export default {
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
   getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
-  linkifyBody, bakePostContent, bakePostContentWithMentions, listFollowers, removeFollower,
+  linkifyBody, bakePostContent, bakePostContentWithMentions, listFollowers, removeFollower, listConnections,
 };

@@ -7,10 +7,8 @@
 <nav class="fedi-tabs" aria-label="Fediverse">
   <a href="/news" class="fedi-tab<%= _a === 'feed' ? ' is-active' : '' %>"
      hx-get="/news?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="/news" hx-indicator="#pcms-loading"><%= t('tl.tab_feed') %></a>
-  <a href="/following" class="fedi-tab<%= _a === 'following' ? ' is-active' : '' %>"
-     hx-get="/following?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="/following" hx-indicator="#pcms-loading"><%= t('tl.tab_following') %></a>
-  <a href="/followers" class="fedi-tab<%= _a === 'followers' ? ' is-active' : '' %>"
-     hx-get="/followers?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="/followers" hx-indicator="#pcms-loading"><%= t('tl.tab_followers') %></a>
+  <a href="/connect" class="fedi-tab<%= (_a === 'connect' || _a === 'following' || _a === 'followers') ? ' is-active' : '' %>"
+     hx-get="/connect?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="/connect" hx-indicator="#pcms-loading"><%= t('tl.tab_connect') %></a>
   <a href="/fediverse" class="fedi-tab<%= _a === 'reacties' ? ' is-active' : '' %>"
      hx-get="/fediverse?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="/fediverse" hx-indicator="#pcms-loading"><%= t('tl.tab_replies') %></a>
   <a href="/notifications" class="fedi-tab<%= _a === 'meldingen' ? ' is-active' : '' %>"

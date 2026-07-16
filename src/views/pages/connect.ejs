@@ -1,0 +1,113 @@
+<div class="tl-wrap">
+  <%- include('../partials/fedi-tabs', { active: 'connect' }) %>
+  <h1 class="tl-title"><%= t('tl.connect') %></h1>
+  <% if (typeof success !== 'undefined' && success) { %><div class="alert alert-success"><%= success %></div><% } %>
+  <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+  <form method="post" action="/news/follow" class="tl-follow">
+    <input type="text" name="handle" placeholder="@naam@server.social of site.com" autocomplete="off" spellcheck="false" required>
+    <button type="submit" class="btn btn-primary"><%= t('tl.follow_btn') %></button>
+    <label class="tl-follow-ab" title="<%= t('tl.autoboost_hint') %>"><input type="checkbox" name="auto_boost" value="1"> &#10024; <%= t('tl.autoboost_follow') %></label>
+  </form>
+
+  <%
+    var conns = connections || [];
+    var reachable   = conns.filter(function (c) { return !c.unreachable; });
+    var unreachable = conns.filter(function (c) { return c.unreachable; });
+    // Display fields for one connection: name/handle (fallback: derive from actor_uri).
+    function connView(c) {
+      var host = '', user = '';
+      try { var u = new URL(c.actor_uri); host = u.hostname; user = (u.pathname.split('/').filter(Boolean).pop() || ''); } catch (e) {}
+      var handle = c.handle || (user ? ('@' + user + '@' + host) : c.actor_uri);
+      var display = c.name || handle;
+      return { handle: handle, display: display,
+               initial: String(display || '?').replace(/^@/, '').charAt(0).toUpperCase(),
+               profileUrl: c.url || c.actor_uri };
+    }
+    function arrow(dir) { return dir === 'mutual' ? '↔' : (dir === 'following' ? '→' : '←'); }
+  %>
+
+  <% if (reachable.length) { %>
+    <ul class="tl-foll-list">
+      <% reachable.forEach(function (c) { var v = connView(c); %>
+        <li class="tl-foll">
+          <span class="tl-foll-av"><% if (c.icon) { %><img src="<%= avatar(c.icon, 96) %>" alt=""><% } else { %><%= v.initial %><% } %></span>
+          <span class="tl-foll-meta">
+            <a href="<%= v.profileUrl %>" target="_blank" rel="nofollow noopener"><%= v.display %></a>
+            <span class="conn-sub">
+              <span class="conn-dir conn-dir--<%= c.direction %>"><%= arrow(c.direction) %> <%= t('tl.dir_' + c.direction) %></span>
+              <% if (c.follower && c.last_delivery_at) { %><span class="conn-deliv">&middot; <%= t('tl.last_delivery') %>: <%= formatDateTime(c.last_delivery_at) %></span><% } %>
+            </span>
+          </span>
+          <% if (c.following) { %>
+            <form method="post" action="/news/autoboost" class="tl-foll-ab" title="<%= t('tl.autoboost_hint') %>">
+              <input type="hidden" name="actor_uri" value="<%= c.actor_uri %>">
+              <label><input type="checkbox" name="auto_boost" value="1" <%= c.auto_boost ? 'checked' : '' %> data-autosubmit> &#10024; <%= t('tl.autoboost') %></label>
+            </form>
+            <form method="post" action="/news/unfollow"><input type="hidden" name="actor_uri" value="<%= c.actor_uri %>"><button type="submit" class="tl-unfollow"><%= t('tl.unfollow') %></button></form>
+          <% } %>
+        </li>
+      <% }); %>
+    </ul>
+  <% } else { %>
+    <p class="tl-empty"><%= t('tl.connect_empty') %></p>
+  <% } %>
+
+  <% if (unreachable.length) { %>
+    <details class="conn-unreach">
+      <summary>&#9888; <%= t('tl.unreachable') %> (<%= unreachable.length %>)</summary>
+      <p class="conn-unreach-lead"><%= t('tl.unreachable_lead') %></p>
+      <ul class="tl-foll-list">
+        <% unreachable.forEach(function (c) { var v = connView(c); %>
+          <li class="tl-foll is-stale">
+            <span class="tl-foll-av"><% if (c.icon) { %><img src="<%= avatar(c.icon, 96) %>" alt=""><% } else { %><%= v.initial %><% } %></span>
+            <span class="tl-foll-meta">
+              <a href="<%= v.profileUrl %>" target="_blank" rel="nofollow noopener"><%= v.display %></a>
+              <span class="conn-sub">
+                <span class="conn-dir conn-dir--<%= c.direction %>"><%= arrow(c.direction) %> <%= t('tl.dir_' + c.direction) %></span>
+                <% if (c.last_delivery_at) { %><span class="conn-deliv">&middot; <%= t('tl.last_delivery') %>: <%= formatDateTime(c.last_delivery_at) %></span><% } else { %><span class="conn-never">&middot; <%= t('tl.never_delivered') %></span><% } %>
+                <% if (c.last_error_at) { %><span class="conn-err">&middot; <%= t('tl.delivery_failed') %>: <%= formatDateTime(c.last_error_at) %></span><% } %>
+              </span>
+            </span>
+            <% if (c.follower_id) { %>
+              <form method="post" action="/followers/<%= c.follower_id %>/remove" onsubmit="return confirm('<%= t('tl.remove_confirm') %>')">
+                <button type="submit" class="tl-unfollow"><%= t('tl.remove_follower') %></button>
+              </form>
+            <% } %>
+          </li>
+        <% }); %>
+      </ul>
+    </details>
+  <% } %>
+</div>
+
+<style>
+  .tl-wrap { max-width: 640px; margin: 1rem auto; padding: 0 1rem; }
+  .tl-title { margin: 0 0 .75rem; }
+  .tl-empty { color: var(--ink-soft, #888); }
+  .tl-follow { display: flex; gap: .5rem; margin: 0 0 1.25rem; flex-wrap: wrap; align-items: center; }
+  .tl-follow input[type="text"] { flex: 1; min-width: 200px; height: 2.4rem; padding: 0 .9rem; border-radius: 999px; font: inherit;
+    border: 1px solid color-mix(in srgb, var(--ink, #000) 18%, transparent); background: color-mix(in srgb, var(--ink, #000) 4%, transparent); color: var(--ink, #000); }
+  .tl-follow-ab { font-size: .85rem; color: var(--ink-soft, #888); display: inline-flex; align-items: center; gap: .3rem; cursor: pointer; }
+  .tl-foll-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .4rem; }
+  .tl-foll { display: flex; align-items: center; gap: .6rem; padding: .45rem .6rem; border-radius: 12px; background: color-mix(in srgb, var(--ink, #000) 4%, transparent); }
+  .tl-foll.is-stale { background: color-mix(in srgb, #c0392b 10%, transparent); }
+  .tl-foll-av { flex: 0 0 36px; width: 36px; height: 36px; border-radius: 50%; overflow: hidden; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; background: color-mix(in srgb, var(--accent, #888) 20%, transparent); color: var(--accent, #555); }
+  .tl-foll-av img { width: 100%; height: 100%; object-fit: cover; background: #fff; }
+  .tl-foll-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
+  .tl-foll-meta a { color: var(--ink, inherit); text-decoration: none; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tl-foll-meta a:hover { text-decoration: underline; }
+  .conn-sub { font-size: .78rem; color: var(--ink-soft, #888); display: inline-flex; flex-wrap: wrap; gap: .35rem; align-items: baseline; }
+  .conn-dir { font-weight: 600; }
+  .conn-dir--mutual   { color: var(--accent, #06c); }
+  .conn-dir--following { color: color-mix(in srgb, var(--ink, #000) 62%, transparent); }
+  .conn-dir--follower  { color: color-mix(in srgb, var(--ink, #000) 62%, transparent); }
+  .conn-never, .conn-err { color: #c0392b; }
+  .tl-foll-ab { margin: 0; font-size: .8rem; color: var(--ink-soft, #888); cursor: pointer; }
+  .tl-foll-ab label { display: inline-flex; align-items: center; gap: .25rem; cursor: pointer; }
+  .tl-unfollow { background: none; border: 1px solid color-mix(in srgb, var(--ink, #000) 18%, transparent); border-radius: 8px; padding: .25rem .6rem; font-size: .8rem; color: var(--ink-soft, #888); cursor: pointer; white-space: nowrap; }
+  .tl-unfollow:hover { color: var(--ink, #000); }
+  .conn-unreach { margin: 1.25rem 0 0; border-top: 1px solid color-mix(in srgb, var(--ink, #000) 10%, transparent); padding-top: .75rem; }
+  .conn-unreach summary { cursor: pointer; font-weight: 600; color: #c0392b; }
+  .conn-unreach-lead { font-size: .8rem; color: var(--ink-soft, #888); margin: .5rem 0 .75rem; }
+</style>
