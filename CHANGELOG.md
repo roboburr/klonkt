@@ -5,6 +5,32 @@ Versions follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.4.0] · 2026-07-14
+
+### Added
+- **Followers list with delivery health.** A new Fediverse tab shows who follows
+  you and when each account was last reached, so dead accounts stand out and you
+  can remove them after a check.
+- **Bare media links play inline.** A plain `.webm`, `.mp4` or `.mp3` link now
+  renders a native player instead of a dead link.
+- **Hashtags, links and mentions are clickable on your site too.** `#tags`, URLs
+  and `@mentions` in a post become links on the site itself, not only on the
+  federated copy. Mentions are resolved once when you save, so pages stay fast.
+
+### Fixed
+- **Replies, comment deletes and reply edits always arrive.** They used to be
+  dropped when a server was briefly unreachable; they now go through the retry
+  queue like posts do.
+- **Video thumbnails for more videos.** Covers from videos with their metadata at
+  the end of the file (Loops.video, phone exports) now get a thumbnail instead of
+  none.
+- **A video-only cover shows a poster on the post page.** It no longer renders
+  blank in the Solo view.
+- **The installed app no longer shows old data on a shaky start.** A cold launch
+  on a poor connection refreshes instead of showing a stale page.
+- **The Updates page follows your branch.** On the stable branch you no longer
+  see main's changes flagged as "latest".
+
 ## [1.3.5] — 2026-07-04
 
 ### Fixed

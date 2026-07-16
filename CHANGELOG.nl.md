@@ -5,6 +5,34 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 
 ## [Unreleased]
 
+## [1.4.0] · 2026-07-14
+
+### Toegevoegd
+- **Volgerslijst met bezorgstatus.** Een nieuw Fediverse-tabblad laat zien wie je
+  volgt en wanneer elk account voor het laatst bereikt is, zodat dode accounts
+  opvallen en je ze na een check kunt verwijderen.
+- **Kale media-links spelen direct af.** Een losse `.webm`, `.mp4` of `.mp3` wordt
+  nu een echte speler in plaats van een dode link.
+- **Hashtags, links en mentions zijn ook op je site klikbaar.** `#tags`, URLs en
+  `@mentions` in een post worden nu links op de site zelf, niet alleen op de
+  gefedereerde kopie. Mentions worden één keer bij opslaan opgezocht, dus pagina's
+  blijven snel.
+
+### Opgelost
+- **Reacties, verwijderde reacties en bewerkte reacties komen altijd aan.** Ze
+  verdwenen als een server even onbereikbaar was; ze gaan nu via de retry-wachtrij,
+  net als posts.
+- **Videothumbnails voor meer video's.** Covers van video's met hun metadata
+  achteraan (Loops.video, telefoon-exports) krijgen nu een thumbnail in plaats van
+  niks.
+- **Een cover die alleen een video is, toont nu een posterbeeld op de postpagina.**
+  Hij blijft niet meer leeg in de Solo-weergave.
+- **De geïnstalleerde app toont geen oude data meer bij een wankele start.** Een
+  koude start op een slechte verbinding ververst nu, in plaats van een verouderde
+  pagina te tonen.
+- **De Updates-pagina volgt jouw branch.** Draai je de stable-branch, dan zie je
+  niet langer de wijzigingen van main als "nieuwste".
+
 ## [1.3.5] — 2026-07-04
 
 ### Opgelost

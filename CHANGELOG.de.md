@@ -5,6 +5,34 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 
 ## [Unreleased]
 
+## [1.4.0] · 2026-07-14
+
+### Hinzugefügt
+- **Follower-Liste mit Zustellstatus.** Ein neuer Fediverse-Tab zeigt, wer dir
+  folgt und wann jedes Konto zuletzt erreicht wurde, sodass tote Konten auffallen
+  und du sie nach einer Prüfung entfernen kannst.
+- **Nackte Medienlinks spielen direkt ab.** Ein einfacher `.webm`-, `.mp4`- oder
+  `.mp3`-Link wird jetzt ein echter Player statt eines toten Links.
+- **Hashtags, Links und Erwähnungen sind auch auf deiner Seite anklickbar.**
+  `#Tags`, URLs und `@Erwähnungen` in einem Beitrag werden zu Links auf der Seite
+  selbst, nicht nur in der föderierten Kopie. Erwähnungen werden einmal beim
+  Speichern aufgelöst, sodass Seiten schnell bleiben.
+
+### Behoben
+- **Antworten, gelöschte und bearbeitete Antworten kommen immer an.** Sie gingen
+  verloren, wenn ein Server kurz nicht erreichbar war; sie laufen jetzt über die
+  Retry-Warteschlange wie Beiträge.
+- **Video-Thumbnails für mehr Videos.** Cover von Videos mit ihren Metadaten am
+  Ende der Datei (Loops.video, Handy-Exporte) bekommen jetzt ein Thumbnail statt
+  keines.
+- **Ein reines Video-Cover zeigt ein Posterbild auf der Beitragsseite.** Es bleibt
+  in der Solo-Ansicht nicht mehr leer.
+- **Die installierte App zeigt bei wackeligem Start keine alten Daten mehr.** Ein
+  Kaltstart bei schlechter Verbindung aktualisiert jetzt, statt eine veraltete
+  Seite zu zeigen.
+- **Die Updates-Seite folgt deinem Branch.** Auf dem Stable-Branch siehst du die
+  Änderungen von main nicht mehr als „neueste“.
+
 ## [1.3.5] — 2026-07-04
 
 ### Behoben
