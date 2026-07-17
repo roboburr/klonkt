@@ -20,6 +20,14 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
   Fediverse-Interaktionsfluss behandeln lassen.
 
 ### Behoben
+- **Der Titel der Interaktionsseite folgt deiner Sprache.** "Interacteer via de
+  fediverse" stand fest auf Niederländisch im Browser-Tab, auch auf einer
+  englischsprachigen Seite.
+- **Das Apple-Music-Icon sieht wieder wie das Apple-Logo aus.** Das alte Icon
+  war eine entstellte Form.
+- **Statistik-Spalten springen in der 30- und 90-Tage-Ansicht nicht mehr.**
+  Spalten ohne Datumslabel klappten leicht ein; jede Spalte behält jetzt ihre
+  Labelzeile.
 - **Private Antworten erscheinen nicht mehr auf der öffentlichen Beitragsseite.**
   Eine Nur-Follower- oder Direkt-(DM-)Antwort auf deinen Beitrag wurde für alle
   im öffentlichen Thread gezeigt. Eingehende Antworten speichern jetzt ihre

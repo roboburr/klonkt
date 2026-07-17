@@ -618,7 +618,7 @@ router.get('/authorize_interaction', requireSiteManager, async (req, res) => {
     if (!target) { try { followTarget = await ActivityPubService.resolveRemoteActor(uri); } catch { /* ignore */ } }
   }
   renderPage(req, res, 'pages/authorize-interaction', {
-    pageTitle: 'Interacteer via de fediverse',
+    pageTitleKey: 'fedi.remote_interact', // i18n: was hardcoded Dutch on non-NL sites
     bodyClass: 'on-special',
     uri,
     target,
@@ -725,7 +725,7 @@ router.get('/fediverse', requireSiteManager, (req, res) => {
   const site = res.locals.site;
   const items = site ? ActivityPubService.listOutbox(site.slug) : [];
   renderPage(req, res, 'pages/authorize-interaction', {
-    pageTitle: 'Mijn fediverse-reacties', bodyClass: 'on-special',
+    pageTitleKey: 'fedi.manage_title', bodyClass: 'on-special', // i18n: was hardcoded Dutch
     manage: items, uri: '', target: null, sent: false, siteTitle: site ? site.title : '',
   });
 });

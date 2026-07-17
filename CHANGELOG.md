@@ -19,6 +19,13 @@ Versions follow [SemVer](https://semver.org/).
   cannot be handled via the fediverse interact flow.
 
 ### Fixed
+- **The interact page title follows your language.** "Interacteer via de
+  fediverse" was hardcoded Dutch in the browser tab, even on an English site.
+- **The Apple Music icon looks like the Apple logo again.** The old icon was a
+  garbled shape.
+- **Statistics columns no longer jump around in the 30 and 90 day views.**
+  Columns without a date label collapsed slightly; every column now keeps its
+  label line.
 - **Private replies no longer show on the public post page.** A followers-only
   or direct (DM) reply to your post was rendered in the public thread for
   everyone. Incoming replies now record their fediverse addressing; the public

@@ -19,6 +19,14 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
   privéreacties, die niet via de fediverse-interactieflow te behandelen zijn.
 
 ### Opgelost
+- **De titel van de interactiepagina volgt je taal.** "Interacteer via de
+  fediverse" stond hardcoded in het Nederlands in het browsertabblad, ook op een
+  Engelstalige site.
+- **Het Apple Music-icoon lijkt weer op het Apple-logo.** Het oude icoon was een
+  verminkte vorm.
+- **Statistiekkolommen verspringen niet meer in de 30- en 90-dagenweergave.**
+  Kolommen zonder datumlabel klapten iets in; elke kolom houdt nu zijn
+  labelregel.
 - **Privéreacties staan niet meer op de publieke postpagina.** Een followers-only
   of directe (DM-)reactie op je post werd voor iedereen in de publieke thread
   getoond. Inkomende reacties slaan nu hun fediverse-adressering op; de publieke
