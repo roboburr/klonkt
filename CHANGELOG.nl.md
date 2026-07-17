@@ -19,6 +19,11 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
   privéreacties, die niet via de fediverse-interactieflow te behandelen zijn.
 
 ### Opgelost
+- **Een geboostte videopost houdt zijn video in de Cirkel.** Een video-only post
+  (Loops.video) boosten sloeg hem op zonder media, waardoor de Cirkel een kale
+  teksttegel toonde in plaats van een videothumbnail; opnieuw boosten kon de
+  video zelfs wissen uit een al-gecachte kopie. Boosts dragen nu de volledige
+  getypeerde media mee, en een refresh wist gecachte media nooit meer.
 - **De titel van de interactiepagina volgt je taal.** "Interacteer via de
   fediverse" stond hardcoded in het Nederlands in het browsertabblad, ook op een
   Engelstalige site.

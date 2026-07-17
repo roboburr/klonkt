@@ -1827,6 +1827,10 @@ export async function resolveRemoteNote(url) {
     sensitive: !!note.sensitive,                            // remote CW → blur in the Cirkel
     cw: note.summary || '',
     images,
+    // Full typed media (incl. video/mp4) for the timeline cache. `images` above is
+    // image-only for the interact page preview; a boosted video-only post (Loops)
+    // lost its media entirely because upsertBoostedNote only saw `images`.
+    media: mediaFromNote(note),
     threadInboxes,                                          // every ancestor author's inbox
     localPostId: localTgt ? localTgt.post_id : '',          // our post this belongs to (if any)
     poll: parsePoll(note),                                  // a Question → its options/counts (else null)
@@ -2013,7 +2017,11 @@ export function getTimelineReaction(slug, noteId) {
 export function upsertBoostedNote(slug, note) {
   if (!slug || !note || !note.object_uri) return;
   const id = note.object_uri;
-  const media = JSON.stringify((note.images || []).map((u) => ({ url: u, type: 'image/jpeg' })));
+  // Prefer the full typed media (incl. video/mp4 — a Loops boost is video-only and
+  // rendered a bare text tile); fall back to the image-only list for older callers.
+  const media = (note.media && note.media !== '[]')
+    ? note.media
+    : JSON.stringify((note.images || []).map((u) => ({ url: u, type: 'image/jpeg' })));
   try {
     const r = tlStmts().ins.run(id, slug, note.actor_uri || '', note.actor_name || '', note.actor_handle || '',
       note.actor_icon || '', note.actor_url || '', note.content || '', note.url || null,
@@ -2022,8 +2030,12 @@ export function upsertBoostedNote(slug, note) {
       // Row already cached (INSERT OR IGNORE) → refresh it with the freshly
       // resolved note. Without this a row cached without its cover (or with
       // stale content) stayed stale forever — even boosting again didn't heal it.
-      db.prepare('UPDATE ap_timeline SET content = ?, media_json = ?, nsfw = ?, cw = ?, url = COALESCE(?, url) WHERE slug = ? AND id = ?')
-        .run(note.content || '', media, note.sensitive ? 1 : 0, note.cw || null, note.url || null, slug, id);
+      // Keep the CACHED media when the resolve yielded none: an empty re-resolve
+      // used to clobber a good media_json (the followed copy had the video, the
+      // boost wiped it to []).
+      db.prepare(`UPDATE ap_timeline SET content = ?, media_json = CASE WHEN ? = '[]' THEN media_json ELSE ? END,
+                  nsfw = ?, cw = ?, url = COALESCE(?, url) WHERE slug = ? AND id = ?`)
+        .run(note.content || '', media, media, note.sensitive ? 1 : 0, note.cw || null, note.url || null, slug, id);
     }
   } catch { /* ignore */ }
   markBoosted(slug, id);

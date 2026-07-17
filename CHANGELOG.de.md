@@ -20,6 +20,12 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
   Fediverse-Interaktionsfluss behandeln lassen.
 
 ### Behoben
+- **Ein geboosteter Videobeitrag behält sein Video im Zirkel.** Das Boosten
+  eines Nur-Video-Beitrags (Loops.video) speicherte ihn ohne Medien, sodass der
+  Zirkel eine nackte Textkachel statt eines Video-Thumbnails zeigte; erneutes
+  Boosten konnte das Video sogar aus einer bereits gecachten Kopie löschen.
+  Boosts tragen jetzt die vollen typisierten Medien, und ein Refresh löscht
+  gecachte Medien nicht mehr.
 - **Der Titel der Interaktionsseite folgt deiner Sprache.** "Interacteer via de
   fediverse" stand fest auf Niederländisch im Browser-Tab, auch auf einer
   englischsprachigen Seite.

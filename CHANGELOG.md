@@ -19,6 +19,11 @@ Versions follow [SemVer](https://semver.org/).
   cannot be handled via the fediverse interact flow.
 
 ### Fixed
+- **A boosted video post keeps its video in the Circle.** Boosting a video-only
+  post (Loops.video) stored it without its media, so the Circle showed a bare
+  text tile instead of a video thumbnail; re-boosting could even wipe the video
+  from an already-cached copy. Boosts now carry the full typed media, and a
+  refresh never erases cached media.
 - **The interact page title follows your language.** "Interacteer via de
   fediverse" was hardcoded Dutch in the browser tab, even on an English site.
 - **The Apple Music icon looks like the Apple logo again.** The old icon was a
