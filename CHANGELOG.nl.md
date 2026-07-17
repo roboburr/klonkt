@@ -14,6 +14,11 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
   /following- en /followers-links leiden door naar /connect.
 
 ### Opgelost
+- **Privéreacties staan niet meer op de publieke postpagina.** Een followers-only
+  of directe (DM-)reactie op je post werd voor iedereen in de publieke thread
+  getoond. Inkomende reacties slaan nu hun fediverse-adressering op; de publieke
+  thread toont alleen publieke en unlisted reacties. Privéreacties bereiken je
+  nog steeds via meldingen, mét de post waar ze bij horen.
 - **Kale video/audio-embeds lopen niet meer buiten de kolom.** Een `.webm` /
   `.mp4` / `.mp3`-speler past nu netjes in de kolombreedte, net als de
   iframe-embeds; de breedte-regel gold voorheen alleen voor `iframe`.

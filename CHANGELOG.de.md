@@ -14,6 +14,12 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
   Aufräumen. Alte /following- und /followers-Links leiten auf /connect um.
 
 ### Behoben
+- **Private Antworten erscheinen nicht mehr auf der öffentlichen Beitragsseite.**
+  Eine Nur-Follower- oder Direkt-(DM-)Antwort auf deinen Beitrag wurde für alle
+  im öffentlichen Thread gezeigt. Eingehende Antworten speichern jetzt ihre
+  Fediverse-Adressierung; der öffentliche Thread zeigt nur öffentliche und
+  ungelistete Antworten. Private erreichen dich weiterhin über Meldungen, mit
+  dem zugehörigen Beitrag.
 - **Nackte Video/Audio-Embeds laufen nicht mehr über die Spalte hinaus.** Ein
   `.webm` / `.mp4` / `.mp3`-Player passt jetzt in die Inhaltsbreite wie die
   iframe-Embeds; die Breitenregel galt zuvor nur für `iframe`.

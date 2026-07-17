@@ -595,12 +595,27 @@ export function listConnections(slug) {
 
 // ── inbound interactions store (replies / likes / boosts) + our outbound replies ──
 let _insI, _delLA, _delReply, _listI, _getI, _insO, _listO, _getO;
+// AP addressing → visibility: 'public' | 'unlisted' | 'followers' | 'direct'.
+// Mastodon-conventie: Public in `to` = public, Public in `cc` = unlisted, een
+// followers-collectie zonder Public = followers-only, anders direct (DM). Public
+// kan als volledige URI, 'as:Public' of 'Public' voorkomen (JSON-LD shorthands).
+export function noteVisibility(o) {
+  const arr = (v) => (Array.isArray(v) ? v : (v ? [v] : []));
+  const isPub = (u) => u === PUBLIC || u === 'as:Public' || u === 'Public';
+  const to = arr(o && o.to).map(String);
+  const cc = arr(o && o.cc).map(String);
+  if (to.some(isPub)) return 'public';
+  if (cc.some(isPub)) return 'unlisted';
+  if ([...to, ...cc].some((u) => /\/followers\/?$/.test(u))) return 'followers';
+  return 'direct';
+}
+
 function iStmts() {
   if (!_insI) {
-    _insI = db.prepare('INSERT OR IGNORE INTO ap_interactions (kind, post_id, object_uri, actor_uri, actor_name, actor_handle, actor_url, actor_icon, content, published, parent_uri, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)');
+    _insI = db.prepare('INSERT OR IGNORE INTO ap_interactions (kind, post_id, object_uri, actor_uri, actor_name, actor_handle, actor_url, actor_icon, content, published, parent_uri, visibility, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)');
     _delLA = db.prepare('DELETE FROM ap_interactions WHERE kind = ? AND post_id = ? AND actor_uri = ?');
     _delReply = db.prepare("DELETE FROM ap_interactions WHERE kind = 'reply' AND object_uri = ?");
-    _listI = db.prepare('SELECT id, kind, object_uri, parent_uri, actor_uri, actor_name, actor_handle, actor_url, actor_icon, content, published, created_at, acted_boost, acted_like FROM ap_interactions WHERE post_id = ? ORDER BY created_at ASC');
+    _listI = db.prepare('SELECT id, kind, object_uri, parent_uri, actor_uri, actor_name, actor_handle, actor_url, actor_icon, content, published, created_at, acted_boost, acted_like, visibility FROM ap_interactions WHERE post_id = ? ORDER BY created_at ASC');
     _getI = db.prepare('SELECT * FROM ap_interactions WHERE id = ?');
     _insO = db.prepare('INSERT INTO ap_outbox (id, site_slug, post_id, post_slug, in_reply_to, to_actor, to_handle, content, created_at) VALUES (?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)');
     _listO = db.prepare('SELECT * FROM ap_outbox WHERE post_id = ? ORDER BY created_at ASC');
@@ -677,7 +692,12 @@ export function stripLeadingMentions(html) {
 // our outbound replies, nested), plus like/boost counts.
 export function getInteractions(postId, base, site) {
   const s = iStmts();
-  const rows = s.list.all(postId);
+  // Privacy: a followers-only or direct (DM) reply is addressed to people, not to the
+  // public web, so it must NOT render in the public thread. It still reaches the owner
+  // via notifications (post context + reference included there). Legacy rows without a
+  // visibility value are treated as public. Likes/boosts stay counted (count-only).
+  const rows = s.list.all(postId).filter((r) =>
+    r.kind !== 'reply' || !(r.visibility === 'followers' || r.visibility === 'direct'));
   const baseClean = (base || process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   const postNoteId = baseClean ? `${baseClean}/ap/notes/${postId}` : null;
   // Our own (outbound) replies show the SITE identity for everyone (not "You").
@@ -1144,7 +1164,7 @@ export async function handleInbox(req, slugParam) {
     if (tgt && actorUri && !isLocalActor) {
       const ai = actorInfo(await resolveActor(actorUri), actorUri);
       const html = HtmlSanitizerService.sanitize(o.content || '');
-      iStmts().ins.run('reply', tgt.post_id, o.id || '', actorUri, ai.name, ai.handle, ai.url, ai.icon, html, o.published || null, tgt.parent_uri);
+      iStmts().ins.run('reply', tgt.post_id, o.id || '', actorUri, ai.name, ai.handle, ai.url, ai.icon, html, o.published || null, tgt.parent_uri, noteVisibility(o));
       console.log('[AP] reply', actorUri, '→', tgt.post_id);
       return 202;
     }
@@ -1234,7 +1254,7 @@ export async function handleInbox(req, slugParam) {
     const pid = postIdFromNoteUrl(objUrl, base);
     if (pid && actorUri && !isLocalActor && localPostExists(pid)) {
       const ai = actorInfo(await resolveActor(actorUri), actorUri);
-      iStmts().ins.run(type.toLowerCase(), pid, '', actorUri, ai.name, ai.handle, ai.url, ai.icon, null, null, null);
+      iStmts().ins.run(type.toLowerCase(), pid, '', actorUri, ai.name, ai.handle, ai.url, ai.icon, null, null, null, noteVisibility(act));
       console.log('[AP]', type === 'Like' ? 'like' : 'boost', actorUri, '→', pid);
     } else if (type === 'Announce' && objUrl && actorUri && !isLocalActor) {
       // A boost FROM an account we follow, of a REMOTE post → show it in the News feed.
@@ -2136,7 +2156,7 @@ async function crawlThread(postId) {
         const ai = actorInfo(actor, actorUri);
         const html = HtmlSanitizerService.sanitize(child.content || '');
         // The child replies to `note` by construction (it's in note's replies collection).
-        try { iStmts().ins.run('reply', postId, child.id, actorUri, ai.name, ai.handle, ai.url, ai.icon, html, child.published || null, note.id || noteUri); added++; } catch { /* ignore */ }
+        try { iStmts().ins.run('reply', postId, child.id, actorUri, ai.name, ai.handle, ai.url, ai.icon, html, child.published || null, note.id || noteUri, noteVisibility(child)); added++; } catch { /* ignore */ }
         nextFrontier.push(child.id); // expand this reply's own replies next depth
       }
     }
@@ -2523,4 +2543,5 @@ export default {
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
   getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
   linkifyBody, bakePostContent, bakePostContentWithMentions, listFollowers, removeFollower, listConnections,
+  noteVisibility,
 };

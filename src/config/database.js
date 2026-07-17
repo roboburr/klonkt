@@ -391,6 +391,12 @@ export function initializeDatabase() {
   // @mentions linkified once at save). `content` stays the raw source used for editing and
   // re-rendering. NULL on old posts → the render route bakes on the fly as a fallback.
   ensureColumn('posts', 'content_rendered', 'TEXT');
+
+  // AP addressing of an incoming interaction: 'public' | 'unlisted' | 'followers' | 'direct',
+  // derived from the note's to/cc at ingest. The public post page only renders public/unlisted
+  // replies; followers/direct replies surface in notifications (and later Messages) with post
+  // context instead. Existing rows default to 'public' (historically almost all were).
+  ensureColumn('ap_interactions', 'visibility', "TEXT DEFAULT 'public'");
 }
 
 function ensureColumn(table, column, definition) {

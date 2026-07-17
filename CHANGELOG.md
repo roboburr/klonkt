@@ -14,6 +14,11 @@ Versions follow [SemVer](https://semver.org/).
   links redirect to /connect.
 
 ### Fixed
+- **Private replies no longer show on the public post page.** A followers-only
+  or direct (DM) reply to your post was rendered in the public thread for
+  everyone. Incoming replies now record their fediverse addressing; the public
+  thread only shows public and unlisted replies. Private ones still reach you in
+  notifications, with the post they belong to.
 - **Bare video/audio embeds no longer overflow their column.** A `.webm` /
   `.mp4` / `.mp3` player now fits the content width like the iframe embeds do;
   the width rule previously covered only `iframe`.
