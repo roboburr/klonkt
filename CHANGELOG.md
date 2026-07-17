@@ -12,6 +12,11 @@ Versions follow [SemVer](https://semver.org/).
   when they were last reached. Accounts you can no longer reach move to a
   collapsed "Unreachable" section for cleanup. Old /following and /followers
   links redirect to /connect.
+- **Moderate incoming replies on your own posts.** As the site owner you can now
+  remove a reply from your thread (it stays removed: re-delivery and
+  thread-filling are blocked by a tombstone) and report it to its author's
+  server, straight from the thread. This also works for private replies, which
+  cannot be handled via the fediverse interact flow.
 
 ### Fixed
 - **Private replies no longer show on the public post page.** A followers-only

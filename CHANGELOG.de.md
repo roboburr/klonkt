@@ -12,6 +12,12 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
   zustellst, wann sie zuletzt erreicht wurden. Konten, die du nicht mehr
   erreichst, wandern in einen eingeklappten Bereich "Nicht erreichbar" zum
   Aufräumen. Alte /following- und /followers-Links leiten auf /connect um.
+- **Eingehende Antworten auf deine Beiträge moderieren.** Als Seiteninhaber
+  kannst du eine Antwort jetzt aus deinem Thread entfernen (sie bleibt weg:
+  erneute Zustellung und Thread-Auffüllung werden durch einen Tombstone
+  blockiert) und sie beim Server des Autors melden, direkt aus dem Thread.
+  Funktioniert auch für private Antworten, die sich nicht über den
+  Fediverse-Interaktionsfluss behandeln lassen.
 
 ### Behoben
 - **Private Antworten erscheinen nicht mehr auf der öffentlichen Beitragsseite.**

@@ -739,6 +739,35 @@ router.post('/fediverse/:id/delete', requireSiteManager, async (req, res) => {
   res.redirect(req.get('Referer') || `${res.locals.siteUrlBase || ''}/fediverse`);
 });
 
+// Moderation: remove an INCOMING reply from your thread (owner only). Tombstones the
+// object URI so re-delivery and thread-crawling never bring it back. Works for private
+// notes too (acts on the local copy; no remote fetch involved).
+router.post('/interactions/:id/remove', requireSiteManager, (req, res) => {
+  const site = res.locals.site;
+  if (site) {
+    const r = ActivityPubService.rejectInteraction(site, parseInt(req.params.id, 10) || 0, 'removed by site owner');
+    if (r.error) console.warn('[AP] interaction remove failed:', r.error);
+  }
+  res.redirect(req.get('Referer') || `${res.locals.siteUrlBase || ''}/`);
+});
+
+// Moderation: report an INCOMING reply to its home instance (owner only). Uses the
+// locally stored object/actor URIs, so it also works for private notes that
+// authorize_interaction cannot fetch (401/404).
+router.post('/interactions/:id/report', requireSiteManager, async (req, res) => {
+  const site = res.locals.site;
+  if (site) {
+    const tgt = ActivityPubService.interactionReportTarget(site, parseInt(req.params.id, 10) || 0);
+    if (tgt && (tgt.objectUri || tgt.actorUri)) {
+      try {
+        const r = await ActivityPubService.sendReport(site, { objectUri: tgt.objectUri, actorUri: tgt.actorUri, reason: (req.body.reason || '').toString().slice(0, 500) });
+        if (r && r.error) console.warn('[AP] interaction report failed:', r.error);
+      } catch (e) { console.warn('[AP] interaction report failed:', e.message); }
+    }
+  }
+  res.redirect(req.get('Referer') || `${res.locals.siteUrlBase || ''}/`);
+});
+
 // Edit one of your own outbound fediverse replies (owner only) → sends an Update(Note).
 router.post('/fediverse/:id/edit', requireSiteManager, async (req, res) => {
   const site = res.locals.site;

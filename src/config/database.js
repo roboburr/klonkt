@@ -271,6 +271,16 @@ export function initializeDatabase() {
       UNIQUE(kind, post_id, actor_uri, object_uri)
     );
     CREATE INDEX IF NOT EXISTS idx_ap_inter_post ON ap_interactions(post_id, kind);
+    -- Moderation tombstones: object URIs the site owner removed. Checked at ingest
+    -- (handleInbox) AND by the thread-crawler, so a removed reply never comes back
+    -- via thread-filling. Private notes can't be flagged via authorize_interaction
+    -- (their fetch 401s), so owner moderation acts on the locally stored copy.
+    CREATE TABLE IF NOT EXISTS ap_rejected_objects (
+      object_uri TEXT PRIMARY KEY,
+      post_id TEXT,
+      reason TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
     CREATE TABLE IF NOT EXISTS ap_outbox (
       id TEXT PRIMARY KEY,            -- note path segment (uuid) → /ap/notes/<id>
       site_slug TEXT NOT NULL,

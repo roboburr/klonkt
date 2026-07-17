@@ -595,6 +595,49 @@ export function listConnections(slug) {
 
 // ── inbound interactions store (replies / likes / boosts) + our outbound replies ──
 let _insI, _delLA, _delReply, _listI, _getI, _insO, _listO, _getO;
+// ── moderation tombstones (ap_rejected_objects) ───────────────────
+// A reply the owner removed stays removed: its object URI is tombstoned and
+// checked at ingest AND by the thread-crawler (else thread-filling would
+// re-fetch it). Owner moderation acts on the LOCAL copy, so it also works for
+// private notes that authorize_interaction can't fetch (401/404).
+let _insRj, _hasRj;
+function rjStmts() {
+  if (!_insRj) {
+    _insRj = db.prepare('INSERT OR IGNORE INTO ap_rejected_objects (object_uri, post_id, reason) VALUES (?,?,?)');
+    _hasRj = db.prepare('SELECT 1 FROM ap_rejected_objects WHERE object_uri = ?');
+  }
+  return { ins: _insRj, has: _hasRj };
+}
+export function isRejectedObject(uri) {
+  if (!uri) return false;
+  try { return !!rjStmts().has.get(String(uri)); } catch { return false; }
+}
+// Owner removes an incoming reply: tombstone + delete. Tenancy-scoped: the
+// interaction's post must belong to the caller's site.
+export function rejectInteraction(site, interactionId, reason) {
+  if (!site || !site.slug) return { error: 'forbidden' };
+  const row = iStmts().getI.get(interactionId);
+  if (!row) return { error: 'not_found' };
+  const owns = db.prepare('SELECT 1 FROM posts WHERE id = ? AND site_id = (SELECT id FROM sites WHERE slug = ?)')
+    .get(row.post_id, site.slug);
+  if (!owns) return { error: 'forbidden' };
+  if (row.object_uri) { try { rjStmts().ins.run(row.object_uri, row.post_id, reason || 'removed by site owner'); } catch { /* non-fatal */ } }
+  db.prepare('DELETE FROM ap_interactions WHERE id = ?').run(interactionId);
+  console.log('[AP] interaction removed by owner', site.slug, row.object_uri || row.actor_uri);
+  return { ok: true, object_uri: row.object_uri || null, actor_uri: row.actor_uri || null };
+}
+// Stored URIs of an interaction (tenancy-scoped) → feed sendReport for flagging
+// from the local copy (works for private notes; no remote fetch needed to target).
+export function interactionReportTarget(site, interactionId) {
+  if (!site || !site.slug) return null;
+  const row = iStmts().getI.get(interactionId);
+  if (!row) return null;
+  const owns = db.prepare('SELECT 1 FROM posts WHERE id = ? AND site_id = (SELECT id FROM sites WHERE slug = ?)')
+    .get(row.post_id, site.slug);
+  if (!owns) return null;
+  return { objectUri: row.object_uri || null, actorUri: row.actor_uri || null };
+}
+
 // AP addressing → visibility: 'public' | 'unlisted' | 'followers' | 'direct'.
 // Mastodon-conventie: Public in `to` = public, Public in `cc` = unlisted, een
 // followers-collectie zonder Public = followers-only, anders direct (DM). Public
@@ -1164,6 +1207,7 @@ export async function handleInbox(req, slugParam) {
     if (tgt && actorUri && !isLocalActor) {
       const ai = actorInfo(await resolveActor(actorUri), actorUri);
       const html = HtmlSanitizerService.sanitize(o.content || '');
+      if (isRejectedObject(o.id)) { console.log('[AP] reply skipped (tombstoned)', o.id); return 202; }
       iStmts().ins.run('reply', tgt.post_id, o.id || '', actorUri, ai.name, ai.handle, ai.url, ai.icon, html, o.published || null, tgt.parent_uri, noteVisibility(o));
       console.log('[AP] reply', actorUri, '→', tgt.post_id);
       return 202;
@@ -2130,6 +2174,11 @@ async function crawlThread(postId) {
   catch { return; }
   const seeds = [...known].filter((u) => /^https?:\/\//i.test(u));
   if (!seeds.length) return; // nothing remote to expand
+  // Owner-removed replies (tombstones) join the dedup set AFTER seeding, so the
+  // crawler never re-adds them via thread-filling (they're gone from the seeds
+  // already because rejectInteraction deleted their ap_interactions row).
+  try { for (const r of db.prepare('SELECT object_uri FROM ap_rejected_objects WHERE post_id = ?').all(postId)) known.add(r.object_uri); }
+  catch { /* table always exists after boot migration */ }
 
   let fetches = 0;
   const budget = { get: async (u) => { if (fetches >= THREAD_MAX_FETCHES) return null; fetches++; return apGetJson(u); } };
@@ -2150,6 +2199,7 @@ async function crawlThread(postId) {
         known.add(cu);
         const child = await budget.get(cu);
         if (!child || !child.id || (child.type !== 'Note' && child.type !== 'Article')) continue;
+        if (isRejectedObject(child.id)) continue; // note id can differ from the collection URI (redirects)
         const actorUri = actorUriOf(child.attributedTo);
         if (!actorUri || isBlockedAny(actorUri)) continue; // skip blocked authors
         const actor = await budget.get(actorUri); // may be null if budget spent → fallback handle
@@ -2543,5 +2593,5 @@ export default {
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
   getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
   linkifyBody, bakePostContent, bakePostContentWithMentions, listFollowers, removeFollower, listConnections,
-  noteVisibility,
+  noteVisibility, isRejectedObject, rejectInteraction, interactionReportTarget,
 };

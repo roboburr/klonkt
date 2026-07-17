@@ -12,6 +12,11 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
   wanneer ze voor het laatst bereikt zijn. Accounts die je niet meer bereikt
   schuiven naar een ingeklapte "Niet bereikbaar"-sectie om op te ruimen. Oude
   /following- en /followers-links leiden door naar /connect.
+- **Modereer inkomende reacties op je eigen posts.** Als site-eigenaar kun je een
+  reactie nu uit je thread verwijderen (en die blijft weg: opnieuw bezorgen en
+  thread-aanvulling worden geblokkeerd door een tombstone) en rapporteren bij de
+  server van de auteur, rechtstreeks vanuit de thread. Werkt ook voor
+  privéreacties, die niet via de fediverse-interactieflow te behandelen zijn.
 
 ### Opgelost
 - **Privéreacties staan niet meer op de publieke postpagina.** Een followers-only
