@@ -45,7 +45,11 @@
       <form method="post" action="<%= _base %>/interactions/<%= n.id %>/remove" class="fedi-owner-react" data-confirm="<%= t('fedi.mod_remove_confirm') %>">
         <button type="submit" class="fedi-cact fedi-cact-remove" title="<%= t('comments.delete') %>" aria-label="<%= t('comments.delete') %>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg></button>
       </form>
-    <% } else if (!n.mine && n.noteId) { %>
+    <% } else if (n.noteId) { %>
+      <%# Visitor: reply via YOUR OWN instance. Also on the site's own (mine) comments —
+          those are dereferenceable Notes (/ap/notes/<id>) too; without this a visitor
+          could not reply to the owner's comments at all (only the owner branches above
+          catch mine-nodes for managers, so this else-if never renders for the owner). %>
       <button type="button" class="comment-reply-btn fedi-remote-reply-btn" data-fedi-uri="<%= n.noteId %>" data-fedi-ph="<%= t('fedi.remote_ph') %>">
         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
         <%= t('fedi.remote_reply_short') %>

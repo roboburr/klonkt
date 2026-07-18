@@ -5,6 +5,12 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 
 ## [Unreleased]
 
+### Behoben
+- **Besucher können auf die eigenen Kommentare des Seiteninhabers antworten.**
+  Der Knopf "über das Fediverse antworten" erschien nur bei Kommentaren anderer;
+  bei den eigenen Kommentaren der Seite in einem Thread bekamen Besucher nichts,
+  sodass man dem Autor nicht von der eigenen Instanz aus antworten konnte.
+
 ## [1.5.0] · 2026-07-18
 
 ### Hinzugefügt

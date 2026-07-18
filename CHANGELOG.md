@@ -5,6 +5,12 @@ Versions follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- **Visitors can reply to the site owner's own comments.** The "reply via the
+  fediverse" button only appeared on comments from others; the site's own
+  comments in a thread offered visitors nothing, so you could not respond to
+  the author from your own instance.
+
 ## [1.5.0] · 2026-07-18
 
 ### Added

@@ -5,6 +5,12 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 
 ## [Unreleased]
 
+### Opgelost
+- **Bezoekers kunnen reageren op de eigen reacties van de site-eigenaar.** De
+  knop "reageer via de fediverse" verscheen alleen bij reacties van anderen; bij
+  de eigen reacties van de site in een thread kregen bezoekers niets, waardoor
+  je de auteur niet vanaf je eigen instance kon beantwoorden.
+
 ## [1.5.0] · 2026-07-18
 
 ### Toegevoegd
