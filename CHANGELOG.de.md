@@ -5,6 +5,8 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 
 ## [Unreleased]
 
+## [1.5.0] · 2026-07-18
+
 ### Hinzugefügt
 - **Nachrichten: deine Antworten und Meldungen auf einer Seite.** Ein
   Nachrichten-Tab ersetzt Antworten und Meldungen. Ein Strom mit Filterchips

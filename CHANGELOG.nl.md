@@ -5,6 +5,8 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 
 ## [Unreleased]
 
+## [1.5.0] · 2026-07-18
+
 ### Toegevoegd
 - **Berichten: je reacties en meldingen op één pagina.** Eén Berichten-tab
   vervangt Reacties en Meldingen. Eén stroom met filterchips (Alles, Gesprekken,

@@ -5,6 +5,8 @@ Versions follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.5.0] · 2026-07-18
+
 ### Added
 - **Messages: your replies and notifications on one page.** A single Messages
   tab replaces Replies and Notifications. One stream with filter chips (All,
