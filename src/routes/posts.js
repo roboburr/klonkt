@@ -721,14 +721,20 @@ router.post('/authorize_interaction', requireSiteManager, (req, res) => {
 });
 
 // Manage / delete your own outbound fediverse replies (site owner only).
-router.get('/fediverse', requireSiteManager, (req, res) => {
+// Messages = Reacties + Meldingen in ONE inbox (your sent replies join the stream).
+// The old /fediverse (manage) and /notifications pages redirect here.
+router.get('/messages', requireSiteManager, (req, res) => {
   const site = res.locals.site;
-  const items = site ? ActivityPubService.listOutbox(site.slug) : [];
-  renderPage(req, res, 'pages/authorize-interaction', {
-    pageTitleKey: 'fedi.manage_title', bodyClass: 'on-special', // i18n: was hardcoded Dutch
-    manage: items, uri: '', target: null, sent: false, siteTitle: site ? site.title : '',
+  const items = site ? ActivityPubService.getMessages(site.slug, 80) : [];
+  // Read the watermark BEFORE marking seen → unread dots on items newer than last visit.
+  const seenAt = site ? ActivityPubService.notificationsSeenAt(site.slug) : 0;
+  if (site && !isViewer(req.session.user)) ActivityPubService.markNotificationsSeen(site.slug);
+  renderPage(req, res, 'pages/messages', {
+    pageTitleKey: 'msg.title', bodyClass: 'on-special', items, seenAt,
+    success: req.query.success || null, error: req.query.error || null,
   });
 });
+router.get('/fediverse', requireSiteManager, (req, res) => res.redirect(`${res.locals.siteUrlBase || ''}/messages`));
 
 router.post('/fediverse/:id/delete', requireSiteManager, async (req, res) => {
   const site = res.locals.site;
@@ -962,14 +968,7 @@ router.post('/news/vote', requireSiteManager, async (req, res) => {
 });
 
 // Notifications inbox (new followers + replies/likes/boosts on your posts).
-router.get('/notifications', requireSiteManager, (req, res) => {
-  const site = res.locals.site;
-  const items = site ? ActivityPubService.getNotifications(site.slug, 80) : [];
-  // viewing = seen → clears the bell badge. A viewer (kijker) may look but must not
-  // mutate state (the global write-guard only catches non-GET, not this GET-side effect).
-  if (site && !isViewer(req.session.user)) ActivityPubService.markNotificationsSeen(site.slug);
-  renderPage(req, res, 'pages/fedi-notifications', { pageTitle: 'Meldingen', bodyClass: 'on-special', items });
-});
+router.get('/notifications', requireSiteManager, (req, res) => res.redirect(`${res.locals.siteUrlBase || ''}/messages`));
 
 // Blocking / defederation (owner-only).
 router.get('/blocking', requireSiteManager, (req, res) => {

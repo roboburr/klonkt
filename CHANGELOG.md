@@ -6,6 +6,13 @@ Versions follow [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Messages: your replies and notifications on one page.** A single Messages
+  tab replaces Replies and Notifications. One stream with filter chips (All,
+  Conversations, Activity, Sent): your own sent replies join the conversation
+  (with edit and delete), likes and boosts on the same post group into one line,
+  private replies carry a lock badge, and items new since your last visit get a
+  dot. The interact bookmarklet moved along. Old /fediverse and /notifications
+  links redirect to /messages.
 - **Connect: your following and followers on one page.** A single Connect tab
   replaces the separate Following and Followers pages, showing each connection's
   direction (following →, follower ←, mutual ↔) and, for accounts you deliver to,

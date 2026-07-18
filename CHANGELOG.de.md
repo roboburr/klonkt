@@ -6,6 +6,14 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 ## [Unreleased]
 
 ### Hinzugefügt
+- **Nachrichten: deine Antworten und Meldungen auf einer Seite.** Ein
+  Nachrichten-Tab ersetzt Antworten und Meldungen. Ein Strom mit Filterchips
+  (Alle, Gespräche, Aktivität, Gesendet): deine eigenen gesendeten Antworten
+  stehen mit im Gespräch (mit Bearbeiten und Löschen), Likes und Boosts auf
+  denselben Beitrag gruppieren sich zu einer Zeile, private Antworten tragen ein
+  Schloss, und Neues seit deinem letzten Besuch bekommt einen Punkt. Das
+  Interaktions-Bookmarklet zog mit um. Alte /fediverse- und
+  /notifications-Links leiten auf /messages um.
 - **Connect: wem du folgst und wer dir folgt auf einer Seite.** Ein Connect-Tab
   ersetzt die getrennten Folge-ich- und Follower-Seiten, mit Richtung pro
   Verbindung (folge ich →, Follower ←, gegenseitig ↔) und, für Konten, an die du

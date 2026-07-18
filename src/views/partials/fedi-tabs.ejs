@@ -1,5 +1,6 @@
 <%# Shared tab bar for the unified Fediverse section. Owner/admin-only.
-    Param: active = 'feed' | 'following' | 'reacties' | 'meldingen' | 'blokkeren'.
+    Param: active = 'feed' | 'connect' | 'berichten' | 'blokkeren'
+    (legacy values 'following'/'followers' → Connect, 'reacties'/'meldingen' → Berichten).
     All tabs share the content width equally (flex:1) and always fit (ellipsis).
     "Back to site" lives in the top nav, not here. %>
 <% var _a = (typeof active !== 'undefined') ? active : ''; %>
@@ -9,10 +10,8 @@
      hx-get="/news?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="/news" hx-indicator="#pcms-loading"><%= t('tl.tab_feed') %></a>
   <a href="/connect" class="fedi-tab<%= (_a === 'connect' || _a === 'following' || _a === 'followers') ? ' is-active' : '' %>"
      hx-get="/connect?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="/connect" hx-indicator="#pcms-loading"><%= t('tl.tab_connect') %></a>
-  <a href="/fediverse" class="fedi-tab<%= _a === 'reacties' ? ' is-active' : '' %>"
-     hx-get="/fediverse?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="/fediverse" hx-indicator="#pcms-loading"><%= t('tl.tab_replies') %></a>
-  <a href="/notifications" class="fedi-tab<%= _a === 'meldingen' ? ' is-active' : '' %>"
-     hx-get="/notifications?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="/notifications" hx-indicator="#pcms-loading"><span class="fedi-tab-label"><%= t('notif.title') %></span><% if (_nu > 0) { %><span class="fedi-tab-badge"><%= _nu > 9 ? '9+' : _nu %></span><% } %></a>
+  <a href="/messages" class="fedi-tab<%= (_a === 'berichten' || _a === 'reacties' || _a === 'meldingen') ? ' is-active' : '' %>"
+     hx-get="/messages?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="/messages" hx-indicator="#pcms-loading"><span class="fedi-tab-label"><%= t('msg.tab') %></span><% if (_nu > 0) { %><span class="fedi-tab-badge"><%= _nu > 9 ? '9+' : _nu %></span><% } %></a>
   <a href="/blocking" class="fedi-tab<%= _a === 'blokkeren' ? ' is-active' : '' %>"
      hx-get="/blocking?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="/blocking" hx-indicator="#pcms-loading"><%= t('blk.title') %></a>
 </nav>

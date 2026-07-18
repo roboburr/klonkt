@@ -468,6 +468,44 @@ export function countUnseenNotifications(slug) {
     return n;
   } catch { return 0; }
 }
+// The seen-watermark itself (ms epoch, 0 = never marked) — the Messages page reads it
+// BEFORE marking seen, so it can render unread dots on the items newer than last visit.
+export function notificationsSeenAt(slug) {
+  try {
+    const row = db.prepare('SELECT value FROM app_settings WHERE key = ?').get(`fedi_notif_seen:${slug}`);
+    return row ? (Date.parse(row.value) || 0) : 0;
+  } catch { return 0; }
+}
+
+// Messages = the unified inbox (Reacties + Meldingen merged, decision Robin+Bart 2026-07-16):
+// every notification PLUS your own outbound replies ('sent', with edit/delete via their
+// outboxId), sorted as one stream. Consecutive likes/boosts on the same post collapse into
+// one grouped item (actors list + count) so activity doesn't drown out conversations.
+export function getMessages(slug, limit) {
+  const items = getNotifications(slug, Math.max(120, (limit || 60)));
+  try {
+    for (const m of listOutbox(slug).slice(0, 80)) {
+      items.push({
+        type: 'sent', outboxId: m.id, to_handle: m.to_handle, in_reply_to: m.in_reply_to,
+        content: m.content, editable: m.editable, created_at: m.created_at,
+      });
+    }
+  } catch { /* ignore */ }
+  items.sort((a, b) => _msgTs(b) - _msgTs(a)); // NaN-safe (zie getNotifications)
+  const out = [];
+  for (const it of items) {
+    const prev = out[out.length - 1];
+    if ((it.type === 'like' || it.type === 'announce') && prev && prev.type === it.type
+        && prev.post_slug === it.post_slug) {
+      prev.actors = prev.actors || [prev.name || prev.handle || '?'];
+      prev.actors.push(it.name || it.handle || '?');
+      prev.count = (prev.count || 1) + 1;
+      continue;
+    }
+    out.push(it);
+  }
+  return out.slice(0, limit || 60);
+}
 
 export function buildCreate(base, site, post) {
   const note = buildNote(base, site, post);
@@ -2404,15 +2442,17 @@ export function getNotifications(slug, limit) {
   } catch { /* ignore */ }
   try {
     const rows = db.prepare(`
-      SELECT i.kind, i.actor_name, i.actor_handle, i.actor_url, i.content, i.created_at,
+      SELECT i.kind, i.actor_name, i.actor_handle, i.actor_url, i.actor_icon, i.content, i.created_at, i.visibility,
              p.slug AS post_slug, p.title AS post_title
       FROM ap_interactions i LEFT JOIN posts p ON p.id = i.post_id
       WHERE p.site_id = (SELECT id FROM sites WHERE slug = ?)
       ORDER BY i.created_at DESC LIMIT 80
     `).all(slug);
     for (const r of rows) out.push({
-      type: r.kind, name: r.actor_name, handle: r.actor_handle, url: r.actor_url,
+      type: r.kind, name: r.actor_name, handle: r.actor_handle, url: r.actor_url, icon: r.actor_icon,
       content: stripLeadingMentions(r.content), post_slug: r.post_slug, post_title: r.post_title, created_at: r.created_at,
+      // followers/direct = a private message to the owner (not on the public thread) → 🔒 in Messages
+      visibility: r.visibility || 'public',
     });
   } catch { /* ignore */ }
   try {
@@ -2425,9 +2465,13 @@ export function getNotifications(slug, limit) {
       out.push({ type: 'mention', name: r.actor_name, handle: r.actor_handle, url: r.actor_url || r.actor_uri, icon: r.actor_icon, content: stripLeadingMentions(r.content), note_url: r.note_url || r.object_uri, created_at: r.created_at });
     }
   } catch { /* ignore */ }
-  out.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  // NaN-safe sort: one row with a missing/garbled created_at would otherwise make the
+  // comparator return NaN and scramble the WHOLE ordering (seen live: follow rows landing
+  // between likes, which also broke Messages' like-grouping).
+  out.sort((a, b) => _msgTs(b) - _msgTs(a));
   return out.slice(0, limit || 60);
 }
+function _msgTs(x) { const t = Date.parse((x && x.created_at) || ''); return Number.isFinite(t) ? t : 0; }
 
 // ── Blocking / defederation ───────────────────────────────────────
 let _insBl, _delBl, _listBl;
@@ -2606,4 +2650,5 @@ export default {
   getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
   linkifyBody, bakePostContent, bakePostContentWithMentions, listFollowers, removeFollower, listConnections,
   noteVisibility, isRejectedObject, rejectInteraction, interactionReportTarget,
+  getMessages, notificationsSeenAt,
 };

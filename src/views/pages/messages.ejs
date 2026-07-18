@@ -1,0 +1,189 @@
+<div class="msg-wrap">
+  <%- include('../partials/fedi-tabs', { active: 'berichten' }) %>
+  <h1 class="msg-title"><%= t('msg.title') %></h1>
+  <% if (typeof success !== 'undefined' && success) { %><div class="alert alert-success"><%= success %></div><% } %>
+  <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+  <div class="msg-filters" role="tablist" aria-label="<%= t('msg.title') %>">
+    <button type="button" class="msg-chip is-on" data-show="all"><%= t('msg.filter_all') %></button>
+    <button type="button" class="msg-chip" data-show="conv"><%= t('msg.filter_conv') %></button>
+    <button type="button" class="msg-chip" data-show="act"><%= t('msg.filter_act') %></button>
+    <button type="button" class="msg-chip" data-show="sent"><%= t('msg.filter_sent') %></button>
+  </div>
+
+  <% var _seen = (typeof seenAt !== 'undefined' && seenAt) ? seenAt : 0; %>
+  <% if (!items || !items.length) { %>
+    <p class="msg-empty"><%= t('msg.empty') %></p>
+  <% } else { %>
+    <ul class="msg-list" data-show="all">
+      <% items.forEach(function(n){
+           var _t = n.type === 'announce' ? 'boost' : n.type; // reply|mention|report|like|boost|follow|sent
+           var _kind = (_t === 'like' || _t === 'boost' || _t === 'follow') ? 'act' : (_t === 'sent' ? 'sent' : 'conv');
+           var _new = _seen && n.created_at ? (Date.parse(n.created_at) > _seen) : false;
+           var _who = n.name || n.handle || '';
+           var _init = String(_who || '?').replace(/^@/, '').charAt(0).toUpperCase();
+           var _priv = (n.visibility === 'followers' || n.visibility === 'direct');
+      %>
+        <li class="msg-item msg-<%= _t %><%= _new ? ' is-new' : '' %>" data-kind="<%= _kind %>">
+          <span class="msg-av<%= _t === 'sent' ? ' msg-av-sent' : '' %>" aria-hidden="true">
+            <% if (_t === 'sent') { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            <% } else if (n.icon) { %><img src="<%= avatar(n.icon, 96) %>" alt="" loading="lazy">
+            <% } else { %><%= _init %><% } %>
+            <span class="msg-dot msg-dot-<%= _t %>">
+              <% if (_t === 'like') { %><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.6l2.9 5.88 6.49.95-4.7 4.58 1.11 6.46L12 17.96l-5.8 3.06 1.1-6.46-4.69-4.58 6.49-.95z"/></svg>
+              <% } else if (_t === 'boost') { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+              <% } else if (_t === 'follow') { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+              <% } else if (_t === 'report') { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+              <% } else if (_t === 'mention') { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94"/></svg>
+              <% } else if (_t === 'sent') { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+              <% } else { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><% } %>
+            </span>
+          </span>
+
+          <div class="msg-body">
+            <div class="msg-line">
+              <% if (_t === 'sent') { %>
+                <span class="msg-who"><%= t('msg.you') %></span>
+                <% if (n.to_handle) { %><span class="msg-handle">→ <%= n.to_handle %></span><% } %>
+              <% } else { %>
+                <a class="msg-who" href="<%= n.url %>" target="_blank" rel="nofollow noopener"><%= _who %></a>
+                <% if (n.handle && n.name) { %><span class="msg-handle"><%= n.handle %></span><% } %>
+              <% } %>
+              <% if (_new) { %><span class="msg-new" title="<%= t('msg.new') %>"></span><% } %>
+              <% if (n.created_at) { %><span class="msg-time"><%= formatDateTime(n.created_at) %></span><% } %>
+            </div>
+
+            <div class="msg-what">
+              <% if (n.count && n.count > 1) { %>
+                <strong><%= t('msg.and_more', { n: n.count - 1 }) %></strong>
+                <%= _t === 'like' ? t('msg.liked_many') : t('msg.boosted_many') %>
+              <% } else if (_t === 'follow') { %><%= t('notif.followed') %>
+              <% } else if (_t === 'like') { %><%= t('notif.liked') %>
+              <% } else if (_t === 'boost') { %><%= t('notif.boosted') %>
+              <% } else if (_t === 'report') { %><%= t('notif.reported') %>
+              <% } else if (_t === 'mention') { %><%= t('notif.mentioned') %>
+              <% } else if (_t === 'sent') { %><%= t('msg.sent_reply') %>
+              <% } else { %><%= t('notif.replied') %><% } %>
+              <% if (_priv) { %><span class="msg-priv" title="<%= t('msg.private_hint') %>">🔒 <%= t('msg.private') %></span><% } %>
+              <% if (n.post_slug) { %><a class="msg-post" href="/<%= n.post_slug %>"><%= n.post_title || n.post_slug %></a><% } %>
+              <% if (_t === 'mention' && n.note_url) { %><a class="msg-post" href="<%= n.note_url %>" target="_blank" rel="nofollow noopener"><%= t('tl.view_original') %></a><% } %>
+              <% if (_t === 'sent' && n.in_reply_to) { %><a class="msg-post" href="<%= n.in_reply_to %>" target="_blank" rel="nofollow noopener"><%= t('tl.view_original') %></a><% } %>
+            </div>
+
+            <% if (_t === 'report' && n.content) { %><div class="msg-content"><%= n.content %></div>
+            <% } else if ((_t === 'reply' || _t === 'mention' || _t === 'sent') && n.content) { %><div class="msg-content"><%- n.content %></div><% } %>
+
+            <% if (_t === 'sent' && n.outboxId) { %>
+              <div class="msg-actions">
+                <details class="msg-edit">
+                  <summary><%= t('fedi.edit') %></summary>
+                  <form method="post" action="/fediverse/<%= n.outboxId %>/edit" class="msg-edit-form">
+                    <textarea name="text" rows="2" required><%= n.editable %></textarea>
+                    <button type="submit" class="btn"><%= t('fedi.save_edit') %></button>
+                  </form>
+                </details>
+                <form method="post" action="/fediverse/<%= n.outboxId %>/delete" data-confirm="<%= t('fedi.delete_confirm') %>">
+                  <button type="submit" class="msg-del"><%= t('comments.delete') %></button>
+                </form>
+              </div>
+            <% } %>
+          </div>
+        </li>
+      <% }); %>
+    </ul>
+  <% } %>
+
+  <%# Interact bookmarklet — moved here from the old Reacties page. %>
+  <details class="msg-bm">
+    <summary><%= t('fedi.bm_label') %></summary>
+    <p class="msg-bm-help"><%= t('fedi.bm_help') %></p>
+    <a class="fedi-bm-btn" id="fedi-bm-btn" href="#" draggable="true" title="<%= t('fedi.bm_help') %>">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+      <%= t('fedi.bm_label') %>
+    </a>
+  </details>
+</div>
+
+<script>
+(function () {
+  if (window.__msgWired) return; window.__msgWired = true;
+  document.addEventListener('click', function (e) {
+    var chip = e.target.closest('.msg-chip'); if (!chip) return;
+    var list = document.querySelector('.msg-list'); if (!list) return;
+    list.setAttribute('data-show', chip.getAttribute('data-show'));
+    document.querySelectorAll('.msg-chip').forEach(function (c) { c.classList.toggle('is-on', c === chip); });
+  });
+  var a = document.getElementById('fedi-bm-btn');
+  if (a) {
+    a.setAttribute('href', "javascript:void(window.open('" + location.origin + "/authorize_interaction?uri='+encodeURIComponent(window.location.href)))");
+    a.addEventListener('click', function (e) { e.preventDefault(); a.classList.add('nudge'); setTimeout(function(){ a.classList.remove('nudge'); }, 600); });
+  }
+})();
+</script>
+
+<style>
+  .msg-wrap { max-width: 640px; margin: 1rem auto; padding: 0 1rem; }
+  .msg-title { margin: 0 0 .9rem; }
+  .msg-empty { color: var(--ink-soft, #888); }
+
+  .msg-filters { display: flex; gap: .4rem; margin: 0 0 1.1rem; flex-wrap: wrap; }
+  .msg-chip { border: 1px solid color-mix(in srgb, var(--ink, #000) 16%, transparent); background: none;
+    color: var(--ink-soft, #888); font: inherit; font-size: .84rem; font-weight: 600;
+    padding: .3rem .85rem; border-radius: 999px; cursor: pointer; }
+  .msg-chip.is-on { background: var(--accent, #06c); border-color: var(--accent, #06c); color: #fff; }
+
+  .msg-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .55rem; }
+  .msg-list[data-show="conv"] li:not([data-kind="conv"]) { display: none; }
+  .msg-list[data-show="act"]  li:not([data-kind="act"])  { display: none; }
+  .msg-list[data-show="sent"] li:not([data-kind="sent"]) { display: none; }
+
+  .msg-item { display: flex; gap: .8rem; padding: .85rem .95rem; border-radius: 14px; align-items: flex-start;
+    background: color-mix(in srgb, var(--ink, #000) 3.5%, transparent);
+    border: 1px solid color-mix(in srgb, var(--ink, #000) 9%, transparent);
+    transition: border-color .15s ease, box-shadow .15s ease; }
+  .msg-item:hover { border-color: color-mix(in srgb, var(--accent, #888) 30%, transparent);
+    box-shadow: 0 2px 12px color-mix(in srgb, var(--ink, #000) 6%, transparent); }
+  .msg-item.is-new { border-color: color-mix(in srgb, var(--accent, #06c) 45%, transparent);
+    background: color-mix(in srgb, var(--accent, #06c) 4%, transparent); }
+  .msg-sent { border-left: 3px solid color-mix(in srgb, var(--accent, #06c) 55%, transparent); }
+
+  .msg-av { position: relative; flex: 0 0 40px; width: 40px; height: 40px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center; font-weight: 700;
+    background: color-mix(in srgb, var(--accent, #888) 16%, transparent); color: var(--accent, #06c); overflow: visible; }
+  .msg-av img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; background: #fff; }
+  .msg-av-sent svg { width: 17px; height: 17px; }
+  .msg-dot { position: absolute; right: -3px; bottom: -3px; width: 18px; height: 18px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 2px solid var(--paper, #fff); background: var(--accent, #06c); color: #fff; }
+  .msg-dot svg { width: 10px; height: 10px; }
+  .msg-dot-like { background: #e8b04b; } .msg-dot-boost { background: #2fa85a; }
+  .msg-dot-report { background: #c0392b; } .msg-dot-mention { background: #8e6cf0; }
+
+  .msg-body { flex: 1; min-width: 0; }
+  .msg-line { display: flex; align-items: baseline; gap: .4rem; }
+  .msg-who { font-weight: 700; color: var(--ink, inherit); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  a.msg-who:hover { text-decoration: underline; }
+  .msg-handle { color: var(--ink-soft, #888); font-size: .82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .msg-new { width: 8px; height: 8px; border-radius: 50%; background: var(--accent, #06c); flex: 0 0 auto; align-self: center; }
+  .msg-time { color: var(--ink-soft, #999); font-size: .76rem; margin-left: auto; flex: 0 0 auto; white-space: nowrap; }
+  .msg-what { color: var(--ink-soft, #aaa); margin-top: .12rem; line-height: 1.4; }
+  .msg-what .msg-post { color: var(--accent, #06c); font-weight: 600; margin-left: .25rem; }
+  .msg-priv { display: inline-block; margin-left: .3rem; padding: .05rem .5rem; border-radius: 999px; font-size: .72rem; font-weight: 700;
+    background: color-mix(in srgb, #8e6cf0 14%, transparent); color: #8e6cf0; }
+  .msg-content { margin: .45rem 0 0; padding: .55rem .75rem; border-radius: 10px; line-height: 1.5;
+    background: color-mix(in srgb, var(--ink, #000) 4%, transparent); color: var(--ink, inherit); overflow-wrap: anywhere; }
+  .msg-content p { margin: .2rem 0; } .msg-content p:first-child { margin-top: 0; } .msg-content p:last-child { margin-bottom: 0; }
+
+  .msg-actions { display: flex; gap: .7rem; align-items: center; margin-top: .45rem; }
+  .msg-edit summary { cursor: pointer; font-size: .8rem; color: var(--ink-soft, #888); font-weight: 600; }
+  .msg-edit-form { margin-top: .4rem; display: flex; flex-direction: column; gap: .4rem; }
+  .msg-edit-form textarea { width: 100%; font: inherit; padding: .5rem .65rem; border-radius: 8px;
+    border: 1px solid color-mix(in srgb, var(--ink, #000) 16%, transparent); background: transparent; color: var(--ink, inherit); }
+  .msg-del { background: none; border: none; padding: 0; font: inherit; font-size: .8rem; font-weight: 600;
+    color: var(--ink-soft, #888); cursor: pointer; }
+  .msg-del:hover { color: #c0392b; }
+
+  .msg-bm { margin: 1.4rem 0 0; border-top: 1px solid color-mix(in srgb, var(--ink, #000) 10%, transparent); padding-top: .8rem; }
+  .msg-bm summary { cursor: pointer; color: var(--ink-soft, #888); font-weight: 600; font-size: .88rem; }
+  .msg-bm-help { color: var(--ink-soft, #888); font-size: .82rem; line-height: 1.5; margin: .5rem 0 .6rem; }
+</style>

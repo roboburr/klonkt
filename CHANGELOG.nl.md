@@ -6,6 +6,13 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 ## [Unreleased]
 
 ### Toegevoegd
+- **Berichten: je reacties en meldingen op één pagina.** Eén Berichten-tab
+  vervangt Reacties en Meldingen. Eén stroom met filterchips (Alles, Gesprekken,
+  Activiteit, Verzonden): je eigen verzonden reacties staan mee in het gesprek
+  (met bewerken en verwijderen), likes en boosts op dezelfde post groeperen tot
+  één regel, privéreacties dragen een slotje, en items nieuw sinds je laatste
+  bezoek krijgen een stip. De interactie-bookmarklet verhuisde mee. Oude
+  /fediverse- en /notifications-links leiden door naar /messages.
 - **Connect: wie je volgt en wie jou volgt op één pagina.** Eén Connect-tab
   vervangt de aparte Volgend- en Volgers-pagina's, met per connectie de richting
   (volgend →, volger ←, wederzijds ↔) en, voor accounts waaraan je bezorgt,
