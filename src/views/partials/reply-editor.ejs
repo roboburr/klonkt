@@ -15,7 +15,13 @@
     submitLabel   submit button label (required)
     rows          textarea rows for the no-JS fallback (default 3)
     defaultLang   preselected reply language (default: UI lang)
+    initialHtml   prefill for EDIT mode (our own sanitized HTML) (optional)
+    initialText   plain-text prefill for the no-JS textarea (optional)
+    noAttach      true hides the media button (edits do not touch attachments)
 %>
+<% var _reInitHtml = (typeof initialHtml !== 'undefined' && initialHtml) || ''; %>
+<% var _reInitText = (typeof initialText !== 'undefined' && initialText) || ''; %>
+<% var _reNoAttach = (typeof noAttach !== 'undefined' && noAttach); %>
 <% var _reLang = (typeof defaultLang !== 'undefined' && defaultLang) || (typeof lang !== 'undefined' ? lang : 'en'); %>
 <form method="post" action="<%= action %>" class="re-form" data-re
       data-upload="/posts/upload-reply-media" data-upload-err="<%= t('re.attach_err') %>">
@@ -35,14 +41,18 @@
     <button type="button" data-cmd="link" title="<%= t('re.link') %>" aria-label="<%= t('re.link') %>">🔗</button>
     <button type="button" data-cmd="list" title="<%= t('re.list') %>" aria-label="<%= t('re.list') %>">•≡</button>
     <button type="button" data-cmd="quote" title="<%= t('re.quote') %>" aria-label="<%= t('re.quote') %>">❝</button>
-    <button type="button" data-cmd="attach" title="<%= t('re.attach') %>" aria-label="<%= t('re.attach') %>">📎</button>
-    <input type="file" class="re-file" accept="image/*,audio/*,video/*" multiple hidden>
+    <% if (!_reNoAttach) { %>
+      <button type="button" data-cmd="attach" title="<%= t('re.attach') %>" aria-label="<%= t('re.attach') %>">📎</button>
+      <input type="file" class="re-file" accept="image/*,audio/*,video/*" multiple hidden>
+    <% } %>
   </div>
-  <input type="hidden" name="attachments" value="">
-  <div class="re-attachments" hidden></div>
-  <textarea name="text" rows="<%= typeof rows !== 'undefined' ? rows : 3 %>" required placeholder="<%= placeholder %>"></textarea>
+  <% if (!_reNoAttach) { %>
+    <input type="hidden" name="attachments" value="">
+    <div class="re-attachments" hidden></div>
+  <% } %>
+  <textarea name="text" rows="<%= typeof rows !== 'undefined' ? rows : 3 %>" required placeholder="<%= placeholder %>"><%= _reInitText %></textarea>
   <div class="re-editor" contenteditable="true" role="textbox" aria-multiline="true"
-       data-ph="<%= placeholder %>" aria-label="<%= placeholder %>" hidden></div>
+       data-ph="<%= placeholder %>" aria-label="<%= placeholder %>" hidden><%- _reInitHtml %></div>
   <div class="re-foot">
     <select name="language" class="re-lang" aria-label="<%= t('re.lang') %>" hidden>
       <% [['en','English'],['nl','Nederlands'],['de','Deutsch'],['fr','Français'],['es','Español'],['it','Italiano'],['pt','Português'],['pl','Polski'],['ru','Русский'],['uk','Українська'],['sv','Svenska'],['da','Dansk'],['nb','Norsk'],['fi','Suomi'],['tr','Türkçe'],['ja','日本語'],['zh','中文'],['ar','العربية']].forEach(function (l) { %>

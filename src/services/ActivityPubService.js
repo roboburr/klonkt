@@ -512,7 +512,7 @@ export function getMessages(slug, limit) {
     for (const m of listOutbox(slug).slice(0, 80)) {
       items.push({
         type: 'sent', outboxId: m.id, to_handle: m.to_handle, in_reply_to: m.in_reply_to,
-        content: m.content, editable: m.editable, created_at: m.created_at,
+        content: m.content, editable: m.editable, language: m.language, created_at: m.created_at,
       });
     }
   } catch { /* ignore */ }
@@ -2048,7 +2048,7 @@ function outboxEditableText(content) {
     .trim();
 }
 export function listOutbox(siteSlug) {
-  return db.prepare('SELECT id, content, to_handle, in_reply_to, created_at FROM ap_outbox WHERE site_slug = ? ORDER BY created_at DESC')
+  return db.prepare('SELECT id, content, to_handle, in_reply_to, language, created_at FROM ap_outbox WHERE site_slug = ? ORDER BY created_at DESC')
     .all(siteSlug).map((r) => { const c = stripLeadingMentions(r.content); return { ...r, content: c, editable: outboxEditableText(c) }; });
 }
 
@@ -2076,11 +2076,14 @@ export async function deliverOutboxDelete(site, outboxId) {
 
 // Edit one of our outbound replies: rewrite the stored content (mention re-added + #tags
 // re-linked) and send an Update(Note) so recipients refresh their cached copy.
-export async function deliverOutboxUpdate(site, outboxId, newText) {
+export async function deliverOutboxUpdate(site, outboxId, newText, opts = {}) {
   const row = iStmts().getO.get(outboxId);
   if (!row || row.site_slug !== site.slug) return false;
   const text = String(newText || '').trim();
-  if (!text) return false;
+  // Rich edit: same sanitize + enrichment pipeline as deliverReply.
+  const richClean = opts.html ? HtmlSanitizerService.sanitize(String(opts.html)) : '';
+  const rich = richClean && HtmlSanitizerService.toPlainText(richClean).trim() ? richClean : '';
+  if (!text && !rich) return false;
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   if (!base) return false;
   const me = actorId(base, site.slug);
@@ -2090,9 +2093,21 @@ export async function deliverOutboxUpdate(site, outboxId, newText) {
   const toHandle = _h && _h[0] === '@' ? _h : '@' + (_h || '');
   const mention = row.to_actor
     ? `<a href="${escHtml(toProfile)}" class="u-url mention" data-actor="${escHtml(row.to_actor)}">${escHtml(toHandle)}</a> ` : '';
-  const mres = await resolveMentionsInText(base, escHtml(text).replace(/\r?\n/g, '<br>'));
-  const content = `<p>${mention}${linkUrls(linkHashtags(base, mres.html))}</p>`;
-  db.prepare('UPDATE ap_outbox SET content = ? WHERE id = ?').run(content, outboxId);
+  let content;
+  let mres;
+  if (rich) {
+    mres = await resolveMentionsInText(base, rich);
+    const processed = linkUrls(linkHashtags(base, mres.html));
+    if (processed.startsWith('<p>')) content = processed.replace('<p>', `<p>${mention}`);
+    else if (/^<(blockquote|ul|ol|pre|h[1-6]|div|hr)\b/i.test(processed)) content = `<p>${mention}</p>${processed}`;
+    else content = `<p>${mention}${processed}</p>`;
+  } else {
+    mres = await resolveMentionsInText(base, escHtml(text).replace(/\r?\n/g, '<br>'));
+    content = `<p>${mention}${linkUrls(linkHashtags(base, mres.html))}</p>`;
+  }
+  // Language may be updated with the edit; attachments always survive untouched.
+  const newLang = /^[a-z]{2,3}(-[A-Za-z0-9-]+)?$/.test(String(opts.language || '')) ? opts.language : null;
+  db.prepare('UPDATE ap_outbox SET content = ?, language = COALESCE(?, language) WHERE id = ?').run(content, newLang, outboxId);
   const note = buildReplyNote(base, site, iStmts().getO.get(outboxId));
   note.updated = new Date().toISOString();
   const update = {

@@ -6,6 +6,10 @@ Versions follow [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Editing a sent reply uses the rich editor too.** The edit forms on Messages
+  and the interact page open the same editor as new replies (formatting kept,
+  language adjustable, full-screen on phones). Attachments on the reply survive
+  an edit untouched.
 - **Media in replies (rich replies, phase 2).** Drop, paste or pick images,
   audio and video straight into the reply editor (the paperclip works on
   phones). Files upload to your own site, show as removable chips while you

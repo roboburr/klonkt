@@ -6,6 +6,10 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 ## [Unreleased]
 
 ### Toegevoegd
+- **Een verzonden reactie bewerken gebruikt nu ook de rijke editor.** De
+  bewerk-formulieren op Berichten en de interactiepagina openen dezelfde editor
+  als nieuwe reacties (opmaak blijft, taal aanpasbaar, volledig scherm op
+  telefoons). Bijlagen op de reactie overleven een bewerking onaangeroerd.
 - **Media in reacties (rijke reacties, fase 2).** Sleep, plak of kies
   afbeeldingen, audio en video direct in de reactie-editor (de paperclip werkt
   op telefoons). Bestanden uploaden naar je eigen site, verschijnen als

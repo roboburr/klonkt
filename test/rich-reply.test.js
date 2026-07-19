@@ -119,3 +119,27 @@ test('only foreign/invalid attachments and no text -> rejected', async () => {
   });
   assert.equal(r, null);
 });
+
+test('rich edit: content replaced, language updated, attachments survive', async () => {
+  const r = await AP.deliverReply(site, {
+    postId: 'p1', postSlug: 'hallo', parent, text: 'origineel', html: '',
+    attachments: [{ url: '/media/reply-media/keep.webp', mediaType: 'image/webp', name: 'blijft' }],
+    language: 'nl',
+  });
+  const upd = await AP.deliverOutboxUpdate(site, r.id, '', { html: '<p>bewerkt met <em>nadruk</em></p>', language: 'en' });
+  assert.ok(upd && upd.ok);
+  const row = db.prepare('SELECT * FROM ap_outbox WHERE id = ?').get(r.id);
+  assert.match(row.content, /bewerkt met <em>nadruk<\/em>/);
+  assert.match(row.content, /^<p><a [^>]*class="u-url mention"/); // mention re-attached inline
+  assert.equal(row.language, 'en');
+  assert.equal(JSON.parse(row.attachments)[0].url, '/media/reply-media/keep.webp');
+});
+
+test('plain edit path unchanged; bogus language keeps the old one', async () => {
+  const r = await AP.deliverReply(site, { postId: 'p1', postSlug: 'hallo', parent, text: 'plain start', language: 'nl' });
+  const upd = await AP.deliverOutboxUpdate(site, r.id, 'plain bewerkt', { language: '???' });
+  assert.ok(upd && upd.ok);
+  const row = db.prepare('SELECT * FROM ap_outbox WHERE id = ?').get(r.id);
+  assert.match(row.content, /plain bewerkt/);
+  assert.equal(row.language, 'nl');
+});

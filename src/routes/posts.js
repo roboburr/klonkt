@@ -826,9 +826,14 @@ router.post('/interactions/:id/report', requireSiteManager, async (req, res) => 
 // Edit one of your own outbound fediverse replies (owner only) → sends an Update(Note).
 router.post('/fediverse/:id/edit', requireSiteManager, async (req, res) => {
   const site = res.locals.site;
-  if (site && String(req.body.text || '').trim()) {
-    try { await ActivityPubService.deliverOutboxUpdate(site, req.params.id, req.body.text); }
-    catch (e) { console.warn('[AP] outbox edit failed:', e.message); }
+  const text = String(req.body.text || '');
+  const html = String(req.body.content || '');   // rich reply editor HTML (sanitized in deliverOutboxUpdate)
+  if (site && (text.trim() || html.trim())) {
+    try {
+      await ActivityPubService.deliverOutboxUpdate(site, req.params.id, text, {
+        html, language: String(req.body.language || ''),
+      });
+    } catch (e) { console.warn('[AP] outbox edit failed:', e.message); }
   }
   res.redirect(req.get('Referer') || `${res.locals.siteUrlBase || ''}/fediverse`);
 });

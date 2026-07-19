@@ -77,10 +77,18 @@
               <div class="msg-actions">
                 <details class="msg-edit">
                   <summary><%= t('fedi.edit') %></summary>
-                  <form method="post" action="/fediverse/<%= n.outboxId %>/edit" class="msg-edit-form">
-                    <textarea name="text" rows="2" required><%= n.editable %></textarea>
-                    <button type="submit" class="btn"><%= t('fedi.save_edit') %></button>
-                  </form>
+                  <div class="msg-edit-form">
+                    <%- include('../partials/reply-editor', {
+                      action: '/fediverse/' + n.outboxId + '/edit',
+                      placeholder: t('fedi.reply_ph'),
+                      submitLabel: t('fedi.save_edit'),
+                      rows: 2,
+                      initialHtml: n.content,
+                      initialText: n.editable,
+                      defaultLang: n.language,
+                      noAttach: true,
+                    }) %>
+                  </div>
                 </details>
                 <form method="post" action="/fediverse/<%= n.outboxId %>/delete" data-confirm="<%= t('fedi.delete_confirm') %>">
                   <button type="submit" class="msg-del"><%= t('comments.delete') %></button>

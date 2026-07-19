@@ -6,6 +6,11 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 ## [Unreleased]
 
 ### Hinzugefügt
+- **Das Bearbeiten einer gesendeten Antwort nutzt jetzt ebenfalls den
+  Rich-Editor.** Die Bearbeiten-Formulare auf Nachrichten und der
+  Interaktionsseite öffnen denselben Editor wie neue Antworten (Formatierung
+  bleibt, Sprache anpassbar, Vollbild auf Telefonen). Anhänge der Antwort
+  überstehen eine Bearbeitung unangetastet.
 - **Medien in Antworten (reichhaltige Antworten, Phase 2).** Ziehe, füge ein
   oder wähle Bilder, Audio und Video direkt im Antwort-Editor (die Büroklammer
   funktioniert auf Telefonen). Dateien laden auf deine eigene Seite hoch,

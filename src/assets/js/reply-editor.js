@@ -35,9 +35,11 @@
     var attWrap = form.querySelector('.re-attachments');
     var attField = form.querySelector('input[name="attachments"]');
     var fileInput = form.querySelector('.re-file');
+    var canAttach = !!(attWrap && attField && fileInput);   // edit mode renders without media
     var attachments = [];
 
     function syncAtt() {
+      if (!canAttach) return;
       attField.value = attachments.length ? JSON.stringify(attachments) : '';
       attWrap.hidden = attachments.length === 0;
     }
@@ -61,6 +63,7 @@
       attWrap.appendChild(chip);
     }
     function uploadFiles(files) {
+      if (!canAttach) return;
       Array.prototype.forEach.call(files, function (file) {
         if (!/^(image|audio|video)\//.test(file.type) || attachments.length >= 4) return;
         var chip = document.createElement('span');
@@ -92,7 +95,7 @@
       if (!btn) return;
       e.preventDefault();
       var cmd = btn.getAttribute('data-cmd');
-      if (cmd === 'attach') { fileInput.click(); return; }   // no editor focus: keeps the picker usable on mobile
+      if (cmd === 'attach') { if (fileInput) fileInput.click(); return; }   // no editor focus: keeps the picker usable on mobile
       ed.focus();
       if (cmd === 'bold') document.execCommand('bold');
       else if (cmd === 'italic') document.execCommand('italic');
@@ -103,7 +106,7 @@
         if (url && /^https?:\/\//i.test(url.trim())) document.execCommand('createLink', false, url.trim());
       }
     });
-    fileInput.addEventListener('change', function () {
+    if (fileInput) fileInput.addEventListener('change', function () {
       uploadFiles(fileInput.files);
       fileInput.value = '';
     });
@@ -113,8 +116,8 @@
     ed.addEventListener('paste', function (e) {
       var cd = e.clipboardData || window.clipboardData;
       if (cd.files && cd.files.length) {
-        e.preventDefault();
-        uploadFiles(cd.files);
+        e.preventDefault();            // never let the browser inline-paste a file as base64
+        uploadFiles(cd.files);         // no-op without the attach UI (edit mode)
         return;
       }
       var txt = cd.getData('text/plain');
@@ -124,6 +127,7 @@
     });
 
     // Drag/drop media onto the editor.
+    if (canAttach) {
     ed.addEventListener('dragover', function (e) {
       if (e.dataTransfer && Array.prototype.some.call(e.dataTransfer.types || [], function (t) { return t === 'Files'; })) {
         e.preventDefault();
@@ -138,6 +142,7 @@
         uploadFiles(e.dataTransfer.files);
       }
     });
+    }
 
     // Full-screen compose on mobile: enter on focus, leave via ×.
     function setFull(on) {

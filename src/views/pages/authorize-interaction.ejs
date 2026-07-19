@@ -40,10 +40,18 @@
                 <button type="submit" class="fedi-del-btn"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> <%= t('comments.delete') %></button>
               </form>
             </div>
-            <form method="post" action="/fediverse/<%= m.id %>/edit" class="fedi-edit-form">
-              <textarea name="text" rows="3" maxlength="2000" class="fedi-edit-ta"><%= m.editable %></textarea>
-              <div class="fedi-edit-actions"><button type="submit" class="fedi-edit-save"><%= t('fedi.save_edit') %></button></div>
-            </form>
+            <div class="fedi-edit-form">
+              <%- include('../partials/reply-editor', {
+                action: '/fediverse/' + m.id + '/edit',
+                placeholder: t('fedi.reply_ph'),
+                submitLabel: t('fedi.save_edit'),
+                rows: 3,
+                initialHtml: m.content,
+                initialText: m.editable,
+                defaultLang: m.language,
+                noAttach: true,
+              }) %>
+            </div>
           </li>
         <% }); %>
       </ul>
@@ -58,7 +66,7 @@
           var open = form.classList.toggle('is-open');
           b.classList.toggle('is-open', open);
           b.setAttribute('aria-expanded', open ? 'true' : 'false');
-          if (open) { var ta = form.querySelector('textarea'); if (ta) ta.focus(); }
+          if (open) { var ed = form.querySelector('.re-editor') || form.querySelector('textarea'); if (ed) ed.focus(); }
         });
       })();
       </script>
