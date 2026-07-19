@@ -1,0 +1,54 @@
+<%#
+  Rich reply editor (shared component) — progressive enhancement.
+
+  Renders a plain <textarea name="text"> form that works without JS; the shared
+  /assets/js/reply-editor.js upgrades it to a rich contenteditable with a small
+  toolbar, a language select and (on ≤700px) a full-screen compose overlay,
+  which is the right pattern on mobile. On submit the JS fills the hidden
+  `content` field with the editor HTML and `text` with a plain-text fallback;
+  the server prefers `content` and sanitizes it (fedi-reply / authorize_interaction).
+
+  Locals:
+    action        POST target (required)
+    hiddenFields  [{ name, value }] extra hidden inputs (optional)
+    placeholder   textarea/editor placeholder (required)
+    submitLabel   submit button label (required)
+    rows          textarea rows for the no-JS fallback (default 3)
+    defaultLang   preselected reply language (default: UI lang)
+%>
+<% var _reLang = (typeof defaultLang !== 'undefined' && defaultLang) || (typeof lang !== 'undefined' ? lang : 'en'); %>
+<form method="post" action="<%= action %>" class="re-form" data-re>
+  <% (typeof hiddenFields !== 'undefined' ? hiddenFields : []).forEach(function (h) { %>
+    <input type="hidden" name="<%= h.name %>" value="<%= h.value %>">
+  <% }); %>
+  <input type="hidden" name="content" value="">
+  <%# Full-screen top bar (mobile compose). Hidden until JS + fullscreen. %>
+  <div class="re-head" hidden>
+    <button type="button" class="re-cancel" aria-label="<%= t('comments.cancel') %>">×</button>
+    <strong class="re-head-title"><%= t('re.title') %></strong>
+    <button type="submit" class="btn re-send-top"><%= submitLabel %></button>
+  </div>
+  <div class="re-toolbar" role="toolbar" aria-label="<%= t('re.title') %>" hidden>
+    <button type="button" data-cmd="bold" title="<%= t('re.bold') %>" aria-label="<%= t('re.bold') %>"><b>B</b></button>
+    <button type="button" data-cmd="italic" title="<%= t('re.italic') %>" aria-label="<%= t('re.italic') %>"><i>I</i></button>
+    <button type="button" data-cmd="link" title="<%= t('re.link') %>" aria-label="<%= t('re.link') %>">🔗</button>
+    <button type="button" data-cmd="list" title="<%= t('re.list') %>" aria-label="<%= t('re.list') %>">•≡</button>
+    <button type="button" data-cmd="quote" title="<%= t('re.quote') %>" aria-label="<%= t('re.quote') %>">❝</button>
+  </div>
+  <textarea name="text" rows="<%= typeof rows !== 'undefined' ? rows : 3 %>" required placeholder="<%= placeholder %>"></textarea>
+  <div class="re-editor" contenteditable="true" role="textbox" aria-multiline="true"
+       data-ph="<%= placeholder %>" aria-label="<%= placeholder %>" hidden></div>
+  <div class="re-foot">
+    <select name="language" class="re-lang" aria-label="<%= t('re.lang') %>" hidden>
+      <% [['en','English'],['nl','Nederlands'],['de','Deutsch'],['fr','Français'],['es','Español'],['it','Italiano'],['pt','Português'],['pl','Polski'],['ru','Русский'],['uk','Українська'],['sv','Svenska'],['da','Dansk'],['nb','Norsk'],['fi','Suomi'],['tr','Türkçe'],['ja','日本語'],['zh','中文'],['ar','العربية']].forEach(function (l) { %>
+        <option value="<%= l[0] %>" <%= l[0] === _reLang ? 'selected' : '' %>><%= l[1] %></option>
+      <% }); %>
+    </select>
+    <button type="submit" class="btn re-send"><%= submitLabel %></button>
+  </div>
+</form>
+<%# Assets once per render, even when this partial repeats per comment. %>
+<% if (!locals.__reAssets) { locals.__reAssets = 1; %>
+<link rel="stylesheet" href="/assets/css/reply-editor.css">
+<script src="/assets/js/reply-editor.js" defer></script>
+<% } %>

@@ -188,14 +188,16 @@
     </div>
     <p class="auth-interact-or"><%= t('fedi.or_reply') %></p>
     <p class="auth-interact-where">💬 <%= t('fedi.reply_where') %></p>
-    <form method="post" action="/authorize_interaction" class="auth-interact-form">
-      <input type="hidden" name="uri" value="<%= uri %>">
-      <textarea name="text" rows="4" required placeholder="<%= t('fedi.reply_ph') %>"></textarea>
-      <div class="auth-interact-actions">
-        <button type="submit" class="btn"><%= t('fedi.send') %></button>
-        <a href="<%= uri %>" class="btn"><%= t('comments.cancel') %></a>
-      </div>
-    </form>
+    <div class="auth-interact-form">
+      <%- include('../partials/reply-editor', {
+        action: '/authorize_interaction',
+        hiddenFields: [{ name: 'uri', value: uri }],
+        placeholder: t('fedi.reply_ph'),
+        submitLabel: t('fedi.send'),
+        rows: 4,
+      }) %>
+      <div class="auth-interact-actions"><a href="<%= uri %>" class="btn"><%= t('comments.cancel') %></a></div>
+    </div>
     <p class="auth-interact-note"><%= t('fedi.remote_as', { site: siteTitle }) %></p>
     <details class="auth-report">
       <summary>🚩 <%= t('fedi.report_open') %></summary>

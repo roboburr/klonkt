@@ -6,6 +6,12 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 ## [Unreleased]
 
 ### Toegevoegd
+- **Rijke reacties (fase 1).** Reageren op fediverse-reacties (inline in de
+  thread en op de interactiepagina) gebruikt nu een gedeelde rijke editor: vet,
+  cursief, links, opsommingen en citaten, plus een taalkeuze voor je reactie
+  (meegestuurd als language map op de note). Op telefoons opent de editor als
+  volledig scherm, het patroon dat op mobiel echt werkt. Zonder JavaScript
+  blijft het gewone tekstvak werken. Media in reacties is de volgende fase.
 - **Trek verbonden apps in vanaf je accountpagina.** Een sectie "Verbonden apps"
   toont elke app die je via OAuth toegang gaf (naam, site, scope, laatst
   gebruikt) met een Intrekken-knop. Al eerder uitgegeven tokens verschijnen ook,

@@ -1,0 +1,51 @@
+/* Rich reply editor (partials/reply-editor.ejs + js/reply-editor.js). */
+/* !important: site CSS gives forms inside comment threads `display: contents`,
+   which collapses the form to a 0x0 non-box — flex layout AND the fixed
+   full-screen overlay silently break. This component must own its box. */
+.re-form[data-re] { display: flex !important; flex-direction: column; gap: .45rem; }
+
+.re-toolbar { display: flex; gap: .25rem; flex-wrap: wrap; }
+.re-toolbar button {
+  border: 1px solid color-mix(in srgb, var(--ink, #000) 14%, transparent);
+  background: none; color: inherit; border-radius: 8px;
+  min-width: 2rem; height: 1.9rem; padding: 0 .45rem;
+  font-size: .85rem; line-height: 1; cursor: pointer;
+}
+.re-toolbar button:hover { background: color-mix(in srgb, var(--ink, #000) 8%, transparent); }
+
+.re-editor {
+  min-height: 4.2rem; padding: .55rem .7rem; border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--ink, #000) 16%, transparent);
+  background: transparent; overflow-wrap: anywhere; outline: none;
+}
+.re-editor:focus { border-color: var(--accent, #06c); }
+.re-editor:empty::before { content: attr(data-ph); color: color-mix(in srgb, var(--ink, #000) 40%, transparent); pointer-events: none; }
+.re-editor blockquote { margin: .4rem 0; padding-left: .7rem; border-left: 3px solid color-mix(in srgb, var(--ink, #000) 20%, transparent); }
+
+.re-foot { display: flex; align-items: center; gap: .6rem; justify-content: flex-end; }
+.re-lang {
+  font: inherit; font-size: .82rem; padding: .3rem .45rem; border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--ink, #000) 16%, transparent);
+  background: transparent; color: inherit; max-width: 10rem;
+}
+
+/* Full-screen compose (mobile). JS toggles .re-full on the form. */
+.re-head { display: flex; align-items: center; gap: .6rem; }
+.re-head-title { flex: 1; text-align: center; font-size: .95rem; }
+.re-cancel {
+  border: none; background: none; color: inherit; font-size: 1.5rem;
+  line-height: 1; padding: .25rem .5rem; cursor: pointer;
+}
+.re-form.re-full {
+  /* Above the bottom tab bar (1050) and the profile/audio sheets (1100). */
+  position: fixed; inset: 0; z-index: 1200;
+  background: var(--paper, #fff); padding: .8rem .9rem;
+  padding-top: calc(.8rem + env(safe-area-inset-top));
+  padding-bottom: calc(.8rem + env(safe-area-inset-bottom));
+  gap: .6rem;
+}
+.re-form.re-full .re-editor { flex: 1; min-height: 0; overflow-y: auto; border: none; padding: .4rem .1rem; }
+.re-form.re-full .re-editor:focus { border: none; }
+.re-form.re-full .re-send { display: none; }         /* send lives in the top bar */
+.re-form.re-full .re-foot { justify-content: flex-start; }
+html.re-lock, html.re-lock body { overflow: hidden; }

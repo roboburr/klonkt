@@ -6,6 +6,13 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 ## [Unreleased]
 
 ### Hinzugefügt
+- **Reichhaltige Antworten (Phase 1).** Das Antworten auf Fediverse-Kommentare
+  (inline im Thread und auf der Interaktionsseite) nutzt jetzt einen geteilten
+  Rich-Editor: fett, kursiv, Links, Listen und Zitate, plus eine Sprachwahl für
+  deine Antwort (als Language-Map der Note mitgesendet). Auf Telefonen öffnet
+  der Editor als Vollbild-Ansicht, das Muster, das auf Mobilgeräten wirklich
+  funktioniert. Ohne JavaScript funktioniert das einfache Textfeld weiter.
+  Medien in Antworten sind die nächste Phase.
 - **Verbundene Apps auf deiner Kontoseite widerrufen.** Ein Abschnitt
   "Verbundene Apps" listet jede App auf, der du per OAuth Zugriff gegeben hast
   (Name, Seite, Scope, zuletzt genutzt), mit einem Widerrufen-Knopf. Bereits

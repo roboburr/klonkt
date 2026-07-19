@@ -435,6 +435,8 @@ export function initializeDatabase() {
   // replies; followers/direct replies surface in notifications (and later Messages) with post
   // context instead. Existing rows default to 'public' (historically almost all were).
   ensureColumn('ap_interactions', 'visibility', "TEXT DEFAULT 'public'");
+  // Rich replies: the reply's language (BCP47 code) → contentMap on the outgoing Note.
+  ensureColumn('ap_outbox', 'language', 'TEXT');
 }
 
 function ensureColumn(table, column, definition) {

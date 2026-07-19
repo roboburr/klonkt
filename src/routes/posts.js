@@ -711,10 +711,12 @@ router.post('/authorize_interaction', requireSiteManager, (req, res) => {
   const site = res.locals.site;
   const uri = (req.body.uri || '').toString();
   const text = (req.body.text || '').toString();
-  if (site && uri && text.trim()) {
+  const html = (req.body.content || '').toString();      // rich reply editor HTML (sanitized in deliverReply)
+  const language = (req.body.language || '').toString();
+  if (site && uri && (text.trim() || html.trim())) {
     // Resolve + deliver in the background so Send responds instantly.
     ActivityPubService.resolveRemoteNote(uri)
-      .then((parent) => parent && ActivityPubService.deliverReply(site, { postId: parent.localPostId || '', postSlug: null, parent, text }))
+      .then((parent) => parent && ActivityPubService.deliverReply(site, { postId: parent.localPostId || '', postSlug: null, parent, text, html, language }))
       .catch((e) => console.warn('[AP] remote reply failed:', e.message));
   }
   res.redirect('/authorize_interaction?sent=1&uri=' + encodeURIComponent(uri));
@@ -1256,9 +1258,13 @@ router.post('/posts/:slug/fedi-reply', requireSiteManager, async (req, res) => {
   if (!post) return res.status(404).send('Not found');
   const parent = ActivityPubService.getInteractionById(req.body.interaction_id);
   const text = (req.body.text || '').toString();
-  if (parent && parent.post_id === post.id && text.trim()) {
+  const html = (req.body.content || '').toString();      // rich reply editor HTML (sanitized in deliverReply)
+  if (parent && parent.post_id === post.id && (text.trim() || html.trim())) {
     try {
-      await ActivityPubService.deliverReply(site, { postId: post.id, postSlug: post.slug, parent, text });
+      await ActivityPubService.deliverReply(site, {
+        postId: post.id, postSlug: post.slug, parent, text, html,
+        language: (req.body.language || '').toString(),
+      });
     } catch (e) { console.warn('[AP] reply send failed:', e.message); }
   }
   res.redirect(`${res.locals.siteUrlBase || ''}/${post.slug}#fediverse`);

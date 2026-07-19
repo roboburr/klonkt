@@ -6,6 +6,12 @@ Versions follow [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Rich replies (phase 1).** Replying to fediverse comments (inline in the
+  thread and on the interact page) now uses a shared rich editor: bold, italic,
+  links, lists and quotes, plus a language picker for your reply (sent along as
+  the note's language map). On phones the editor opens as a full-screen compose
+  view, the pattern that actually works on mobile. Without JavaScript the plain
+  text box keeps working. Media in replies is the next phase.
 - **Revoke connected apps from your account page.** A "Connected apps" section
   lists every app you authorized over OAuth (name, site, scope, last used) with
   a Revoke button. Tokens you already granted show up too, since they were

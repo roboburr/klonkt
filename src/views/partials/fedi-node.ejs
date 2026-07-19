@@ -30,13 +30,13 @@
       </form>
       <details class="fedi-owner-reply">
         <summary class="fedi-cact fedi-cact-reply" title="<%= t('fedi.remote_reply_short') %>" aria-label="<%= t('fedi.remote_reply_short') %>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg></summary>
-        <form method="post" action="<%= _base %>/posts/<%= postSlug %>/fedi-reply" class="comment-reply-form">
-          <input type="hidden" name="interaction_id" value="<%= n.id %>">
-          <textarea name="text" rows="2" required placeholder="<%= t('fedi.reply_ph') %>"></textarea>
-          <div class="comment-reply-form-actions">
-            <button type="submit" class="btn"><%= t('fedi.send') %></button>
-          </div>
-        </form>
+        <%- include('reply-editor', {
+          action: _base + '/posts/' + postSlug + '/fedi-reply',
+          hiddenFields: [{ name: 'interaction_id', value: n.id }],
+          placeholder: t('fedi.reply_ph'),
+          submitLabel: t('fedi.send'),
+          rows: 2,
+        }) %>
       </details>
       <%# Owner moderation: report to their instance + remove (tombstoned: never comes back via re-delivery or thread-crawl). %>
       <form method="post" action="<%= _base %>/interactions/<%= n.id %>/report" class="fedi-owner-react" data-confirm="<%= t('fedi.mod_report_confirm') %>">

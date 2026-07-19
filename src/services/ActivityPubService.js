@@ -232,6 +232,8 @@ export function buildNote(base, site, post, opts = {}) {
       attributedTo: meR,
       inReplyTo: post.in_reply_to || undefined,
       content: post.content,
+      // Reply language (rich replies): the AS2 language map next to `content`.
+      contentMap: post.language ? { [post.language]: post.content } : undefined,
       url: post.post_slug ? `${base}/${encodeURIComponent(post.post_slug)}` : undefined,
       published: toISO(post.created_at),
       to: post.to_actor ? [post.to_actor] : [PUBLIC],
@@ -709,7 +711,7 @@ function iStmts() {
     _delReply = db.prepare("DELETE FROM ap_interactions WHERE kind = 'reply' AND object_uri = ?");
     _listI = db.prepare('SELECT id, kind, object_uri, parent_uri, actor_uri, actor_name, actor_handle, actor_url, actor_icon, content, published, created_at, acted_boost, acted_like, visibility FROM ap_interactions WHERE post_id = ? ORDER BY created_at ASC');
     _getI = db.prepare('SELECT * FROM ap_interactions WHERE id = ?');
-    _insO = db.prepare('INSERT INTO ap_outbox (id, site_slug, post_id, post_slug, in_reply_to, to_actor, to_handle, content, created_at) VALUES (?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)');
+    _insO = db.prepare('INSERT INTO ap_outbox (id, site_slug, post_id, post_slug, in_reply_to, to_actor, to_handle, content, language, created_at) VALUES (?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)');
     _listO = db.prepare('SELECT * FROM ap_outbox WHERE post_id = ? ORDER BY created_at ASC');
     _getO = db.prepare('SELECT * FROM ap_outbox WHERE id = ?');
   }
@@ -1853,23 +1855,45 @@ async function c2sCreatePost(base, site, user, object) {
 
 // Send a reply FROM this site to a remote actor (in reply to their inbound reply).
 // `parent` = an ap_interactions row (actor_uri, actor_url, actor_handle, object_uri).
-export async function deliverReply(site, { postId, postSlug, parent, text }) {
+export async function deliverReply(site, { postId, postSlug, parent, text, html, language }) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
-  if (!base || !site || !site.slug || !parent || !String(text || '').trim()) return null;
+  // Rich replies: `html` is the reply editor's HTML (sanitized here); `text` is
+  // the plain-text fallback (no-JS path, C2S `source`). Either may carry the reply.
+  const richClean = html ? HtmlSanitizerService.sanitize(String(html)) : '';
+  const rich = richClean && HtmlSanitizerService.toPlainText(richClean).trim() ? richClean : '';
+  if (!base || !site || !site.slug || !parent || (!String(text || '').trim() && !rich)) return null;
   const me = actorId(base, site.slug);
   const handle = parent.actor_handle || deriveHandle(parent.actor_uri);
   const dispHandle = handle && handle[0] === '@' ? handle : '@' + (handle || '');
-  const body = escHtml(String(text).trim()).replace(/\r?\n/g, '<br>');
-  const mres = await resolveMentionsInText(base, body); // link inline @mentions + collect their inboxes
   const mention = parent.actor_uri
     ? `<a href="${escHtml(parent.actor_url || parent.actor_uri)}" class="u-url mention" data-actor="${escHtml(parent.actor_uri)}">${escHtml(dispHandle)}</a> ` : '';
-  const content = `<p>${mention}${linkUrls(linkHashtags(base, mres.html))}</p>`;
+  let content;
+  let mres;
+  if (rich) {
+    // Same enrichment pipeline as the plain path (mentions/hashtags/URLs), on
+    // sanitized editor HTML. The parent mention goes inline into the first
+    // paragraph (Mastodon convention), or becomes its own leading one.
+    mres = await resolveMentionsInText(base, rich);
+    const processed = linkUrls(linkHashtags(base, mres.html));
+    if (processed.startsWith('<p>')) {
+      content = processed.replace('<p>', `<p>${mention}`);            // inline in the first paragraph
+    } else if (/^<(blockquote|ul|ol|pre|h[1-6]|div|hr)\b/i.test(processed)) {
+      content = `<p>${mention}</p>${processed}`;                      // block content: own leading paragraph
+    } else {
+      content = `<p>${mention}${processed}</p>`;                      // bare inline text: one paragraph together
+    }
+  } else {
+    const body = escHtml(String(text).trim()).replace(/\r?\n/g, '<br>');
+    mres = await resolveMentionsInText(base, body); // link inline @mentions + collect their inboxes
+    content = `<p>${mention}${linkUrls(linkHashtags(base, mres.html))}</p>`;
+  }
+  const replyLang = /^[a-z]{2,3}(-[A-Za-z0-9-]+)?$/.test(String(language || '')) ? language : null;
   // Dedup: skip if the exact same reply was already sent (double-submit guard).
   const dup = db.prepare('SELECT 1 FROM ap_outbox WHERE site_slug = ? AND IFNULL(in_reply_to, \'\') = ? AND content = ? LIMIT 1')
     .get(site.slug, parent.object_uri || '', content);
   if (dup) { console.log('[AP] outreply skipped (duplicate)'); return { duplicate: true, delivered: 0 }; }
   const id = crypto.randomUUID();
-  iStmts().insO.run(id, site.slug, postId, postSlug || null, parent.object_uri || null, parent.actor_uri || null, handle, content);
+  iStmts().insO.run(id, site.slug, postId, postSlug || null, parent.object_uri || null, parent.actor_uri || null, handle, content, replyLang);
   const row = iStmts().getO.get(id);
   const note = buildReplyNote(base, site, row);
   const create = {
