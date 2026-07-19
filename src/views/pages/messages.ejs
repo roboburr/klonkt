@@ -6,9 +6,15 @@
 
   <div class="msg-filters" role="tablist" aria-label="<%= t('msg.title') %>">
     <button type="button" class="msg-chip is-on" data-show="all"><%= t('msg.filter_all') %></button>
+    <button type="button" class="msg-chip" data-show="msgs"><%= t('msg.filter_msgs') %></button>
     <button type="button" class="msg-chip" data-show="conv"><%= t('msg.filter_conv') %></button>
     <button type="button" class="msg-chip" data-show="act"><%= t('msg.filter_act') %></button>
+    <button type="button" class="msg-chip" data-show="mod"><%= t('msg.filter_mod') %></button>
     <button type="button" class="msg-chip" data-show="sent"><%= t('msg.filter_sent') %></button>
+  </div>
+  <div class="msg-search">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input type="search" id="msg-q" placeholder="<%= t('msg.search_ph') %>" autocomplete="off" spellcheck="false" aria-label="<%= t('msg.search_ph') %>">
   </div>
 
   <% var _seen = (typeof seenAt !== 'undefined' && seenAt) ? seenAt : 0; %>
@@ -18,13 +24,21 @@
     <ul class="msg-list" data-show="all">
       <% items.forEach(function(n){
            var _t = n.type === 'announce' ? 'boost' : n.type; // reply|mention|report|like|boost|follow|sent
-           var _kind = (_t === 'like' || _t === 'boost' || _t === 'follow') ? 'act' : (_t === 'sent' ? 'sent' : 'conv');
            var _new = _seen && n.created_at ? (Date.parse(n.created_at) > _seen) : false;
            var _who = n.name || n.handle || '';
+           var _priv0 = (n.visibility === 'followers' || n.visibility === 'direct');
+           // Buckets (klonkt-demo-3jf): Messages = @mentions + private (DM) replies;
+           // Activity = likes/boosts/follows; Moderation = reports; Sent = your
+           // replies; Conversations = every other (public) reply.
+           var _kind = _t === 'sent' ? 'sent'
+             : (_t === 'like' || _t === 'boost' || _t === 'follow') ? 'act'
+             : _t === 'report' ? 'mod'
+             : (_t === 'mention' || _priv0) ? 'msgs'
+             : 'conv';
            var _init = String(_who || '?').replace(/^@/, '').charAt(0).toUpperCase();
            var _priv = (n.visibility === 'followers' || n.visibility === 'direct');
       %>
-        <li class="msg-item msg-<%= _t %><%= _new ? ' is-new' : '' %>" data-kind="<%= _kind %>">
+        <li class="msg-item msg-<%= _t %><%= _new ? ' is-new' : '' %>" data-kind="<%= _kind %>" data-who="<%= String(_who).toLowerCase() %>">
           <span class="msg-av<%= _t === 'sent' ? ' msg-av-sent' : '' %>" aria-hidden="true">
             <% if (_t === 'sent') { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
             <% } else if (n.icon) { %><img src="<%= avatar(n.icon, 96) %>" alt="" loading="lazy">
@@ -99,6 +113,7 @@
         </li>
       <% }); %>
     </ul>
+    <p class="msg-nomatch" hidden><%= t('msg.no_match') %></p>
   <% } %>
 
   <%# Interact bookmarklet — moved here from the old Reacties page. %>
@@ -115,12 +130,41 @@
 <script>
 (function () {
   if (window.__msgWired) return; window.__msgWired = true;
+
+  // Filtering: kind chip AND free-text search, combined in JS (search over the
+  // sender and the rendered message text). Empty search + "all" = show all.
+  var list = document.querySelector('.msg-list');
+  var noMatch = document.querySelector('.msg-nomatch');
+  var q = document.getElementById('msg-q');
+  var kind = 'all';
+  var items = list ? Array.prototype.slice.call(list.querySelectorAll('.msg-item')) : [];
+  items.forEach(function (li) {
+    // Index once: sender + message body + linked post title.
+    var body = li.querySelector('.msg-content');
+    var post = li.querySelector('.msg-post');
+    li._search = ((li.getAttribute('data-who') || '') + ' ' +
+      (body ? body.textContent : '') + ' ' + (post ? post.textContent : '')).toLowerCase();
+  });
+  function apply() {
+    if (!list) return;
+    var term = (q && q.value || '').trim().toLowerCase();
+    var shown = 0;
+    items.forEach(function (li) {
+      var ok = (kind === 'all' || li.getAttribute('data-kind') === kind) &&
+        (!term || li._search.indexOf(term) !== -1);
+      li.style.display = ok ? '' : 'none';
+      if (ok) shown++;
+    });
+    if (noMatch) noMatch.hidden = shown !== 0;
+  }
   document.addEventListener('click', function (e) {
     var chip = e.target.closest('.msg-chip'); if (!chip) return;
-    var list = document.querySelector('.msg-list'); if (!list) return;
-    list.setAttribute('data-show', chip.getAttribute('data-show'));
+    kind = chip.getAttribute('data-show');
     document.querySelectorAll('.msg-chip').forEach(function (c) { c.classList.toggle('is-on', c === chip); });
+    apply();
   });
+  if (q) q.addEventListener('input', apply);
+
   var a = document.getElementById('fedi-bm-btn');
   if (a) {
     a.setAttribute('href', "javascript:void(window.open('" + location.origin + "/authorize_interaction?uri='+encodeURIComponent(window.location.href)))");
@@ -140,10 +184,15 @@
     padding: .3rem .85rem; border-radius: 999px; cursor: pointer; }
   .msg-chip.is-on { background: var(--accent, #06c); border-color: var(--accent, #06c); color: #fff; }
 
+  .msg-search { display: flex; align-items: center; gap: .5rem; margin: 0 0 1.1rem;
+    padding: .45rem .7rem; border-radius: 10px;
+    border: 1px solid color-mix(in srgb, var(--ink, #000) 16%, transparent); }
+  .msg-search:focus-within { border-color: var(--accent, #06c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #06c) 18%, transparent); }
+  .msg-search svg { width: 16px; height: 16px; color: var(--ink-soft, #888); flex-shrink: 0; }
+  .msg-search input { flex: 1; border: none; background: none; color: inherit; font: inherit; outline: none; min-width: 0; }
+  .msg-nomatch { color: var(--ink-soft, #888); text-align: center; padding: 1.2rem 0; }
+
   .msg-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .55rem; }
-  .msg-list[data-show="conv"] li:not([data-kind="conv"]) { display: none; }
-  .msg-list[data-show="act"]  li:not([data-kind="act"])  { display: none; }
-  .msg-list[data-show="sent"] li:not([data-kind="sent"]) { display: none; }
 
   .msg-item { display: flex; gap: .8rem; padding: .85rem .95rem; border-radius: 14px; align-items: flex-start;
     background: color-mix(in srgb, var(--ink, #000) 3.5%, transparent);

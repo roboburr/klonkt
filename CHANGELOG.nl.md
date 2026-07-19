@@ -6,6 +6,11 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 ## [Unreleased]
 
 ### Toegevoegd
+- **Berichten: scherpere filters en een zoekveld.** De filterchips zijn nu
+  Berichten (@mentions en privé/DM-reacties), Gesprekken (publieke reacties),
+  Activiteit (likes, boosts, follows), Moderatie (rapporten) en Verzonden, naast
+  Alles. Een zoekveld filtert de lijst op afzender en berichttekst, en werkt
+  samen met de actieve chip. Volledig client-side, direct.
 - **De reactie-editor is visueel opgeschoond.** De werkbalk gebruikt nu dezelfde
   iconen en 32px-knoppen als de post-editor, met actieve opmaak gevuld in de
   accentkleur, een gekaderde editor-box met focus-ring, en nettere taal-,

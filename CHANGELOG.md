@@ -6,6 +6,11 @@ Versions follow [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Messages: sharper filters and a search box.** The filter chips are now
+  Messages (@mentions and private/DM replies), Conversations (public replies),
+  Activity (likes, boosts, follows), Moderation (reports) and Sent, next to All.
+  A search box filters the list by sender and message text, and combines with
+  the active chip. All client-side, instant.
 - **The reply editor got a visual clean-up.** Its toolbar now uses the same
   icon set and 32px buttons as the post editor, with active formatting shown
   filled in the accent colour, a framed editor box with a focus ring, and

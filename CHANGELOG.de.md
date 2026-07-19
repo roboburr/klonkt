@@ -6,6 +6,12 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 ## [Unreleased]
 
 ### Hinzugefügt
+- **Nachrichten: schärfere Filter und ein Suchfeld.** Die Filter-Chips sind
+  jetzt Nachrichten (@Mentions und private/DM-Antworten), Gespräche (öffentliche
+  Antworten), Aktivität (Likes, Boosts, Follows), Moderation (Meldungen) und
+  Gesendet, neben Alle. Ein Suchfeld filtert die Liste nach Absender und
+  Nachrichtentext und kombiniert sich mit dem aktiven Chip. Komplett
+  client-seitig, sofort.
 - **Der Antwort-Editor wurde optisch aufgeräumt.** Seine Symbolleiste nutzt jetzt
   dieselben Icons und 32px-Buttons wie der Beitragseditor, aktive Formatierung
   in der Akzentfarbe gefüllt, eine gerahmte Editor-Box mit Fokus-Ring und
