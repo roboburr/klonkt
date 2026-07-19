@@ -6,6 +6,13 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 ## [Unreleased]
 
 ### Hinzugefügt
+- **Der Antwort-Editor zeigt, wen du adressierst (reichhaltige Antworten,
+  Phase 3).** Eine "An:"-Leiste über dem Editor zeigt die Gesprächspartner (den
+  Autor, dem du antwortest, plus die früheren Autoren des Threads) als
+  entfernbare Chips, statt deinen Text mit @Mentions zu füllen. Entferne einen
+  Chip und diese Person wird nicht mehr erwähnt, getaggt oder angepingt; selbst
+  getippte Mentions bleiben im Text. Das Bearbeiten einer gesendeten Antwort
+  behält jede Co-Mention.
 - **Das Bearbeiten einer gesendeten Antwort nutzt jetzt ebenfalls den
   Rich-Editor.** Die Bearbeiten-Formulare auf Nachrichten und der
   Interaktionsseite öffnen denselben Editor wie neue Antworten (Formatierung

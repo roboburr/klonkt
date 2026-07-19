@@ -53,6 +53,7 @@
           placeholder: t('fedi.reply_ph'),
           submitLabel: t('fedi.send'),
           rows: 2,
+          participants: n.participants || [],
         }) %>
       </details>
       <%# Owner moderation: report to their instance + remove (tombstoned: never comes back via re-delivery or thread-crawl). %>

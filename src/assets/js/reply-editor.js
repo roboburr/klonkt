@@ -144,6 +144,23 @@
     });
     }
 
+    // Mentions bar (u02): removing a chip stops addressing that partner. The
+    // hidden field always mirrors the remaining chips.
+    var mField = form.querySelector('input[name="mentions"]');
+    if (mField) {
+      var parts = [];
+      try { parts = JSON.parse(mField.value || '[]'); } catch (e) { parts = []; }
+      form.querySelectorAll('.re-mention-del').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var chip = btn.closest('.re-mention');
+          var uri = chip.getAttribute('data-uri');
+          parts = parts.filter(function (p) { return p.uri !== uri; });
+          mField.value = JSON.stringify(parts);
+          chip.remove();
+        });
+      });
+    }
+
     // Full-screen compose on mobile: enter on focus, leave via ×.
     function setFull(on) {
       form.classList.toggle('re-full', on);

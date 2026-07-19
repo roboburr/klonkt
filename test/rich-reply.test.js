@@ -143,3 +143,60 @@ test('plain edit path unchanged; bogus language keeps the old one', async () => 
   assert.match(row.content, /plain bewerkt/);
   assert.equal(row.language, 'nl');
 });
+
+test('participants: node author plus ancestor chain, deduped, self skipped', () => {
+  db.prepare(`INSERT INTO ap_interactions (post_id, kind, actor_uri, actor_handle, actor_url, content, object_uri, parent_uri, visibility)
+              VALUES ('p1','reply','https://a.test/u/alice','@alice@a.test','https://a.test/@alice','<p>top</p>','https://a.test/n/1',NULL,'public')`).run();
+  db.prepare(`INSERT INTO ap_interactions (post_id, kind, actor_uri, actor_handle, actor_url, content, object_uri, parent_uri, visibility)
+              VALUES ('p1','reply','https://b.test/u/bob','@bob@b.test','https://b.test/@bob','<p>kind</p>','https://b.test/n/2','https://a.test/n/1','public')`).run();
+  const { thread } = AP.getInteractions('p1', 'https://klonkt.test', site);
+  const top = thread.find((n) => n.noteId === 'https://a.test/n/1');
+  const child = top.children.find((n) => n.noteId === 'https://b.test/n/2');
+  assert.deepEqual(top.participants.map((p) => p.uri), ['https://a.test/u/alice']);
+  assert.deepEqual(child.participants.map((p) => p.uri), ['https://b.test/u/bob', 'https://a.test/u/alice']);
+  assert.equal(child.participants[1].handle, '@alice@a.test');
+});
+
+test('kept mentions: prefix carries every chip, tags follow, to_actor = parent', async () => {
+  const r = await AP.deliverReply(site, {
+    postId: 'p1', postSlug: 'hallo', parent, text: 'hoi allebei',
+    mentions: [
+      { uri: parent.actor_uri, url: parent.actor_url, handle: parent.actor_handle },
+      { uri: 'https://b.test/u/bob', url: 'https://b.test/@bob', handle: '@bob@b.test' },
+    ],
+  });
+  const row = db.prepare('SELECT * FROM ap_outbox WHERE id = ?').get(r.id);
+  assert.equal(row.to_actor, parent.actor_uri);
+  const note = AP.buildReplyNote('https://klonkt.test', site, row);
+  const mentionTags = note.tag.filter((t) => t.type === 'Mention');
+  assert.deepEqual(mentionTags.map((t) => t.href).sort(), [parent.actor_uri, 'https://b.test/u/bob'].sort());
+});
+
+test('parent removed from the bar: no mention prefix for it, note goes public-only', async () => {
+  const r = await AP.deliverReply(site, {
+    postId: 'p1', postSlug: 'hallo', parent, text: 'zonder ping', mentions: [],
+  });
+  const row = db.prepare('SELECT * FROM ap_outbox WHERE id = ?').get(r.id);
+  assert.equal(row.to_actor, null);
+  assert.doesNotMatch(row.content, /u-url mention/);
+  const note = AP.buildReplyNote('https://klonkt.test', site, row);
+  assert.deepEqual(note.to, ['https://www.w3.org/ns/activitystreams#Public']);
+  assert.equal(note.tag.filter((t) => t.type === 'Mention').length, 0);
+});
+
+test('editing a multi-mention reply keeps every co-mention', async () => {
+  const r = await AP.deliverReply(site, {
+    postId: 'p1', postSlug: 'hallo', parent, text: 'multi',
+    mentions: [
+      { uri: parent.actor_uri, url: parent.actor_url, handle: parent.actor_handle },
+      { uri: 'https://b.test/u/bob', url: 'https://b.test/@bob', handle: '@bob@b.test' },
+    ],
+  });
+  const upd = await AP.deliverOutboxUpdate(site, r.id, '', { html: '<p>aangepast</p>' });
+  assert.ok(upd && upd.ok);
+  const row = db.prepare('SELECT * FROM ap_outbox WHERE id = ?').get(r.id);
+  assert.match(row.content, /aangepast/);
+  const note = AP.buildReplyNote('https://klonkt.test', site, row);
+  assert.deepEqual(note.tag.filter((t) => t.type === 'Mention').map((t) => t.href).sort(),
+    [parent.actor_uri, 'https://b.test/u/bob'].sort());
+});

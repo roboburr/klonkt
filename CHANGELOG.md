@@ -6,6 +6,12 @@ Versions follow [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **The reply editor shows who you are addressing (rich replies, phase 3).** A
+  "To:" bar above the editor lists the conversation partners (the author you
+  reply to plus the thread's earlier authors) as removable chips, instead of
+  cluttering your text with @mentions. Remove a chip and that person is no
+  longer mentioned, tagged or pinged; mentions you type yourself stay in the
+  text. Editing a sent reply keeps every co-mention intact.
 - **Editing a sent reply uses the rich editor too.** The edit forms on Messages
   and the interact page open the same editor as new replies (formatting kept,
   language adjustable, full-screen on phones). Attachments on the reply survive

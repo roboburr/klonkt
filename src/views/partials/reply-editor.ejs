@@ -18,10 +18,14 @@
     initialHtml   prefill for EDIT mode (our own sanitized HTML) (optional)
     initialText   plain-text prefill for the no-JS textarea (optional)
     noAttach      true hides the media button (edits do not touch attachments)
+    participants  [{uri, url, handle}] conversation partners → the mentions bar
+                  (u02): implicit mentions live here as removable chips, not in
+                  the text. Absent = no bar, legacy addressing.
 %>
 <% var _reInitHtml = (typeof initialHtml !== 'undefined' && initialHtml) || ''; %>
 <% var _reInitText = (typeof initialText !== 'undefined' && initialText) || ''; %>
 <% var _reNoAttach = (typeof noAttach !== 'undefined' && noAttach); %>
+<% var _reParts = (typeof participants !== 'undefined' && participants && participants.length) ? participants : null; %>
 <% var _reLang = (typeof defaultLang !== 'undefined' && defaultLang) || (typeof lang !== 'undefined' ? lang : 'en'); %>
 <form method="post" action="<%= action %>" class="re-form" data-re
       data-upload="/posts/upload-reply-media" data-upload-err="<%= t('re.attach_err') %>">
@@ -29,6 +33,18 @@
     <input type="hidden" name="<%= h.name %>" value="<%= h.value %>">
   <% }); %>
   <input type="hidden" name="content" value="">
+  <%# Mentions bar (u02): the conversation partners as removable chips. The
+      hidden field always carries the CURRENT kept list (server-rendered full,
+      so the no-JS path addresses everyone). %>
+  <% if (_reParts) { %>
+    <input type="hidden" name="mentions" value="<%= JSON.stringify(_reParts) %>">
+    <div class="re-mentions">
+      <span class="re-mentions-label"><%= t('re.to') %></span>
+      <% _reParts.forEach(function (p) { %>
+        <span class="re-mention" data-uri="<%= p.uri %>"><%= p.handle && p.handle[0] === '@' ? p.handle : '@' + p.handle %><button type="button" class="re-mention-del" title="<%= t('re.mention_del') %>" aria-label="<%= t('re.mention_del') %>">×</button></span>
+      <% }); %>
+    </div>
+  <% } %>
   <%# Full-screen top bar (mobile compose). Hidden until JS + fullscreen. %>
   <div class="re-head" hidden>
     <button type="button" class="re-cancel" aria-label="<%= t('comments.cancel') %>">×</button>

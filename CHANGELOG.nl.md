@@ -6,6 +6,13 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 ## [Unreleased]
 
 ### Toegevoegd
+- **De reactie-editor toont wie je adresseert (rijke reacties, fase 3).** Een
+  "Aan:"-balk boven de editor toont de gesprekspartners (de auteur waarop je
+  reageert plus de eerdere auteurs in de thread) als verwijderbare chips, in
+  plaats van @mentions die je tekst vervuilen. Verwijder een chip en die persoon
+  wordt niet meer genoemd, getagd of gepingd; mentions die je zelf typt blijven
+  gewoon in de tekst staan. Een verzonden reactie bewerken houdt elke co-mention
+  intact.
 - **Een verzonden reactie bewerken gebruikt nu ook de rijke editor.** De
   bewerk-formulieren op Berichten en de interactiepagina openen dezelfde editor
   als nieuwe reacties (opmaak blijft, taal aanpasbaar, volledig scherm op

@@ -760,10 +760,12 @@ router.post('/authorize_interaction', requireSiteManager, (req, res) => {
   const language = (req.body.language || '').toString();
   let attachments = [];
   try { attachments = JSON.parse(req.body.attachments || '[]'); } catch { /* geen media */ }
+  let mentions;   // undefined = geen balk meegestuurd (legacy addressing)
+  try { if (req.body.mentions !== undefined) mentions = JSON.parse(req.body.mentions || '[]'); } catch { mentions = undefined; }
   if (site && uri && (text.trim() || html.trim() || (Array.isArray(attachments) && attachments.length))) {
     // Resolve + deliver in the background so Send responds instantly.
     ActivityPubService.resolveRemoteNote(uri)
-      .then((parent) => parent && ActivityPubService.deliverReply(site, { postId: parent.localPostId || '', postSlug: null, parent, text, html, language, attachments }))
+      .then((parent) => parent && ActivityPubService.deliverReply(site, { postId: parent.localPostId || '', postSlug: null, parent, text, html, language, attachments, mentions }))
       .catch((e) => console.warn('[AP] remote reply failed:', e.message));
   }
   res.redirect('/authorize_interaction?sent=1&uri=' + encodeURIComponent(uri));
@@ -1313,10 +1315,12 @@ router.post('/posts/:slug/fedi-reply', requireSiteManager, async (req, res) => {
   const html = (req.body.content || '').toString();      // rich reply editor HTML (sanitized in deliverReply)
   let attachments = [];
   try { attachments = JSON.parse(req.body.attachments || '[]'); } catch { /* geen media */ }
+  let mentions;   // undefined = geen balk meegestuurd (legacy addressing)
+  try { if (req.body.mentions !== undefined) mentions = JSON.parse(req.body.mentions || '[]'); } catch { mentions = undefined; }
   if (parent && parent.post_id === post.id && (text.trim() || html.trim() || (Array.isArray(attachments) && attachments.length))) {
     try {
       await ActivityPubService.deliverReply(site, {
-        postId: post.id, postSlug: post.slug, parent, text, html, attachments,
+        postId: post.id, postSlug: post.slug, parent, text, html, attachments, mentions,
         language: (req.body.language || '').toString(),
       });
     } catch (e) { console.warn('[AP] reply send failed:', e.message); }

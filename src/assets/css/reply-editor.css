@@ -29,6 +29,18 @@
   background: transparent; color: inherit; max-width: 10rem;
 }
 
+/* Mentions bar (u02): conversation partners as removable chips. */
+.re-mentions { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
+.re-mentions-label { font-size: .78rem; color: color-mix(in srgb, var(--ink, #000) 55%, transparent); }
+.re-mention {
+  display: inline-flex; align-items: center; gap: .2rem;
+  padding: .15rem .3rem .15rem .55rem; border-radius: 999px; font-size: .8rem;
+  background: color-mix(in srgb, var(--accent, #06c) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent, #06c) 30%, transparent);
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.re-mention-del { border: none; background: none; color: inherit; font-size: 1rem; line-height: 1; cursor: pointer; padding: 0 .25rem; }
+
 /* Media attachments (chips under the editor). */
 .re-attachments { display: flex; flex-wrap: wrap; gap: .4rem; }
 .re-att {
@@ -63,6 +75,7 @@
   padding-bottom: calc(.8rem + env(safe-area-inset-bottom));
   gap: .6rem;
 }
+.re-form.re-full .re-head { order: -1; }   /* the top bar stays topmost, above the mentions bar */
 .re-form.re-full .re-editor { flex: 1; min-height: 0; overflow-y: auto; border: none; padding: .4rem .1rem; }
 .re-form.re-full .re-editor:focus { border: none; }
 .re-form.re-full .re-send { display: none; }         /* send lives in the top bar */

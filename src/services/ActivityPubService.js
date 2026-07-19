@@ -821,6 +821,7 @@ export function getInteractions(postId, base, site) {
     if (r.kind !== 'reply') continue;
     nodes.push({
       noteId: r.object_uri, parent: r.parent_uri || null, mine: false, id: r.id,
+      actor_uri: r.actor_uri,
       actor_name: r.actor_name, actor_handle: r.actor_handle, actor_url: r.actor_url,
       actor_icon: r.actor_icon, content: stripLeadingMentions(r.content), created_at: r.published || r.created_at,
       acted_boost: !!r.acted_boost, acted_like: !!r.acted_like,
@@ -838,6 +839,26 @@ export function getInteractions(postId, base, site) {
   }
 
   const byId = new Map(nodes.map((n) => [n.noteId, n]));
+  // Conversation partners per node (u02, the reply editor's mentions bar): the
+  // node's author plus the ancestor authors up the chain. Our own nodes are
+  // skipped (we do not mention ourselves), deduped by actor, capped at 8.
+  for (const n of nodes) {
+    const seen = new Set();
+    const list = [];
+    let cur = n, guard = 0;
+    while (cur && guard++ < 12 && list.length < 8) {
+      if (!cur.mine && cur.actor_uri && !seen.has(cur.actor_uri)) {
+        seen.add(cur.actor_uri);
+        list.push({
+          uri: cur.actor_uri,
+          url: cur.actor_url || cur.actor_uri,
+          handle: cur.actor_handle || deriveHandle(cur.actor_uri),
+        });
+      }
+      cur = cur.parent ? byId.get(cur.parent) : null;
+    }
+    n.participants = list;
+  }
   const isTop = (n) => !n.parent || n.parent === postNoteId || !byId.has(n.parent);
   const tops = [];
   for (const n of nodes) {
@@ -1871,7 +1892,7 @@ async function c2sCreatePost(base, site, user, object) {
 
 // Send a reply FROM this site to a remote actor (in reply to their inbound reply).
 // `parent` = an ap_interactions row (actor_uri, actor_url, actor_handle, object_uri).
-export async function deliverReply(site, { postId, postSlug, parent, text, html, language, attachments }) {
+export async function deliverReply(site, { postId, postSlug, parent, text, html, language, attachments, mentions }) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   // Rich replies: `html` is the reply editor's HTML (sanitized here); `text` is
   // the plain-text fallback (no-JS path, C2S `source`). Either may carry the reply.
@@ -1887,10 +1908,32 @@ export async function deliverReply(site, { postId, postSlug, parent, text, html,
   // A media-only reply (no text) is a valid reply.
   if (!base || !site || !site.slug || !parent || (!String(text || '').trim() && !rich && !media.length)) return null;
   const me = actorId(base, site.slug);
+  // u02, the mentions bar: `mentions` undefined = legacy behavior (mention the
+  // parent author). An ARRAY (possibly empty) = the kept conversation partners
+  // exactly as the bar shows them; the mention prefix, the Mention tags (via
+  // mentionTags over the content) and the delivery targets all follow it.
+  const kept = Array.isArray(mentions)
+    ? mentions
+      .filter((m) => m && typeof m.uri === 'string' && /^https?:\/\//i.test(m.uri))
+      .slice(0, 8)
+      .map((m) => ({
+        uri: m.uri,
+        url: (typeof m.url === 'string' && /^https?:\/\//i.test(m.url)) ? m.url : m.uri,
+        handle: String(m.handle || deriveHandle(m.uri)).slice(0, 120),
+      }))
+    : null;
+  const mentionAnchor = (uri, url, h) => {
+    const disp = h && h[0] === '@' ? h : '@' + (h || '');
+    return `<a href="${escHtml(url || uri)}" class="u-url mention" data-actor="${escHtml(uri)}">${escHtml(disp)}</a> `;
+  };
   const handle = parent.actor_handle || deriveHandle(parent.actor_uri);
-  const dispHandle = handle && handle[0] === '@' ? handle : '@' + (handle || '');
-  const mention = parent.actor_uri
-    ? `<a href="${escHtml(parent.actor_url || parent.actor_uri)}" class="u-url mention" data-actor="${escHtml(parent.actor_uri)}">${escHtml(dispHandle)}</a> ` : '';
+  const mention = kept
+    ? kept.map((k) => mentionAnchor(k.uri, k.url, k.handle)).join('')
+    : (parent.actor_uri ? mentionAnchor(parent.actor_uri, parent.actor_url, handle) : '');
+  // Who the stored reply is "to": the parent when kept, else the first kept chip.
+  const parentKept = !kept || kept.some((k) => k.uri === parent.actor_uri);
+  const toActorUri = parentKept ? (parent.actor_uri || null) : (kept[0] ? kept[0].uri : null);
+  const toHandle = parentKept ? handle : (kept[0] ? kept[0].handle : null);
   let content;
   let mres;
   if (rich) {
@@ -1919,7 +1962,7 @@ export async function deliverReply(site, { postId, postSlug, parent, text, html,
     .get(site.slug, parent.object_uri || '', content, mediaJson);
   if (dup) { console.log('[AP] outreply skipped (duplicate)'); return { duplicate: true, delivered: 0 }; }
   const id = crypto.randomUUID();
-  iStmts().insO.run(id, site.slug, postId, postSlug || null, parent.object_uri || null, parent.actor_uri || null, handle, content, replyLang, mediaJson);
+  iStmts().insO.run(id, site.slug, postId, postSlug || null, parent.object_uri || null, toActorUri, toHandle, content, replyLang, mediaJson);
   const row = iStmts().getO.get(id);
   const note = buildReplyNote(base, site, row);
   const create = {
@@ -1930,8 +1973,10 @@ export async function deliverReply(site, { postId, postSlug, parent, text, html,
   const keys = getOrCreateKeys(site.slug);
   const keyId = `${me}#main-key`;
   const inboxes = new Set();
-  if (parent.actor_uri) {
-    const a = await fetchActor(parent.actor_uri).catch(() => null);
+  // Everyone the mentions bar kept gets pinged; legacy path = the parent only.
+  const mentionTargets = kept ? kept.map((k) => k.uri) : (parent.actor_uri ? [parent.actor_uri] : []);
+  for (const uri of mentionTargets) {
+    const a = await fetchActor(uri).catch(() => null);
     if (a) inboxes.add((a.endpoints && a.endpoints.sharedInbox) || a.inbox);
   }
   if (parent.threadInbox) inboxes.add(parent.threadInbox); // back-compat (single)
@@ -2091,8 +2136,13 @@ export async function deliverOutboxUpdate(site, outboxId, newText, opts = {}) {
   const toProfile = row.to_actor ? (actorInfo(toActor, row.to_actor).url || row.to_actor) : '';
   const _h = row.to_handle || deriveHandle(row.to_actor);
   const toHandle = _h && _h[0] === '@' ? _h : '@' + (_h || '');
-  const mention = row.to_actor
-    ? `<a href="${escHtml(toProfile)}" class="u-url mention" data-actor="${escHtml(row.to_actor)}">${escHtml(toHandle)}</a> ` : '';
+  // An edit must not drop co-mentions (u02): reuse the OLD content's leading
+  // mention anchors (the bar's kept list at send time) when present; only fall
+  // back to rebuilding the single to_actor mention for legacy rows.
+  const oldPrefix = (String(row.content || '')
+    .match(/^\s*(?:<p[^>]*>)?\s*((?:<a\b[^>]*class="u-url mention"[^>]*>\s*@[^<]+<\/a>[\s ]*)+)/i) || [])[1] || '';
+  const mention = oldPrefix || (row.to_actor
+    ? `<a href="${escHtml(toProfile)}" class="u-url mention" data-actor="${escHtml(row.to_actor)}">${escHtml(toHandle)}</a> ` : '');
   let content;
   let mres;
   if (rich) {

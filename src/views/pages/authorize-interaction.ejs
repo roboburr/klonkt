@@ -203,6 +203,11 @@
         placeholder: t('fedi.reply_ph'),
         submitLabel: t('fedi.send'),
         rows: 4,
+        participants: (target && target.actor_uri) ? [{
+          uri: target.actor_uri,
+          url: target.actor_url || target.actor_uri,
+          handle: target.actor_handle || '',
+        }] : [],
       }) %>
       <div class="auth-interact-actions"><a href="<%= uri %>" class="btn"><%= t('comments.cancel') %></a></div>
     </div>
