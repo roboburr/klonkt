@@ -1,0 +1,60 @@
+<div class="oa-wrap">
+  <h1 class="oa-title"><%= t('oauth.title') %></h1>
+  <p class="oa-lead">
+    <strong><%= client.client_name %></strong>
+    <%= t('oauth.wants_access') %>
+  </p>
+
+  <form method="post" action="/oauth/authorize" class="oa-form">
+    <input type="hidden" name="client_id" value="<%= params.client_id %>">
+    <input type="hidden" name="redirect_uri" value="<%= params.redirect_uri %>">
+    <input type="hidden" name="code_challenge" value="<%= params.code_challenge %>">
+    <input type="hidden" name="scope" value="<%= params.scope %>">
+    <input type="hidden" name="state" value="<%= params.state %>">
+
+    <label class="oa-label"><%= t('oauth.post_as') %></label>
+    <% if (sites.length === 1) { %>
+      <input type="hidden" name="site_slug" value="<%= sites[0].slug %>">
+      <div class="oa-single"><%= sites[0].title || sites[0].slug %> <span class="oa-slug">@<%= sites[0].slug %></span></div>
+    <% } else { %>
+      <select name="site_slug" class="oa-select">
+        <% sites.forEach(function(s){ %>
+          <option value="<%= s.slug %>"><%= s.title || s.slug %> (@<%= s.slug %>)</option>
+        <% }); %>
+      </select>
+    <% } %>
+
+    <ul class="oa-scopes">
+      <li><%= t('oauth.scope_read') %></li>
+      <li><%= t('oauth.scope_write') %></li>
+    </ul>
+
+    <div class="oa-actions">
+      <button type="submit" name="decision" value="deny" class="btn oa-deny"><%= t('oauth.deny') %></button>
+      <button type="submit" name="decision" value="allow" class="btn btn-primary oa-allow"><%= t('oauth.allow') %></button>
+    </div>
+  </form>
+  <p class="oa-foot"><%= t('oauth.foot') %></p>
+</div>
+
+<style>
+  .oa-wrap { max-width: 460px; margin: 2.5rem auto; padding: 1.75rem 1.5rem; border-radius: 16px;
+    background: color-mix(in srgb, var(--ink, #000) 3.5%, transparent);
+    border: 1px solid color-mix(in srgb, var(--ink, #000) 10%, transparent); }
+  .oa-title { margin: 0 0 .6rem; font-size: 1.4rem; }
+  .oa-lead { color: var(--ink-soft, #999); line-height: 1.55; margin: 0 0 1.4rem; }
+  .oa-lead strong { color: var(--ink, inherit); }
+  .oa-label { display: block; font-weight: 700; font-size: .82rem; margin: 0 0 .4rem; color: var(--ink-soft, #888); text-transform: uppercase; letter-spacing: .03em; }
+  .oa-single { padding: .6rem .8rem; border-radius: 10px; background: color-mix(in srgb, var(--ink, #000) 5%, transparent); font-weight: 600; }
+  .oa-slug { color: var(--ink-soft, #999); font-weight: 400; }
+  .oa-select { width: 100%; padding: .6rem .8rem; border-radius: 10px; font: inherit;
+    border: 1px solid color-mix(in srgb, var(--ink, #000) 16%, transparent); background: transparent; color: var(--ink, inherit); }
+  .oa-scopes { list-style: none; padding: .9rem 0 0; margin: .9rem 0 0; border-top: 1px solid color-mix(in srgb, var(--ink, #000) 8%, transparent);
+    display: flex; flex-direction: column; gap: .5rem; color: var(--ink-soft, #aaa); }
+  .oa-scopes li { position: relative; padding-left: 1.5rem; line-height: 1.4; }
+  .oa-scopes li::before { content: "✓"; position: absolute; left: 0; color: #2fa85a; font-weight: 700; }
+  .oa-actions { display: flex; gap: .7rem; margin-top: 1.5rem; }
+  .oa-deny { flex: 0 0 auto; }
+  .oa-allow { flex: 1; }
+  .oa-foot { color: var(--ink-soft, #888); font-size: .78rem; line-height: 1.5; margin: 1.1rem 0 0; }
+</style>

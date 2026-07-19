@@ -281,6 +281,34 @@ export function initializeDatabase() {
       reason TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+    -- ActivityPub C2S (client-to-server): OAuth 2.0 for native/web clients (Shaer).
+    -- Public clients + PKCE (RFC 8252); tokens stored hashed; token is per user+site.
+    CREATE TABLE IF NOT EXISTS oauth_clients (
+      client_id TEXT PRIMARY KEY,
+      client_name TEXT,
+      redirect_uris TEXT NOT NULL,        -- JSON array
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS oauth_codes (
+      code TEXT PRIMARY KEY,
+      client_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      site_slug TEXT NOT NULL,
+      redirect_uri TEXT NOT NULL,
+      code_challenge TEXT,                -- PKCE S256 (verplicht voor public clients)
+      scope TEXT,
+      expires_at DATETIME NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS oauth_tokens (
+      token_hash TEXT PRIMARY KEY,        -- sha256(bearer); het token zelf slaan we nooit op
+      client_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      site_slug TEXT NOT NULL,
+      scope TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      last_used_at DATETIME
+    );
     CREATE TABLE IF NOT EXISTS ap_outbox (
       id TEXT PRIMARY KEY,            -- note path segment (uuid) → /ap/notes/<id>
       site_slug TEXT NOT NULL,

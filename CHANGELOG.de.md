@@ -5,6 +5,19 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 
 ## [Unreleased]
 
+### Hinzugefügt
+- **App-Zugriff über OAuth 2.0 (ActivityPub Client-to-Server, Phase 1).** Klonkt
+  spricht jetzt den standardmäßigen AP-C2S-Auth-Handshake, damit native und
+  Web-Clients (zuerst die Shaer-Apps) sich verbinden können: dynamische
+  Client-Registrierung (RFC 7591), ein PKCE-Authorization-Code-Flow mit einem
+  Zustimmungsbildschirm, auf dem du wählst, als welche deiner Seiten die App
+  posten darf, und Bearer-Tokens (gehasht gespeichert, einmalige Codes). Das
+  Actor-Dokument bewirbt die OAuth- und uploadMedia-Endpunkte und
+  `/.well-known/oauth-authorization-server` (RFC 8414) liefert die Metadaten,
+  sodass Clients alles entdecken statt Pfade festzuschreiben. Nur öffentliche
+  Clients + PKCE, keine Client-Secrets. Die Token-annehmende Outbox (POST) ist
+  die nächste Phase.
+
 ### Behoben
 - **Besucher können auf die eigenen Kommentare des Seiteninhabers antworten.**
   Der Knopf "über das Fediverse antworten" erschien nur bei Kommentaren anderer;

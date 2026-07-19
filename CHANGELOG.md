@@ -5,6 +5,17 @@ Versions follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **App access via OAuth 2.0 (ActivityPub Client-to-Server, phase 1).** Klonkt
+  now speaks the standard AP C2S auth handshake so native and web clients (the
+  Shaer apps first) can connect: dynamic client registration (RFC 7591), a
+  PKCE authorization-code flow with a consent screen that picks which of your
+  sites the app may post as, and bearer tokens (stored hashed, single-use
+  codes). The actor document advertises the OAuth and uploadMedia endpoints and
+  `/.well-known/oauth-authorization-server` (RFC 8414) exposes the metadata, so
+  clients discover everything instead of hardcoding paths. Public clients + PKCE
+  only, no client secrets. The token-accepting outbox (POST) is the next phase.
+
 ### Fixed
 - **Visitors can reply to the site owner's own comments.** The "reply via the
   fediverse" button only appeared on comments from others; the site's own

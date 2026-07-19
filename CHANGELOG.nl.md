@@ -5,6 +5,18 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 
 ## [Unreleased]
 
+### Toegevoegd
+- **App-toegang via OAuth 2.0 (ActivityPub Client-to-Server, fase 1).** Klonkt
+  spreekt nu de standaard AP C2S-authenticatie, zodat native en web-apps (de
+  Shaer-apps als eerste) kunnen verbinden: dynamische client-registratie
+  (RFC 7591), een PKCE authorization-code-flow met een toestemmingsscherm waarop
+  je kiest namens welke site de app mag posten, en bearer-tokens (gehasht
+  opgeslagen, eenmalige codes). De actor-doc adverteert de OAuth- en
+  uploadMedia-endpoints en `/.well-known/oauth-authorization-server` (RFC 8414)
+  geeft de metadata, dus apps ontdekken alles in plaats van paden vast te
+  spijkeren. Alleen publieke clients + PKCE, geen client-secrets. De outbox die
+  de tokens accepteert (POST) is de volgende fase.
+
 ### Opgelost
 - **Bezoekers kunnen reageren op de eigen reacties van de site-eigenaar.** De
   knop "reageer via de fediverse" verscheen alleen bij reacties van anderen; bij

@@ -163,7 +163,15 @@ export function buildActor(base, site) {
     followers: `${id}/followers`,
     following: `${id}/following`,
     featured: `${id}/featured`,
-    endpoints: { sharedInbox: `${base}/ap/inbox` },
+    // C2S clients (Shaer apps) discover auth + upload here — no hardcoded paths.
+    // All four are ActivityPub-spec `endpoints` terms. Dynamic client registration
+    // (RFC 7591) is discovered via /.well-known/oauth-authorization-server, not here.
+    endpoints: {
+      sharedInbox: `${base}/ap/inbox`,
+      oauthAuthorizationEndpoint: `${base}/oauth/authorize`,
+      oauthTokenEndpoint: `${base}/oauth/token`,
+      uploadMedia: `${id}/uploadMedia`,
+    },
     publicKey: {
       id: `${id}#main-key`,
       owner: id,

@@ -58,6 +58,7 @@ import adminEpkRoutes from './routes/admin-epk.js';
 import changelogRoutes from './routes/changelog.js';
 import ogRoutes from './routes/og.js';
 import apRoutes from './routes/activitypub.js';
+import oauthRoutes from './routes/oauth.js';
 import { apWants, startDeliveryWorker, selfHealTimeline } from './services/ActivityPubService.js';
 
 // SESSION_SECRET: use the env var if set. Otherwise auto-generate a strong one
@@ -281,6 +282,9 @@ app.use('/media', express.static(process.env.MEDIA_PATH || './storage/media', {
 
 // ActivityPub: WebFinger + /ap/* (site-agnostic, resolves the site by slug).
 app.use(apRoutes);
+// ActivityPub C2S: OAuth 2.0 (native/web clients). Site-agnostic; the consent
+// screen picks which site the token can post as.
+app.use(oauthRoutes);
 
 // Themed OG cards (/og/:slug.png) — resolve the site by slug themselves, so they
 // run before resolveSite and need no site context.
