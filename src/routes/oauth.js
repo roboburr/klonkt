@@ -44,10 +44,36 @@ function redirectWith(redirectUri, params) {
   return q ? `${redirectUri}${sep}${q}` : redirectUri;
 }
 
+// Hand control back to the client at redirect_uri + params. For a web client
+// (http/https) a plain 302 is right. For a NATIVE custom scheme
+// (com.klonkt.shaer:/oauth) a 302 is unreliable: mobile browsers routinely drop
+// a server redirect to a custom scheme (no user gesture). So we serve a tiny
+// interstitial that both auto-forwards AND offers a tap link — a tap is a user
+// gesture that launches the app on Android, and iOS's ASWebAuthenticationSession
+// intercepts either navigation. Same page for allow and deny (neutral copy).
+function finishRedirect(res, redirectUri, params) {
+  const target = redirectWith(redirectUri, params);
+  if (/^https?:\/\//i.test(redirectUri)) return res.redirect(target);
+  const attr = target.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  return res.type('html').send(`<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="refresh" content="0;url=${attr}">
+<title>Return to the app</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;background:#111;color:#eee;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center}
+.box{padding:1.5rem}p{color:#aaa;line-height:1.5}a.btn{display:inline-block;margin-top:1.2rem;padding:.85rem 1.7rem;border-radius:12px;background:#5A32E6;color:#fff;text-decoration:none;font-weight:700}</style>
+</head><body><div class="box">
+<p>Almost done. If the app doesn't open by itself:</p>
+<a class="btn" href="${attr}">Open the app</a>
+</div>
+<script>location.replace(${JSON.stringify(target)});</script>
+</body></html>`);
+}
+
 // Bounce back to the client with an OAuth error (RFC 6749 §4.1.2.1) when we have
 // a validated redirect_uri; otherwise render a plain error (open-redirect guard).
 function authError(res, redirectUri, state, error, desc) {
-  if (redirectUri) return res.redirect(redirectWith(redirectUri, { error, error_description: desc, state }));
+  if (redirectUri) return finishRedirect(res, redirectUri, { error, error_description: desc, state });
   return res.status(400).json({ error, error_description: desc });
 }
 
@@ -110,7 +136,7 @@ router.post('/oauth/authorize', requireAuth, (req, res) => {
     redirectUri: redirect_uri, codeChallenge: code_challenge, scope,
   });
   if (out.error) return authError(res, redirect_uri, state, out.error, out.error_description);
-  return res.redirect(redirectWith(redirect_uri, { code: out.code, state }));
+  return finishRedirect(res, redirect_uri, { code: out.code, state });
 });
 
 // ── Token exchange ───────────────────────────────────────────────────────

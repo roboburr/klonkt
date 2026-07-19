@@ -25,6 +25,12 @@ Versions follow [SemVer](https://semver.org/).
   Mastodon's own API and are not supported by this.
 
 ### Fixed
+- **OAuth consent now hands off reliably to native apps.** After Allow/Deny, a
+  redirect to a native custom scheme (e.g. `com.klonkt.shaer:/oauth`) was a plain
+  302, which mobile browsers silently drop. The consent step now serves a tiny
+  interstitial for non-http redirect URIs that auto-forwards and offers an "Open
+  the app" tap link (a tap reliably launches the app on Android; iOS's web-auth
+  session intercepts either way). Web (http/https) clients still get a 302.
 - **Visitors can reply to the site owner's own comments.** The "reply via the
   fediverse" button only appeared on comments from others; the site's own
   comments in a thread offered visitors nothing, so you could not respond to

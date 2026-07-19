@@ -26,6 +26,13 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
   ondersteund.
 
 ### Opgelost
+- **OAuth-toestemming geeft nu betrouwbaar over aan native apps.** Na Allow/Deny
+  was de redirect naar een native custom-scheme (bijv. `com.klonkt.shaer:/oauth`)
+  een gewone 302, en die negeren mobiele browsers stilzwijgend. De toestemmings-
+  stap serveert nu een klein tussenscherm voor niet-http redirect-URI's dat
+  automatisch doorstuurt én een "Open de app"-tikknop biedt (een tik opent de app
+  betrouwbaar op Android; iOS' web-auth-sessie vangt 'm sowieso op). Web-clients
+  (http/https) krijgen nog steeds een 302.
 - **Bezoekers kunnen reageren op de eigen reacties van de site-eigenaar.** De
   knop "reageer via de fediverse" verscheen alleen bij reacties van anderen; bij
   de eigen reacties van de site in een thread kregen bezoekers niets, waardoor

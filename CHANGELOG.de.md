@@ -27,6 +27,14 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
   unterstützt.
 
 ### Behoben
+- **OAuth-Zustimmung übergibt jetzt zuverlässig an native Apps.** Nach
+  Allow/Deny war die Weiterleitung an ein natives Custom-Scheme (z. B.
+  `com.klonkt.shaer:/oauth`) ein einfacher 302, den mobile Browser stillschweigend
+  verwerfen. Der Zustimmungsschritt liefert nun eine kleine Zwischenseite für
+  Nicht-http-Redirect-URIs, die automatisch weiterleitet und einen "App öffnen"-
+  Tipp-Link bietet (ein Tipp startet die App auf Android zuverlässig; iOS'
+  Web-Auth-Session fängt sie ohnehin ab). Web-Clients (http/https) bekommen
+  weiterhin einen 302.
 - **Besucher können auf die eigenen Kommentare des Seiteninhabers antworten.**
   Der Knopf "über das Fediverse antworten" erschien nur bei Kommentaren anderer;
   bei den eigenen Kommentaren der Seite in einem Thread bekamen Besucher nichts,
