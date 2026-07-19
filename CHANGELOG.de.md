@@ -6,6 +6,11 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 ## [Unreleased]
 
 ### Hinzugefügt
+- **Der Antwort-Editor wurde optisch aufgeräumt.** Seine Symbolleiste nutzt jetzt
+  dieselben Icons und 32px-Buttons wie der Beitragseditor, aktive Formatierung
+  in der Akzentfarbe gefüllt, eine gerahmte Editor-Box mit Fokus-Ring und
+  aufgeräumtere Sprach-, Mention- und Anhang-Chips. Eine Editor-Familie auf der
+  ganzen Seite.
 - **Der Antwort-Editor zeigt, wen du adressierst (reichhaltige Antworten,
   Phase 3).** Eine "An:"-Leiste über dem Editor zeigt die Gesprächspartner (den
   Autor, dem du antwortest, plus die früheren Autoren des Threads) als

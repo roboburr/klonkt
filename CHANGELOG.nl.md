@@ -6,6 +6,10 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 ## [Unreleased]
 
 ### Toegevoegd
+- **De reactie-editor is visueel opgeschoond.** De werkbalk gebruikt nu dezelfde
+  iconen en 32px-knoppen als de post-editor, met actieve opmaak gevuld in de
+  accentkleur, een gekaderde editor-box met focus-ring, en nettere taal-,
+  mention- en bijlage-chips. Eén editor-familie op de hele site.
 - **De reactie-editor toont wie je adresseert (rijke reacties, fase 3).** Een
   "Aan:"-balk boven de editor toont de gesprekspartners (de auteur waarop je
   reageert plus de eerdere auteurs in de thread) als verwijderbare chips, in

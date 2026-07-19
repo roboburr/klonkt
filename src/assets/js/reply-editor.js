@@ -106,6 +106,23 @@
         if (url && /^https?:\/\//i.test(url.trim())) document.execCommand('createLink', false, url.trim());
       }
     });
+
+    // Reflect the current formatting on the toolbar (bold/italic/list active),
+    // like the post editor, while the caret is inside this editor.
+    function syncToolbar() {
+      if (document.activeElement !== ed) return;
+      var map = { bold: 'bold', italic: 'italic', list: 'insertUnorderedList' };
+      bar.querySelectorAll('button[data-cmd]').forEach(function (b) {
+        var c = map[b.getAttribute('data-cmd')];
+        if (!c) return;
+        var on = false; try { on = document.queryCommandState(c); } catch (e) { on = false; }
+        b.classList.toggle('is-active', on);
+      });
+    }
+    document.addEventListener('selectionchange', syncToolbar);
+    ed.addEventListener('keyup', syncToolbar);
+    ed.addEventListener('mouseup', syncToolbar);
+
     if (fileInput) fileInput.addEventListener('change', function () {
       uploadFiles(fileInput.files);
       fileInput.value = '';

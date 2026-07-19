@@ -6,6 +6,11 @@ Versions follow [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **The reply editor got a visual clean-up.** Its toolbar now uses the same
+  icon set and 32px buttons as the post editor, with active formatting shown
+  filled in the accent colour, a framed editor box with a focus ring, and
+  tidier language, mention and attachment chips. One editor family across the
+  site.
 - **The reply editor shows who you are addressing (rich replies, phase 3).** A
   "To:" bar above the editor lists the conversation partners (the author you
   reply to plus the thread's earlier authors) as removable chips, instead of

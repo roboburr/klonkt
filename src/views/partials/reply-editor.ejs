@@ -52,13 +52,14 @@
     <button type="submit" class="btn re-send-top"><%= submitLabel %></button>
   </div>
   <div class="re-toolbar" role="toolbar" aria-label="<%= t('re.title') %>" hidden>
-    <button type="button" data-cmd="bold" title="<%= t('re.bold') %>" aria-label="<%= t('re.bold') %>"><b>B</b></button>
-    <button type="button" data-cmd="italic" title="<%= t('re.italic') %>" aria-label="<%= t('re.italic') %>"><i>I</i></button>
-    <button type="button" data-cmd="link" title="<%= t('re.link') %>" aria-label="<%= t('re.link') %>">🔗</button>
-    <button type="button" data-cmd="list" title="<%= t('re.list') %>" aria-label="<%= t('re.list') %>">•≡</button>
-    <button type="button" data-cmd="quote" title="<%= t('re.quote') %>" aria-label="<%= t('re.quote') %>">❝</button>
+    <button type="button" data-cmd="bold" title="<%= t('re.bold') %>" aria-label="<%= t('re.bold') %>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4h8a4 4 0 0 1 0 8H6z"/><path d="M6 12h9a4 4 0 0 1 0 8H6z"/></svg></button>
+    <button type="button" data-cmd="italic" title="<%= t('re.italic') %>" aria-label="<%= t('re.italic') %>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="4" x2="10" y2="4"/><line x1="14" y1="20" x2="5" y2="20"/><line x1="15" y1="4" x2="9" y2="20"/></svg></button>
+    <button type="button" data-cmd="link" title="<%= t('re.link') %>" aria-label="<%= t('re.link') %>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></button>
+    <button type="button" data-cmd="list" title="<%= t('re.list') %>" aria-label="<%= t('re.list') %>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="4.5" cy="6" r="1.2"/><circle cx="4.5" cy="12" r="1.2"/><circle cx="4.5" cy="18" r="1.2"/></svg></button>
+    <button type="button" data-cmd="quote" title="<%= t('re.quote') %>" aria-label="<%= t('re.quote') %>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21c3 0 7-1 7-8V5c0-1.25-.75-2-2-2H4c-1.25 0-2 .75-2 2v6c0 1.25.75 2 2 2h2.5C6 17.5 4 19 3 19v2z"/><path d="M14 21c3 0 7-1 7-8V5c0-1.25-.75-2-2-2h-4c-1.25 0-2 .75-2 2v6c0 1.25.75 2 2 2h2.5c-.5 4.5-2.5 6-3.5 6v2z"/></svg></button>
     <% if (!_reNoAttach) { %>
-      <button type="button" data-cmd="attach" title="<%= t('re.attach') %>" aria-label="<%= t('re.attach') %>">📎</button>
+      <span class="re-toolbar-sep" aria-hidden="true"></span>
+      <button type="button" data-cmd="attach" title="<%= t('re.attach') %>" aria-label="<%= t('re.attach') %>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button>
       <input type="file" class="re-file" accept="image/*,audio/*,video/*" multiple hidden>
     <% } %>
   </div>

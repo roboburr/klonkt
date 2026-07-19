@@ -1,83 +1,115 @@
-/* Rich reply editor (partials/reply-editor.ejs + js/reply-editor.js). */
+/* Rich reply editor (partials/reply-editor.ejs + js/reply-editor.js).
+   Styled as a small sibling of the post editor (pe-*): same 32px icon buttons,
+   same accent-active state, same framed feel, scaled down for a reply. */
+
 /* !important: site CSS gives forms inside comment threads `display: contents`,
    which collapses the form to a 0x0 non-box — flex layout AND the fixed
    full-screen overlay silently break. This component must own its box. */
-.re-form[data-re] { display: flex !important; flex-direction: column; gap: .45rem; }
+.re-form[data-re] { display: flex !important; flex-direction: column; gap: .5rem; }
 
-.re-toolbar { display: flex; gap: .25rem; flex-wrap: wrap; }
+/* ── Toolbar (matches .pe-toolbar) ─────────────────────────────────────── */
+.re-toolbar { display: flex; align-items: center; gap: .1rem; flex-wrap: wrap; }
 .re-toolbar button {
-  border: 1px solid color-mix(in srgb, var(--ink, #000) 14%, transparent);
-  background: none; color: inherit; border-radius: 8px;
-  min-width: 2rem; height: 1.9rem; padding: 0 .45rem;
-  font-size: .85rem; line-height: 1; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; padding: 0;
+  background: transparent; border: 1px solid transparent; border-radius: 6px;
+  color: var(--ink, currentColor); cursor: pointer;
+  touch-action: manipulation; -webkit-user-select: none; user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
 }
-.re-toolbar button:hover { background: color-mix(in srgb, var(--ink, #000) 8%, transparent); }
+.re-toolbar button svg { width: 16px; height: 16px; }
+@media (hover: hover) {
+  .re-toolbar button:hover { background: var(--paper-2, color-mix(in srgb, var(--ink, #000) 8%, transparent)); color: var(--accent, #06c); }
+}
+.re-toolbar button:active { transform: scale(.94); }
+.re-toolbar button.is-active { background: var(--accent, #06c); color: #fff; border-color: var(--accent, #06c); }
+.re-toolbar button.is-active svg { color: #fff; }
+.re-toolbar-sep { width: 1px; height: 18px; background: var(--rule, color-mix(in srgb, var(--ink, #000) 16%, transparent)); margin: 0 .3rem; flex-shrink: 0; }
 
+/* ── Editor box (matches .pe-editor) ───────────────────────────────────── */
 .re-editor {
-  min-height: 4.2rem; padding: .55rem .7rem; border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--ink, #000) 16%, transparent);
-  background: transparent; overflow-wrap: anywhere; outline: none;
+  min-height: 4rem; padding: .6rem .75rem; border-radius: 10px;
+  border: 1px solid var(--rule, color-mix(in srgb, var(--ink, #000) 16%, transparent));
+  background: var(--paper, transparent); color: inherit;
+  overflow-wrap: anywhere; outline: none; line-height: 1.5;
+  transition: border-color .15s ease, box-shadow .15s ease;
 }
-.re-editor:focus { border-color: var(--accent, #06c); }
+.re-editor:focus {
+  border-color: var(--accent, #06c);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #06c) 18%, transparent);
+}
 .re-editor:empty::before { content: attr(data-ph); color: color-mix(in srgb, var(--ink, #000) 40%, transparent); pointer-events: none; }
-.re-editor blockquote { margin: .4rem 0; padding-left: .7rem; border-left: 3px solid color-mix(in srgb, var(--ink, #000) 20%, transparent); }
+.re-editor p { margin: 0 0 .5rem; }
+.re-editor p:last-child { margin-bottom: 0; }
+.re-editor ul, .re-editor ol { margin: .4rem 0; padding-left: 1.4rem; }
+.re-editor blockquote {
+  margin: .4rem 0; padding: .1rem 0 .1rem .75rem;
+  border-left: 3px solid color-mix(in srgb, var(--ink, #000) 22%, transparent);
+  color: color-mix(in srgb, var(--ink, #000) 78%, transparent);
+}
+.re-editor a { color: var(--accent, #06c); }
+.re-editor.re-drop { border-color: var(--accent, #06c); border-style: dashed; background: color-mix(in srgb, var(--accent, #06c) 6%, transparent); }
 
-.re-foot { display: flex; align-items: center; gap: .6rem; justify-content: flex-end; }
+/* ── Footer: language + send ───────────────────────────────────────────── */
+.re-foot { display: flex; align-items: center; gap: .6rem; }
+.re-foot .re-send { margin-left: auto; }
 .re-lang {
-  font: inherit; font-size: .82rem; padding: .3rem .45rem; border-radius: 8px;
-  border: 1px solid color-mix(in srgb, var(--ink, #000) 16%, transparent);
-  background: transparent; color: inherit; max-width: 10rem;
+  font: inherit; font-size: .82rem; padding: .32rem .5rem; border-radius: 8px;
+  border: 1px solid var(--rule, color-mix(in srgb, var(--ink, #000) 16%, transparent));
+  background: transparent; color: inherit; max-width: 11rem;
 }
 
-/* Mentions bar (u02): conversation partners as removable chips. */
-.re-mentions { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
-.re-mentions-label { font-size: .78rem; color: color-mix(in srgb, var(--ink, #000) 55%, transparent); }
+/* ── Mentions bar (u02): removable partner chips ───────────────────────── */
+.re-mentions { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; }
+.re-mentions-label { font-size: .76rem; text-transform: uppercase; letter-spacing: .03em; color: color-mix(in srgb, var(--ink, #000) 50%, transparent); }
 .re-mention {
-  display: inline-flex; align-items: center; gap: .2rem;
-  padding: .15rem .3rem .15rem .55rem; border-radius: 999px; font-size: .8rem;
-  background: color-mix(in srgb, var(--accent, #06c) 14%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accent, #06c) 30%, transparent);
+  display: inline-flex; align-items: center; gap: .1rem;
+  padding: .12rem .2rem .12rem .5rem; border-radius: 999px; font-size: .78rem; line-height: 1.5;
+  background: color-mix(in srgb, var(--accent, #06c) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent, #06c) 28%, transparent);
   max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.re-mention-del { border: none; background: none; color: inherit; font-size: 1rem; line-height: 1; cursor: pointer; padding: 0 .25rem; }
+.re-mention-del { display: inline-flex; align-items: center; justify-content: center; width: 1.2rem; height: 1.2rem; border: none; background: none; color: inherit; opacity: .65; font-size: 1rem; line-height: 1; cursor: pointer; }
+.re-mention-del:hover { opacity: 1; }
 
-/* Media attachments (chips under the editor). */
+/* ── Media attachment chips (while composing) ──────────────────────────── */
 .re-attachments { display: flex; flex-wrap: wrap; gap: .4rem; }
 .re-att {
-  display: inline-flex; align-items: center; gap: .35rem;
-  padding: .25rem .4rem; border-radius: 8px; font-size: .8rem;
-  background: color-mix(in srgb, var(--ink, #000) 7%, transparent);
+  display: inline-flex; align-items: center; gap: .4rem;
+  padding: .25rem .3rem .25rem .5rem; border-radius: 10px; font-size: .78rem;
+  background: var(--paper-2, color-mix(in srgb, var(--ink, #000) 7%, transparent));
+  border: 1px solid var(--rule, color-mix(in srgb, var(--ink, #000) 12%, transparent));
   max-width: 100%; overflow: hidden;
 }
-.re-att img { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; display: block; }
-.re-att-del { border: none; background: none; color: inherit; font-size: 1rem; line-height: 1; cursor: pointer; padding: 0 .15rem; }
-.re-att-err { background: color-mix(in srgb, #c00 18%, transparent); }
-.re-editor.re-drop { border-color: var(--accent, #06c); border-style: dashed; }
+.re-att img { width: 40px; height: 40px; object-fit: cover; border-radius: 7px; display: block; }
+.re-att-del { display: inline-flex; align-items: center; justify-content: center; width: 1.3rem; height: 1.3rem; border: none; background: none; color: inherit; opacity: .65; font-size: 1.05rem; line-height: 1; cursor: pointer; }
+.re-att-del:hover { opacity: 1; }
+.re-att-busy { opacity: .7; }
+.re-att-err { background: color-mix(in srgb, #c00 16%, transparent); border-color: color-mix(in srgb, #c00 35%, transparent); }
 
-/* Media on a sent reply in the thread (fedi-node). */
-.re-reply-media { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .4rem; }
-.re-reply-media img { max-width: min(260px, 100%); max-height: 260px; border-radius: 10px; display: block; }
+/* ── Media on a sent reply in the thread (fedi-node) ───────────────────── */
+.re-reply-media { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .5rem; }
+.re-reply-media img { max-width: min(260px, 100%); max-height: 260px; border-radius: 12px; display: block; }
 .re-reply-media audio { max-width: 100%; }
-.re-reply-media video { max-width: min(320px, 100%); border-radius: 10px; }
+.re-reply-media video { max-width: min(320px, 100%); border-radius: 12px; }
 
-/* Full-screen compose (mobile). JS toggles .re-full on the form. */
-.re-head { display: flex; align-items: center; gap: .6rem; }
-.re-head-title { flex: 1; text-align: center; font-size: .95rem; }
-.re-cancel {
-  border: none; background: none; color: inherit; font-size: 1.5rem;
-  line-height: 1; padding: .25rem .5rem; cursor: pointer;
-}
+/* ── Full-screen compose (mobile). JS toggles .re-full on the form. ────── */
+.re-head { display: flex; align-items: center; gap: .6rem; padding-bottom: .2rem; border-bottom: 1px solid var(--rule, color-mix(in srgb, var(--ink, #000) 12%, transparent)); }
+.re-head-title { flex: 1; text-align: center; font-size: .95rem; font-weight: 600; }
+.re-cancel { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; border: none; background: none; color: inherit; font-size: 1.5rem; line-height: 1; cursor: pointer; border-radius: 8px; }
+@media (hover: hover) { .re-cancel:hover { background: var(--paper-2, color-mix(in srgb, var(--ink, #000) 8%, transparent)); } }
+
 .re-form.re-full {
   /* Above the bottom tab bar (1050) and the profile/audio sheets (1100). */
   position: fixed; inset: 0; z-index: 1200;
-  background: var(--paper, #fff); padding: .8rem .9rem;
+  background: var(--paper, #fff); padding: .8rem .9rem; gap: .55rem;
   padding-top: calc(.8rem + env(safe-area-inset-top));
   padding-bottom: calc(.8rem + env(safe-area-inset-bottom));
-  gap: .6rem;
 }
 .re-form.re-full .re-head { order: -1; }   /* the top bar stays topmost, above the mentions bar */
-.re-form.re-full .re-editor { flex: 1; min-height: 0; overflow-y: auto; border: none; padding: .4rem .1rem; }
-.re-form.re-full .re-editor:focus { border: none; }
+.re-form.re-full .re-editor { flex: 1; min-height: 0; overflow-y: auto; border: none; box-shadow: none; padding: .4rem .1rem; }
+.re-form.re-full .re-editor:focus { border: none; box-shadow: none; }
 .re-form.re-full .re-send { display: none; }         /* send lives in the top bar */
 .re-form.re-full .re-foot { justify-content: flex-start; }
 html.re-lock, html.re-lock body { overflow: hidden; }
