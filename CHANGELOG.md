@@ -14,7 +14,15 @@ Versions follow [SemVer](https://semver.org/).
   codes). The actor document advertises the OAuth and uploadMedia endpoints and
   `/.well-known/oauth-authorization-server` (RFC 8414) exposes the metadata, so
   clients discover everything instead of hardcoding paths. Public clients + PKCE
-  only, no client secrets. The token-accepting outbox (POST) is the next phase.
+  only, no client secrets.
+- **The outbox accepts posts from apps (C2S, phase 1 complete).** A
+  bearer-authenticated `POST` to `/ap/users/:slug/outbox` now drives your account
+  from a client: publish a note, reply, like, boost, follow, and undo any of
+  those. Activities are translated onto the same delivery machinery the web UI
+  uses; a bare Note is wrapped in a Create per the spec; content is sanitized;
+  the token is scoped to one site so it can't post as another. Note: this is
+  ActivityPub C2S, which the Shaer apps speak. Mastodon clients (Ivory etc.) use
+  Mastodon's own API and are not supported by this.
 
 ### Fixed
 - **Visitors can reply to the site owner's own comments.** The "reply via the

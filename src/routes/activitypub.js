@@ -17,6 +17,7 @@ import db from '../config/database.js';
 import AP from '../services/ActivityPubService.js';
 import { apReadLimiter, apInboxLimiter } from '../middleware/rate-limit.js';
 import { apEnabled } from '../services/SettingsService.js';
+import OAuth from '../services/OAuthService.js';
 
 const router = express.Router();
 // The whole fediverse layer can be turned off (solo "no federation" mode):
@@ -190,6 +191,24 @@ const apJson = express.json({
 router.post(['/ap/users/:slug/inbox', '/ap/inbox'], apInboxLimiter, apJson, async (req, res) => {
   try { return res.status(await AP.handleInbox(req, req.params.slug || null) || 202).end(); }
   catch (e) { console.warn('[AP inbox] error:', e.message); return res.status(202).end(); }
+});
+
+// ── Outbox POST: ActivityPub Client-to-Server ─────────────────────
+// A bearer-authenticated client (Shaer) POSTs an activity; we translate it onto
+// the normal delivery machinery. The token is scoped to one user+site (OAuth
+// consent), so it must match the slug in the URL. (Declared after apJson, which
+// this shares with the inbox handler.)
+router.post('/ap/users/:slug/outbox', apInboxLimiter, apJson, async (req, res) => {
+  const auth = OAuth.verifyBearer(req.headers.authorization);
+  if (!auth) { res.set('WWW-Authenticate', 'Bearer'); return res.status(401).json({ error: 'invalid_token' }); }
+  if (auth.site.slug !== req.params.slug) return res.status(403).json({ error: 'wrong_site', detail: 'token is scoped to a different site' });
+  if (auth.user.readonly) return res.status(403).json({ error: 'read_only_account' });
+
+  const out = await AP.ingestOutboxActivity(auth.site, auth.user, req.body);
+  if (out.error) return res.status(out.status || 400).json({ error: out.error, detail: out.detail });
+  // 201 Created → Location header (AP spec); 202 Accepted for side-effect verbs.
+  if (out.status === 201 && out.url) res.set('Location', out.url);
+  return res.status(out.status || 202).json({ ok: true, id: out.id, url: out.url });
 });
 
 export default router;

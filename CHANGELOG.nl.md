@@ -14,8 +14,16 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
   opgeslagen, eenmalige codes). De actor-doc adverteert de OAuth- en
   uploadMedia-endpoints en `/.well-known/oauth-authorization-server` (RFC 8414)
   geeft de metadata, dus apps ontdekken alles in plaats van paden vast te
-  spijkeren. Alleen publieke clients + PKCE, geen client-secrets. De outbox die
-  de tokens accepteert (POST) is de volgende fase.
+  spijkeren. Alleen publieke clients + PKCE, geen client-secrets.
+- **De outbox accepteert posts van apps (C2S, fase 1 compleet).** Een
+  `POST` met bearer-token naar `/ap/users/:slug/outbox` bestuurt nu je account
+  vanuit een app: een bericht plaatsen, reageren, liken, boosten, volgen en dat
+  allemaal ongedaan maken. Activities gaan via dezelfde bezorg-machinerie als de
+  web-UI; een kale Note wordt in een Create verpakt (spec); content wordt
+  gesanitized; het token is aan één site gebonden dus kan niet namens een andere
+  posten. Let op: dit is ActivityPub C2S, wat de Shaer-apps spreken.
+  Mastodon-clients (Ivory e.d.) gebruiken Mastodons eigen API en worden hier niet
+  ondersteund.
 
 ### Opgelost
 - **Bezoekers kunnen reageren op de eigen reacties van de site-eigenaar.** De

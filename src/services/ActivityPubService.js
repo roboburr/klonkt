@@ -1749,6 +1749,105 @@ export function getOutboxNote(base, id) {
   return buildReplyNote(base, site, row);
 }
 
+// ── ActivityPub Client-to-Server: ingest an activity POSTed to the outbox ──
+// The C2S counterpart of handleInbox: a native/web client (Shaer) posts an
+// activity here and we translate it onto the SAME delivery machinery the web UI
+// uses (deliverReply / sendInteraction / followActor / deliverCreate). Returns
+// { status, id?, url?, error? }. Auth + site-ownership are checked by the route.
+const c2sIdOf = (x) => (typeof x === 'string' ? x : (x && (x.id || x.href))) || null;
+
+export async function ingestOutboxActivity(site, user, activity) {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  if (!base || !site || !activity || typeof activity !== 'object') return { status: 400, error: 'invalid_activity' };
+
+  // AP §6: a client MAY POST a bare object; the server wraps it in a Create.
+  let type = activity.type;
+  let object = activity.object;
+  if (type === 'Note' || type === 'Article') { object = activity; type = 'Create'; }
+  if (Array.isArray(type)) type = type.find((t) => typeof t === 'string');
+
+  try {
+    switch (type) {
+      case 'Create': {
+        if (!object || typeof object !== 'object') return { status: 400, error: 'missing_object' };
+        // Client sends `source` (plain/markdown) + `content` (HTML). deliverReply
+        // re-escapes, so it needs plain text; a top-level post keeps sanitized HTML.
+        const plain = (object.source && object.source.content) || HtmlSanitizerService.toPlainText(object.content || '');
+        if (!plain.trim() && !object.content) return { status: 400, error: 'empty_note' };
+        if (object.inReplyTo) {
+          const parent = await resolveRemoteNote(c2sIdOf(object.inReplyTo)).catch(() => null);
+          if (!parent) return { status: 502, error: 'cannot_resolve_inReplyTo' };
+          const r = await deliverReply(site, { postId: parent.localPostId || '', postSlug: null, parent, text: plain });
+          if (!r || !r.id) return { status: 502, error: 'reply_failed' };
+          return { status: 201, id: r.id, url: `${base}/ap/notes/${r.id}` };
+        }
+        return await c2sCreatePost(base, site, user, object);
+      }
+      case 'Like':
+      case 'Announce': {
+        const targetUri = c2sIdOf(object);
+        if (!targetUri) return { status: 400, error: 'missing_object' };
+        const note = await resolveRemoteNote(targetUri).catch(() => null);
+        const objUri = (note && note.object_uri) || targetUri;
+        const authorUri = note && note.actor_uri;
+        const kind = type === 'Announce' ? 'boost' : 'like';
+        await sendInteraction(site, kind, objUri, authorUri);
+        setMyReaction(site.slug, targetUri, kind, true);
+        if (type === 'Announce' && note) { try { upsertBoostedNote(site.slug, note); } catch { /* non-fatal */ } }
+        return { status: 202, url: objUri };
+      }
+      case 'Follow': {
+        const actorUri = c2sIdOf(object);
+        if (!actorUri) return { status: 400, error: 'missing_object' };
+        await followActor(site, actorUri);
+        return { status: 202, url: actorUri };
+      }
+      case 'Undo': {
+        const inner = object && typeof object === 'object' ? object : null;
+        let innerType = inner && inner.type;
+        if (Array.isArray(innerType)) innerType = innerType.find((t) => typeof t === 'string');
+        const innerTarget = c2sIdOf(inner && inner.object);
+        if (innerType === 'Follow') { await unfollowActor(site, innerTarget); return { status: 202, url: innerTarget }; }
+        if (innerType === 'Like' || innerType === 'Announce') {
+          const kind = innerType === 'Announce' ? 'unboost' : 'unlike';
+          const note = await resolveRemoteNote(innerTarget).catch(() => null);
+          const objUri = (note && note.object_uri) || innerTarget;
+          await sendInteraction(site, kind, objUri, note && note.actor_uri);
+          setMyReaction(site.slug, innerTarget, innerType === 'Announce' ? 'boost' : 'like', false);
+          if (innerType === 'Announce') { try { unmarkBoosted(site.slug, objUri); } catch { /* non-fatal */ } }
+          return { status: 202, url: objUri };
+        }
+        return { status: 400, error: 'unsupported_undo' };
+      }
+      // Delete/Update of arbitrary objects need the post-edit pipeline; tracked
+      // separately (klonkt-demo-c2s-del). Reject clearly rather than half-doing it.
+      default:
+        return { status: 400, error: 'unsupported_type', detail: String(type || 'none') };
+    }
+  } catch (e) {
+    console.warn('[AP] C2S ingest failed:', e && e.message);
+    return { status: 500, error: 'ingest_error' };
+  }
+}
+
+// Create a top-level microblog post from a C2S Note and federate it. Minimal
+// sibling of the /posts/create route: sanitized HTML content, no title/cover.
+async function c2sCreatePost(base, site, user, object) {
+  const html = HtmlSanitizerService.sanitize(object.content || (object.source && object.source.content) || '');
+  if (!html.trim()) return { status: 400, error: 'empty_note' };
+  const postId = crypto.randomUUID();
+  const slug = 'n-' + postId.slice(0, 8);
+  const now = new Date().toISOString();
+  db.prepare(`INSERT INTO posts (id, site_id, slug, author_id, title, content, excerpt, status, type, language, created_at, updated_at, published_at)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+    .run(postId, site.id, slug, user.id, '', html, '', 'published', 'post', object.language || 'nl', now, now, now);
+  try { db.prepare('UPDATE posts SET content_rendered = ? WHERE id = ?').run(bakePostContent(html), postId); } catch { /* render fallback covers it */ }
+  bakePostContentWithMentions(html).then((h) => { try { db.prepare('UPDATE posts SET content_rendered = ? WHERE id = ?').run(h, postId); } catch { /* keep sync bake */ } }).catch(() => {});
+  try { db.prepare('INSERT INTO posts_fts(content, title, author, post_id) VALUES (?,?,?,?)').run(HtmlSanitizerService.toPlainText(html), '', user.username || '', postId); } catch { /* FTS non-fatal */ }
+  deliverCreate(site, { id: postId, slug, title: '', content: html, published_at: now, created_at: now }).catch(() => { /* best-effort */ });
+  return { status: 201, id: postId, url: `${base}/ap/notes/${postId}` };
+}
+
 // Send a reply FROM this site to a remote actor (in reply to their inbound reply).
 // `parent` = an ap_interactions row (actor_uri, actor_url, actor_handle, object_uri).
 export async function deliverReply(site, { postId, postSlug, parent, text }) {
@@ -2658,5 +2757,5 @@ export default {
   getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
   linkifyBody, bakePostContent, bakePostContentWithMentions, listFollowers, removeFollower, listConnections,
   noteVisibility, isRejectedObject, rejectInteraction, interactionReportTarget,
-  getMessages, notificationsSeenAt,
+  getMessages, notificationsSeenAt, ingestOutboxActivity,
 };
