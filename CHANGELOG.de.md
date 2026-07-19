@@ -6,6 +6,12 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 ## [Unreleased]
 
 ### Hinzugefügt
+- **Verbundene Apps auf deiner Kontoseite widerrufen.** Ein Abschnitt
+  "Verbundene Apps" listet jede App auf, der du per OAuth Zugriff gegeben hast
+  (Name, Seite, Scope, zuletzt genutzt), mit einem Widerrufen-Knopf. Bereits
+  vergebene Tokens erscheinen ebenfalls, da sie immer (gehasht) gespeichert
+  waren; das Token selbst wird nie behalten, daher erfolgt der Widerruf über den
+  Token-Hash.
 - **Der Kontoinhaber kann seine eigenen Follower und Gefolgten über C2S lesen.**
   Die `followers`- und `following`-Sammlungen bleiben für die Öffentlichkeit
   count-only (Datenschutz), aber eine Anfrage mit einem auf diese Seite

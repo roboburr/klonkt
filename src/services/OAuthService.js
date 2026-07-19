@@ -108,4 +108,31 @@ export function revokeToken(token) {
   try { db.prepare('DELETE FROM oauth_tokens WHERE token_hash = ?').run(b64url(sha256(String(token || '')))); } catch { /* ignore */ }
 }
 
-export default { registerClient, getClient, createCode, exchangeCode, verifyBearer, revokeToken, validRedirectUri };
+// The active authorizations (bearer tokens) a user has granted, with the app
+// name and the site each is scoped to. The bearer itself is never stored, so
+// revocation is keyed on token_hash: safe to render, you cannot derive the
+// token from its hash.
+export function listAuthorizations(userId) {
+  return db.prepare(`
+    SELECT t.token_hash, t.site_slug, t.scope, t.created_at, t.last_used_at, c.client_name
+    FROM oauth_tokens t
+    LEFT JOIN oauth_clients c ON c.client_id = t.client_id
+    WHERE t.user_id = ?
+    ORDER BY t.created_at DESC
+  `).all(String(userId || ''));
+}
+
+// Revoke one authorization, scoped to the owner so a user can only revoke their
+// own tokens. Returns true when a row was removed.
+export function revokeAuthorization(userId, tokenHash) {
+  try {
+    const r = db.prepare('DELETE FROM oauth_tokens WHERE token_hash = ? AND user_id = ?')
+      .run(String(tokenHash || ''), String(userId || ''));
+    return r.changes > 0;
+  } catch { return false; }
+}
+
+export default {
+  registerClient, getClient, createCode, exchangeCode, verifyBearer, revokeToken, validRedirectUri,
+  listAuthorizations, revokeAuthorization,
+};

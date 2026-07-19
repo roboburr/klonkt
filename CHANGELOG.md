@@ -6,6 +6,11 @@ Versions follow [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Revoke connected apps from your account page.** A "Connected apps" section
+  lists every app you authorized over OAuth (name, site, scope, last used) with
+  a Revoke button. Tokens you already granted show up too, since they were
+  always stored (hashed); the bearer itself is never kept, so revocation is keyed
+  on the token hash.
 - **The account owner can read their own followers and following over C2S.** The
   `followers` and `following` collections stay count-only for the public
   (privacy), but a request carrying a C2S bearer scoped to that site now returns

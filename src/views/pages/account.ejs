@@ -116,6 +116,30 @@
 
   <%# ── PASSWORD ──────────────────────────────────────────── %>
   <%# In viewer mode there is no password section (nothing to change). %>
+  <%# ── CONNECTED APPS (OAuth C2S) ─────────────────────────── %>
+  <section class="ax-card">
+    <div class="ax-card-title"><%= t('acct.oauth_apps') %></div>
+    <p class="ax-tagline" style="margin:0 0 .6rem"><%= t('acct.oauth_hint') %></p>
+    <% if (!authorizations || !authorizations.length) { %>
+      <p class="ax-oauth-empty"><%= t('acct.oauth_none') %></p>
+    <% } else { %>
+      <ul class="ax-oauth-list">
+        <% authorizations.forEach(function(a){ %>
+          <li class="ax-oauth-item">
+            <div class="ax-oauth-info">
+              <strong><%= a.client_name || t('acct.oauth_unknown_app') %></strong>
+              <span class="ax-oauth-meta">@<%= a.site_slug %> · <%= a.scope || 'c2s' %> · <%= t('acct.oauth_last_used') %> <%= a.last_used_at ? formatDate(a.last_used_at) : t('acct.oauth_never') %></span>
+            </div>
+            <form action="/account/oauth/revoke" method="post">
+              <input type="hidden" name="token_hash" value="<%= a.token_hash %>">
+              <button type="submit" class="ax-btn ax-btn-danger"><%= t('acct.oauth_revoke') %></button>
+            </form>
+          </li>
+        <% }); %>
+      </ul>
+    <% } %>
+  </section>
+
   <% if (canMutate) { %>
   <% if (hasPassword) { %>
   <section class="ax-card">
@@ -329,5 +353,15 @@
 
 @media (max-width: 480px) {
   .ax-profile-id { flex-direction: column; align-items: flex-start; gap: 0.75rem; text-align: left; }
+}
+
+.ax-oauth-empty { margin: 0; color: var(--ink-soft, #888); }
+.ax-oauth-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .6rem; }
+.ax-oauth-item { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .7rem .85rem; border-radius: 12px; background: var(--paper-2, rgba(0,0,0,.04)); }
+.ax-oauth-info { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
+.ax-oauth-info strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ax-oauth-meta { font-size: .8rem; color: var(--ink-soft, #888); }
+@media (max-width: 480px) {
+  .ax-oauth-item { flex-direction: column; align-items: stretch; }
 }
 </style>

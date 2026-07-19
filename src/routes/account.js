@@ -22,6 +22,8 @@ import { v4 as uuid } from 'uuid';
 import db from '../config/database.js';
 import { getPrimarySite } from '../middleware/site.js';
 import { renderPage } from '../middleware/render.js';
+import OAuth from '../services/OAuthService.js';
+import { t } from '../services/i18n.js';
 import { requireAuth } from '../middleware/auth.js';
 import { toWebp } from '../services/ImageWebpService.js';
 import { SUPPORTED } from '../services/i18n.js';
@@ -74,9 +76,19 @@ router.get('/', requireAuth, (req, res) => {
     editableSite,
     // Display fallback: when you have no own account avatar, show your site's photo.
     siteAvatar: editableSite ? editableSite.profile_photo : null,
+    // OAuth apps (C2S) this user has authorized, so they can revoke them here.
+    authorizations: OAuth.listAuthorizations(req.session.user.id),
     success: req.query.success || null,
     error: req.query.error || null,
   });
+});
+
+// ==================== REVOKE AN OAUTH APP AUTHORIZATION ====================
+router.post('/oauth/revoke', requireAuth, (req, res) => {
+  const lang = req.session.lang || (req.session.user && req.session.user.lang) || 'nl';
+  const ok = OAuth.revokeAuthorization(req.session.user.id, req.body.token_hash);
+  const msg = ok ? t(lang, 'acct.oauth_revoked') : t(lang, 'acct.oauth_revoke_none');
+  res.redirect('/account?' + (ok ? 'success' : 'error') + '=' + encodeURIComponent(msg));
 });
 
 // ==================== PERSONAL INTERFACE LANGUAGE ====================

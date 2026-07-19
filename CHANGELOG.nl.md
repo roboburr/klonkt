@@ -6,6 +6,11 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 ## [Unreleased]
 
 ### Toegevoegd
+- **Trek verbonden apps in vanaf je accountpagina.** Een sectie "Verbonden apps"
+  toont elke app die je via OAuth toegang gaf (naam, site, scope, laatst
+  gebruikt) met een Intrekken-knop. Al eerder uitgegeven tokens verschijnen ook,
+  want die stonden altijd al (gehasht) opgeslagen; het token zelf bewaren we
+  nooit, dus intrekken gaat op de token-hash.
 - **De account-eigenaar kan zijn eigen followers en following lezen via C2S.** De
   `followers`- en `following`-collecties blijven count-only voor het publiek
   (privacy), maar een verzoek met een C2S-bearer die op die site scoped is geeft
