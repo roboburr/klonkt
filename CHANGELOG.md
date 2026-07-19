@@ -6,6 +6,10 @@ Versions follow [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Messages: your poll finished.** When one of your own polls closes, Messages
+  shows a "poll finished" item with the final result: a bar per option with its
+  percentage, and the number of voters. It lives under the Activity chip and is
+  searchable like the rest.
 - **Messages: sharper filters and a search box.** The filter chips are now
   Messages (@mentions and private/DM replies), Conversations (public replies),
   Activity (likes, boosts, follows), Moderation (reports) and Sent, next to All.

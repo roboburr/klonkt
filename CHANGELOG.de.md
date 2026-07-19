@@ -6,6 +6,10 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 ## [Unreleased]
 
 ### Hinzugefügt
+- **Nachrichten: deine Umfrage ist beendet.** Wenn eine deiner eigenen Umfragen
+  schließt, zeigt Nachrichten einen "Umfrage beendet"-Eintrag mit dem Ergebnis:
+  ein Balken je Option mit Prozentwert, plus die Anzahl der Teilnehmer. Er liegt
+  unter dem Chip Aktivität und ist wie der Rest durchsuchbar.
 - **Nachrichten: schärfere Filter und ein Suchfeld.** Die Filter-Chips sind
   jetzt Nachrichten (@Mentions und private/DM-Antworten), Gespräche (öffentliche
   Antworten), Aktivität (Likes, Boosts, Follows), Moderation (Meldungen) und

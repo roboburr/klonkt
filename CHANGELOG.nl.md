@@ -6,6 +6,10 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 ## [Unreleased]
 
 ### Toegevoegd
+- **Berichten: je peiling is afgelopen.** Als een van je eigen peilingen sluit,
+  verschijnt in Berichten een "peiling afgelopen"-item met de uitslag: een balk
+  per optie met percentage, plus het aantal stemmers. Het valt onder de chip
+  Activiteit en is doorzoekbaar zoals de rest.
 - **Berichten: scherpere filters en een zoekveld.** De filterchips zijn nu
   Berichten (@mentions en privé/DM-reacties), Gesprekken (publieke reacties),
   Activiteit (likes, boosts, follows), Moderatie (rapporten) en Verzonden, naast

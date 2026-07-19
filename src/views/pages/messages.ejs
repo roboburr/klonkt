@@ -31,7 +31,7 @@
            // Activity = likes/boosts/follows; Moderation = reports; Sent = your
            // replies; Conversations = every other (public) reply.
            var _kind = _t === 'sent' ? 'sent'
-             : (_t === 'like' || _t === 'boost' || _t === 'follow') ? 'act'
+             : (_t === 'like' || _t === 'boost' || _t === 'follow' || _t === 'poll_done') ? 'act'
              : _t === 'report' ? 'mod'
              : (_t === 'mention' || _priv0) ? 'msgs'
              : 'conv';
@@ -41,6 +41,7 @@
         <li class="msg-item msg-<%= _t %><%= _new ? ' is-new' : '' %>" data-kind="<%= _kind %>" data-who="<%= String(_who).toLowerCase() %>">
           <span class="msg-av<%= _t === 'sent' ? ' msg-av-sent' : '' %>" aria-hidden="true">
             <% if (_t === 'sent') { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            <% } else if (_t === 'poll_done') { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
             <% } else if (n.icon) { %><img src="<%= avatar(n.icon, 96) %>" alt="" loading="lazy">
             <% } else { %><%= _init %><% } %>
             <span class="msg-dot msg-dot-<%= _t %>">
@@ -50,6 +51,7 @@
               <% } else if (_t === 'report') { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
               <% } else if (_t === 'mention') { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94"/></svg>
               <% } else if (_t === 'sent') { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+              <% } else if (_t === 'poll_done') { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
               <% } else { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><% } %>
             </span>
           </span>
@@ -77,6 +79,7 @@
               <% } else if (_t === 'report') { %><%= t('notif.reported') %>
               <% } else if (_t === 'mention') { %><%= t('notif.mentioned') %>
               <% } else if (_t === 'sent') { %><%= t('msg.sent_reply') %>
+              <% } else if (_t === 'poll_done') { %><strong><%= t('msg.poll_done') %></strong>
               <% } else { %><%= t('notif.replied') %><% } %>
               <% if (_priv) { %><span class="msg-priv" title="<%= t('msg.private_hint') %>">🔒 <%= t('msg.private') %></span><% } %>
               <% if (n.post_slug) { %><a class="msg-post" href="/<%= n.post_slug %>"><%= n.post_title || n.post_slug %></a><% } %>
@@ -85,7 +88,18 @@
             </div>
 
             <% if (_t === 'report' && n.content) { %><div class="msg-content"><%= n.content %></div>
-            <% } else if ((_t === 'reply' || _t === 'mention' || _t === 'sent') && n.content) { %><div class="msg-content"><%- n.content %></div><% } %>
+            <% } else if ((_t === 'reply' || _t === 'mention' || _t === 'sent') && n.content) { %><div class="msg-content"><%- n.content %></div>
+            <% } else if (_t === 'poll_done' && n.poll) { %>
+              <div class="msg-poll" role="group">
+                <% n.poll.options.forEach(function (o) { %>
+                  <div class="msg-poll-opt">
+                    <div class="msg-poll-top"><span class="msg-poll-name"><%= o.name %></span><span class="msg-poll-pct"><%= o.pct %>%</span></div>
+                    <div class="msg-poll-bar"><span style="width:<%= o.pct %>%"></span></div>
+                  </div>
+                <% }); %>
+                <div class="msg-poll-total"><%= t('msg.poll_total', { n: n.poll.voters }) %></div>
+              </div>
+            <% } %>
 
             <% if (_t === 'sent' && n.outboxId) { %>
               <div class="msg-actions">
@@ -142,8 +156,10 @@
     // Index once: sender + message body + linked post title.
     var body = li.querySelector('.msg-content');
     var post = li.querySelector('.msg-post');
+    var poll = li.querySelector('.msg-poll');
     li._search = ((li.getAttribute('data-who') || '') + ' ' +
-      (body ? body.textContent : '') + ' ' + (post ? post.textContent : '')).toLowerCase();
+      (body ? body.textContent : '') + ' ' + (post ? post.textContent : '') + ' ' +
+      (poll ? poll.textContent : '')).toLowerCase();
   });
   function apply() {
     if (!list) return;
@@ -230,6 +246,15 @@
   .msg-content { margin: .45rem 0 0; padding: .55rem .75rem; border-radius: 10px; line-height: 1.5;
     background: color-mix(in srgb, var(--ink, #000) 4%, transparent); color: var(--ink, inherit); overflow-wrap: anywhere; }
   .msg-content p { margin: .2rem 0; } .msg-content p:first-child { margin-top: 0; } .msg-content p:last-child { margin-bottom: 0; }
+
+  .msg-poll { margin: .5rem 0 0; display: flex; flex-direction: column; gap: .4rem; }
+  .msg-poll-opt { display: flex; flex-direction: column; gap: .2rem; }
+  .msg-poll-top { display: flex; justify-content: space-between; gap: .5rem; font-size: .85rem; }
+  .msg-poll-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .msg-poll-pct { font-variant-numeric: tabular-nums; color: var(--ink-soft, #888); flex-shrink: 0; }
+  .msg-poll-bar { height: 7px; border-radius: 999px; overflow: hidden; background: color-mix(in srgb, var(--ink, #000) 10%, transparent); }
+  .msg-poll-bar span { display: block; height: 100%; border-radius: 999px; background: var(--accent, #06c); }
+  .msg-poll-total { font-size: .78rem; color: var(--ink-soft, #888); margin-top: .1rem; }
 
   .msg-actions { display: flex; gap: .7rem; align-items: center; margin-top: .45rem; }
   .msg-edit summary { cursor: pointer; font-size: .8rem; color: var(--ink-soft, #888); font-weight: 600; }

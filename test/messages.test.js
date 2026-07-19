@@ -68,3 +68,32 @@ test('notificationsSeenAt: 0 zonder watermark, daarna > 0', () => {
   AP.markNotificationsSeen('me');
   assert.ok(AP.notificationsSeenAt('me') > 0);
 });
+
+// ── Poll afgelopen → "resultaten zijn binnen"-item met tally ─────────────
+test('een afgelopen eigen peiling levert een poll_done-item met tally', () => {
+  db.prepare(`INSERT INTO posts (id, site_id, slug, author_id, title, content, status, type, poll_json, created_at, updated_at, published_at)
+    VALUES ('pp','s1','fav','u1','Favoriet?','<p>kies</p>','published','post',?,datetime('now'),datetime('now'),datetime('now'))`)
+    .run(JSON.stringify({ multiple: false, options: [{ name: 'A' }, { name: 'B' }], endTime: '2026-07-19T00:00:00Z', closed: true }));
+  const iv = db.prepare('INSERT OR IGNORE INTO poll_votes (post_id, actor_uri, choice) VALUES (?,?,?)');
+  iv.run('pp', 'https://r.test/u/x', 'A');
+  iv.run('pp', 'https://r.test/u/y', 'A');
+  iv.run('pp', 'https://r.test/u/z', 'B');
+
+  const fresh = AP.getMessages('me', 50);
+  const done = fresh.find((m) => m.type === 'poll_done');
+  assert.ok(done, 'poll_done-item ontbreekt');
+  assert.equal(done.post_slug, 'fav');
+  assert.equal(done.poll.voters, 3);
+  const a = done.poll.options.find((o) => o.name === 'A');
+  assert.equal(a.count, 2);
+  assert.equal(a.pct, 67); // round(2/3*100)
+});
+
+// Een nog lopende peiling (closed != 1) verschijnt NIET.
+test('een lopende peiling levert géén poll_done', () => {
+  db.prepare(`INSERT INTO posts (id, site_id, slug, author_id, title, content, status, type, poll_json, created_at, updated_at, published_at)
+    VALUES ('pp2','s1','open','u1','Open?','<p>kies</p>','published','post',?,datetime('now'),datetime('now'),datetime('now'))`)
+    .run(JSON.stringify({ multiple: false, options: [{ name: 'A' }, { name: 'B' }], endTime: '2030-01-01T00:00:00Z', closed: false }));
+  const fresh = AP.getMessages('me', 50);
+  assert.ok(!fresh.some((m) => m.type === 'poll_done' && m.post_slug === 'open'), 'lopende peiling hoort niet als poll_done te tonen');
+});

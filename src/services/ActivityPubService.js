@@ -2690,6 +2690,25 @@ export function getNotifications(slug, limit) {
       out.push({ type: 'mention', name: r.actor_name, handle: r.actor_handle, url: r.actor_url || r.actor_uri, icon: r.actor_icon, content: stripLeadingMentions(r.content), note_url: r.note_url || r.object_uri, created_at: r.created_at });
     }
   } catch { /* ignore */ }
+  // Your own polls that have closed → a "results are in" item, derived read-time
+  // from poll_json (Scheduler marks closed=1) with the tally via ownPollView.
+  try {
+    const site = db.prepare('SELECT id FROM sites WHERE slug = ?').get(slug);
+    if (site) {
+      const polls = db.prepare(`
+        SELECT id, slug, title, poll_json FROM posts
+        WHERE site_id = ? AND poll_json IS NOT NULL
+          AND json_extract(poll_json, '$.closed') = 1
+          AND json_extract(poll_json, '$.endTime') IS NOT NULL
+        ORDER BY json_extract(poll_json, '$.endTime') DESC LIMIT 20`).all(site.id);
+      for (const p of polls) {
+        const view = ownPollView(p);
+        if (!view) continue;
+        let endTime = null; try { endTime = JSON.parse(p.poll_json).endTime; } catch { /* keep null */ }
+        out.push({ type: 'poll_done', post_slug: p.slug, post_title: p.title, poll: view, created_at: endTime || null });
+      }
+    }
+  } catch { /* ignore */ }
   // NaN-safe sort: one row with a missing/garbled created_at would otherwise make the
   // comparator return NaN and scramble the WHOLE ordering (seen live: follow rows landing
   // between likes, which also broke Messages' like-grouping).
