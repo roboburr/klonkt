@@ -6,6 +6,11 @@ Versions follow [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **The account owner can read their own followers and following over C2S.** The
+  `followers` and `following` collections stay count-only for the public
+  (privacy), but a request carrying a C2S bearer scoped to that site now returns
+  the real actor URIs, so an app (Shaer) can build a friends list. Anonymous
+  callers are unchanged.
 - **App access via OAuth 2.0 (ActivityPub Client-to-Server, phase 1).** Klonkt
   now speaks the standard AP C2S auth handshake so native and web clients (the
   Shaer apps first) can connect: dynamic client registration (RFC 7591), a

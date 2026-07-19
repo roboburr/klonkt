@@ -541,27 +541,30 @@ export function buildOutbox(base, site, posts) {
   };
 }
 
-export function buildFollowers(base, site, count) {
+// Public callers get a count-only collection (privacy). The authenticated
+// account owner (a C2S bearer scoped to this site) gets the real actor URIs via
+// `items`, so their own client can build a friends list.
+export function buildFollowers(base, site, count, items = null) {
   const id = `${actorId(base, site.slug)}/followers`;
   return {
     '@context': AP_CONTEXT,
     id,
     type: 'OrderedCollection',
-    totalItems: count || 0,
-    orderedItems: [], // hidden for privacy; count only
+    totalItems: items ? items.length : (count || 0),
+    orderedItems: items || [], // count-only for the public; full for the owner
   };
 }
 
 // The accounts this site follows — count only, mirroring buildFollowers. The spec lists
 // `following` as a standard actor property; Hubzilla/Friendica + crawlers expect it.
-export function buildFollowing(base, site, count) {
+export function buildFollowing(base, site, count, items = null) {
   const id = `${actorId(base, site.slug)}/following`;
   return {
     '@context': AP_CONTEXT,
     id,
     type: 'OrderedCollection',
-    totalItems: count || 0,
-    orderedItems: [], // count only
+    totalItems: items ? items.length : (count || 0),
+    orderedItems: items || [], // count-only for the public; full for the owner
   };
 }
 

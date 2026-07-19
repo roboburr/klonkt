@@ -83,18 +83,34 @@ router.get('/ap/users/:slug/outbox', (req, res) => {
   AP.sendAP(res, AP.buildOutbox(baseUrl(req), site, posts));
 });
 
-// ── Followers (count only) ────────────────────────────────────────
+// ── Followers (count-only public, full for the owner) ─────────────
+// A C2S bearer scoped to this site (the account owner) gets the real actor
+// URIs so their own client can build a friends list; everyone else gets the
+// count only (privacy).
 router.get('/ap/users/:slug/followers', (req, res) => {
-  const site = publicSite(req.params.slug);
+  const auth = OAuth.verifyBearer(req.headers.authorization);
+  const owner = auth && auth.site.slug === req.params.slug;
+  const site = owner ? auth.site : publicSite(req.params.slug);
   if (!site) return res.status(404).end();
+  if (owner) {
+    const items = db.prepare('SELECT actor_uri FROM ap_followers WHERE slug = ? ORDER BY created_at').all(site.slug).map((r) => r.actor_uri);
+    return AP.sendAP(res, AP.buildFollowers(baseUrl(req), site, items.length, items));
+  }
   const n = db.prepare('SELECT COUNT(*) n FROM ap_followers WHERE slug = ?').get(site.slug).n;
   AP.sendAP(res, AP.buildFollowers(baseUrl(req), site, n));
 });
 
-// ── Following (count only) ────────────────────────────────────────
+// ── Following (count-only public, full for the owner) ─────────────
 router.get('/ap/users/:slug/following', (req, res) => {
-  const site = publicSite(req.params.slug);
+  const auth = OAuth.verifyBearer(req.headers.authorization);
+  const owner = auth && auth.site.slug === req.params.slug;
+  const site = owner ? auth.site : publicSite(req.params.slug);
   if (!site) return res.status(404).end();
+  if (owner) {
+    let items = [];
+    try { items = db.prepare("SELECT actor_uri FROM ap_following WHERE slug = ? AND status = 'accepted' ORDER BY created_at").all(site.slug).map((r) => r.actor_uri); } catch { /* table may not exist */ }
+    return AP.sendAP(res, AP.buildFollowing(baseUrl(req), site, items.length, items));
+  }
   let n = 0;
   try { n = db.prepare("SELECT COUNT(*) n FROM ap_following WHERE slug = ? AND status = 'accepted'").get(site.slug).n; } catch { /* table may not exist */ }
   AP.sendAP(res, AP.buildFollowing(baseUrl(req), site, n));

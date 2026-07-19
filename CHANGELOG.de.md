@@ -6,6 +6,12 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 ## [Unreleased]
 
 ### Hinzugefügt
+- **Der Kontoinhaber kann seine eigenen Follower und Gefolgten über C2S lesen.**
+  Die `followers`- und `following`-Sammlungen bleiben für die Öffentlichkeit
+  count-only (Datenschutz), aber eine Anfrage mit einem auf diese Seite
+  begrenzten C2S-Bearer liefert jetzt die echten Actor-URIs, damit eine App
+  (Shaer) eine Freundesliste bauen kann. Für anonyme Aufrufer ändert sich
+  nichts.
 - **App-Zugriff über OAuth 2.0 (ActivityPub Client-to-Server, Phase 1).** Klonkt
   spricht jetzt den standardmäßigen AP-C2S-Auth-Handshake, damit native und
   Web-Clients (zuerst die Shaer-Apps) sich verbinden können: dynamische
