@@ -437,6 +437,8 @@ export function initializeDatabase() {
   ensureColumn('ap_interactions', 'visibility', "TEXT DEFAULT 'public'");
   // Rich replies: the reply's language (BCP47 code) → contentMap on the outgoing Note.
   ensureColumn('ap_outbox', 'language', 'TEXT');
+  // Rich replies: JSON array [{url, mediaType, name}] → `attachment` on the Note.
+  ensureColumn('ap_outbox', 'attachments', 'TEXT');
 }
 
 function ensureColumn(table, column, definition) {

@@ -11,6 +11,23 @@
     <% if (n.created_at) { %><span class="comment-time"><%= formatDateTime(n.created_at) %></span><% } %>
   </div>
   <div class="comment-content"><%- n.content %></div>
+  <%# Rich replies: media on our own sent replies (attachments on the Note).
+      Visitors see these too, and the reply editor (owner-only) may not render,
+      so make sure the stylesheet is on the page either way. %>
+  <% if (n.media && n.media.length) { %>
+    <% if (!locals.__reAssets) { locals.__reAssets = 1; %><link rel="stylesheet" href="/assets/css/reply-editor.css"><% } %>
+    <div class="re-reply-media">
+      <% n.media.forEach(function (m) { %>
+        <% if ((m.mediaType || '').indexOf('image/') === 0) { %>
+          <a href="<%= m.url %>" target="_blank" rel="noopener"><img src="<%= m.url %>" alt="<%= m.name || '' %>" loading="lazy"></a>
+        <% } else if ((m.mediaType || '').indexOf('audio/') === 0) { %>
+          <audio controls preload="none" src="<%= m.url %>"></audio>
+        <% } else { %>
+          <video controls preload="metadata" src="<%= m.url %>"></video>
+        <% } %>
+      <% }); %>
+    </div>
+  <% } %>
   <div class="comment-actions">
     <% if (n.mine && typeof canManageSite !== 'undefined' && canManageSite && n.outboxId) { %>
       <form method="post" action="<%= _base %>/fediverse/<%= n.outboxId %>/delete" data-confirm="<%= t('fedi.delete_confirm') %>">

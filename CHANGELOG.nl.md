@@ -6,6 +6,12 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 ## [Unreleased]
 
 ### Toegevoegd
+- **Media in reacties (rijke reacties, fase 2).** Sleep, plak of kies
+  afbeeldingen, audio en video direct in de reactie-editor (de paperclip werkt
+  op telefoons). Bestanden uploaden naar je eigen site, verschijnen als
+  verwijderbare chips tijdens het schrijven, reizen als echte attachments mee op
+  de gefedereerde note, en renderen in je thread. Een reactie met alleen media
+  (zonder tekst) kan ook.
 - **Rijke reacties (fase 1).** Reageren op fediverse-reacties (inline in de
   thread en op de interactiepagina) gebruikt nu een gedeelde rijke editor: vet,
   cursief, links, opsommingen en citaten, plus een taalkeuze voor je reactie

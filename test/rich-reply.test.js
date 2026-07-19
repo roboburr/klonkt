@@ -79,3 +79,43 @@ test('a bogus language code is dropped, not stored', async () => {
   const row = db.prepare('SELECT * FROM ap_outbox WHERE id = ?').get(r.id);
   assert.equal(row.language, null);
 });
+
+test('attachments: own /media/ urls stored, note carries typed absolute attachments', async () => {
+  const r = await AP.deliverReply(site, {
+    postId: 'p1', postSlug: 'hallo', parent, text: 'met media', html: '',
+    attachments: [
+      { url: '/media/reply-media/a.webp', mediaType: 'image/webp', name: 'foto' },
+      { url: '/media/reply-media/b.mp3', mediaType: 'audio/mpeg', name: 'liedje' },
+      { url: 'https://evil.example/x.png', mediaType: 'image/png', name: 'remote' },  // rejected: not ours
+      { url: '/media/reply-media/c.pdf', mediaType: 'application/pdf', name: 'doc' }, // rejected: type
+    ],
+  });
+  const row = db.prepare('SELECT * FROM ap_outbox WHERE id = ?').get(r.id);
+  const stored = JSON.parse(row.attachments);
+  assert.equal(stored.length, 2);
+  assert.deepEqual(stored.map((a) => a.url), ['/media/reply-media/a.webp', '/media/reply-media/b.mp3']);
+
+  const note = AP.buildReplyNote('https://klonkt.test', site, row);
+  assert.equal(note.attachment.length, 2);
+  assert.deepEqual(note.attachment.map((a) => a.type), ['Image', 'Audio']);
+  assert.equal(note.attachment[0].url, 'https://klonkt.test/media/reply-media/a.webp');
+});
+
+test('a media-only reply (no text) is delivered', async () => {
+  const r = await AP.deliverReply(site, {
+    postId: 'p1', postSlug: 'hallo', parent, text: '', html: '',
+    attachments: [{ url: '/media/reply-media/solo.webp', mediaType: 'image/webp', name: '' }],
+  });
+  assert.ok(r && r.id);
+  const row = db.prepare('SELECT * FROM ap_outbox WHERE id = ?').get(r.id);
+  assert.match(row.content, /^<p><a /); // just the mention paragraph
+  assert.equal(JSON.parse(row.attachments).length, 1);
+});
+
+test('only foreign/invalid attachments and no text -> rejected', async () => {
+  const r = await AP.deliverReply(site, {
+    postId: 'p1', postSlug: 'hallo', parent, text: '', html: '',
+    attachments: [{ url: 'https://evil.example/x.png', mediaType: 'image/png' }],
+  });
+  assert.equal(r, null);
+});

@@ -17,7 +17,8 @@
     defaultLang   preselected reply language (default: UI lang)
 %>
 <% var _reLang = (typeof defaultLang !== 'undefined' && defaultLang) || (typeof lang !== 'undefined' ? lang : 'en'); %>
-<form method="post" action="<%= action %>" class="re-form" data-re>
+<form method="post" action="<%= action %>" class="re-form" data-re
+      data-upload="/posts/upload-reply-media" data-upload-err="<%= t('re.attach_err') %>">
   <% (typeof hiddenFields !== 'undefined' ? hiddenFields : []).forEach(function (h) { %>
     <input type="hidden" name="<%= h.name %>" value="<%= h.value %>">
   <% }); %>
@@ -34,7 +35,11 @@
     <button type="button" data-cmd="link" title="<%= t('re.link') %>" aria-label="<%= t('re.link') %>">🔗</button>
     <button type="button" data-cmd="list" title="<%= t('re.list') %>" aria-label="<%= t('re.list') %>">•≡</button>
     <button type="button" data-cmd="quote" title="<%= t('re.quote') %>" aria-label="<%= t('re.quote') %>">❝</button>
+    <button type="button" data-cmd="attach" title="<%= t('re.attach') %>" aria-label="<%= t('re.attach') %>">📎</button>
+    <input type="file" class="re-file" accept="image/*,audio/*,video/*" multiple hidden>
   </div>
+  <input type="hidden" name="attachments" value="">
+  <div class="re-attachments" hidden></div>
   <textarea name="text" rows="<%= typeof rows !== 'undefined' ? rows : 3 %>" required placeholder="<%= placeholder %>"></textarea>
   <div class="re-editor" contenteditable="true" role="textbox" aria-multiline="true"
        data-ph="<%= placeholder %>" aria-label="<%= placeholder %>" hidden></div>

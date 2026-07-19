@@ -226,6 +226,20 @@ export function buildNote(base, site, post, opts = {}) {
   // is the ap_outbox reply row (id, in_reply_to, content, post_slug, created_at, to_actor).
   if (opts.isReply) {
     const meR = actorId(base, site.slug);
+    // Rich replies: attachments column (JSON [{url, mediaType, name}]) → AS2
+    // attachment array with absolute URLs and the matching object type.
+    let replyAtt;
+    try {
+      const list = post.attachments ? JSON.parse(post.attachments) : [];
+      if (Array.isArray(list) && list.length) {
+        replyAtt = list.map((a) => ({
+          type: a.mediaType.startsWith('image/') ? 'Image' : a.mediaType.startsWith('audio/') ? 'Audio' : 'Video',
+          mediaType: a.mediaType,
+          url: /^https?:/i.test(a.url) ? a.url : `${base}${a.url}`,
+          name: a.name || undefined,
+        }));
+      }
+    } catch { /* malformed attachments never block the Note */ }
     return {
       id: noteId(base, post.id),
       type: 'Note',
@@ -234,6 +248,7 @@ export function buildNote(base, site, post, opts = {}) {
       content: post.content,
       // Reply language (rich replies): the AS2 language map next to `content`.
       contentMap: post.language ? { [post.language]: post.content } : undefined,
+      attachment: replyAtt,
       url: post.post_slug ? `${base}/${encodeURIComponent(post.post_slug)}` : undefined,
       published: toISO(post.created_at),
       to: post.to_actor ? [post.to_actor] : [PUBLIC],
@@ -711,7 +726,7 @@ function iStmts() {
     _delReply = db.prepare("DELETE FROM ap_interactions WHERE kind = 'reply' AND object_uri = ?");
     _listI = db.prepare('SELECT id, kind, object_uri, parent_uri, actor_uri, actor_name, actor_handle, actor_url, actor_icon, content, published, created_at, acted_boost, acted_like, visibility FROM ap_interactions WHERE post_id = ? ORDER BY created_at ASC');
     _getI = db.prepare('SELECT * FROM ap_interactions WHERE id = ?');
-    _insO = db.prepare('INSERT INTO ap_outbox (id, site_slug, post_id, post_slug, in_reply_to, to_actor, to_handle, content, language, created_at) VALUES (?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)');
+    _insO = db.prepare('INSERT INTO ap_outbox (id, site_slug, post_id, post_slug, in_reply_to, to_actor, to_handle, content, language, attachments, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)');
     _listO = db.prepare('SELECT * FROM ap_outbox WHERE post_id = ? ORDER BY created_at ASC');
     _getO = db.prepare('SELECT * FROM ap_outbox WHERE id = ?');
   }
@@ -816,6 +831,7 @@ export function getInteractions(postId, base, site) {
     nodes.push({
       noteId: baseClean ? `${baseClean}/ap/notes/${o.id}` : o.id, parent: o.in_reply_to || null,
       mine: true, outboxId: o.id, content: stripLeadingMentions(o.content), created_at: o.created_at,
+      media: (() => { try { return o.attachments ? JSON.parse(o.attachments) : []; } catch { return []; } })(),
       actor_name: siteName, actor_handle: siteHandle, actor_url: siteUrl, actor_icon: siteIcon,
       children: [],
     });
@@ -1855,13 +1871,21 @@ async function c2sCreatePost(base, site, user, object) {
 
 // Send a reply FROM this site to a remote actor (in reply to their inbound reply).
 // `parent` = an ap_interactions row (actor_uri, actor_url, actor_handle, object_uri).
-export async function deliverReply(site, { postId, postSlug, parent, text, html, language }) {
+export async function deliverReply(site, { postId, postSlug, parent, text, html, language, attachments }) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   // Rich replies: `html` is the reply editor's HTML (sanitized here); `text` is
   // the plain-text fallback (no-JS path, C2S `source`). Either may carry the reply.
   const richClean = html ? HtmlSanitizerService.sanitize(String(html)) : '';
   const rich = richClean && HtmlSanitizerService.toPlainText(richClean).trim() ? richClean : '';
-  if (!base || !site || !site.slug || !parent || (!String(text || '').trim() && !rich)) return null;
+  // Attachments: only OUR OWN uploads (/media/... paths, no remote URLs — the
+  // upload route is the sole producer), image/audio/video only, max 4.
+  const media = (Array.isArray(attachments) ? attachments : [])
+    .filter((a) => a && typeof a.url === 'string' && /^\/media\/[\w./-]+$/.test(a.url)
+      && /^(image|audio|video)\//.test(String(a.mediaType || '')))
+    .slice(0, 4)
+    .map((a) => ({ url: a.url, mediaType: String(a.mediaType), name: String(a.name || '').slice(0, 120) }));
+  // A media-only reply (no text) is a valid reply.
+  if (!base || !site || !site.slug || !parent || (!String(text || '').trim() && !rich && !media.length)) return null;
   const me = actorId(base, site.slug);
   const handle = parent.actor_handle || deriveHandle(parent.actor_uri);
   const dispHandle = handle && handle[0] === '@' ? handle : '@' + (handle || '');
@@ -1889,11 +1913,13 @@ export async function deliverReply(site, { postId, postSlug, parent, text, html,
   }
   const replyLang = /^[a-z]{2,3}(-[A-Za-z0-9-]+)?$/.test(String(language || '')) ? language : null;
   // Dedup: skip if the exact same reply was already sent (double-submit guard).
-  const dup = db.prepare('SELECT 1 FROM ap_outbox WHERE site_slug = ? AND IFNULL(in_reply_to, \'\') = ? AND content = ? LIMIT 1')
-    .get(site.slug, parent.object_uri || '', content);
+  // Attachments count toward "the same": two media-only replies share content.
+  const mediaJson = media.length ? JSON.stringify(media) : null;
+  const dup = db.prepare('SELECT 1 FROM ap_outbox WHERE site_slug = ? AND IFNULL(in_reply_to, \'\') = ? AND content = ? AND IFNULL(attachments, \'\') = IFNULL(?, \'\') LIMIT 1')
+    .get(site.slug, parent.object_uri || '', content, mediaJson);
   if (dup) { console.log('[AP] outreply skipped (duplicate)'); return { duplicate: true, delivered: 0 }; }
   const id = crypto.randomUUID();
-  iStmts().insO.run(id, site.slug, postId, postSlug || null, parent.object_uri || null, parent.actor_uri || null, handle, content, replyLang);
+  iStmts().insO.run(id, site.slug, postId, postSlug || null, parent.object_uri || null, parent.actor_uri || null, handle, content, replyLang, mediaJson);
   const row = iStmts().getO.get(id);
   const note = buildReplyNote(base, site, row);
   const create = {

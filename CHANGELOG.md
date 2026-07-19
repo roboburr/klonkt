@@ -6,6 +6,11 @@ Versions follow [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Media in replies (rich replies, phase 2).** Drop, paste or pick images,
+  audio and video straight into the reply editor (the paperclip works on
+  phones). Files upload to your own site, show as removable chips while you
+  write, travel as real attachments on the federated note, and render in your
+  thread. A media-only reply (no text) works too.
 - **Rich replies (phase 1).** Replying to fediverse comments (inline in the
   thread and on the interact page) now uses a shared rich editor: bold, italic,
   links, lists and quotes, plus a language picker for your reply (sent along as

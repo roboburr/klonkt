@@ -29,6 +29,25 @@
   background: transparent; color: inherit; max-width: 10rem;
 }
 
+/* Media attachments (chips under the editor). */
+.re-attachments { display: flex; flex-wrap: wrap; gap: .4rem; }
+.re-att {
+  display: inline-flex; align-items: center; gap: .35rem;
+  padding: .25rem .4rem; border-radius: 8px; font-size: .8rem;
+  background: color-mix(in srgb, var(--ink, #000) 7%, transparent);
+  max-width: 100%; overflow: hidden;
+}
+.re-att img { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; display: block; }
+.re-att-del { border: none; background: none; color: inherit; font-size: 1rem; line-height: 1; cursor: pointer; padding: 0 .15rem; }
+.re-att-err { background: color-mix(in srgb, #c00 18%, transparent); }
+.re-editor.re-drop { border-color: var(--accent, #06c); border-style: dashed; }
+
+/* Media on a sent reply in the thread (fedi-node). */
+.re-reply-media { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .4rem; }
+.re-reply-media img { max-width: min(260px, 100%); max-height: 260px; border-radius: 10px; display: block; }
+.re-reply-media audio { max-width: 100%; }
+.re-reply-media video { max-width: min(320px, 100%); border-radius: 10px; }
+
 /* Full-screen compose (mobile). JS toggles .re-full on the form. */
 .re-head { display: flex; align-items: center; gap: .6rem; }
 .re-head-title { flex: 1; text-align: center; font-size: .95rem; }

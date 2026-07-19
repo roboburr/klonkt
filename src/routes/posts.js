@@ -31,6 +31,32 @@ fs.mkdirSync(POST_IMAGES_DIR, { recursive: true });
 const ALLOWED_IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif']);
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
+// Rich replies: media dropped/pasted into the reply editor. Images, audio and
+// video, stored as-is (no transcode; a reply attachment is not a track).
+const REPLY_MEDIA_DIR = path.resolve(
+  process.env.REPLY_MEDIA_PATH ||
+  path.join(__dirname, '..', '..', 'storage', 'media', 'reply-media')
+);
+fs.mkdirSync(REPLY_MEDIA_DIR, { recursive: true });
+const ALLOWED_REPLY_MEDIA_EXT = new Set([
+  '.jpg', '.jpeg', '.png', '.webp', '.gif',
+  '.mp3', '.m4a', '.ogg', '.opus', '.flac', '.wav',
+  '.mp4', '.webm', '.mov',
+]);
+const MAX_REPLY_MEDIA_BYTES = 32 * 1024 * 1024;
+const replyMediaUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, REPLY_MEDIA_DIR),
+    filename: (req, file, cb) => cb(null, `${uuid()}${path.extname(file.originalname).toLowerCase()}`),
+  }),
+  limits: { fileSize: MAX_REPLY_MEDIA_BYTES },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (!ALLOWED_REPLY_MEDIA_EXT.has(ext)) return cb(new Error('Media must be an image, audio or video file'));
+    cb(null, true);
+  },
+});
+
 const imageStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, POST_IMAGES_DIR),
   filename: (req, file, cb) => {
@@ -89,6 +115,25 @@ router.post('/posts/upload-image', requireAuth, (req, res) => {
       }
     } catch { /* keep the still image */ }
     res.json({ url, video, size: req.file.size, mime: req.file.mimetype });
+  });
+});
+
+// Rich replies: media for a reply (image/audio/video). Returns { url, mediaType, name }
+// exactly as the editor's attachments JSON wants it; deliverReply re-validates.
+router.post('/posts/upload-reply-media', requireSiteManager, (req, res) => {
+  replyMediaUpload.single('media')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+    if (!req.file) return res.status(400).json({ error: 'No file' });
+    const mime = String(req.file.mimetype || '');
+    if (!/^(image|audio|video)\//.test(mime)) {
+      try { fs.unlinkSync(req.file.path); } catch { /* best effort */ }
+      return res.status(400).json({ error: 'Media must be an image, audio or video file' });
+    }
+    res.json({
+      url: '/media/reply-media/' + req.file.filename,
+      mediaType: mime,
+      name: String(req.file.originalname || '').slice(0, 120),
+    });
   });
 });
 
@@ -713,10 +758,12 @@ router.post('/authorize_interaction', requireSiteManager, (req, res) => {
   const text = (req.body.text || '').toString();
   const html = (req.body.content || '').toString();      // rich reply editor HTML (sanitized in deliverReply)
   const language = (req.body.language || '').toString();
-  if (site && uri && (text.trim() || html.trim())) {
+  let attachments = [];
+  try { attachments = JSON.parse(req.body.attachments || '[]'); } catch { /* geen media */ }
+  if (site && uri && (text.trim() || html.trim() || (Array.isArray(attachments) && attachments.length))) {
     // Resolve + deliver in the background so Send responds instantly.
     ActivityPubService.resolveRemoteNote(uri)
-      .then((parent) => parent && ActivityPubService.deliverReply(site, { postId: parent.localPostId || '', postSlug: null, parent, text, html, language }))
+      .then((parent) => parent && ActivityPubService.deliverReply(site, { postId: parent.localPostId || '', postSlug: null, parent, text, html, language, attachments }))
       .catch((e) => console.warn('[AP] remote reply failed:', e.message));
   }
   res.redirect('/authorize_interaction?sent=1&uri=' + encodeURIComponent(uri));
@@ -1259,10 +1306,12 @@ router.post('/posts/:slug/fedi-reply', requireSiteManager, async (req, res) => {
   const parent = ActivityPubService.getInteractionById(req.body.interaction_id);
   const text = (req.body.text || '').toString();
   const html = (req.body.content || '').toString();      // rich reply editor HTML (sanitized in deliverReply)
-  if (parent && parent.post_id === post.id && (text.trim() || html.trim())) {
+  let attachments = [];
+  try { attachments = JSON.parse(req.body.attachments || '[]'); } catch { /* geen media */ }
+  if (parent && parent.post_id === post.id && (text.trim() || html.trim() || (Array.isArray(attachments) && attachments.length))) {
     try {
       await ActivityPubService.deliverReply(site, {
-        postId: post.id, postSlug: post.slug, parent, text, html,
+        postId: post.id, postSlug: post.slug, parent, text, html, attachments,
         language: (req.body.language || '').toString(),
       });
     } catch (e) { console.warn('[AP] reply send failed:', e.message); }

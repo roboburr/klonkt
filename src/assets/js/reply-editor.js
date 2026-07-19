@@ -31,14 +31,69 @@
     bar.hidden = false;
     if (lang) lang.hidden = false;
 
+    // ── Media attachments: picker (📎), drag/drop and paste ──────────────
+    var attWrap = form.querySelector('.re-attachments');
+    var attField = form.querySelector('input[name="attachments"]');
+    var fileInput = form.querySelector('.re-file');
+    var attachments = [];
+
+    function syncAtt() {
+      attField.value = attachments.length ? JSON.stringify(attachments) : '';
+      attWrap.hidden = attachments.length === 0;
+    }
+    function addChip(a) {
+      var chip = document.createElement('span');
+      chip.className = 're-att';
+      if (a.mediaType.indexOf('image/') === 0) {
+        var img = document.createElement('img');
+        img.src = a.url; img.alt = a.name || '';
+        chip.appendChild(img);
+      } else {
+        chip.appendChild(document.createTextNode((a.mediaType.indexOf('audio/') === 0 ? '🎵 ' : '🎬 ') + (a.name || a.mediaType)));
+      }
+      var del = document.createElement('button');
+      del.type = 'button'; del.className = 're-att-del'; del.textContent = '×';
+      del.addEventListener('click', function () {
+        attachments = attachments.filter(function (x) { return x !== a; });
+        chip.remove(); syncAtt();
+      });
+      chip.appendChild(del);
+      attWrap.appendChild(chip);
+    }
+    function uploadFiles(files) {
+      Array.prototype.forEach.call(files, function (file) {
+        if (!/^(image|audio|video)\//.test(file.type) || attachments.length >= 4) return;
+        var chip = document.createElement('span');
+        chip.className = 're-att re-att-busy';
+        chip.textContent = '⏳ ' + file.name;
+        attWrap.hidden = false;
+        attWrap.appendChild(chip);
+        var fd = new FormData();
+        fd.append('media', file);
+        fetch(form.getAttribute('data-upload'), { method: 'POST', body: fd })
+          .then(function (r) { return r.json().then(function (j) { return r.ok ? j : Promise.reject(j); }); })
+          .then(function (j) {
+            chip.remove();
+            var a = { url: j.url, mediaType: j.mediaType, name: j.name || file.name };
+            attachments.push(a); addChip(a); syncAtt();
+          })
+          .catch(function (err) {
+            chip.className = 're-att re-att-err';
+            chip.textContent = (form.getAttribute('data-upload-err') || 'Upload failed') + (err && err.error ? ': ' + err.error : '');
+            setTimeout(function () { chip.remove(); syncAtt(); }, 5000);
+          });
+      });
+    }
+
     // Toolbar commands (execCommand is deprecated-but-universal; same approach
     // as the post editor).
     bar.addEventListener('click', function (e) {
       var btn = e.target.closest('button[data-cmd]');
       if (!btn) return;
       e.preventDefault();
-      ed.focus();
       var cmd = btn.getAttribute('data-cmd');
+      if (cmd === 'attach') { fileInput.click(); return; }   // no editor focus: keeps the picker usable on mobile
+      ed.focus();
       if (cmd === 'bold') document.execCommand('bold');
       else if (cmd === 'italic') document.execCommand('italic');
       else if (cmd === 'list') document.execCommand('insertUnorderedList');
@@ -48,14 +103,40 @@
         if (url && /^https?:\/\//i.test(url.trim())) document.execCommand('createLink', false, url.trim());
       }
     });
+    fileInput.addEventListener('change', function () {
+      uploadFiles(fileInput.files);
+      fileInput.value = '';
+    });
 
-    // Paste as plain text (rich paste becomes messy HTML; formatting is what
-    // the toolbar is for). Media paste/drop lands in the media phase.
+    // Paste: files become attachments; text pastes as plain text (rich paste
+    // becomes messy HTML; formatting is what the toolbar is for).
     ed.addEventListener('paste', function (e) {
-      var txt = (e.clipboardData || window.clipboardData).getData('text/plain');
+      var cd = e.clipboardData || window.clipboardData;
+      if (cd.files && cd.files.length) {
+        e.preventDefault();
+        uploadFiles(cd.files);
+        return;
+      }
+      var txt = cd.getData('text/plain');
       if (!txt) return;
       e.preventDefault();
       document.execCommand('insertText', false, txt);
+    });
+
+    // Drag/drop media onto the editor.
+    ed.addEventListener('dragover', function (e) {
+      if (e.dataTransfer && Array.prototype.some.call(e.dataTransfer.types || [], function (t) { return t === 'Files'; })) {
+        e.preventDefault();
+        ed.classList.add('re-drop');
+      }
+    });
+    ed.addEventListener('dragleave', function () { ed.classList.remove('re-drop'); });
+    ed.addEventListener('drop', function (e) {
+      ed.classList.remove('re-drop');
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+        e.preventDefault();
+        uploadFiles(e.dataTransfer.files);
+      }
     });
 
     // Full-screen compose on mobile: enter on focus, leave via ×.
@@ -71,12 +152,12 @@
     var cancel = form.querySelector('.re-cancel');
     if (cancel) cancel.addEventListener('click', function () { setFull(false); });
 
-    // Serialize on submit; block truly empty replies.
+    // Serialize on submit; block truly empty replies (media-only is fine).
     form.addEventListener('submit', function (e) {
       var html = ed.innerHTML.trim();
       var plain = (ed.innerText || '').replace(/ /g, ' ').trim();
-      if (!plain) { e.preventDefault(); ed.focus(); return; }
-      hidden.value = html;
+      if (!plain && !attachments.length) { e.preventDefault(); ed.focus(); return; }
+      hidden.value = plain ? html : '';
       ta.value = plain;
       document.documentElement.classList.remove('re-lock');
     });

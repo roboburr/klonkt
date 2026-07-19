@@ -6,6 +6,12 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 ## [Unreleased]
 
 ### Hinzugefügt
+- **Medien in Antworten (reichhaltige Antworten, Phase 2).** Ziehe, füge ein
+  oder wähle Bilder, Audio und Video direkt im Antwort-Editor (die Büroklammer
+  funktioniert auf Telefonen). Dateien laden auf deine eigene Seite hoch,
+  erscheinen beim Schreiben als entfernbare Chips, reisen als echte Anhänge der
+  föderierten Note mit und erscheinen in deinem Thread. Eine Antwort nur mit
+  Medien (ohne Text) geht auch.
 - **Reichhaltige Antworten (Phase 1).** Das Antworten auf Fediverse-Kommentare
   (inline im Thread und auf der Interaktionsseite) nutzt jetzt einen geteilten
   Rich-Editor: fett, kursiv, Links, Listen und Zitate, plus eine Sprachwahl für
