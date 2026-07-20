@@ -182,4 +182,14 @@ body.on-post[data-grid-cols="4"] .grid-cols-btn[data-cols="4"] {
 }
 .htmx-request .pcms-loading { display: block; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Load more (Solo, Cirkel, News, Messages) — page size 72, htmx append. */
+.load-more-wrap { display: flex; justify-content: center; margin: 1.5rem 0 .5rem; }
+.load-more-wrap:empty { margin: 0; }
+.load-more-btn { padding: .6rem 1.4rem; border-radius: 999px; cursor: pointer;
+  font: inherit; font-weight: 600; color: var(--ink, inherit);
+  background: color-mix(in srgb, var(--ink, #000) 5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ink, #000) 14%, transparent); }
+.load-more-btn:hover { background: color-mix(in srgb, var(--ink, #000) 9%, transparent); }
+.load-more-btn.htmx-request { opacity: .6; pointer-events: none; }
 </style>

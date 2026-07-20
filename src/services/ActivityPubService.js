@@ -2226,12 +2226,12 @@ let _insTl, _listTl, _delTl;
 function tlStmts() {
   if (!_insTl) {
     _insTl = db.prepare('INSERT OR IGNORE INTO ap_timeline (id, slug, author_uri, author_name, author_handle, author_icon, author_url, content, url, published, media_json, nsfw, cw, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)');
-    _listTl = db.prepare('SELECT * FROM ap_timeline WHERE slug = ? ORDER BY COALESCE(published, created_at) DESC LIMIT ?');
+    _listTl = db.prepare('SELECT * FROM ap_timeline WHERE slug = ? ORDER BY COALESCE(published, created_at) DESC LIMIT ? OFFSET ?');
     _delTl = db.prepare('DELETE FROM ap_timeline WHERE id = ?');
   }
   return { ins: _insTl, list: _listTl, del: _delTl };
 }
-export function getTimeline(slug, limit) { return tlStmts().list.all(slug, limit || 50); }
+export function getTimeline(slug, limit, offset) { return tlStmts().list.all(slug, limit || 50, offset || 0); }
 
 // ── Cirkel = posts from the accounts you auto-boost ("feature an artist") ──
 let _abCount, _cirkelPosts, _cirkelMembers;

@@ -882,10 +882,16 @@ function klonktAudioEmbed(html, url) {
   return { origin: u.origin, embedUrl: src, content, html: `<iframe class="tl-embed-frame tl-embed-klonkt" src="${src}" title="Audio" loading="lazy" frameborder="0" allow="autoplay; encrypted-media"></iframe>` };
 }
 
+const FEED_PAGE = 72; // divisible by 2/3/4 → every grid column count keeps full rows
 router.get('/news', requireSiteManager, (req, res) => {
   const site = res.locals.site;
+  const append = req.query.append === '1';
+  const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
   const cspOrigins = new Set();
-  const timeline = (site ? ActivityPubService.getTimeline(site.slug, 60) : []).map((p) => {
+  // Fetch one extra to know whether a "Load more" button belongs on this page.
+  const rows = site ? ActivityPubService.getTimeline(site.slug, FEED_PAGE + 1, offset) : [];
+  const hasMore = rows.length > FEED_PAGE;
+  const timeline = rows.slice(0, FEED_PAGE).map((p) => {
     let embedHtml = timelineEmbedHtml(p.content);
     let content = p.content;
     let embedUrl = null;
@@ -909,9 +915,13 @@ router.get('/news', requireSiteManager, (req, res) => {
       res.setHeader('Content-Security-Policy', String(csp).replace(/frame-src ([^;]*)/i, (m, g) => `frame-src ${g} ${extra}`));
     }
   }
+  const moreBase = res.locals.siteUrlBase || '';
+  if (append) {
+    return renderPage(req, res, 'partials/news-append', { timeline, hasMore, nextOffset: offset + FEED_PAGE, moreBase });
+  }
   renderPage(req, res, 'pages/news', {
     pageTitle: 'News', bodyClass: 'on-special',
-    timeline,
+    timeline, hasMore, nextOffset: offset + FEED_PAGE, moreBase,
     success: req.query.success || null, error: req.query.error || null,
   });
 });

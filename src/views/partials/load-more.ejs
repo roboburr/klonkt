@@ -1,0 +1,16 @@
+<%
+  // Reusable "Load more" control. On the full page it sits after the feed; the
+  // append response re-emits it with oob=true so htmx swaps the fresh button
+  // (next offset) in place of the old one, and drops it on the last page.
+  var _oob = (typeof oob !== 'undefined' && oob);
+  var _target = (typeof moreTarget !== 'undefined' && moreTarget) ? moreTarget : '#feed';
+  var _path = (typeof morePath !== 'undefined' && morePath) ? morePath : '';
+  var _base = (typeof moreBase !== 'undefined' && moreBase) ? moreBase : '';
+%>
+<div id="load-more" class="load-more-wrap"<% if (_oob) { %> hx-swap-oob="true"<% } %>>
+  <% if (hasMore) { %>
+    <button type="button" class="btn load-more-btn"
+      hx-get="<%= _base %><%= _path %>?append=1&offset=<%= nextOffset %>"
+      hx-target="<%= _target %>" hx-swap="beforeend"><%= t('feed.load_more') %></button>
+  <% } %>
+</div>

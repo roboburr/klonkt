@@ -1,0 +1,2 @@
+<% timeline.forEach(function(p){ %><%- include('tl-item', { p: p }) %><% }); %>
+<%- include('load-more', { hasMore: hasMore, nextOffset: nextOffset, moreBase: moreBase, moreTarget: '#tl-feed', morePath: '/news', oob: true }) %>
