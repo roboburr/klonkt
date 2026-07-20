@@ -174,7 +174,8 @@ router.get('/ap/users/:slug/followers', (req, res) => {
   const site = owner ? auth.site : publicSite(req.params.slug);
   if (!site) return res.status(404).end();
   if (owner) {
-    const items = db.prepare('SELECT actor_uri FROM ap_followers WHERE slug = ? ORDER BY created_at').all(site.slug).map((r) => r.actor_uri);
+    const uris = db.prepare('SELECT actor_uri FROM ap_followers WHERE slug = ? ORDER BY created_at').all(site.slug).map((r) => r.actor_uri);
+    const items = uris.map((u) => AP.buildActorRef(site.slug, u));   // name + avatar (shaer-aa3)
     return AP.sendAP(res, AP.buildFollowers(baseUrl(req), site, items.length, items));
   }
   const n = db.prepare('SELECT COUNT(*) n FROM ap_followers WHERE slug = ?').get(site.slug).n;
@@ -189,7 +190,7 @@ router.get('/ap/users/:slug/following', (req, res) => {
   if (!site) return res.status(404).end();
   if (owner) {
     let items = [];
-    try { items = db.prepare("SELECT actor_uri FROM ap_following WHERE slug = ? AND status = 'accepted' ORDER BY created_at").all(site.slug).map((r) => r.actor_uri); } catch { /* table may not exist */ }
+    try { items = db.prepare("SELECT actor_uri FROM ap_following WHERE slug = ? AND status = 'accepted' ORDER BY created_at").all(site.slug).map((r) => AP.buildActorRef(site.slug, r.actor_uri)); } catch { /* table may not exist */ }
     return AP.sendAP(res, AP.buildFollowing(baseUrl(req), site, items.length, items));
   }
   let n = 0;

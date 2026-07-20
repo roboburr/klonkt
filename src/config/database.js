@@ -443,6 +443,9 @@ export function initializeDatabase() {
   ensureColumn('ap_outbox', 'visibility', 'TEXT');  // 'direct' = private mention, never Public (shaer-tqc)
   ensureColumn('ap_outbox', 'to_actors', 'TEXT');   // JSON array of recipient actor URIs for direct notes
   ensureColumn('ap_outbox', 'help_request', 'INTEGER'); // FEP-633c shaer:helpRequest (ward's call for help)
+  ensureColumn('ap_followers', 'name', 'TEXT');    // cached display name (shaer-aa3)
+  ensureColumn('ap_followers', 'handle', 'TEXT');  // @user@host
+  ensureColumn('ap_followers', 'icon', 'TEXT');    // avatar URL
 }
 
 function ensureColumn(table, column, definition) {

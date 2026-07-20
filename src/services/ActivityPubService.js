@@ -620,10 +620,11 @@ export function buildFeatured(base, site, posts) {
 }
 
 // ── followers store (lazy stmts) ──────────────────────────────────
-let _insF, _delF, _listF, _cntF;
+let _insF, _updFDisp, _delF, _listF, _cntF;
 function fStmts() {
   if (!_insF) {
-    _insF = db.prepare('INSERT OR IGNORE INTO ap_followers (slug, actor_uri, inbox, shared_inbox, created_at) VALUES (?,?,?,?,CURRENT_TIMESTAMP)');
+    _insF = db.prepare('INSERT OR IGNORE INTO ap_followers (slug, actor_uri, inbox, shared_inbox, name, handle, icon, created_at) VALUES (?,?,?,?,?,?,?,CURRENT_TIMESTAMP)');
+    _updFDisp = db.prepare('UPDATE ap_followers SET name = COALESCE(?, name), handle = COALESCE(?, handle), icon = COALESCE(?, icon) WHERE slug = ? AND actor_uri = ?');
     _delF = db.prepare('DELETE FROM ap_followers WHERE slug = ? AND actor_uri = ?');
     _listF = db.prepare('SELECT inbox, shared_inbox FROM ap_followers WHERE slug = ?');
     _cntF = db.prepare('SELECT COUNT(*) n FROM ap_followers WHERE slug = ?');
@@ -645,6 +646,38 @@ export function listFollowers(slug) {
 export function removeFollower(slug, id) {
   const info = db.prepare('DELETE FROM ap_followers WHERE slug = ? AND id = ?').run(slug, id);
   return info.changes > 0;
+}
+
+// Best cached display for an actor URI, across the caches Klonkt already fills:
+// followers (now with name/icon), following, interactions, timeline, mentions.
+// Falls back to a handle derived from the URI. Display info is not sensitive.
+export function actorDisplay(slug, uri) {
+  const ok = (r) => r && (r.name || r.icon);
+  try {
+    let r = db.prepare('SELECT name, handle, icon FROM ap_followers WHERE slug = ? AND actor_uri = ?').get(slug, uri);
+    if (ok(r)) return { name: r.name, handle: r.handle || deriveHandle(uri), icon: r.icon };
+    r = db.prepare('SELECT name, handle, icon FROM ap_following WHERE slug = ? AND actor_uri = ?').get(slug, uri);
+    if (ok(r)) return { name: r.name, handle: r.handle || deriveHandle(uri), icon: r.icon };
+    r = db.prepare('SELECT actor_name AS name, actor_handle AS handle, actor_icon AS icon FROM ap_interactions WHERE actor_uri = ? AND (actor_name IS NOT NULL OR actor_icon IS NOT NULL) ORDER BY created_at DESC LIMIT 1').get(uri);
+    if (ok(r)) return { name: r.name, handle: r.handle || deriveHandle(uri), icon: r.icon };
+    r = db.prepare('SELECT author_name AS name, author_handle AS handle, author_icon AS icon FROM ap_timeline WHERE author_uri = ? AND (author_name IS NOT NULL OR author_icon IS NOT NULL) LIMIT 1').get(uri);
+    if (ok(r)) return { name: r.name, handle: r.handle || deriveHandle(uri), icon: r.icon };
+    r = db.prepare('SELECT actor_name AS name, actor_handle AS handle, actor_icon AS icon FROM ap_mentions WHERE actor_uri = ? AND (actor_name IS NOT NULL OR actor_icon IS NOT NULL) ORDER BY created_at DESC LIMIT 1').get(uri);
+    if (ok(r)) return { name: r.name, handle: r.handle || deriveHandle(uri), icon: r.icon };
+  } catch { /* ignore */ }
+  return { name: null, handle: deriveHandle(uri), icon: null };
+}
+
+// AS2 actor reference with display, for the owner C2S followers/following view.
+// preferredUsername = the local part of the handle; name = the set display name.
+export function buildActorRef(slug, uri) {
+  const d = actorDisplay(slug, uri);
+  const user = d.handle && d.handle[0] === '@' ? d.handle.slice(1).split('@')[0] : null;
+  const out = { id: uri, type: 'Person' };
+  if (d.name) out.name = d.name;
+  if (user) out.preferredUsername = user;
+  if (d.icon) out.icon = { type: 'Image', url: d.icon };
+  return out;
 }
 
 // Merge who-you-follow (ap_following, rich display) with who-follows-you (ap_followers,
@@ -1254,7 +1287,9 @@ export async function handleInbox(req, slugParam) {
     const remote = await fetchActor(who);
     if (!remote || !remote.inbox) return 202; // can't reach them → drop quietly
     const sharedInbox = (remote.endpoints && remote.endpoints.sharedInbox) || null;
-    fStmts().ins.run(slug, who, remote.inbox, sharedInbox);
+    const fi = actorInfo(remote, who);   // cache display for the friends list (shaer-aa3)
+    fStmts().ins.run(slug, who, remote.inbox, sharedInbox, fi.name, fi.handle, fi.icon);
+    try { _updFDisp.run(fi.name, fi.handle, fi.icon, slug, who); } catch { /* best effort */ }
     const me = actorId(base, slug);
     const keys = getOrCreateKeys(slug);
     const accept = { '@context': AP_CONTEXT, id: `${me}#accept-${Date.now()}-${rid()}`, type: 'Accept', actor: me, object: act };
@@ -3034,5 +3069,5 @@ export default {
   getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
   linkifyBody, bakePostContent, bakePostContentWithMentions, listFollowers, removeFollower, listConnections,
   noteVisibility, isRejectedObject, rejectInteraction, interactionReportTarget,
-  getMessages, notificationsSeenAt, ingestOutboxActivity, c2sVisibility,
+  getMessages, notificationsSeenAt, ingestOutboxActivity, c2sVisibility, actorDisplay, buildActorRef,
 };
