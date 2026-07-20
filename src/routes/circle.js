@@ -41,11 +41,17 @@ function tidySnippet(text) {
     .trim();
 }
 
+const CIRKEL_PAGE = 72; // matches FEED_PAGE in posts.js: divisible by 2/3/4
+
 router.get('/cirkel', (req, res, next) => {
   const site = res.locals.site;
   if (!site || !apEnabled() || (ActivityPubService.autoBoostCount(site.slug) === 0 && ActivityPubService.boostedCount(site.slug) === 0)) return next();
 
-  const posts = ActivityPubService.getCirkelPosts(site.slug, 80).map((r) => {
+  const append = req.query.append === '1';
+  const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
+  const rows = ActivityPubService.getCirkelPosts(site.slug, CIRKEL_PAGE + 1, offset);
+  const hasMore = rows.length > CIRKEL_PAGE;
+  const posts = rows.slice(0, CIRKEL_PAGE).map((r) => {
     const text = tidySnippet(htmlToText(r.content));
     // Show ONLY the title (the bold first line a Klonkt note carries), not the whole
     // body. Title-less notes (e.g. plain Mastodon) fall back to a short text snippet.
@@ -76,10 +82,18 @@ router.get('/cirkel', (req, res, next) => {
     };
   });
 
+  const moreBase = res.locals.siteUrlBase || '';
+  if (append) {
+    return renderPage(req, res, 'partials/home-append', { posts, hasMore, nextOffset: offset + CIRKEL_PAGE, moreBase, morePath: '/cirkel' });
+  }
+
   const sites = ActivityPubService.getCirkelMembers(site.slug)
     .map((s) => ({ name: s.name || 'Onbekend', url: safeUrl(s.url), avatar: safeUrl(s.icon) }));
 
-  renderPage(req, res, 'pages/circle-feed', { pageTitle: 'Cirkel', bodyClass: 'on-cirkel', posts, sites });
+  renderPage(req, res, 'pages/circle-feed', {
+    pageTitle: 'Cirkel', bodyClass: 'on-cirkel', posts, sites,
+    hasMore, nextOffset: offset + CIRKEL_PAGE, moreBase,
+  });
 });
 
 export default router;

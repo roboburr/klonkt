@@ -2244,7 +2244,7 @@ let _abCount, _cirkelPosts, _cirkelMembers;
 export function autoBoostCount(slug) {
   try { if (!_abCount) _abCount = db.prepare('SELECT COUNT(*) AS n FROM ap_following WHERE slug = ? AND auto_boost = 1'); return _abCount.get(slug).n; } catch { return 0; }
 }
-export function getCirkelPosts(slug, limit) {
+export function getCirkelPosts(slug, limit, offset) {
   try {
     // Cirkel = posts from featured (auto_boost) accounts + posts you boosted
     // (t.boosted), mixed by date. One row per note in ap_timeline → no duplicates.
@@ -2255,8 +2255,8 @@ export function getCirkelPosts(slug, limit) {
       LEFT JOIN ap_following f ON f.slug = t.slug AND f.actor_uri = t.author_uri
       WHERE t.slug = ? AND (f.auto_boost = 1 OR t.boosted = 1)
       ORDER BY COALESCE(t.published, t.created_at) DESC, t.rowid DESC
-      LIMIT ?`);
-    return _cirkelPosts.all(slug, limit || 60);
+      LIMIT ? OFFSET ?`);
+    return _cirkelPosts.all(slug, limit || 60, offset || 0);
   } catch { return []; }
 }
 export function getCirkelMembers(slug) {

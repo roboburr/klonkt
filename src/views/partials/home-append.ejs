@@ -1,0 +1,6 @@
+<% posts.forEach(function(post){ %><%- include('post-card', { post: post }) %><% }); %>
+<%# Grid view: OOB-append the same posts as tiles. htmx inserts the wrapper node
+    itself (beforeend), so display:contents lets the tiles lay out as direct grid
+    items instead of nesting under an extra box. %>
+<div hx-swap-oob="beforeend:#grid-tiles" style="display:contents"><% posts.forEach(function(post){ %><%- include('post-tile', { post: post }) %><% }); %></div>
+<%- include('load-more', { hasMore: hasMore, nextOffset: nextOffset, moreBase: moreBase, moreTarget: '#post-list', morePath: (typeof morePath !== 'undefined' ? morePath : '/'), oob: true }) %>

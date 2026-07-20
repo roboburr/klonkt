@@ -94,6 +94,10 @@ function uniqueSlug(siteId, base, exceptId = null) {
 
 const router = express.Router();
 
+// Feed page size for "Load more" (Solo, News, Messages, Cirkel). 72 is divisible
+// by 2/3/4 so every grid column count ends on a full row.
+const FEED_PAGE = 72;
+
 // ==================== UPLOAD IMAGE (cover or content) ====================
 // Returns JSON {url} so the editor can stick it into the cover field or
 // insert a markdown ![](url) into content.
@@ -209,20 +213,30 @@ router.get('/', (req, res) => {
     ORDER BY p.pinned ASC, p.published_at DESC
   `).all(site.id);
 
-  // Regular posts: anything with pinned = 0
-  const posts = db.prepare(`
+  // Regular posts: anything with pinned = 0. Paged in blocks of 72 (Load more).
+  const append = req.query.append === '1';
+  const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
+  const rows = db.prepare(`
     SELECT p.*, u.username as author_username
     FROM posts p JOIN users u ON p.author_id = u.id
     WHERE p.site_id = ? AND p.status = 'published' AND p.pinned = 0
     ORDER BY p.published_at DESC
-    LIMIT 30
-  `).all(site.id);
+    LIMIT ? OFFSET ?
+  `).all(site.id, FEED_PAGE + 1, offset);
+  const hasMore = rows.length > FEED_PAGE;
+  const posts = rows.slice(0, FEED_PAGE);
+  const moreBase = res.locals.siteUrlBase || '';
+
+  if (append) {
+    return renderPage(req, res, 'partials/home-append', { posts, hasMore, nextOffset: offset + FEED_PAGE, moreBase });
+  }
 
   recordPageview(site.id, req);
 
   renderPage(req, res, 'pages/home', {
     pinnedPosts,
     posts,
+    hasMore, nextOffset: offset + FEED_PAGE, moreBase,
     pageTitle: site.title,
     socialDescr: site.description || site.tagline || '',
     bodyClass: 'on-home',
@@ -892,7 +906,6 @@ function klonktAudioEmbed(html, url) {
   return { origin: u.origin, embedUrl: src, content, html: `<iframe class="tl-embed-frame tl-embed-klonkt" src="${src}" title="Audio" loading="lazy" frameborder="0" allow="autoplay; encrypted-media"></iframe>` };
 }
 
-const FEED_PAGE = 72; // divisible by 2/3/4 → every grid column count keeps full rows
 router.get('/news', requireSiteManager, (req, res) => {
   const site = res.locals.site;
   const append = req.query.append === '1';

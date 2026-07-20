@@ -35,7 +35,7 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
       <% } %>
     </div>
   <% } else { %>
-    <ul class="post-list feed-timeline-list">
+    <ul class="post-list feed-timeline-list" id="post-list">
       <% allPosts.forEach(function(post) { %>
         <%- include('../partials/post-card', { post: post }) %>
       <% }); %>
@@ -47,10 +47,15 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
 <!-- ========== GRID (only visible when body[data-feed-view="grid"]) ========== -->
 <% if (allPosts.length > 0) { %>
 <section class="feed-grid container" aria-label="<%= t('phome.grid_view') %>">
-  <div class="grid-tiles">
+  <div class="grid-tiles" id="grid-tiles">
     <% allPosts.forEach(function(post) { %>
       <%- include('../partials/post-tile', { post: post }) %>
     <% }); %>
   </div>
 </section>
+<% } %>
+<% if (typeof hasMore !== 'undefined' && allPosts.length > 0) { %>
+<div class="container feed-more-wrap">
+  <%- include('../partials/load-more', { hasMore: hasMore, nextOffset: nextOffset, moreBase: moreBase, moreTarget: '#post-list', morePath: '/' }) %>
+</div>
 <% } %>
