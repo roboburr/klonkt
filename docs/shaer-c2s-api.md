@@ -83,8 +83,11 @@ hashed server-side; the client keeps the bearer in the platform keystore. A
 | `GET /ap/users/:slug/following` | see below |
 
 **Followers and following** are count-only for the public (privacy). With the
-owner's bearer they return the real entries as AS2 actor references with display,
-so a client shows names and avatars instead of bare ids:
+owner's bearer they return the real entries. By default these are bare id
+strings; send `Prefer: return=representation` (FEP-9876) to get them enriched as
+AS2 actor references with display, so a client shows names and avatars instead of
+bare ids. The server echoes `Preference-Applied: return=representation` and sets
+`Vary: Prefer`:
 
 ```json
 {

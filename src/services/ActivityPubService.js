@@ -668,6 +668,12 @@ export function actorDisplay(slug, uri) {
   return { name: null, handle: deriveHandle(uri), icon: null };
 }
 
+// FEP-9876: does this `Prefer` header ask for enriched (embedded) members?
+// Pure and testable; the route sets the response headers around it.
+export function prefersEnriched(preferHeader) {
+  return /(^|[,;\s])return=representation($|[,;\s])/i.test(String(preferHeader || ''));
+}
+
 // AS2 actor reference with display, for the owner C2S followers/following view.
 // preferredUsername = the local part of the handle; name = the set display name.
 export function buildActorRef(slug, uri) {
@@ -3069,5 +3075,5 @@ export default {
   getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
   linkifyBody, bakePostContent, bakePostContentWithMentions, listFollowers, removeFollower, listConnections,
   noteVisibility, isRejectedObject, rejectInteraction, interactionReportTarget,
-  getMessages, notificationsSeenAt, ingestOutboxActivity, c2sVisibility, actorDisplay, buildActorRef,
+  getMessages, notificationsSeenAt, ingestOutboxActivity, c2sVisibility, actorDisplay, buildActorRef, prefersEnriched,
 };

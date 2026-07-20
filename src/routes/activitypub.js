@@ -168,6 +168,17 @@ router.post('/ap/users/:slug/uploadMedia', (req, res) => {
 // A C2S bearer scoped to this site (the account owner) gets the real actor
 // URIs so their own client can build a friends list; everyone else gets the
 // count only (privacy).
+// FEP-9876: enrichment is opt-in via `Prefer: return=representation` (RFC 7240).
+// Returns true and sets the response headers when the owner asked for it.
+function wantsEnriched(req, res) {
+  res.set('Vary', 'Prefer');   // enriched and bare are two representations
+  if (AP.prefersEnriched(req.get('Prefer'))) {
+    res.set('Preference-Applied', 'return=representation');
+    return true;
+  }
+  return false;
+}
+
 router.get('/ap/users/:slug/followers', (req, res) => {
   const auth = OAuth.verifyBearer(req.headers.authorization);
   const owner = auth && auth.site.slug === req.params.slug;
@@ -175,7 +186,8 @@ router.get('/ap/users/:slug/followers', (req, res) => {
   if (!site) return res.status(404).end();
   if (owner) {
     const uris = db.prepare('SELECT actor_uri FROM ap_followers WHERE slug = ? ORDER BY created_at').all(site.slug).map((r) => r.actor_uri);
-    const items = uris.map((u) => AP.buildActorRef(site.slug, u));   // name + avatar (shaer-aa3)
+    // Default = bare references; enrich only when the client asks (FEP-9876).
+    const items = wantsEnriched(req, res) ? uris.map((u) => AP.buildActorRef(site.slug, u)) : uris;
     return AP.sendAP(res, AP.buildFollowers(baseUrl(req), site, items.length, items));
   }
   const n = db.prepare('SELECT COUNT(*) n FROM ap_followers WHERE slug = ?').get(site.slug).n;
@@ -189,8 +201,12 @@ router.get('/ap/users/:slug/following', (req, res) => {
   const site = owner ? auth.site : publicSite(req.params.slug);
   if (!site) return res.status(404).end();
   if (owner) {
+    const enrich = wantsEnriched(req, res);   // FEP-9876 opt-in
     let items = [];
-    try { items = db.prepare("SELECT actor_uri FROM ap_following WHERE slug = ? AND status = 'accepted' ORDER BY created_at").all(site.slug).map((r) => AP.buildActorRef(site.slug, r.actor_uri)); } catch { /* table may not exist */ }
+    try {
+      const uris = db.prepare("SELECT actor_uri FROM ap_following WHERE slug = ? AND status = 'accepted' ORDER BY created_at").all(site.slug).map((r) => r.actor_uri);
+      items = enrich ? uris.map((u) => AP.buildActorRef(site.slug, u)) : uris;
+    } catch { /* table may not exist */ }
     return AP.sendAP(res, AP.buildFollowing(baseUrl(req), site, items.length, items));
   }
   let n = 0;

@@ -43,3 +43,13 @@ test('interaction cache is used when a follower has no own display row', () => {
   const ref = AP.buildActorRef('me', 'https://r.test/u/dana');
   assert.equal(ref.name, 'Dana');
 });
+
+test('prefersEnriched detects the Prefer opt-in (FEP-9876)', () => {
+  assert.equal(AP.prefersEnriched('return=representation'), true);
+  assert.equal(AP.prefersEnriched('return=representation; handling=lenient'), true);
+  assert.equal(AP.prefersEnriched('foo, return=representation'), true);
+  assert.equal(AP.prefersEnriched('return=minimal'), false);
+  assert.equal(AP.prefersEnriched('returnx=representation'), false);
+  assert.equal(AP.prefersEnriched(''), false);
+  assert.equal(AP.prefersEnriched(undefined), false);
+});
