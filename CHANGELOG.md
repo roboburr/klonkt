@@ -6,6 +6,15 @@ Versions follow [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **"Load more" on the feeds.** Solo (home), Cirkel, News and Messages now page
+  in blocks of 72 with a "Load more" button instead of a hard cap, so older
+  items are reachable. 72 divides by 2, 3 and 4, so the grid views always end on
+  a full row. Appending is instant (htmx), the Messages search and filters keep
+  working across pages, and the button disappears on the last page.
+- **"Interact via the fediverse" next to Share.** On a post, visitors get a
+  button beside Share to reply, like or boost from their own fediverse server
+  (it asks for your server, then hands off to your instance). Hidden for the
+  site owner and when federation is off.
 - **FEDERATION.md (FEP-67ff).** The repository root now documents what Klonkt
   speaks on the wire: ActivityPub S2S and C2S, WebFinger, HTTP Signatures,
   NodeInfo 2.1, OAuth (PKCE), the activities and object types it sends and

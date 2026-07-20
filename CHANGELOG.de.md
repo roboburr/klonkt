@@ -6,6 +6,17 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 ## [Unreleased]
 
 ### Hinzugefügt
+- **"Mehr laden" in den Feeds.** Solo (Start), Zirkel, Zeitung und Nachrichten
+  laden jetzt in Blöcken von 72 mit einem "Mehr laden"-Button statt einer harten
+  Grenze, sodass ältere Einträge wieder erreichbar sind. 72 ist durch 2, 3 und 4
+  teilbar, damit die Rasteransichten immer mit einer vollen Reihe enden. Das
+  Nachladen ist sofort (htmx), Suche und Filter in Nachrichten funktionieren über
+  alle Seiten, und der Button verschwindet auf der letzten Seite.
+- **"Über das Fediverse interagieren" neben Teilen.** Auf einem Beitrag bekommen
+  Besucher neben Teilen einen Button, um von ihrem eigenen Fediverse-Server zu
+  antworten, zu liken oder zu boosten (fragt nach deinem Server und übergibt an
+  deine Instanz). Für die Seiteninhaberin und bei ausgeschalteter Föderation
+  ausgeblendet.
 - **FEDERATION.md (FEP-67ff).** Die Repo-Wurzel dokumentiert jetzt, was Klonkt
   auf der Leitung spricht: ActivityPub S2S und C2S, WebFinger, HTTP Signatures,
   NodeInfo 2.1, OAuth (PKCE), die gesendeten und empfangenen Activities und

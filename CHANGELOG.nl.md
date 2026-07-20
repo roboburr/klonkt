@@ -6,6 +6,16 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 ## [Unreleased]
 
 ### Toegevoegd
+- **"Meer laden" op de feeds.** Solo (home), Cirkel, Krant en Berichten laden nu
+  in blokken van 72 met een "Meer laden"-knop in plaats van een harde limiet, dus
+  oudere items zijn weer bereikbaar. 72 is deelbaar door 2, 3 en 4, zodat de
+  grid-weergaven altijd op een volle rij eindigen. Toevoegen gaat direct (htmx),
+  het zoeken en filteren in Berichten blijft over alle pagina's werken, en de knop
+  verdwijnt op de laatste pagina.
+- **"Interageer via de fediverse" naast Delen.** Op een post krijgen bezoekers
+  naast Delen een knop om vanuit hun eigen fediverse-server te reageren, te liken
+  of te boosten (vraagt je server, en geeft het door aan jouw instance). Verborgen
+  voor de site-eigenaar en als federatie uit staat.
 - **FEDERATION.md (FEP-67ff).** De repo-root documenteert nu wat Klonkt op de
   lijn spreekt: ActivityPub S2S en C2S, WebFinger, HTTP Signatures, NodeInfo 2.1,
   OAuth (PKCE), de activities en objecttypes die het stuurt en ontvangt, de
