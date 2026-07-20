@@ -85,6 +85,16 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
 
   <div class="post-share" style="margin:1.25rem 0;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
     <button type="button" class="btn post-share-btn" data-share data-share-title="<%= post.title %>">🔗 <%= t('post.share') %></button>
+    <%# Interact via the fediverse — for VISITORS (reply/like/boost from their own
+        server). Same flow as the CTA in the fediverse section; hidden for the
+        owner/admin (their own post) and when AP is off. %>
+    <% if (post.status === 'published' && (typeof apEnabled === 'undefined' || apEnabled) && (typeof canManageSite === 'undefined' || !canManageSite)) { %>
+      <% var _shareAbsUrl = (typeof ogOrigin !== 'undefined' && ogOrigin ? ogOrigin : '') + (typeof _base !== 'undefined' && _base ? _base : '') + '/' + post.slug; %>
+      <button type="button" class="btn fedi-remote-reply-btn" data-fedi-uri="<%= _shareAbsUrl %>" data-fedi-ph="<%= t('fedi.remote_ph') %>">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+        <%= t('fedi.remote_interact') %>
+      </button>
+    <% } %>
     <span class="post-share-feedback" id="post-share-feedback" style="color:var(--accent);font-size:.85rem" hidden><%= t('post.share_copied') %></span>
   </div>
 
@@ -107,7 +117,6 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
   <% } %>
 
   <!-- Fediverse interactions — single place: ⭐ like (clickable) + 🔁/💬 counts + reply -->
-  <% var _postAbsUrl = (typeof ogOrigin !== 'undefined' && ogOrigin ? ogOrigin : '') + (typeof _base !== 'undefined' && _base ? _base : '') + '/' + post.slug; %>
   <% var _fedi = (typeof fediverse !== 'undefined' && fediverse) ? fediverse : { thread: [], likeCount: 0, announceCount: 0 }; %>
   <% if (post.status === 'published' && (typeof apEnabled === 'undefined' || apEnabled)) { %>
     <section class="post-fediverse post-comments" id="fediverse">
@@ -133,16 +142,8 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
           <% }); %>
         </ol>
       <% } %>
-      <%# "Interact via the fediverse" is for VISITORS (reply from their own server).
-          The owner/admin has their own controls + it's their post → hide it for them. %>
-      <% if (typeof canManageSite === 'undefined' || !canManageSite) { %>
-      <div class="post-fediverse-cta">
-        <button type="button" class="btn fedi-remote-reply-btn" data-fedi-uri="<%= _postAbsUrl %>" data-fedi-ph="<%= t('fedi.remote_ph') %>">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
-          <%= t('fedi.remote_interact') %>
-        </button>
-      </div>
-      <% } %>
+      <%# The "Interact via the fediverse" button for visitors now lives next to
+          the Share button at the top of the post (single, prominent place). %>
     </section>
   <% } %>
   <script>
