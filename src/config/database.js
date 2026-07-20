@@ -442,6 +442,7 @@ export function initializeDatabase() {
   ensureColumn('posts', 'ap_visibility', 'TEXT');   // public|quiet|friends|direct (C2S addressing, shaer-60b)
   ensureColumn('ap_outbox', 'visibility', 'TEXT');  // 'direct' = private mention, never Public (shaer-tqc)
   ensureColumn('ap_outbox', 'to_actors', 'TEXT');   // JSON array of recipient actor URIs for direct notes
+  ensureColumn('ap_outbox', 'help_request', 'INTEGER'); // FEP-633c shaer:helpRequest (ward's call for help)
 }
 
 function ensureColumn(table, column, definition) {

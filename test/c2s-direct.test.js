@@ -37,6 +37,21 @@ test('a direct note carries its attachments (help-buoy capture)', () => {
   assert.deepEqual(note.cc, []);   // still direct
 });
 
+test('a help request emits shaer:helpRequest (FEP-633c 5.2.1)', () => {
+  db.prepare(`INSERT INTO ap_outbox (id, site_slug, post_id, post_slug, in_reply_to, to_actor, to_handle, content, visibility, to_actors, help_request, created_at)
+    VALUES ('d3','me','',NULL,NULL,'https://r.test/u/g','@g@r.test','<p>help</p>','direct','["https://r.test/u/g"]',1,CURRENT_TIMESTAMP)`).run();
+  const row = db.prepare('SELECT * FROM ap_outbox WHERE id = ?').get('d3');
+  const note = AP.buildReplyNote('https://test.example', site, row);
+  assert.equal(note['shaer:helpRequest'], true);
+  assert.deepEqual(note.cc, []);   // still strictly direct
+  // and the namespace is declared, so the term is valid JSON-LD
+  const ctx = AP.AP_CONTEXT.find((p) => p && typeof p === 'object');
+  assert.equal(ctx.shaer, 'https://ns.klonkt.com/shaer#');
+  // a plain direct note (no flag) does NOT carry the term
+  const plainRow = db.prepare('SELECT * FROM ap_outbox WHERE id = ?').get('d1');
+  assert.equal(AP.buildReplyNote('https://test.example', site, plainRow)['shaer:helpRequest'], undefined);
+});
+
 test('direct without any real recipient is refused (400 no_recipients)', async () => {
   const r = await AP.ingestOutboxActivity(site, user, {
     type: 'Note', content: '<p>x</p>',

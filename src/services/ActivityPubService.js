@@ -45,6 +45,9 @@ const AP_CONTEXT = [
     // per-poll unique-voter count is a Mastodon (toot) term — declare it so the emitted
     // Question stays valid JSON-LD (a strict processor would otherwise drop votersCount).
     votersCount: 'toot:votersCount',
+    // FEP-633c (Guardians): the shaer namespace. helpRequest marks a direct
+    // note as a ward's call for help (spec 5.2.1); ignorable by everyone else.
+    shaer: 'https://ns.klonkt.com/shaer#',
   },
 ];
 
@@ -258,6 +261,8 @@ export function buildNote(base, site, post, opts = {}) {
         ? (JSON.parse(post.to_actors || '[]'))
         : (post.to_actor ? [post.to_actor] : [PUBLIC]),
       cc: post.visibility === 'direct' ? [] : [PUBLIC, `${meR}/followers`],
+      // FEP-633c 5.2.1: a ward's call for help. Only ever on direct notes.
+      'shaer:helpRequest': (post.visibility === 'direct' && post.help_request) ? true : undefined,
       tag: [
         ...mentionTags(post.content),
         ...hashtagTags(base, post.content),
@@ -1854,7 +1859,8 @@ export async function ingestOutboxActivity(site, user, activity) {
               name: String(a.name || '').slice(0, 120),
             } : null)
             .filter(Boolean);
-          const r = await deliverDirectNote(site, { recipients, text: plain, language: object.language || null, inReplyTo: typeof object.inReplyTo === 'string' ? object.inReplyTo : null, attachments: atts });
+          const help = object['shaer:helpRequest'] === true || object.helpRequest === true;
+          const r = await deliverDirectNote(site, { recipients, text: plain, language: object.language || null, inReplyTo: typeof object.inReplyTo === 'string' ? object.inReplyTo : null, attachments: atts, helpRequest: help });
           if (!r || !r.id) return { status: 502, error: 'direct_failed' };
           return { status: 201, id: r.id, url: `${base}/ap/notes/${r.id}` };
         }
@@ -1970,7 +1976,7 @@ export function c2sVisibility(object) {
 // inboxes: no followers fan-out, no Public, so no boosts and no timelines.
 // The same S2S leg a Mastodon DM takes, so a guardian on any instance
 // receives it as a private mention (the ward call-for-help path).
-export async function deliverDirectNote(site, { recipients, text, language, inReplyTo, attachments }) {
+export async function deliverDirectNote(site, { recipients, text, language, inReplyTo, attachments, helpRequest }) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   const list = [...new Set((recipients || []).filter((u) => /^https?:\/\//i.test(String(u || ''))))].slice(0, 8);
   if (!base || !site || !site.slug || !list.length || !String(text || '').trim()) return null;
@@ -1998,9 +2004,9 @@ export async function deliverDirectNote(site, { recipients, text, language, inRe
     .slice(0, 4)
     .map((a) => ({ url: a.url, mediaType: String(a.mediaType), name: String(a.name || '').slice(0, 120) }));
   const id = crypto.randomUUID();
-  db.prepare(`INSERT INTO ap_outbox (id, site_slug, post_id, post_slug, in_reply_to, to_actor, to_handle, content, language, attachments, visibility, to_actors, created_at)
-              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)`)
-    .run(id, site.slug, '', null, inReplyTo || null, resolved[0].uri, resolved[0].handle, content, lang, media.length ? JSON.stringify(media) : null, 'direct', JSON.stringify(resolved.map((r) => r.uri)));
+  db.prepare(`INSERT INTO ap_outbox (id, site_slug, post_id, post_slug, in_reply_to, to_actor, to_handle, content, language, attachments, visibility, to_actors, help_request, created_at)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)`)
+    .run(id, site.slug, '', null, inReplyTo || null, resolved[0].uri, resolved[0].handle, content, lang, media.length ? JSON.stringify(media) : null, 'direct', JSON.stringify(resolved.map((r) => r.uri)), helpRequest ? 1 : 0);
   const row = iStmts().getO.get(id);
   const note = buildReplyNote(base, site, row);
   const create = {
