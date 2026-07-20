@@ -6,6 +6,11 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 ## [Unreleased]
 
 ### Toegevoegd
+- **FEDERATION.md (FEP-67ff).** De repo-root documenteert nu wat Klonkt op de
+  lijn spreekt: ActivityPub S2S en C2S, WebFinger, HTTP Signatures, NodeInfo 2.1,
+  OAuth (PKCE), de activities en objecttypes die het stuurt en ontvangt, de
+  Mastodon-compatibele extensietermen, en de FEPs die het ondersteunt of volgt.
+  Helpt andere implementaties om te interopereren.
 - **Berichten: je peiling is afgelopen.** Als een van je eigen peilingen sluit,
   verschijnt in Berichten een "peiling afgelopen"-item met de uitslag: een balk
   per optie met percentage, plus het aantal stemmers. Het valt onder de chip

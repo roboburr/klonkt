@@ -6,6 +6,11 @@ Versions follow [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **FEDERATION.md (FEP-67ff).** The repository root now documents what Klonkt
+  speaks on the wire: ActivityPub S2S and C2S, WebFinger, HTTP Signatures,
+  NodeInfo 2.1, OAuth (PKCE), the activities and object types it sends and
+  receives, the Mastodon-compatible extension terms, and the FEPs it supports or
+  tracks. Helps other implementations interoperate.
 - **Messages: your poll finished.** When one of your own polls closes, Messages
   shows a "poll finished" item with the final result: a bar per option with its
   percentage, and the number of voters. It lives under the Activity chip and is

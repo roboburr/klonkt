@@ -6,6 +6,12 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 ## [Unreleased]
 
 ### Hinzugefügt
+- **FEDERATION.md (FEP-67ff).** Die Repo-Wurzel dokumentiert jetzt, was Klonkt
+  auf der Leitung spricht: ActivityPub S2S und C2S, WebFinger, HTTP Signatures,
+  NodeInfo 2.1, OAuth (PKCE), die gesendeten und empfangenen Activities und
+  Objekttypen, die Mastodon-kompatiblen Erweiterungsterme und die FEPs, die es
+  unterstützt oder verfolgt. Hilft anderen Implementierungen bei der
+  Interoperabilität.
 - **Nachrichten: deine Umfrage ist beendet.** Wenn eine deiner eigenen Umfragen
   schließt, zeigt Nachrichten einen "Umfrage beendet"-Eintrag mit dem Ergebnis:
   ein Balken je Option mit Prozentwert, plus die Anzahl der Teilnehmer. Er liegt
