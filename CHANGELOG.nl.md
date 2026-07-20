@@ -6,6 +6,10 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 ## [Unreleased]
 
 ### Toegevoegd
+- **De eigenaar kan zijn inbox lezen via C2S.** Een GET op de inbox met de
+  eigen bearer geeft recente binnengekomen posts (de accounts die je volgt) als
+  Create(Note)-items, zodat een gekoppelde app (Shaer) een unified feed kan
+  bouwen. Voor alle anderen blijft de inbox write-only.
 - **"Meer laden" op de feeds.** Solo (home), Cirkel, Krant en Berichten laden nu
   in blokken van 72 met een "Meer laden"-knop in plaats van een harde limiet, dus
   oudere items zijn weer bereikbaar. 72 is deelbaar door 2, 3 en 4, zodat de

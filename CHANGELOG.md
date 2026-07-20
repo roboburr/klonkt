@@ -6,6 +6,10 @@ Versions follow [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **The owner can read their inbox over C2S.** A GET on the inbox with the
+  account's own bearer returns recent inbound posts (the accounts you follow)
+  as Create(Note) items, so a connected app (Shaer) can build a unified feed.
+  For everyone else the inbox stays write-only.
 - **"Load more" on the feeds.** Solo (home), Cirkel, News and Messages now page
   in blocks of 72 with a "Load more" button instead of a hard cap, so older
   items are reachable. 72 divides by 2, 3 and 4, so the grid views always end on

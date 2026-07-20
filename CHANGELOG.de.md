@@ -6,6 +6,10 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 ## [Unreleased]
 
 ### Hinzugefügt
+- **Die Inhaberin kann ihre Inbox über C2S lesen.** Ein GET auf die Inbox mit
+  dem eigenen Bearer liefert aktuelle eingegangene Beiträge (die Konten, denen
+  du folgst) als Create(Note)-Einträge, damit eine verbundene App (Shaer) einen
+  vereinten Feed bauen kann. Für alle anderen bleibt die Inbox write-only.
 - **"Mehr laden" in den Feeds.** Solo (Start), Zirkel, Zeitung und Nachrichten
   laden jetzt in Blöcken von 72 mit einem "Mehr laden"-Button statt einer harten
   Grenze, sodass ältere Einträge wieder erreichbar sind. 72 ist durch 2, 3 und 4

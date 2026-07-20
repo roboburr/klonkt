@@ -83,6 +83,40 @@ router.get('/ap/users/:slug/outbox', (req, res) => {
   AP.sendAP(res, AP.buildOutbox(baseUrl(req), site, posts));
 });
 
+// ── Inbox read (owner only, AP C2S) ───────────────────────────────
+// GET on the inbox is part of ActivityPub C2S: the account owner (a bearer
+// scoped to this site) reads recent inbound posts (the timeline: accounts
+// they follow) as Create(Note) items, so an app (Shaer) can build a unified
+// feed. Anyone else gets 403; the inbox stays write-only for the public.
+router.get('/ap/users/:slug/inbox', (req, res) => {
+  const auth = OAuth.verifyBearer(req.headers.authorization);
+  if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
+  const base = baseUrl(req);
+  const items = AP.getTimeline(auth.site.slug, 60).map((t) => ({
+    id: `${t.id}#create`,
+    type: 'Create',
+    actor: t.author_uri,
+    published: t.published || t.created_at || undefined,
+    object: {
+      id: t.id,
+      type: 'Note',
+      attributedTo: t.author_uri,
+      content: t.content,
+      url: t.url || undefined,
+      published: t.published || t.created_at || undefined,
+      sensitive: !!t.nsfw,
+      summary: t.cw || undefined,
+    },
+  }));
+  AP.sendAP(res, {
+    '@context': AP.AP_CONTEXT,
+    id: `${base}/ap/users/${auth.site.slug}/inbox`,
+    type: 'OrderedCollection',
+    totalItems: items.length,
+    orderedItems: items,
+  });
+});
+
 // ── Followers (count-only public, full for the owner) ─────────────
 // A C2S bearer scoped to this site (the account owner) gets the real actor
 // URIs so their own client can build a friends list; everyone else gets the
