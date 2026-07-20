@@ -776,12 +776,22 @@ router.post('/authorize_interaction', requireSiteManager, (req, res) => {
 // The old /fediverse (manage) and /notifications pages redirect here.
 router.get('/messages', requireSiteManager, (req, res) => {
   const site = res.locals.site;
-  const items = site ? ActivityPubService.getMessages(site.slug, 80) : [];
+  const append = req.query.append === '1';
+  const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
+  const page = site ? ActivityPubService.getMessages(site.slug, FEED_PAGE + 1, offset) : [];
+  const hasMore = page.length > FEED_PAGE;
+  const items = page.slice(0, FEED_PAGE);
   // Read the watermark BEFORE marking seen → unread dots on items newer than last visit.
   const seenAt = site ? ActivityPubService.notificationsSeenAt(site.slug) : 0;
-  if (site && !isViewer(req.session.user)) ActivityPubService.markNotificationsSeen(site.slug);
+  // Only stamp "seen" on the first page load (not on Load-more appends).
+  if (site && !append && !isViewer(req.session.user)) ActivityPubService.markNotificationsSeen(site.slug);
+  const moreBase = res.locals.siteUrlBase || '';
+  if (append) {
+    return renderPage(req, res, 'partials/messages-append', { items, seen: seenAt, hasMore, nextOffset: offset + FEED_PAGE, moreBase });
+  }
   renderPage(req, res, 'pages/messages', {
     pageTitleKey: 'msg.title', bodyClass: 'on-special', items, seenAt,
+    hasMore, nextOffset: offset + FEED_PAGE, moreBase,
     success: req.query.success || null, error: req.query.error || null,
   });
 });

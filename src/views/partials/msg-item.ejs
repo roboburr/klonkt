@@ -1,0 +1,104 @@
+<%
+           var _seen = (typeof seen !== 'undefined' && seen) ? seen : 0;
+           var _t = n.type === 'announce' ? 'boost' : n.type; // reply|mention|report|like|boost|follow|sent
+           var _new = _seen && n.created_at ? (Date.parse(n.created_at) > _seen) : false;
+           var _who = n.name || n.handle || '';
+           var _priv0 = (n.visibility === 'followers' || n.visibility === 'direct');
+           // Buckets (klonkt-demo-3jf): Messages = @mentions + private (DM) replies;
+           // Activity = likes/boosts/follows; Moderation = reports; Sent = your
+           // replies; Conversations = every other (public) reply.
+           var _kind = _t === 'sent' ? 'sent'
+             : (_t === 'like' || _t === 'boost' || _t === 'follow' || _t === 'poll_done') ? 'act'
+             : _t === 'report' ? 'mod'
+             : (_t === 'mention' || _priv0) ? 'msgs'
+             : 'conv';
+           var _init = String(_who || '?').replace(/^@/, '').charAt(0).toUpperCase();
+           var _priv = (n.visibility === 'followers' || n.visibility === 'direct');
+      %>
+        <li class="msg-item msg-<%= _t %><%= _new ? ' is-new' : '' %>" data-kind="<%= _kind %>" data-who="<%= String(_who).toLowerCase() %>">
+          <span class="msg-av<%= _t === 'sent' ? ' msg-av-sent' : '' %>" aria-hidden="true">
+            <% if (_t === 'sent') { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            <% } else if (_t === 'poll_done') { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            <% } else if (n.icon) { %><img src="<%= avatar(n.icon, 96) %>" alt="" loading="lazy">
+            <% } else { %><%= _init %><% } %>
+            <span class="msg-dot msg-dot-<%= _t %>">
+              <% if (_t === 'like') { %><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.6l2.9 5.88 6.49.95-4.7 4.58 1.11 6.46L12 17.96l-5.8 3.06 1.1-6.46-4.69-4.58 6.49-.95z"/></svg>
+              <% } else if (_t === 'boost') { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+              <% } else if (_t === 'follow') { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+              <% } else if (_t === 'report') { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+              <% } else if (_t === 'mention') { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94"/></svg>
+              <% } else if (_t === 'sent') { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+              <% } else if (_t === 'poll_done') { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+              <% } else { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><% } %>
+            </span>
+          </span>
+
+          <div class="msg-body">
+            <div class="msg-line">
+              <% if (_t === 'sent') { %>
+                <span class="msg-who"><%= t('msg.you') %></span>
+                <% if (n.to_handle) { %><span class="msg-handle">→ <%= n.to_handle %></span><% } %>
+              <% } else { %>
+                <a class="msg-who" href="<%= n.url %>" target="_blank" rel="nofollow noopener"><%= _who %></a>
+                <% if (n.handle && n.name) { %><span class="msg-handle"><%= n.handle %></span><% } %>
+              <% } %>
+              <% if (_new) { %><span class="msg-new" title="<%= t('msg.new') %>"></span><% } %>
+              <% if (n.created_at) { %><span class="msg-time"><%= formatDateTime(n.created_at) %></span><% } %>
+            </div>
+
+            <div class="msg-what">
+              <% if (n.count && n.count > 1) { %>
+                <strong><%= t('msg.and_more', { n: n.count - 1 }) %></strong>
+                <%= _t === 'like' ? t('msg.liked_many') : t('msg.boosted_many') %>
+              <% } else if (_t === 'follow') { %><%= t('notif.followed') %>
+              <% } else if (_t === 'like') { %><%= t('notif.liked') %>
+              <% } else if (_t === 'boost') { %><%= t('notif.boosted') %>
+              <% } else if (_t === 'report') { %><%= t('notif.reported') %>
+              <% } else if (_t === 'mention') { %><%= t('notif.mentioned') %>
+              <% } else if (_t === 'sent') { %><%= t('msg.sent_reply') %>
+              <% } else if (_t === 'poll_done') { %><strong><%= t('msg.poll_done') %></strong>
+              <% } else { %><%= t('notif.replied') %><% } %>
+              <% if (_priv) { %><span class="msg-priv" title="<%= t('msg.private_hint') %>">🔒 <%= t('msg.private') %></span><% } %>
+              <% if (n.post_slug) { %><a class="msg-post" href="/<%= n.post_slug %>"><%= n.post_title || n.post_slug %></a><% } %>
+              <% if (_t === 'mention' && n.note_url) { %><a class="msg-post" href="<%= n.note_url %>" target="_blank" rel="nofollow noopener"><%= t('tl.view_original') %></a><% } %>
+              <% if (_t === 'sent' && n.in_reply_to) { %><a class="msg-post" href="<%= n.in_reply_to %>" target="_blank" rel="nofollow noopener"><%= t('tl.view_original') %></a><% } %>
+            </div>
+
+            <% if (_t === 'report' && n.content) { %><div class="msg-content"><%= n.content %></div>
+            <% } else if ((_t === 'reply' || _t === 'mention' || _t === 'sent') && n.content) { %><div class="msg-content"><%- n.content %></div>
+            <% } else if (_t === 'poll_done' && n.poll) { %>
+              <div class="msg-poll" role="group">
+                <% n.poll.options.forEach(function (o) { %>
+                  <div class="msg-poll-opt">
+                    <div class="msg-poll-top"><span class="msg-poll-name"><%= o.name %></span><span class="msg-poll-pct"><%= o.pct %>%</span></div>
+                    <div class="msg-poll-bar"><span style="width:<%= o.pct %>%"></span></div>
+                  </div>
+                <% }); %>
+                <div class="msg-poll-total"><%= t('msg.poll_total', { n: n.poll.voters }) %></div>
+              </div>
+            <% } %>
+
+            <% if (_t === 'sent' && n.outboxId) { %>
+              <div class="msg-actions">
+                <details class="msg-edit">
+                  <summary><%= t('fedi.edit') %></summary>
+                  <div class="msg-edit-form">
+                    <%- include('../partials/reply-editor', {
+                      action: '/fediverse/' + n.outboxId + '/edit',
+                      placeholder: t('fedi.reply_ph'),
+                      submitLabel: t('fedi.save_edit'),
+                      rows: 2,
+                      initialHtml: n.content,
+                      initialText: n.editable,
+                      defaultLang: n.language,
+                      noAttach: true,
+                    }) %>
+                  </div>
+                </details>
+                <form method="post" action="/fediverse/<%= n.outboxId %>/delete" data-confirm="<%= t('fedi.delete_confirm') %>">
+                  <button type="submit" class="msg-del"><%= t('comments.delete') %></button>
+                </form>
+              </div>
+            <% } %>
+          </div>
+        </li>

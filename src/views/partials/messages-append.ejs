@@ -1,0 +1,2 @@
+<% items.forEach(function(n){ %><%- include('msg-item', { n: n, seen: seen }) %><% }); %>
+<%- include('load-more', { hasMore: hasMore, nextOffset: nextOffset, moreBase: moreBase, moreTarget: '#msg-list', morePath: '/messages', oob: true }) %>

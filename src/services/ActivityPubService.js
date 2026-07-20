@@ -506,10 +506,16 @@ export function notificationsSeenAt(slug) {
 // every notification PLUS your own outbound replies ('sent', with edit/delete via their
 // outboxId), sorted as one stream. Consecutive likes/boosts on the same post collapse into
 // one grouped item (actors list + count) so activity doesn't drown out conversations.
-export function getMessages(slug, limit) {
-  const items = getNotifications(slug, Math.max(120, (limit || 60)));
+export function getMessages(slug, limit, offset) {
+  const off = Math.max(0, offset || 0);
+  const lim = limit || 60;
+  // The stream is grouped (consecutive likes/boosts collapse), so paging is done by
+  // recomputing the whole stream top-down and slicing [off, off+lim] — stable across
+  // pages. Fetch a buffer past off+lim so grouping-shrinkage can't hide a full page.
+  const need = off + lim + 100;
+  const items = getNotifications(slug, need);
   try {
-    for (const m of listOutbox(slug).slice(0, 80)) {
+    for (const m of listOutbox(slug).slice(0, need)) {
       items.push({
         type: 'sent', outboxId: m.id, to_handle: m.to_handle, in_reply_to: m.in_reply_to,
         content: m.content, editable: m.editable, language: m.language, created_at: m.created_at,
@@ -529,7 +535,7 @@ export function getMessages(slug, limit) {
     }
     out.push(it);
   }
-  return out.slice(0, limit || 60);
+  return out.slice(off, off + lim);
 }
 
 export function buildCreate(base, site, post) {
@@ -2659,9 +2665,12 @@ export async function sendInteraction(site, kind, targetNoteId, authorUri) {
 
 // Notifications inbox: new followers + replies/likes/boosts on this site's posts.
 export function getNotifications(slug, limit) {
+  // Per-source cap scales with the requested limit so Messages can page deep
+  // (Load more). Bounded so a huge offset can't ask for unbounded rows.
+  const L = Math.min(1000, Math.max(80, limit || 60));
   const out = [];
   try {
-    for (const f of db.prepare('SELECT actor_uri, created_at FROM ap_followers WHERE slug = ? ORDER BY created_at DESC LIMIT 50').all(slug)) {
+    for (const f of db.prepare('SELECT actor_uri, created_at FROM ap_followers WHERE slug = ? ORDER BY created_at DESC LIMIT ?').all(slug, L)) {
       out.push({ type: 'follow', handle: deriveHandle(f.actor_uri), url: f.actor_uri, created_at: f.created_at });
     }
   } catch { /* ignore */ }
@@ -2671,8 +2680,8 @@ export function getNotifications(slug, limit) {
              p.slug AS post_slug, p.title AS post_title
       FROM ap_interactions i LEFT JOIN posts p ON p.id = i.post_id
       WHERE p.site_id = (SELECT id FROM sites WHERE slug = ?)
-      ORDER BY i.created_at DESC LIMIT 80
-    `).all(slug);
+      ORDER BY i.created_at DESC LIMIT ?
+    `).all(slug, L);
     for (const r of rows) out.push({
       type: r.kind, name: r.actor_name, handle: r.actor_handle, url: r.actor_url, icon: r.actor_icon,
       content: stripLeadingMentions(r.content), post_slug: r.post_slug, post_title: r.post_title, created_at: r.created_at,
@@ -2681,12 +2690,12 @@ export function getNotifications(slug, limit) {
     });
   } catch { /* ignore */ }
   try {
-    for (const r of db.prepare('SELECT actor_uri, actor_name, actor_handle, actor_icon, content, created_at FROM ap_reports WHERE slug = ? ORDER BY created_at DESC LIMIT 50').all(slug)) {
+    for (const r of db.prepare('SELECT actor_uri, actor_name, actor_handle, actor_icon, content, created_at FROM ap_reports WHERE slug = ? ORDER BY created_at DESC LIMIT ?').all(slug, L)) {
       out.push({ type: 'report', name: r.actor_name, handle: r.actor_handle, url: r.actor_uri, icon: r.actor_icon, content: r.content, created_at: r.created_at });
     }
   } catch { /* ignore */ }
   try {
-    for (const r of db.prepare('SELECT object_uri, note_url, actor_uri, actor_name, actor_handle, actor_icon, actor_url, content, created_at FROM ap_mentions WHERE slug = ? ORDER BY created_at DESC LIMIT 50').all(slug)) {
+    for (const r of db.prepare('SELECT object_uri, note_url, actor_uri, actor_name, actor_handle, actor_icon, actor_url, content, created_at FROM ap_mentions WHERE slug = ? ORDER BY created_at DESC LIMIT ?').all(slug, L)) {
       out.push({ type: 'mention', name: r.actor_name, handle: r.actor_handle, url: r.actor_url || r.actor_uri, icon: r.actor_icon, content: stripLeadingMentions(r.content), note_url: r.note_url || r.object_uri, created_at: r.created_at });
     }
   } catch { /* ignore */ }

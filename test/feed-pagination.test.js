@@ -40,3 +40,27 @@ test('probe of PAGE+1 reveals whether more remain', () => {
 test('offset past the end returns empty', () => {
   assert.equal(AP.getTimeline('me', 72, 300).length, 0);
 });
+
+// getMessages pages the merged stream by offset (recompute-top-down + slice).
+const fins = db.prepare('INSERT OR IGNORE INTO ap_followers (slug, actor_uri, created_at) VALUES (?,?,?)');
+for (let i = 0; i < 150; i++) {
+  const n = String(i).padStart(3, '0');
+  const hh = String(23 - Math.floor(i / 60)).padStart(2, '0');
+  const mm = String(59 - (i % 60)).padStart(2, '0');
+  fins.run('me', 'https://r.test/u/f' + n, `2026-02-01 ${hh}:${mm}:00`);
+}
+
+test('getMessages pages the stream by offset without overlap', () => {
+  const p1 = AP.getMessages('me', 72, 0);
+  const p2 = AP.getMessages('me', 72, 72);
+  assert.equal(p1.length, 72);
+  assert.equal(p2.length, 72);
+  const k = (m) => m.type + '|' + (m.url || m.handle || m.outboxId || '');
+  const set1 = new Set(p1.map(k));
+  assert.equal(p2.filter((m) => set1.has(k(m))).length, 0, 'no overlap between pages');
+});
+
+test('getMessages probe of PAGE+1 signals the last page', () => {
+  assert.equal(AP.getMessages('me', 73, 0).length, 73);      // more remain
+  assert.equal(AP.getMessages('me', 73, 144).length, 6);     // 150 follows → 6 left
+});
