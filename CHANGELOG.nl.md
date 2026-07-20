@@ -12,7 +12,7 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
   grid-weergaven altijd op een volle rij eindigen. Toevoegen gaat direct (htmx),
   het zoeken en filteren in Berichten blijft over alle pagina's werken, en de knop
   verdwijnt op de laatste pagina.
-- **"Interageer via de fediverse" naast Delen.** Op een post krijgen bezoekers
+- **"Interacteer via de fediverse" naast Delen.** Op een post krijgen bezoekers
   naast Delen een knop om vanuit hun eigen fediverse-server te reageren, te liken
   of te boosten (vraagt je server, en geeft het door aan jouw instance). Verborgen
   voor de site-eigenaar en als federatie uit staat.
