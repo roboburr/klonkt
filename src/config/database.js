@@ -440,6 +440,8 @@ export function initializeDatabase() {
   // Rich replies: JSON array [{url, mediaType, name}] → `attachment` on the Note.
   ensureColumn('ap_outbox', 'attachments', 'TEXT');
   ensureColumn('posts', 'ap_visibility', 'TEXT');   // public|quiet|friends|direct (C2S addressing, shaer-60b)
+  ensureColumn('ap_outbox', 'visibility', 'TEXT');  // 'direct' = private mention, never Public (shaer-tqc)
+  ensureColumn('ap_outbox', 'to_actors', 'TEXT');   // JSON array of recipient actor URIs for direct notes
 }
 
 function ensureColumn(table, column, definition) {

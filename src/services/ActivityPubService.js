@@ -251,8 +251,13 @@ export function buildNote(base, site, post, opts = {}) {
       attachment: replyAtt,
       url: post.post_slug ? `${base}/${encodeURIComponent(post.post_slug)}` : undefined,
       published: toISO(post.created_at),
-      to: post.to_actor ? [post.to_actor] : [PUBLIC],
-      cc: [PUBLIC, `${meR}/followers`],
+      // A direct note (private mention, shaer-tqc) addresses ONLY its
+      // recipients: no Public anywhere, so it cannot be boosted and never
+      // shows in public timelines (the Mastodon DM model).
+      to: post.visibility === 'direct'
+        ? (JSON.parse(post.to_actors || '[]'))
+        : (post.to_actor ? [post.to_actor] : [PUBLIC]),
+      cc: post.visibility === 'direct' ? [] : [PUBLIC, `${meR}/followers`],
       tag: [
         ...mentionTags(post.content),
         ...hashtagTags(base, post.content),
@@ -1394,6 +1399,13 @@ export async function handleInbox(req, slugParam) {
     const objUrl = typeof tgt === 'string' ? tgt : (tgt && tgt.id);
     const pid = postIdFromNoteUrl(objUrl, base);
     if (pid && actorUri && !isLocalActor && localPostExists(pid)) {
+      // A boost/like of a non-public post is dropped, not stored: nobody
+      // outside the audience should even hold it (shaer-tqc hardening).
+      const vp = db.prepare('SELECT fan_only, ap_visibility FROM posts WHERE id = ?').get(pid);
+      if (vp && (vp.fan_only || vp.ap_visibility === 'direct' || vp.ap_visibility === 'friends')) {
+        console.log('[AP] dropped', type, 'on non-public post', pid);
+        return;
+      }
       const ai = actorInfo(await resolveActor(actorUri), actorUri);
       iStmts().ins.run(type.toLowerCase(), pid, '', actorUri, ai.name, ai.handle, ai.url, ai.icon, null, null, null, noteVisibility(act));
       console.log('[AP]', type === 'Like' ? 'like' : 'boost', actorUri, '→', pid);
@@ -1825,6 +1837,17 @@ export async function ingestOutboxActivity(site, user, activity) {
         // re-escapes, so it needs plain text; a top-level post keeps sanitized HTML.
         const plain = (object.source && object.source.content) || HtmlSanitizerService.toPlainText(object.content || '');
         if (!plain.trim() && !object.content) return { status: 400, error: 'empty_note' };
+        // Direct (private mention, shaer-tqc): NOT a post. Delivered over the
+        // outbox machinery to the addressed inboxes only; shows under Messages.
+        if (c2sVisibility(object) === 'direct') {
+          const arr = (v) => (Array.isArray(v) ? v : (v ? [v] : [])).filter((x) => typeof x === 'string');
+          const recipients = [...new Set([...arr(object.to), ...arr(object.cc)])]
+            .filter((u) => /^https?:\/\//i.test(u) && !/\/followers\/?$/.test(u) && u !== PUBLIC);
+          if (!recipients.length) return { status: 400, error: 'no_recipients' };
+          const r = await deliverDirectNote(site, { recipients, text: plain, language: object.language || null, inReplyTo: typeof object.inReplyTo === 'string' ? object.inReplyTo : null });
+          if (!r || !r.id) return { status: 502, error: 'direct_failed' };
+          return { status: 201, id: r.id, url: `${base}/ap/notes/${r.id}` };
+        }
         if (object.inReplyTo) {
           const parent = await resolveRemoteNote(c2sIdOf(object.inReplyTo)).catch(() => null);
           if (!parent) return { status: 502, error: 'cannot_resolve_inReplyTo' };
@@ -1838,6 +1861,15 @@ export async function ingestOutboxActivity(site, user, activity) {
       case 'Announce': {
         const targetUri = c2sIdOf(object);
         if (!targetUri) return { status: 400, error: 'missing_object' };
+        // A non-public local note cannot be boosted or liked into the open
+        // (shaer-tqc hardening; the Mastodon 422 equivalent).
+        const localPid = postIdFromNoteUrl(targetUri, base);
+        if (localPid) {
+          const p = db.prepare('SELECT fan_only, ap_visibility FROM posts WHERE id = ?').get(localPid);
+          if (p && (p.fan_only || p.ap_visibility === 'direct' || p.ap_visibility === 'friends')) {
+            return { status: 403, error: 'not_public' };
+          }
+        }
         const note = await resolveRemoteNote(targetUri).catch(() => null);
         const objUri = (note && note.object_uri) || targetUri;
         const authorUri = note && note.actor_uri;
@@ -1920,6 +1952,56 @@ export function c2sVisibility(object) {
   if (to.some(isFollowers) || cc.some(isFollowers)) return 'friends';
   if (!to.length && !cc.length) return 'public';   // no addressing at all: legacy client, keep old behavior
   return 'direct';
+}
+
+// A direct note (private mention, shaer-tqc): a NEW conversation (or a direct
+// reply) addressed to specific actors only. Stored in ap_outbox with
+// visibility 'direct' + the recipient list, delivered to exactly those
+// inboxes: no followers fan-out, no Public, so no boosts and no timelines.
+// The same S2S leg a Mastodon DM takes, so a guardian on any instance
+// receives it as a private mention (the ward call-for-help path).
+export async function deliverDirectNote(site, { recipients, text, language, inReplyTo }) {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  const list = [...new Set((recipients || []).filter((u) => /^https?:\/\//i.test(String(u || ''))))].slice(0, 8);
+  if (!base || !site || !site.slug || !list.length || !String(text || '').trim()) return null;
+  const me = actorId(base, site.slug);
+  // Resolve every recipient for a mention anchor + a delivery inbox.
+  const resolved = [];
+  for (const uri of list) {
+    const a = await fetchActor(uri).catch(() => null);
+    if (!a || !(a.inbox || (a.endpoints && a.endpoints.sharedInbox))) continue;
+    resolved.push({ uri, inbox: (a.endpoints && a.endpoints.sharedInbox) || a.inbox, handle: deriveHandle(uri), url: a.url || uri });
+  }
+  if (!resolved.length) return null;
+  const mention = resolved.map((r) => {
+    const disp = r.handle && r.handle[0] === '@' ? r.handle : '@' + (r.handle || '');
+    return `<a href="${escHtml(r.url)}" class="u-url mention" data-actor="${escHtml(r.uri)}">${escHtml(disp)}</a> `;
+  }).join('');
+  const body = escHtml(String(text).trim()).replace(/\r?\n/g, '<br>');
+  const content = `<p>${mention}${linkUrls(linkHashtags(base, body))}</p>`;
+  const lang = /^[a-z]{2,3}(-[A-Za-z0-9-]+)?$/.test(String(language || '')) ? language : null;
+  const id = crypto.randomUUID();
+  db.prepare(`INSERT INTO ap_outbox (id, site_slug, post_id, post_slug, in_reply_to, to_actor, to_handle, content, language, attachments, visibility, to_actors, created_at)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)`)
+    .run(id, site.slug, '', null, inReplyTo || null, resolved[0].uri, resolved[0].handle, content, lang, null, 'direct', JSON.stringify(resolved.map((r) => r.uri)));
+  const row = iStmts().getO.get(id);
+  const note = buildReplyNote(base, site, row);
+  const create = {
+    '@context': AP_CONTEXT,
+    id: note.id + '#create', type: 'Create', actor: me,
+    published: note.published, to: note.to, cc: note.cc, object: note,
+  };
+  const keys = getOrCreateKeys(site.slug);
+  const keyId = `${me}#main-key`;
+  let delivered = 0;
+  for (const inbox of [...new Set(resolved.map((r) => r.inbox))]) {
+    let ok = false;
+    try { const st = await deliver(inbox, create, keyId, keys.private_pem); ok = st >= 200 && st < 300; } catch { ok = false; }
+    if (ok) delivered++;
+    else enqueueDelivery(site.slug, inbox, create);
+  }
+  console.log('[AP] direct note', site.slug, '→', resolved.length, 'recipient(s), delivered', delivered);
+  return { id, content, delivered };
 }
 
 // Send a reply FROM this site to a remote actor (in reply to their inbound reply).
@@ -2920,7 +3002,7 @@ export default {
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers, buildFollowing, buildFeatured,
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, setMyReaction, getMyReactions, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
-  listOutbox, deliverOutboxDelete, deliverOutboxUpdate,
+  listOutbox, deliverOutboxDelete, deliverOutboxUpdate, deliverDirectNote,
   webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, sendInteraction, voteOnPoll, voteOnRemotePoll,
   parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread, sendReport, localMentionSlugs,
   autoBoostCount, boostedCount, markBoosted, unmarkBoosted, markLiked, unmarkLiked, getTimelineReaction, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
