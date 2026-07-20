@@ -1844,7 +1844,17 @@ export async function ingestOutboxActivity(site, user, activity) {
           const recipients = [...new Set([...arr(object.to), ...arr(object.cc)])]
             .filter((u) => /^https?:\/\//i.test(u) && !/\/followers\/?$/.test(u) && u !== PUBLIC);
           if (!recipients.length) return { status: 400, error: 'no_recipients' };
-          const r = await deliverDirectNote(site, { recipients, text: plain, language: object.language || null, inReplyTo: typeof object.inReplyTo === 'string' ? object.inReplyTo : null });
+          // AS2 attachments (e.g. the help-buoy capture, uploaded via
+          // uploadMedia): normalize our own absolute /media/ URLs to relative
+          // so the deliverReply-style validation applies unchanged.
+          const atts = (Array.isArray(object.attachment) ? object.attachment : [])
+            .map((a) => a && typeof a === 'object' ? {
+              url: String(a.url || '').replace(new RegExp('^' + base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), ''),
+              mediaType: String(a.mediaType || ''),
+              name: String(a.name || '').slice(0, 120),
+            } : null)
+            .filter(Boolean);
+          const r = await deliverDirectNote(site, { recipients, text: plain, language: object.language || null, inReplyTo: typeof object.inReplyTo === 'string' ? object.inReplyTo : null, attachments: atts });
           if (!r || !r.id) return { status: 502, error: 'direct_failed' };
           return { status: 201, id: r.id, url: `${base}/ap/notes/${r.id}` };
         }
@@ -1960,7 +1970,7 @@ export function c2sVisibility(object) {
 // inboxes: no followers fan-out, no Public, so no boosts and no timelines.
 // The same S2S leg a Mastodon DM takes, so a guardian on any instance
 // receives it as a private mention (the ward call-for-help path).
-export async function deliverDirectNote(site, { recipients, text, language, inReplyTo }) {
+export async function deliverDirectNote(site, { recipients, text, language, inReplyTo, attachments }) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   const list = [...new Set((recipients || []).filter((u) => /^https?:\/\//i.test(String(u || ''))))].slice(0, 8);
   if (!base || !site || !site.slug || !list.length || !String(text || '').trim()) return null;
@@ -1980,10 +1990,17 @@ export async function deliverDirectNote(site, { recipients, text, language, inRe
   const body = escHtml(String(text).trim()).replace(/\r?\n/g, '<br>');
   const content = `<p>${mention}${linkUrls(linkHashtags(base, body))}</p>`;
   const lang = /^[a-z]{2,3}(-[A-Za-z0-9-]+)?$/.test(String(language || '')) ? language : null;
+  // Attachments: same rules as deliverReply (own /media/ uploads only,
+  // image/audio/video, max 4) — the help-buoy capture rides this.
+  const media = (Array.isArray(attachments) ? attachments : [])
+    .filter((a) => a && typeof a.url === 'string' && /^\/media\/[\w./-]+$/.test(a.url)
+      && /^(image|audio|video)\//.test(String(a.mediaType || '')))
+    .slice(0, 4)
+    .map((a) => ({ url: a.url, mediaType: String(a.mediaType), name: String(a.name || '').slice(0, 120) }));
   const id = crypto.randomUUID();
   db.prepare(`INSERT INTO ap_outbox (id, site_slug, post_id, post_slug, in_reply_to, to_actor, to_handle, content, language, attachments, visibility, to_actors, created_at)
               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)`)
-    .run(id, site.slug, '', null, inReplyTo || null, resolved[0].uri, resolved[0].handle, content, lang, null, 'direct', JSON.stringify(resolved.map((r) => r.uri)));
+    .run(id, site.slug, '', null, inReplyTo || null, resolved[0].uri, resolved[0].handle, content, lang, media.length ? JSON.stringify(media) : null, 'direct', JSON.stringify(resolved.map((r) => r.uri)));
   const row = iStmts().getO.get(id);
   const note = buildReplyNote(base, site, row);
   const create = {

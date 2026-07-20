@@ -26,6 +26,17 @@ test('a direct outbox row addresses only its recipients, no Public, no cc', () =
   assert.ok(!JSON.stringify(note.to).includes(PUB) && !JSON.stringify(note.cc).includes(PUB));
 });
 
+test('a direct note carries its attachments (help-buoy capture)', () => {
+  db.prepare(`INSERT INTO ap_outbox (id, site_slug, post_id, post_slug, in_reply_to, to_actor, to_handle, content, visibility, to_actors, attachments, created_at)
+    VALUES ('d2','me','',NULL,NULL,'https://r.test/u/g','@g@r.test','<p>kijk</p>','direct','["https://r.test/u/g"]','[{"url":"/media/reply-media/x.png","mediaType":"image/png","name":"capture"}]',CURRENT_TIMESTAMP)`).run();
+  const row = db.prepare('SELECT * FROM ap_outbox WHERE id = ?').get('d2');
+  const note = AP.buildReplyNote('https://test.example', site, row);
+  assert.equal(note.attachment.length, 1);
+  assert.equal(note.attachment[0].type, 'Image');
+  assert.ok(note.attachment[0].url.endsWith('/media/reply-media/x.png'));
+  assert.deepEqual(note.cc, []);   // still direct
+});
+
 test('direct without any real recipient is refused (400 no_recipients)', async () => {
   const r = await AP.ingestOutboxActivity(site, user, {
     type: 'Note', content: '<p>x</p>',

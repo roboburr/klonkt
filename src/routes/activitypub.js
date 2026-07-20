@@ -18,6 +18,11 @@ import AP from '../services/ActivityPubService.js';
 import { apReadLimiter, apInboxLimiter } from '../middleware/rate-limit.js';
 import { apEnabled } from '../services/SettingsService.js';
 import OAuth from '../services/OAuthService.js';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+import { randomUUID } from 'crypto';
 
 const router = express.Router();
 // The whole fediverse layer can be turned off (solo "no federation" mode):
@@ -114,6 +119,48 @@ router.get('/ap/users/:slug/inbox', (req, res) => {
     type: 'OrderedCollection',
     totalItems: items.length,
     orderedItems: items,
+  });
+});
+
+// ── uploadMedia (owner only, AP C2S) ──────────────────────────────
+// The actor advertises endpoints.uploadMedia; this implements it. A bearer
+// scoped to this site uploads one image/audio/video (multipart field "file",
+// AP convention) into the same store the reply editor uses, and gets back
+// { url, mediaType, name } to attach on a note (e.g. the help-buoy capture).
+const AP_MEDIA_DIR = path.resolve(
+  process.env.REPLY_MEDIA_PATH ||
+  path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'storage', 'media', 'reply-media')
+);
+fs.mkdirSync(AP_MEDIA_DIR, { recursive: true });
+const AP_MEDIA_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.mp3', '.m4a', '.ogg', '.opus', '.flac', '.wav', '.mp4', '.webm', '.mov']);
+const apMediaUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, AP_MEDIA_DIR),
+    filename: (req, file, cb) => cb(null, `${randomUUID()}${path.extname(file.originalname || '').toLowerCase()}`),
+  }),
+  limits: { fileSize: 32 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    if (!AP_MEDIA_EXT.has(ext)) return cb(new Error('Media must be an image, audio or video file'));
+    cb(null, true);
+  },
+});
+router.post('/ap/users/:slug/uploadMedia', (req, res) => {
+  const auth = OAuth.verifyBearer(req.headers.authorization);
+  if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
+  apMediaUpload.single('file')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+    if (!req.file) return res.status(400).json({ error: 'No file' });
+    const mime = String(req.file.mimetype || '');
+    if (!/^(image|audio|video)\//.test(mime)) {
+      try { fs.unlinkSync(req.file.path); } catch { /* best effort */ }
+      return res.status(400).json({ error: 'Media must be an image, audio or video file' });
+    }
+    res.status(201).json({
+      url: '/media/reply-media/' + req.file.filename,
+      mediaType: mime,
+      name: String(req.file.originalname || '').slice(0, 120),
+    });
   });
 });
 
