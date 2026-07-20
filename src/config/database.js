@@ -439,6 +439,7 @@ export function initializeDatabase() {
   ensureColumn('ap_outbox', 'language', 'TEXT');
   // Rich replies: JSON array [{url, mediaType, name}] → `attachment` on the Note.
   ensureColumn('ap_outbox', 'attachments', 'TEXT');
+  ensureColumn('posts', 'ap_visibility', 'TEXT');   // public|quiet|friends|direct (C2S addressing, shaer-60b)
 }
 
 function ensureColumn(table, column, definition) {

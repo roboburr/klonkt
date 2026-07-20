@@ -428,10 +428,13 @@ export function buildNote(base, site, post, opts = {}) {
     published: new Date(post.published_at || post.created_at || Date.now()).toISOString(),
     // fan_only = "fans only" → followers-only visibility (delivered to your followers
     // but not addressed to Public, so Mastodon shows it only to them and can't boost it).
-    to: post.fan_only ? [`${aId}/followers`] : [PUBLIC],
+    to: (post.fan_only || post.ap_visibility === 'quiet') ? [`${aId}/followers`] : [PUBLIC],
     // Mentioned actors (from inline @user@host links the caller resolved) are addressed in cc
     // so Mastodon notifies them; empty unless the content was mention-linked (delivery time).
-    cc: [...new Set([...(post.fan_only ? [] : [`${aId}/followers`]), ..._mentionCc])],
+    cc: [...new Set([
+      ...(post.ap_visibility === 'quiet' ? [PUBLIC] : []),          // quiet public: Public in cc, not to
+      ...((post.fan_only || post.ap_visibility === 'quiet') ? [] : [`${aId}/followers`]),
+      ..._mentionCc])],
     tag: [...buildHashtagList(base, post.tags, body), ..._mentionTags],
     replies: `${id}/replies`,
     // NSFW → Mastodon-style content warning: sensitive (blurs media) + a summary/spoiler
@@ -1886,14 +1889,37 @@ async function c2sCreatePost(base, site, user, object) {
   const postId = crypto.randomUUID();
   const slug = 'n-' + postId.slice(0, 8);
   const now = new Date().toISOString();
-  db.prepare(`INSERT INTO posts (id, site_id, slug, author_id, title, content, excerpt, status, type, language, created_at, updated_at, published_at)
-              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-    .run(postId, site.id, slug, user.id, '', html, '', 'published', 'post', object.language || 'nl', now, now, now);
+  // Visibility from the note's addressing (shaer-60b): Public in `to` = loud
+  // public, Public in `cc` = quiet public (unlisted), followers-only = friends
+  // (rides the existing fan_only pipeline: followers-only AP delivery + web
+  // gating), neither = participants-only (kept local until mention addressing
+  // lands; still followers-gated on the web).
+  const vis = c2sVisibility(object);
+  const fanOnly = (vis === 'friends' || vis === 'direct') ? 1 : 0;
+  db.prepare(`INSERT INTO posts (id, site_id, slug, author_id, title, content, excerpt, status, type, language, fan_only, ap_visibility, created_at, updated_at, published_at)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+    .run(postId, site.id, slug, user.id, '', html, '', 'published', 'post', object.language || 'nl', fanOnly, vis, now, now, now);
   try { db.prepare('UPDATE posts SET content_rendered = ? WHERE id = ?').run(bakePostContent(html), postId); } catch { /* render fallback covers it */ }
   bakePostContentWithMentions(html).then((h) => { try { db.prepare('UPDATE posts SET content_rendered = ? WHERE id = ?').run(h, postId); } catch { /* keep sync bake */ } }).catch(() => {});
   try { db.prepare('INSERT INTO posts_fts(content, title, author, post_id) VALUES (?,?,?,?)').run(HtmlSanitizerService.toPlainText(html), '', user.username || '', postId); } catch { /* FTS non-fatal */ }
-  deliverCreate(site, { id: postId, slug, title: '', content: html, published_at: now, created_at: now }).catch(() => { /* best-effort */ });
+  if (vis !== 'direct') {
+    deliverCreate(site, { id: postId, slug, title: '', content: html, published_at: now, created_at: now, fan_only: fanOnly, ap_visibility: vis }).catch(() => { /* best-effort */ });
+  }
   return { status: 201, id: postId, url: `${base}/ap/notes/${postId}` };
+}
+
+// Addressing → visibility. Arrays or bare strings; unknown shapes read as the
+// safest bucket they match.
+export function c2sVisibility(object) {
+  const arr = (v) => (Array.isArray(v) ? v : (v ? [v] : [])).filter((x) => typeof x === 'string');
+  const to = arr(object.to), cc = arr(object.cc);
+  const isPublic = (x) => x === PUBLIC || x === 'as:Public' || x === 'Public';
+  const isFollowers = (x) => /\/followers\/?$/.test(x);
+  if (to.some(isPublic)) return 'public';
+  if (cc.some(isPublic)) return 'quiet';
+  if (to.some(isFollowers) || cc.some(isFollowers)) return 'friends';
+  if (!to.length && !cc.length) return 'public';   // no addressing at all: legacy client, keep old behavior
+  return 'direct';
 }
 
 // Send a reply FROM this site to a remote actor (in reply to their inbound reply).
@@ -2903,5 +2929,5 @@ export default {
   getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
   linkifyBody, bakePostContent, bakePostContentWithMentions, listFollowers, removeFollower, listConnections,
   noteVisibility, isRejectedObject, rejectInteraction, interactionReportTarget,
-  getMessages, notificationsSeenAt, ingestOutboxActivity,
+  getMessages, notificationsSeenAt, ingestOutboxActivity, c2sVisibility,
 };
