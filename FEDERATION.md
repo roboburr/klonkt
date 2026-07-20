@@ -152,6 +152,7 @@ is being drafted separately as a candidate FEP.
 
 ## Additional documentation
 
+- Client-to-Server API for apps (the Shaer contract): `docs/shaer-c2s-api.md`.
 - Source code: `src/services/ActivityPubService.js` (core AP logic),
   `src/routes/activitypub.js` (S2S, WebFinger, NodeInfo),
   `src/routes/oauth.js` (C2S / OAuth).
