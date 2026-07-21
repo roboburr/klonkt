@@ -278,6 +278,28 @@ export function buildNote(base, site, post, opts = {}) {
   const escTitle = String(post.title || '').replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
   const titleHtml = post.title ? `<p><strong>${escTitle}</strong></p>` : '';
 
+  // Paid post (klonkt-demo-aki): federate a PUBLIC teaser + link, never the full
+  // content, so nothing leaks past the paywall. No media attachments either.
+  if (post.paid) {
+    const esc = (x) => String(x || '').replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+    const _firstP = (String(post.content || '').match(/<p[^>]*>([\s\S]*?)<\/p>/i) || [null, ''])[1] || '';
+    const rawTeaser = String(post.excerpt || '').trim()
+      || _firstP.replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, ' ').trim().slice(0, 280);
+    return {
+      '@context': AP_CONTEXT,
+      id,
+      type: 'Note',
+      attributedTo: aId,
+      content: `${titleHtml}<p>${esc(rawTeaser)}${rawTeaser ? '…' : ''}</p><p><a href="${human}">Lees de volledige post (supporters)</a></p>`,
+      url: human,
+      published: toISO(post.published_at || post.created_at || Date.now()),
+      to: [PUBLIC],
+      cc: [`${aId}/followers`],
+      tag: [...hashtagTags(base, post.content)],
+      replies: `${id}/replies`,
+    };
+  }
+
   // Images travel as AP `attachment` (Mastodon strips <img> from content). Collect
   // the cover + any inline <img>, make absolute, then strip <img> from the content
   // to avoid duplicate rendering on clients that DO keep them.

@@ -19,6 +19,8 @@ import { audioUrl } from '../services/AudioStreamService.js';
 import { toWebp } from '../services/ImageWebpService.js';
 import VideoCoverService from '../services/VideoCoverService.js';
 import ActivityPubService from '../services/ActivityPubService.js';
+import { premiumUnlocked } from '../services/PatreonService.js';
+import { defaultMinCents as paidDefaultMinCents } from '../services/PaidPatreonService.js';
 import MusicMeta from '../services/MusicMeta.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -326,6 +328,9 @@ router.post('/posts/create', requireAuth, (req, res) => {
 
   const { title, slug, content, excerpt, status, pinned, cover_image_url, tags, noindex, type } = req.body;
   const fanOnly = req.body.fan_only ? 1 : 0;
+  const paid = (premiumUnlocked() && req.body.paid) ? 1 : 0;   // paid posts (klonkt-demo-aki)
+  const paidEur = String(req.body.paid_min_eur || '').replace(',', '.').trim();
+  const paidMinCents = paid && paidEur ? Math.round(parseFloat(paidEur) * 100) : null;
   const nsfw = req.body.nsfw ? 1 : 0;
   const cw = (req.body.content_warning || '').trim().slice(0, 200);
   const coverAlt = (req.body.cover_alt || '').trim().slice(0, 1500) || null; // cover alt text (a11y)
@@ -380,6 +385,7 @@ router.post('/posts/create', requireAuth, (req, res) => {
     now, now, publishedAt
   );
   cacheRenderedContent(postId, cleanContent); // bake display HTML (ActivityPub `source` model)
+  db.prepare('UPDATE posts SET paid = ?, paid_min_cents = ? WHERE id = ?').run(paid, paidMinCents, postId);
 
   // Per-post "share audio on the fediverse" → set fedi_open on this post's hosted tracks
   // BEFORE federating, so the Create note carries the right Audio attachments.
@@ -398,7 +404,7 @@ router.post('/posts/create', requireAuth, (req, res) => {
       ActivityPubService.deliverCreate(site, {
         id: postId, slug: finalSlug, title: title || finalSlug,
         content: cleanContent, cover_image_url: cover_image_url || null, cover_video_url: req.body.cover_video_url || null, cover_alt: coverAlt, language,
-        published_at: publishedAt, created_at: now, fan_only: fanOnly, nsfw, content_warning: cw, poll_json: pollJson,
+        published_at: publishedAt, created_at: now, fan_only: fanOnly, paid, paid_min_cents: paidMinCents, excerpt: excerpt || '', nsfw, content_warning: cw, poll_json: pollJson,
       }).catch(() => { /* best-effort */ });
     }
   }
@@ -462,6 +468,9 @@ router.post('/posts/:slug/save', requireAuth, (req, res) => {
 
   const { title, content, excerpt, status, pinned, cover_image_url, tags, noindex, type } = req.body;
   const fanOnly = req.body.fan_only ? 1 : 0;
+  const paid = (premiumUnlocked() && req.body.paid) ? 1 : 0;   // paid posts (klonkt-demo-aki)
+  const paidEur = String(req.body.paid_min_eur || '').replace(',', '.').trim();
+  const paidMinCents = paid && paidEur ? Math.round(parseFloat(paidEur) * 100) : null;
   const nsfw = req.body.nsfw ? 1 : 0;
   const cw = (req.body.content_warning || '').trim().slice(0, 200);
   const coverAlt = (req.body.cover_alt || '').trim().slice(0, 1500) || null; // cover alt text (a11y)
@@ -521,6 +530,7 @@ router.post('/posts/:slug/save', requireAuth, (req, res) => {
     finalSlug, publishedAt, now, post.id
   );
   cacheRenderedContent(post.id, cleanContent); // re-bake display HTML on edit (ActivityPub `source` model)
+  db.prepare('UPDATE posts SET paid = ?, paid_min_cents = ? WHERE id = ?').run(paid, paidMinCents, post.id);
 
   // Per-post "share audio on the fediverse" → set fedi_open on this post's hosted tracks
   // BEFORE federating, so the Update/Create note carries the right Audio attachments.
@@ -543,7 +553,7 @@ router.post('/posts/:slug/save', requireAuth, (req, res) => {
     const apPost = {
       id: post.id, slug: finalSlug, title: title || finalSlug,
       content: cleanContent, cover_image_url: cover_image_url || null, cover_video_url: req.body.cover_video_url || null, cover_alt: coverAlt, language,
-      published_at: publishedAt, created_at: post.created_at, fan_only: fanOnly, nsfw, content_warning: cw, poll_json: pollJson,
+      published_at: publishedAt, created_at: post.created_at, fan_only: fanOnly, paid, paid_min_cents: paidMinCents, excerpt: excerpt || '', nsfw, content_warning: cw, poll_json: pollJson,
     };
     if (post.status !== 'published') ActivityPubService.deliverCreate(site, apPost).catch(() => { /* best-effort */ });
     else ActivityPubService.deliverUpdate(site, apPost).catch(() => { /* best-effort */ });
@@ -637,6 +647,17 @@ router.get('/archive', (req, res) => {
 // Newer/Older neighbours across ALL posts in feed order. Shared by the full
 // post render and the fan gate (premium fan_only) so navigation is consistent
 // everywhere. Solo: within the site (pinned first, then date). Hub: globally by date.
+// A short public teaser for a paid post: its excerpt, else the first ~280 chars
+// of the (stripped) content. Shared by the web gate and federation.
+function paidTeaser(post, max = 280) {
+  if (post && post.excerpt && String(post.excerpt).trim()) return String(post.excerpt).trim();
+  // Only the FIRST paragraph: a paid teaser must never spill later content.
+  const html = String((post && post.content) || '');
+  const firstP = (html.match(/<p[^>]*>([\s\S]*?)<\/p>/i) || [null, html])[1] || '';
+  const text = firstP.replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, ' ').trim();
+  return text.length > max ? text.slice(0, max).replace(/\s+\S*$/, '') + '…' : text;
+}
+
 function postNeighbors(site, post, isHub) {
   const urlBaseFor = (p) => (isHub && p && p.site_slug) ? `/user/${p.site_slug}` : '';
   const ordered = isHub
@@ -1119,6 +1140,24 @@ router.get('/:slug', (req, res, next) => {
       bodyClass: 'on-special',
       fgTitle: post.title || '',
       fgNext: (res.locals.siteUrlBase || '') + '/' + post.slug,
+      newerPost,
+      olderPost,
+    });
+  }
+
+  // Paid gate (klonkt-demo-aki): a paid post shows only a teaser to anyone who
+  // is not the owner/editor. The passkey unlock arrives in slices 3-4; for now
+  // the owner previews the full post, everyone else sees the teaser + notice.
+  const canEditThis = req.session?.user && PermissionsService.canEditPost(req.session.user, post, site);
+  if (post.paid && !canEditThis) {
+    const { newerPost, olderPost } = postNeighbors(site, post, res.locals.tenancy === 'hub');
+    return renderPage(req, res, 'pages/paid-gate', {
+      pageTitle: post.title || 'Voor supporters',
+      bodyClass: 'on-special',
+      pgTitle: post.title || '',
+      pgTeaser: paidTeaser(post),
+      pgCents: post.paid_min_cents || paidDefaultMinCents(site.id),
+      pgSlug: post.slug,
       newerPost,
       olderPost,
     });

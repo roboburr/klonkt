@@ -366,6 +366,20 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
             <input type="checkbox" name="fan_only" value="1" <%= post.fan_only ? 'checked' : '' %>>
             <span>🔒 <%= t('pedit.fan_only_label') %></span>
           </label>
+          <label class="pe-checkbox" style="margin-top:8px">
+            <input type="checkbox" name="paid" value="1" id="pe-paid" <%= post.paid ? 'checked' : '' %>>
+            <span>💶 Betaalde post (supporters ontgrendelen met Patreon)</span>
+          </label>
+          <div id="pe-paid-price" style="margin:6px 0 0 26px;<%= post.paid ? '' : 'display:none' %>">
+            <label style="font-size:.85rem;opacity:.8">Vereist steunbedrag (euro, leeg = standaard)
+              <input type="text" name="paid_min_eur" inputmode="decimal" style="width:100px"
+                     value="<%= post.paid_min_cents ? (post.paid_min_cents/100).toFixed(2) : '' %>">
+            </label>
+          </div>
+          <script nonce="<%= cspNonce %>">
+            (function(){ var p=document.getElementById('pe-paid'), box=document.getElementById('pe-paid-price');
+              if (p&&box&&!p.__wired){ p.__wired=true; p.addEventListener('change', function(){ box.style.display=p.checked?'':'none'; }); } })();
+          </script>
           <% var _scheduled = !!(post.publish_at && (post.status === 'scheduled' || Date.parse(String(post.publish_at).replace(' ', 'T')) > Date.now())); %>
           <label class="pe-checkbox" style="margin-top:8px">
             <input type="checkbox" name="schedule_enabled" value="1" id="pe-sched-toggle" <%= _scheduled ? 'checked' : '' %>>
