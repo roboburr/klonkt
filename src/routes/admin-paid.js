@@ -17,6 +17,12 @@ import PaidPatreon from '../services/PaidPatreonService.js';
 
 const router = express.Router();
 
+// The redirect URI the owner MUST whitelist in their Patreon client. Must match
+// exactly what paid.js sends, or Patreon shows its own error page (which we
+// cannot skin) instead of returning the visitor to us.
+const redirectUri = (req) =>
+  (process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '') + '/paid/callback';
+
 function gate(req, res) {
   if (!premiumUnlocked()) {
     res.status(403).send('Betaalde posts is een premium-functie: koppel Patreon in Beheer, Instellingen.');
@@ -33,6 +39,7 @@ router.get('/', requireGod, (req, res) => {
     bodyClass: 'on-admin',
     status: PaidPatreon.ownerStatus(res.locals.site.id),
     secretReady: cryptoBoxReady(),
+    redirectUri: redirectUri(req),
     saved: req.query.saved === '1',
     error: req.query.error || null,
   });

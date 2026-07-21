@@ -23,6 +23,18 @@
     <% } %>
   </p>
 
+  <div style="border:1px solid var(--border,#333);border-radius:10px;padding:.9rem 1rem;margin:0 0 1.3rem;background:color-mix(in srgb,var(--accent,#6b8f71) 8%,transparent)">
+    <p style="margin:0 0 .4rem;font-weight:600">Zet deze redirect-URI in je Patreon-client</p>
+    <p style="margin:0 0 .6rem;color:var(--ink-soft,#888);font-size:.9rem">
+      Bij je Patreon API-client, onder <em>Redirect URIs</em>, moet exact deze regel staan.
+      Klopt hij niet, dan geeft Patreon een foutmelding in plaats van je supporters terug te sturen.
+    </p>
+    <div style="display:flex;gap:.5rem;align-items:center">
+      <input id="pd-redirect" type="text" readonly value="<%= redirectUri %>" style="flex:1;min-width:0;font-family:monospace;font-size:.9rem">
+      <button type="button" id="pd-copy" class="btn">Kopieer</button>
+    </div>
+  </div>
+
   <form method="post" action="/admin/paid" style="display:flex;flex-direction:column;gap:.9rem">
     <label>Patreon client id
       <input type="text" name="client_id" value="<%= status.clientId || '' %>" autocomplete="off" style="width:100%">
@@ -57,3 +69,18 @@
 
   <p style="margin-top:1.5rem"><a href="/admin">&larr; Terug naar Beheer</a></p>
 </div>
+
+<script>
+(function () {
+  var field = document.getElementById('pd-redirect');
+  var btn = document.getElementById('pd-copy');
+  if (!field || !btn) return;
+  field.addEventListener('focus', function () { field.select(); });
+  btn.addEventListener('click', function () {
+    field.select();
+    var done = function () { var t = btn.textContent; btn.textContent = 'Gekopieerd'; setTimeout(function () { btn.textContent = t; }, 1400); };
+    if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(field.value).then(done, function () { try { document.execCommand('copy'); done(); } catch (e) {} }); }
+    else { try { document.execCommand('copy'); done(); } catch (e) {} }
+  });
+})();
+</script>
