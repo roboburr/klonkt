@@ -49,7 +49,7 @@ export function patreonUrl(siteId) {
 // Upsert. Only overwrites secret/token fields when a new value is provided, so
 // the admin form can be re-saved without re-pasting the secret.
 export function saveOwnerConfig(siteId, patch) {
-  if (!cryptoBoxReady()) throw new Error('PAID_SECRET is not set: cannot store Patreon secrets');
+  if (!cryptoBoxReady()) throw new Error('encryption key unavailable: cannot store Patreon secrets');
   const cur = getOwnerConfig(siteId) || {};
   const merged = {
     clientId: patch.clientId ?? cur.clientId ?? null,

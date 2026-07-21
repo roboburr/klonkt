@@ -1,21 +1,57 @@
 // Symmetric encryption for secrets at rest (paid posts: the site owner's
 // Patreon creator token, klonkt-demo-aki slice 1). AES-256-GCM with a key
-// derived from PAID_SECRET (env), so a database dump alone leaks nothing usable.
+// derived from a secret, so a database dump alone leaks nothing usable.
 // Format: base64(iv) : base64(tag) : base64(ciphertext).
 //
-// The codebase had no symmetric-crypto helper; this is that one, kept tiny and
-// native (no dependency). If PAID_SECRET is unset, encryption is refused loudly
-// rather than storing plaintext.
+// The secret is resolved in this order so nobody has to edit the env:
+//   1. PAID_SECRET (env) — authoritative; a self-hoster who set it by hand
+//      (or Bart, who already did) keeps working unchanged.
+//   2. a persisted key file next to the database, auto-generated on first use
+//      (0600). This is what "first run" and "existing users after an update"
+//      get automatically.
+// The key lives OUTSIDE the sqlite DB on purpose: encrypting the Patreon
+// secrets is pointless if the key sits in the same file a DB dump would leak.
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// The key file sits in the same directory as the database.
+function keyFilePath() {
+  const dbPath = process.env.DATABASE_PATH || path.join(__dirname, '../../storage/database.sqlite');
+  const dir = dbPath === ':memory:' ? path.join(__dirname, '../../storage') : path.dirname(dbPath);
+  return path.join(dir, '.paid-secret');
+}
+
+// Read the persisted key, generating + writing it (0600) the first time.
+function fileSecret() {
+  const file = keyFilePath();
+  try {
+    const existing = fs.readFileSync(file, 'utf8').trim();
+    if (existing.length >= 16) return existing;
+  } catch { /* not created yet */ }
+  const generated = crypto.randomBytes(32).toString('base64');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, generated, { mode: 0o600 });
+  try { fs.chmodSync(file, 0o600); } catch { /* non-POSIX fs */ }
+  return generated;
+}
+
+// env wins; otherwise the auto-generated file. Never returns an ephemeral key:
+// if the file can't be persisted, fileSecret throws and the feature stays gated
+// (cryptoBoxReady false) rather than encrypting with a key lost on restart.
+function resolveSecret() {
+  const env = process.env.PAID_SECRET;
+  if (env && String(env).length >= 16) return String(env);
+  return fileSecret();
+}
 
 let _key = null;
 function key() {
   if (_key) return _key;
-  const secret = process.env.PAID_SECRET;
-  if (!secret || String(secret).length < 16) {
-    throw new Error('PAID_SECRET is missing or too short (need >= 16 chars) to encrypt paid-posts secrets');
-  }
-  _key = crypto.scryptSync(String(secret), 'klonkt-paid', 32);
+  _key = crypto.scryptSync(resolveSecret(), 'klonkt-paid', 32);
   return _key;
 }
 

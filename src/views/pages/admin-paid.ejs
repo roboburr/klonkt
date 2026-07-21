@@ -9,7 +9,7 @@
   <% if (saved) { %><p style="color:var(--accent);font-weight:600">Opgeslagen.</p><% } %>
   <% if (error) { %><p style="color:#c0392b"><%= error %></p><% } %>
   <% if (!secretReady) { %>
-    <p style="color:#c0392b">Let op: <code>PAID_SECRET</code> staat niet in de serverconfig. Zonder die sleutel kunnen secrets niet versleuteld worden opgeslagen.</p>
+    <p style="color:#c0392b">Let op: de encryptiesleutel kon niet worden aangemaakt of gelezen (schrijfrechten op de opslagmap?). Zonder sleutel kunnen secrets niet veilig worden opgeslagen.</p>
   <% } %>
 
   <p style="margin:.2rem 0 1.2rem">

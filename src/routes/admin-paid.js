@@ -47,7 +47,7 @@ router.get('/', requireGod, (req, res) => {
 
 router.post('/', requireGod, (req, res) => {
   if (!gate(req, res)) return;
-  if (!cryptoBoxReady()) return res.redirect('/admin/paid?error=' + encodeURIComponent('PAID_SECRET ontbreekt in de serverconfig; secrets kunnen niet versleuteld worden opgeslagen.'));
+  if (!cryptoBoxReady()) return res.redirect('/admin/paid?error=' + encodeURIComponent('De encryptiesleutel kon niet worden aangemaakt of gelezen (schrijfrechten op de opslagmap?); secrets kunnen niet veilig worden opgeslagen.'));
   const b = req.body || {};
   const eur = String(b.default_min_eur || '').replace(',', '.').trim();
   const cents = eur ? Math.round(parseFloat(eur) * 100) : undefined;
