@@ -1,0 +1,59 @@
+<div class="container" style="max-width:640px;margin:1.5rem auto 3rem;padding:0 1rem">
+  <h1 style="margin:0 0 .3rem">Betaalde posts</h1>
+  <p style="color:var(--ink-soft,#888);margin:0 0 1.2rem">
+    Koppel je eigen Patreon-campagne. Supporters ontgrendelen betaalde posts met een passkey,
+    zonder account en zonder cookie. Wij bewaren geen namen of e-mailadressen van supporters,
+    alleen het versleutelde token van jouw campagne.
+  </p>
+
+  <% if (saved) { %><p style="color:var(--accent);font-weight:600">Opgeslagen.</p><% } %>
+  <% if (error) { %><p style="color:#c0392b"><%= error %></p><% } %>
+  <% if (!secretReady) { %>
+    <p style="color:#c0392b">Let op: <code>PAID_SECRET</code> staat niet in de serverconfig. Zonder die sleutel kunnen secrets niet versleuteld worden opgeslagen.</p>
+  <% } %>
+
+  <p style="margin:.2rem 0 1.2rem">
+    Status:
+    <% if (status.connected) { %>
+      <strong style="color:var(--accent)">verbonden</strong> (campagne <%= status.campaignId %>)
+    <% } else if (status.configured) { %>
+      <strong>ingesteld, nog niet verbonden</strong> (vul een token in)
+    <% } else { %>
+      <strong>nog niet ingesteld</strong>
+    <% } %>
+  </p>
+
+  <form method="post" action="/admin/paid" style="display:flex;flex-direction:column;gap:.9rem">
+    <label>Patreon client id
+      <input type="text" name="client_id" value="<%= status.clientId || '' %>" autocomplete="off" style="width:100%">
+    </label>
+    <label>Patreon client secret
+      <input type="password" name="client_secret" placeholder="<%= status.hasSecret ? 'blijft ongewijzigd' : '' %>" autocomplete="off" style="width:100%">
+      <small style="color:var(--ink-soft,#888)">Leeg laten = huidige waarde behouden.</small>
+    </label>
+    <label>Campagne-id
+      <input type="text" name="campaign_id" value="<%= status.campaignId || '' %>" autocomplete="off" style="width:100%">
+    </label>
+    <label>Creator access token
+      <input type="password" name="access_token" placeholder="blijft ongewijzigd" autocomplete="off" style="width:100%">
+    </label>
+    <label>Creator refresh token
+      <input type="password" name="refresh_token" placeholder="blijft ongewijzigd" autocomplete="off" style="width:100%">
+      <small style="color:var(--ink-soft,#888)">De access + refresh token krijg je op je Patreon API-clientpagina. Wij versleutelen ze en verversen automatisch.</small>
+    </label>
+    <label>Standaard-steunbedrag voor een betaalde post (euro)
+      <input type="text" name="default_min_eur" value="<%= status.defaultMinCents ? (status.defaultMinCents/100).toFixed(2) : '' %>" inputmode="decimal" style="width:120px">
+    </label>
+    <div style="display:flex;gap:.6rem;align-items:center">
+      <button type="submit" class="btn btn-primary">Opslaan</button>
+    </div>
+  </form>
+
+  <% if (status.configured || status.connected) { %>
+    <form method="post" action="/admin/paid/disconnect" data-confirm="Patreon-koppeling verwijderen?" style="margin-top:1rem">
+      <button type="submit" class="btn btn-danger">Koppeling verwijderen</button>
+    </form>
+  <% } %>
+
+  <p style="margin-top:1.5rem"><a href="/admin">&larr; Terug naar Beheer</a></p>
+</div>

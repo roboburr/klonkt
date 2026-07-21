@@ -45,6 +45,7 @@
     <% } %>
     <% if (typeof premiumUnlocked === 'undefined' || premiumUnlocked) { %>
       <a href="/admin/stats" class="btn"><%= t('admin.b_stats') %></a>
+      <a href="/admin/paid" class="btn">Betaalde posts</a>
       <a href="/admin/newsletter" class="btn"><%= t('admin.b_newsletter') %></a>
       <% if (tenancy !== 'hub' && primarySite) { %><a href="/pers" class="btn" target="_blank"><%= t('admin.b_perskit') %></a><% } %>
       <% if (tenancy !== 'hub' && primarySite) { %><a href="/downloads" class="btn" target="_blank"><%= t('admin.b_downloads') %></a><% } %>

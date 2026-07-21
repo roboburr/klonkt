@@ -70,6 +70,19 @@ token = blob + "." + tag
 
 `PAID_SECRET` (32 random bytes) lives in env, like the other secrets.
 
+## Concurrency (a property of the cookie-less model)
+
+Because there is no session and no "current user", the model is inherently
+multi-user. Two people unlock side by side with no shared state to collide:
+each request carries its own assertion, verified against that credential's own
+public key, and the content goes back in that one response. `paid_entitlements`
+is keyed per credential, so N passkeys are N independent rows. The challenge is
+stateless (the signed blob), so there is no single "pending challenge" slot a
+second visitor could overwrite. Unlike a cookie session, "two people in the same
+browser" cannot clobber each other. The only caveat is a shared browser profile:
+the passkey picker would then list both passkeys (a small visibility hint, not
+access).
+
 ## Data model (additive)
 
 New table `paid_patreon` (one row per site owner's campaign):

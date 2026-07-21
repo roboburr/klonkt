@@ -58,6 +58,15 @@ sessies. Elke ontgrendeling is een losse, lokale bevestiging met je passkey.
 Dat betekent ook: per post een korte bevestiging. Dat is een bewuste keuze,
 geen gemis.
 
+## Meerdere mensen tegelijk
+
+Omdat er geen sessie en geen "ingelogde gebruiker" bestaat, kunnen meerdere
+mensen tegelijk en los van elkaar posts ontgrendelen: elke bevestiging staat op
+zichzelf. Er is geen gedeelde toestand die van elkaar afhangt. Deel je hetzelfde
+apparaat en profiel met iemand, dan kan de passkey-kiezer wel tonen dat de ander
+een passkey heeft (geen toegang, alleen zichtbaar); gebruik dan aparte apparaten
+of profielen.
+
 ## Bewaartermijn en verlopen
 
 Het recht dat aan je passkey hangt heeft een vervaldatum die aansluit op de

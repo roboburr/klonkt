@@ -309,6 +309,20 @@ export function initializeDatabase() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       last_used_at DATETIME
     );
+    -- Paid posts (klonkt-demo-aki): the site owner's own Patreon campaign.
+    -- Secrets are encrypted at rest (CryptoBox). Never reuses the instance-level
+    -- patreon_* settings, which are Klonkt Premium's separate license flow.
+    CREATE TABLE IF NOT EXISTS paid_patreon (
+      site_id TEXT PRIMARY KEY,
+      client_id TEXT,
+      client_secret_enc TEXT,
+      campaign_id TEXT,
+      access_token_enc TEXT,
+      refresh_token_enc TEXT,
+      token_exp INTEGER,               -- unix seconds
+      default_min_cents INTEGER DEFAULT 0,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
     CREATE TABLE IF NOT EXISTS ap_outbox (
       id TEXT PRIMARY KEY,            -- note path segment (uuid) → /ap/notes/<id>
       site_slug TEXT NOT NULL,
