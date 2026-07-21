@@ -14,7 +14,6 @@ import { premiumUnlocked } from '../services/PatreonService.js';
 import { signBlob, verifyBlob, cryptoBoxReady } from '../services/CryptoBox.js';
 import PaidPatreon from '../services/PaidPatreonService.js';
 import Passkey from '../services/PasskeyService.js';
-import { renderPostBodyHtml } from './posts.js';
 
 const router = express.Router();
 const AUTHORIZE = 'https://www.patreon.com/oauth2/authorize';
@@ -127,7 +126,12 @@ router.post('/unlock', express.json({ limit: '64kb' }), async (req, res) => {
   Passkey.bumpCounter(credId, vr.newCounter);
   const post = db.prepare("SELECT * FROM posts WHERE site_id = ? AND slug = ? AND status = 'published'").get(r.site.id, String(payload.post || ''));
   if (!post || !post.paid) return res.status(404).json({ error: 'gone' });
-  res.json({ ok: true, title: post.title || '', html: renderPostBodyHtml(r.site, post, req) });
+  // Hand back a short-lived, single-post unlock capability. The client reloads
+  // the real post page with it (?u=), so the post renders through its normal
+  // template: correct layout, scoped styles, working audio. Not a cookie and
+  // not stored: a 120s signed blob that lives only in that one URL.
+  const token = signBlob({ purpose: 'unlocked', siteId: r.site.id, post: post.slug }, 120);
+  res.json({ ok: true, redirect: `${res.locals.siteUrlBase || ''}/${encodeURIComponent(post.slug)}?u=${encodeURIComponent(token)}` });
 });
 
 export default router;

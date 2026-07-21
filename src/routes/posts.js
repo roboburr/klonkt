@@ -21,6 +21,7 @@ import VideoCoverService from '../services/VideoCoverService.js';
 import ActivityPubService from '../services/ActivityPubService.js';
 import { premiumUnlocked } from '../services/PatreonService.js';
 import { defaultMinCents as paidDefaultMinCents, patreonUrl as paidPatronUrl } from '../services/PaidPatreonService.js';
+import { verifyBlob } from '../services/CryptoBox.js';
 import MusicMeta from '../services/MusicMeta.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1237,7 +1238,13 @@ router.get('/:slug', (req, res, next) => {
   // paid gate wins (otherwise anonymous visitors land on the login gate and
   // never see the unlock button).
   const canEditThis = req.session?.user && PermissionsService.canEditPost(req.session.user, post, site);
-  if (post.paid && !canEditThis) {
+  // A fresh unlock capability (?u=) from /paid/unlock lets a just-verified
+  // supporter render the FULL post through this normal template (correct layout,
+  // scoped styles, working audio). Short-lived signed blob, single post, not a
+  // cookie and not stored.
+  const _u = req.query.u ? verifyBlob(String(req.query.u)) : null;
+  const _unlocked = _u && _u.purpose === 'unlocked' && _u.siteId === site.id && String(_u.post) === String(post.slug);
+  if (post.paid && !canEditThis && !_unlocked) {
     const { newerPost, olderPost } = postNeighbors(site, post, res.locals.tenancy === 'hub');
     return renderPage(req, res, 'pages/paid-gate', {
       pageTitle: post.title || 'Voor supporters',

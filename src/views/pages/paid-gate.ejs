@@ -36,13 +36,20 @@
 (function () {
   var base = "<%= (typeof siteUrlBase !== 'undefined' && siteUrlBase ? siteUrlBase : '') %>";
   var slug = "<%= pgSlug %>";
+  var hasPatron = <%= _hasPatron ? 'true' : 'false' %>;
   var btn = document.getElementById('pg-unlock');
   var status = document.getElementById('pg-status');
-  var page = document.getElementById('pg-page');
   function say(msg, err) { status.hidden = false; status.textContent = msg; status.classList.toggle('is-err', !!err); }
   function toLink() { location.href = base + '/paid/link?post=' + encodeURIComponent(slug); }
 
-  if (!window.SimpleWebAuthnBrowser || !window.PublicKeyCredential) { btn.textContent = 'Word supporter'; btn.addEventListener('click', toLink); return; }
+  // No WebAuthn here: an assertion is impossible. With a Patreon page there is
+  // already a "Word supporter" button, so hide the (dead) unlock button rather
+  // than turn it into a second "Word supporter". Without one, this IS the button.
+  if (!window.SimpleWebAuthnBrowser || !window.PublicKeyCredential) {
+    if (hasPatron) { btn.style.display = 'none'; }
+    else { btn.textContent = 'Word supporter'; btn.addEventListener('click', toLink); }
+    return;
+  }
 
   btn.addEventListener('click', function () {
     btn.disabled = true;
@@ -60,12 +67,10 @@
       })
       .then(function (r) { return r.json().then(function (j) { return { status: r.status, j: j }; }); })
       .then(function (res) {
-        if (res.j && res.j.ok) {
-          // Swap the gate for the full post, client-side (no cookie kept).
-          var h = document.createElement('div');
-          h.innerHTML = (res.j.title ? '<h1 class="post-title">' + res.j.title + '</h1>' : '') +
-            '<div class="post-content">' + res.j.html + '</div>';
-          page.replaceWith(h);
+        if (res.j && res.j.ok && res.j.redirect) {
+          // Reload the real post page via the one-shot unlock capability, so it
+          // renders through its normal template (layout, styles, audio).
+          location.href = res.j.redirect;
         } else if (res.status === 403) {
           toLink();   // no valid passkey yet (or lapsed tier): link via Patreon
         } else {
