@@ -11,8 +11,8 @@
   </div>
 </section>
 
-<script src="/assets/vendor/simplewebauthn-browser.umd.min.js" nonce="<%= cspNonce %>"></script>
-<script nonce="<%= cspNonce %>">
+<script src="/assets/vendor/simplewebauthn-browser.umd.min.js"></script>
+<script>
 (function () {
   var options = <%- optionsJson %>;
   var blob = "<%= regBlob %>";

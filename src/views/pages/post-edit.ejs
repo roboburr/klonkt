@@ -376,7 +376,7 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
                      value="<%= post.paid_min_cents ? (post.paid_min_cents/100).toFixed(2) : '' %>">
             </label>
           </div>
-          <script nonce="<%= cspNonce %>">
+          <script>
             (function(){ var p=document.getElementById('pe-paid'), box=document.getElementById('pe-paid-price');
               if (p&&box&&!p.__wired){ p.__wired=true; p.addEventListener('change', function(){ box.style.display=p.checked?'':'none'; }); } })();
           </script>

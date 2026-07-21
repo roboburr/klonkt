@@ -22,8 +22,8 @@
   </section>
 </article>
 
-<script src="/assets/vendor/simplewebauthn-browser.umd.min.js" nonce="<%= cspNonce %>"></script>
-<script nonce="<%= cspNonce %>">
+<script src="/assets/vendor/simplewebauthn-browser.umd.min.js"></script>
+<script>
 (function () {
   var base = "<%= (typeof siteUrlBase !== 'undefined' && siteUrlBase ? siteUrlBase : '') %>";
   var slug = "<%= pgSlug %>";
