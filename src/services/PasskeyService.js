@@ -62,6 +62,44 @@ export async function verifyRegistration(base, response, expectedChallenge) {
   };
 }
 
+// Authentication (assertion) options for the unlock. Discoverable credentials,
+// so allowCredentials is empty and the browser offers the site's passkeys.
+export async function authenticationOptions(base) {
+  const { rpID } = rpFor(base);
+  const { generateAuthenticationOptions } = await lib();
+  return generateAuthenticationOptions({ rpID, userVerification: 'preferred', allowCredentials: [] });
+}
+
+// Verify an assertion against a stored entitlement row. Returns { newCounter }
+// or null. Challenge is read from the signed blob by the caller.
+export async function verifyAssertion(base, response, expectedChallenge, ent) {
+  const { rpID, origin } = rpFor(base);
+  let v;
+  try {
+    const { verifyAuthenticationResponse } = await lib();
+    v = await verifyAuthenticationResponse({
+      response,
+      expectedChallenge,
+      expectedOrigin: origin,
+      expectedRPID: rpID,
+      requireUserVerification: false,
+      credential: {
+        id: ent.credential_id,
+        publicKey: Buffer.from(ent.public_key, 'base64url'),
+        counter: ent.counter || 0,
+        transports: ent.transports ? JSON.parse(ent.transports) : undefined,
+      },
+    });
+  } catch { return null; }
+  if (!v || !v.verified) return null;
+  return { newCounter: v.authenticationInfo.newCounter };
+}
+
+// Bump the signature counter after a successful assertion (clone detection).
+export function bumpCounter(credentialId, newCounter) {
+  db.prepare('UPDATE paid_entitlements SET counter = ? WHERE credential_id = ?').run(newCounter || 0, credentialId);
+}
+
 // Store (or refresh) a pseudonymous entitlement for this passkey.
 export function storeEntitlement({ credentialId, siteId, publicKey, counter, transports, minCents, ttlDays = DEFAULT_TTL_DAYS }) {
   const expiresAt = Math.floor(Date.now() / 1000) + ttlDays * 86400;
@@ -95,4 +133,5 @@ export function pruneExpired() {
 export default {
   rpFor, registrationOptions, verifyRegistration, storeEntitlement,
   getEntitlement, deleteEntitlement, pruneExpired,
+  authenticationOptions, verifyAssertion, bumpCounter,
 };

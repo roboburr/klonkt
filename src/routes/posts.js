@@ -647,6 +647,109 @@ router.get('/archive', (req, res) => {
 // Newer/Older neighbours across ALL posts in feed order. Shared by the full
 // post render and the fan gate (premium fan_only) so navigation is consistent
 // everywhere. Solo: within the site (pinned first, then date). Hub: globally by date.
+// Renders a post's display HTML: baked content + the dynamic audio/embed layer.
+// Extracted so the paid unlock (slice 4) serves the exact same body as the page.
+export function renderPostBodyHtml(site, post, req) {
+  let html = (post.content_rendered != null && post.content_rendered !== '')
+    ? post.content_rendered
+    : ActivityPubService.bakePostContent(post.content || '');
+  if (audioEnabled()) {
+  if (site.enable_audio_player !== 0) {
+    html = AudioEmbedService.autoembed(html);
+    html = AudioEmbedService.embedMediaShortcodes(html);
+    html = AudioEmbedService.embedExternalLinkShortcodes(html);
+
+    // Fetch any tracks referenced by [[track:id]] in this post.
+    // Cheap to do unconditionally — only matches if the post actually has shortcodes.
+    const trackIds = [...html.matchAll(/\[\[track:([A-Za-z0-9_-]+)\]\]/g)].map(m => m[1]);
+    if (trackIds.length) {
+      const placeholders = trackIds.map(() => '?').join(',');
+      const rows = db.prepare(`
+        SELECT t.id, t.title, t.artist, t.cover_url, t.credit, t.license,
+               t.link_spotify, t.link_youtube, t.link_soundcloud, m.filename
+        FROM audio_tracks t LEFT JOIN media m ON m.id = t.media_id
+        WHERE t.site_id = ? AND t.id IN (${placeholders})
+      `).all(site.id, ...trackIds);
+      const byId = new Map(rows.map(r => [r.id, r]));
+      html = AudioEmbedService.embedTrackShortcodes(html, (id) => {
+        const r = byId.get(id);
+        if (!r) return null;
+        return {
+          id: r.id,
+          title: r.title,
+          artist: r.artist,
+          cover: r.cover_url,
+          credit: r.credit || '',
+          license: r.license || '',
+          link_spotify: r.link_spotify || '',
+          link_youtube: r.link_youtube || '',
+          link_soundcloud: r.link_soundcloud || '',
+          url: r.filename ? audioUrl(r.filename) : '',  // '' = link-only track
+        };
+      });
+    }
+
+    // Album shortcodes: [[album:Some Album Name]]
+    const albumNames = [...html.matchAll(/\[\[album:([^\]]+)\]\]/g)].map(m => m[1].trim());
+    if (albumNames.length) {
+      const placeholders = albumNames.map(() => '?').join(',');
+      const albumRows = db.prepare(`
+        SELECT t.id, t.title, t.artist, t.album, t.cover_url, t.position,
+               t.link_spotify, t.link_youtube, t.link_soundcloud, m.filename
+        FROM audio_tracks t LEFT JOIN media m ON m.id = t.media_id
+        WHERE t.site_id = ? AND t.album IN (${placeholders})
+        ORDER BY t.position ASC, t.created_at ASC
+      `).all(site.id, ...albumNames);
+      const byAlbum = new Map();
+      for (const r of albumRows) {
+        // Link-only tracks (no file) remain in the album overview (url '').
+        if (!byAlbum.has(r.album)) byAlbum.set(r.album, []);
+        byAlbum.get(r.album).push({
+          id: r.id,
+          url: r.filename ? audioUrl(r.filename) : '',
+          title: r.title || 'Untitled',
+          artist: r.artist || '',
+          cover: r.cover_url || '',
+          link_spotify: r.link_spotify || '',
+          link_youtube: r.link_youtube || '',
+          link_soundcloud: r.link_soundcloud || '',
+        });
+      }
+      html = AudioEmbedService.embedAlbumShortcodes(html, (name) => {
+        const tracks = byAlbum.get(name);
+        if (!tracks || !tracks.length) return null;
+        return {
+          title: name,
+          artist: tracks[0].artist || '',
+          cover: tracks[0].cover || '',
+          tracks,
+        };
+      });
+    }
+
+    // Playlist shortcodes: [[playlist:some-slug-id]] — first-class entity.
+    // Editing the playlist propagates to every post that embeds it.
+    const playlistIds = [...html.matchAll(/\[\[playlist:([a-z0-9][a-z0-9-]*)\]\]/gi)]
+      .map(m => m[1].toLowerCase());
+    if (playlistIds.length) {
+      const isAdmin = req.session?.user?.role === 'god';
+      html = AudioEmbedService.embedPlaylistShortcodes(html, (id) => {
+        return PlaylistService.get(site.id, id, audioUrl);
+      }, { isAdmin });
+    }
+  }
+  } else {
+    // LITE mode (KLONKT_AUDIO=off): no own audio (no ffmpeg/stream route).
+    // External embeds (YouTube/SoundCloud/Spotify) remain; the own-audio
+    // shortcodes ([[track]]/[[album]]/[[playlist]]) are cleanly stripped.
+    html = AudioEmbedService.autoembed(html);
+    html = AudioEmbedService.embedMediaShortcodes(html);
+    html = AudioEmbedService.embedExternalLinkShortcodes(html);
+    html = html.replace(/\[\[(track|album|playlist):[^\]]+\]\]/gi, '');
+  }
+  return html;
+}
+
 // A short public teaser for a paid post: its excerpt, else the first ~280 chars
 // of the (stripped) content. Shared by the web gate and federation.
 function paidTeaser(post, max = 280) {
@@ -1171,105 +1274,7 @@ router.get('/:slug', (req, res, next) => {
   // model (content = raw source, kept for editing). Old posts with no baked copy fall back to
   // baking on the fly (cheap, no network). The dynamic layer (autoembed + [[track/album/
   // playlist]] + signed audio URLs) stays per-render on top, since it can't be cached.
-  let html = (post.content_rendered != null && post.content_rendered !== '')
-    ? post.content_rendered
-    : ActivityPubService.bakePostContent(post.content || '');
-  if (audioEnabled()) {
-  if (site.enable_audio_player !== 0) {
-    html = AudioEmbedService.autoembed(html);
-    html = AudioEmbedService.embedMediaShortcodes(html);
-    html = AudioEmbedService.embedExternalLinkShortcodes(html);
-
-    // Fetch any tracks referenced by [[track:id]] in this post.
-    // Cheap to do unconditionally — only matches if the post actually has shortcodes.
-    const trackIds = [...html.matchAll(/\[\[track:([A-Za-z0-9_-]+)\]\]/g)].map(m => m[1]);
-    if (trackIds.length) {
-      const placeholders = trackIds.map(() => '?').join(',');
-      const rows = db.prepare(`
-        SELECT t.id, t.title, t.artist, t.cover_url, t.credit, t.license,
-               t.link_spotify, t.link_youtube, t.link_soundcloud, m.filename
-        FROM audio_tracks t LEFT JOIN media m ON m.id = t.media_id
-        WHERE t.site_id = ? AND t.id IN (${placeholders})
-      `).all(site.id, ...trackIds);
-      const byId = new Map(rows.map(r => [r.id, r]));
-      html = AudioEmbedService.embedTrackShortcodes(html, (id) => {
-        const r = byId.get(id);
-        if (!r) return null;
-        return {
-          id: r.id,
-          title: r.title,
-          artist: r.artist,
-          cover: r.cover_url,
-          credit: r.credit || '',
-          license: r.license || '',
-          link_spotify: r.link_spotify || '',
-          link_youtube: r.link_youtube || '',
-          link_soundcloud: r.link_soundcloud || '',
-          url: r.filename ? audioUrl(r.filename) : '',  // '' = link-only track
-        };
-      });
-    }
-
-    // Album shortcodes: [[album:Some Album Name]]
-    const albumNames = [...html.matchAll(/\[\[album:([^\]]+)\]\]/g)].map(m => m[1].trim());
-    if (albumNames.length) {
-      const placeholders = albumNames.map(() => '?').join(',');
-      const albumRows = db.prepare(`
-        SELECT t.id, t.title, t.artist, t.album, t.cover_url, t.position,
-               t.link_spotify, t.link_youtube, t.link_soundcloud, m.filename
-        FROM audio_tracks t LEFT JOIN media m ON m.id = t.media_id
-        WHERE t.site_id = ? AND t.album IN (${placeholders})
-        ORDER BY t.position ASC, t.created_at ASC
-      `).all(site.id, ...albumNames);
-      const byAlbum = new Map();
-      for (const r of albumRows) {
-        // Link-only tracks (no file) remain in the album overview (url '').
-        if (!byAlbum.has(r.album)) byAlbum.set(r.album, []);
-        byAlbum.get(r.album).push({
-          id: r.id,
-          url: r.filename ? audioUrl(r.filename) : '',
-          title: r.title || 'Untitled',
-          artist: r.artist || '',
-          cover: r.cover_url || '',
-          link_spotify: r.link_spotify || '',
-          link_youtube: r.link_youtube || '',
-          link_soundcloud: r.link_soundcloud || '',
-        });
-      }
-      html = AudioEmbedService.embedAlbumShortcodes(html, (name) => {
-        const tracks = byAlbum.get(name);
-        if (!tracks || !tracks.length) return null;
-        return {
-          title: name,
-          artist: tracks[0].artist || '',
-          cover: tracks[0].cover || '',
-          tracks,
-        };
-      });
-    }
-
-    // Playlist shortcodes: [[playlist:some-slug-id]] — first-class entity.
-    // Editing the playlist propagates to every post that embeds it.
-    const playlistIds = [...html.matchAll(/\[\[playlist:([a-z0-9][a-z0-9-]*)\]\]/gi)]
-      .map(m => m[1].toLowerCase());
-    if (playlistIds.length) {
-      const isAdmin = req.session?.user?.role === 'god';
-      html = AudioEmbedService.embedPlaylistShortcodes(html, (id) => {
-        return PlaylistService.get(site.id, id, audioUrl);
-      }, { isAdmin });
-    }
-  }
-  } else {
-    // LITE mode (KLONKT_AUDIO=off): no own audio (no ffmpeg/stream route).
-    // External embeds (YouTube/SoundCloud/Spotify) remain; the own-audio
-    // shortcodes ([[track]]/[[album]]/[[playlist]]) are cleanly stripped.
-    html = AudioEmbedService.autoembed(html);
-    html = AudioEmbedService.embedMediaShortcodes(html);
-    html = AudioEmbedService.embedExternalLinkShortcodes(html);
-    html = html.replace(/\[\[(track|album|playlist):[^\]]+\]\]/gi, '');
-  }
-  // (linkify is baked into content_rendered at save now, not re-run here.)
-  post.content_html = html;
+  post.content_html = renderPostBodyHtml(site, post, req);
 
   if (post.tags) {
     try { post.tags = JSON.parse(post.tags); } catch { post.tags = []; }

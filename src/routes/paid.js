@@ -14,6 +14,7 @@ import { premiumUnlocked } from '../services/PatreonService.js';
 import { signBlob, verifyBlob, cryptoBoxReady } from '../services/CryptoBox.js';
 import PaidPatreon from '../services/PaidPatreonService.js';
 import Passkey from '../services/PasskeyService.js';
+import { renderPostBodyHtml } from './posts.js';
 
 const router = express.Router();
 const AUTHORIZE = 'https://www.patreon.com/oauth2/authorize';
@@ -92,6 +93,37 @@ router.post('/register', express.json({ limit: '64kb' }), async (req, res) => {
     counter: cred.counter, transports: cred.transports, minCents: payload.cents,
   });
   res.json({ ok: true });
+});
+
+// Step 4 (unlock): hand out authentication options for a passkey assertion.
+router.get('/challenge', async (req, res) => {
+  const r = ready(req, res); if (!r) return;
+  const slug = String(req.query.post || '').trim();
+  const post = slug ? db.prepare('SELECT slug, paid, paid_min_cents FROM posts WHERE site_id = ? AND slug = ?').get(r.site.id, slug) : null;
+  if (!post || !post.paid) return res.status(404).json({ error: 'not_paid' });
+  const cents = post.paid_min_cents || PaidPatreon.defaultMinCents(r.site.id);
+  const options = await Passkey.authenticationOptions(baseUrl(req));
+  const blob = signBlob({ purpose: 'auth', siteId: r.site.id, cents, post: post.slug, challenge: options.challenge }, 300);
+  res.json({ options, blob });
+});
+
+// Verify the assertion, check the entitlement, and return the full post body in
+// the SAME response. No unlock token becomes state (design decision).
+router.post('/unlock', express.json({ limit: '64kb' }), async (req, res) => {
+  const r = ready(req, res); if (!r) return res.status(404).json({ error: 'unavailable' });
+  const { response, blob } = req.body || {};
+  const payload = verifyBlob(String(blob || ''));
+  if (!payload || payload.purpose !== 'auth' || payload.siteId !== r.site.id) return res.status(400).json({ error: 'bad_challenge' });
+  const credId = response && response.id;
+  const ent = credId ? Passkey.getEntitlement(credId, r.site.id) : null;
+  if (!ent) return res.status(403).json({ error: 'no_entitlement' });      // unknown/expired passkey
+  if ((ent.min_cents || 0) < payload.cents) return res.status(403).json({ error: 'tier' });
+  const vr = await Passkey.verifyAssertion(baseUrl(req), response, payload.challenge, ent);
+  if (!vr) return res.status(400).json({ error: 'verify_failed' });
+  Passkey.bumpCounter(credId, vr.newCounter);
+  const post = db.prepare("SELECT * FROM posts WHERE site_id = ? AND slug = ? AND status = 'published'").get(r.site.id, String(payload.post || ''));
+  if (!post || !post.paid) return res.status(404).json({ error: 'gone' });
+  res.json({ ok: true, title: post.title || '', html: renderPostBodyHtml(r.site, post, req) });
 });
 
 export default router;

@@ -2,7 +2,7 @@
   <%- include('../partials/post-nav', { newerPost: (typeof newerPost !== 'undefined' ? newerPost : null), olderPost: (typeof olderPost !== 'undefined' ? olderPost : null) }) %>
 </div>
 
-<article class="pg-page">
+<article class="pg-page" id="pg-page">
   <% if (typeof pgTitle !== 'undefined' && pgTitle) { %><h1 class="pg-title"><%= pgTitle %></h1><% } %>
 
   <% if (typeof pgTeaser !== 'undefined' && pgTeaser) { %>
@@ -17,9 +17,60 @@
       <% if (typeof pgCents !== 'undefined' && pgCents) { %>(vanaf &euro;<%= (pgCents/100).toFixed(2) %>)<% } %>,
       dan ontgrendel je 'm met je passkey. Geen account, geen cookie.
     </p>
-    <p class="pg-soon">Ontgrendelen met je Patreon-passkey komt eraan.</p>
+    <button type="button" id="pg-unlock" class="pg-btn">Ontgrendelen</button>
+    <p id="pg-status" class="pg-status" hidden></p>
   </section>
 </article>
+
+<script src="/assets/vendor/simplewebauthn-browser.umd.min.js" nonce="<%= cspNonce %>"></script>
+<script nonce="<%= cspNonce %>">
+(function () {
+  var base = "<%= (typeof siteUrlBase !== 'undefined' && siteUrlBase ? siteUrlBase : '') %>";
+  var slug = "<%= pgSlug %>";
+  var btn = document.getElementById('pg-unlock');
+  var status = document.getElementById('pg-status');
+  var page = document.getElementById('pg-page');
+  function say(msg, err) { status.hidden = false; status.textContent = msg; status.classList.toggle('is-err', !!err); }
+  function toLink() { location.href = base + '/paid/link?post=' + encodeURIComponent(slug); }
+
+  if (!window.SimpleWebAuthnBrowser || !window.PublicKeyCredential) { btn.textContent = 'Word supporter'; btn.addEventListener('click', toLink); return; }
+
+  btn.addEventListener('click', function () {
+    btn.disabled = true;
+    say('Bevestig met je passkey…');
+    fetch(base + '/paid/challenge?post=' + encodeURIComponent(slug))
+      .then(function (r) { if (!r.ok) throw { link: true }; return r.json(); })
+      .then(function (data) {
+        return window.SimpleWebAuthnBrowser.startAuthentication({ optionsJSON: data.options })
+          .then(function (response) {
+            return fetch(base + '/paid/unlock', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ response: response, blob: data.blob }),
+            });
+          });
+      })
+      .then(function (r) { return r.json().then(function (j) { return { status: r.status, j: j }; }); })
+      .then(function (res) {
+        if (res.j && res.j.ok) {
+          // Swap the gate for the full post, client-side (no cookie kept).
+          var h = document.createElement('div');
+          h.innerHTML = (res.j.title ? '<h1 class="post-title">' + res.j.title + '</h1>' : '') +
+            '<div class="post-content">' + res.j.html + '</div>';
+          page.replaceWith(h);
+        } else if (res.status === 403) {
+          toLink();   // no valid passkey yet (or lapsed tier): link via Patreon
+        } else {
+          btn.disabled = false; say('Ontgrendelen mislukt. Probeer opnieuw.', true);
+        }
+      })
+      .catch(function (e) {
+        if (e && e.link) { toLink(); return; }
+        if (e && e.name === 'NotAllowedError') { toLink(); return; }   // cancelled / no passkey -> link
+        btn.disabled = false; say('Er ging iets mis. Probeer opnieuw.', true);
+      });
+  });
+})();
+</script>
 
 <style>
   .pg-navwrap { max-width: 720px; margin: 0.5rem auto 1.5rem; padding: 0 1rem; }
@@ -31,6 +82,9 @@
   .pg-lock { font-size: 38px; margin-bottom: 6px; }
   .pg-h2 { font-size: 22px; margin: 0 0 8px; }
   .pg-sub { opacity: .85; line-height: 1.6; margin: 0 auto 12px; max-width: 34em; }
-  .pg-soon { display: inline-block; padding: 10px 18px; border-radius: 10px; font-weight: 600;
-    background: color-mix(in srgb, var(--accent, #6b8f71) 14%, transparent); color: var(--ink, inherit); }
+  .pg-btn { padding: 12px 24px; border: none; border-radius: 10px; font: inherit; font-weight: 600; cursor: pointer;
+    background: var(--accent, #6b8f71); color: #fff; }
+  .pg-btn:disabled { opacity: .6; cursor: default; }
+  .pg-status { margin: 12px 0 0; opacity: .9; }
+  .pg-status.is-err { color: #c0392b; }
 </style>
