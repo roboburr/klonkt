@@ -2433,6 +2433,21 @@ function tlStmts() {
 }
 export function getTimeline(slug, limit, offset) { return tlStmts().list.all(slug, limit || 50, offset || 0); }
 
+// Inbox C2S read: a timeline row's media_json ([{url, type}], written on the
+// inbound Create) → AS2 `attachment` array, so a client (Shaer) can render a
+// friend's images/audio/video natively, exactly like own outbox posts. The
+// stored `type` is the mediaType and may be ''. Malformed JSON yields
+// undefined and never blocks the item.
+export function timelineAttachments(mediaJson) {
+  try {
+    const list = mediaJson ? JSON.parse(mediaJson) : [];
+    const rows = (Array.isArray(list) ? list : [])
+      .filter((m) => m && m.url)
+      .map((m) => ({ type: 'Document', mediaType: m.type || undefined, url: m.url }));
+    return rows.length ? rows : undefined;
+  } catch { return undefined; }
+}
+
 // ── Cirkel = posts from the accounts you auto-boost ("feature an artist") ──
 let _abCount, _cirkelPosts, _cirkelMembers;
 export function autoBoostCount(slug) {
@@ -3089,7 +3104,7 @@ export default {
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, setMyReaction, getMyReactions, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate, deliverDirectNote,
-  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, sendInteraction, voteOnPoll, voteOnRemotePoll,
+  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, timelineAttachments, sendInteraction, voteOnPoll, voteOnRemotePoll,
   parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread, sendReport, localMentionSlugs,
   autoBoostCount, boostedCount, markBoosted, unmarkBoosted, markLiked, unmarkLiked, getTimelineReaction, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,

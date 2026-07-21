@@ -111,6 +111,9 @@ router.get('/ap/users/:slug/inbox', (req, res) => {
       published: t.published || t.created_at || undefined,
       sensitive: !!t.nsfw,
       summary: t.cw || undefined,
+      // Friends' media travels along (media_json → AS2 attachment), so the
+      // client renders their images/audio like own outbox posts.
+      attachment: AP.timelineAttachments(t.media_json),
     },
   }));
   AP.sendAP(res, {

@@ -25,3 +25,31 @@ test('timeline rows carry the fields the inbox mapping needs', () => {
   assert.equal(t.cw, 'let op');
   assert.ok(t.published);
 });
+
+// Friends' media must reach the client: media_json ([{url, type}]) becomes the
+// AS2 attachment array on the inbox item, like own outbox posts (Shaer P2).
+test('media_json maps to AS2 attachments', () => {
+  const rows = AP.timelineAttachments(JSON.stringify([
+    { url: 'https://r.test/m/p.png', type: 'image/png' },
+    { url: 'https://r.test/m/a.mp3', type: 'audio/mpeg' },
+  ]));
+  assert.equal(rows.length, 2);
+  assert.deepEqual(rows[0], { type: 'Document', mediaType: 'image/png', url: 'https://r.test/m/p.png' });
+  assert.deepEqual(rows[1], { type: 'Document', mediaType: 'audio/mpeg', url: 'https://r.test/m/a.mp3' });
+});
+
+test('unknown mediaType stays undefined, bad rows drop', () => {
+  const rows = AP.timelineAttachments(JSON.stringify([
+    { url: 'https://r.test/m/x.bin', type: '' },
+    { type: 'image/png' },              // no url -> dropped
+  ]));
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].mediaType, undefined);
+});
+
+test('empty or malformed media_json yields undefined and never throws', () => {
+  assert.equal(AP.timelineAttachments(null), undefined);
+  assert.equal(AP.timelineAttachments('[]'), undefined);
+  assert.equal(AP.timelineAttachments('not json'), undefined);
+  assert.equal(AP.timelineAttachments('{"not":"a list"}'), undefined);
+});
