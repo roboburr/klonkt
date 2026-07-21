@@ -1,0 +1,59 @@
+<section class="pk">
+  <div class="pk-card">
+    <div class="pk-ic">🔑</div>
+    <h1 class="pk-h1">Je bent supporter, mooi.</h1>
+    <p class="pk-sub">
+      Maak nu een passkey aan. Die wordt je sleutel voor betaalde posts, zonder
+      account en zonder cookie. We bewaren geen naam of e-mailadres.
+    </p>
+    <button type="button" id="pk-go" class="pk-btn">Maak passkey</button>
+    <p id="pk-status" class="pk-status" hidden></p>
+  </div>
+</section>
+
+<script src="/assets/vendor/simplewebauthn-browser.umd.min.js" nonce="<%= cspNonce %>"></script>
+<script nonce="<%= cspNonce %>">
+(function () {
+  var options = <%- optionsJson %>;
+  var blob = "<%= regBlob %>";
+  var postUrl = "<%= (typeof siteUrlBase !== 'undefined' && siteUrlBase ? siteUrlBase : '') %>/<%= postSlug %>";
+  var btn = document.getElementById('pk-go');
+  var status = document.getElementById('pk-status');
+  function say(msg, err) { status.hidden = false; status.textContent = msg; status.classList.toggle('is-err', !!err); }
+
+  if (!window.SimpleWebAuthnBrowser || !window.PublicKeyCredential) {
+    btn.disabled = true;
+    say('Passkeys worden niet ondersteund in deze browser.', true);
+    return;
+  }
+  btn.addEventListener('click', function () {
+    btn.disabled = true;
+    say('Volg de vraag van je apparaat…');
+    window.SimpleWebAuthnBrowser.startRegistration({ optionsJSON: options })
+      .then(function (response) {
+        return fetch('/paid/register', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ response: response, blob: blob }),
+        });
+      })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (j && j.ok) { say('Gelukt. Je passkey is aangemaakt.'); setTimeout(function () { location.href = postUrl; }, 900); }
+        else { btn.disabled = false; say('Aanmaken mislukt (' + ((j && j.error) || 'onbekend') + '). Probeer opnieuw.', true); }
+      })
+      .catch(function (e) { btn.disabled = false; say(e && e.name === 'NotAllowedError' ? 'Geannuleerd.' : 'Er ging iets mis. Probeer opnieuw.', true); });
+  });
+})();
+</script>
+
+<style>
+  .pk { max-width: 480px; margin: 0 auto; padding: 56px 18px; text-align: center; }
+  .pk-card { border: 1px solid color-mix(in srgb, var(--ink,#000) 16%, transparent); border-radius: 18px; padding: 34px 26px; }
+  .pk-ic { font-size: 40px; margin-bottom: 8px; }
+  .pk-h1 { font-size: 24px; margin: 0 0 6px; }
+  .pk-sub { opacity: .85; line-height: 1.6; margin: 0 0 20px; }
+  .pk-btn { padding: 12px 24px; border: none; border-radius: 10px; background: var(--accent,#6b8f71); color: #fff; font-weight: 600; font: inherit; font-weight: 600; cursor: pointer; }
+  .pk-btn:disabled { opacity: .6; cursor: default; }
+  .pk-status { margin: 14px 0 0; opacity: .9; }
+  .pk-status.is-err { color: #c0392b; }
+</style>

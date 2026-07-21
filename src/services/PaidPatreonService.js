@@ -123,6 +123,47 @@ export async function creatorAccessToken(siteId, fetchImpl = fetch) {
   return c && c.accessToken ? c.accessToken : null;
 }
 
+// Pure: pick the membership for the owner's campaign out of a Patreon
+// identity?include=memberships.campaign response (JSON:API). Returns
+// { status, cents } or null.
+export function pickCampaignMembership(identity, campaignId) {
+  const inc = (identity && identity.included) || [];
+  for (const it of inc) {
+    if (it.type !== 'member') continue;
+    const camp = it.relationships && it.relationships.campaign && it.relationships.campaign.data;
+    if (!camp || String(camp.id) !== String(campaignId)) continue;
+    const a = it.attributes || {};
+    return { status: a.patron_status || null, cents: a.currently_entitled_amount_cents || 0 };
+  }
+  return null;
+}
+
+// Exchange a patron's auth code and read their membership of the owner's
+// campaign. Returns { status, cents } or null. The patron token is used once
+// and discarded here: nothing identifying is stored (design decision).
+export async function verifyPatron(siteId, code, redirectUri, fetchImpl = fetch) {
+  const c = getOwnerConfig(siteId);
+  if (!c || !c.clientId || !c.clientSecret || !c.campaignId) return null;
+  const tokenRes = await fetchImpl(TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'authorization_code', code,
+      client_id: c.clientId, client_secret: c.clientSecret, redirect_uri: redirectUri,
+    }).toString(),
+  });
+  if (!tokenRes.ok) return null;
+  const tok = await tokenRes.json();
+  if (!tok || !tok.access_token) return null;
+  const url = 'https://www.patreon.com/api/oauth2/v2/identity'
+    + '?include=memberships.campaign'
+    + '&fields%5Bmember%5D=patron_status,currently_entitled_amount_cents';
+  const idRes = await fetchImpl(url, { headers: { Authorization: `Bearer ${tok.access_token}` } });
+  if (!idRes.ok) return null;
+  const identity = await idRes.json();
+  return pickCampaignMembership(identity, c.campaignId);   // token goes out of scope, discarded
+}
+
 function safeDecrypt(blob) {
   try { return decrypt(blob); } catch { return null; }
 }
@@ -130,4 +171,5 @@ function safeDecrypt(blob) {
 export default {
   getOwnerConfig, ownerStatus, saveOwnerConfig, disconnect,
   defaultMinCents, needsRefresh, refreshCreatorToken, creatorAccessToken,
+  pickCampaignMembership, verifyPatron,
 };

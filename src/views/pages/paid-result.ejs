@@ -1,0 +1,30 @@
+<section class="pr">
+  <div class="pr-card">
+    <div class="pr-ic">🔒</div>
+    <% if (reason === 'notpatron') { %>
+      <h1 class="pr-h1">Nog geen supporter</h1>
+      <p class="pr-sub">Je bent (nog) geen actieve supporter van deze site op Patreon. Word supporter en probeer het opnieuw.</p>
+    <% } else if (reason === 'tier') { %>
+      <h1 class="pr-h1">Een niveau hoger nodig</h1>
+      <p class="pr-sub">
+        Deze post vraagt vanaf &euro;<%= ((typeof neededCents !== 'undefined' ? neededCents : 0)/100).toFixed(2) %>.
+        Jouw steun is nu &euro;<%= ((typeof haveCents !== 'undefined' ? haveCents : 0)/100).toFixed(2) %>. Verhoog je steun en probeer opnieuw.
+      </p>
+    <% } else { %>
+      <h1 class="pr-h1">Ontgrendelen afgebroken</h1>
+      <p class="pr-sub">Er is niets gekoppeld. Je kunt het opnieuw proberen vanaf de post.</p>
+    <% } %>
+    <% if (typeof postSlug !== 'undefined' && postSlug) { %>
+      <p><a class="pr-btn" href="<%= (typeof siteUrlBase !== 'undefined' && siteUrlBase ? siteUrlBase : '') %>/<%= postSlug %>">Terug naar de post</a></p>
+    <% } %>
+  </div>
+</section>
+
+<style>
+  .pr { max-width: 460px; margin: 0 auto; padding: 56px 18px; text-align: center; }
+  .pr-card { border: 1px solid color-mix(in srgb, var(--ink,#000) 16%, transparent); border-radius: 18px; padding: 34px 26px; }
+  .pr-ic { font-size: 38px; margin-bottom: 6px; }
+  .pr-h1 { font-size: 23px; margin: 0 0 8px; }
+  .pr-sub { opacity: .85; line-height: 1.6; margin: 0 0 18px; }
+  .pr-btn { display: inline-block; padding: 11px 20px; border-radius: 10px; background: var(--accent,#6b8f71); color: #fff; text-decoration: none; font-weight: 600; }
+</style>

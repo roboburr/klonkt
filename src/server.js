@@ -40,6 +40,7 @@ import typesRoutes from './routes/types.js';
 import usersRoutes from './routes/users.js';
 import feedRoutes from './routes/feed.js';
 import postsRoutes from './routes/posts.js';
+import paidRoutes from './routes/paid.js';
 import langRoutes from './routes/lang.js';
 import adminUpdatesRoutes from './routes/admin-updates.js';
 import adminPatreonRoutes from './routes/admin-patreon.js';
@@ -399,6 +400,7 @@ if (audioEnabled()) app.use('/', embedRoutes); // /embed inbedbare audiospeler (
 app.use('/', showsRoutes); // /shows agenda + notify-me (premium)
 app.use('/', changelogRoutes); // /changelog publieke release-/wijzigingen-pagina
 app.use('/', langRoutes); // /lang/:code — interface-taal kiezen (vóór de catch-all)
+app.use('/paid', paidRoutes);   // paid-posts patron/passkey flow (before the /:slug catch-all)
 app.use('/', postsRoutes);
 
 app.get('/manifest.webmanifest', (req, res) => {

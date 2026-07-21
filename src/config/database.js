@@ -323,6 +323,18 @@ export function initializeDatabase() {
       default_min_cents INTEGER DEFAULT 0,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+    -- One row per passkey. NO patron identity is stored (design decision):
+    -- {passkey, site, proven cents, expiry}. Not traceable to a person.
+    CREATE TABLE IF NOT EXISTS paid_entitlements (
+      credential_id TEXT PRIMARY KEY,   -- WebAuthn credential id (opaque, base64url)
+      site_id TEXT NOT NULL,
+      public_key TEXT NOT NULL,         -- COSE public key, base64url
+      counter INTEGER DEFAULT 0,
+      transports TEXT,
+      min_cents INTEGER DEFAULT 0,      -- the amount proven at link time
+      expires_at INTEGER NOT NULL,      -- unix seconds; re-link after
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
     CREATE TABLE IF NOT EXISTS ap_outbox (
       id TEXT PRIMARY KEY,            -- note path segment (uuid) → /ap/notes/<id>
       site_slug TEXT NOT NULL,
