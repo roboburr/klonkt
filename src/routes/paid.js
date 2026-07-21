@@ -68,7 +68,6 @@ router.get('/callback', async (req, res) => {
     return renderPage(req, res, 'pages/paid-result', {
       pageTitle: 'Ontgrendelen', bodyClass: 'on-special', ok: false,
       reason: active ? 'tier' : 'notpatron', neededCents: payload.cents, haveCents: cents, postSlug: payload.post, patronUrl,
-      debug: membership ? membership.diag : 'no_response',
     });
   }
   // Supporter at the right tier. Hand out registration options + a signed blob
