@@ -6,7 +6,11 @@
 // with NO patron identity.
 import crypto from 'crypto';
 import db from '../config/database.js';
-import { generateRegistrationOptions, verifyRegistrationResponse } from '@simplewebauthn/server';
+
+// Lazy so a not-yet-installed dependency can never crash app boot; only the
+// paid passkey flow fails until `npm ci` has run.
+let _lib = null;
+async function lib() { if (!_lib) _lib = await import('@simplewebauthn/server'); return _lib; }
 
 const DEFAULT_TTL_DAYS = 32;   // aligns with Patreon's monthly cycle; re-link after
 
@@ -20,6 +24,7 @@ export function rpFor(base) {
 // user handle is random: the credential is pseudonymous by design.
 export async function registrationOptions(base, siteSlug) {
   const { rpID } = rpFor(base);
+  const { generateRegistrationOptions } = await lib();
   return generateRegistrationOptions({
     rpName: `Supporter of ${siteSlug}`,
     rpID,
@@ -38,6 +43,7 @@ export async function verifyRegistration(base, response, expectedChallenge) {
   const { rpID, origin } = rpFor(base);
   let v;
   try {
+    const { verifyRegistrationResponse } = await lib();
     v = await verifyRegistrationResponse({
       response,
       expectedChallenge,
