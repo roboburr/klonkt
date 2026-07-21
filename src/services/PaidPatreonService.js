@@ -20,6 +20,7 @@ export function getOwnerConfig(siteId) {
     refreshToken: row.refresh_token_enc ? safeDecrypt(row.refresh_token_enc) : null,
     tokenExp: row.token_exp || 0,
     defaultMinCents: row.default_min_cents || 0,
+    patreonUrl: row.patreon_url || null,
   };
 }
 
@@ -35,7 +36,14 @@ export function ownerStatus(siteId) {
     defaultMinCents: c.defaultMinCents || 0,
     tokenExp: c.tokenExp || 0,
     hasSecret: !!c.clientSecret,
+    patreonUrl: c.patreonUrl || null,
   };
+}
+
+// The owner's public Patreon page, for the "Word supporter" link. Null when unset.
+export function patreonUrl(siteId) {
+  const c = getOwnerConfig(siteId);
+  return c && c.patreonUrl ? c.patreonUrl : null;
 }
 
 // Upsert. Only overwrites secret/token fields when a new value is provided, so
@@ -51,15 +59,17 @@ export function saveOwnerConfig(siteId, patch) {
     refreshToken: patch.refreshToken ?? cur.refreshToken ?? null,
     tokenExp: patch.tokenExp ?? cur.tokenExp ?? 0,
     defaultMinCents: patch.defaultMinCents ?? cur.defaultMinCents ?? 0,
+    // undefined = keep (e.g. token refresh doesn't touch it); null/'' = clear.
+    patreonUrl: patch.patreonUrl !== undefined ? (patch.patreonUrl || null) : (cur.patreonUrl ?? null),
   };
   db.prepare(`INSERT INTO paid_patreon
-      (site_id, client_id, client_secret_enc, campaign_id, access_token_enc, refresh_token_enc, token_exp, default_min_cents, updated_at)
-      VALUES (?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
+      (site_id, client_id, client_secret_enc, campaign_id, access_token_enc, refresh_token_enc, token_exp, default_min_cents, patreon_url, updated_at)
+      VALUES (?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
     ON CONFLICT(site_id) DO UPDATE SET
       client_id=excluded.client_id, client_secret_enc=excluded.client_secret_enc,
       campaign_id=excluded.campaign_id, access_token_enc=excluded.access_token_enc,
       refresh_token_enc=excluded.refresh_token_enc, token_exp=excluded.token_exp,
-      default_min_cents=excluded.default_min_cents, updated_at=CURRENT_TIMESTAMP`)
+      default_min_cents=excluded.default_min_cents, patreon_url=excluded.patreon_url, updated_at=CURRENT_TIMESTAMP`)
     .run(
       siteId,
       merged.clientId,
@@ -69,6 +79,7 @@ export function saveOwnerConfig(siteId, patch) {
       merged.refreshToken != null ? encrypt(merged.refreshToken) : null,
       merged.tokenExp || 0,
       Math.max(0, parseInt(merged.defaultMinCents, 10) || 0),
+      merged.patreonUrl || null,
     );
 }
 
@@ -170,6 +181,6 @@ function safeDecrypt(blob) {
 
 export default {
   getOwnerConfig, ownerStatus, saveOwnerConfig, disconnect,
-  defaultMinCents, needsRefresh, refreshCreatorToken, creatorAccessToken,
+  defaultMinCents, patreonUrl, needsRefresh, refreshCreatorToken, creatorAccessToken,
   pickCampaignMembership, verifyPatron,
 };

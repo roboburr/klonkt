@@ -20,7 +20,7 @@ import { toWebp } from '../services/ImageWebpService.js';
 import VideoCoverService from '../services/VideoCoverService.js';
 import ActivityPubService from '../services/ActivityPubService.js';
 import { premiumUnlocked } from '../services/PatreonService.js';
-import { defaultMinCents as paidDefaultMinCents } from '../services/PaidPatreonService.js';
+import { defaultMinCents as paidDefaultMinCents, patreonUrl as paidPatronUrl } from '../services/PaidPatreonService.js';
 import MusicMeta from '../services/MusicMeta.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1246,6 +1246,7 @@ router.get('/:slug', (req, res, next) => {
       pgTeaser: paidTeaser(post),
       pgCents: post.paid_min_cents || paidDefaultMinCents(site.id),
       pgSlug: post.slug,
+      pgPatronUrl: paidPatronUrl(site.id),
       newerPost,
       olderPost,
     });

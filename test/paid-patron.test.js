@@ -72,6 +72,17 @@ test('entitlement stores, reads, expires, prunes; no patron identity present', (
   assert.ok(Passkey.getEntitlement('cred1', 's1'));   // the fresh one survives
 });
 
+test('patreonUrl: set, kept on unrelated save, cleared on empty', () => {
+  PP.saveOwnerConfig('s2', { clientId: 'c', clientSecret: 's', campaignId: '7', patreonUrl: 'https://patreon.com/x' });
+  assert.equal(PP.patreonUrl('s2'), 'https://patreon.com/x');
+  // a save that does NOT mention patreonUrl (e.g. token refresh) keeps it
+  PP.saveOwnerConfig('s2', { defaultMinCents: 200 });
+  assert.equal(PP.patreonUrl('s2'), 'https://patreon.com/x');
+  // an explicit empty value clears it
+  PP.saveOwnerConfig('s2', { patreonUrl: '' });
+  assert.equal(PP.patreonUrl('s2'), null);
+});
+
 test('deleteEntitlement removes the row (forget-passkey path)', () => {
   Passkey.storeEntitlement({ credentialId: 'cred3', siteId: 's1', publicKey: 'PK', minCents: 100 });
   assert.equal(Passkey.deleteEntitlement('cred3'), true);

@@ -53,11 +53,14 @@ router.get('/callback', async (req, res) => {
   const r = ready(req, res); if (!r) return;
   const payload = verifyBlob(String(req.query.state || ''));
   if (!payload || payload.purpose !== 'patron' || payload.siteId !== r.site.id) {
-    return res.status(400).send('Ongeldige of verlopen aanvraag. Probeer opnieuw vanaf de post.');
+    return renderPage(req, res, 'pages/paid-result', {
+      pageTitle: 'Ontgrendelen', bodyClass: 'on-special', ok: false, reason: 'expired',
+    });
   }
+  const patronUrl = PaidPatreon.patreonUrl(r.site.id);
   const code = String(req.query.code || '');
   if (req.query.error || !code) {
-    return renderPage(req, res, 'pages/paid-result', { pageTitle: 'Ontgrendelen', bodyClass: 'on-special', ok: false, reason: 'declined', postSlug: payload.post });
+    return renderPage(req, res, 'pages/paid-result', { pageTitle: 'Ontgrendelen', bodyClass: 'on-special', ok: false, reason: 'declined', postSlug: payload.post, patronUrl });
   }
   const membership = await PaidPatreon.verifyPatron(r.site.id, code, baseUrl(req) + '/paid/callback').catch(() => null);
   const cents = membership ? (membership.cents || 0) : 0;
@@ -65,7 +68,7 @@ router.get('/callback', async (req, res) => {
   if (!active || cents < payload.cents) {
     return renderPage(req, res, 'pages/paid-result', {
       pageTitle: 'Ontgrendelen', bodyClass: 'on-special', ok: false,
-      reason: active ? 'tier' : 'notpatron', neededCents: payload.cents, haveCents: cents, postSlug: payload.post,
+      reason: active ? 'tier' : 'notpatron', neededCents: payload.cents, haveCents: cents, postSlug: payload.post, patronUrl,
     });
   }
   // Supporter at the right tier. Hand out registration options + a signed blob

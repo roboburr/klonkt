@@ -46,6 +46,10 @@
     <label>Campagne-id
       <input type="text" name="campaign_id" value="<%= status.campaignId || '' %>" autocomplete="off" style="width:100%">
     </label>
+    <label>Openbare Patreon-pagina
+      <input type="url" name="patreon_url" value="<%= status.patreonUrl || '' %>" placeholder="https://www.patreon.com/jouwnaam" autocomplete="off" style="width:100%">
+      <small style="color:var(--ink-soft,#888)">De link waar bezoekers supporter kunnen worden. Getoond als "Word supporter" wanneer iemand nog niet doneert.</small>
+    </label>
     <label>Creator access token
       <input type="password" name="access_token" placeholder="blijft ongewijzigd" autocomplete="off" style="width:100%">
     </label>

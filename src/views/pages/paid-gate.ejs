@@ -19,6 +19,9 @@
     </p>
     <button type="button" id="pg-unlock" class="pg-btn">Ontgrendelen</button>
     <p id="pg-status" class="pg-status" hidden></p>
+    <% if (typeof pgPatronUrl !== 'undefined' && pgPatronUrl) { %>
+      <p class="pg-join">Nog geen supporter? <a href="<%= pgPatronUrl %>" target="_blank" rel="noopener">Word het op Patreon</a> en ontgrendel daarna met je passkey.</p>
+    <% } %>
   </section>
 </article>
 
@@ -87,4 +90,5 @@
   .pg-btn:disabled { opacity: .6; cursor: default; }
   .pg-status { margin: 12px 0 0; opacity: .9; }
   .pg-status.is-err { color: #c0392b; }
+  .pg-join { margin: 14px 0 0; font-size: .92rem; opacity: .8; }
 </style>

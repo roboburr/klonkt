@@ -468,6 +468,7 @@ export function initializeDatabase() {
   ensureColumn('posts', 'ap_visibility', 'TEXT');   // public|quiet|friends|direct (C2S addressing, shaer-60b)
   ensureColumn('posts', 'paid', 'INTEGER DEFAULT 0');        // paid post (klonkt-demo-aki)
   ensureColumn('posts', 'paid_min_cents', 'INTEGER');        // required support; null = owner default
+  ensureColumn('paid_patreon', 'patreon_url', 'TEXT');       // owner's public Patreon page → "Word supporter" link (klonkt-demo-aki)
   ensureColumn('ap_outbox', 'visibility', 'TEXT');  // 'direct' = private mention, never Public (shaer-tqc)
   ensureColumn('ap_outbox', 'to_actors', 'TEXT');   // JSON array of recipient actor URIs for direct notes
   ensureColumn('ap_outbox', 'help_request', 'INTEGER'); // FEP-633c shaer:helpRequest (ward's call for help)

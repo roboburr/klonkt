@@ -1,22 +1,38 @@
+<%
+  var _slug = (typeof postSlug !== 'undefined' && postSlug) ? postSlug : '';
+  var _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '';
+  var _patron = (typeof patronUrl !== 'undefined' && patronUrl) ? patronUrl : '';
+%>
 <section class="pr">
   <div class="pr-card">
     <div class="pr-ic">🔒</div>
     <% if (reason === 'notpatron') { %>
       <h1 class="pr-h1">Nog geen supporter</h1>
-      <p class="pr-sub">Je bent (nog) geen actieve supporter van deze site op Patreon. Word supporter en probeer het opnieuw.</p>
+      <p class="pr-sub">Je bent (nog) geen actieve supporter van deze site op Patreon. Word supporter en probeer het daarna opnieuw vanaf de post.</p>
     <% } else if (reason === 'tier') { %>
       <h1 class="pr-h1">Een niveau hoger nodig</h1>
       <p class="pr-sub">
         Deze post vraagt vanaf &euro;<%= ((typeof neededCents !== 'undefined' ? neededCents : 0)/100).toFixed(2) %>.
         Jouw steun is nu &euro;<%= ((typeof haveCents !== 'undefined' ? haveCents : 0)/100).toFixed(2) %>. Verhoog je steun en probeer opnieuw.
       </p>
+    <% } else if (reason === 'expired') { %>
+      <h1 class="pr-h1">Aanvraag verlopen</h1>
+      <p class="pr-sub">Deze ontgrendel-link is verlopen of al gebruikt. Ga terug naar de post en probeer het opnieuw.</p>
     <% } else { %>
       <h1 class="pr-h1">Ontgrendelen afgebroken</h1>
       <p class="pr-sub">Er is niets gekoppeld. Je kunt het opnieuw proberen vanaf de post.</p>
     <% } %>
-    <% if (typeof postSlug !== 'undefined' && postSlug) { %>
-      <p><a class="pr-btn" href="<%= (typeof siteUrlBase !== 'undefined' && siteUrlBase ? siteUrlBase : '') %>/<%= postSlug %>">Terug naar de post</a></p>
-    <% } %>
+
+    <div class="pr-actions">
+      <% if ((reason === 'notpatron' || reason === 'tier') && _patron) { %>
+        <a class="pr-btn" href="<%= _patron %>" target="_blank" rel="noopener">Word supporter op Patreon</a>
+      <% } %>
+      <% if (_slug) { %>
+        <a class="pr-btn pr-btn-ghost" href="<%= _base %>/<%= _slug %>">Terug naar de post</a>
+      <% } else { %>
+        <a class="pr-btn pr-btn-ghost" href="<%= _base %>/">Terug naar de site</a>
+      <% } %>
+    </div>
   </div>
 </section>
 
@@ -25,6 +41,8 @@
   .pr-card { border: 1px solid color-mix(in srgb, var(--ink,#000) 16%, transparent); border-radius: 18px; padding: 34px 26px; }
   .pr-ic { font-size: 38px; margin-bottom: 6px; }
   .pr-h1 { font-size: 23px; margin: 0 0 8px; }
-  .pr-sub { opacity: .85; line-height: 1.6; margin: 0 0 18px; }
+  .pr-sub { opacity: .85; line-height: 1.6; margin: 0 0 20px; }
+  .pr-actions { display: flex; flex-direction: column; gap: 10px; align-items: stretch; }
   .pr-btn { display: inline-block; padding: 11px 20px; border-radius: 10px; background: var(--accent,#6b8f71); color: #fff; text-decoration: none; font-weight: 600; }
+  .pr-btn-ghost { background: transparent; color: var(--ink,#222); border: 1px solid color-mix(in srgb, var(--ink,#000) 22%, transparent); }
 </style>

@@ -59,6 +59,9 @@ router.post('/', requireGod, (req, res) => {
       campaignId: (b.campaign_id || '').trim() || undefined,
       accessToken: (b.access_token || '').trim() || undefined,
       refreshToken: (b.refresh_token || '').trim() || undefined,
+      // Empty clears it (null), a value sets it. Unlike secrets, this is not
+      // sensitive and there's a clear "remove the link" intent.
+      patreonUrl: (b.patreon_url || '').trim() || null,
       defaultMinCents: Number.isFinite(cents) ? cents : undefined,
     });
     return res.redirect('/admin/paid?saved=1');
