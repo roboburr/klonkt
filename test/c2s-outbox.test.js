@@ -66,7 +66,8 @@ test('Like/Announce/Follow without an object → 400', async () => {
 });
 
 test('Undo of an unknown inner type → 400', async () => {
-  const out = await AP.ingestOutboxActivity(site, user, { type: 'Undo', object: { type: 'Block', object: 'x' } });
+  // Block used to be the unsupported example; it is real now (c2s-block.test).
+  const out = await AP.ingestOutboxActivity(site, user, { type: 'Undo', object: { type: 'Move', object: 'x' } });
   assert.equal(out.status, 400);
   assert.equal(out.error, 'unsupported_undo');
 });

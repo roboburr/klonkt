@@ -1964,12 +1964,27 @@ export async function ingestOutboxActivity(site, user, activity) {
         await followActor(site, actorUri);
         return { status: 202, url: actorUri };
       }
+      // Shaer "in Orbit" = a real Block (FEP-c648 client side): lands in
+      // ap_blocks, shows in the Block tab, and purges the actor's cached
+      // content. Client-side filtering becomes a cache of this state.
+      case 'Block': {
+        const targetUri = c2sIdOf(object);
+        if (!targetUri) return { status: 400, error: 'missing_object' };
+        const r = await blockTarget(site, targetUri);
+        if (r && r.error) return { status: 400, error: r.error };
+        return { status: 202, url: targetUri };
+      }
       case 'Undo': {
         const inner = object && typeof object === 'object' ? object : null;
         let innerType = inner && inner.type;
         if (Array.isArray(innerType)) innerType = innerType.find((t) => typeof t === 'string');
         const innerTarget = c2sIdOf(inner && inner.object);
         if (innerType === 'Follow') { await unfollowActor(site, innerTarget); return { status: 202, url: innerTarget }; }
+        if (innerType === 'Block') {
+          if (!innerTarget) return { status: 400, error: 'missing_object' };
+          unblock(site, innerTarget);   // release from Orbit
+          return { status: 202, url: innerTarget };
+        }
         if (innerType === 'Like' || innerType === 'Announce') {
           const kind = innerType === 'Announce' ? 'unboost' : 'unlike';
           const note = await resolveRemoteNote(innerTarget).catch(() => null);
