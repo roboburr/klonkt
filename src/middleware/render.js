@@ -72,7 +72,10 @@ export async function renderPage(req, res, viewName, data = {}) {
   // no-store on the partial forces "back" to always re-fetch the full page.
   // (Vary also applies to intermediate caches / Cloudflare.)
   res.setHeader('Vary', 'HX-Request');
-  if (isPartial) res.setHeader('Cache-Control', 'no-store');
+  // A full HTML page must always be revalidated so an online visitor gets the
+  // fresh site, never a heuristically-cached copy. no-cache (not no-store) still
+  // allows bfcache and conditional requests. Partials stay no-store (see above).
+  res.setHeader('Cache-Control', isPartial ? 'no-store' : 'no-cache');
 
   // Does this (non-god) user own a site? Determines whether they see an "Admin"
   // entry (artist self-manage). god always sees admin (by role).

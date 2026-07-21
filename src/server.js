@@ -477,7 +477,7 @@ app.get('/sw.js', (req, res) => {
   res.set('Content-Type', 'application/javascript');
   res.set('Cache-Control', 'no-cache');
   res.send(`
-const CACHE_VERSION = 'pcms-v17-' + new Date().toISOString().split('T')[0];
+const CACHE_VERSION = 'pcms-v18-' + new Date().toISOString().split('T')[0];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE_VERSION).then(c => c.addAll(['/'])));
   self.skipWaiting();
@@ -502,7 +502,11 @@ self.addEventListener('fetch', e => {
   // installed PWA (which is always SW-controlled). Let the browser load them.
   try { if (new URL(e.request.url).origin !== self.location.origin) return; } catch (err) { return; }
   e.respondWith(
-    fetch(e.request).then(resp => {
+    // { cache: 'no-store' }: go to the network for the page, bypassing the browser's
+    // HTTP cache, so an online visitor ALWAYS gets the fresh site and never a
+    // heuristically-cached copy served through the SW. The cache is only a
+    // last-resort offline fallback (the .catch below).
+    fetch(e.request, { cache: 'no-store' }).then(resp => {
       // Network-first: always serve fresh when online. Also refresh the '/' offline
       // fallback with the homepage we just served, so a later cold start on a flaky or
       // offline connection no longer shows the stale install-time snapshot ("old data
