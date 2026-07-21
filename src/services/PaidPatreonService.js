@@ -163,43 +163,45 @@ export function pickCampaignMembership(identity, campaignId) {
 }
 
 // Exchange a patron's auth code and read their membership of the owner's
-// campaign. Returns { status, cents } or null. The patron token is used once
-// and discarded here: nothing identifying is stored (design decision).
+// campaign. Returns { status, cents, diag } (status null = not a patron); the
+// `diag` string is a NON-identifying breadcrumb (campaign ids + status + cents)
+// so a stuck owner can see why. Returns null only on hard misconfig. The patron
+// token is used once and discarded here: nothing identifying is stored.
 export async function verifyPatron(siteId, code, redirectUri, fetchImpl = fetch) {
   const c = getOwnerConfig(siteId);
   if (!c || !c.clientId || !c.clientSecret || !c.campaignId) return null;
-  const tokenRes = await fetchImpl(TOKEN_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'authorization_code', code,
-      client_id: c.clientId, client_secret: c.clientSecret, redirect_uri: redirectUri,
-    }).toString(),
-  });
-  if (!tokenRes.ok) return null;
+  const none = (diag) => ({ status: null, cents: 0, diag });
+  let tokenRes;
+  try {
+    tokenRes = await fetchImpl(TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code', code,
+        client_id: c.clientId, client_secret: c.clientSecret, redirect_uri: redirectUri,
+      }).toString(),
+    });
+  } catch { return none('token_fetch_error'); }
+  if (!tokenRes.ok) return none(`token_http_${tokenRes.status}`);
   const tok = await tokenRes.json();
-  if (!tok || !tok.access_token) return null;
+  if (!tok || !tok.access_token) return none('no_access_token');
   const url = 'https://www.patreon.com/api/oauth2/v2/identity'
     + '?include=memberships.campaign'
     + '&fields%5Bmember%5D=patron_status,currently_entitled_amount_cents';
   const idRes = await fetchImpl(url, { headers: { Authorization: `Bearer ${tok.access_token}` } });
-  if (!idRes.ok) return null;
+  if (!idRes.ok) return none(`identity_http_${idRes.status}`);
   const identity = await idRes.json();
   const membership = pickCampaignMembership(identity, c.campaignId);   // token goes out of scope, discarded
-  // Diagnostic (no identity stored, only shapes): why did a real supporter get
-  // rejected? Logs the memberships Patreon returned vs the configured campaign.
-  // Nothing here is persisted; it's a one-line server log for the owner.
-  if (!membership || membership.status !== 'active_patron') {
-    const seen = ((identity && identity.included) || [])
-      .filter((it) => it.type === 'member')
-      .map((it) => {
-        const camp = it.relationships && it.relationships.campaign && it.relationships.campaign.data;
-        const a = it.attributes || {};
-        return `${camp ? camp.id : '?'}:${a.patron_status || 'null'}:${a.currently_entitled_amount_cents || 0}c`;
-      });
-    console.warn(`[paid] verifyPatron: config campaign=${c.campaignId} → memberships seen=[${seen.join(', ') || 'none'}] picked=${membership ? membership.status + '/' + membership.cents + 'c' : 'null'}`);
-  }
-  return membership;
+  const seen = ((identity && identity.included) || [])
+    .filter((it) => it.type === 'member')
+    .map((it) => {
+      const camp = it.relationships && it.relationships.campaign && it.relationships.campaign.data;
+      const a = it.attributes || {};
+      return `${camp ? camp.id : '?'}:${a.patron_status || 'null'}:${a.currently_entitled_amount_cents || 0}c`;
+    });
+  const diag = `campaign=${c.campaignId} seen=[${seen.join(', ') || 'none'}] picked=${membership ? membership.status + '/' + membership.cents + 'c' : 'null'}`;
+  if (!membership || membership.status !== 'active_patron') console.warn(`[paid] verifyPatron: ${diag}`);
+  return { status: membership ? membership.status : null, cents: membership ? membership.cents : 0, diag };
 }
 
 function safeDecrypt(blob) {

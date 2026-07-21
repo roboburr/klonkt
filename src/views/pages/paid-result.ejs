@@ -33,6 +33,10 @@
         <a class="pr-btn pr-btn-ghost" href="<%= _base %>/">Terug naar de site</a>
       <% } %>
     </div>
+
+    <% if (typeof debug !== 'undefined' && debug) { %>
+      <p class="pr-diag">diagnose: <code><%= debug %></code></p>
+    <% } %>
   </div>
 </section>
 
@@ -45,4 +49,6 @@
   .pr-actions { display: flex; flex-direction: column; gap: 10px; align-items: stretch; }
   .pr-btn { display: inline-block; padding: 11px 20px; border-radius: 10px; background: var(--accent,#6b8f71); color: #fff; text-decoration: none; font-weight: 600; }
   .pr-btn-ghost { background: transparent; color: var(--ink,#222); border: 1px solid color-mix(in srgb, var(--ink,#000) 22%, transparent); }
+  .pr-diag { margin: 18px 0 0; font-size: 12px; opacity: .6; word-break: break-all; }
+  .pr-diag code { font-family: ui-monospace, monospace; }
 </style>
