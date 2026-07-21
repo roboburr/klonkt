@@ -138,28 +138,38 @@ export async function creatorAccessToken(siteId, fetchImpl = fetch) {
 // identity?include=memberships.campaign response (JSON:API). Returns
 // { status, cents } or null.
 //
-// Memberships returned via a creator's OWN OAuth client are already scoped to
-// that creator's campaign(s), so in practice there is one. We still prefer an
-// exact campaign_id match (belt and suspenders for multi-campaign creators),
-// but fall back to the sole membership when the configured campaign_id doesn't
-// match: a wrong/typo'd campaign_id in the admin must not lock out real patrons.
+// STRICT match on campaignId only. Patreon's /identity returns ALL of the
+// visitor's memberships across every creator they back (verified: a tester had
+// 12), NOT just this creator's, so any fallback would grant access to someone
+// who backs a DIFFERENT creator. The campaignId must therefore be the owner's
+// real campaign; verifyPatron auto-derives it from the creator token so a
+// mistyped admin value can't lock real patrons out.
 export function pickCampaignMembership(identity, campaignId) {
+  if (!campaignId) return null;
   const inc = (identity && identity.included) || [];
-  const members = [];
   for (const it of inc) {
     if (it.type !== 'member') continue;
     const camp = it.relationships && it.relationships.campaign && it.relationships.campaign.data;
+    if (!camp || String(camp.id) !== String(campaignId)) continue;
     const a = it.attributes || {};
-    members.push({
-      status: a.patron_status || null,
-      cents: a.currently_entitled_amount_cents || 0,
-      campaignId: camp ? String(camp.id) : null,
-    });
+    return { status: a.patron_status || null, cents: a.currently_entitled_amount_cents || 0 };
   }
-  if (!members.length) return null;
-  const exact = members.find((m) => m.campaignId && String(m.campaignId) === String(campaignId));
-  const pick = exact || (members.length === 1 ? members[0] : null);
-  return pick ? { status: pick.status, cents: pick.cents } : null;
+  return null;
+}
+
+// The campaign id owned by the creator token (i.e. the site owner's OWN
+// campaign). This is authoritative: it removes the "typed the wrong campaign_id"
+// failure mode. Null if there's no valid creator token or the call fails.
+export async function fetchOwnerCampaignId(siteId, fetchImpl = fetch) {
+  const token = await creatorAccessToken(siteId, fetchImpl).catch(() => null);
+  if (!token) return null;
+  const res = await fetchImpl('https://www.patreon.com/api/oauth2/v2/campaigns', {
+    headers: { Authorization: `Bearer ${token}` },
+  }).catch(() => null);
+  if (!res || !res.ok) return null;
+  const j = await res.json().catch(() => null);
+  const id = j && j.data && j.data[0] && j.data[0].id;
+  return id ? String(id) : null;
 }
 
 // Exchange a patron's auth code and read their membership of the owner's
@@ -169,7 +179,7 @@ export function pickCampaignMembership(identity, campaignId) {
 // token is used once and discarded here: nothing identifying is stored.
 export async function verifyPatron(siteId, code, redirectUri, fetchImpl = fetch) {
   const c = getOwnerConfig(siteId);
-  if (!c || !c.clientId || !c.clientSecret || !c.campaignId) return null;
+  if (!c || !c.clientId || !c.clientSecret) return null;
   const none = (diag) => ({ status: null, cents: 0, diag });
   let tokenRes;
   try {
@@ -191,7 +201,14 @@ export async function verifyPatron(siteId, code, redirectUri, fetchImpl = fetch)
   const idRes = await fetchImpl(url, { headers: { Authorization: `Bearer ${tok.access_token}` } });
   if (!idRes.ok) return none(`identity_http_${idRes.status}`);
   const identity = await idRes.json();
-  const membership = pickCampaignMembership(identity, c.campaignId);   // token goes out of scope, discarded
+  // Authoritative campaign id: the one owned by the creator token. Beats a
+  // mistyped admin value. Self-heal the stored config when they differ.
+  const ownerCampaign = await fetchOwnerCampaignId(siteId, fetchImpl).catch(() => null);
+  const campaignId = ownerCampaign || c.campaignId;
+  if (ownerCampaign && String(ownerCampaign) !== String(c.campaignId)) {
+    try { saveOwnerConfig(siteId, { campaignId: ownerCampaign }); } catch { /* non-fatal */ }
+  }
+  const membership = pickCampaignMembership(identity, campaignId);   // token goes out of scope, discarded
   const seen = ((identity && identity.included) || [])
     .filter((it) => it.type === 'member')
     .map((it) => {
@@ -199,7 +216,7 @@ export async function verifyPatron(siteId, code, redirectUri, fetchImpl = fetch)
       const a = it.attributes || {};
       return `${camp ? camp.id : '?'}:${a.patron_status || 'null'}:${a.currently_entitled_amount_cents || 0}c`;
     });
-  const diag = `campaign=${c.campaignId} seen=[${seen.join(', ') || 'none'}] picked=${membership ? membership.status + '/' + membership.cents + 'c' : 'null'}`;
+  const diag = `owner=${ownerCampaign || 'unknown'} config=${c.campaignId || 'none'} seen=[${seen.join(', ') || 'none'}] picked=${membership ? membership.status + '/' + membership.cents + 'c' : 'null'}`;
   if (!membership || membership.status !== 'active_patron') console.warn(`[paid] verifyPatron: ${diag}`);
   return { status: membership ? membership.status : null, cents: membership ? membership.cents : 0, diag };
 }
@@ -211,5 +228,5 @@ function safeDecrypt(blob) {
 export default {
   getOwnerConfig, ownerStatus, saveOwnerConfig, disconnect,
   defaultMinCents, patreonUrl, needsRefresh, refreshCreatorToken, creatorAccessToken,
-  pickCampaignMembership, verifyPatron,
+  pickCampaignMembership, fetchOwnerCampaignId, verifyPatron,
 };

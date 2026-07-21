@@ -34,17 +34,27 @@ test('pickCampaignMembership: exact campaign match wins', async () => {
   assert.equal(m.cents, 500);
 });
 
-test('pickCampaignMembership: sole membership is used even if campaign_id is wrong (creator-scoped)', async () => {
+test('pickCampaignMembership: STRICT — a non-matching campaign_id is refused', async () => {
   const { pickCampaignMembership } = await import('../src/services/PaidPatreonService.js');
+  // /identity returns ALL the visitor's memberships across every creator, so a
+  // membership to a DIFFERENT campaign must never grant access here.
   const id = identityWith('42', 'active_patron', 500);
-  // A typo'd campaign_id must not lock out a real patron: memberships from the
-  // owner's own client are already their campaign, so fall back to the sole one.
-  const m = pickCampaignMembership(id, '999');
-  assert.equal(m.status, 'active_patron');
-  assert.equal(m.cents, 500);
+  assert.equal(pickCampaignMembership(id, '999'), null);      // different campaign → no
+  assert.equal(pickCampaignMembership(id, ''), null);         // no campaign → null
+  assert.equal(pickCampaignMembership(id, '42').cents, 500);  // exact → yes
 });
 
-test('pickCampaignMembership: multiple memberships + no match → null (no silent grant)', async () => {
+test('fetchOwnerCampaignId reads the creator campaign from the creator token', async () => {
+  PP.saveOwnerConfig('s3', { clientId: 'c', clientSecret: 's', campaignId: 'WRONG', accessToken: 'creator-tok', refreshToken: 'r', tokenExp: Math.floor(Date.now() / 1000) + 99999 });
+  const fetchMock = async (url) => {
+    if (url.includes('/campaigns')) return { ok: true, json: async () => ({ data: [{ type: 'campaign', id: '16300989' }] }) };
+    return { ok: false, status: 404, json: async () => ({}) };
+  };
+  const id = await PP.fetchOwnerCampaignId('s3', fetchMock);
+  assert.equal(id, '16300989');
+});
+
+test('pickCampaignMembership: many memberships, only the exact campaign matches', async () => {
   const { pickCampaignMembership } = await import('../src/services/PaidPatreonService.js');
   const id = {
     data: { type: 'user', id: 'u', relationships: { memberships: { data: [{ type: 'member', id: 'm1' }, { type: 'member', id: 'm2' }] } } },
@@ -53,8 +63,9 @@ test('pickCampaignMembership: multiple memberships + no match → null (no silen
       { type: 'member', id: 'm2', attributes: { patron_status: 'active_patron', currently_entitled_amount_cents: 800 }, relationships: { campaign: { data: { type: 'campaign', id: '77' } } } },
     ],
   };
-  assert.equal(pickCampaignMembership(id, '999'), null);      // ambiguous, refuse
-  assert.equal(pickCampaignMembership(id, '77').cents, 800);  // exact still works
+  assert.equal(pickCampaignMembership(id, '999'), null);      // none of them
+  assert.equal(pickCampaignMembership(id, '42').cents, 300);
+  assert.equal(pickCampaignMembership(id, '77').cents, 800);
 });
 
 test('pickCampaignMembership: no memberships → null', async () => {
