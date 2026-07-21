@@ -1231,6 +1231,26 @@ router.get('/:slug', (req, res, next) => {
     if (!canEdit) return res.status(403).send('Not published');
   }
 
+  // Paid gate (klonkt-demo-aki): a paid post shows only a teaser to anyone who
+  // is not the owner/editor. Checked BEFORE the fan gate: a post that is both
+  // fan_only and paid unlocks with a passkey, not with a Klonkt-login, so the
+  // paid gate wins (otherwise anonymous visitors land on the login gate and
+  // never see the unlock button).
+  const canEditThis = req.session?.user && PermissionsService.canEditPost(req.session.user, post, site);
+  if (post.paid && !canEditThis) {
+    const { newerPost, olderPost } = postNeighbors(site, post, res.locals.tenancy === 'hub');
+    return renderPage(req, res, 'pages/paid-gate', {
+      pageTitle: post.title || 'Voor supporters',
+      bodyClass: 'on-special',
+      pgTitle: post.title || '',
+      pgTeaser: paidTeaser(post),
+      pgCents: post.paid_min_cents || paidDefaultMinCents(site.id),
+      pgSlug: post.slug,
+      newerPost,
+      olderPost,
+    });
+  }
+
   // Fan-only preview (premium #3): full content only for logged-in fans.
   // Anonymous visitors get a clean login gate instead of the content (the title/
   // teaser may still appear elsewhere as a teaser).
@@ -1243,24 +1263,6 @@ router.get('/:slug', (req, res, next) => {
       bodyClass: 'on-special',
       fgTitle: post.title || '',
       fgNext: (res.locals.siteUrlBase || '') + '/' + post.slug,
-      newerPost,
-      olderPost,
-    });
-  }
-
-  // Paid gate (klonkt-demo-aki): a paid post shows only a teaser to anyone who
-  // is not the owner/editor. The passkey unlock arrives in slices 3-4; for now
-  // the owner previews the full post, everyone else sees the teaser + notice.
-  const canEditThis = req.session?.user && PermissionsService.canEditPost(req.session.user, post, site);
-  if (post.paid && !canEditThis) {
-    const { newerPost, olderPost } = postNeighbors(site, post, res.locals.tenancy === 'hub');
-    return renderPage(req, res, 'pages/paid-gate', {
-      pageTitle: post.title || 'Voor supporters',
-      bodyClass: 'on-special',
-      pgTitle: post.title || '',
-      pgTeaser: paidTeaser(post),
-      pgCents: post.paid_min_cents || paidDefaultMinCents(site.id),
-      pgSlug: post.slug,
       newerPost,
       olderPost,
     });
