@@ -14,6 +14,10 @@ yours. No algorithm, no ads, no platform sitting in between.
   see a home timeline, and reply/like back — Klonkt is a full fediverse client.
 - **Grow**: newsletter, download-for-email, EPK/press kit, link-in-bio,
   show calendar, and **cookie-free statistics**.
+- **Paid posts** — put a post behind your **own Patreon**. Supporters unlock it
+  with a **passkey**: no account on your site, no cookie, and a patron's identity
+  (name/email) is never stored — only a pseudonymous, expiring entitlement. You
+  connect your Patreon once in the admin and pick a minimum amount per post.
 - **Circles** — a curated feed of the makers you choose: feature accounts (other Klonkt
   sites, Mastodon, PeerTube — any fediverse server) and their public posts appear in your
   Circle. Decentralized, no central platform — built on ActivityPub.
@@ -160,12 +164,31 @@ registration then closes. Lost your password?
 
 | Variable | Required | What |
 |---|---|---|
-| `SESSION_SECRET` | ✅ | Random string of ≥32 characters |
+| `SESSION_SECRET` | auto | Signs login sessions. Leave empty to auto-generate (`storage/.session-secret`), or set a random ≥32-char string. |
 | `PUBLIC_BASE_URL` | ✅ | Canonical URL (e.g. `https://yourdomain.com`) |
+| `PAID_SECRET` | auto | Encrypts the stored Patreon secrets for **paid posts**. Leave empty to auto-generate on first use (`storage/.paid-secret`), or set your own ≥16-char string. |
 | `SMTP_HOST` / `_PORT` / `_USER` / `_PASS` / `_FROM` | — | Email for password reset + newsletter |
 | `KLONKT_DEFAULT_LANG` | — | Default language for visitors (`en`/`nl`/`de`) |
 | `KLONKT_AUDIO` | — | `off` = lite mode (no audio/ffmpeg) |
+| `KLONKT_PREMIUM_ENABLED` | — | `on` (default) enables the Patreon-unlocked extras (incl. paid posts) |
 | `HSTS_STRICT` | — | `1` = stricter HTTPS header (`includeSubDomains` + `preload`). Only set this if Klonkt owns the **whole** domain and all its subdomains are HTTPS — it forces every subdomain to HTTPS and can bake your domain into browsers near-permanently. Leave unset otherwise; the default is already safe. |
+
+### Auto-generated secrets & backups
+
+You never have to hand-edit the env for these: Klonkt generates them on first use
+and keeps them stable across restarts and updates.
+
+- `SESSION_SECRET` → `storage/.session-secret` (signs login sessions)
+- `PAID_SECRET` → `storage/.paid-secret` (encrypts the stored Patreon secrets for
+  paid posts)
+
+The paid-posts key lives **outside** the database on purpose: encrypting the
+Patreon secrets would be pointless if the key sat in the same file a database
+dump would leak. Set either variable in `.env` to override the generated one.
+
+**Back up the whole `storage/` directory** (database, media *and* these key
+files). Restoring the database without `storage/.paid-secret` leaves the stored
+Patreon secrets unreadable — you'd have to reconnect Patreon.
 
 ## Stack
 
@@ -174,7 +197,7 @@ registration then closes. Lost your password?
 - **DB:** better-sqlite3 (WAL), self-migrating on boot
 - **Templates:** EJS (server-rendered) + **htmx 1.9** (vendored, no build step)
 - **Audio:** ffmpeg-static (bundled)
-- **Fediverse / Circles:** ActivityPub (HTTP Signatures) — federates with Mastodon, PeerTube and other Klonkt sites
+- **Fediverse / Circles:** ActivityPub (HTTP Signatures) — federates with Mastodon, PeerTube and other Klonkt sites. See [FEDERATION.md](FEDERATION.md) for the supported activities and FEPs.
 - **Fonts:** self-hosted variable woff2 (Fraunces / Plus Jakarta Sans)
 
 ## Project structure
