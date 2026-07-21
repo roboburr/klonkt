@@ -26,13 +26,40 @@ const identityWith = (campaignId, status, cents) => ({
   ],
 });
 
-test('pickCampaignMembership finds the right campaign, ignores others', async () => {
+test('pickCampaignMembership: exact campaign match wins', async () => {
   const { pickCampaignMembership } = await import('../src/services/PaidPatreonService.js');
   const id = identityWith('42', 'active_patron', 500);
   const m = pickCampaignMembership(id, '42');
   assert.equal(m.status, 'active_patron');
   assert.equal(m.cents, 500);
-  assert.equal(pickCampaignMembership(id, '999'), null);   // different campaign
+});
+
+test('pickCampaignMembership: sole membership is used even if campaign_id is wrong (creator-scoped)', async () => {
+  const { pickCampaignMembership } = await import('../src/services/PaidPatreonService.js');
+  const id = identityWith('42', 'active_patron', 500);
+  // A typo'd campaign_id must not lock out a real patron: memberships from the
+  // owner's own client are already their campaign, so fall back to the sole one.
+  const m = pickCampaignMembership(id, '999');
+  assert.equal(m.status, 'active_patron');
+  assert.equal(m.cents, 500);
+});
+
+test('pickCampaignMembership: multiple memberships + no match → null (no silent grant)', async () => {
+  const { pickCampaignMembership } = await import('../src/services/PaidPatreonService.js');
+  const id = {
+    data: { type: 'user', id: 'u', relationships: { memberships: { data: [{ type: 'member', id: 'm1' }, { type: 'member', id: 'm2' }] } } },
+    included: [
+      { type: 'member', id: 'm1', attributes: { patron_status: 'active_patron', currently_entitled_amount_cents: 300 }, relationships: { campaign: { data: { type: 'campaign', id: '42' } } } },
+      { type: 'member', id: 'm2', attributes: { patron_status: 'active_patron', currently_entitled_amount_cents: 800 }, relationships: { campaign: { data: { type: 'campaign', id: '77' } } } },
+    ],
+  };
+  assert.equal(pickCampaignMembership(id, '999'), null);      // ambiguous, refuse
+  assert.equal(pickCampaignMembership(id, '77').cents, 800);  // exact still works
+});
+
+test('pickCampaignMembership: no memberships → null', async () => {
+  const { pickCampaignMembership } = await import('../src/services/PaidPatreonService.js');
+  assert.equal(pickCampaignMembership({ data: {}, included: [] }, '42'), null);
 });
 
 test('verifyPatron exchanges the code and reads the membership (mock fetch)', async () => {

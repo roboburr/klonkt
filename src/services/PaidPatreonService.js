@@ -134,19 +134,32 @@ export async function creatorAccessToken(siteId, fetchImpl = fetch) {
   return c && c.accessToken ? c.accessToken : null;
 }
 
-// Pure: pick the membership for the owner's campaign out of a Patreon
+// Pure: pick the owner's-campaign membership out of a Patreon
 // identity?include=memberships.campaign response (JSON:API). Returns
 // { status, cents } or null.
+//
+// Memberships returned via a creator's OWN OAuth client are already scoped to
+// that creator's campaign(s), so in practice there is one. We still prefer an
+// exact campaign_id match (belt and suspenders for multi-campaign creators),
+// but fall back to the sole membership when the configured campaign_id doesn't
+// match: a wrong/typo'd campaign_id in the admin must not lock out real patrons.
 export function pickCampaignMembership(identity, campaignId) {
   const inc = (identity && identity.included) || [];
+  const members = [];
   for (const it of inc) {
     if (it.type !== 'member') continue;
     const camp = it.relationships && it.relationships.campaign && it.relationships.campaign.data;
-    if (!camp || String(camp.id) !== String(campaignId)) continue;
     const a = it.attributes || {};
-    return { status: a.patron_status || null, cents: a.currently_entitled_amount_cents || 0 };
+    members.push({
+      status: a.patron_status || null,
+      cents: a.currently_entitled_amount_cents || 0,
+      campaignId: camp ? String(camp.id) : null,
+    });
   }
-  return null;
+  if (!members.length) return null;
+  const exact = members.find((m) => m.campaignId && String(m.campaignId) === String(campaignId));
+  const pick = exact || (members.length === 1 ? members[0] : null);
+  return pick ? { status: pick.status, cents: pick.cents } : null;
 }
 
 // Exchange a patron's auth code and read their membership of the owner's
@@ -172,7 +185,21 @@ export async function verifyPatron(siteId, code, redirectUri, fetchImpl = fetch)
   const idRes = await fetchImpl(url, { headers: { Authorization: `Bearer ${tok.access_token}` } });
   if (!idRes.ok) return null;
   const identity = await idRes.json();
-  return pickCampaignMembership(identity, c.campaignId);   // token goes out of scope, discarded
+  const membership = pickCampaignMembership(identity, c.campaignId);   // token goes out of scope, discarded
+  // Diagnostic (no identity stored, only shapes): why did a real supporter get
+  // rejected? Logs the memberships Patreon returned vs the configured campaign.
+  // Nothing here is persisted; it's a one-line server log for the owner.
+  if (!membership || membership.status !== 'active_patron') {
+    const seen = ((identity && identity.included) || [])
+      .filter((it) => it.type === 'member')
+      .map((it) => {
+        const camp = it.relationships && it.relationships.campaign && it.relationships.campaign.data;
+        const a = it.attributes || {};
+        return `${camp ? camp.id : '?'}:${a.patron_status || 'null'}:${a.currently_entitled_amount_cents || 0}c`;
+      });
+    console.warn(`[paid] verifyPatron: config campaign=${c.campaignId} → memberships seen=[${seen.join(', ') || 'none'}] picked=${membership ? membership.status + '/' + membership.cents + 'c' : 'null'}`);
+  }
+  return membership;
 }
 
 function safeDecrypt(blob) {
