@@ -117,10 +117,27 @@ async function sendTo(row, payload) {
   }
 }
 
+// Burst throttle: a wave of likes or a mass-follow must not become a wave of
+// pushes. Per (user, type) at most one push per window; extras drop silently
+// (the events themselves are still in Berichten — only the ping is deduped).
+// In-memory is fine: one process, and a restart just means one extra ping.
+const THROTTLE_SECONDS = { follow: 60, reply: 30, dm: 30, like: 300, boost: 300, test: 0 };
+const _lastPush = new Map();
+export function throttled(userId, type, nowSeconds = Math.floor(Date.now() / 1000)) {
+  const windowS = THROTTLE_SECONDS[type] ?? 60;
+  if (!windowS) return false;
+  const key = `${userId}:${type}`;
+  const prev = _lastPush.get(key) || 0;
+  if (nowSeconds - prev < windowS) return true;
+  _lastPush.set(key, nowSeconds);
+  return false;
+}
+
 // Notify one user on all their devices, honouring per-type preferences.
 // type ∈ {follow, reply, like, boost, dm, test}. Fire-and-forget at call sites.
 export async function notifyUser(userId, { type, title, body, url }) {
   if (!(await pushReady())) return 0;
+  if (throttled(userId, type)) return 0;
   const rows = db.prepare('SELECT * FROM push_subscriptions WHERE user_id = ?').all(userId);
   let sent = 0;
   for (const row of rows) {
@@ -142,7 +159,7 @@ export async function notifySite(slug, event) {
 }
 
 export default {
-  publicKey, pushReady, DEFAULT_ALERTS,
+  publicKey, pushReady, DEFAULT_ALERTS, throttled,
   saveSubscription, deleteSubscription, listSubscriptions, updateAlerts,
   notifyUser, notifySite,
 };

@@ -64,6 +64,16 @@ test('re-subscribing the same endpoint upserts instead of duplicating', () => {
   assert.equal(rows[0].p256dh, 'C');
 });
 
+test('burst throttle: one ping per window per (user,type); test type never throttles', () => {
+  assert.equal(Push.throttled('tu1', 'like', 1000), false);   // first passes
+  assert.equal(Push.throttled('tu1', 'like', 1100), true);    // within 300s window
+  assert.equal(Push.throttled('tu1', 'like', 1301), false);   // window elapsed
+  assert.equal(Push.throttled('tu1', 'boost', 1000), false);  // other type independent
+  assert.equal(Push.throttled('tu2', 'like', 1000), false);   // other user independent
+  assert.equal(Push.throttled('tu1', 'test', 1000), false);   // test bypasses
+  assert.equal(Push.throttled('tu1', 'test', 1001), false);
+});
+
 test('incomplete subscription payloads are refused', () => {
   assert.equal(Push.saveSubscription({ endpoint: '', userId: 'u1', p256dh: 'x', auth: 'y' }), false);
   assert.equal(Push.saveSubscription({ endpoint: 'https://e', userId: 'u1', p256dh: '', auth: 'y' }), false);

@@ -21,6 +21,10 @@ yours. No algorithm, no ads, no platform sitting in between.
 - **Circles** — a curated feed of the makers you choose: feature accounts (other Klonkt
   sites, Mastodon, PeerTube — any fediverse server) and their public posts appear in your
   Circle. Decentralized, no central platform — built on ActivityPub.
+- **Push notifications** — a browser/PWA notification for new followers, replies,
+  mentions, likes, boosts and private messages, even with the site closed.
+  Self-hosted Web Push (VAPID): payloads are encrypted end-to-end to your
+  browser, and private messages never carry their text in the push.
 - **Themes & languages** — multiple palettes (light + dark), interface in EN/NL/DE.
 - **Installable (PWA)**, **privacy-first** (self-hosted fonts, no tracking).
 
@@ -167,6 +171,7 @@ registration then closes. Lost your password?
 | `SESSION_SECRET` | auto | Signs login sessions. Leave empty to auto-generate (`storage/.session-secret`), or set a random ≥32-char string. |
 | `PUBLIC_BASE_URL` | ✅ | Canonical URL (e.g. `https://yourdomain.com`) |
 | `PAID_SECRET` | auto | Encrypts the stored Patreon secrets for **paid posts**. Leave empty to auto-generate on first use (`storage/.paid-secret`), or set your own ≥16-char string. |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | auto | Identify this server to browser push services (**push notifications**). Leave empty to auto-generate on first use (`storage/.vapid`). |
 | `SMTP_HOST` / `_PORT` / `_USER` / `_PASS` / `_FROM` | — | Email for password reset + newsletter |
 | `KLONKT_DEFAULT_LANG` | — | Default language for visitors (`en`/`nl`/`de`) |
 | `KLONKT_AUDIO` | — | `off` = lite mode (no audio/ffmpeg) |
@@ -181,6 +186,8 @@ and keeps them stable across restarts and updates.
 - `SESSION_SECRET` → `storage/.session-secret` (signs login sessions)
 - `PAID_SECRET` → `storage/.paid-secret` (encrypts the stored Patreon secrets for
   paid posts)
+- `VAPID_*` → `storage/.vapid` (identifies this server to browser push services;
+  regenerating it would silently break every existing push subscription)
 
 The paid-posts key lives **outside** the database on purpose: encrypting the
 Patreon secrets would be pointless if the key sat in the same file a database
@@ -188,7 +195,9 @@ dump would leak. Set either variable in `.env` to override the generated one.
 
 **Back up the whole `storage/` directory** (database, media *and* these key
 files). Restoring the database without `storage/.paid-secret` leaves the stored
-Patreon secrets unreadable — you'd have to reconnect Patreon.
+Patreon secrets unreadable — you'd have to reconnect Patreon. Restoring without
+`storage/.vapid` breaks push subscriptions — every device would have to re-enable
+notifications.
 
 ## Stack
 
