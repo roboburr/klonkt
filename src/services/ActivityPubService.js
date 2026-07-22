@@ -23,6 +23,7 @@ import HtmlSanitizerService from './HtmlSanitizerService.js';
 import AudioEmbedService from './AudioEmbedService.js';
 import Push from './PushService.js';
 import { getTenancy } from './SettingsService.js';
+import { t as i18nT } from './i18n.js';
 
 const PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
 // Full JSON-LD context for every AP object we emit: AS2 core + security (publicKey) + the
@@ -1272,6 +1273,10 @@ function pushEvent(slug, event) {
 function pushPrefix(slug) {
   try { return getTenancy() === 'hub' ? `/user/${slug}` : ''; } catch { return ''; }
 }
+// Notification language: the site's content language (fallback: instance default).
+function pushLang(slug) {
+  try { const r = db.prepare('SELECT language FROM sites WHERE slug = ?').get(slug); return (r && r.language) || process.env.KLONKT_DEFAULT_LANG || 'nl'; } catch { return 'nl'; }
+}
 // Site slug, target URL and title for a post-scoped notification.
 function pushPostCtx(postId) {
   try {
@@ -1342,7 +1347,7 @@ export async function handleInbox(req, slugParam) {
     const fi = actorInfo(remote, who);   // cache display for the friends list (shaer-aa3)
     fStmts().ins.run(slug, who, remote.inbox, sharedInbox, fi.name, fi.handle, fi.icon);
     try { _updFDisp.run(fi.name, fi.handle, fi.icon, slug, who); } catch { /* best effort */ }
-    pushEvent(slug, { type: 'follow', title: 'Nieuwe volger', body: `${fi.name || fi.handle || 'Iemand'} volgt je nu`, url: `${pushPrefix(slug)}/connect` });
+    { const L = pushLang(slug); pushEvent(slug, { type: 'follow', title: i18nT(L, 'push.n_follow_t'), body: i18nT(L, 'push.n_follow_b', { who: fi.name || fi.handle || i18nT(L, 'notif.someone') }), url: `${pushPrefix(slug)}/connect` }); }
     const me = actorId(base, slug);
     const keys = getOrCreateKeys(slug);
     const accept = { '@context': AP_CONTEXT, id: `${me}#accept-${Date.now()}-${rid()}`, type: 'Accept', actor: me, object: act };
@@ -1412,10 +1417,11 @@ export async function handleInbox(req, slugParam) {
         const ctx = pushPostCtx(tgt.post_id);
         const vis = noteVisibility(o);
         const priv = vis === 'direct' || vis === 'followers';
-        const who = ai.name || ai.handle || 'Iemand';
         if (ctx) {
-          if (priv) pushEvent(ctx.site, { type: 'dm', title: 'Privébericht', body: `Nieuw bericht van ${who}`, url: `${pushPrefix(ctx.site)}/messages` });
-          else pushEvent(ctx.site, { type: 'reply', title: `Reactie op "${ctx.title}"`, body: `${who}: ${HtmlSanitizerService.toPlainText(html).slice(0, 90)}`, url: ctx.url });
+          const L = pushLang(ctx.site);
+          const who = ai.name || ai.handle || i18nT(L, 'notif.someone');
+          if (priv) pushEvent(ctx.site, { type: 'dm', title: i18nT(L, 'push.n_dm_t'), body: i18nT(L, 'push.n_dm_b', { who }), url: `${pushPrefix(ctx.site)}/messages` });
+          else pushEvent(ctx.site, { type: 'reply', title: i18nT(L, 'push.n_reply_t', { title: ctx.title }), body: `${who}: ${HtmlSanitizerService.toPlainText(html).slice(0, 90)}`, url: ctx.url });
         }
       }
       return 202;
@@ -1464,10 +1470,11 @@ export async function handleInbox(req, slugParam) {
               console.log('[AP] mention', actorUri, '→', slug);
               const vis = noteVisibility(o);
               const priv = vis === 'direct' || vis === 'followers';
-              const who = ai.name || ai.handle || 'Iemand';
+              const L = pushLang(slug);
+              const who = ai.name || ai.handle || i18nT(L, 'notif.someone');
               // Same privacy rule as replies: private mentions push without content.
-              if (priv) pushEvent(slug, { type: 'dm', title: 'Privébericht', body: `Nieuw bericht van ${who}`, url: `${pushPrefix(slug)}/messages` });
-              else pushEvent(slug, { type: 'reply', title: 'Vermelding', body: `${who}: ${HtmlSanitizerService.toPlainText(html).slice(0, 90)}`, url: `${pushPrefix(slug)}/messages` });
+              if (priv) pushEvent(slug, { type: 'dm', title: i18nT(L, 'push.n_dm_t'), body: i18nT(L, 'push.n_dm_b', { who }), url: `${pushPrefix(slug)}/messages` });
+              else pushEvent(slug, { type: 'reply', title: i18nT(L, 'push.n_mention_t'), body: `${who}: ${HtmlSanitizerService.toPlainText(html).slice(0, 90)}`, url: `${pushPrefix(slug)}/messages` });
             }
           } catch { /* ignore */ }
         }
@@ -1525,10 +1532,11 @@ export async function handleInbox(req, slugParam) {
       console.log('[AP]', type === 'Like' ? 'like' : 'boost', actorUri, '→', pid);
       {
         const ctx = pushPostCtx(pid);
-        const who = ai.name || ai.handle || 'Iemand';
         if (ctx) {
-          if (type === 'Like') pushEvent(ctx.site, { type: 'like', title: 'Nieuwe waardering', body: `${who} waardeerde "${ctx.title}"`, url: ctx.url });
-          else pushEvent(ctx.site, { type: 'boost', title: 'Geboost', body: `${who} boostte "${ctx.title}"`, url: ctx.url });
+          const L = pushLang(ctx.site);
+          const who = ai.name || ai.handle || i18nT(L, 'notif.someone');
+          if (type === 'Like') pushEvent(ctx.site, { type: 'like', title: i18nT(L, 'push.n_like_t'), body: i18nT(L, 'push.n_like_b', { who, title: ctx.title }), url: ctx.url });
+          else pushEvent(ctx.site, { type: 'boost', title: i18nT(L, 'push.n_boost_t'), body: i18nT(L, 'push.n_boost_b', { who, title: ctx.title }), url: ctx.url });
         }
       }
     } else if (type === 'Announce' && objUrl && actorUri && !isLocalActor) {
@@ -2968,8 +2976,20 @@ export function getNotifications(slug, limit) {
     });
   } catch { /* ignore */ }
   try {
-    for (const r of db.prepare('SELECT actor_uri, actor_name, actor_handle, actor_icon, content, created_at FROM ap_reports WHERE slug = ? ORDER BY created_at DESC LIMIT ?').all(slug, L)) {
-      out.push({ type: 'report', name: r.actor_name, handle: r.actor_handle, url: r.actor_uri, icon: r.actor_icon, content: r.content, created_at: r.created_at });
+    for (const r of db.prepare('SELECT actor_uri, actor_name, actor_handle, actor_icon, content, objects, created_at FROM ap_reports WHERE slug = ? ORDER BY created_at DESC LIMIT ?').all(slug, L)) {
+      // The reported objects: our own notes resolve to post links so the owner
+      // sees WHICH post the report is about; other URIs (e.g. the actor itself)
+      // are skipped — the report row already names the account.
+      const about = [];
+      try {
+        for (const u of JSON.parse(r.objects || '[]')) {
+          const m = String(u).match(/\/ap\/notes\/([^/?#]+)/);
+          if (!m) continue;
+          const p = db.prepare('SELECT slug, title FROM posts WHERE id = ?').get(decodeURIComponent(m[1]));
+          if (p) about.push({ slug: p.slug, title: p.title || p.slug });
+        }
+      } catch { /* malformed objects json → no links */ }
+      out.push({ type: 'report', name: r.actor_name, handle: r.actor_handle, url: r.actor_uri, icon: r.actor_icon, content: r.content, objects: about, created_at: r.created_at });
     }
   } catch { /* ignore */ }
   try {

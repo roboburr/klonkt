@@ -53,20 +53,20 @@ router.get('/callback', async (req, res) => {
   const payload = verifyBlob(String(req.query.state || ''));
   if (!payload || payload.purpose !== 'patron' || payload.siteId !== r.site.id) {
     return renderPage(req, res, 'pages/paid-result', {
-      pageTitle: 'Ontgrendelen', bodyClass: 'on-special', ok: false, reason: 'expired',
+      pageTitleKey: 'pres.t', bodyClass: 'on-special', ok: false, reason: 'expired',
     });
   }
   const patronUrl = PaidPatreon.patreonUrl(r.site.id);
   const code = String(req.query.code || '');
   if (req.query.error || !code) {
-    return renderPage(req, res, 'pages/paid-result', { pageTitle: 'Ontgrendelen', bodyClass: 'on-special', ok: false, reason: 'declined', postSlug: payload.post, patronUrl });
+    return renderPage(req, res, 'pages/paid-result', { pageTitleKey: 'pres.t', bodyClass: 'on-special', ok: false, reason: 'declined', postSlug: payload.post, patronUrl });
   }
   const membership = await PaidPatreon.verifyPatron(r.site.id, code, baseUrl(req) + '/paid/callback').catch(() => null);
   const cents = membership ? (membership.cents || 0) : 0;
   const active = membership && membership.status === 'active_patron';
   if (!active || cents < payload.cents) {
     return renderPage(req, res, 'pages/paid-result', {
-      pageTitle: 'Ontgrendelen', bodyClass: 'on-special', ok: false,
+      pageTitleKey: 'pres.t', bodyClass: 'on-special', ok: false,
       reason: active ? 'tier' : 'notpatron', neededCents: payload.cents, haveCents: cents, postSlug: payload.post, patronUrl,
     });
   }
@@ -75,7 +75,7 @@ router.get('/callback', async (req, res) => {
   const options = await Passkey.registrationOptions(baseUrl(req), r.site.slug);
   const blob = signBlob({ purpose: 'reg', siteId: r.site.id, cents, challenge: options.challenge }, 900);
   renderPage(req, res, 'pages/paid-passkey', {
-    pageTitle: 'Maak je passkey', bodyClass: 'on-special',
+    pageTitleKey: 'ppk.t', bodyClass: 'on-special',
     optionsJson: JSON.stringify(options), regBlob: blob, postSlug: payload.post,
   });
 });

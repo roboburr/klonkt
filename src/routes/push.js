@@ -8,6 +8,7 @@ import express from 'express';
 import db from '../config/database.js';
 import { requireAuth } from '../middleware/auth.js';
 import Push from '../services/PushService.js';
+import { t as i18nT, resolveLang } from '../services/i18n.js';
 
 const router = express.Router();
 
@@ -54,9 +55,10 @@ router.post('/alerts', requireAuth, express.json({ limit: '4kb' }), (req, res) =
 
 // A test ping to all of the caller's own devices (bypasses alert prefs).
 router.post('/test', requireAuth, async (req, res) => {
+  const L = resolveLang(req);
   const sent = await Push.notifyUser(req.session.user.id, {
-    type: 'test', title: 'Klonkt-testnotificatie',
-    body: 'Werkt. Zo komen meldingen binnen op dit apparaat.', url: '/admin/push',
+    type: 'test', title: i18nT(L, 'push.n_test_t'),
+    body: i18nT(L, 'push.n_test_b'), url: '/admin/push',
   });
   res.json({ ok: true, sent });
 });

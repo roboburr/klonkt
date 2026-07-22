@@ -7,30 +7,27 @@
   <div class="pr-card">
     <div class="pr-ic">🔒</div>
     <% if (reason === 'notpatron') { %>
-      <h1 class="pr-h1">Nog geen supporter</h1>
-      <p class="pr-sub">Je bent (nog) geen actieve supporter van deze site op Patreon. Word supporter en probeer het daarna opnieuw vanaf de post.</p>
+      <h1 class="pr-h1"><%= t('pres.notpatron_h') %></h1>
+      <p class="pr-sub"><%= t('pres.notpatron_p') %></p>
     <% } else if (reason === 'tier') { %>
-      <h1 class="pr-h1">Een niveau hoger nodig</h1>
-      <p class="pr-sub">
-        Deze post vraagt vanaf &euro;<%= ((typeof neededCents !== 'undefined' ? neededCents : 0)/100).toFixed(2) %>.
-        Jouw steun is nu &euro;<%= ((typeof haveCents !== 'undefined' ? haveCents : 0)/100).toFixed(2) %>. Verhoog je steun en probeer opnieuw.
-      </p>
+      <h1 class="pr-h1"><%= t('pres.tier_h') %></h1>
+      <p class="pr-sub"><%= t('pres.tier_p', { need: ((typeof neededCents !== 'undefined' ? neededCents : 0)/100).toFixed(2), have: ((typeof haveCents !== 'undefined' ? haveCents : 0)/100).toFixed(2) }) %></p>
     <% } else if (reason === 'expired') { %>
-      <h1 class="pr-h1">Aanvraag verlopen</h1>
-      <p class="pr-sub">Deze ontgrendel-link is verlopen of al gebruikt. Ga terug naar de post en probeer het opnieuw.</p>
+      <h1 class="pr-h1"><%= t('pres.expired_h') %></h1>
+      <p class="pr-sub"><%= t('pres.expired_p') %></p>
     <% } else { %>
-      <h1 class="pr-h1">Ontgrendelen afgebroken</h1>
-      <p class="pr-sub">Er is niets gekoppeld. Je kunt het opnieuw proberen vanaf de post.</p>
+      <h1 class="pr-h1"><%= t('pres.declined_h') %></h1>
+      <p class="pr-sub"><%= t('pres.declined_p') %></p>
     <% } %>
 
     <div class="pr-actions">
       <% if ((reason === 'notpatron' || reason === 'tier') && _patron) { %>
-        <a class="pr-btn" href="<%= _patron %>" target="_blank" rel="noopener">Word supporter op Patreon</a>
+        <a class="pr-btn" href="<%= _patron %>" target="_blank" rel="noopener"><%= t('pres.join') %></a>
       <% } %>
       <% if (_slug) { %>
-        <a class="pr-btn pr-btn-ghost" href="<%= _base %>/<%= _slug %>">Terug naar de post</a>
+        <a class="pr-btn pr-btn-ghost" href="<%= _base %>/<%= _slug %>"><%= t('pres.back_post') %></a>
       <% } else { %>
-        <a class="pr-btn pr-btn-ghost" href="<%= _base %>/">Terug naar de site</a>
+        <a class="pr-btn pr-btn-ghost" href="<%= _base %>/"><%= t('pres.back_site') %></a>
       <% } %>
     </div>
   </div>

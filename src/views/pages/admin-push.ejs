@@ -1,48 +1,45 @@
 <div class="container" style="max-width:640px;margin:1.5rem auto 3rem;padding:0 1rem">
-  <h1 style="margin:0 0 .3rem">Notificaties</h1>
+  <h1 style="margin:0 0 .3rem"><%= t('push.t') %></h1>
   <p style="color:var(--ink-soft,#888);margin:0 0 1.2rem">
-    Krijg een melding op dit apparaat bij nieuwe volgers, reacties en berichten,
-    ook als de site niet open staat. Versleuteld tot in je browser; wij sturen zo
-    min mogelijk inhoud mee.
+    <%= t('push.intro') %>
   </p>
 
   <% if (!vapidKey) { %>
-    <p style="color:#c0392b">Push is op deze server niet beschikbaar (sleutel kon niet worden aangemaakt of de dependency ontbreekt).</p>
+    <p style="color:#c0392b"><%= t('push.unavailable') %></p>
   <% } else { %>
 
   <div id="np-unsupported" hidden style="color:#c0392b;margin:0 0 1rem">
-    Deze browser ondersteunt geen push-notificaties.
+    <%= t('push.unsupported') %>
   </div>
   <div id="np-ios-hint" hidden style="border:1px solid var(--border,#333);border-radius:10px;padding:.8rem 1rem;margin:0 0 1rem;font-size:.92rem;color:var(--ink-soft,#888)">
-    Op iPhone/iPad werkt dit alleen als de site op je beginscherm staat:
-    deel-knop → <em>Zet op beginscherm</em>, en open 'm daarna vanaf daar.
+    <%= t('push.ios_hint') %>
   </div>
 
   <section style="border:1px solid var(--border,#333);border-radius:12px;padding:1rem 1.1rem;margin:0 0 1.2rem">
-    <p style="margin:0 0 .6rem"><strong>Dit apparaat:</strong> <span id="np-state">controleren…</span></p>
+    <p style="margin:0 0 .6rem"><strong><%= t('push.this_device') %></strong> <span id="np-state"><%= t('push.checking') %></span></p>
     <div style="display:flex;gap:.6rem;flex-wrap:wrap">
-      <button type="button" id="np-on" class="btn btn-primary" hidden>Zet aan op dit apparaat</button>
-      <button type="button" id="np-off" class="btn" hidden>Zet uit</button>
-      <button type="button" id="np-test" class="btn" hidden>Stuur testmelding</button>
+      <button type="button" id="np-on" class="btn btn-primary" hidden><%= t('push.enable') %></button>
+      <button type="button" id="np-off" class="btn" hidden><%= t('push.disable') %></button>
+      <button type="button" id="np-test" class="btn" hidden><%= t('push.test') %></button>
     </div>
     <fieldset id="np-alerts" hidden style="border:none;padding:0;margin:1rem 0 0">
-      <legend style="font-weight:600;margin-bottom:.4rem">Waarvoor wil je een melding?</legend>
-      <label style="display:block"><input type="checkbox" data-alert="follow"> Nieuwe volger</label>
-      <label style="display:block"><input type="checkbox" data-alert="reply"> Reactie of vermelding</label>
-      <label style="display:block"><input type="checkbox" data-alert="like"> Waardering (ster)</label>
-      <label style="display:block"><input type="checkbox" data-alert="boost"> Boost</label>
-      <label style="display:block"><input type="checkbox" data-alert="dm"> Priv&eacute;bericht</label>
-      <p id="np-saved" hidden style="color:var(--accent);margin:.4rem 0 0">Opgeslagen.</p>
+      <legend style="font-weight:600;margin-bottom:.4rem"><%= t('push.what') %></legend>
+      <label style="display:block"><input type="checkbox" data-alert="follow"> <%= t('push.a_follow') %></label>
+      <label style="display:block"><input type="checkbox" data-alert="reply"> <%= t('push.a_reply') %></label>
+      <label style="display:block"><input type="checkbox" data-alert="like"> <%= t('push.a_like') %></label>
+      <label style="display:block"><input type="checkbox" data-alert="boost"> <%= t('push.a_boost') %></label>
+      <label style="display:block"><input type="checkbox" data-alert="dm"> <%= t('push.a_dm') %></label>
+      <p id="np-saved" hidden style="color:var(--accent);margin:.4rem 0 0"><%= t('push.saved') %></p>
     </fieldset>
   </section>
 
   <% if (subscriptions.length) { %>
-    <h2 style="font-size:1.05rem;margin:0 0 .5rem">Gekoppelde apparaten</h2>
+    <h2 style="font-size:1.05rem;margin:0 0 .5rem"><%= t('push.devices') %></h2>
     <ul style="list-style:none;padding:0;margin:0 0 1.2rem">
       <% subscriptions.forEach(function (s) { %>
         <li data-endpoint="<%= s.endpoint %>" style="display:flex;justify-content:space-between;gap:.8rem;align-items:center;padding:.45rem 0;border-bottom:1px solid var(--border,#2a2a2a)">
-          <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><%= s.ua_label || 'Apparaat' %> <small style="color:var(--ink-soft,#888)">sinds <%= String(s.created_at || '').slice(0, 10) %></small></span>
-          <button type="button" class="btn np-remove" data-endpoint="<%= s.endpoint %>">Verwijder</button>
+          <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><%= s.ua_label || t('push.device') %> <small style="color:var(--ink-soft,#888)"><%= t('push.since') %> <%= String(s.created_at || '').slice(0, 10) %></small></span>
+          <button type="button" class="btn np-remove" data-endpoint="<%= s.endpoint %>"><%= t('push.remove') %></button>
         </li>
       <% }); %>
     </ul>
@@ -50,7 +47,7 @@
 
   <% } %>
 
-  <p style="margin-top:1.5rem"><a href="/admin">&larr; Terug naar Beheer</a></p>
+  <p style="margin-top:1.5rem"><a href="/admin">&larr; <%= t('admin.back') %></a></p>
 </div>
 
 <% if (vapidKey) { %>
@@ -58,6 +55,7 @@
   vapid: vapidKey,
   alerts: defaultAlerts,
   saved: subscriptions.reduce(function (m, s) { try { m[s.endpoint] = JSON.parse(s.alert_types || '{}'); } catch (e) { m[s.endpoint] = {}; } return m; }, {}),
+  i18n: { on: t('push.state_on'), off: t('push.state_off'), denied: t('push.state_denied'), unknown: t('push.state_unknown'), unsupported: t('push.state_unsupported'), failed: t('push.enable_failed') },
 }).replace(/</g, '\\u003c') %></script>
 <script>
 (function () {
@@ -73,7 +71,7 @@
 
   if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
     document.getElementById('np-unsupported').hidden = false;
-    elState.textContent = 'niet ondersteund';
+    elState.textContent = cfg.i18n.unsupported;
     return;
   }
 
@@ -106,7 +104,7 @@
 
   function render(sub) {
     currentEndpoint = sub ? sub.endpoint : null;
-    elState.textContent = sub ? 'meldingen staan aan' : (Notification.permission === 'denied' ? 'geblokkeerd in de browserinstellingen' : 'meldingen staan uit');
+    elState.textContent = sub ? cfg.i18n.on : (Notification.permission === 'denied' ? cfg.i18n.denied : cfg.i18n.off);
     btnOn.hidden = !!sub || Notification.permission === 'denied';
     btnOff.hidden = !sub;
     btnTest.hidden = !sub;
@@ -119,7 +117,7 @@
     // Show this device's SAVED prefs when we know them, defaults otherwise.
     setAlertBoxes((sub && cfg.saved[sub.endpoint]) ? Object.assign({}, cfg.alerts, cfg.saved[sub.endpoint]) : cfg.alerts);
     render(sub);
-  }).catch(function () { elState.textContent = 'status onbekend'; });
+  }).catch(function () { elState.textContent = cfg.i18n.unknown; });
 
   btnOn.addEventListener('click', function () {
     btnOn.disabled = true;
@@ -130,7 +128,7 @@
       }).then(function (sub) {
         return post('/push/subscribe', { subscription: sub.toJSON(), alerts: readAlertBoxes(), uaLabel: deviceLabel() })
           .then(function (r) { if (!r.ok) throw new Error('subscribe failed'); render(sub); location.reload(); });
-      }).catch(function () { btnOn.disabled = false; elState.textContent = 'aanzetten mislukt'; });
+      }).catch(function () { btnOn.disabled = false; elState.textContent = cfg.i18n.failed; });
     });
   });
 

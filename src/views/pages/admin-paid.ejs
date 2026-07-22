@@ -1,77 +1,74 @@
 <div class="container" style="max-width:640px;margin:1.5rem auto 3rem;padding:0 1rem">
-  <h1 style="margin:0 0 .3rem">Betaalde posts</h1>
+  <h1 style="margin:0 0 .3rem"><%= t('apaid.t') %></h1>
   <p style="color:var(--ink-soft,#888);margin:0 0 1.2rem">
-    Koppel je eigen Patreon-campagne. Supporters ontgrendelen betaalde posts met een passkey,
-    zonder account en zonder cookie. Wij bewaren geen namen of e-mailadressen van supporters,
-    alleen het versleutelde token van jouw campagne.
+    <%= t('apaid.intro') %>
   </p>
 
-  <% if (saved) { %><p style="color:var(--accent);font-weight:600">Opgeslagen.</p><% } %>
+  <% if (saved) { %><p style="color:var(--accent);font-weight:600"><%= t('apaid.saved') %></p><% } %>
   <% if (error) { %><p style="color:#c0392b"><%= error %></p><% } %>
   <% if (!secretReady) { %>
-    <p style="color:#c0392b">Let op: de encryptiesleutel kon niet worden aangemaakt of gelezen (schrijfrechten op de opslagmap?). Zonder sleutel kunnen secrets niet veilig worden opgeslagen.</p>
+    <p style="color:#c0392b"><%= t('apaid.nokey') %></p>
   <% } %>
 
   <p style="margin:.2rem 0 1.2rem">
-    Status:
+    <%= t('apaid.status') %>
     <% if (status.connected) { %>
-      <strong style="color:var(--accent)">verbonden</strong> (campagne <%= status.campaignId %>)
+      <strong style="color:var(--accent)"><%= t('apaid.connected') %></strong> (<%= t('apaid.campaign') %> <%= status.campaignId %>)
     <% } else if (status.configured) { %>
-      <strong>ingesteld, nog niet verbonden</strong> (vul een token in)
+      <strong><%= t('apaid.configured') %></strong>
     <% } else { %>
-      <strong>nog niet ingesteld</strong>
+      <strong><%= t('apaid.notyet') %></strong>
     <% } %>
   </p>
 
   <div style="border:1px solid var(--border,#333);border-radius:10px;padding:.9rem 1rem;margin:0 0 1.3rem;background:color-mix(in srgb,var(--accent,#6b8f71) 8%,transparent)">
-    <p style="margin:0 0 .4rem;font-weight:600">Zet deze redirect-URI in je Patreon-client</p>
+    <p style="margin:0 0 .4rem;font-weight:600"><%= t('apaid.redirect_h') %></p>
     <p style="margin:0 0 .6rem;color:var(--ink-soft,#888);font-size:.9rem">
-      Bij je Patreon API-client, onder <em>Redirect URIs</em>, moet exact deze regel staan.
-      Klopt hij niet, dan geeft Patreon een foutmelding in plaats van je supporters terug te sturen.
+      <%= t('apaid.redirect_p') %>
     </p>
     <div style="display:flex;gap:.5rem;align-items:center">
       <input id="pd-redirect" type="text" readonly value="<%= redirectUri %>" style="flex:1;min-width:0;font-family:monospace;font-size:.9rem">
-      <button type="button" id="pd-copy" class="btn">Kopieer</button>
+      <button type="button" id="pd-copy" class="btn" data-copied="<%= t('apaid.copied') %>"><%= t('apaid.copy') %></button>
     </div>
   </div>
 
   <form method="post" action="/admin/paid" style="display:flex;flex-direction:column;gap:.9rem">
-    <label>Patreon client id
+    <label><%= t('apaid.client_id') %>
       <input type="text" name="client_id" value="<%= status.clientId || '' %>" autocomplete="off" style="width:100%">
     </label>
-    <label>Patreon client secret
-      <input type="password" name="client_secret" placeholder="<%= status.hasSecret ? 'blijft ongewijzigd' : '' %>" autocomplete="off" style="width:100%">
-      <small style="color:var(--ink-soft,#888)">Leeg laten = huidige waarde behouden.</small>
+    <label><%= t('apaid.client_secret') %>
+      <input type="password" name="client_secret" placeholder="<%= status.hasSecret ? t('apaid.unchanged') : '' %>" autocomplete="off" style="width:100%">
+      <small style="color:var(--ink-soft,#888)"><%= t('apaid.keep') %></small>
     </label>
-    <label>Campagne-id
+    <label><%= t('apaid.campaign_id') %>
       <input type="text" name="campaign_id" value="<%= status.campaignId || '' %>" autocomplete="off" style="width:100%">
     </label>
-    <label>Openbare Patreon-pagina
+    <label><%= t('apaid.public_page') %>
       <input type="url" name="patreon_url" value="<%= status.patreonUrl || '' %>" placeholder="https://www.patreon.com/jouwnaam" autocomplete="off" style="width:100%">
-      <small style="color:var(--ink-soft,#888)">De link waar bezoekers supporter kunnen worden. Getoond als "Word supporter" wanneer iemand nog niet doneert.</small>
+      <small style="color:var(--ink-soft,#888)"><%= t('apaid.public_help') %></small>
     </label>
-    <label>Creator access token
-      <input type="password" name="access_token" placeholder="blijft ongewijzigd" autocomplete="off" style="width:100%">
+    <label><%= t('apaid.access') %>
+      <input type="password" name="access_token" placeholder="<%= t('apaid.unchanged') %>" autocomplete="off" style="width:100%">
     </label>
-    <label>Creator refresh token
-      <input type="password" name="refresh_token" placeholder="blijft ongewijzigd" autocomplete="off" style="width:100%">
-      <small style="color:var(--ink-soft,#888)">De access + refresh token krijg je op je Patreon API-clientpagina. Wij versleutelen ze en verversen automatisch.</small>
+    <label><%= t('apaid.refresh') %>
+      <input type="password" name="refresh_token" placeholder="<%= t('apaid.unchanged') %>" autocomplete="off" style="width:100%">
+      <small style="color:var(--ink-soft,#888)"><%= t('apaid.token_help') %></small>
     </label>
-    <label>Standaard-steunbedrag voor een betaalde post (euro)
+    <label><%= t('apaid.min_eur') %>
       <input type="text" name="default_min_eur" value="<%= status.defaultMinCents ? (status.defaultMinCents/100).toFixed(2) : '' %>" inputmode="decimal" style="width:120px">
     </label>
     <div style="display:flex;gap:.6rem;align-items:center">
-      <button type="submit" class="btn btn-primary">Opslaan</button>
+      <button type="submit" class="btn btn-primary"><%= t('apaid.save') %></button>
     </div>
   </form>
 
   <% if (status.configured || status.connected) { %>
-    <form method="post" action="/admin/paid/disconnect" data-confirm="Patreon-koppeling verwijderen?" style="margin-top:1rem">
-      <button type="submit" class="btn btn-danger">Koppeling verwijderen</button>
+    <form method="post" action="/admin/paid/disconnect" data-confirm="<%= t('apaid.disconnect_confirm') %>" style="margin-top:1rem">
+      <button type="submit" class="btn btn-danger"><%= t('apaid.disconnect') %></button>
     </form>
   <% } %>
 
-  <p style="margin-top:1.5rem"><a href="/admin">&larr; Terug naar Beheer</a></p>
+  <p style="margin-top:1.5rem"><a href="/admin">&larr; <%= t('admin.back') %></a></p>
 </div>
 
 <script>
@@ -82,7 +79,7 @@
   field.addEventListener('focus', function () { field.select(); });
   btn.addEventListener('click', function () {
     field.select();
-    var done = function () { var t = btn.textContent; btn.textContent = 'Gekopieerd'; setTimeout(function () { btn.textContent = t; }, 1400); };
+    var done = function () { var t = btn.textContent; btn.textContent = document.getElementById('pd-copy').getAttribute('data-copied'); setTimeout(function () { btn.textContent = t; }, 1400); };
     if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(field.value).then(done, function () { try { document.execCommand('copy'); done(); } catch (e) {} }); }
     else { try { document.execCommand('copy'); done(); } catch (e) {} }
   });

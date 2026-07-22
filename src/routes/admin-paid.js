@@ -35,7 +35,7 @@ function gate(req, res) {
 router.get('/', requireGod, (req, res) => {
   if (!gate(req, res)) return;
   renderPage(req, res, 'pages/admin-paid', {
-    pageTitle: 'Betaalde posts',
+    pageTitleKey: 'apaid.t',
     bodyClass: 'on-admin',
     status: PaidPatreon.ownerStatus(res.locals.site.id),
     secretReady: cryptoBoxReady(),

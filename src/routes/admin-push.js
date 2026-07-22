@@ -11,7 +11,7 @@ const router = express.Router();
 
 router.get('/', requireSiteManager, async (req, res) => {
   renderPage(req, res, 'pages/admin-push', {
-    pageTitle: 'Notificaties',
+    pageTitleKey: 'push.t',
     bodyClass: 'on-admin',
     vapidKey: await Push.publicKey(),          // null → feature unavailable
     subscriptions: Push.listSubscriptions(req.session.user.id),

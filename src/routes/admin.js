@@ -8,7 +8,7 @@ import express from 'express';
 import db from '../config/database.js';
 import { renderPage } from '../middleware/render.js';
 import { requireAuth } from '../middleware/auth.js';
-import { getTenancy } from '../services/SettingsService.js';
+import { getTenancy, apEnabled } from '../services/SettingsService.js';
 import { getPrimarySite } from '../middleware/site.js';
 
 const router = express.Router();
@@ -95,6 +95,7 @@ router.get('/', requireAuth, (req, res) => {
     pageTitleKey: 'admin.t_admin',
     bodyClass: 'on-admin',
     tenancy,
+    circlesOn: apEnabled(),   // solo vs cirkels tagline (federatie aan/uit)
     primarySite,
     stats,
     sites,

@@ -1,12 +1,11 @@
 <section class="pk">
   <div class="pk-card">
     <div class="pk-ic">🔑</div>
-    <h1 class="pk-h1">Je bent supporter, mooi.</h1>
+    <h1 class="pk-h1"><%= t('ppk.h') %></h1>
     <p class="pk-sub">
-      Maak nu een passkey aan. Die wordt je sleutel voor betaalde posts, zonder
-      account en zonder cookie. We bewaren geen naam of e-mailadres.
+      <%= t('ppk.sub') %>
     </p>
-    <button type="button" id="pk-go" class="pk-btn">Maak passkey</button>
+    <button type="button" id="pk-go" class="pk-btn"><%= t('ppk.make') %></button>
     <p id="pk-status" class="pk-status" hidden></p>
   </div>
 </section>
@@ -16,6 +15,7 @@
 (function () {
   var options = <%- optionsJson %>;
   var blob = "<%= regBlob %>";
+  var I = { unsupported: "<%= t('ppk.unsupported') %>", follow: "<%= t('ppk.follow') %>", done: "<%= t('ppk.done') %>", failed: "<%= t('ppk.failed') %>", cancelled: "<%= t('ppk.cancelled') %>", error: "<%= t('pgate.error') %>" };
   var postUrl = "<%= (typeof siteUrlBase !== 'undefined' && siteUrlBase ? siteUrlBase : '') %>/<%= postSlug %>";
   var btn = document.getElementById('pk-go');
   var status = document.getElementById('pk-status');
@@ -23,12 +23,12 @@
 
   if (!window.SimpleWebAuthnBrowser || !window.PublicKeyCredential) {
     btn.disabled = true;
-    say('Passkeys worden niet ondersteund in deze browser.', true);
+    say(I.unsupported, true);
     return;
   }
   btn.addEventListener('click', function () {
     btn.disabled = true;
-    say('Volg de vraag van je apparaat…');
+    say(I.follow);
     window.SimpleWebAuthnBrowser.startRegistration({ optionsJSON: options })
       .then(function (response) {
         return fetch('/paid/register', {
@@ -38,10 +38,10 @@
       })
       .then(function (r) { return r.json(); })
       .then(function (j) {
-        if (j && j.ok) { say('Gelukt. Je passkey is aangemaakt.'); setTimeout(function () { location.href = postUrl; }, 900); }
-        else { btn.disabled = false; say('Aanmaken mislukt (' + ((j && j.error) || 'onbekend') + '). Probeer opnieuw.', true); }
+        if (j && j.ok) { say(I.done); setTimeout(function () { location.href = postUrl; }, 900); }
+        else { btn.disabled = false; say(I.failed.replace('{err}', (j && j.error) || '?'), true); }
       })
-      .catch(function (e) { btn.disabled = false; say(e && e.name === 'NotAllowedError' ? 'Geannuleerd.' : 'Er ging iets mis. Probeer opnieuw.', true); });
+      .catch(function (e) { btn.disabled = false; say(e && e.name === 'NotAllowedError' ? I.cancelled : I.error, true); });
   });
 })();
 </script>
