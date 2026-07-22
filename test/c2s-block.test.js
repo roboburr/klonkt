@@ -42,3 +42,16 @@ test('Block without an object is a clean 400', async () => {
   const out = await AP.ingestOutboxActivity(site, user, { type: 'Block' });
   assert.equal(out.status, 400);
 });
+
+test('the actor advertises the blocked collection (AP 5.6)', () => {
+  site.primary_slug = 'me';
+  const actor = AP.buildActor('https://test.example', site);
+  assert.equal(actor.blocked, 'https://test.example/ap/users/me/blocked');
+});
+
+test('actor-kind blocks form the collection items; domain blocks stay out', async () => {
+  await AP.ingestOutboxActivity(site, user, { type: 'Block', object: BULLY });
+  await AP.blockTarget(site, 'nare-server.example');   // domain block
+  const items = AP.listBlocks('me').filter((b) => b.kind === 'actor').map((b) => b.target);
+  assert.deepEqual(items, [BULLY]);
+});

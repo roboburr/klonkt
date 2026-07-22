@@ -29,6 +29,8 @@ const AS2 = new Set([
   'contentMap', 'nameMap', 'summaryMap', // AS2 @language-map counterparts of content/name/summary
   'totalItems', 'orderedItems', 'items', 'first', 'last', 'partOf', 'next', 'prev',
   'preferredUsername', 'inbox', 'outbox', 'followers', 'following', 'endpoints', 'sharedInbox',
+  // ActivityPub §5.6: the private blocked collection (owner-only GET).
+  'blocked',
   // ActivityPub §4.1 `endpoints` vocabulary (same category as sharedInbox), used for C2S.
   'oauthAuthorizationEndpoint', 'oauthTokenEndpoint', 'uploadMedia',
   'publicKey', 'owner', 'publicKeyPem',

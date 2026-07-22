@@ -88,6 +88,26 @@ router.get('/ap/users/:slug/outbox', (req, res) => {
   AP.sendAP(res, AP.buildOutbox(baseUrl(req), site, posts));
 });
 
+// ── Blocked collection (owner only, AP §5.6) ──────────────────────
+// The server blocklist is the source of truth for Shaer's "in Orbit":
+// clients read it here instead of keeping their own state. Actor-kind
+// blocks only (domain blocks are instance policy, not an Orbit member).
+router.get('/ap/users/:slug/blocked', (req, res) => {
+  const auth = OAuth.verifyBearer(req.headers.authorization);
+  if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
+  const base = baseUrl(req);
+  const items = AP.listBlocks(auth.site.slug)
+    .filter((b) => b.kind === 'actor')
+    .map((b) => b.target);
+  AP.sendAP(res, {
+    '@context': AP.AP_CONTEXT,
+    id: `${base}/ap/users/${auth.site.slug}/blocked`,
+    type: 'OrderedCollection',
+    totalItems: items.length,
+    orderedItems: items,
+  });
+});
+
 // ── Inbox read (owner only, AP C2S) ───────────────────────────────
 // GET on the inbox is part of ActivityPub C2S: the account owner (a bearer
 // scoped to this site) reads recent inbound posts (the timeline: accounts

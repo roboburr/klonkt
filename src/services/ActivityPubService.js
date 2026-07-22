@@ -166,6 +166,10 @@ export function buildActor(base, site) {
     followers: `${id}/followers`,
     following: `${id}/following`,
     featured: `${id}/featured`,
+    // AP §5.6: the private blocked collection (owner-only GET). The server
+    // list is the source of truth for Shaer's "in Orbit"; clients keep no
+    // separate state.
+    blocked: `${id}/blocked`,
     // C2S clients (Shaer apps) discover auth + upload here — no hardcoded paths.
     // All four are ActivityPub-spec `endpoints` terms. Dynamic client registration
     // (RFC 7591) is discovered via /.well-known/oauth-authorization-server, not here.
