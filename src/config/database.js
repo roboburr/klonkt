@@ -335,6 +335,18 @@ export function initializeDatabase() {
       expires_at INTEGER NOT NULL,      -- unix seconds; re-link after
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+    -- Web Push (docs/webpush-design.md): one row per browser/device the owner
+    -- enabled notifications on. Payloads are encrypted to p256dh/auth (RFC 8291).
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      endpoint TEXT PRIMARY KEY,       -- push-service URL for this device
+      user_id TEXT NOT NULL,
+      p256dh TEXT NOT NULL,            -- client public key
+      auth TEXT NOT NULL,              -- client auth secret
+      alert_types TEXT,                -- JSON {follow,reply,like,boost,dm}
+      ua_label TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      last_ok_at DATETIME
+    );
     CREATE TABLE IF NOT EXISTS ap_outbox (
       id TEXT PRIMARY KEY,            -- note path segment (uuid) → /ap/notes/<id>
       site_slug TEXT NOT NULL,

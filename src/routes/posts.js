@@ -151,6 +151,7 @@ const RESERVED_SLUGS = new Set([
   'tag', 'type', 'user', 'users', 'artiesten', 'leden', 'favorieten', 'feed.xml', 'atom.xml', 'sitemap.xml',
   'manifest.webmanifest', 'sw.js', 'favicon.ico', 'favicon.svg', 'assets',
   'authorize_interaction', 'fediverse', 'news', 'following', 'notifications', 'blocking',
+  'paid', 'push',
 ]);
 
 /**
