@@ -21,6 +21,8 @@ import net from 'net';
 import db from '../config/database.js';
 import HtmlSanitizerService from './HtmlSanitizerService.js';
 import AudioEmbedService from './AudioEmbedService.js';
+import Push from './PushService.js';
+import { getTenancy } from './SettingsService.js';
 
 const PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
 // Full JSON-LD context for every AP object we emit: AS2 core + security (publicKey) + the
@@ -1261,6 +1263,24 @@ export async function deliverPollUpdate(postId) {
   if (site) await deliverUpdate(site, post);
 }
 
+// ── Web push to the owner (docs/webpush-design.md, slice 3) ─────────
+// Fire-and-forget: a notification must never block or break inbox processing.
+function pushEvent(slug, event) {
+  try { Push.notifySite(slug, event).catch(() => {}); } catch { /* never throw */ }
+}
+// Hub-aware path prefix for a site's pages ('' in solo).
+function pushPrefix(slug) {
+  try { return getTenancy() === 'hub' ? `/user/${slug}` : ''; } catch { return ''; }
+}
+// Site slug, target URL and title for a post-scoped notification.
+function pushPostCtx(postId) {
+  try {
+    const r = db.prepare('SELECT p.slug AS post, p.title, s.slug AS site FROM posts p JOIN sites s ON s.id = p.site_id WHERE p.id = ?').get(postId);
+    if (!r) return null;
+    return { site: r.site, title: r.title || r.post, url: `${pushPrefix(r.site)}/${r.post}#fediverse` };
+  } catch { return null; }
+}
+
 // Handle an incoming inbox POST. slugParam = null for the shared /ap/inbox.
 export async function handleInbox(req, slugParam) {
   const act = req.body || {};
@@ -1322,6 +1342,7 @@ export async function handleInbox(req, slugParam) {
     const fi = actorInfo(remote, who);   // cache display for the friends list (shaer-aa3)
     fStmts().ins.run(slug, who, remote.inbox, sharedInbox, fi.name, fi.handle, fi.icon);
     try { _updFDisp.run(fi.name, fi.handle, fi.icon, slug, who); } catch { /* best effort */ }
+    pushEvent(slug, { type: 'follow', title: 'Nieuwe volger', body: `${fi.name || fi.handle || 'Iemand'} volgt je nu`, url: `${pushPrefix(slug)}/connect` });
     const me = actorId(base, slug);
     const keys = getOrCreateKeys(slug);
     const accept = { '@context': AP_CONTEXT, id: `${me}#accept-${Date.now()}-${rid()}`, type: 'Accept', actor: me, object: act };
@@ -1384,6 +1405,19 @@ export async function handleInbox(req, slugParam) {
       if (isRejectedObject(o.id)) { console.log('[AP] reply skipped (tombstoned)', o.id); return 202; }
       iStmts().ins.run('reply', tgt.post_id, o.id || '', actorUri, ai.name, ai.handle, ai.url, ai.icon, html, o.published || null, tgt.parent_uri, noteVisibility(o));
       console.log('[AP] reply', actorUri, '→', tgt.post_id);
+      {
+        // Private (followers/direct) replies push as a DM ping WITHOUT content
+        // (the push service should never carry private text, design decision);
+        // public replies carry a short snippet.
+        const ctx = pushPostCtx(tgt.post_id);
+        const vis = noteVisibility(o);
+        const priv = vis === 'direct' || vis === 'followers';
+        const who = ai.name || ai.handle || 'Iemand';
+        if (ctx) {
+          if (priv) pushEvent(ctx.site, { type: 'dm', title: 'Privébericht', body: `Nieuw bericht van ${who}`, url: `${pushPrefix(ctx.site)}/messages` });
+          else pushEvent(ctx.site, { type: 'reply', title: `Reactie op "${ctx.title}"`, body: `${who}: ${HtmlSanitizerService.toPlainText(html).slice(0, 90)}`, url: ctx.url });
+        }
+      }
       return 202;
     }
     // Home timeline (client): a top-level post from an account we follow.
@@ -1426,7 +1460,15 @@ export async function handleInbox(req, slugParam) {
           try {
             const r = db.prepare('INSERT OR IGNORE INTO ap_mentions (slug, object_uri, note_url, actor_uri, actor_name, actor_handle, actor_icon, actor_url, content, published, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)')
               .run(slug, o.id, safeUrl(o.url) || null, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.published || null);
-            if (r.changes) console.log('[AP] mention', actorUri, '→', slug);
+            if (r.changes) {
+              console.log('[AP] mention', actorUri, '→', slug);
+              const vis = noteVisibility(o);
+              const priv = vis === 'direct' || vis === 'followers';
+              const who = ai.name || ai.handle || 'Iemand';
+              // Same privacy rule as replies: private mentions push without content.
+              if (priv) pushEvent(slug, { type: 'dm', title: 'Privébericht', body: `Nieuw bericht van ${who}`, url: `${pushPrefix(slug)}/messages` });
+              else pushEvent(slug, { type: 'reply', title: 'Vermelding', body: `${who}: ${HtmlSanitizerService.toPlainText(html).slice(0, 90)}`, url: `${pushPrefix(slug)}/messages` });
+            }
           } catch { /* ignore */ }
         }
       }
@@ -1481,6 +1523,14 @@ export async function handleInbox(req, slugParam) {
       const ai = actorInfo(await resolveActor(actorUri), actorUri);
       iStmts().ins.run(type.toLowerCase(), pid, '', actorUri, ai.name, ai.handle, ai.url, ai.icon, null, null, null, noteVisibility(act));
       console.log('[AP]', type === 'Like' ? 'like' : 'boost', actorUri, '→', pid);
+      {
+        const ctx = pushPostCtx(pid);
+        const who = ai.name || ai.handle || 'Iemand';
+        if (ctx) {
+          if (type === 'Like') pushEvent(ctx.site, { type: 'like', title: 'Nieuwe waardering', body: `${who} waardeerde "${ctx.title}"`, url: ctx.url });
+          else pushEvent(ctx.site, { type: 'boost', title: 'Geboost', body: `${who} boostte "${ctx.title}"`, url: ctx.url });
+        }
+      }
     } else if (type === 'Announce' && objUrl && actorUri && !isLocalActor) {
       // A boost FROM an account we follow, of a REMOTE post → show it in the News feed.
       // We only STORE it for display; we NEVER auto-Announce it onward (anti-feedback-loop:
