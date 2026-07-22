@@ -46,6 +46,8 @@ import adminUpdatesRoutes from './routes/admin-updates.js';
 import adminPatreonRoutes from './routes/admin-patreon.js';
 import adminStatsRoutes from './routes/admin-stats.js';
 import adminPaidRoutes from './routes/admin-paid.js';
+import adminPushRoutes from './routes/admin-push.js';
+import pushRoutes from './routes/push.js';
 import adminMediaRoutes from './routes/admin-media.js';
 import circleRoutes from './routes/circle.js';
 import epkRoutes from './routes/epk.js';
@@ -380,6 +382,7 @@ app.use('/admin/updates', adminUpdatesRoutes);
 app.use('/admin/patreon', adminPatreonRoutes);
 app.use('/admin/stats', adminStatsRoutes);
 app.use('/admin/paid', adminPaidRoutes);
+app.use('/admin/push', adminPushRoutes);
 app.use('/admin/newsletter', adminNewsletterRoutes);
 app.use('/admin/shows', adminShowsRoutes);
 app.use('/admin/epk', adminEpkRoutes);
@@ -401,6 +404,7 @@ app.use('/', showsRoutes); // /shows agenda + notify-me (premium)
 app.use('/', changelogRoutes); // /changelog publieke release-/wijzigingen-pagina
 app.use('/', langRoutes); // /lang/:code — interface-taal kiezen (vóór de catch-all)
 app.use('/paid', paidRoutes);   // paid-posts patron/passkey flow (before the /:slug catch-all)
+app.use('/push', pushRoutes);   // web-push subscribe/test (before the /:slug catch-all)
 app.use('/', postsRoutes);
 
 app.get('/manifest.webmanifest', (req, res) => {
@@ -477,7 +481,7 @@ app.get('/sw.js', (req, res) => {
   res.set('Content-Type', 'application/javascript');
   res.set('Cache-Control', 'no-cache');
   res.send(`
-const CACHE_VERSION = 'pcms-v18-' + new Date().toISOString().split('T')[0];
+const CACHE_VERSION = 'pcms-v19-' + new Date().toISOString().split('T')[0];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE_VERSION).then(c => c.addAll(['/'])));
   self.skipWaiting();
@@ -520,6 +524,30 @@ self.addEventListener('fetch', e => {
       return resp;
     }).catch(() => caches.match('/').then(r => r || Response.error()))
   );
+});
+// Web push (docs/webpush-design.md): payload is JSON {type,title,body,url},
+// encrypted end-to-end to this browser (RFC 8291). Show it; click opens url.
+self.addEventListener('push', e => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (err) { /* non-JSON push */ }
+  const title = d.title || 'Klonkt';
+  e.waitUntil(self.registration.showNotification(title, {
+    body: d.body || '',
+    icon: '/favicon.svg',
+    badge: '/favicon.svg',
+    tag: d.type ? ('klonkt-' + d.type) : undefined,   // collapse same-type bursts
+    data: { url: d.url || '/' },
+  }));
+});
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || '/';
+  e.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+    for (const c of list) {
+      if (new URL(c.url).origin === self.location.origin && 'focus' in c) { c.navigate(url); return c.focus(); }
+    }
+    return clients.openWindow(url);
+  }));
 });
   `);
 });
