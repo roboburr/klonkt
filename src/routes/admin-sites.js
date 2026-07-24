@@ -100,6 +100,7 @@ const RESERVED_SITE_SLUGS = new Set([
   'account', 'sites', 'comments', 'posts', 'media', 'audio',
   'forum', 'tag', 'user', 'users', 'artiesten', 'leden', 'feed.xml', 'atom.xml', 'sitemap.xml',
   'manifest.webmanifest', 'sw.js', 'favicon.ico', 'favicon.svg', 'assets',
+  'paid', 'push', 'guardian',
 ]);
 
 function siteEditableFields() {
