@@ -3161,7 +3161,10 @@ Guardianship.wireHandshake({
     }[ev.kind];
     if (!texts) return;
     const who = deriveHandle(ev.candidate || ev.ward || ev.guardian || '') || '?';
-    pushEvent(slug, { type: 'guardian', title: i18nT(L, texts[0]), body: i18nT(L, texts[1], { who }), url: '/guardian' });
+    // An offer is answered in the kid's own Berichten; a ward's accept lands
+    // in the guardian's PWA.
+    const url = ev.kind === 'offer_received' ? `${pushPrefix(slug)}/messages` : '/guardian';
+    pushEvent(slug, { type: 'guardian', title: i18nT(L, texts[0]), body: i18nT(L, texts[1], { who }), url });
   },
 });
 

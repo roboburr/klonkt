@@ -1,8 +1,27 @@
 <div class="msg-wrap">
   <%- include('../partials/fedi-tabs', { active: 'berichten' }) %>
   <h1 class="msg-title"><%= t('msg.title') %></h1>
-  <% if (typeof success !== 'undefined' && success) { %><div class="alert alert-success"><%= success %></div><% } %>
-  <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
+  <% if (typeof success !== 'undefined' && success) { %><div class="alert alert-success"><%= success === 'guardian_accepted' ? t('msg.guard_accepted') : (success === 'guardian_rejected' ? t('msg.guard_rejected') : success) %></div><% } %>
+  <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error === 'guardianship' ? t('msg.guard_failed') : error %></div><% } %>
+
+  <%# FEP-633c: a pending guardianship offer is a special message: the kid
+      answers here (accept/reject travels the same C2S pipeline as the apps). %>
+  <% if (typeof guardianOffers !== 'undefined' && guardianOffers.length) { %>
+    <% guardianOffers.forEach(function(o){ %>
+    <div class="alert" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-left:3px solid #ff6b35;">
+      <span style="font-size:1.4em;">&#128735;</span>
+      <div style="flex:1;min-width:200px;">
+        <strong><%= o.other_handle || o.other_uri %></strong><br>
+        <span><%= t('msg.guard_offer') %></span>
+      </div>
+      <form method="post" action="<%= (typeof moreBase !== 'undefined' ? moreBase : '') %>/messages/guardianship" style="display:flex;gap:8px;">
+        <input type="hidden" name="guardian" value="<%= o.other_uri %>">
+        <button class="btn" type="submit" name="answer" value="accept"><%= t('msg.guard_accept') %></button>
+        <button class="btn" type="submit" name="answer" value="reject" style="opacity:.7;"><%= t('msg.guard_reject') %></button>
+      </form>
+    </div>
+    <% }); %>
+  <% } %>
 
   <div class="msg-filters" role="tablist" aria-label="<%= t('msg.title') %>">
     <button type="button" class="msg-chip is-on" data-show="all"><%= t('msg.filter_all') %></button>

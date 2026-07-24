@@ -19,6 +19,7 @@ import { audioUrl } from '../services/AudioStreamService.js';
 import { toWebp } from '../services/ImageWebpService.js';
 import VideoCoverService from '../services/VideoCoverService.js';
 import ActivityPubService from '../services/ActivityPubService.js';
+import * as Guardianship from '../services/guardianship/index.js';
 import { premiumUnlocked } from '../services/PatreonService.js';
 import { defaultMinCents as paidDefaultMinCents, patreonUrl as paidPatronUrl } from '../services/PaidPatreonService.js';
 import { verifyBlob } from '../services/CryptoBox.js';
@@ -929,11 +930,40 @@ router.get('/messages', requireSiteManager, (req, res) => {
   if (append) {
     return renderPage(req, res, 'partials/messages-append', { items, seen: seenAt, hasMore, nextOffset: offset + FEED_PAGE, moreBase });
   }
+  // FEP-633c: pending guardianship offers TO this account (ward side) show
+  // as a special message with an accept button (Robins besluit: the kid
+  // answers in their own Klonkt; safety is handled out-of-band by the
+  // guardians themselves).
+  const guardianOffers = site
+    ? Guardianship.listOffers(site.slug).filter((o) => o.role === 'ward')
+    : [];
   renderPage(req, res, 'pages/messages', {
     pageTitleKey: 'msg.title', bodyClass: 'on-special', items, seenAt,
-    hasMore, nextOffset: offset + FEED_PAGE, moreBase,
+    hasMore, nextOffset: offset + FEED_PAGE, moreBase, guardianOffers,
     success: req.query.success || null, error: req.query.error || null,
   });
+});
+
+// The kid answers a guardianship offer from Berichten: the same C2S
+// Accept/Reject pipeline the Shaer apps use (one path, one behavior).
+router.post('/messages/guardianship', requireSiteManager, async (req, res) => {
+  const site = res.locals.site;
+  const back = `${res.locals.siteUrlBase || ''}/messages`;
+  const answer = req.body.answer === 'accept' ? 'Accept' : (req.body.answer === 'reject' ? 'Reject' : null);
+  const guardian = String(req.body.guardian || '').trim();
+  if (!site || !answer || !guardian) return res.redirect(back + '?error=guardianship');
+  const row = Guardianship.getRelation(site.slug, 'ward', guardian);
+  if (!row || row.status !== 'offered') return res.redirect(back + '?error=guardianship');
+  try {
+    const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+    const me = ActivityPubService.actorId(base, site.slug);
+    const r = await Guardianship.handleGuardianshipOutbox(site, {
+      type: answer,
+      object: row.offer_id || { type: 'Relationship', subject: me, relationship: 'shaer:Guardian', object: guardian },
+    });
+    if (r && r.status < 400) return res.redirect(back + '?success=' + (answer === 'Accept' ? 'guardian_accepted' : 'guardian_rejected'));
+  } catch { /* fall through */ }
+  res.redirect(back + '?error=guardianship');
 });
 router.get('/fediverse', requireSiteManager, (req, res) => res.redirect(`${res.locals.siteUrlBase || ''}/messages`));
 
