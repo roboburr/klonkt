@@ -9,6 +9,9 @@
  * Views carry no inline scripts (CSP): logic lives in /assets/js/guardian.js.
  */
 import express from 'express';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import db from '../config/database.js';
 import { requireAuth } from '../middleware/auth.js';
 import AP from '../services/ActivityPubService.js';
@@ -16,6 +19,17 @@ import * as Guardianship from '../services/guardianship/index.js';
 import { t as i18nT, resolveLang } from '../services/i18n.js';
 
 const router = express.Router();
+
+// Cache-bust the PWA assets: /assets is served with a 1-year cache, so without
+// a per-build version the browser keeps running an old guardian.js/css after a
+// deploy (that was exactly the "no feedback / not arriving" bug). The version
+// is the file's mtime at process start; a redeploy restarts us and bumps it.
+const __dir = path.dirname(fileURLToPath(import.meta.url));
+function assetVersion(rel) {
+  try { return Math.floor(fs.statSync(path.join(__dir, '..', 'assets', rel)).mtimeMs).toString(36); }
+  catch { return '0'; }
+}
+const ASSET_V = { js: assetVersion('js/guardian.js'), css: assetVersion('css/guardian.css') };
 
 /** The acting site: ?site=slug when owned, else the user's first site. */
 function siteForUser(req) {
@@ -63,6 +77,7 @@ router.get('/', requireAuth, (req, res) => {
     state: dashboardState(site, L),
     sites,
     lang: L,
+    assetV: ASSET_V,
     t: (k, v) => i18nT(L, k, v),
     cspNonce: res.locals.cspNonce,
   });
