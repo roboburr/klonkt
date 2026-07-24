@@ -9,7 +9,6 @@
  * Views carry no inline scripts (CSP): logic lives in /assets/js/guardian.js.
  */
 import express from 'express';
-import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import db from '../config/database.js';
@@ -19,17 +18,7 @@ import * as Guardianship from '../services/guardianship/index.js';
 import { t as i18nT, resolveLang } from '../services/i18n.js';
 
 const router = express.Router();
-
-// Cache-bust the PWA assets: /assets is served with a 1-year cache, so without
-// a per-build version the browser keeps running an old guardian.js/css after a
-// deploy (that was exactly the "no feedback / not arriving" bug). The version
-// is the file's mtime at process start; a redeploy restarts us and bumps it.
 const __dir = path.dirname(fileURLToPath(import.meta.url));
-function assetVersion(rel) {
-  try { return Math.floor(fs.statSync(path.join(__dir, '..', 'assets', rel)).mtimeMs).toString(36); }
-  catch { return '0'; }
-}
-const ASSET_V = { js: assetVersion('js/guardian.js'), css: assetVersion('css/guardian.css') };
 
 /** The acting site: ?site=slug when owned, else the user's first site. */
 function siteForUser(req) {
@@ -77,7 +66,6 @@ router.get('/', requireAuth, (req, res) => {
     state: dashboardState(site, L),
     sites,
     lang: L,
-    assetV: ASSET_V,
     t: (k, v) => i18nT(L, k, v),
     cspNonce: res.locals.cspNonce,
   });
@@ -124,6 +112,20 @@ router.post('/offer', requireAuth, express.json({ limit: '4kb' }), async (req, r
   if (!r || r.status >= 400) return res.status(r?.status || 500).json({ error: r?.error || 'answer_failed' });
   res.json({ ok: true, committed: !!r.committed, readyToCommit: !!r.readyToCommit });
 });
+
+// ── PWA assets served no-cache, so an update is never masked by the 1-year
+//    /assets cache or a stuck install (that was the whole "nothing works after
+//    a deploy" bug). Small files; the browser revalidates and gets a 304 when
+//    unchanged, the fresh file when changed.
+function pwaAsset(rel, type) {
+  return (req, res) => {
+    res.set('Cache-Control', 'no-cache');
+    res.type(type);
+    res.sendFile(path.join(__dir, '..', 'assets', rel));
+  };
+}
+router.get('/app.js', pwaAsset('js/guardian.js', 'application/javascript'));
+router.get('/app.css', pwaAsset('css/guardian.css', 'text/css'));
 
 // ── Manage: release a committed ward (local Undo; federation is Fase 4). ──
 router.post('/wards/remove', requireAuth, express.json({ limit: '4kb' }), (req, res) => {

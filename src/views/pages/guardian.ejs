@@ -7,7 +7,7 @@
   <link rel="manifest" href="/guardian/manifest.webmanifest">
   <link rel="icon" href="/guardian/icon.svg" type="image/svg+xml">
   <meta name="theme-color" content="#ff6b35">
-  <link rel="stylesheet" href="/assets/css/guardian.css?v=<%= assetV.css %>">
+  <link rel="stylesheet" href="/guardian/app.css">
 </head>
 <body>
   <header class="g-head">
@@ -76,6 +76,6 @@
   </main>
 
   <script type="application/json" id="guardian-state"><%- JSON.stringify(state) %></script>
-  <script src="/assets/js/guardian.js?v=<%= assetV.js %>" defer></script>
+  <script src="/guardian/app.js" defer></script>
 </body>
 </html>

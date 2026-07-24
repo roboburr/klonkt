@@ -938,9 +938,19 @@ router.get('/messages', requireSiteManager, (req, res) => {
   const guardianOffers = (site
     ? Guardianship.offersCollection(`${gMe}/queues/offers`, site.slug, gMe).orderedItems
     : []).filter((o) => o['shaer:ward'] === gMe && o['shaer:needsMyAccept']);
+  // FEP-633c §2: who guards this account (committed). Shown so a ward can always
+  // see its guardians, not just pending offers. Derive a display @handle when the
+  // stored one is missing or is the escalation (inbox) handle rather than a @handle.
+  const guardianHandle = (uri, cached) => {
+    if (cached && cached.charAt(0) === '@') return cached;
+    try { const u = new URL(uri); return `@${u.pathname.split('/').filter(Boolean).pop()}@${u.host}`; }
+    catch { return uri; }
+  };
+  const myGuardians = (site ? Guardianship.listGuardians(site.slug) : [])
+    .map((g) => ({ uri: g.other_uri, handle: guardianHandle(g.other_uri, g.other_handle) }));
   renderPage(req, res, 'pages/messages', {
     pageTitleKey: 'msg.title', bodyClass: 'on-special', items, seenAt,
-    hasMore, nextOffset: offset + FEED_PAGE, moreBase, guardianOffers,
+    hasMore, nextOffset: offset + FEED_PAGE, moreBase, guardianOffers, myGuardians,
     success: req.query.success || null, error: req.query.error || null,
   });
 });

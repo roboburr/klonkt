@@ -3,6 +3,20 @@
    All user-facing text comes from state.strings (server i18n). */
 (function () {
   'use strict';
+  // A crash here used to fail silently (buttons just do nothing). Surface it on
+  // the page AND the console so the cause is visible instead of "everything hangs".
+  function fatal(msg) {
+    try {
+      var b = document.getElementById('g-fatal') || document.createElement('div');
+      b.id = 'g-fatal'; b.className = 'g-msg err';
+      b.style.cssText = 'display:block;margin:12px 0;padding:10px 14px';
+      b.textContent = 'Guardian: ' + msg;
+      var root = document.querySelector('main') || document.body;
+      if (!b.parentNode && root) root.insertBefore(b, root.firstChild);
+    } catch (e) { /* last resort */ }
+    try { console.error('[guardian]', msg); } catch (e) { /* no console */ }
+  }
+  try {
   var S = JSON.parse(document.getElementById('guardian-state').textContent || '{}');
   var T = S.strings || {};
 
@@ -13,7 +27,7 @@
     return n;
   }
   function handleOf(uri, cached) {
-    if (cached) return cached;
+    if (cached && cached.charAt(0) === '@') return cached;   // trust only real @handles
     try { var u = new URL(uri); return '@' + u.pathname.split('/').filter(Boolean).pop() + '@' + u.host; }
     catch (e) { return uri; }
   }
@@ -217,4 +231,7 @@
 
   renderAll(); pushState();
   setInterval(refresh, 45000);   // live-ish while open
+  } catch (e) {
+    fatal((e && e.message) || String(e));
+  }
 })();

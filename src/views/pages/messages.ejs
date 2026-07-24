@@ -23,6 +23,17 @@
     <% }); %>
   <% } %>
 
+  <%# FEP-633c §2: the ward always sees who guards it (committed relations). %>
+  <% if (typeof myGuardians !== 'undefined' && myGuardians.length) { %>
+    <div class="alert" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-left:3px solid #35a2ff;">
+      <span style="font-size:1.4em;">&#128737;</span>
+      <div style="flex:1;min-width:200px;">
+        <strong><%= t('msg.guardians_label') %></strong><br>
+        <span><%= myGuardians.map(function(g){ return g.handle; }).join(', ') %></span>
+      </div>
+    </div>
+  <% } %>
+
   <div class="msg-filters" role="tablist" aria-label="<%= t('msg.title') %>">
     <button type="button" class="msg-chip is-on" data-show="all"><%= t('msg.filter_all') %></button>
     <button type="button" class="msg-chip" data-show="msgs"><%= t('msg.filter_msgs') %></button>

@@ -66,6 +66,9 @@ test('first guardian: a free ward commits on its own single accept', async () =>
   assert.equal(done.committed, true);
   assert.deepEqual(G.listGuardians('kid').map((g) => g.other_uri), [ME]);
   assert.deepEqual(G.listWards('parent').map((w) => w.other_uri), [KID]);
+  // other_handle is the display @handle (not the escalation inbox handle).
+  assert.equal(G.listGuardians('kid')[0].other_handle, '@parent@test.example');
+  assert.equal(G.listWards('parent')[0].other_handle, '@kid@test.example');
 
   // The ward actor now names its guardian; parent reads as guardian (§2).
   assert.deepEqual(AP.buildActor('https://test.example', kid)['shaer:guardians'], [ME]);

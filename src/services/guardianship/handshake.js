@@ -63,12 +63,14 @@ async function fanout(site, recipients, activity) {
 }
 
 /** Apply the local side of a commit: the ward writes its guardian, the
- *  candidate writes its ward. Each instance writes only what it hosts. */
-function applyCommitLocally(offer, handle) {
+ *  candidate writes its ward. Each instance writes only what it hosts.
+ *  other_handle is the human @handle for display (from the offer); the FEP
+ *  escalation handle (candidate inbox) lives on the offer row, not here. */
+function applyCommitLocally(offer) {
   const wardSlug = deps.localSlug(offer.ward_uri);
   const candSlug = deps.localSlug(offer.candidate_uri);
-  if (wardSlug) relations.commitGuardianForWard(wardSlug, offer.candidate_uri, { handle, offerId: offer.offer_id });
-  if (candSlug) relations.commitWardForGuardian(candSlug, offer.ward_uri, { handle, offerId: offer.offer_id });
+  if (wardSlug) relations.commitGuardianForWard(wardSlug, offer.candidate_uri, { handle: offer.candidate_handle, offerId: offer.offer_id });
+  if (candSlug) relations.commitWardForGuardian(candSlug, offer.ward_uri, { handle: offer.ward_handle, offerId: offer.offer_id });
 }
 
 /** Commit this local copy of the offer when the tally is complete (ward +
@@ -79,7 +81,7 @@ function maybeCommit(slug, offerId) {
   const offer = offers.getOffer(slug, offerId);
   if (!offer || !offers.readyToCommit(offer)) return null;
   const done = offers.commit(slug, offerId, `${offer.candidate_uri}/inbox`);
-  if (done) { applyCommitLocally(done, done.handle); notify(slug, { kind: 'committed', ward: done.ward_uri, guardian: done.candidate_uri }); }
+  if (done) { applyCommitLocally(done); notify(slug, { kind: 'committed', ward: done.ward_uri, guardian: done.candidate_uri }); }
   return done;
 }
 
