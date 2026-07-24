@@ -26,7 +26,7 @@ import { audioEnabled as audioFeatureEnabled } from '../config/features.js';
 // strict script-src (nonce + 'strict-dynamic') allows them — including scripts in htmx
 // partials. HTML-escaped "&lt;script" in rendered content (e.g. sanitized post bodies) won't
 // match, so this only touches real tags.
-function injectCspNonce(html, nonce) {
+export function injectCspNonce(html, nonce) {
   if (!html || !nonce) return html;
   return String(html).replace(/<script(?![^>]*\snonce=)/gi, () => `<script nonce="${nonce}"`);
 }

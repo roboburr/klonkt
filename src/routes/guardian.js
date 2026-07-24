@@ -16,6 +16,7 @@ import { requireAuth } from '../middleware/auth.js';
 import AP from '../services/ActivityPubService.js';
 import * as Guardianship from '../services/guardianship/index.js';
 import { t as i18nT, resolveLang } from '../services/i18n.js';
+import { injectCspNonce } from '../middleware/render.js';
 
 const router = express.Router();
 const __dir = path.dirname(fileURLToPath(import.meta.url));
@@ -62,12 +63,18 @@ router.get('/', requireAuth, (req, res) => {
   const L = resolveLang(req);
   if (!site) return res.status(404).send('No site for this account.');
   const sites = db.prepare('SELECT slug, title FROM sites WHERE owner_id = ? ORDER BY id').all(req.session.user.id);
+  // This standalone PWA page is rendered directly (not through renderPage), so
+  // the CSP nonce must be injected here — otherwise strict-dynamic blocks
+  // guardian.js and the whole dashboard is dead (buttons do nothing).
   res.render('pages/guardian', {
     state: dashboardState(site, L),
     sites,
     lang: L,
     t: (k, v) => i18nT(L, k, v),
     cspNonce: res.locals.cspNonce,
+  }, (err, html) => {
+    if (err) { console.error('[guardian] render error', err); return res.status(500).send('Internal Server Error'); }
+    res.send(injectCspNonce(html, res.locals.cspNonce));
   });
 });
 
