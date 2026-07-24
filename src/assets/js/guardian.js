@@ -1,9 +1,10 @@
-/* Guardian PWA client (FEP-633c): renders the dashboard state, adopts wards,
-   and manages the guardian push channel (web-push slice reused: alert types
-   'help' + 'guardian'). No framework, no inline scripts (CSP). */
+/* Guardian PWA client (FEP-633c): renders the dashboard, adopts wards, and
+   manages the guardian push channel. No framework, no inline scripts (CSP).
+   All user-facing text comes from state.strings (server i18n). */
 (function () {
   'use strict';
-  var state = JSON.parse(document.getElementById('guardian-state').textContent || '{}');
+  var S = JSON.parse(document.getElementById('guardian-state').textContent || '{}');
+  var T = S.strings || {};
 
   function el(tag, cls, text) {
     var n = document.createElement(tag);
@@ -16,85 +17,119 @@
     try { var u = new URL(uri); return '@' + u.pathname.split('/').filter(Boolean).pop() + '@' + u.host; }
     catch (e) { return uri; }
   }
-  function when(s) {
-    return String(s || '').slice(0, 16).replace('T', ' ');
-  }
+  function when(s) { return String(s || '').slice(0, 16).replace('T', ' '); }
+  function show(id, on) { document.getElementById(id).hidden = !on; }
 
-  // ── Message centre: help requests ──────────────────────────────────────
+  // ── 1. Help requests ───────────────────────────────────────────────────
   function renderHelp() {
     var list = document.getElementById('help-list');
     list.textContent = '';
-    (state.help || []).forEach(function (h) {
+    var help = S.help || [];
+    help.forEach(function (h) {
       var card = el('div', 'g-card help');
       var row = el('div', 'row');
-      var who = el('span', 'who', h.actor_name || handleOf(h.actor_uri, h.actor_handle));
-      var at = el('span', 'when', when(h.published || h.created_at));
-      row.appendChild(who); row.appendChild(at);
+      row.appendChild(el('span', 'who grow', h.actor_name || handleOf(h.actor_uri, h.actor_handle)));
+      row.appendChild(el('span', 'when', when(h.published || h.created_at)));
       card.appendChild(row);
       var body = el('div', 'body');
-      body.innerHTML = h.content || '';           // sanitized server-side on ingest
+      body.innerHTML = h.content || '';          // sanitized server-side on ingest
       card.appendChild(body);
       if (h.note_url) {
-        var link = el('a', 'when', 'open');
-        link.href = h.note_url; link.target = '_blank'; link.rel = 'noopener';
-        card.appendChild(link);
+        var a = el('a', 'g-link', T.open || 'open');
+        a.href = h.note_url; a.target = '_blank'; a.rel = 'noopener';
+        card.appendChild(a);
       }
       list.appendChild(card);
     });
-    document.getElementById('help-empty').hidden = (state.help || []).length > 0;
+    var badge = document.getElementById('help-count');
+    badge.textContent = help.length; badge.hidden = help.length === 0;
+    show('help-empty', help.length === 0);
   }
 
-  // ── Wards + pending offers ─────────────────────────────────────────────
-  function wardCard(w, pending) {
-    var card = el('div', 'g-card');
-    var row = el('div', 'row');
-    var who = el('span', 'who grow', handleOf(w.other_uri, w.other_handle));
-    row.appendChild(who);
-    if (pending) row.appendChild(el('span', 'pend', state.strings.pending));
-    var btn = el('button', 'quiet', pending ? state.strings.retract : state.strings.release);
-    btn.addEventListener('click', function () {
-      fetch('/guardian/wards/remove', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uri: w.other_uri, site: state.site }),
-      }).then(refresh);
+  // ── 3. Pending offers I sent ───────────────────────────────────────────
+  function renderPending() {
+    var list = document.getElementById('pending-list');
+    list.textContent = '';
+    var pend = S.pendingOffers || [];
+    pend.forEach(function (w) {
+      var card = el('div', 'g-card');
+      var row = el('div', 'row');
+      row.appendChild(el('span', 'who grow', handleOf(w.other_uri, w.other_handle)));
+      row.appendChild(el('span', 'tag wait', T.pending));
+      var btn = el('button', 'quiet small', T.retract);
+      btn.addEventListener('click', function () { remove(w.other_uri, btn); });
+      row.appendChild(btn);
+      card.appendChild(row);
+      list.appendChild(card);
     });
-    row.appendChild(btn);
-    card.appendChild(row);
-    return card;
+    show('pending-section', pend.length > 0);
   }
+
+  // ── 4. Accepted wards ──────────────────────────────────────────────────
   function renderWards() {
-    var wl = document.getElementById('wards-list');
-    var ol = document.getElementById('offers-list');
-    wl.textContent = ''; ol.textContent = '';
-    (state.wards || []).forEach(function (w) { wl.appendChild(wardCard(w, false)); });
-    (state.pendingOffers || []).forEach(function (w) { ol.appendChild(wardCard(w, true)); });
-    document.getElementById('wards-empty').hidden =
-      (state.wards || []).length + (state.pendingOffers || []).length > 0;
+    var list = document.getElementById('wards-list');
+    list.textContent = '';
+    var wards = S.wards || [];
+    wards.forEach(function (w) {
+      var card = el('div', 'g-card');
+      var row = el('div', 'row');
+      row.appendChild(el('span', 'who grow', handleOf(w.other_uri, w.other_handle)));
+      row.appendChild(el('span', 'tag ok', T.active));
+      var btn = el('button', 'quiet small', T.release);
+      btn.addEventListener('click', function () { remove(w.other_uri, btn); });
+      row.appendChild(btn);
+      card.appendChild(row);
+      list.appendChild(card);
+    });
+    show('wards-empty', wards.length === 0);
   }
+
+  function remove(uri, btn) {
+    btn.disabled = true;
+    fetch('/guardian/wards/remove', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uri: uri, site: S.site }),
+    }).then(refresh);
+  }
+
+  function renderAll() { renderHelp(); renderPending(); renderWards(); }
 
   function refresh() {
-    fetch('/guardian/api/state?site=' + encodeURIComponent(state.site))
+    return fetch('/guardian/api/state?site=' + encodeURIComponent(S.site))
       .then(function (r) { return r.json(); })
-      .then(function (s) { if (s && !s.error) { state = s; renderHelp(); renderWards(); } });
+      .then(function (s) { if (s && !s.error) { S = s; T = s.strings || T; renderAll(); } });
   }
 
-  // ── Adopt ──────────────────────────────────────────────────────────────
-  document.getElementById('adopt-form').addEventListener('submit', function (ev) {
+  // ── 2. Adopt ───────────────────────────────────────────────────────────
+  var form = document.getElementById('adopt-form');
+  var input = document.getElementById('adopt-handle');
+  var adoptBtn = document.getElementById('adopt-btn');
+  var msg = document.getElementById('adopt-msg');
+  function setMsg(text, isErr) { msg.hidden = false; msg.className = 'g-msg' + (isErr ? ' err' : ''); msg.textContent = text; }
+
+  form.addEventListener('submit', function (ev) {
     ev.preventDefault();
-    var input = document.getElementById('adopt-handle');
-    var msg = document.getElementById('adopt-msg');
     var handle = input.value.trim();
     if (!handle) return;
-    msg.hidden = false; msg.classList.remove('err'); msg.textContent = '…';
+    adoptBtn.disabled = true;
+    setMsg(T.sending || '…', false);
     fetch('/guardian/adopt', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ handle: handle, site: state.site }),
+      body: JSON.stringify({ handle: handle, site: S.site }),
     }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (res) {
-        if (res.ok) { msg.textContent = state.strings.sent; input.value = ''; refresh(); }
-        else { msg.classList.add('err'); msg.textContent = state.strings.failed + ': ' + (res.j.error || '?'); }
+        adoptBtn.disabled = false;
+        if (res.ok) {
+          input.value = '';
+          // Always refresh: the offer is recorded even if delivery is still
+          // in flight. Show it under "Verzonden aanvragen".
+          setMsg(res.j.delivered === false ? T.sent_retry : T.sent, false);
+          refresh();
+        } else {
+          setMsg((res.j.error === 'not_found' ? T.not_found : T.failed) , true);
+        }
       })
-      .catch(function () { msg.classList.add('err'); msg.textContent = state.strings.network; });
+      .catch(function () { adoptBtn.disabled = false; setMsg(T.network, true); });
   });
 
   // ── Site picker ────────────────────────────────────────────────────────
@@ -103,7 +138,7 @@
     location.href = '/guardian?site=' + encodeURIComponent(picker.value);
   });
 
-  // ── Push: the guardian channel (help + guardian alerts) ────────────────
+  // ── 5. Push ────────────────────────────────────────────────────────────
   var toggle = document.getElementById('push-toggle');
   var pmsg = document.getElementById('push-msg');
   function pushState() {
@@ -114,6 +149,7 @@
       .then(function (sub) {
         toggle.textContent = sub ? toggle.dataset.onLabel : toggle.dataset.offLabel;
         toggle.dataset.subscribed = sub ? '1' : '';
+        toggle.classList.toggle('is-on', !!sub);
       });
   }
   function urlB64(base64) {
@@ -144,19 +180,17 @@
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             subscription: sub.toJSON(),
-            // The guardian channel: calls for help + adoption traffic.
             alerts: { help: 1, guardian: 1, dm: 1, follow: 0, reply: 0, like: 0, boost: 0 },
             uaLabel: 'Guardian PWA',
           }),
         });
       }).then(pushState).catch(function (e) {
-        pmsg.hidden = false; pmsg.classList.add('err');
-        pmsg.textContent = 'Push niet beschikbaar: ' + e.message;
+        pmsg.hidden = false; pmsg.className = 'g-msg err';
+        pmsg.textContent = (T.push_unavailable || 'Push unavailable') + ': ' + e.message;
       });
     });
   });
 
-  renderHelp(); renderWards(); pushState();
-  // Live-ish: poll the state every 45s while the PWA is open.
-  setInterval(refresh, 45000);
+  renderAll(); pushState();
+  setInterval(refresh, 45000);   // live-ish while open
 })();

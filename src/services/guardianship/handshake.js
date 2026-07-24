@@ -55,9 +55,11 @@ export async function handleOutbox(site, activity) {
       object: { type: 'Relationship', subject: rel.ward, relationship: GUARDIAN_RELATIONSHIP_COMPACT, object: me },
     };
     relations.recordOffer(site.slug, 'guardian', rel.ward, { handle: deriveHandle(rel.ward), offerId });
-    const delivered = await deliverTo(site, rel.ward, offer).catch(() => false);
+    // The offer is now recorded (the guardian sees it as pending); delivery is
+    // async + retried, so a slow ward server never fails the whole action.
+    const res = await deliverTo(site, rel.ward, offer).catch(() => ({ delivered: false }));
     notify(site.slug, { kind: 'offer_sent', ward: rel.ward });
-    return { status: delivered ? 202 : 502, id: offerId, url: offerId };
+    return { status: 202, id: offerId, url: offerId, delivered: res && res.delivered !== false };
   }
 
   // Accept / Reject: the local ward answers a pending offer.
@@ -81,9 +83,10 @@ export async function handleOutbox(site, activity) {
   } else {
     relations.removeRelation(site.slug, 'ward', row.other_uri);
   }
-  const delivered = await deliverTo(site, row.other_uri, answer).catch(() => false);
+  // The answer is committed locally; delivery is async + retried.
+  const res = await deliverTo(site, row.other_uri, answer).catch(() => ({ delivered: false }));
   notify(site.slug, { kind: type === 'Accept' ? 'offer_accepted' : 'offer_rejected', guardian: row.other_uri });
-  return { status: delivered ? 202 : 502, id: answer.id, url: answer.id };
+  return { status: 202, id: answer.id, url: answer.id, delivered: res && res.delivered !== false };
 }
 
 // ── S2S: a remote party acts (arrives in the local inbox) ────────────────

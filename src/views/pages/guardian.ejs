@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Klonkt Guardian</title>
+  <title><%= t('guardian.app_name') %></title>
   <link rel="manifest" href="/guardian/manifest.webmanifest">
   <link rel="icon" href="/guardian/icon.svg" type="image/svg+xml">
   <meta name="theme-color" content="#ff6b35">
@@ -12,43 +12,64 @@
 <body>
   <header class="g-head">
     <span class="g-buoy">🛟</span>
-    <h1>Guardian</h1>
+    <div class="g-head-txt">
+      <h1><%= t('guardian.app_name') %></h1>
+      <p class="g-sub"><%= t('guardian.tagline') %></p>
+    </div>
     <% if (sites.length > 1) { %>
-    <select id="site-picker" aria-label="Account">
+    <select id="site-picker" aria-label="<%= t('guardian.acting_as') %>">
       <% for (const s of sites) { %>
       <option value="<%= s.slug %>" <%= s.slug === state.site ? 'selected' : '' %>>@<%= s.slug %></option>
       <% } %>
     </select>
     <% } else { %>
-    <span class="g-me">@<%= state.site %></span>
+    <span class="g-me" title="<%= t('guardian.acting_as') %>">@<%= state.site %></span>
     <% } %>
   </header>
 
   <main>
-    <!-- Berichtencentrum: hulpverzoeken eerst, dat is waar dit voor bestaat. -->
+    <!-- 1. Berichtencentrum: hulpverzoeken. Dat is waar dit voor bestaat. -->
     <section id="help-section">
-      <h2><%= t('guardian.help_title') %></h2>
+      <div class="g-sec-head">
+        <h2><%= t('guardian.help_title') %></h2>
+        <span id="help-count" class="g-badge" hidden></span>
+      </div>
+      <p class="g-sec-sub"><%= t('guardian.help_sub') %></p>
       <div id="help-list" class="g-list"></div>
-      <p id="help-empty" class="g-empty" hidden><%= t('guardian.help_empty') %></p>
+      <p id="help-empty" class="g-empty"><%= t('guardian.help_empty') %></p>
     </section>
 
-    <section id="wards-section">
-      <h2><%= t('guardian.wards_title') %></h2>
+    <!-- 2. Nieuwe ward adopteren. -->
+    <section id="adopt-section">
+      <div class="g-sec-head"><h2><%= t('guardian.adopt_title') %></h2></div>
+      <p class="g-sec-sub"><%= t('guardian.adopt_sub') %></p>
       <form id="adopt-form" autocomplete="off">
-        <input id="adopt-handle" type="text" inputmode="email"
+        <input id="adopt-handle" type="text" inputmode="email" autocomplete="off"
                placeholder="@kind@server.eu" aria-label="<%= t('guardian.adopt_label') %>">
-        <button type="submit"><%= t('guardian.adopt_btn') %></button>
+        <button type="submit" id="adopt-btn"><%= t('guardian.adopt_btn') %></button>
       </form>
       <p id="adopt-msg" class="g-msg" hidden></p>
-      <div id="wards-list" class="g-list"></div>
-      <div id="offers-list" class="g-list"></div>
-      <p id="wards-empty" class="g-empty" hidden><%= t('guardian.wards_empty') %></p>
     </section>
 
+    <!-- 3. Verzonden aanvragen (nog niet beantwoord). -->
+    <section id="pending-section" hidden>
+      <div class="g-sec-head"><h2><%= t('guardian.pending_title') %></h2></div>
+      <p class="g-sec-sub"><%= t('guardian.pending_sub') %></p>
+      <div id="pending-list" class="g-list"></div>
+    </section>
+
+    <!-- 4. Mijn wards (geaccepteerd). -->
+    <section id="wards-section">
+      <div class="g-sec-head"><h2><%= t('guardian.wards_title') %></h2></div>
+      <div id="wards-list" class="g-list"></div>
+      <p id="wards-empty" class="g-empty"><%= t('guardian.wards_empty') %></p>
+    </section>
+
+    <!-- 5. Meldingen. -->
     <section id="push-section">
-      <h2><%= t('guardian.push_title') %></h2>
-      <p class="g-sub"><%= t('guardian.push_sub') %></p>
-      <button id="push-toggle" data-on-label="<%= t('guardian.push_off') %>"
+      <div class="g-sec-head"><h2><%= t('guardian.push_title') %></h2></div>
+      <p class="g-sec-sub"><%= t('guardian.push_sub') %></p>
+      <button id="push-toggle" class="quiet" data-on-label="<%= t('guardian.push_off') %>"
               data-off-label="<%= t('guardian.push_on') %>"><%= t('guardian.push_on') %></button>
       <p id="push-msg" class="g-msg" hidden></p>
     </section>

@@ -3128,20 +3128,27 @@ function selfActorId(slug) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   return actorId(base, slug);
 }
-// Deliver one activity to one actor's inbox, signed; queued on failure.
+// Deliver one activity to one actor's inbox, signed; queued + retried on any
+// hiccup so a slow or briefly-down ward server never loses the offer. Returns
+// { delivered, inbox }: delivered=false means the account could not be
+// resolved at all (a bad handle) — the offer stays recorded regardless.
 async function deliverToActor(site, actorUri, activity) {
-  const a = await fetchActor(actorUri).catch(() => null);
-  const inbox = a && (a.inbox || (a.endpoints && a.endpoints.sharedInbox));
-  if (!inbox) return false;
   const me = selfActorId(site.slug);
   const keys = getOrCreateKeys(site.slug);
   const payload = { '@context': AP_CONTEXT, ...activity };
+  const a = await fetchActor(actorUri).catch(() => null);
+  const inbox = a && (a.inbox || (a.endpoints && a.endpoints.sharedInbox));
+  if (!inbox) {
+    console.warn('[AP] guardianship: could not resolve an inbox for', actorUri, '(offer recorded, not sent)');
+    return { delivered: false, inbox: null };
+  }
   try {
     const st = await deliver(inbox, payload, `${me}#main-key`, keys.private_pem);
-    if (st >= 200 && st < 300) return true;
-  } catch { /* fall through to the queue */ }
+    if (st >= 200 && st < 300) { console.log('[AP] guardianship', activity.type, 'delivered →', inbox, st); return { delivered: true, inbox }; }
+    console.warn('[AP] guardianship', activity.type, 'got', st, 'from', inbox, '→ queued for retry');
+  } catch (e) { console.warn('[AP] guardianship', activity.type, 'to', inbox, 'failed:', e.message, '→ queued for retry'); }
   enqueueDelivery(site.slug, inbox, payload);
-  return true;   // queued: it will arrive
+  return { delivered: true, inbox };   // queued: the retry worker gets it there
 }
 Guardianship.wireDelivery({
   actorId, fetchActor, deriveHandle, escHtml, linkUrls, linkHashtags,

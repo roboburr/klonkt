@@ -30,7 +30,8 @@ function siteForUser(req) {
 
 /** Everything the dashboard shows, one shape for page and API. */
 function uiStrings(L) {
-  const keys = ['sent', 'failed', 'network', 'pending', 'retract', 'release'];
+  const keys = ['sent', 'sent_retry', 'sending', 'not_found', 'failed', 'network',
+    'pending', 'active', 'retract', 'release', 'open', 'push_unavailable'];
   return Object.fromEntries(keys.map((k) => [k, i18nT(L, `guardian.${k}`)]));
 }
 
@@ -79,15 +80,17 @@ router.post('/adopt', requireAuth, express.json({ limit: '4kb' }), async (req, r
   const handle = String(req.body?.handle || '').trim();
   if (!handle) return res.status(400).json({ error: 'empty_handle' });
   const wardUri = /^https?:\/\//i.test(handle) ? handle : await AP.webfingerResolve(handle).catch(() => null);
-  if (!wardUri) return res.status(404).json({ error: 'not_found' });
+  if (!wardUri) return res.status(404).json({ error: 'not_found' });   // the handle does not resolve to an account
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   const me = AP.actorId(base, site.slug);
   const r = await AP.ingestOutboxActivity(site, req.session.user, {
     type: 'Offer',
     object: { type: 'Relationship', subject: wardUri, relationship: 'shaer:Guardian', object: me },
   });
-  if (!r || r.status >= 400) return res.status(r?.status || 500).json({ error: r?.error || 'offer_failed' });
-  res.json({ ok: true, ward: wardUri });
+  // 403/400 = a real refusal (e.g. you are a ward yourself); anything else the
+  // offer is recorded and delivery is retried in the background.
+  if (!r || (r.status >= 400 && r.status !== 502)) return res.status(r?.status || 500).json({ error: r?.error || 'offer_failed' });
+  res.json({ ok: true, ward: wardUri, delivered: r.delivered !== false });
 });
 
 // ── Manage: retract a pending offer / release a ward ─────────────────────

@@ -5,6 +5,7 @@
   --card: #1e2632;
   --ink: #e8ecf2;
   --sub: #93a0b4;
+  --line: #2c3646;
   --accent: #ff6b35;
   --ok: #4caf7d;
 }
@@ -14,54 +15,69 @@ body {
   background: var(--bg);
   color: var(--ink);
   font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  padding-bottom: 40px;
+  padding-bottom: 48px;
 }
 .g-head {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 14px 16px;
+  gap: 12px;
+  padding: 16px;
   background: var(--card);
+  border-bottom: 1px solid var(--line);
   position: sticky;
   top: 0;
+  z-index: 2;
 }
-.g-head h1 { font-size: 1.15rem; margin: 0; flex: 1; }
-.g-buoy { font-size: 1.5rem; }
-.g-me { color: var(--sub); font-size: .9rem; }
+.g-head-txt { flex: 1; }
+.g-head h1 { font-size: 1.15rem; margin: 0; }
+.g-head .g-sub { margin: 0; color: var(--sub); font-size: .78rem; }
+.g-buoy { font-size: 1.7rem; }
+.g-me { color: var(--sub); font-size: .85rem; }
 #site-picker {
   background: var(--bg); color: var(--ink);
-  border: 1px solid #33405233; border-radius: 8px; padding: 6px 8px;
+  border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px;
 }
-main { max-width: 640px; margin: 0 auto; padding: 0 16px; }
-h2 { font-size: 1rem; margin: 26px 0 10px; }
-.g-sub { color: var(--sub); font-size: .85rem; margin: 0 0 10px; }
-.g-empty { color: var(--sub); font-size: .9rem; }
-.g-msg { font-size: .85rem; color: var(--ok); }
+main { max-width: 640px; margin: 0 auto; padding: 8px 16px; }
+
+section { padding: 18px 0; border-bottom: 1px solid var(--line); }
+section:last-child { border-bottom: 0; }
+.g-sec-head { display: flex; align-items: center; gap: 8px; }
+.g-sec-head h2 { font-size: 1.02rem; margin: 0; }
+.g-badge {
+  background: var(--accent); color: #fff; font-size: .72rem; font-weight: 700;
+  min-width: 20px; text-align: center; border-radius: 10px; padding: 1px 7px;
+}
+.g-sec-sub { color: var(--sub); font-size: .84rem; margin: 4px 0 12px; }
+.g-empty { color: var(--sub); font-size: .9rem; margin: 6px 0 0; }
+.g-msg { font-size: .85rem; color: var(--ok); margin: 8px 0 0; }
 .g-msg.err { color: #ff7a7a; }
 .g-list { display: flex; flex-direction: column; gap: 8px; }
 
-.g-card {
-  background: var(--card);
-  border-radius: 12px;
-  padding: 12px 14px;
-}
+.g-card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
 .g-card.help { border-left: 3px solid var(--accent); }
-.g-card .who { font-weight: 600; }
-.g-card .when { color: var(--sub); font-size: .78rem; }
-.g-card .body { margin-top: 6px; font-size: .92rem; overflow-wrap: anywhere; }
-.g-card .body img { max-width: 100%; border-radius: 8px; }
 .g-card .row { display: flex; align-items: center; gap: 10px; }
-.g-card .row .grow { flex: 1; }
-.g-card .pend { color: var(--sub); font-size: .8rem; }
+.g-card .row .grow { flex: 1; min-width: 0; }
+.g-card .who { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.g-card .when { color: var(--sub); font-size: .76rem; white-space: nowrap; }
+.g-card .body { margin-top: 8px; font-size: .92rem; overflow-wrap: anywhere; }
+.g-card .body img { max-width: 100%; border-radius: 8px; margin-top: 6px; }
+.g-link { display: inline-block; margin-top: 8px; color: var(--accent); font-size: .82rem; text-decoration: none; }
 
-#adopt-form { display: flex; gap: 8px; margin-bottom: 8px; }
+.tag { font-size: .72rem; font-weight: 600; padding: 3px 9px; border-radius: 20px; white-space: nowrap; }
+.tag.wait { background: #3a2f1a; color: #e8b04b; }
+.tag.ok { background: #17301f; color: var(--ok); }
+
+#adopt-form { display: flex; gap: 8px; }
 #adopt-form input {
-  flex: 1;
-  background: var(--card); color: var(--ink);
-  border: 1px solid #33405255; border-radius: 10px; padding: 10px 12px;
+  flex: 1; min-width: 0;
+  background: var(--bg); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px;
 }
 button {
   background: var(--accent); color: #fff; border: 0;
-  border-radius: 10px; padding: 10px 16px; font-weight: 600; cursor: pointer;
+  border-radius: 10px; padding: 11px 18px; font-weight: 600; cursor: pointer;
 }
-button.quiet { background: #33405255; color: var(--ink); font-weight: 500; }
+button:disabled { opacity: .5; cursor: default; }
+button.quiet { background: transparent; color: var(--sub); border: 1px solid var(--line); font-weight: 500; }
+button.quiet.is-on { color: var(--ok); border-color: var(--ok); }
+button.small { padding: 6px 12px; font-size: .82rem; }
