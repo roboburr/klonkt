@@ -404,6 +404,18 @@ export function initializeDatabase() {
       UNIQUE(slug, target)
     );
     CREATE INDEX IF NOT EXISTS idx_ap_blocks_target ON ap_blocks(target);
+    CREATE TABLE IF NOT EXISTS ap_guardianships (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug TEXT NOT NULL,          -- our local site in this relation (guardianship module)
+      role TEXT NOT NULL,          -- 'guardian' (slug guards other) | 'ward' (other guards slug)
+      other_uri TEXT NOT NULL,     -- the counterpart actor URI (local or remote)
+      other_handle TEXT,           -- cached @user@host for display
+      status TEXT NOT NULL,        -- 'offered' (handshake pending) | 'accepted'
+      offer_id TEXT,               -- the Offer activity id (FEP-633c section 3)
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(slug, role, other_uri)
+    );
+    CREATE INDEX IF NOT EXISTS idx_ap_guardianships_slug ON ap_guardianships(slug, role, status);
     CREATE TABLE IF NOT EXISTS ap_delivery (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       slug TEXT NOT NULL,          -- our site/actor that signs the delivery
@@ -484,6 +496,7 @@ export function initializeDatabase() {
   ensureColumn('ap_outbox', 'visibility', 'TEXT');  // 'direct' = private mention, never Public (shaer-tqc)
   ensureColumn('ap_outbox', 'to_actors', 'TEXT');   // JSON array of recipient actor URIs for direct notes
   ensureColumn('ap_outbox', 'help_request', 'INTEGER'); // FEP-633c shaer:helpRequest (ward's call for help)
+  ensureColumn('ap_mentions', 'help_request', 'INTEGER'); // inbound ward call-for-help (Guardian PWA message centre)
   ensureColumn('ap_followers', 'name', 'TEXT');    // cached display name (shaer-aa3)
   ensureColumn('ap_followers', 'handle', 'TEXT');  // @user@host
   ensureColumn('ap_followers', 'icon', 'TEXT');    // avatar URL

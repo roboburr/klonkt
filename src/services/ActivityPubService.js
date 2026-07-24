@@ -24,6 +24,8 @@ import AudioEmbedService from './AudioEmbedService.js';
 import Push from './PushService.js';
 import { getTenancy } from './SettingsService.js';
 import { t as i18nT } from './i18n.js';
+import Blocklist from './BlocklistService.js';
+import * as Guardianship from './guardianship/index.js';
 
 const PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
 // Full JSON-LD context for every AP object we emit: AS2 core + security (publicKey) + the
@@ -48,9 +50,9 @@ const AP_CONTEXT = [
     // per-poll unique-voter count is a Mastodon (toot) term — declare it so the emitted
     // Question stays valid JSON-LD (a strict processor would otherwise drop votersCount).
     votersCount: 'toot:votersCount',
-    // FEP-633c (Guardians): the shaer namespace. helpRequest marks a direct
-    // note as a ward's call for help (spec 5.2.1); ignorable by everyone else.
-    shaer: 'https://ns.klonkt.com/shaer#',
+    // FEP-633c (Guardians): the shaer namespace, owned by the guardianship
+    // module (src/services/guardianship/).
+    ...Guardianship.SHAER_CONTEXT,
   },
 ];
 
@@ -173,6 +175,9 @@ export function buildActor(base, site) {
     // list is the source of truth for Shaer's "in Orbit"; clients keep no
     // separate state.
     blocked: `${id}/blocked`,
+    // FEP-633c §2: shaer:guardians / shaer:isGuardian / shaer:queues
+    // (guardianship module owns these).
+    ...Guardianship.guardianshipActorProps(id, site.slug),
     // C2S clients (Shaer apps) discover auth + upload here — no hardcoded paths.
     // All four are ActivityPub-spec `endpoints` terms. Dynamic client registration
     // (RFC 7591) is discovered via /.well-known/oauth-authorization-server, not here.
@@ -269,7 +274,7 @@ export function buildNote(base, site, post, opts = {}) {
         : (post.to_actor ? [post.to_actor] : [PUBLIC]),
       cc: post.visibility === 'direct' ? [] : [PUBLIC, `${meR}/followers`],
       // FEP-633c 5.2.1: a ward's call for help. Only ever on direct notes.
-      'shaer:helpRequest': (post.visibility === 'direct' && post.help_request) ? true : undefined,
+      ...Guardianship.helpRequestProps(post),
       tag: [
         ...mentionTags(post.content),
         ...hashtagTags(base, post.content),
@@ -1302,11 +1307,37 @@ export async function handleInbox(req, slugParam) {
   const claimedActor = typeof act.actor === 'string' ? act.actor : (act.actor && act.actor.id);
   // Blocked actor/domain → silently drop (202, don't reveal the block).
   if (claimedActor && isBlockedAny(claimedActor)) { console.log('[AP] inbox dropped (blocked)', claimedActor, 'from', ip); return 202; }
-  const GATED = ['Create', 'Like', 'Announce', 'Follow', 'Delete', 'Undo', 'Accept', 'Reject', 'Add', 'Remove', 'Update', 'Flag'];
+  const GATED = ['Create', 'Like', 'Announce', 'Follow', 'Delete', 'Undo', 'Accept', 'Reject', 'Add', 'Remove', 'Update', 'Flag', 'Offer'];
   if (GATED.includes(type)) {
     if (!verified || !claimedActor || verified.id !== claimedActor) {
       console.warn('[AP] inbox REJECTED (signature)', type, claimedActor || '?', 'from', ip, verified ? '(signer mismatch)' : '(unsigned/invalid)');
       return 401;
+    }
+  }
+
+  // FEP-633c: the adoption handshake. An Offer lands at the local ward; an
+  // Accept/Reject answers an offer a local guardian sent. Anything the
+  // guardianship module does not recognize falls through to the old paths.
+  if (type === 'Offer' || type === 'Accept' || type === 'Reject') {
+    let gslug = slugParam || null;
+    if (!gslug && type === 'Offer') {
+      const rel = Guardianship.parseRelationship(act.object);
+      if (rel) gslug = slugFromActorUrl(rel.ward);
+    }
+    if (!gslug) {
+      const offerId = typeof act.object === 'string' ? act.object : (act.object && act.object.id);
+      const rows = offerId ? Guardianship.findByOfferId?.(offerId) || [] : [];
+      if (rows.length) gslug = rows[0].slug;
+      if (!gslug) for (const t of (Array.isArray(act.to) ? act.to : (act.to ? [act.to] : []))) {
+        const s = slugFromActorUrl(t); if (s) { gslug = s; break; }
+      }
+    }
+    if (gslug) {
+      const gsite = db.prepare('SELECT * FROM sites WHERE slug = ?').get(gslug);
+      if (gsite && await Guardianship.handleGuardianshipInbox(gsite, act).catch(() => false)) {
+        console.log('[AP] guardianship', type, 'for', gslug, 'from', claimedActor);
+        return 202;
+      }
     }
   }
 
@@ -1462,18 +1493,24 @@ export async function handleInbox(req, slugParam) {
       if (slugs.length) {
         const ai = actorInfo(await resolveActor(actorUri), actorUri);
         const html = HtmlSanitizerService.sanitize(o.content || '');
+        // FEP-633c 5.2.1: a ward's call for help rides a direct mention; the
+        // flag is stored so the Guardian PWA's message centre can list it.
+        const help = Guardianship.isHelpRequest(o);
         for (const slug of slugs) {
           try {
-            const r = db.prepare('INSERT OR IGNORE INTO ap_mentions (slug, object_uri, note_url, actor_uri, actor_name, actor_handle, actor_icon, actor_url, content, published, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)')
-              .run(slug, o.id, safeUrl(o.url) || null, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.published || null);
+            const r = db.prepare('INSERT OR IGNORE INTO ap_mentions (slug, object_uri, note_url, actor_uri, actor_name, actor_handle, actor_icon, actor_url, content, published, help_request, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)')
+              .run(slug, o.id, safeUrl(o.url) || null, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.published || null, help ? 1 : 0);
             if (r.changes) {
-              console.log('[AP] mention', actorUri, '→', slug);
+              console.log('[AP] mention', actorUri, '→', slug, help ? '(help request)' : '');
               const vis = noteVisibility(o);
               const priv = vis === 'direct' || vis === 'followers';
               const L = pushLang(slug);
               const who = ai.name || ai.handle || i18nT(L, 'notif.someone');
               // Same privacy rule as replies: private mentions push without content.
-              if (priv) pushEvent(slug, { type: 'dm', title: i18nT(L, 'push.n_dm_t'), body: i18nT(L, 'push.n_dm_b', { who }), url: `${pushPrefix(slug)}/messages` });
+              // A help request pushes as its own alert type, aimed at the
+              // Guardian PWA's message centre.
+              if (help) pushEvent(slug, { type: 'help', title: i18nT(L, 'push.n_help_t'), body: i18nT(L, 'push.n_help_b', { who }), url: '/guardian' });
+              else if (priv) pushEvent(slug, { type: 'dm', title: i18nT(L, 'push.n_dm_t'), body: i18nT(L, 'push.n_dm_b', { who }), url: `${pushPrefix(slug)}/messages` });
               else pushEvent(slug, { type: 'reply', title: i18nT(L, 'push.n_mention_t'), body: `${who}: ${HtmlSanitizerService.toPlainText(html).slice(0, 90)}`, url: `${pushPrefix(slug)}/messages` });
             }
           } catch { /* ignore */ }
@@ -1959,6 +1996,14 @@ export async function ingestOutboxActivity(site, user, activity) {
   if (type === 'Note' || type === 'Article') { object = activity; type = 'Create'; }
   if (Array.isArray(type)) type = type.find((t) => typeof t === 'string');
 
+  // FEP-633c: the adoption handshake (Offer/Accept/Reject on a guardianship
+  // Relationship) belongs to the guardianship module; anything else falls
+  // through to the switch below.
+  if (type === 'Offer' || type === 'Accept' || type === 'Reject') {
+    const g = await Guardianship.handleGuardianshipOutbox(site, activity).catch(() => null);
+    if (g) return g;
+  }
+
   try {
     switch (type) {
       case 'Create': {
@@ -2096,76 +2141,11 @@ async function c2sCreatePost(base, site, user, object) {
   return { status: 201, id: postId, url: `${base}/ap/notes/${postId}` };
 }
 
-// Addressing → visibility. Arrays or bare strings; unknown shapes read as the
-// safest bucket they match.
-export function c2sVisibility(object) {
-  const arr = (v) => (Array.isArray(v) ? v : (v ? [v] : [])).filter((x) => typeof x === 'string');
-  const to = arr(object.to), cc = arr(object.cc);
-  const isPublic = (x) => x === PUBLIC || x === 'as:Public' || x === 'Public';
-  const isFollowers = (x) => /\/followers\/?$/.test(x);
-  if (to.some(isPublic)) return 'public';
-  if (cc.some(isPublic)) return 'quiet';
-  if (to.some(isFollowers) || cc.some(isFollowers)) return 'friends';
-  if (!to.length && !cc.length) return 'public';   // no addressing at all: legacy client, keep old behavior
-  return 'direct';
-}
-
-// A direct note (private mention, shaer-tqc): a NEW conversation (or a direct
-// reply) addressed to specific actors only. Stored in ap_outbox with
-// visibility 'direct' + the recipient list, delivered to exactly those
-// inboxes: no followers fan-out, no Public, so no boosts and no timelines.
-// The same S2S leg a Mastodon DM takes, so a guardian on any instance
-// receives it as a private mention (the ward call-for-help path).
-export async function deliverDirectNote(site, { recipients, text, language, inReplyTo, attachments, helpRequest }) {
-  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
-  const list = [...new Set((recipients || []).filter((u) => /^https?:\/\//i.test(String(u || ''))))].slice(0, 8);
-  if (!base || !site || !site.slug || !list.length || !String(text || '').trim()) return null;
-  const me = actorId(base, site.slug);
-  // Resolve every recipient for a mention anchor + a delivery inbox.
-  const resolved = [];
-  for (const uri of list) {
-    const a = await fetchActor(uri).catch(() => null);
-    if (!a || !(a.inbox || (a.endpoints && a.endpoints.sharedInbox))) continue;
-    resolved.push({ uri, inbox: (a.endpoints && a.endpoints.sharedInbox) || a.inbox, handle: deriveHandle(uri), url: a.url || uri });
-  }
-  if (!resolved.length) return null;
-  const mention = resolved.map((r) => {
-    const disp = r.handle && r.handle[0] === '@' ? r.handle : '@' + (r.handle || '');
-    return `<a href="${escHtml(r.url)}" class="u-url mention" data-actor="${escHtml(r.uri)}">${escHtml(disp)}</a> `;
-  }).join('');
-  const body = escHtml(String(text).trim()).replace(/\r?\n/g, '<br>');
-  const content = `<p>${mention}${linkUrls(linkHashtags(base, body))}</p>`;
-  const lang = /^[a-z]{2,3}(-[A-Za-z0-9-]+)?$/.test(String(language || '')) ? language : null;
-  // Attachments: same rules as deliverReply (own /media/ uploads only,
-  // image/audio/video, max 4) — the help-buoy capture rides this.
-  const media = (Array.isArray(attachments) ? attachments : [])
-    .filter((a) => a && typeof a.url === 'string' && /^\/media\/[\w./-]+$/.test(a.url)
-      && /^(image|audio|video)\//.test(String(a.mediaType || '')))
-    .slice(0, 4)
-    .map((a) => ({ url: a.url, mediaType: String(a.mediaType), name: String(a.name || '').slice(0, 120) }));
-  const id = crypto.randomUUID();
-  db.prepare(`INSERT INTO ap_outbox (id, site_slug, post_id, post_slug, in_reply_to, to_actor, to_handle, content, language, attachments, visibility, to_actors, help_request, created_at)
-              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)`)
-    .run(id, site.slug, '', null, inReplyTo || null, resolved[0].uri, resolved[0].handle, content, lang, media.length ? JSON.stringify(media) : null, 'direct', JSON.stringify(resolved.map((r) => r.uri)), helpRequest ? 1 : 0);
-  const row = iStmts().getO.get(id);
-  const note = buildReplyNote(base, site, row);
-  const create = {
-    '@context': AP_CONTEXT,
-    id: note.id + '#create', type: 'Create', actor: me,
-    published: note.published, to: note.to, cc: note.cc, object: note,
-  };
-  const keys = getOrCreateKeys(site.slug);
-  const keyId = `${me}#main-key`;
-  let delivered = 0;
-  for (const inbox of [...new Set(resolved.map((r) => r.inbox))]) {
-    let ok = false;
-    try { const st = await deliver(inbox, create, keyId, keys.private_pem); ok = st >= 200 && st < 300; } catch { ok = false; }
-    if (ok) delivered++;
-    else enqueueDelivery(site.slug, inbox, create);
-  }
-  console.log('[AP] direct note', site.slug, '→', resolved.length, 'recipient(s), delivered', delivered);
-  return { id, content, delivered };
-}
+// The direct-note leg (ward call-for-help) lives in the guardianship module
+// (src/services/guardianship/delivery.js); wired with our AP helpers at the
+// bottom of this file. Re-exported so every existing caller keeps working.
+export const c2sVisibility = Guardianship.c2sVisibility;
+export const deliverDirectNote = Guardianship.deliverDirectNote;
 
 // Send a reply FROM this site to a remote actor (in reply to their inbound reply).
 // `parent` = an ap_interactions row (actor_uri, actor_url, actor_handle, object_uri).
@@ -3025,16 +3005,9 @@ export function getNotifications(slug, limit) {
 function _msgTs(x) { const t = Date.parse((x && x.created_at) || ''); return Number.isFinite(t) ? t : 0; }
 
 // ── Blocking / defederation ───────────────────────────────────────
-let _insBl, _delBl, _listBl;
-function blStmts() {
-  if (!_insBl) {
-    _insBl = db.prepare('INSERT OR IGNORE INTO ap_blocks (slug, target, kind, label, created_at) VALUES (?,?,?,?,CURRENT_TIMESTAMP)');
-    _delBl = db.prepare('DELETE FROM ap_blocks WHERE slug = ? AND target = ?');
-    _listBl = db.prepare('SELECT * FROM ap_blocks WHERE slug = ? ORDER BY created_at DESC');
-  }
-  return { ins: _insBl, del: _delBl, list: _listBl };
-}
-export function listBlocks(slug) { return blStmts().list.all(slug); }
+// Extracted to BlocklistService (shared: Klonkt's Block tab + Shaer's "in
+// Orbit"). Thin delegations keep every existing caller working.
+export function listBlocks(slug) { return Blocklist.listBlocks(slug); }
 
 // True if an actor (or its whole domain) is blocked anywhere on this instance.
 // Vote on a remote fediverse poll (a cached Question). A ballot = a Create(Note) carrying only a
@@ -3139,53 +3112,58 @@ export async function sendReport(site, { objectUri, actorUri, reason }) {
   return { ok: true };
 }
 
-export function isBlockedAny(actorUri) {
-  if (!actorUri) return false;
-  let domain = ''; try { domain = new URL(actorUri).host; } catch { /* ignore */ }
-  try { return !!db.prepare("SELECT 1 FROM ap_blocks WHERE (kind='actor' AND target=?) OR (kind='domain' AND target=?) LIMIT 1").get(actorUri, domain); }
-  catch { return false; }
-}
-
-function purgeBlocked(kind, target) {
-  try {
-    if (kind === 'domain') {
-      // Exact host match (a URL LIKE over-/under-matches: it misses bare-domain or :port
-      // actor URIs and can catch look-alikes). Filter by parsed host, same as isBlockedAny.
-      const purge = (table, col) => {
-        let rows = [];
-        try { rows = db.prepare(`SELECT DISTINCT ${col} AS u FROM ${table} WHERE ${col} IS NOT NULL AND ${col} != ''`).all(); } catch { return; }
-        const del = db.prepare(`DELETE FROM ${table} WHERE ${col} = ?`);
-        for (const r of rows) { let h = ''; try { h = new URL(r.u).host; } catch { /* skip */ } if (h === target) { try { del.run(r.u); } catch { /* ignore */ } } }
-      };
-      purge('ap_interactions', 'actor_uri');
-      purge('ap_timeline', 'author_uri');
-      purge('ap_followers', 'actor_uri');
-    } else {
-      db.prepare('DELETE FROM ap_interactions WHERE actor_uri = ?').run(target);
-      db.prepare('DELETE FROM ap_timeline WHERE author_uri = ?').run(target);
-      db.prepare('DELETE FROM ap_followers WHERE actor_uri = ?').run(target);
-    }
-  } catch { /* best-effort */ }
-}
+export function isBlockedAny(actorUri) { return Blocklist.isBlockedAny(actorUri); }
 
 // Block an actor (@handle or actor URL) or a whole domain; purges their content.
-export async function blockTarget(site, input) {
-  const raw = String(input || '').trim();
-  if (!site || !site.slug || !raw) return { error: 'empty' };
-  let kind, target, label;
-  if (/^https?:\/\//i.test(raw)) { kind = 'actor'; target = raw; label = raw; }
-  else if (raw.includes('@')) {
-    const actorUrl = await webfingerResolve(raw);
-    if (!actorUrl) return { error: 'not_found' };
-    kind = 'actor'; target = actorUrl; label = raw.startsWith('@') ? raw : ('@' + raw);
-  } else { kind = 'domain'; target = raw.toLowerCase(); label = raw.toLowerCase(); }
-  blStmts().ins.run(site.slug, target, kind, label);
-  purgeBlocked(kind, target);
-  console.log('[AP] block', site.slug, kind, target);
-  return { ok: true, label };
-}
+// The handle resolver is ours; the storage/purge lives in BlocklistService.
+export async function blockTarget(site, input) { return Blocklist.blockTarget(site, input, webfingerResolve); }
 
-export function unblock(site, target) { blStmts().del.run(site.slug, target); return { ok: true }; }
+export function unblock(site, target) { return Blocklist.unblock(site, target); }
+
+// ── Guardianship module wiring (src/services/guardianship/) ────────
+// The module owns FEP-633c (context, relations, handshake, queues, the
+// direct-note leg); we hand it our AP helpers ONCE and delegate. It never
+// imports us back.
+function selfActorId(slug) {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  return actorId(base, slug);
+}
+// Deliver one activity to one actor's inbox, signed; queued on failure.
+async function deliverToActor(site, actorUri, activity) {
+  const a = await fetchActor(actorUri).catch(() => null);
+  const inbox = a && (a.inbox || (a.endpoints && a.endpoints.sharedInbox));
+  if (!inbox) return false;
+  const me = selfActorId(site.slug);
+  const keys = getOrCreateKeys(site.slug);
+  const payload = { '@context': AP_CONTEXT, ...activity };
+  try {
+    const st = await deliver(inbox, payload, `${me}#main-key`, keys.private_pem);
+    if (st >= 200 && st < 300) return true;
+  } catch { /* fall through to the queue */ }
+  enqueueDelivery(site.slug, inbox, payload);
+  return true;   // queued: it will arrive
+}
+Guardianship.wireDelivery({
+  actorId, fetchActor, deriveHandle, escHtml, linkUrls, linkHashtags,
+  getOutboxRow: (id) => iStmts().getO.get(id),
+  buildReplyNote, AP_CONTEXT, getOrCreateKeys, deliver, enqueueDelivery,
+});
+Guardianship.wireHandshake({
+  selfId: selfActorId,
+  deliverTo: deliverToActor,
+  deriveHandle,
+  // Guardian PWA push: an offer or an answer lands as a notification.
+  onEvent: (slug, ev) => {
+    const L = pushLang(slug);
+    const texts = {
+      offer_received: ['push.n_guard_offer_t', 'push.n_guard_offer_b'],
+      ward_accepted: ['push.n_guard_ward_t', 'push.n_guard_ward_b'],
+    }[ev.kind];
+    if (!texts) return;
+    const who = deriveHandle(ev.candidate || ev.ward || ev.guardian || '') || '?';
+    pushEvent(slug, { type: 'guardian', title: i18nT(L, texts[0]), body: i18nT(L, texts[1], { who }), url: '/guardian' });
+  },
+});
 
 export default {
   AP_CONTEXT, getOrCreateKeys, apWants, sendAP, actorId, noteId,
