@@ -15,21 +15,37 @@ const collection = (id, items) => ({
   id, type: 'OrderedCollection', totalItems: items.length, orderedItems: items,
 });
 
-/** Pending offers, reconstructed as Offer activities (either side). */
+/** Pending offers, reconstructed as Offer activities (either side). Each item
+ *  also carries the daemon-contract helper fields (shaer:ward, candidate,
+ *  needsMyAccept, iAmCandidate, …): the Shaer clients render their accept
+ *  button from those, so the shapes must match the test daemon exactly. */
 export function offersCollection(id, slug, me) {
-  const items = relations.listOffers(slug).map((r) => ({
-    id: r.offer_id || undefined,
-    type: 'Offer',
-    actor: r.role === 'guardian' ? me : r.other_uri,
-    object: {
-      type: 'Relationship',
-      subject: r.role === 'guardian' ? r.other_uri : me,
-      relationship: GUARDIAN_RELATIONSHIP_COMPACT,
-      object: r.role === 'guardian' ? me : r.other_uri,
-    },
-    'shaer:handle': r.other_handle || undefined,
-    published: r.created_at,
-  }));
+  const items = relations.listOffers(slug).map((r) => {
+    const ward = r.role === 'guardian' ? r.other_uri : me;
+    const candidate = r.role === 'guardian' ? me : r.other_uri;
+    return {
+      id: r.offer_id || `${me}/offers/pending-${r.id}`,
+      type: 'Offer',
+      actor: candidate,
+      object: {
+        type: 'Relationship',
+        subject: ward,
+        relationship: GUARDIAN_RELATIONSHIP_COMPACT,
+        object: candidate,
+      },
+      'shaer:ward': ward,
+      'shaer:candidate': candidate,
+      'shaer:existingGuardians': relations.listGuardians(slug).map((g) => g.other_uri),
+      'shaer:acceptedBy': [],
+      // Klonkt's flow is single-phase: the ward's Accept commits at once, so
+      // only the ward-side owner has an action here.
+      'shaer:needsMyAccept': r.role === 'ward',
+      'shaer:readyToCommit': false,
+      'shaer:iAmCandidate': r.role === 'guardian',
+      'shaer:handle': r.other_handle || undefined,
+      published: r.created_at,
+    };
+  });
   return collection(id, items);
 }
 

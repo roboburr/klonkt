@@ -76,6 +76,15 @@ test('inbound Offer parks in the ward queue; C2S Accept commits both ends', asyn
   assert.equal(consumed, true);
   assert.equal(G.listOffers('kid').length, 1);
 
+  // The kid's offers queue carries the daemon-contract helper fields the
+  // Shaer clients render their accept button from.
+  const kidQ = G.offersCollection(`${KID}/queues/offers`, 'kid', KID);
+  assert.equal(kidQ.totalItems, 1);
+  assert.equal(kidQ.orderedItems[0]['shaer:needsMyAccept'], true);
+  assert.equal(kidQ.orderedItems[0]['shaer:iAmCandidate'], false);
+  assert.equal(kidQ.orderedItems[0]['shaer:ward'], KID);
+  assert.equal(kidQ.orderedItems[0]['shaer:candidate'], ME);
+
   // The kid accepts over C2S; the answer travels to the guardian.
   const r = await G.handleGuardianshipOutbox(kid, { type: 'Accept', object: offerId });
   assert.equal(r.status, 202);
