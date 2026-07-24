@@ -106,6 +106,11 @@ export async function handleOutbox(site, activity) {
       offerId, ward: rel.ward, candidate: me, existingGuardians: existing,
       wardHandle: deps.deriveHandle(rel.ward), candidateHandle: deps.deriveHandle(me),
     });
+    // The Offer IS the candidate's agreement to serve: record it as the
+    // candidate's accept. So a FREE ward commits on its own single accept (no
+    // second guardian to co-approve yet); once it IS a ward, adding another
+    // guardian still needs an existing guardian to co-accept.
+    offers.recordAccept(site.slug, offerId, me);
     // Addressed to the ward AND every existing guardian (§3.1.1).
     const recipients = [rel.ward, ...existing];
     const delivered = await fanout(site, recipients, offerActivity(offerId, rel.ward, me, recipients));
@@ -158,6 +163,9 @@ export async function handleInbox(site, activity) {
       offerId: idOf(activity), ward: rel.ward, candidate: rel.candidate, existingGuardians: existing,
       wardHandle: deps.deriveHandle(rel.ward), candidateHandle: deps.deriveHandle(rel.candidate),
     });
+    // The Offer carries the candidate's agreement (see the C2S side): record it
+    // so this copy's tally matches — a free ward then commits on its own accept.
+    offers.recordAccept(site.slug, idOf(activity), rel.candidate);
     notify(site.slug, { kind: rel.ward === me ? 'offer_received' : 'offer_for_ward', ward: rel.ward, candidate: rel.candidate });
     return true;
   }

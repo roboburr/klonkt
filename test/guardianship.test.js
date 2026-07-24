@@ -42,32 +42,27 @@ G.wireHandshake({
 
 const offerIdFrom = (r) => r.id;
 
-test('first guardian: candidate offers, ward accepts, candidate completes', async () => {
+test('first guardian: a free ward commits on its own single accept', async () => {
   const off = await G.handleGuardianshipOutbox(parent, {
     type: 'Offer', object: { type: 'Relationship', subject: KID, relationship: 'shaer:Guardian', object: ME },
   });
   assert.equal(off.status, 202);
   const id = offerIdFrom(off);
 
-  // The kid sees the offer and it needs its accept.
+  // The kid sees the offer needing its accept; the candidate already agreed
+  // (the Offer is the candidate's accept), so it just waits.
   const kidQ = G.offersCollection(`${KID}/queues/offers`, 'kid', KID).orderedItems;
   assert.equal(kidQ.length, 1);
   assert.equal(kidQ[0]['shaer:needsMyAccept'], true);
-  assert.equal(kidQ[0]['shaer:iAmCandidate'], false);
+  assert.deepEqual(kidQ[0]['shaer:acceptedBy'], [ME]);       // candidate accepted via the offer
+  const parentQ0 = G.offersCollection(`${ME}/queues/offers`, 'parent', ME).orderedItems;
+  assert.equal(parentQ0[0]['shaer:needsMyAccept'], false);   // candidate already agreed
 
-  // Not committed on a lone candidate — the ward has not accepted.
+  // Not committed until the ward agrees.
   assert.deepEqual(G.listGuardians('kid'), []);
 
-  // The kid accepts (C2S from the kid's own Klonkt). Not committed yet: the
-  // candidate must still agree to serve (§3.1.2).
-  await G.handleGuardianshipOutbox(kid, { type: 'Accept', object: id });
-  assert.deepEqual(G.listGuardians('kid'), []);
-  const parentQ = G.offersCollection(`${ME}/queues/offers`, 'parent', ME).orderedItems;
-  assert.equal(parentQ[0]['shaer:iAmCandidate'], true);
-  assert.equal(parentQ[0]['shaer:needsMyAccept'], true);   // candidate has not accepted
-
-  // The candidate accepts → tally complete → commit everywhere.
-  const done = await G.handleGuardianshipOutbox(parent, { type: 'Accept', object: id });
+  // The kid accepts → free ward, no existing guardian to co-approve → commit.
+  const done = await G.handleGuardianshipOutbox(kid, { type: 'Accept', object: id });
   assert.equal(done.committed, true);
   assert.deepEqual(G.listGuardians('kid').map((g) => g.other_uri), [ME]);
   assert.deepEqual(G.listWards('parent').map((w) => w.other_uri), [KID]);
@@ -90,10 +85,10 @@ test('second guardian needs the EXISTING guardian to co-accept (§3.1.2)', async
   assert.ok(parentQ, 'parent sees the co-guardianship offer');
   assert.deepEqual(parentQ['shaer:existingGuardians'], [ME]);
 
-  // Kid accepts, then gran (candidate) accepts — still NOT committed, because
-  // the existing guardian (parent) has not co-accepted (§3.1.2).
-  await G.handleGuardianshipOutbox(kid, { type: 'Accept', object: id });
-  const early = await G.handleGuardianshipOutbox(gran, { type: 'Accept', object: id });
+  // The kid accepts, but now it IS a ward: NOT committed, because the existing
+  // guardian (parent) has not co-accepted (§3.1.2). The candidate (gran) already
+  // agreed via the offer, so no separate gran accept is needed.
+  const early = await G.handleGuardianshipOutbox(kid, { type: 'Accept', object: id });
   assert.equal(early.committed, false);
   assert.equal(G.listGuardians('kid').length, 1, 'still just the first guardian');
 
