@@ -404,18 +404,48 @@ export function initializeDatabase() {
       UNIQUE(slug, target)
     );
     CREATE INDEX IF NOT EXISTS idx_ap_blocks_target ON ap_blocks(target);
+    -- Committed guardian ↔ ward relations, one row per local side. role
+    -- 'ward' = the local slug is a ward of other_uri; 'guardian' = the local
+    -- slug guards other_uri. status is always 'accepted' here now: PENDING
+    -- offers live in ap_guardian_offers below (FEP-633c multi-party handshake).
     CREATE TABLE IF NOT EXISTS ap_guardianships (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       slug TEXT NOT NULL,          -- our local site in this relation (guardianship module)
       role TEXT NOT NULL,          -- 'guardian' (slug guards other) | 'ward' (other guards slug)
       other_uri TEXT NOT NULL,     -- the counterpart actor URI (local or remote)
       other_handle TEXT,           -- cached @user@host for display
-      status TEXT NOT NULL,        -- 'offered' (handshake pending) | 'accepted'
+      status TEXT NOT NULL,        -- 'offered' (legacy) | 'accepted'
       offer_id TEXT,               -- the Offer activity id (FEP-633c section 3)
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(slug, role, other_uri)
     );
     CREATE INDEX IF NOT EXISTS idx_ap_guardianships_slug ON ap_guardianships(slug, role, status);
+    -- The multi-party handshake (FEP-633c section 3), one row per offer this
+    -- instance is a party to. Mirrors the Shaer test daemon's Handshake:
+    -- accepts accumulate in ap_guardian_offer_accepts, and the offer commits
+    -- only when the candidate returns the handle after ward + candidate + at
+    -- least one existing guardian have accepted.
+    CREATE TABLE IF NOT EXISTS ap_guardian_offers (
+      offer_id TEXT NOT NULL,      -- the Offer activity id (minted by the candidate)
+      slug TEXT NOT NULL,          -- the local site tracking this handshake (each party keeps its own copy)
+      ward_uri TEXT NOT NULL,      -- the ward-to-be
+      candidate_uri TEXT NOT NULL, -- the guardian-candidate (fixed initiator)
+      existing_guardians TEXT NOT NULL DEFAULT '[]',  -- JSON array of the ward's current guardian URIs
+      status TEXT NOT NULL DEFAULT 'pending',         -- 'pending' | 'committed' | 'void'
+      handle TEXT,                 -- the escalation handle returned at commit (section 6)
+      ward_handle TEXT,            -- cached @ward@host for display
+      candidate_handle TEXT,       -- cached @candidate@host for display
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (slug, offer_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_ap_guardian_offers_slug ON ap_guardian_offers(slug, status);
+    CREATE TABLE IF NOT EXISTS ap_guardian_offer_accepts (
+      offer_id TEXT NOT NULL,      -- FK to ap_guardian_offers
+      slug TEXT NOT NULL,          -- the local site's copy of the tally
+      party_uri TEXT NOT NULL,     -- the party who accepted (ward | candidate | an existing guardian)
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (slug, offer_id, party_uri)
+    );
     CREATE TABLE IF NOT EXISTS ap_delivery (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       slug TEXT NOT NULL,          -- our site/actor that signs the delivery

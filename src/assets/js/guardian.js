@@ -46,23 +46,47 @@
     show('help-empty', help.length === 0);
   }
 
-  // ── 3. Pending offers I sent ───────────────────────────────────────────
+  // ── 3. Offers I am a party to (sent, or a co-guardianship to co-approve) ─
+  function answer(offerId, decision, btn) {
+    if (btn) btn.disabled = true;
+    fetch('/guardian/offer', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ offer: offerId, answer: decision, site: S.site }),
+    }).then(refresh);
+  }
+  function offerCard(o) {
+    var card = el('div', 'g-card');
+    var row = el('div', 'row');
+    var subject = o['shaer:iAmCandidate']
+      ? handleOf(o['shaer:ward'], o['shaer:wardHandle'])            // my sent offer: about the ward
+      : handleOf(o['shaer:candidate'], o['shaer:candidateHandle']); // co-guard: who wants in
+    row.appendChild(el('span', 'who grow', subject));
+    if (o['shaer:iAmCandidate']) {
+      // My own offer, waiting for the others to accept.
+      row.appendChild(el('span', 'tag wait', T.pending));
+      var rt = el('button', 'quiet small', T.retract);
+      rt.addEventListener('click', function () { answer(o.id, 'reject', rt); });
+      row.appendChild(rt);
+    } else if (o['shaer:needsMyAccept']) {
+      // A co-guardianship offer for a ward I already guard: my call.
+      row.appendChild(el('span', 'tag co', T.coguard));
+      var ac = el('button', 'small', T.accept);
+      ac.addEventListener('click', function () { answer(o.id, 'accept', ac); });
+      var rj = el('button', 'quiet small', T.reject);
+      rj.addEventListener('click', function () { answer(o.id, 'reject', rj); });
+      row.appendChild(ac); row.appendChild(rj);
+    } else {
+      row.appendChild(el('span', 'tag wait', T.awaiting_others));
+    }
+    card.appendChild(row);
+    return card;
+  }
   function renderPending() {
     var list = document.getElementById('pending-list');
     list.textContent = '';
-    var pend = S.pendingOffers || [];
-    pend.forEach(function (w) {
-      var card = el('div', 'g-card');
-      var row = el('div', 'row');
-      row.appendChild(el('span', 'who grow', handleOf(w.other_uri, w.other_handle)));
-      row.appendChild(el('span', 'tag wait', T.pending));
-      var btn = el('button', 'quiet small', T.retract);
-      btn.addEventListener('click', function () { remove(w.other_uri, btn); });
-      row.appendChild(btn);
-      card.appendChild(row);
-      list.appendChild(card);
-    });
-    show('pending-section', pend.length > 0);
+    var offers = S.offers || [];
+    offers.forEach(function (o) { list.appendChild(offerCard(o)); });
+    show('pending-section', offers.length > 0);
   }
 
   // ── 4. Accepted wards ──────────────────────────────────────────────────

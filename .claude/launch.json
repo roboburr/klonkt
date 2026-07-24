@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "klonkt",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-lc", "PORT=4020 PUBLIC_BASE_URL=http://localhost:4020 exec $HOME/.local/node/bin/node src/server.js"],
+      "port": 4020
+    }
+  ]
+}

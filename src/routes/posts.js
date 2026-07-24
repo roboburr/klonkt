@@ -930,13 +930,14 @@ router.get('/messages', requireSiteManager, (req, res) => {
   if (append) {
     return renderPage(req, res, 'partials/messages-append', { items, seen: seenAt, hasMore, nextOffset: offset + FEED_PAGE, moreBase });
   }
-  // FEP-633c: pending guardianship offers TO this account (ward side) show
-  // as a special message with an accept button (Robins besluit: the kid
-  // answers in their own Klonkt; safety is handled out-of-band by the
-  // guardians themselves).
-  const guardianOffers = site
-    ? Guardianship.listOffers(site.slug).filter((o) => o.role === 'ward')
-    : [];
+  // FEP-633c: pending guardianship offers TO this account (I am the ward)
+  // show as a special message with an accept button (Robins besluit: the kid
+  // answers in its own Klonkt; safety is out-of-band by the guardians).
+  const gBase = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  const gMe = site ? ActivityPubService.actorId(gBase, site.slug) : null;
+  const guardianOffers = (site
+    ? Guardianship.offersCollection(`${gMe}/queues/offers`, site.slug, gMe).orderedItems
+    : []).filter((o) => o['shaer:ward'] === gMe && o['shaer:needsMyAccept']);
   renderPage(req, res, 'pages/messages', {
     pageTitleKey: 'msg.title', bodyClass: 'on-special', items, seenAt,
     hasMore, nextOffset: offset + FEED_PAGE, moreBase, guardianOffers,
@@ -950,17 +951,12 @@ router.post('/messages/guardianship', requireSiteManager, async (req, res) => {
   const site = res.locals.site;
   const back = `${res.locals.siteUrlBase || ''}/messages`;
   const answer = req.body.answer === 'accept' ? 'Accept' : (req.body.answer === 'reject' ? 'Reject' : null);
-  const guardian = String(req.body.guardian || '').trim();
-  if (!site || !answer || !guardian) return res.redirect(back + '?error=guardianship');
-  const row = Guardianship.getRelation(site.slug, 'ward', guardian);
-  if (!row || row.status !== 'offered') return res.redirect(back + '?error=guardianship');
+  const offer = String(req.body.offer || '').trim();
+  if (!site || !answer || !offer) return res.redirect(back + '?error=guardianship');
   try {
-    const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
-    const me = ActivityPubService.actorId(base, site.slug);
-    const r = await Guardianship.handleGuardianshipOutbox(site, {
-      type: answer,
-      object: row.offer_id || { type: 'Relationship', subject: me, relationship: 'shaer:Guardian', object: guardian },
-    });
+    // Same C2S Accept/Reject the apps use; the handshake module records the
+    // ward's accept and (once the candidate returns the handle) commits.
+    const r = await ActivityPubService.ingestOutboxActivity(site, req.session.user, { type: answer, object: offer });
     if (r && r.status < 400) return res.redirect(back + '?success=' + (answer === 'Accept' ? 'guardian_accepted' : 'guardian_rejected'));
   } catch { /* fall through */ }
   res.redirect(back + '?error=guardianship');

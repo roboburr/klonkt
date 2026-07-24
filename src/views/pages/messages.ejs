@@ -11,11 +11,11 @@
     <div class="alert" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-left:3px solid #ff6b35;">
       <span style="font-size:1.4em;">&#128735;</span>
       <div style="flex:1;min-width:200px;">
-        <strong><%= o.other_handle || o.other_uri %></strong><br>
+        <strong><%= o['shaer:candidateHandle'] || o['shaer:candidate'] %></strong><br>
         <span><%= t('msg.guard_offer') %></span>
       </div>
       <form method="post" action="<%= (typeof moreBase !== 'undefined' ? moreBase : '') %>/messages/guardianship" style="display:flex;gap:8px;">
-        <input type="hidden" name="guardian" value="<%= o.other_uri %>">
+        <input type="hidden" name="offer" value="<%= o.id %>">
         <button class="btn" type="submit" name="answer" value="accept"><%= t('msg.guard_accept') %></button>
         <button class="btn" type="submit" name="answer" value="reject" style="opacity:.7;"><%= t('msg.guard_reject') %></button>
       </form>

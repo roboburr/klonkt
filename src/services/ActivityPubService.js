@@ -1319,26 +1319,24 @@ export async function handleInbox(req, slugParam) {
   // Accept/Reject answers an offer a local guardian sent. Anything the
   // guardianship module does not recognize falls through to the old paths.
   if (type === 'Offer' || type === 'Accept' || type === 'Reject') {
-    let gslug = slugParam || null;
-    if (!gslug && type === 'Offer') {
+    // Every LOCAL party this activity is addressed to gets its own copy of the
+    // handshake (a ward and a co-guardian may both live here). Gather candidate
+    // local slugs from the inbox owner, the `to` list, and the ward.
+    const cand = new Set();
+    if (slugParam) cand.add(slugParam);
+    for (const t of (Array.isArray(act.to) ? act.to : (act.to ? [act.to] : []))) {
+      if (typeof t === 'string') { const s = slugFromActorUrl(t); if (s) cand.add(s); }
+    }
+    if (type === 'Offer') {
       const rel = Guardianship.parseRelationship(act.object);
-      if (rel) gslug = slugFromActorUrl(rel.ward);
+      if (rel) { const s = slugFromActorUrl(rel.ward); if (s) cand.add(s); }
     }
-    if (!gslug) {
-      const offerId = typeof act.object === 'string' ? act.object : (act.object && act.object.id);
-      const rows = offerId ? Guardianship.findByOfferId?.(offerId) || [] : [];
-      if (rows.length) gslug = rows[0].slug;
-      if (!gslug) for (const t of (Array.isArray(act.to) ? act.to : (act.to ? [act.to] : []))) {
-        const s = slugFromActorUrl(t); if (s) { gslug = s; break; }
-      }
+    let consumed = false;
+    for (const slug of cand) {
+      const gsite = db.prepare('SELECT * FROM sites WHERE slug = ?').get(slug);
+      if (gsite && await Guardianship.handleGuardianshipInbox(gsite, act).catch(() => false)) consumed = true;
     }
-    if (gslug) {
-      const gsite = db.prepare('SELECT * FROM sites WHERE slug = ?').get(gslug);
-      if (gsite && await Guardianship.handleGuardianshipInbox(gsite, act).catch(() => false)) {
-        console.log('[AP] guardianship', type, 'for', gslug, 'from', claimedActor);
-        return 202;
-      }
-    }
+    if (consumed) { console.log('[AP] guardianship', type, 'from', claimedActor); return 202; }
   }
 
   // A moderation report (Flag) about our content — store it for the targeted site's owner
@@ -3155,21 +3153,33 @@ Guardianship.wireDelivery({
   getOutboxRow: (id) => iStmts().getO.get(id),
   buildReplyNote, AP_CONTEXT, getOrCreateKeys, deliver, enqueueDelivery,
 });
+// Which local site (if any) hosts this actor URI — used by the handshake to
+// apply the local side of a commit and to derive a ward's existing guardians.
+function localSlugOf(actorUri) {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  if (!actorUri || !actorUri.startsWith(`${base}/ap/users/`)) return null;
+  const slug = slugFromActorUrl(actorUri);
+  if (!slug) return null;
+  try { return db.prepare('SELECT slug FROM sites WHERE slug = ?').get(slug) ? slug : null; }
+  catch { return null; }
+}
 Guardianship.wireHandshake({
   selfId: selfActorId,
+  localSlug: localSlugOf,
   deliverTo: deliverToActor,
   deriveHandle,
-  // Guardian PWA push: an offer or an answer lands as a notification.
+  fetchActor,
+  // Guardian PWA / Berichten push. The kid answers an incoming offer in its
+  // own Berichten; an existing guardian and a commit land in the PWA.
   onEvent: (slug, ev) => {
     const L = pushLang(slug);
     const texts = {
-      offer_received: ['push.n_guard_offer_t', 'push.n_guard_offer_b'],
-      ward_accepted: ['push.n_guard_ward_t', 'push.n_guard_ward_b'],
+      offer_received: ['push.n_guard_offer_t', 'push.n_guard_offer_b'],   // I am the ward
+      offer_for_ward: ['push.n_guard_cog_t', 'push.n_guard_cog_b'],       // I co-guard this ward
+      committed: ['push.n_guard_ward_t', 'push.n_guard_ward_b'],
     }[ev.kind];
     if (!texts) return;
     const who = deriveHandle(ev.candidate || ev.ward || ev.guardian || '') || '?';
-    // An offer is answered in the kid's own Berichten; a ward's accept lands
-    // in the guardian's PWA.
     const url = ev.kind === 'offer_received' ? `${pushPrefix(slug)}/messages` : '/guardian';
     pushEvent(slug, { type: 'guardian', title: i18nT(L, texts[0]), body: i18nT(L, texts[1], { who }), url });
   },

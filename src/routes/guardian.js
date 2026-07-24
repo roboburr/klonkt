@@ -31,20 +31,23 @@ function siteForUser(req) {
 /** Everything the dashboard shows, one shape for page and API. */
 function uiStrings(L) {
   const keys = ['sent', 'sent_retry', 'sending', 'not_found', 'failed', 'network',
-    'pending', 'active', 'retract', 'release', 'open', 'push_unavailable'];
+    'pending', 'active', 'retract', 'release', 'open', 'push_unavailable',
+    'accept', 'reject', 'complete', 'awaiting_others', 'coguard'];
   return Object.fromEntries(keys.map((k) => [k, i18nT(L, `guardian.${k}`)]));
 }
 
 function dashboardState(site, L) {
-  const wards = Guardianship.listWards(site.slug);
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  const me = AP.actorId(base, site.slug);
   const help = db.prepare(
     `SELECT object_uri, note_url, actor_uri, actor_name, actor_handle, actor_icon, content, published, created_at
      FROM ap_mentions WHERE slug = ? AND help_request = 1 ORDER BY created_at DESC LIMIT 50`
   ).all(site.slug);
   return {
     site: site.slug,
-    wards: wards.filter((w) => w.status === 'accepted'),
-    pendingOffers: wards.filter((w) => w.status === 'offered'),
+    me,
+    wards: Guardianship.listWards(site.slug),               // committed wards
+    offers: Guardianship.offersCollection(`${me}/queues/offers`, site.slug, me).orderedItems,
     help,
     strings: uiStrings(L),
   };
@@ -93,7 +96,21 @@ router.post('/adopt', requireAuth, express.json({ limit: '4kb' }), async (req, r
   res.json({ ok: true, ward: wardUri, delivered: r.delivered !== false });
 });
 
-// ── Manage: retract a pending offer / release a ward ─────────────────────
+// ── Answer an offer (co-guardian accept/reject, or the candidate's final
+//    "complete"). All three are a C2S Accept/Reject on the offer id; the
+//    handshake module decides when it commits (§3.1).
+router.post('/offer', requireAuth, express.json({ limit: '4kb' }), async (req, res) => {
+  const site = siteForUser(req);
+  if (!site) return res.status(404).json({ error: 'no_site' });
+  const offerId = String(req.body?.offer || '').trim();
+  const answer = req.body?.answer === 'reject' ? 'Reject' : 'Accept';
+  if (!offerId) return res.status(400).json({ error: 'empty_offer' });
+  const r = await AP.ingestOutboxActivity(site, req.session.user, { type: answer, object: offerId });
+  if (!r || r.status >= 400) return res.status(r?.status || 500).json({ error: r?.error || 'answer_failed' });
+  res.json({ ok: true, committed: !!r.committed, readyToCommit: !!r.readyToCommit });
+});
+
+// ── Manage: release a committed ward (local Undo; federation is Fase 4). ──
 router.post('/wards/remove', requireAuth, express.json({ limit: '4kb' }), (req, res) => {
   const site = siteForUser(req);
   if (!site) return res.status(404).json({ error: 'no_site' });

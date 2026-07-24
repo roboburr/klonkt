@@ -66,6 +66,7 @@ section:last-child { border-bottom: 0; }
 .tag { font-size: .72rem; font-weight: 600; padding: 3px 9px; border-radius: 20px; white-space: nowrap; }
 .tag.wait { background: #3a2f1a; color: #e8b04b; }
 .tag.ok { background: #17301f; color: var(--ok); }
+.tag.co { background: #2a1f3a; color: #c39bff; }
 
 #adopt-form { display: flex; gap: 8px; }
 #adopt-form input {

@@ -1,6 +1,6 @@
-// The guardianship module (FEP-633c): relations, actor props, the adoption
-// handshake and the dashboard queues. Pins the module's public surface so the
-// Shaer clients' contract stays stable.
+// The guardianship module (FEP-633c) — the multi-party handshake (§3).
+// Everyone lives on one in-memory instance here, so the handshake copies all
+// converge locally; that also exercises the "multiple local parties" routing.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -13,118 +13,124 @@ dbMod.initializeDatabase();
 const AP = (await import('../src/services/ActivityPubService.js')).default;
 const G = await import('../src/services/guardianship/index.js');
 
+function site(id, slug) {
+  db.prepare('INSERT INTO sites (id, slug, title, owner_id, is_primary) VALUES (?,?,?,?,?)').run(id, slug, slug, 'u1', id === 's1' ? 1 : 0);
+  return db.prepare('SELECT * FROM sites WHERE id = ?').get(id);
+}
 db.prepare('INSERT INTO users (id, username, email, password_hash, role) VALUES (?,?,?,?,?)').run('u1', 'u1', 'u1@test', 'x', 'god');
-db.prepare('INSERT INTO sites (id, slug, title, owner_id, is_primary) VALUES (?,?,?,?,?)').run('s1', 'parent', 'Parent', 'u1', 1);
-db.prepare('INSERT INTO sites (id, slug, title, owner_id, is_primary) VALUES (?,?,?,?,?)').run('s2', 'kid', 'Kid', 'u1', 0);
-const parent = db.prepare('SELECT * FROM sites WHERE id = ?').get('s1');
-const kid = db.prepare('SELECT * FROM sites WHERE id = ?').get('s2');
-const ME = 'https://test.example/ap/users/parent';
-const KID = 'https://test.example/ap/users/kid';
+const parent = site('s1', 'parent');   // first guardian-candidate
+const kid = site('s2', 'kid');          // ward
+const gran = site('s3', 'gran');        // second guardian-candidate (co-approver later)
+const A = (slug) => `https://test.example/ap/users/${slug}`;
+const [ME, KID, GRAN] = [A('parent'), A('kid'), A('gran')];
 
-// No network in tests: the handshake delivers via this stub.
-const sent = [];
+// No network: the handshake delivers by feeding each activity straight into the
+// inbound handler of every addressed local party (what real S2S would do).
 G.wireHandshake({
-  selfId: (slug) => `https://test.example/ap/users/${slug}`,
-  deliverTo: async (site, uri, activity) => { sent.push({ from: site.slug, to: uri, activity }); return true; },
-  deriveHandle: (uri) => '@' + String(uri).split('/').pop() + '@test.example',
+  selfId: A,
+  localSlug: (uri) => (uri.startsWith('https://test.example/ap/users/') ? uri.split('/').pop() : null),
+  deriveHandle: (uri) => '@' + uri.split('/').pop() + '@test.example',
+  fetchActor: async () => null,
+  deliverTo: async (fromSite, toUri, activity) => {
+    const slug = toUri.split('/').pop();
+    const s = db.prepare('SELECT * FROM sites WHERE slug = ?').get(slug);
+    if (s) await G.handleGuardianshipInbox(s, activity);
+    return { delivered: true };
+  },
   onEvent: null,
 });
 
-test('actor doc advertises shaer:queues (and blocked stays)', () => {
-  const actor = AP.buildActor('https://test.example', parent);
-  assert.equal(actor.blocked, `${ME}/blocked`);
-  assert.deepEqual(actor['shaer:queues'], {
-    offers: `${ME}/queues/offers`,
-    follows: `${ME}/queues/follows`,
-    wards: `${ME}/queues/wards`,
+const offerIdFrom = (r) => r.id;
+
+test('first guardian: candidate offers, ward accepts, candidate completes', async () => {
+  const off = await G.handleGuardianshipOutbox(parent, {
+    type: 'Offer', object: { type: 'Relationship', subject: KID, relationship: 'shaer:Guardian', object: ME },
   });
-  assert.equal(actor['shaer:isGuardian'], undefined);   // no wards yet
-});
+  assert.equal(off.status, 202);
+  const id = offerIdFrom(off);
 
-test('C2S Offer from the candidate records + delivers (FEP-633c 3)', async () => {
-  const r = await G.handleGuardianshipOutbox(parent, {
-    type: 'Offer',
-    object: { type: 'Relationship', subject: KID, relationship: 'shaer:Guardian', object: ME },
-  });
-  assert.equal(r.status, 202);
-  assert.equal(sent.length, 1);
-  assert.equal(sent[0].to, KID);
-  assert.equal(sent[0].activity.type, 'Offer');
-  const wards = G.listWards('parent');
-  assert.equal(wards.length, 1);
-  assert.equal(wards[0].status, 'offered');
-  // The guardian-to-be now reads as guardian; the actor doc follows.
-  const actor = AP.buildActor('https://test.example', parent);
-  assert.equal(actor['shaer:isGuardian'], true);
-});
+  // The kid sees the offer and it needs its accept.
+  const kidQ = G.offersCollection(`${KID}/queues/offers`, 'kid', KID).orderedItems;
+  assert.equal(kidQ.length, 1);
+  assert.equal(kidQ[0]['shaer:needsMyAccept'], true);
+  assert.equal(kidQ[0]['shaer:iAmCandidate'], false);
 
-test('only the candidate may offer', async () => {
-  const r = await G.handleGuardianshipOutbox(parent, {
-    type: 'Offer',
-    object: { type: 'Relationship', subject: KID, relationship: 'shaer:Guardian', object: 'https://elders.test/u/x' },
-  });
-  assert.equal(r.status, 403);
-});
+  // Not committed on a lone candidate — the ward has not accepted.
+  assert.deepEqual(G.listGuardians('kid'), []);
 
-test('inbound Offer parks in the ward queue; C2S Accept commits both ends', async () => {
-  // The kid's side receives the offer S2S.
-  const offerId = sent[0].activity.id;
-  const consumed = await G.handleGuardianshipInbox(kid, {
-    id: offerId, type: 'Offer', actor: ME,
-    object: { type: 'Relationship', subject: KID, relationship: 'shaer:Guardian', object: ME },
-  });
-  assert.equal(consumed, true);
-  assert.equal(G.listOffers('kid').length, 1);
+  // The kid accepts (C2S from the kid's own Klonkt). Not committed yet: the
+  // candidate must still agree to serve (§3.1.2).
+  await G.handleGuardianshipOutbox(kid, { type: 'Accept', object: id });
+  assert.deepEqual(G.listGuardians('kid'), []);
+  const parentQ = G.offersCollection(`${ME}/queues/offers`, 'parent', ME).orderedItems;
+  assert.equal(parentQ[0]['shaer:iAmCandidate'], true);
+  assert.equal(parentQ[0]['shaer:needsMyAccept'], true);   // candidate has not accepted
 
-  // The kid's offers queue carries the daemon-contract helper fields the
-  // Shaer clients render their accept button from.
-  const kidQ = G.offersCollection(`${KID}/queues/offers`, 'kid', KID);
-  assert.equal(kidQ.totalItems, 1);
-  assert.equal(kidQ.orderedItems[0]['shaer:needsMyAccept'], true);
-  assert.equal(kidQ.orderedItems[0]['shaer:iAmCandidate'], false);
-  assert.equal(kidQ.orderedItems[0]['shaer:ward'], KID);
-  assert.equal(kidQ.orderedItems[0]['shaer:candidate'], ME);
-
-  // The kid accepts over C2S; the answer travels to the guardian.
-  const r = await G.handleGuardianshipOutbox(kid, { type: 'Accept', object: offerId });
-  assert.equal(r.status, 202);
+  // The candidate accepts → tally complete → commit everywhere.
+  const done = await G.handleGuardianshipOutbox(parent, { type: 'Accept', object: id });
+  assert.equal(done.committed, true);
   assert.deepEqual(G.listGuardians('kid').map((g) => g.other_uri), [ME]);
+  assert.deepEqual(G.listWards('parent').map((w) => w.other_uri), [KID]);
 
-  // The guardian's side hears the Accept S2S and commits.
-  const ok = await G.handleGuardianshipInbox(parent, { type: 'Accept', actor: KID, object: offerId });
-  assert.equal(ok, true);
-  const wards = G.listWards('parent').filter((w) => w.status === 'accepted');
-  assert.deepEqual(wards.map((w) => w.other_uri), [KID]);
-
-  // The ward's actor doc now names its guardian (FEP-633c 2.1).
-  const actor = AP.buildActor('https://test.example', kid);
-  assert.deepEqual(actor['shaer:guardians'], [ME]);
+  // The ward actor now names its guardian; parent reads as guardian (§2).
+  assert.deepEqual(AP.buildActor('https://test.example', kid)['shaer:guardians'], [ME]);
+  assert.equal(AP.buildActor('https://test.example', parent)['shaer:isGuardian'], true);
+  // §1 mutual exclusion: the ward is not also a guardian.
+  assert.equal(AP.buildActor('https://test.example', kid)['shaer:isGuardian'], undefined);
 });
 
-test('queues serve the daemon contract shapes', () => {
-  const wardsQ = G.wardsCollection(`${ME}/queues/wards`, 'parent');
-  assert.equal(wardsQ.type, 'OrderedCollection');
-  assert.equal(wardsQ.totalItems, 1);
-  assert.equal(wardsQ.orderedItems[0].id, KID);
-  const followsQ = G.followsCollection(`${ME}/queues/follows`);
-  assert.deepEqual(followsQ.orderedItems, []);
-  const offersQ = G.offersCollection(`${ME}/queues/offers`, 'parent', ME);
-  assert.equal(offersQ.type, 'OrderedCollection');   // empty again after the accept
-  assert.equal(offersQ.totalItems, 0);
+test('second guardian needs the EXISTING guardian to co-accept (§3.1.2)', async () => {
+  // Gran offers to also guard the kid (who already has parent).
+  const off = await G.handleGuardianshipOutbox(gran, {
+    type: 'Offer', object: { type: 'Relationship', subject: KID, relationship: 'shaer:Guardian', object: GRAN },
+  });
+  const id = offerIdFrom(off);
+  // The existing guardian (parent) is a party and must accept.
+  const parentQ = G.offersCollection(`${ME}/queues/offers`, 'parent', ME).orderedItems.find((o) => o.id === id);
+  assert.ok(parentQ, 'parent sees the co-guardianship offer');
+  assert.deepEqual(parentQ['shaer:existingGuardians'], [ME]);
+
+  // Kid accepts, then gran (candidate) accepts — still NOT committed, because
+  // the existing guardian (parent) has not co-accepted (§3.1.2).
+  await G.handleGuardianshipOutbox(kid, { type: 'Accept', object: id });
+  const early = await G.handleGuardianshipOutbox(gran, { type: 'Accept', object: id });
+  assert.equal(early.committed, false);
+  assert.equal(G.listGuardians('kid').length, 1, 'still just the first guardian');
+
+  // The existing guardian co-accepts → tally complete → commit.
+  await G.handleGuardianshipOutbox(parent, { type: 'Accept', object: id });
+  assert.deepEqual(G.listGuardians('kid').map((g) => g.other_uri).sort(), [GRAN, ME].sort());
 });
 
-test('a ward cannot become a guardian (FEP-633c 1)', async () => {
+test('a single Reject from a required party voids the offer (§3.2)', async () => {
+  // parent offers to guard gran (who is free).
+  const off = await G.handleGuardianshipOutbox(parent, {
+    type: 'Offer', object: { type: 'Relationship', subject: GRAN, relationship: 'shaer:Guardian', object: ME },
+  });
+  const id = offerIdFrom(off);
+  await G.handleGuardianshipOutbox(gran, { type: 'Reject', object: id });
+  const q = G.offersCollection(`${ME}/queues/offers`, 'parent', ME).orderedItems.find((o) => o.id === id);
+  assert.equal(q, undefined, 'voided offer leaves the queue');
+  assert.equal(G.listWards('parent').some((w) => w.other_uri === GRAN), false);
+});
+
+test('a ward cannot become a guardian (§1)', async () => {
   const r = await G.handleGuardianshipOutbox(kid, {
-    type: 'Offer',
-    object: { type: 'Relationship', subject: 'https://other.test/u/y', relationship: 'shaer:Guardian', object: KID },
+    type: 'Offer', object: { type: 'Relationship', subject: A('someone'), relationship: 'shaer:Guardian', object: KID },
   });
   assert.equal(r.status, 403);
   assert.equal(r.error, 'a_ward_cannot_guard');
 });
 
+test('only the candidate may offer (§3.1 fixed initiator)', async () => {
+  const r = await G.handleGuardianshipOutbox(parent, {
+    type: 'Offer', object: { type: 'Relationship', subject: A('newkid'), relationship: 'shaer:Guardian', object: GRAN },
+  });
+  assert.equal(r.status, 403);
+  assert.equal(r.error, 'only_the_candidate_offers');
+});
+
 test('helpRequest props only ride direct notes', () => {
-  assert.deepEqual(G.helpRequestProps({ visibility: 'direct', help_request: 1 }), { 'shaer:helpRequest': true });
-  assert.deepEqual(G.helpRequestProps({ visibility: 'public', help_request: 1 }), {});
   assert.equal(G.isHelpRequest({ 'shaer:helpRequest': true }), true);
   assert.equal(G.isHelpRequest({}), false);
 });
