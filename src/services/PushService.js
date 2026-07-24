@@ -67,7 +67,9 @@ export async function pushReady() { return (await publicKey()) !== null; }
 
 // ── Subscriptions ───────────────────────────────────────────────────
 
-export const DEFAULT_ALERTS = { follow: 1, reply: 1, like: 0, boost: 0, dm: 1 };
+// help (a ward's call for help) and guardian (adoption handshake) serve the
+// Guardian PWA and default ON: a guardian must never miss a call for help.
+export const DEFAULT_ALERTS = { follow: 1, reply: 1, like: 0, boost: 0, dm: 1, help: 1, guardian: 1 };
 
 export function saveSubscription({ endpoint, userId, p256dh, auth, alertTypes, uaLabel }) {
   if (!endpoint || !userId || !p256dh || !auth) return false;
@@ -121,7 +123,7 @@ async function sendTo(row, payload) {
 // pushes. Per (user, type) at most one push per window; extras drop silently
 // (the events themselves are still in Berichten — only the ping is deduped).
 // In-memory is fine: one process, and a restart just means one extra ping.
-const THROTTLE_SECONDS = { follow: 60, reply: 30, dm: 30, like: 300, boost: 300, test: 0 };
+const THROTTLE_SECONDS = { follow: 60, reply: 30, dm: 30, like: 300, boost: 300, test: 0, help: 0, guardian: 30 };
 const _lastPush = new Map();
 export function throttled(userId, type, nowSeconds = Math.floor(Date.now() / 1000)) {
   const windowS = THROTTLE_SECONDS[type] ?? 60;
@@ -134,7 +136,7 @@ export function throttled(userId, type, nowSeconds = Math.floor(Date.now() / 100
 }
 
 // Notify one user on all their devices, honouring per-type preferences.
-// type ∈ {follow, reply, like, boost, dm, test}. Fire-and-forget at call sites.
+// type ∈ {follow, reply, like, boost, dm, help, guardian, test}. Fire-and-forget at call sites.
 export async function notifyUser(userId, { type, title, body, url }) {
   if (!(await pushReady())) return 0;
   if (throttled(userId, type)) return 0;

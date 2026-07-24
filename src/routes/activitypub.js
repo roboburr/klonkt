@@ -18,6 +18,7 @@ import AP from '../services/ActivityPubService.js';
 import { apReadLimiter, apInboxLimiter } from '../middleware/rate-limit.js';
 import { apEnabled } from '../services/SettingsService.js';
 import OAuth from '../services/OAuthService.js';
+import * as Guardianship from '../services/guardianship/index.js';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -107,6 +108,23 @@ router.get('/ap/users/:slug/blocked', (req, res) => {
     orderedItems: items,
   });
 });
+
+// ── Guardian queues (owner only, FEP-633c, shaer:queues) ──────────
+// The dashboard collections the Shaer clients read: pending adoption offers,
+// gated follows (empty in Klonkt for now) and the guardian's wards. Same
+// contract as the Shaer test daemon.
+function queueRoute(name, build) {
+  router.get(`/ap/users/:slug/queues/${name}`, (req, res) => {
+    const auth = OAuth.verifyBearer(req.headers.authorization);
+    if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
+    const base = baseUrl(req);
+    const me = `${base}/ap/users/${auth.site.slug}`;
+    AP.sendAP(res, { '@context': AP.AP_CONTEXT, ...build(`${me}/queues/${name}`, auth.site.slug, me) });
+  });
+}
+queueRoute('offers', (id, slug, me) => Guardianship.offersCollection(id, slug, me));
+queueRoute('follows', (id) => Guardianship.followsCollection(id));
+queueRoute('wards', (id, slug) => Guardianship.wardsCollection(id, slug));
 
 // ── Inbox read (owner only, AP C2S) ───────────────────────────────
 // GET on the inbox is part of ActivityPub C2S: the account owner (a bearer
