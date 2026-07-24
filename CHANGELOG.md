@@ -6,6 +6,21 @@ Versions follow [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Guardians (FEP-633c).** An account can now be watched over by one or more
+  guardians, the way a child has parents. A guardian offers to look after
+  someone; the ward accepts in their own Messages, and any existing guardians
+  co-approve, so no one can attach themselves to a child on their own. Once
+  agreed, the guardian appears on the ward's actor (`shaer:guardians`) and can
+  be reached when the ward calls for help. It builds on ordinary ActivityPub, so
+  guardian and ward can live on different servers.
+- **A Guardian app you can install.** A separate, installable corner at
+  `/guardian` for guardians: add and manage your wards, a message centre for
+  incoming calls for help, and its own notifications for help requests and
+  guardianship traffic, even with the app closed.
+- **Guardianship offers land in your Messages.** When someone offers to become
+  your guardian, it shows up in your own Messages as a clear item with Accept
+  and Decline, so you answer where you already read your messages instead of
+  somewhere separate.
 - **The owner can read their inbox over C2S.** A GET on the inbox with the
   account's own bearer returns recent inbound posts (the accounts you follow)
   as Create(Note) items, so a connected app (Shaer) can build a unified feed.

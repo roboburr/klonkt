@@ -6,6 +6,22 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 ## [Unreleased]
 
 ### Toegevoegd
+- **Guardians (FEP-633c).** Een account kan nu onder de hoede staan van een of
+  meer guardians, zoals een kind ouders heeft. Een guardian biedt aan om over
+  iemand te waken; de ward accepteert in zijn eigen Berichten, en eventuele
+  bestaande guardians keuren mee goed, zodat niemand zich in z'n eentje aan een
+  kind kan koppelen. Eenmaal akkoord verschijnt de guardian op het actor-doc van
+  de ward (`shaer:guardians`) en is die bereikbaar als de ward om hulp vraagt.
+  Het bouwt op gewone ActivityPub, dus guardian en ward mogen op verschillende
+  servers zitten.
+- **Een Guardian-app die je kunt installeren.** Een aparte, installeerbare hoek
+  op `/guardian` voor guardians: wards toevoegen en beheren, een berichtencentrum
+  voor binnenkomende hulpverzoeken, en eigen meldingen voor hulpverzoeken en
+  voogdij-verkeer, ook als de app dicht is.
+- **Voogdij-aanvragen komen binnen in je Berichten.** Als iemand aanbiedt je
+  guardian te worden, verschijnt dat in je eigen Berichten als een duidelijk item
+  met Accepteren en Weigeren, zodat je antwoordt waar je toch al je berichten
+  leest, niet ergens apart.
 - **De eigenaar kan zijn inbox lezen via C2S.** Een GET op de inbox met de
   eigen bearer geeft recente binnengekomen posts (de accounts die je volgt) als
   Create(Note)-items, zodat een gekoppelde app (Shaer) een unified feed kan
