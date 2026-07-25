@@ -17,4 +17,17 @@ export function isHelpRequest(object) {
   return !!object && (object['shaer:helpRequest'] === true || object.helpRequest === true);
 }
 
-export default { helpRequestProps, isHelpRequest };
+/** shaer:wave: a gentle "thinking of you" from a guardian to its ward. A
+ *  private nudge, never a feed post; non-shaer clients see a plain DM. */
+export function waveProps(post) {
+  return (post && post.visibility === 'direct' && post.wave)
+    ? { 'shaer:wave': true }
+    : {};
+}
+
+/** True when an incoming note is a wave. */
+export function isWave(object) {
+  return !!object && (object['shaer:wave'] === true || object.wave === true);
+}
+
+export default { helpRequestProps, isHelpRequest, waveProps, isWave };

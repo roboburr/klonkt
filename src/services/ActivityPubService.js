@@ -275,6 +275,7 @@ export function buildNote(base, site, post, opts = {}) {
       cc: post.visibility === 'direct' ? [] : [PUBLIC, `${meR}/followers`],
       // FEP-633c 5.2.1: a ward's call for help. Only ever on direct notes.
       ...Guardianship.helpRequestProps(post),
+      ...Guardianship.waveProps(post),
       tag: [
         ...mentionTags(post.content),
         ...hashtagTags(base, post.content),
@@ -1514,10 +1515,11 @@ export async function handleInbox(req, slugParam) {
         // FEP-633c 5.2.1: a ward's call for help rides a direct mention; the
         // flag is stored so the Guardian PWA's message centre can list it.
         const help = Guardianship.isHelpRequest(o);
+        const wave = Guardianship.isWave(o);
         for (const slug of slugs) {
           try {
-            const r = db.prepare('INSERT OR IGNORE INTO ap_mentions (slug, object_uri, note_url, actor_uri, actor_name, actor_handle, actor_icon, actor_url, content, published, help_request, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)')
-              .run(slug, o.id, safeUrl(o.url) || null, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.published || null, help ? 1 : 0);
+            const r = db.prepare('INSERT OR IGNORE INTO ap_mentions (slug, object_uri, note_url, actor_uri, actor_name, actor_handle, actor_icon, actor_url, content, published, help_request, wave, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)')
+              .run(slug, o.id, safeUrl(o.url) || null, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.published || null, help ? 1 : 0, wave ? 1 : 0);
             if (r.changes) {
               console.log('[AP] mention', actorUri, '→', slug, help ? '(help request)' : '');
               const vis = noteVisibility(o);

@@ -560,6 +560,8 @@ export function initializeDatabase() {
   ensureColumn('ap_outbox', 'to_actors', 'TEXT');   // JSON array of recipient actor URIs for direct notes
   ensureColumn('ap_outbox', 'help_request', 'INTEGER'); // FEP-633c shaer:helpRequest (ward's call for help)
   ensureColumn('ap_mentions', 'help_request', 'INTEGER'); // inbound ward call-for-help (Guardian PWA message centre)
+  ensureColumn('ap_outbox', 'wave', 'INTEGER');    // FEP-633c shaer:wave (guardian -> ward nudge)
+  ensureColumn('ap_mentions', 'wave', 'INTEGER');  // inbound guardian wave
   ensureColumn('ap_followers', 'name', 'TEXT');    // cached display name (shaer-aa3)
   ensureColumn('ap_followers', 'handle', 'TEXT');  // @user@host
   ensureColumn('ap_followers', 'icon', 'TEXT');    // avatar URL

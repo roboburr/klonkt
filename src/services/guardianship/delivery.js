@@ -39,7 +39,7 @@ export function c2sVisibility(object) {
 // so no boosts and no timelines. The same S2S leg a Mastodon DM takes, so a
 // guardian on any instance receives it as a private mention (the ward
 // call-for-help path).
-export async function deliverDirectNote(site, { recipients, text, language, inReplyTo, attachments, helpRequest }) {
+export async function deliverDirectNote(site, { recipients, text, language, inReplyTo, attachments, helpRequest, wave }) {
   const { actorId, fetchActor, deriveHandle, escHtml, linkUrls, linkHashtags,
           getOutboxRow, buildReplyNote, AP_CONTEXT, getOrCreateKeys, deliver, enqueueDelivery } = deps;
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
@@ -69,9 +69,9 @@ export async function deliverDirectNote(site, { recipients, text, language, inRe
     .slice(0, 4)
     .map((a) => ({ url: a.url, mediaType: String(a.mediaType), name: String(a.name || '').slice(0, 120) }));
   const id = crypto.randomUUID();
-  db.prepare(`INSERT INTO ap_outbox (id, site_slug, post_id, post_slug, in_reply_to, to_actor, to_handle, content, language, attachments, visibility, to_actors, help_request, created_at)
-              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)`)
-    .run(id, site.slug, '', null, inReplyTo || null, resolved[0].uri, resolved[0].handle, content, lang, media.length ? JSON.stringify(media) : null, 'direct', JSON.stringify(resolved.map((r) => r.uri)), helpRequest ? 1 : 0);
+  db.prepare(`INSERT INTO ap_outbox (id, site_slug, post_id, post_slug, in_reply_to, to_actor, to_handle, content, language, attachments, visibility, to_actors, help_request, wave, created_at)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)`)
+    .run(id, site.slug, '', null, inReplyTo || null, resolved[0].uri, resolved[0].handle, content, lang, media.length ? JSON.stringify(media) : null, 'direct', JSON.stringify(resolved.map((r) => r.uri)), helpRequest ? 1 : 0, wave ? 1 : 0);
   const row = getOutboxRow(id);
   const note = buildReplyNote(base, site, row);
   const create = {

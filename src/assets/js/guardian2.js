@@ -113,6 +113,9 @@
       var row = el('div', 'row');
       row.appendChild(el('span', 'who grow', handleOf(w.other_uri, w.other_handle)));
       row.appendChild(el('span', 'tag ok', T.active));
+      var wave = el('button', 'small', T.wave || '👋 Wave');
+      wave.addEventListener('click', function () { sendWave(w.other_uri, wave); });
+      row.appendChild(wave);
       var btn = el('button', 'quiet small', T.release);
       btn.addEventListener('click', function () { remove(w.other_uri, btn); });
       row.appendChild(btn);
@@ -120,6 +123,16 @@
       list.appendChild(card);
     });
     show('wards-empty', wards.length === 0);
+  }
+
+  function sendWave(uri, btn) {
+    btn.disabled = true;
+    fetch('/guardian2/api/wave', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ward: uri, site: S.site }),
+    }).then(function (r) { return r.json(); })
+      .then(function (j) { btn.disabled = false; btn.textContent = (j && j.ok) ? (T.waved || '👋 sent') : (T.wave || '👋 Wave'); })
+      .catch(function () { btn.disabled = false; });
   }
 
   function remove(uri, btn) {

@@ -39,7 +39,10 @@ function uiStrings(L) {
   const keys = ['sent', 'sent_retry', 'sending', 'not_found', 'failed', 'network',
     'pending', 'active', 'retract', 'release', 'open', 'push_unavailable',
     'accept', 'reject', 'complete', 'awaiting_others', 'coguard'];
-  return Object.fromEntries(keys.map((k) => [k, i18nT(L, `guardian.${k}`)]));
+  const s = Object.fromEntries(keys.map((k) => [k, i18nT(L, `guardian.${k}`)]));
+  s.wave = i18nT(L, 'guardian2.wave');
+  s.waved = i18nT(L, 'guardian2.waved');
+  return s;
 }
 
 function dashboardState(site, L) {
@@ -169,6 +172,22 @@ router.post('/api/follow/:id', requireAuth, express.json({ limit: '4kb' }), asyn
     else if (r.outcome === 'rejected') { await AP.rejectGatedFollow(r.follow); Guardianship.follows.remove(r.follow.id); }
   } catch (e) { return res.status(502).json({ error: 'delivery', outcome: r.outcome }); }
   res.json({ ok: true, outcome: r.outcome });
+});
+
+// ── Wave (FEP-633c §5, shaer:wave): a gentle "thinking of you" from a
+//    guardian to a ward. A private direct note, never a feed post. Warmth
+//    without publishing (Robins besluit).
+router.post('/api/wave', requireAuth, express.json({ limit: '2kb' }), async (req, res) => {
+  const site = siteForUser(req);
+  if (!site) return res.status(404).json({ error: 'no_site' });
+  const wardUri = String(req.body?.ward || '').trim();
+  // Only wave at a ward you actually guard.
+  const isWard = Guardianship.listWards(site.slug).some((w) => w.other_uri === wardUri);
+  if (!wardUri || !isWard) return res.status(403).json({ error: 'not_your_ward' });
+  const text = String(req.body?.text || '').trim().slice(0, 200) || '👋 thinking of you';
+  const r = await AP.deliverDirectNote(site, { recipients: [wardUri], text, wave: true }).catch(() => null);
+  if (!r) return res.status(502).json({ error: 'delivery' });
+  res.json({ ok: true, delivered: r.delivered });
 });
 
 // ── Adopt a ward: handle → resolve → C2S Offer through the same pipeline
