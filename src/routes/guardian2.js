@@ -130,6 +130,47 @@ router.get('/api/feed', requireAuth, (req, res) => {
   res.json({ items, following: wardUris.size });
 });
 
+// ── Follow-gating (FEP-633c §5.3): pending follows on MY wards, for me to
+//    approve. Ward and guardian are co-located on the family Klonkt here, so
+//    the guardian reads its wards' pending follows locally.
+function wardSlugsOf(site) {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  return Guardianship.listWards(site.slug)
+    .map((w) => (w.other_uri.startsWith(base) ? w.other_uri.split('/').pop() : null))
+    .filter(Boolean);
+}
+
+router.get('/api/follow-requests', requireAuth, (req, res) => {
+  const site = siteForUser(req);
+  if (!site) return res.status(404).json({ error: 'no_site' });
+  const items = [];
+  for (const wardSlug of wardSlugsOf(site)) {
+    for (const f of Guardianship.follows.listForWard(wardSlug)) {
+      items.push({ id: f.id, ward: wardSlug, follower: f.follower_handle || f.follower_name || f.follower_uri, followerIcon: f.follower_icon, created: f.created_at });
+    }
+  }
+  res.json({ items });
+});
+
+router.post('/api/follow/:id', requireAuth, express.json({ limit: '4kb' }), async (req, res) => {
+  const site = siteForUser(req);
+  if (!site) return res.status(404).json({ error: 'no_site' });
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  const me = AP.actorId(base, site.slug);
+  const decision = req.body?.decision === 'reject' ? 'reject' : 'approve';
+  const pending = Guardianship.follows.getPending(req.params.id);
+  if (!pending) return res.status(404).json({ error: 'gone' });
+  // I must actually be a guardian of this ward.
+  const guardians = Guardianship.listGuardians(pending.ward_slug).map((g) => g.other_uri);
+  if (!guardians.includes(me)) return res.status(403).json({ error: 'not_a_guardian' });
+  const r = Guardianship.follows.decide(pending.id, me, decision, guardians);
+  try {
+    if (r.outcome === 'approved') { await AP.acceptGatedFollow(r.follow); Guardianship.follows.remove(r.follow.id); }
+    else if (r.outcome === 'rejected') { await AP.rejectGatedFollow(r.follow); Guardianship.follows.remove(r.follow.id); }
+  } catch (e) { return res.status(502).json({ error: 'delivery', outcome: r.outcome }); }
+  res.json({ ok: true, outcome: r.outcome });
+});
+
 // ── Adopt a ward: handle → resolve → C2S Offer through the same pipeline
 //    the Shaer apps use (one path, one behavior).
 router.post('/adopt', requireAuth, express.json({ limit: '4kb' }), async (req, res) => {

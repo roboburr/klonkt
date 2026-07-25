@@ -47,6 +47,29 @@ export function initializeDatabase() {
     used_by TEXT,
     used_at TEXT
   )`);
+  // FEP-633c §5.3: follows targeting a ward are held pending until its
+  // guardians approve (Guardian 2). Gating applies only to ward-actors.
+  db.exec(`CREATE TABLE IF NOT EXISTS ap_pending_follows (
+    id TEXT PRIMARY KEY,
+    ward_slug TEXT NOT NULL,
+    follower_uri TEXT NOT NULL,
+    follower_inbox TEXT,
+    follower_shared_inbox TEXT,
+    follower_name TEXT,
+    follower_handle TEXT,
+    follower_icon TEXT,
+    activity_json TEXT,
+    quorum TEXT DEFAULT 'any',
+    status TEXT DEFAULT 'pending',
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )`);
+  db.exec(`CREATE TABLE IF NOT EXISTS ap_pending_follow_approvals (
+    follow_id TEXT NOT NULL,
+    guardian_uri TEXT NOT NULL,
+    decision TEXT NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (follow_id, guardian_uri)
+  )`);
   ensureColumn('sites', 'profile_photo', 'TEXT');
   ensureColumn('audio_tracks', 'cover_url', 'TEXT');
   ensureColumn('audio_tracks', 'album', 'TEXT');

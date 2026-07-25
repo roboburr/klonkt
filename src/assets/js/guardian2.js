@@ -164,11 +164,43 @@
       .catch(function () { /* corner just stays hidden */ });
   }
 
+  // ── 0b. Follow requests on your wards (§5.3) ────────────────────────────
+  function answerFollow(id, decision, btn) {
+    if (btn) btn.disabled = true;
+    fetch('/guardian2/api/follow/' + encodeURIComponent(id), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ decision: decision, site: S.site }),
+    }).then(loadFollowReqs);
+  }
+  function renderFollowReqs(items) {
+    var list = document.getElementById('follow-list');
+    list.textContent = '';
+    (items || []).forEach(function (f) {
+      var card = el('div', 'g-card');
+      var row = el('div', 'row');
+      row.appendChild(el('span', 'who grow', f.follower + '  →  @' + f.ward));
+      var ok = el('button', 'small', T.accept || 'Accept');
+      ok.addEventListener('click', function () { answerFollow(f.id, 'approve', ok); });
+      var no = el('button', 'quiet small', T.reject || 'Deny');
+      no.addEventListener('click', function () { answerFollow(f.id, 'reject', no); });
+      row.appendChild(ok); row.appendChild(no);
+      card.appendChild(row);
+      list.appendChild(card);
+    });
+    show('follow-section', (items || []).length > 0);
+  }
+  function loadFollowReqs() {
+    return fetch('/guardian2/api/follow-requests?site=' + encodeURIComponent(S.site))
+      .then(function (r) { return r.json(); })
+      .then(function (f) { if (f && !f.error) renderFollowReqs(f.items); })
+      .catch(function () { /* stays hidden */ });
+  }
+
   function refresh() {
     return fetch('/guardian2/api/state?site=' + encodeURIComponent(S.site))
       .then(function (r) { return r.json(); })
       .then(function (s) { if (s && !s.error) { S = s; T = s.strings || T; renderAll(); } })
-      .then(loadFeed);
+      .then(loadFeed).then(loadFollowReqs);
   }
 
   // ── 2. Adopt ───────────────────────────────────────────────────────────
@@ -262,7 +294,7 @@
     });
   });
 
-  renderAll(); pushState(); loadFeed();
+  renderAll(); pushState(); loadFeed(); loadFollowReqs();
   setInterval(refresh, 45000);   // live-ish while open
   } catch (e) {
     fatal((e && e.message) || String(e));

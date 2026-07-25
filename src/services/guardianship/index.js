@@ -19,6 +19,7 @@ export { helpRequestProps, isHelpRequest } from './notes.js';
 export { wireDelivery, c2sVisibility, deliverDirectNote } from './delivery.js';
 export { wireHandshake, handleOutbox as handleGuardianshipOutbox, handleInbox as handleGuardianshipInbox, parseRelationship } from './handshake.js';
 export { offersCollection, followsCollection, wardsCollection } from './queues.js';
+export * as follows from './follows.js';
 export { listForParty as listOffersForParty, getOffer, findOfferAnywhere } from './offers.js';
 export {
   listGuardians, listWards, isGuardian, getRelation, removeRelation,

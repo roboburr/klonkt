@@ -1374,6 +1374,26 @@ export async function handleInbox(req, slugParam) {
     if (!remote || !remote.inbox) return 202; // can't reach them → drop quietly
     const sharedInbox = (remote.endpoints && remote.endpoints.sharedInbox) || null;
     const fi = actorInfo(remote, who);   // cache display for the friends list (shaer-aa3)
+    // FEP-633c §5.3: if the followed actor is a WARD (has guardians), the
+    // follow is gated. A committed guardian's own Follow is auto-accepted
+    // (it needs no gate); anyone else is held pending for guardian approval.
+    // Free actors / normal sites have no guardians → fall through, unchanged.
+    const wardGuardians = Guardianship.listGuardians(slug).map((g) => g.other_uri);
+    if (wardGuardians.length && !wardGuardians.includes(who)) {
+      const followId = (typeof act.id === 'string' && act.id) || `${who}#follow-${Date.now()}-${rid()}`;
+      Guardianship.follows.recordPending(slug, {
+        id: followId, follower: who, inbox: remote.inbox, sharedInbox,
+        name: fi.name, handle: fi.handle, icon: fi.icon, activity: act,
+      });
+      for (const g of wardGuardians) {
+        const gslug = slugFromActorUrl(g);
+        if (!gslug) continue;
+        const L = pushLang(gslug);
+        pushEvent(gslug, { type: 'guardian', title: i18nT(L, 'push.n_guard_cog_t'), body: i18nT(L, 'push.n_guard_cog_b', { who: fi.name || fi.handle || i18nT(L, 'notif.someone') }), url: `${pushPrefix(gslug)}/guardian2` });
+      }
+      console.log('[AP] Follow', who, '→ ward', slug, '(gated, awaiting guardians)');
+      return 202;
+    }
     fStmts().ins.run(slug, who, remote.inbox, sharedInbox, fi.name, fi.handle, fi.icon);
     try { _updFDisp.run(fi.name, fi.handle, fi.icon, slug, who); } catch { /* best effort */ }
     { const L = pushLang(slug); pushEvent(slug, { type: 'follow', title: i18nT(L, 'push.n_follow_t'), body: i18nT(L, 'push.n_follow_b', { who: fi.name || fi.handle || i18nT(L, 'notif.someone') }), url: `${pushPrefix(slug)}/connect` }); }
@@ -2878,6 +2898,39 @@ export async function unfollowActor(site, actorUri) {
   return { ok: true };
 }
 
+// FEP-633c §5.3: the guardians approved a gated follow of their ward. Send the
+// Accept to the follower and record them, so delivery (incl. followers-only)
+// begins. `pending` is a row from ap_pending_follows.
+export async function acceptGatedFollow(pending) {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  const slug = pending.ward_slug;
+  const me = actorId(base, slug);
+  const keys = getOrCreateKeys(slug);
+  fStmts().ins.run(slug, pending.follower_uri, pending.follower_inbox, pending.follower_shared_inbox, pending.follower_name, pending.follower_handle, pending.follower_icon);
+  const original = pending.activity_json ? JSON.parse(pending.activity_json) : { type: 'Follow', actor: pending.follower_uri, object: me };
+  const accept = { '@context': AP_CONTEXT, id: `${me}#accept-${Date.now()}-${rid()}`, type: 'Accept', actor: me, object: original };
+  await deliverWithRetry(slug, pending.follower_inbox, accept, `${me}#main-key`, keys.private_pem);
+  const filled = pending.follower_shared_inbox &&
+    db.prepare('SELECT 1 FROM ap_followers WHERE slug = ? AND shared_inbox = ? AND actor_uri != ? LIMIT 1').get(slug, pending.follower_shared_inbox, pending.follower_uri);
+  if (!filled) backfillNewFollower(base, slug, pending.follower_shared_inbox || pending.follower_inbox).catch(() => {});
+  console.log('[AP] gated Follow accepted', pending.follower_uri, '→ ward', slug);
+  return { ok: true };
+}
+
+// The guardians denied the follow: send a Reject so the follower's server clears
+// its pending state, then the caller drops the record.
+export async function rejectGatedFollow(pending) {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  const slug = pending.ward_slug;
+  const me = actorId(base, slug);
+  const keys = getOrCreateKeys(slug);
+  const original = pending.activity_json ? JSON.parse(pending.activity_json) : { type: 'Follow', actor: pending.follower_uri, object: me };
+  const reject = { '@context': AP_CONTEXT, id: `${me}#reject-${Date.now()}-${rid()}`, type: 'Reject', actor: me, object: original };
+  if (pending.follower_inbox) await deliverWithRetry(slug, pending.follower_inbox, reject, `${me}#main-key`, keys.private_pem).catch(() => {});
+  console.log('[AP] gated Follow rejected', pending.follower_uri, '→ ward', slug);
+  return { ok: true };
+}
+
 // Send a Like or Announce (boost) on a remote note FROM this site.
 export async function sendInteraction(site, kind, targetNoteId, authorUri) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
@@ -3192,6 +3245,7 @@ export default {
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, setMyReaction, getMyReactions, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate, deliverDirectNote,
   webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, timelineAttachments, sendInteraction, voteOnPoll, voteOnRemotePoll,
+  acceptGatedFollow, rejectGatedFollow,
   parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread, sendReport, localMentionSlugs,
   autoBoostCount, boostedCount, markBoosted, unmarkBoosted, markLiked, unmarkLiked, getTimelineReaction, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
