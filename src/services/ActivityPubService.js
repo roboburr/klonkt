@@ -157,6 +157,10 @@ export function noteId(base, postId) { return `${base}/ap/notes/${encodeURICompo
 export function buildActor(base, site) {
   const id = actorId(base, site.slug);
   const keys = getOrCreateKeys(site.slug);
+  // FEP-633c §5.3: a ward's follows are gated (guardians approve), so the actor
+  // MUST advertise manuallyApprovesFollowers:true — otherwise a follower's server
+  // (Mastodon) assumes auto-accept and shows "Following" while we hold it pending.
+  const isWard = (() => { try { return Guardianship.listGuardians(site.slug).length > 0; } catch { return false; } })();
   const actor = {
     '@context': AP_CONTEXT,
     id,
@@ -165,7 +169,7 @@ export function buildActor(base, site) {
     name: site.title || site.slug,
     summary: site.tagline || site.description || '',
     url: `${base}/${site.slug === site.primary_slug ? '' : 'user/' + encodeURIComponent(site.slug)}`,
-    manuallyApprovesFollowers: false,
+    manuallyApprovesFollowers: isWard,
     discoverable: true,
     inbox: `${id}/inbox`,
     outbox: `${id}/outbox`,
