@@ -78,15 +78,24 @@ router.get('/ap/users/:slug', (req, res) => {
 });
 
 // ── Outbox ────────────────────────────────────────────────────────
-router.get('/ap/users/:slug/outbox', (req, res) => {
+router.get('/ap/users/:slug/outbox', async (req, res) => {
   const site = publicSite(req.params.slug);
   if (!site) return res.status(404).end();
+  // Authorized fetch (FEP-633c §5.3 note): a committed guardian doing a SIGNED
+  // GET may read the ward's fan-only history too, without appearing as a
+  // follower. Unsigned / non-guardian callers get the public collection only.
+  let asGuardian = false;
+  if (req.headers['signature']) {
+    const verified = await AP.verifyRequest(req).catch(() => null);
+    asGuardian = !!(verified && AP.isWardGuardian(req.params.slug, verified.id));
+  }
+  const fanClause = asGuardian ? '' : "AND (fan_only IS NULL OR fan_only = 0)";
   const posts = db.prepare(
     `SELECT id, slug, title, content, cover_image_url, cover_video_url, nsfw, content_warning, published_at, created_at
-     FROM posts WHERE site_id = ? AND status = 'published' AND (fan_only IS NULL OR fan_only = 0)
+     FROM posts WHERE site_id = ? AND status = 'published' ${fanClause}
      ORDER BY COALESCE(published_at, created_at) DESC LIMIT 20`
   ).all(site.id);
-  AP.sendAP(res, AP.buildOutbox(baseUrl(req), site, posts));
+  AP.sendAP(res, AP.buildOutbox(baseUrl(req), site, posts), asGuardian ? 'private, no-store' : undefined);
 });
 
 // ── Blocked collection (owner only, AP §5.6) ──────────────────────

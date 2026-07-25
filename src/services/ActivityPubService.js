@@ -143,9 +143,10 @@ export function apWants(req) {
 }
 
 const AP_CONTENT_TYPE = 'application/activity+json; charset=utf-8';
-export function sendAP(res, obj) {
+export function sendAP(res, obj, cacheControl) {
   res.type(AP_CONTENT_TYPE);
-  res.set('Cache-Control', 'public, max-age=120');
+  // A per-caller (e.g. guardian-widened) view must not be publicly cached.
+  res.set('Cache-Control', cacheControl || 'public, max-age=120');
   res.send(JSON.stringify(obj));
 }
 
@@ -2900,6 +2901,13 @@ export async function unfollowActor(site, actorUri) {
   return { ok: true };
 }
 
+// FEP-633c §5.3 note (authorized fetch): true when `actorUri` is a committed
+// guardian of the local ward `wardSlug` — so a signed GET from it may read the
+// ward's non-public history without the guardian appearing as a follower.
+export function isWardGuardian(wardSlug, actorUri) {
+  try { return !!Guardianship.getRelation(wardSlug, 'ward', actorUri); } catch { return false; }
+}
+
 // FEP-633c §5.3: the guardians approved a gated follow of their ward. Send the
 // Accept to the follower and record them, so delivery (incl. followers-only)
 // begins. `pending` is a row from ap_pending_follows.
@@ -3247,7 +3255,7 @@ export default {
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, setMyReaction, getMyReactions, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate, deliverDirectNote,
   webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, timelineAttachments, sendInteraction, voteOnPoll, voteOnRemotePoll,
-  acceptGatedFollow, rejectGatedFollow,
+  acceptGatedFollow, rejectGatedFollow, isWardGuardian,
   parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread, sendReport, localMentionSlugs,
   autoBoostCount, boostedCount, markBoosted, unmarkBoosted, markLiked, unmarkLiked, getTimelineReaction, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
