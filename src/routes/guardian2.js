@@ -87,6 +87,49 @@ router.get('/api/state', requireAuth, (req, res) => {
   res.json(dashboardState(site, resolveLang(req)));
 });
 
+// ── Meekijken (FEP-633c §5, interop-hoofdroute): a committed guardian FOLLOWS
+//    its wards, so their posts (incl. followers-only) are DELIVERED to the
+//    guardian's inbox → timeline. The follow is the mechanism; no new fetch.
+//    First contact also backfills the ward's recent PUBLIC posts as a cold
+//    start so the corner is not empty before delivery catches up.
+function ensureWardConnections(site) {
+  let wards;
+  try { wards = Guardianship.listWards(site.slug); } catch { return; }
+  for (const w of wards) {
+    const already = db.prepare('SELECT 1 FROM ap_following WHERE slug = ? AND actor_uri = ?')
+      .get(site.slug, w.other_uri);
+    if (already) continue;
+    // Follow (guardian's server auto-accepts today; §5.3 gating is a later fase).
+    AP.followActor(site, w.other_uri).catch(() => { /* retried by the queue */ });
+    // Cold start: pull recent public posts now so oma sees something at once.
+    AP.backfillFromOutbox(site.slug, w.other_uri).catch(() => { /* best-effort */ });
+  }
+}
+
+// ── The wards' corner: your wards' posts, read-only. No reply, no share; a
+//    guardian watches, it does not publish (Robins besluit).
+router.get('/api/feed', requireAuth, (req, res) => {
+  const site = siteForUser(req);
+  if (!site) return res.status(404).json({ error: 'no_site' });
+  ensureWardConnections(site);
+  const wardUris = new Set(Guardianship.listWards(site.slug).map((w) => w.other_uri));
+  // Only show the wards you actually guard (the timeline can hold more).
+  const items = AP.getTimeline(site.slug, 60, 0)
+    .filter((p) => wardUris.has(p.author_uri))
+    .map((p) => ({
+      id: p.id,
+      author: p.author_handle || p.author_name || p.author_uri,
+      authorName: p.author_name,
+      authorIcon: p.author_icon,
+      content: p.content,
+      url: p.url,
+      published: p.published || p.created_at,
+      cw: p.cw || null,
+      media: p.media_json ? JSON.parse(p.media_json) : [],
+    }));
+  res.json({ items, following: wardUris.size });
+});
+
 // ── Adopt a ward: handle → resolve → C2S Offer through the same pipeline
 //    the Shaer apps use (one path, one behavior).
 router.post('/adopt', requireAuth, express.json({ limit: '4kb' }), async (req, res) => {

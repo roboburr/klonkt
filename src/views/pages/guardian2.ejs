@@ -31,6 +31,13 @@
 </header>
 
   <main>
+    <!-- 0. Wards' corner: meelezen met je wards (read-only). -->
+    <section id="feed-section" hidden>
+      <div class="g-sec-head"><h2><%= t('guardian2.feed_title') %></h2></div>
+      <p class="g-sec-sub"><%= t('guardian2.feed_sub') %></p>
+      <div id="feed-list" class="g-list"></div>
+    </section>
+
     <!-- 1. Berichtencentrum: hulpverzoeken. Dat is waar dit voor bestaat. -->
     <section id="help-section">
       <div class="g-sec-head">

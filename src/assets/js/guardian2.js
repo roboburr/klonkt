@@ -132,10 +132,43 @@
 
   function renderAll() { renderHelp(); renderPending(); renderWards(); }
 
+  // ── 0. Wards' corner: read-only feed of your wards' posts ───────────────
+  function renderFeed(items) {
+    var list = document.getElementById('feed-list');
+    list.textContent = '';
+    (items || []).forEach(function (p) {
+      var card = el('div', 'g-card feed');
+      var head = el('div', 'row');
+      head.appendChild(el('span', 'who grow', p.author));
+      if (p.published) head.appendChild(el('span', 'g-when', when(p.published)));
+      card.appendChild(head);
+      var body = el('div', 'feed-body');
+      if (p.cw) {
+        var d = document.createElement('details');
+        var sum = document.createElement('summary'); sum.textContent = p.cw; d.appendChild(sum);
+        var inner = el('div'); inner.innerHTML = p.content || ''; d.appendChild(inner);
+        body.appendChild(d);
+      } else {
+        body.innerHTML = p.content || '';   // server-sanitized HTML (same as Berichten)
+      }
+      card.appendChild(body);
+      list.appendChild(card);
+    });
+    show('feed-section', (items || []).length > 0);
+  }
+
+  function loadFeed() {
+    return fetch('/guardian2/api/feed?site=' + encodeURIComponent(S.site))
+      .then(function (r) { return r.json(); })
+      .then(function (f) { if (f && !f.error) renderFeed(f.items); })
+      .catch(function () { /* corner just stays hidden */ });
+  }
+
   function refresh() {
     return fetch('/guardian2/api/state?site=' + encodeURIComponent(S.site))
       .then(function (r) { return r.json(); })
-      .then(function (s) { if (s && !s.error) { S = s; T = s.strings || T; renderAll(); } });
+      .then(function (s) { if (s && !s.error) { S = s; T = s.strings || T; renderAll(); } })
+      .then(loadFeed);
   }
 
   // ── 2. Adopt ───────────────────────────────────────────────────────────
@@ -229,7 +262,7 @@
     });
   });
 
-  renderAll(); pushState();
+  renderAll(); pushState(); loadFeed();
   setInterval(refresh, 45000);   // live-ish while open
   } catch (e) {
     fatal((e && e.message) || String(e));
