@@ -1,7 +1,7 @@
 <div class="msg-wrap">
   <%- include('../partials/fedi-tabs', { active: 'berichten' }) %>
   <h1 class="msg-title"><%= t('msg.title') %></h1>
-  <% if (typeof success !== 'undefined' && success) { %><div class="alert alert-success"><%= success === 'guardian_accepted' ? t('msg.guard_accepted') : (success === 'guardian_rejected' ? t('msg.guard_rejected') : success) %></div><% } %>
+  <% if (typeof success !== 'undefined' && success) { %><div class="alert alert-success"><%= success === 'guardian_accepted' ? t('msg.guard_accepted') : (success === 'guardian_rejected' ? t('msg.guard_rejected') : (success === 'wave_sent' ? t('msg.wave_sent') : success)) %></div><% } %>
   <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error === 'guardianship' ? t('msg.guard_failed') : error %></div><% } %>
 
   <%# FEP-633c: a pending guardianship offer is a special message: the kid

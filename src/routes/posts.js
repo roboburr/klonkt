@@ -971,6 +971,21 @@ router.post('/messages/guardianship', requireSiteManager, async (req, res) => {
   } catch { /* fall through */ }
   res.redirect(back + '?error=guardianship');
 });
+// A ward answers a guardian's wave without publishing: a canned private note
+// back to the sender (FEP-633c §5, shaer:wave reply). Same direct-note leg.
+router.post('/messages/quick-reply', requireSiteManager, express.urlencoded({ extended: false }), async (req, res) => {
+  const site = res.locals.site;
+  const back = `${res.locals.siteUrlBase || ''}/messages`;
+  const to = String(req.body.to || '').trim();
+  const text = String(req.body.text || '').trim().slice(0, 200);
+  if (!site || !/^https?:\/\//i.test(to) || !text) return res.redirect(back + '?error=quickreply');
+  try {
+    const r = await ActivityPubService.deliverDirectNote(site, { recipients: [to], text, wave: true });
+    if (r) return res.redirect(back + '?success=wave_sent');
+  } catch { /* fall through */ }
+  res.redirect(back + '?error=quickreply');
+});
+
 router.get('/fediverse', requireSiteManager, (req, res) => res.redirect(`${res.locals.siteUrlBase || ''}/messages`));
 
 router.post('/fediverse/:id/delete', requireSiteManager, async (req, res) => {

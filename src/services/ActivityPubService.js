@@ -3026,8 +3026,8 @@ export function getNotifications(slug, limit) {
     }
   } catch { /* ignore */ }
   try {
-    for (const r of db.prepare('SELECT object_uri, note_url, actor_uri, actor_name, actor_handle, actor_icon, actor_url, content, created_at FROM ap_mentions WHERE slug = ? ORDER BY created_at DESC LIMIT ?').all(slug, L)) {
-      out.push({ type: 'mention', name: r.actor_name, handle: r.actor_handle, url: r.actor_url || r.actor_uri, icon: r.actor_icon, content: stripLeadingMentions(r.content), note_url: r.note_url || r.object_uri, created_at: r.created_at });
+    for (const r of db.prepare('SELECT object_uri, note_url, actor_uri, actor_name, actor_handle, actor_icon, actor_url, content, wave, created_at FROM ap_mentions WHERE slug = ? ORDER BY created_at DESC LIMIT ?').all(slug, L)) {
+      out.push({ type: 'mention', name: r.actor_name, handle: r.actor_handle, url: r.actor_url || r.actor_uri, icon: r.actor_icon, content: stripLeadingMentions(r.content), note_url: r.note_url || r.object_uri, wave: r.wave ? 1 : 0, actorUri: r.actor_uri, created_at: r.created_at });
     }
   } catch { /* ignore */ }
   // Your own polls that have closed → a "results are in" item, derived read-time

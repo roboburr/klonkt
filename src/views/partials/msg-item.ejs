@@ -54,6 +54,7 @@
               <% } else if (_t === 'like') { %><%= t('notif.liked') %>
               <% } else if (_t === 'boost') { %><%= t('notif.boosted') %>
               <% } else if (_t === 'report') { %><%= t('notif.reported') %>
+              <% } else if (_t === 'mention' && n.wave) { %>👋 <%= t('msg.waved_at_you') %>
               <% } else if (_t === 'mention') { %><%= t('notif.mentioned') %>
               <% } else if (_t === 'sent') { %><%= t('msg.sent_reply') %>
               <% } else if (_t === 'poll_done') { %><strong><%= t('msg.poll_done') %></strong>
@@ -66,6 +67,14 @@
 
             <% if (_t === 'report' && n.content) { %><div class="msg-content"><%= n.content %></div>
             <% } else if ((_t === 'reply' || _t === 'mention' || _t === 'sent') && n.content) { %><div class="msg-content"><%- n.content %></div>
+              <% if (_t === 'mention' && n.wave && n.actorUri && canMutate) { %>
+                <form class="msg-quickreply" method="post" action="<%= (typeof siteUrlBase !== 'undefined' ? siteUrlBase : '') %>/messages/quick-reply" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+                  <input type="hidden" name="to" value="<%= n.actorUri %>">
+                  <button class="btn small" name="text" value="<%= t('msg.wave_r1') %>"><%= t('msg.wave_r1') %></button>
+                  <button class="btn small" name="text" value="<%= t('msg.wave_r2') %>"><%= t('msg.wave_r2') %></button>
+                  <button class="btn small" name="text" value="👋"><%= t('msg.wave_back') %></button>
+                </form>
+              <% } %>
             <% } else if (_t === 'poll_done' && n.poll) { %>
               <div class="msg-poll" role="group">
                 <% n.poll.options.forEach(function (o) { %>
