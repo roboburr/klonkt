@@ -161,6 +161,9 @@ router.get('/ap/users/:slug/inbox', (req, res) => {
       // Friends' media travels along (media_json → AS2 attachment), so the
       // client renders their images/audio like own outbox posts.
       attachment: AP.timelineAttachments(t.media_json),
+      // FEP-9098 custom emojis: the note's Emoji tags, so the client can
+      // render :shortcode: as an image instead of literal text.
+      tag: AP.timelineEmojis(t.emoji_json),
     },
   }));
   AP.sendAP(res, {

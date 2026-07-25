@@ -546,6 +546,7 @@ export function initializeDatabase() {
   ensureColumn('ap_timeline', 'liked', 'INTEGER DEFAULT 0'); // a feed post you liked (⭐) → toggle
   ensureColumn('ap_timeline', 'nsfw', 'INTEGER DEFAULT 0');  // remote sensitive post → blur in the Cirkel
   ensureColumn('ap_timeline', 'cw', 'TEXT');                 // remote content-warning text
+  ensureColumn('ap_timeline', 'emoji_json', 'TEXT');         // FEP-9098 custom emoji Emoji tags from the inbound note, served back as `tag`
   ensureColumn('ap_timeline', 'reblog_name', 'TEXT');        // a followed account boosted this → "X boosted"
   ensureColumn('ap_timeline', 'reblog_handle', 'TEXT');      //   the booster's @handle
   ensureColumn('ap_timeline', 'reblog_icon', 'TEXT');        //   the booster's avatar

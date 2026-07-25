@@ -1536,6 +1536,8 @@ export async function handleInbox(req, slugParam) {
           tlStmts().ins.run(o.id, s.slug, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.url || null, o.published || null, media, o.sensitive ? 1 : 0, o.summary || null);
           // FEP-633c §2.2: register the ward hint on the stored object (no action yet).
           if (Guardianship.objectHasGuardians(o)) { try { db.prepare('UPDATE ap_timeline SET has_guardians = 1 WHERE id = ? AND slug = ?').run(o.id, s.slug); } catch { /* ignore */ } }
+          // FEP-9098: keep the note's custom-emoji tags so the C2S inbox read can serve them.
+          { const ej = extractEmojiTags(o.tag); if (ej) { try { db.prepare('UPDATE ap_timeline SET emoji_json = ? WHERE id = ? AND slug = ?').run(ej, o.id, s.slug); } catch { /* ignore */ } } }
           if (poll) { try { db.prepare('UPDATE ap_timeline SET poll_json = ? WHERE id = ? AND slug = ?').run(JSON.stringify(poll), o.id, s.slug); } catch { /* ignore */ } }
         }
         console.log('[AP] timeline +', actorUri, 'x' + subs.length);
@@ -2564,6 +2566,21 @@ export function timelineAttachments(mediaJson) {
   } catch { return undefined; }
 }
 
+// FEP-9098 custom emojis. Inbound: keep the note's Emoji tags (as JSON) so we
+// can serve them back. `extractEmojiTags` returns the JSON to store (or null);
+// `timelineEmojis` turns the stored JSON back into an AS2 `tag` array for the
+// C2S inbox read, so a client (Shaer) can render :shortcode: as an image.
+export function extractEmojiTags(tag) {
+  const arr = Array.isArray(tag) ? tag : (tag ? [tag] : []);
+  const emojis = arr.filter((t) => t && (Array.isArray(t.type) ? t.type[0] : t.type) === 'Emoji'
+    && typeof t.name === 'string' && t.icon);
+  return emojis.length ? JSON.stringify(emojis) : null;
+}
+export function timelineEmojis(emojiJson) {
+  try { const arr = emojiJson ? JSON.parse(emojiJson) : null; return (Array.isArray(arr) && arr.length) ? arr : undefined; }
+  catch { return undefined; }
+}
+
 // ── Cirkel = posts from the accounts you auto-boost ("feature an artist") ──
 let _abCount, _cirkelPosts, _cirkelMembers;
 export function autoBoostCount(slug) {
@@ -2719,6 +2736,8 @@ export async function backfillFromOutbox(slug, actorUri, limit = 20) {
       try {
         const r = tlStmts().ins.run(o.id, slug, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.url || null, o.published || null, mediaFromNote(o), o.sensitive ? 1 : 0, o.summary || null);
         if (r && r.changes > 0) added++;
+        // FEP-9098: keep custom-emoji tags from backfilled posts too.
+        { const ej = extractEmojiTags(o.tag); if (ej) { try { db.prepare('UPDATE ap_timeline SET emoji_json = ? WHERE id = ? AND slug = ?').run(ej, o.id, slug); } catch { /* ignore */ } } }
         // Set poll_json if this is a poll and we don't already have it (COALESCE preserves a vote).
         if (poll) { try { db.prepare('UPDATE ap_timeline SET poll_json = COALESCE(poll_json, ?) WHERE id = ? AND slug = ?').run(JSON.stringify(poll), o.id, slug); } catch { /* ignore */ } }
       } catch { /* ignore */ }
@@ -3356,7 +3375,7 @@ export default {
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, setMyReaction, getMyReactions, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate, deliverDirectNote,
-  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, timelineAttachments, sendInteraction, voteOnPoll, voteOnRemotePoll,
+  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, timelineAttachments, timelineEmojis, sendInteraction, voteOnPoll, voteOnRemotePoll,
   acceptGatedFollow, rejectGatedFollow, isWardGuardian, sendFollowDecision,
   parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread, sendReport, localMentionSlugs,
   autoBoostCount, boostedCount, markBoosted, unmarkBoosted, markLiked, unmarkLiked, getTimelineReaction, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
