@@ -1411,8 +1411,12 @@ export async function handleInbox(req, slugParam) {
       const wardKeys = getOrCreateKeys(slug);
       const followObj = { id: followId, type: 'Follow', actor: who, object: wardActor };
       for (const g of wardGuardians) {
-        const gslug = slugFromActorUrl(g);
-        if (gslug) {
+        // Local ONLY when the guardian lives on THIS instance: slugFromActorUrl
+        // ignores the host (an /ap/users/x path on a remote host is someone
+        // else's actor), so also require our base + an existing local site.
+        const gslug = g.startsWith(`${base}/`) ? slugFromActorUrl(g) : null;
+        const isLocal = gslug && db.prepare('SELECT 1 FROM sites WHERE slug = ?').get(gslug);
+        if (isLocal) {
           const L = pushLang(gslug);
           pushEvent(gslug, { type: 'guardian', title: i18nT(L, 'push.n_guard_cog_t'), body: i18nT(L, 'push.n_guard_cog_b', { who: fi.name || fi.handle || i18nT(L, 'notif.someone') }), url: `${pushPrefix(gslug)}/guardian2` });
         } else {
