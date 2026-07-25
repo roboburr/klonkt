@@ -562,6 +562,10 @@ export function initializeDatabase() {
   ensureColumn('ap_mentions', 'help_request', 'INTEGER'); // inbound ward call-for-help (Guardian PWA message centre)
   ensureColumn('ap_outbox', 'wave', 'INTEGER');    // FEP-633c shaer:wave (guardian -> ward nudge)
   ensureColumn('ap_mentions', 'wave', 'INTEGER');  // inbound guardian wave
+  // FEP-633c §2.2: object hint that the author is a ward. Register-only for now;
+  // used later at reddings-boei / escalation routing.
+  ensureColumn('ap_timeline', 'has_guardians', 'INTEGER');
+  ensureColumn('ap_mentions', 'has_guardians', 'INTEGER');
   ensureColumn('ap_followers', 'name', 'TEXT');    // cached display name (shaer-aa3)
   ensureColumn('ap_followers', 'handle', 'TEXT');  // @user@host
   ensureColumn('ap_followers', 'icon', 'TEXT');    // avatar URL

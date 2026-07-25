@@ -277,6 +277,8 @@ export function buildNote(base, site, post, opts = {}) {
       // FEP-633c 5.2.1: a ward's call for help. Only ever on direct notes.
       ...Guardianship.helpRequestProps(post),
       ...Guardianship.waveProps(post),
+      // FEP-633c §2.2: object hint that the author is a ward.
+      ...Guardianship.hasGuardiansProps(site.slug),
       tag: [
         ...mentionTags(post.content),
         ...hashtagTags(base, post.content),
@@ -311,6 +313,7 @@ export function buildNote(base, site, post, opts = {}) {
       cc: [`${aId}/followers`],
       tag: [...hashtagTags(base, post.content)],
       replies: `${id}/replies`,
+      ...Guardianship.hasGuardiansProps(site.slug),
     };
   }
 
@@ -487,6 +490,8 @@ export function buildNote(base, site, post, opts = {}) {
     // (hides the whole post behind a "Gevoelige inhoud" button until the reader opens it).
     sensitive: !!post.nsfw,
   };
+  // FEP-633c §2.2: object hint that the author is a ward (safely ignorable).
+  Object.assign(note, Guardianship.hasGuardiansProps(site.slug));
   if (post.nsfw) note.summary = post.content_warning || 'Gevoelige inhoud';
   if (attachment.length) note.attachment = attachment;
   // When the cover attachment is suppressed (hosted audio OR an external embed/link-only track →
@@ -1503,6 +1508,8 @@ export async function handleInbox(req, slugParam) {
         // the timeline).
         for (const s of subs) {
           tlStmts().ins.run(o.id, s.slug, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.url || null, o.published || null, media, o.sensitive ? 1 : 0, o.summary || null);
+          // FEP-633c §2.2: register the ward hint on the stored object (no action yet).
+          if (Guardianship.objectHasGuardians(o)) { try { db.prepare('UPDATE ap_timeline SET has_guardians = 1 WHERE id = ? AND slug = ?').run(o.id, s.slug); } catch { /* ignore */ } }
           if (poll) { try { db.prepare('UPDATE ap_timeline SET poll_json = ? WHERE id = ? AND slug = ?').run(JSON.stringify(poll), o.id, s.slug); } catch { /* ignore */ } }
         }
         console.log('[AP] timeline +', actorUri, 'x' + subs.length);
@@ -1521,10 +1528,11 @@ export async function handleInbox(req, slugParam) {
         // flag is stored so the Guardian PWA's message centre can list it.
         const help = Guardianship.isHelpRequest(o);
         const wave = Guardianship.isWave(o);
+        const hasG = Guardianship.objectHasGuardians(o);   // §2.2 hint, register-only
         for (const slug of slugs) {
           try {
-            const r = db.prepare('INSERT OR IGNORE INTO ap_mentions (slug, object_uri, note_url, actor_uri, actor_name, actor_handle, actor_icon, actor_url, content, published, help_request, wave, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)')
-              .run(slug, o.id, safeUrl(o.url) || null, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.published || null, help ? 1 : 0, wave ? 1 : 0);
+            const r = db.prepare('INSERT OR IGNORE INTO ap_mentions (slug, object_uri, note_url, actor_uri, actor_name, actor_handle, actor_icon, actor_url, content, published, help_request, wave, has_guardians, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)')
+              .run(slug, o.id, safeUrl(o.url) || null, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.published || null, help ? 1 : 0, wave ? 1 : 0, hasG ? 1 : 0);
             if (r.changes) {
               console.log('[AP] mention', actorUri, '→', slug, help ? '(help request)' : '');
               const vis = noteVisibility(o);
