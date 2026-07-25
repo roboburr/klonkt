@@ -1387,6 +1387,10 @@ export async function handleInbox(req, slugParam) {
         id: followId, follower: who, inbox: remote.inbox, sharedInbox,
         name: fi.name, handle: fi.handle, icon: fi.icon, activity: act,
       });
+      // The ward and its guardians live together (the family Klonkt); a push
+      // tells each local guardian to decide in /guardian2. Over the wire the
+      // follow stays a normal pending Follow until they accept (Robins besluit:
+      // keep the flow simple, no cross-instance forwarding).
       for (const g of wardGuardians) {
         const gslug = slugFromActorUrl(g);
         if (!gslug) continue;
