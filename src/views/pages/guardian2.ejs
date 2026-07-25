@@ -25,7 +25,10 @@
     <% } else { %>
     <span class="g-me" title="<%= t('guardian.acting_as') %>">@<%= state.site %></span>
     <% } %>
-  </header>
+    <form method="post" action="/guardian2/invite" style="display:inline">
+    <button class="quiet small" type="submit">Invite a guardian</button>
+  </form>
+</header>
 
   <main>
     <!-- 1. Berichtencentrum: hulpverzoeken. Dat is waar dit voor bestaat. -->

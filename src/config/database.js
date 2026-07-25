@@ -37,6 +37,16 @@ export function initializeDatabase() {
   // Additive column migrations — safe to run every boot.
   // SQLite throws if the column already exists; we swallow that.
   ensureColumn('sites', 'enable_audio_player', 'INTEGER DEFAULT 1');
+  // Guardian 2: losse guardians. Een guardian-only account is user + minimale
+  // site (alleen de actor telt); de vlag houdt CMS/listings erbuiten.
+  ensureColumn('sites', 'guardian_only', 'INTEGER DEFAULT 0');
+  db.exec(`CREATE TABLE IF NOT EXISTS ap_guardian_invites (
+    token TEXT PRIMARY KEY,
+    created_by TEXT NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    used_by TEXT,
+    used_at TEXT
+  )`);
   ensureColumn('sites', 'profile_photo', 'TEXT');
   ensureColumn('audio_tracks', 'cover_url', 'TEXT');
   ensureColumn('audio_tracks', 'album', 'TEXT');
