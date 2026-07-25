@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= t('guardian.app_name') %> 2</title>
+  <link rel="manifest" href="/guardian2/manifest.webmanifest">
+  <link rel="icon" href="/guardian2/icon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#ff6b35">
+  <link rel="stylesheet" href="/guardian2/app.css">
+</head>
+<body>
+  <header class="g-head">
+    <span class="g-buoy">🛟</span>
+    <div class="g-head-txt">
+      <h1><%= t('guardian.app_name') %></h1>
+      <p class="g-sub"><%= t('guardian.tagline') %></p>
+    </div>
+    <% if (sites.length > 1) { %>
+    <select id="site-picker" aria-label="<%= t('guardian.acting_as') %>">
+      <% for (const s of sites) { %>
+      <option value="<%= s.slug %>" <%= s.slug === state.site ? 'selected' : '' %>>@<%= s.slug %></option>
+      <% } %>
+    </select>
+    <% } else { %>
+    <span class="g-me" title="<%= t('guardian.acting_as') %>">@<%= state.site %></span>
+    <% } %>
+  </header>
+
+  <main>
+    <!-- 1. Berichtencentrum: hulpverzoeken. Dat is waar dit voor bestaat. -->
+    <section id="help-section">
+      <div class="g-sec-head">
+        <h2><%= t('guardian.help_title') %></h2>
+        <span id="help-count" class="g-badge" hidden></span>
+      </div>
+      <p class="g-sec-sub"><%= t('guardian.help_sub') %></p>
+      <div id="help-list" class="g-list"></div>
+      <p id="help-empty" class="g-empty"><%= t('guardian.help_empty') %></p>
+    </section>
+
+    <!-- 2. Nieuwe ward adopteren. -->
+    <section id="adopt-section">
+      <div class="g-sec-head"><h2><%= t('guardian.adopt_title') %></h2></div>
+      <p class="g-sec-sub"><%= t('guardian.adopt_sub') %></p>
+      <form id="adopt-form" autocomplete="off">
+        <input id="adopt-handle" type="text" inputmode="email" autocomplete="off"
+               placeholder="@kind@server.eu" aria-label="<%= t('guardian.adopt_label') %>">
+        <button type="submit" id="adopt-btn"><%= t('guardian.adopt_btn') %></button>
+      </form>
+      <p id="adopt-msg" class="g-msg" hidden></p>
+    </section>
+
+    <!-- 3. Verzonden aanvragen (nog niet beantwoord). -->
+    <section id="pending-section" hidden>
+      <div class="g-sec-head"><h2><%= t('guardian.pending_title') %></h2></div>
+      <p class="g-sec-sub"><%= t('guardian.pending_sub') %></p>
+      <div id="pending-list" class="g-list"></div>
+    </section>
+
+    <!-- 4. Mijn wards (geaccepteerd). -->
+    <section id="wards-section">
+      <div class="g-sec-head"><h2><%= t('guardian.wards_title') %></h2></div>
+      <div id="wards-list" class="g-list"></div>
+      <p id="wards-empty" class="g-empty"><%= t('guardian.wards_empty') %></p>
+    </section>
+
+    <!-- 5. Meldingen. -->
+    <section id="push-section">
+      <div class="g-sec-head"><h2><%= t('guardian.push_title') %></h2></div>
+      <p class="g-sec-sub"><%= t('guardian.push_sub') %></p>
+      <button id="push-toggle" class="quiet" data-on-label="<%= t('guardian.push_off') %>"
+              data-off-label="<%= t('guardian.push_on') %>"><%= t('guardian.push_on') %></button>
+      <p id="push-msg" class="g-msg" hidden></p>
+    </section>
+  </main>
+
+  <script type="application/json" id="guardian-state"><%- JSON.stringify(state) %></script>
+  <script src="/guardian2/app.js" defer></script>
+</body>
+</html>
