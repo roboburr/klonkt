@@ -25,9 +25,26 @@
     <% } else { %>
     <span class="g-me" title="<%= t('guardian.acting_as') %>">@<%= state.site %></span>
     <% } %>
-  </header>
+    <form method="post" action="/guardian/invite" style="display:inline">
+    <button class="quiet small" type="submit">Invite a guardian</button>
+  </form>
+</header>
 
   <main>
+    <!-- 0. Wards' corner: meelezen met je wards (read-only). -->
+    <section id="feed-section" hidden>
+      <div class="g-sec-head"><h2><%= t('guardian.feed_title') %></h2></div>
+      <p class="g-sec-sub"><%= t('guardian.feed_sub') %></p>
+      <div id="feed-list" class="g-list"></div>
+    </section>
+
+    <!-- 0b. Follow-verzoeken op je wards (FEP-633c §5.3). -->
+    <section id="follow-section" hidden>
+      <div class="g-sec-head"><h2><%= t('guardian.follow_title') %></h2></div>
+      <p class="g-sec-sub"><%= t('guardian.follow_sub') %></p>
+      <div id="follow-list" class="g-list"></div>
+    </section>
+
     <!-- 1. Berichtencentrum: hulpverzoeken. Dat is waar dit voor bestaat. -->
     <section id="help-section">
       <div class="g-sec-head">

@@ -1404,7 +1404,7 @@ export async function handleInbox(req, slugParam) {
       });
       // FEP-633c §5.3, modelled on the guardian offer: the ward forwards the
       // gated follow to its guardians for approval. A LOCAL guardian gets a
-      // push and reads /guardian2 directly; a REMOTE guardian gets an
+      // push and reads /guardian directly; a REMOTE guardian gets an
       // Offer(Follow) delivered so its instance stores a copy (same distributed
       // pattern as the adoption offer). On quorum the ward returns Accept(Follow).
       const wardActor = actorId(base, slug);
@@ -1418,7 +1418,7 @@ export async function handleInbox(req, slugParam) {
         const isLocal = gslug && db.prepare('SELECT 1 FROM sites WHERE slug = ?').get(gslug);
         if (isLocal) {
           const L = pushLang(gslug);
-          pushEvent(gslug, { type: 'guardian', title: i18nT(L, 'push.n_guard_cog_t'), body: i18nT(L, 'push.n_guard_cog_b', { who: fi.name || fi.handle || i18nT(L, 'notif.someone') }), url: `${pushPrefix(gslug)}/guardian2` });
+          pushEvent(gslug, { type: 'guardian', title: i18nT(L, 'push.n_guard_cog_t'), body: i18nT(L, 'push.n_guard_cog_b', { who: fi.name || fi.handle || i18nT(L, 'notif.someone') }), url: `${pushPrefix(gslug)}/guardian` });
         } else {
           fetchActor(g).then((ga) => {
             const inbox = ga && ((ga.endpoints && ga.endpoints.sharedInbox) || ga.inbox);
@@ -3008,7 +3008,7 @@ async function handleFollowApprovalInbox(act, slugParam) {
       const fai = actorInfo(await fetchActor(follower).catch(() => null), follower);
       Guardianship.follows.recordReview(gslug, { id: followId, wardUri, wardInbox: wardDoc && wardDoc.inbox, follower, followerHandle: fai.handle, followerIcon: fai.icon, followJson: JSON.stringify(fo) });
       const L = pushLang(gslug);
-      pushEvent(gslug, { type: 'guardian', title: i18nT(L, 'push.n_guard_cog_t'), body: i18nT(L, 'push.n_guard_cog_b', { who: fai.name || fai.handle || i18nT(L, 'notif.someone') }), url: `${pushPrefix(gslug)}/guardian2` });
+      pushEvent(gslug, { type: 'guardian', title: i18nT(L, 'push.n_guard_cog_t'), body: i18nT(L, 'push.n_guard_cog_b', { who: fai.name || fai.handle || i18nT(L, 'notif.someone') }), url: `${pushPrefix(gslug)}/guardian` });
       stored = true;
     }
     return stored;
@@ -3031,7 +3031,7 @@ async function handleFollowApprovalInbox(act, slugParam) {
   return true;
 }
 
-// Leg 3: a guardian in /guardian2 decides on a forwarded follow; send the
+// Leg 3: a guardian in /guardian decides on a forwarded follow; send the
 // Accept/Reject back to the ward's inbox (signed by the guardian).
 export async function sendFollowDecision(guardianSite, review, decision) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');

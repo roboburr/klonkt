@@ -49,7 +49,6 @@ import adminPaidRoutes from './routes/admin-paid.js';
 import adminPushRoutes from './routes/admin-push.js';
 import pushRoutes from './routes/push.js';
 import guardianRoutes from './routes/guardian.js';
-import guardian2Routes from './routes/guardian2.js';
 import adminMediaRoutes from './routes/admin-media.js';
 import circleRoutes from './routes/circle.js';
 import epkRoutes from './routes/epk.js';
@@ -407,8 +406,7 @@ app.use('/', changelogRoutes); // /changelog publieke release-/wijzigingen-pagin
 app.use('/', langRoutes); // /lang/:code — interface-taal kiezen (vóór de catch-all)
 app.use('/paid', paidRoutes);   // paid-posts patron/passkey flow (before the /:slug catch-all)
 app.use('/push', pushRoutes);   // web-push subscribe/test (before the /:slug catch-all)
-app.use('/guardian', guardianRoutes);   // the Guardian PWA (FEP-633c, before the /:slug catch-all)
-app.use('/guardian2', guardian2Routes); // Guardian v2: losse guardians (guardian-only accounts), groeit hier los van v1
+app.use('/guardian', guardianRoutes);   // the Guardian PWA (FEP-633c): losse guardians, meekijken, follow-gating, wave, invite (was guardian2, v1 verwijderd)
 app.use('/', postsRoutes);
 
 app.get('/manifest.webmanifest', (req, res) => {

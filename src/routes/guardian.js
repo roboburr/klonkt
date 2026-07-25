@@ -9,6 +9,8 @@
  * Views carry no inline scripts (CSP): logic lives in /assets/js/guardian.js.
  */
 import express from 'express';
+import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import db from '../config/database.js';
@@ -37,7 +39,10 @@ function uiStrings(L) {
   const keys = ['sent', 'sent_retry', 'sending', 'not_found', 'failed', 'network',
     'pending', 'active', 'retract', 'release', 'open', 'push_unavailable',
     'accept', 'reject', 'complete', 'awaiting_others', 'coguard'];
-  return Object.fromEntries(keys.map((k) => [k, i18nT(L, `guardian.${k}`)]));
+  const s = Object.fromEntries(keys.map((k) => [k, i18nT(L, `guardian.${k}`)]));
+  s.wave = i18nT(L, 'guardian.wave');
+  s.waved = i18nT(L, 'guardian.waved');
+  return s;
 }
 
 function dashboardState(site, L) {
@@ -83,6 +88,124 @@ router.get('/api/state', requireAuth, (req, res) => {
   const site = siteForUser(req);
   if (!site) return res.status(404).json({ error: 'no_site' });
   res.json(dashboardState(site, resolveLang(req)));
+});
+
+// ── Meekijken (FEP-633c §5, interop-hoofdroute): a committed guardian FOLLOWS
+//    its wards, so their posts (incl. followers-only) are DELIVERED to the
+//    guardian's inbox → timeline. The follow is the mechanism; no new fetch.
+//    First contact also backfills the ward's recent PUBLIC posts as a cold
+//    start so the corner is not empty before delivery catches up.
+function ensureWardConnections(site) {
+  let wards;
+  try { wards = Guardianship.listWards(site.slug); } catch { return; }
+  for (const w of wards) {
+    const already = db.prepare('SELECT 1 FROM ap_following WHERE slug = ? AND actor_uri = ?')
+      .get(site.slug, w.other_uri);
+    if (already) continue;
+    // Follow (guardian's server auto-accepts today; §5.3 gating is a later fase).
+    AP.followActor(site, w.other_uri).catch(() => { /* retried by the queue */ });
+    // Cold start: pull recent public posts now so oma sees something at once.
+    AP.backfillFromOutbox(site.slug, w.other_uri).catch(() => { /* best-effort */ });
+  }
+}
+
+// ── The wards' corner: your wards' posts, read-only. No reply, no share; a
+//    guardian watches, it does not publish (Robins besluit).
+router.get('/api/feed', requireAuth, (req, res) => {
+  const site = siteForUser(req);
+  if (!site) return res.status(404).json({ error: 'no_site' });
+  ensureWardConnections(site);
+  const wardUris = new Set(Guardianship.listWards(site.slug).map((w) => w.other_uri));
+  // Only show the wards you actually guard (the timeline can hold more).
+  const items = AP.getTimeline(site.slug, 60, 0)
+    .filter((p) => wardUris.has(p.author_uri))
+    .map((p) => ({
+      id: p.id,
+      author: p.author_handle || p.author_name || p.author_uri,
+      authorName: p.author_name,
+      authorIcon: p.author_icon,
+      content: p.content,
+      url: p.url,
+      published: p.published || p.created_at,
+      cw: p.cw || null,
+      media: p.media_json ? JSON.parse(p.media_json) : [],
+    }));
+  res.json({ items, following: wardUris.size });
+});
+
+// ── Follow-gating (FEP-633c §5.3): pending follows on MY wards, for me to
+//    approve. Ward and guardian are co-located on the family Klonkt here, so
+//    the guardian reads its wards' pending follows locally.
+function wardSlugsOf(site) {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  return Guardianship.listWards(site.slug)
+    .map((w) => (w.other_uri.startsWith(base) ? w.other_uri.split('/').pop() : null))
+    .filter(Boolean);
+}
+
+router.get('/api/follow-requests', requireAuth, (req, res) => {
+  const site = siteForUser(req);
+  if (!site) return res.status(404).json({ error: 'no_site' });
+  const items = [];
+  const host = (() => { try { return new URL(process.env.PUBLIC_BASE_URL || '').host; } catch { return ''; } })();
+  // Local wards (guardian co-located): read the pending follows directly.
+  for (const wardSlug of wardSlugsOf(site)) {
+    for (const f of Guardianship.follows.listForWard(wardSlug)) {
+      items.push({ id: f.id, ward: `@${wardSlug}@${host}`, follower: f.follower_handle || f.follower_name || f.follower_uri, followerIcon: f.follower_icon, remote: false, created: f.created_at });
+    }
+  }
+  // Remote wards: the copies forwarded here as Offer(Follow) (cross-instance).
+  for (const rev of Guardianship.follows.listReviews(site.slug)) {
+    const wardName = (() => { try { const u = new URL(rev.ward_uri); return `@${u.pathname.split('/').pop()}@${u.host}`; } catch { return rev.ward_uri; } })();
+    items.push({ id: rev.id, ward: wardName, follower: rev.follower_handle || rev.follower_uri, followerIcon: rev.follower_icon, remote: true, created: rev.created_at });
+  }
+  res.json({ items });
+});
+
+router.post('/api/follow/:id', requireAuth, express.json({ limit: '4kb' }), async (req, res) => {
+  const site = siteForUser(req);
+  if (!site) return res.status(404).json({ error: 'no_site' });
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  const me = AP.actorId(base, site.slug);
+  const decision = req.body?.decision === 'reject' ? 'reject' : 'approve';
+
+  // Remote ward: a forwarded copy. Send my Accept/Reject back to the ward,
+  // which tallies quorum and returns the Accept(Follow) to the follower.
+  const review = Guardianship.follows.getReview(site.slug, req.params.id);
+  if (review) {
+    try { await AP.sendFollowDecision(site, review, decision); }
+    catch { return res.status(502).json({ error: 'delivery' }); }
+    Guardianship.follows.removeReview(site.slug, req.params.id);
+    return res.json({ ok: true, outcome: decision === 'reject' ? 'rejected' : 'sent' });
+  }
+
+  // Local ward: decide directly (quorum on this instance).
+  const pending = Guardianship.follows.getPending(req.params.id);
+  if (!pending) return res.status(404).json({ error: 'gone' });
+  const guardians = Guardianship.listGuardians(pending.ward_slug).map((g) => g.other_uri);
+  if (!guardians.includes(me)) return res.status(403).json({ error: 'not_a_guardian' });
+  const r = Guardianship.follows.decide(pending.id, me, decision, guardians);
+  try {
+    if (r.outcome === 'approved') { await AP.acceptGatedFollow(r.follow); Guardianship.follows.remove(r.follow.id); }
+    else if (r.outcome === 'rejected') { await AP.rejectGatedFollow(r.follow); Guardianship.follows.remove(r.follow.id); }
+  } catch (e) { return res.status(502).json({ error: 'delivery', outcome: r.outcome }); }
+  res.json({ ok: true, outcome: r.outcome });
+});
+
+// ── Wave (FEP-633c §5, shaer:wave): a gentle "thinking of you" from a
+//    guardian to a ward. A private direct note, never a feed post. Warmth
+//    without publishing (Robins besluit).
+router.post('/api/wave', requireAuth, express.json({ limit: '2kb' }), async (req, res) => {
+  const site = siteForUser(req);
+  if (!site) return res.status(404).json({ error: 'no_site' });
+  const wardUri = String(req.body?.ward || '').trim();
+  // Only wave at a ward you actually guard.
+  const isWard = Guardianship.listWards(site.slug).some((w) => w.other_uri === wardUri);
+  if (!wardUri || !isWard) return res.status(403).json({ error: 'not_your_ward' });
+  const text = String(req.body?.text || '').trim().slice(0, 200) || '👋 thinking of you';
+  const r = await AP.deliverDirectNote(site, { recipients: [wardUri], text, wave: true }).catch(() => null);
+  if (!r) return res.status(502).json({ error: 'delivery' });
+  res.json({ ok: true, delivered: r.delivered });
 });
 
 // ── Adopt a ward: handle → resolve → C2S Offer through the same pipeline
@@ -178,6 +301,68 @@ router.get('/icon.svg', (req, res) => {
   res.set('Content-Type', 'image/svg+xml');
   res.set('Cache-Control', 'public, max-age=86400');
   res.send(svg);
+});
+
+// ── Losse guardians (Guardian 2): uitnodigen en aansluiten ───────────────
+// De familie nodigt oma uit; zij kiest naam + wachtwoord en heeft daarmee een
+// guardian-only account: user + minimale site (guardian_only=1). Alles wat al
+// per slug werkt (actor, inbox, offers, push, deze PWA) werkt dan meteen.
+
+router.post('/invite', requireAuth, (req, res) => {
+  const token = crypto.randomBytes(16).toString('base64url');
+  db.prepare('INSERT INTO ap_guardian_invites (token, created_by) VALUES (?,?)')
+    .run(token, req.session.user.id);
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  const url = `${base}/guardian/join/${token}`;
+  res.send(`<!doctype html><meta charset="utf-8"><body style="font-family:sans-serif;max-width:480px;margin:40px auto">
+    <h2>Invite a guardian</h2>
+    <p>Share this link. It lets one person create a guardian account here:</p>
+    <p><a href="${url}">${url}</a></p>
+    <p><a href="/guardian">Back</a></p></body>`);
+});
+
+function joinForm(token, error) {
+  return `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <body style="font-family:sans-serif;max-width:420px;margin:40px auto">
+  <h2>Become a guardian</h2>
+  <p>Watch over someone you care about. Pick a name and a password; that is all.</p>
+  ${error ? `<p style="color:#b00">${error}</p>` : ''}
+  <form method="post" action="/guardian/join/${token}">
+    <p><input name="name" placeholder="your name (grandma)" required pattern="[a-z0-9_-]{1,32}"
+       style="width:100%;padding:10px" autocapitalize="none"></p>
+    <p><input name="password" type="password" placeholder="password" required minlength="8"
+       style="width:100%;padding:10px"></p>
+    <p><button style="width:100%;padding:12px">Create my guardian account</button></p>
+  </form></body>`;
+}
+
+router.get('/join/:token', (req, res) => {
+  const inv = db.prepare('SELECT * FROM ap_guardian_invites WHERE token = ? AND used_at IS NULL')
+    .get(req.params.token);
+  if (!inv) return res.status(404).send('This invite is no longer valid.');
+  res.send(joinForm(req.params.token));
+});
+
+router.post('/join/:token', express.urlencoded({ extended: false }), (req, res) => {
+  const inv = db.prepare('SELECT * FROM ap_guardian_invites WHERE token = ? AND used_at IS NULL')
+    .get(req.params.token);
+  if (!inv) return res.status(404).send('This invite is no longer valid.');
+  const name = String(req.body.name || '').trim().toLowerCase();
+  const password = String(req.body.password || '');
+  if (!/^[a-z0-9_-]{1,32}$/.test(name)) return res.status(400).send(joinForm(req.params.token, 'Only lowercase letters, digits, - and _.'));
+  if (password.length < 8) return res.status(400).send(joinForm(req.params.token, 'Password: at least 8 characters.'));
+  if (db.prepare('SELECT 1 FROM sites WHERE slug = ?').get(name) || db.prepare('SELECT 1 FROM users WHERE username = ?').get(name)) {
+    return res.status(409).send(joinForm(req.params.token, 'That name is taken, pick another.'));
+  }
+  const userId = crypto.randomUUID();
+  db.prepare('INSERT INTO users (id, username, email, password_hash, role) VALUES (?,?,?,?,?)')
+    .run(userId, name, `${name}@guardian.invalid`, bcrypt.hashSync(password, 10), 'member');
+  db.prepare('INSERT INTO sites (id, slug, title, owner_id, is_primary, guardian_only) VALUES (?,?,?,?,0,1)')
+    .run(crypto.randomUUID(), name, name, userId);
+  db.prepare('UPDATE ap_guardian_invites SET used_by = ?, used_at = CURRENT_TIMESTAMP WHERE token = ?')
+    .run(userId, req.params.token);
+  req.session.user = { id: userId, username: name, role: 'member' };
+  res.redirect('/guardian');
 });
 
 export default router;

@@ -82,3 +82,8 @@ button:disabled { opacity: .5; cursor: default; }
 button.quiet { background: transparent; color: var(--sub); border: 1px solid var(--line); font-weight: 500; }
 button.quiet.is-on { color: var(--ok); border-color: var(--ok); }
 button.small { padding: 6px 12px; font-size: .82rem; }
+
+/* Wards' corner (v2 meekijken) */
+.g-card.feed .g-when { color: var(--muted, #888); font-size: .8em; margin-left: auto; }
+.g-card.feed .feed-body { margin-top: 6px; line-height: 1.4; }
+.g-card.feed .feed-body img { max-width: 100%; border-radius: 8px; }

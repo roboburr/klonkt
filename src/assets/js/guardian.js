@@ -113,6 +113,9 @@
       var row = el('div', 'row');
       row.appendChild(el('span', 'who grow', handleOf(w.other_uri, w.other_handle)));
       row.appendChild(el('span', 'tag ok', T.active));
+      var wave = el('button', 'small', T.wave || '👋 Wave');
+      wave.addEventListener('click', function () { sendWave(w.other_uri, wave); });
+      row.appendChild(wave);
       var btn = el('button', 'quiet small', T.release);
       btn.addEventListener('click', function () { remove(w.other_uri, btn); });
       row.appendChild(btn);
@@ -120,6 +123,16 @@
       list.appendChild(card);
     });
     show('wards-empty', wards.length === 0);
+  }
+
+  function sendWave(uri, btn) {
+    btn.disabled = true;
+    fetch('/guardian/api/wave', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ward: uri, site: S.site }),
+    }).then(function (r) { return r.json(); })
+      .then(function (j) { btn.disabled = false; btn.textContent = (j && j.ok) ? (T.waved || '👋 sent') : (T.wave || '👋 Wave'); })
+      .catch(function () { btn.disabled = false; });
   }
 
   function remove(uri, btn) {
@@ -132,10 +145,75 @@
 
   function renderAll() { renderHelp(); renderPending(); renderWards(); }
 
+  // ── 0. Wards' corner: read-only feed of your wards' posts ───────────────
+  function renderFeed(items) {
+    var list = document.getElementById('feed-list');
+    list.textContent = '';
+    (items || []).forEach(function (p) {
+      var card = el('div', 'g-card feed');
+      var head = el('div', 'row');
+      head.appendChild(el('span', 'who grow', p.author));
+      if (p.published) head.appendChild(el('span', 'g-when', when(p.published)));
+      card.appendChild(head);
+      var body = el('div', 'feed-body');
+      if (p.cw) {
+        var d = document.createElement('details');
+        var sum = document.createElement('summary'); sum.textContent = p.cw; d.appendChild(sum);
+        var inner = el('div'); inner.innerHTML = p.content || ''; d.appendChild(inner);
+        body.appendChild(d);
+      } else {
+        body.innerHTML = p.content || '';   // server-sanitized HTML (same as Berichten)
+      }
+      card.appendChild(body);
+      list.appendChild(card);
+    });
+    show('feed-section', (items || []).length > 0);
+  }
+
+  function loadFeed() {
+    return fetch('/guardian/api/feed?site=' + encodeURIComponent(S.site))
+      .then(function (r) { return r.json(); })
+      .then(function (f) { if (f && !f.error) renderFeed(f.items); })
+      .catch(function () { /* corner just stays hidden */ });
+  }
+
+  // ── 0b. Follow requests on your wards (§5.3) ────────────────────────────
+  function answerFollow(id, decision, btn) {
+    if (btn) btn.disabled = true;
+    fetch('/guardian/api/follow/' + encodeURIComponent(id), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ decision: decision, site: S.site }),
+    }).then(loadFollowReqs);
+  }
+  function renderFollowReqs(items) {
+    var list = document.getElementById('follow-list');
+    list.textContent = '';
+    (items || []).forEach(function (f) {
+      var card = el('div', 'g-card');
+      var row = el('div', 'row');
+      row.appendChild(el('span', 'who grow', f.follower + '  →  ' + f.ward));
+      var ok = el('button', 'small', T.accept || 'Accept');
+      ok.addEventListener('click', function () { answerFollow(f.id, 'approve', ok); });
+      var no = el('button', 'quiet small', T.reject || 'Deny');
+      no.addEventListener('click', function () { answerFollow(f.id, 'reject', no); });
+      row.appendChild(ok); row.appendChild(no);
+      card.appendChild(row);
+      list.appendChild(card);
+    });
+    show('follow-section', (items || []).length > 0);
+  }
+  function loadFollowReqs() {
+    return fetch('/guardian/api/follow-requests?site=' + encodeURIComponent(S.site))
+      .then(function (r) { return r.json(); })
+      .then(function (f) { if (f && !f.error) renderFollowReqs(f.items); })
+      .catch(function () { /* stays hidden */ });
+  }
+
   function refresh() {
     return fetch('/guardian/api/state?site=' + encodeURIComponent(S.site))
       .then(function (r) { return r.json(); })
-      .then(function (s) { if (s && !s.error) { S = s; T = s.strings || T; renderAll(); } });
+      .then(function (s) { if (s && !s.error) { S = s; T = s.strings || T; renderAll(); } })
+      .then(loadFeed).then(loadFollowReqs);
   }
 
   // ── 2. Adopt ───────────────────────────────────────────────────────────
@@ -229,7 +307,7 @@
     });
   });
 
-  renderAll(); pushState();
+  renderAll(); pushState(); loadFeed(); loadFollowReqs();
   setInterval(refresh, 45000);   // live-ish while open
   } catch (e) {
     fatal((e && e.message) || String(e));
