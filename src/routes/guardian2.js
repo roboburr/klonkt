@@ -147,10 +147,11 @@ router.get('/api/follow-requests', requireAuth, (req, res) => {
   const site = siteForUser(req);
   if (!site) return res.status(404).json({ error: 'no_site' });
   const items = [];
+  const host = (() => { try { return new URL(process.env.PUBLIC_BASE_URL || '').host; } catch { return ''; } })();
   // Local wards (guardian co-located): read the pending follows directly.
   for (const wardSlug of wardSlugsOf(site)) {
     for (const f of Guardianship.follows.listForWard(wardSlug)) {
-      items.push({ id: f.id, ward: wardSlug, follower: f.follower_handle || f.follower_name || f.follower_uri, followerIcon: f.follower_icon, remote: false, created: f.created_at });
+      items.push({ id: f.id, ward: `@${wardSlug}@${host}`, follower: f.follower_handle || f.follower_name || f.follower_uri, followerIcon: f.follower_icon, remote: false, created: f.created_at });
     }
   }
   // Remote wards: the copies forwarded here as Offer(Follow) (cross-instance).

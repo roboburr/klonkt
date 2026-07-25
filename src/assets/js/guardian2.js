@@ -191,7 +191,7 @@
     (items || []).forEach(function (f) {
       var card = el('div', 'g-card');
       var row = el('div', 'row');
-      row.appendChild(el('span', 'who grow', f.follower + '  →  @' + f.ward));
+      row.appendChild(el('span', 'who grow', f.follower + '  →  ' + f.ward));
       var ok = el('button', 'small', T.accept || 'Accept');
       ok.addEventListener('click', function () { answerFollow(f.id, 'approve', ok); });
       var no = el('button', 'quiet small', T.reject || 'Deny');
