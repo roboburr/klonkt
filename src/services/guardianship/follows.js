@@ -72,4 +72,33 @@ export function decide(id, guardianUri, decision, guardiansOfWard) {
 
 export function remove(id) { stmts().del.run(id); }
 
-export default { recordPending, getPending, listForWard, decide, remove };
+// ── Guardian-side copy (cross-instance, modelled on the guardian offer): a
+//    gated follow on a REMOTE ward this account guards, forwarded here as an
+//    Offer(Follow). The decision is Accept/Reject sent back to ward_inbox. ──
+let _r = null;
+function rstmts() {
+  if (!_r) {
+    _r = {
+      ins: db.prepare(`INSERT OR IGNORE INTO ap_follow_reviews
+        (id, guardian_slug, ward_uri, ward_inbox, follower_uri, follower_handle, follower_icon, follow_json, created_at)
+        VALUES (?,?,?,?,?,?,?,?, CURRENT_TIMESTAMP)`),
+      get: db.prepare('SELECT * FROM ap_follow_reviews WHERE guardian_slug = ? AND id = ?'),
+      bySlug: db.prepare("SELECT * FROM ap_follow_reviews WHERE guardian_slug = ? AND status = 'pending' ORDER BY created_at DESC"),
+      del: db.prepare('DELETE FROM ap_follow_reviews WHERE guardian_slug = ? AND id = ?'),
+    };
+  }
+  return _r;
+}
+
+export function recordReview(guardianSlug, r) {
+  rstmts().ins.run(r.id, guardianSlug, r.wardUri, r.wardInbox || null, r.follower, r.followerHandle || null, r.followerIcon || null, r.followJson || null);
+  return rstmts().get.get(guardianSlug, r.id);
+}
+export function getReview(guardianSlug, id) { return rstmts().get.get(guardianSlug, id); }
+export function listReviews(guardianSlug) { return rstmts().bySlug.all(guardianSlug); }
+export function removeReview(guardianSlug, id) { rstmts().del.run(guardianSlug, id); }
+
+export default {
+  recordPending, getPending, listForWard, decide, remove,
+  recordReview, getReview, listReviews, removeReview,
+};

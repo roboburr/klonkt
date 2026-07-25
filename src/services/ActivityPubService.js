@@ -1322,6 +1322,12 @@ export async function handleInbox(req, slugParam) {
     }
   }
 
+  // FEP-633c §5.3 (modelled on the adoption offer): a gated follow forwarded to
+  // the guardians as an Offer(Follow), their Accept/Reject back to the ward.
+  if ((type === 'Offer' || type === 'Accept' || type === 'Reject') && act['shaer:followApproval'] === true) {
+    if (await handleFollowApprovalInbox(act, slugParam)) { console.log('[AP] follow-approval', type, 'from', claimedActor); return 202; }
+  }
+
   // FEP-633c: the adoption handshake. An Offer lands at the local ward; an
   // Accept/Reject answers an offer a local guardian sent. Anything the
   // guardianship module does not recognize falls through to the old paths.
@@ -1392,15 +1398,27 @@ export async function handleInbox(req, slugParam) {
         id: followId, follower: who, inbox: remote.inbox, sharedInbox,
         name: fi.name, handle: fi.handle, icon: fi.icon, activity: act,
       });
-      // The ward and its guardians live together (the family Klonkt); a push
-      // tells each local guardian to decide in /guardian2. Over the wire the
-      // follow stays a normal pending Follow until they accept (Robins besluit:
-      // keep the flow simple, no cross-instance forwarding).
+      // FEP-633c §5.3, modelled on the guardian offer: the ward forwards the
+      // gated follow to its guardians for approval. A LOCAL guardian gets a
+      // push and reads /guardian2 directly; a REMOTE guardian gets an
+      // Offer(Follow) delivered so its instance stores a copy (same distributed
+      // pattern as the adoption offer). On quorum the ward returns Accept(Follow).
+      const wardActor = actorId(base, slug);
+      const wardKeys = getOrCreateKeys(slug);
+      const followObj = { id: followId, type: 'Follow', actor: who, object: wardActor };
       for (const g of wardGuardians) {
         const gslug = slugFromActorUrl(g);
-        if (!gslug) continue;
-        const L = pushLang(gslug);
-        pushEvent(gslug, { type: 'guardian', title: i18nT(L, 'push.n_guard_cog_t'), body: i18nT(L, 'push.n_guard_cog_b', { who: fi.name || fi.handle || i18nT(L, 'notif.someone') }), url: `${pushPrefix(gslug)}/guardian2` });
+        if (gslug) {
+          const L = pushLang(gslug);
+          pushEvent(gslug, { type: 'guardian', title: i18nT(L, 'push.n_guard_cog_t'), body: i18nT(L, 'push.n_guard_cog_b', { who: fi.name || fi.handle || i18nT(L, 'notif.someone') }), url: `${pushPrefix(gslug)}/guardian2` });
+        } else {
+          fetchActor(g).then((ga) => {
+            const inbox = ga && ((ga.endpoints && ga.endpoints.sharedInbox) || ga.inbox);
+            if (!inbox) return;
+            const offer = { '@context': AP_CONTEXT, id: `${wardActor}#followoffer-${Date.now()}-${rid()}`, type: 'Offer', actor: wardActor, to: [g], object: followObj, 'shaer:followApproval': true };
+            deliverWithRetry(slug, inbox, offer, `${wardActor}#main-key`, wardKeys.private_pem).catch(() => {});
+          }).catch(() => {});
+        }
       }
       console.log('[AP] Follow', who, '→ ward', slug, '(gated, awaiting guardians)');
       return 202;
@@ -2953,6 +2971,70 @@ export async function rejectGatedFollow(pending) {
   return { ok: true };
 }
 
+// ── Cross-instance follow-approval (FEP-633c §5.3, modelled on the guardian
+//    offer). Inbound: an Offer(Follow) forwarded by a ward to a guardian (leg
+//    2), or a guardian's Accept/Reject coming back to the ward (leg 4). ──────
+async function handleFollowApprovalInbox(act, slugParam) {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  const type = Array.isArray(act.type) ? act.type[0] : act.type;
+  const actorUri = typeof act.actor === 'string' ? act.actor : (act.actor && act.actor.id);
+
+  // Leg 2: I am a guardian; the object is the Follow to approve. The Offer is
+  // signed by the ward, so act.actor is the ward.
+  if (type === 'Offer') {
+    const fo = (act.object && typeof act.object === 'object') ? act.object : null;
+    const foType = fo && (Array.isArray(fo.type) ? fo.type[0] : fo.type);
+    if (!fo || foType !== 'Follow') return false;
+    const followId = fo.id;
+    const follower = typeof fo.actor === 'string' ? fo.actor : (fo.actor && fo.actor.id);
+    const wardUri = actorUri;
+    if (!followId || !follower || !wardUri) return false;
+    const recips = (Array.isArray(act.to) ? act.to : (act.to ? [act.to] : [])).filter((x) => typeof x === 'string');
+    if (slugParam) recips.push(actorId(base, slugParam));
+    let stored = false;
+    for (const r of new Set(recips)) {
+      const gslug = slugFromActorUrl(r);
+      if (!gslug) continue;
+      if (!Guardianship.getRelation(gslug, 'guardian', wardUri)) continue;   // must actually guard this ward
+      const wardDoc = await fetchActor(wardUri).catch(() => null);
+      const fai = actorInfo(await fetchActor(follower).catch(() => null), follower);
+      Guardianship.follows.recordReview(gslug, { id: followId, wardUri, wardInbox: wardDoc && wardDoc.inbox, follower, followerHandle: fai.handle, followerIcon: fai.icon, followJson: JSON.stringify(fo) });
+      const L = pushLang(gslug);
+      pushEvent(gslug, { type: 'guardian', title: i18nT(L, 'push.n_guard_cog_t'), body: i18nT(L, 'push.n_guard_cog_b', { who: fai.name || fai.handle || i18nT(L, 'notif.someone') }), url: `${pushPrefix(gslug)}/guardian2` });
+      stored = true;
+    }
+    return stored;
+  }
+
+  // Leg 4: I am the ward; a guardian decided. object is the Follow (id).
+  const fo = act.object;
+  const followId = typeof fo === 'string' ? fo : (fo && fo.id);
+  if (!followId) return false;
+  const pending = Guardianship.follows.getPending(followId);
+  if (!pending) return false;
+  const guardians = Guardianship.listGuardians(pending.ward_slug).map((g) => g.other_uri);
+  if (!guardians.includes(actorUri)) return false;   // only a real guardian of this ward decides
+  const decision = type === 'Reject' ? 'reject' : 'approve';
+  const r = Guardianship.follows.decide(followId, actorUri, decision, guardians);
+  try {
+    if (r.outcome === 'approved') { await acceptGatedFollow(r.follow); Guardianship.follows.remove(followId); }
+    else if (r.outcome === 'rejected') { await rejectGatedFollow(r.follow); Guardianship.follows.remove(followId); }
+  } catch { /* delivery is retried */ }
+  return true;
+}
+
+// Leg 3: a guardian in /guardian2 decides on a forwarded follow; send the
+// Accept/Reject back to the ward's inbox (signed by the guardian).
+export async function sendFollowDecision(guardianSite, review, decision) {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  const me = actorId(base, guardianSite.slug);
+  const keys = getOrCreateKeys(guardianSite.slug);
+  const fo = review.follow_json ? JSON.parse(review.follow_json) : { id: review.id, type: 'Follow', actor: review.follower_uri, object: review.ward_uri };
+  const activity = { '@context': AP_CONTEXT, id: `${me}#followdec-${Date.now()}-${rid()}`, type: decision === 'reject' ? 'Reject' : 'Accept', actor: me, to: [review.ward_uri], object: fo, 'shaer:followApproval': true };
+  if (review.ward_inbox) await deliverWithRetry(guardianSite.slug, review.ward_inbox, activity, `${me}#main-key`, keys.private_pem);
+  return { ok: true };
+}
+
 // Send a Like or Announce (boost) on a remote note FROM this site.
 export async function sendInteraction(site, kind, targetNoteId, authorUri) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
@@ -3267,7 +3349,7 @@ export default {
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, setMyReaction, getMyReactions, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate, deliverDirectNote,
   webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, timelineAttachments, sendInteraction, voteOnPoll, voteOnRemotePoll,
-  acceptGatedFollow, rejectGatedFollow, isWardGuardian,
+  acceptGatedFollow, rejectGatedFollow, isWardGuardian, sendFollowDecision,
   parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread, sendReport, localMentionSlugs,
   autoBoostCount, boostedCount, markBoosted, unmarkBoosted, markLiked, unmarkLiked, getTimelineReaction, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,

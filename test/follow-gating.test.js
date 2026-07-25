@@ -32,3 +32,14 @@ test('a single reject denies the follow (§3.2 spirit)', () => {
   const r = G.follows.decide('f3', DAD, 'reject', [MOM, DAD]);
   assert.equal(r.outcome, 'rejected');
 });
+
+test('guardian-side review copy (cross-instance, modelled on the offer)', () => {
+  // A remote ward's server forwarded an Offer(Follow); the guardian stores a copy.
+  G.follows.recordReview('gran', { id: 'r1', wardUri: 'https://w.example/kid', wardInbox: 'https://w.example/kid/inbox', follower: STRANGER, followerHandle: '@x@m.social' });
+  const list = G.follows.listReviews('gran');
+  assert.equal(list.length, 1);
+  assert.equal(list[0].ward_inbox, 'https://w.example/kid/inbox');
+  assert.ok(G.follows.getReview('gran', 'r1'));
+  G.follows.removeReview('gran', 'r1');
+  assert.equal(G.follows.listReviews('gran').length, 0);
+});

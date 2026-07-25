@@ -70,6 +70,23 @@ export function initializeDatabase() {
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (follow_id, guardian_uri)
   )`);
+  // Cross-instance follow-approval (modelled on the guardian offer): the
+  // guardian-side COPY of a gated follow on a REMOTE ward, forwarded here by
+  // the ward's server as an Offer(Follow). The decision is sent back to the
+  // ward's inbox. (Local wards use ap_pending_follows directly.)
+  db.exec(`CREATE TABLE IF NOT EXISTS ap_follow_reviews (
+    id TEXT NOT NULL,
+    guardian_slug TEXT NOT NULL,
+    ward_uri TEXT NOT NULL,
+    ward_inbox TEXT,
+    follower_uri TEXT NOT NULL,
+    follower_handle TEXT,
+    follower_icon TEXT,
+    follow_json TEXT,
+    status TEXT DEFAULT 'pending',
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (guardian_slug, id)
+  )`);
   ensureColumn('sites', 'profile_photo', 'TEXT');
   ensureColumn('audio_tracks', 'cover_url', 'TEXT');
   ensureColumn('audio_tracks', 'album', 'TEXT');

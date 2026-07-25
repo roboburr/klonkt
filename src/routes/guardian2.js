@@ -147,10 +147,16 @@ router.get('/api/follow-requests', requireAuth, (req, res) => {
   const site = siteForUser(req);
   if (!site) return res.status(404).json({ error: 'no_site' });
   const items = [];
+  // Local wards (guardian co-located): read the pending follows directly.
   for (const wardSlug of wardSlugsOf(site)) {
     for (const f of Guardianship.follows.listForWard(wardSlug)) {
-      items.push({ id: f.id, ward: wardSlug, follower: f.follower_handle || f.follower_name || f.follower_uri, followerIcon: f.follower_icon, created: f.created_at });
+      items.push({ id: f.id, ward: wardSlug, follower: f.follower_handle || f.follower_name || f.follower_uri, followerIcon: f.follower_icon, remote: false, created: f.created_at });
     }
+  }
+  // Remote wards: the copies forwarded here as Offer(Follow) (cross-instance).
+  for (const rev of Guardianship.follows.listReviews(site.slug)) {
+    const wardName = (() => { try { const u = new URL(rev.ward_uri); return `@${u.pathname.split('/').pop()}@${u.host}`; } catch { return rev.ward_uri; } })();
+    items.push({ id: rev.id, ward: wardName, follower: rev.follower_handle || rev.follower_uri, followerIcon: rev.follower_icon, remote: true, created: rev.created_at });
   }
   res.json({ items });
 });
@@ -161,9 +167,20 @@ router.post('/api/follow/:id', requireAuth, express.json({ limit: '4kb' }), asyn
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   const me = AP.actorId(base, site.slug);
   const decision = req.body?.decision === 'reject' ? 'reject' : 'approve';
+
+  // Remote ward: a forwarded copy. Send my Accept/Reject back to the ward,
+  // which tallies quorum and returns the Accept(Follow) to the follower.
+  const review = Guardianship.follows.getReview(site.slug, req.params.id);
+  if (review) {
+    try { await AP.sendFollowDecision(site, review, decision); }
+    catch { return res.status(502).json({ error: 'delivery' }); }
+    Guardianship.follows.removeReview(site.slug, req.params.id);
+    return res.json({ ok: true, outcome: decision === 'reject' ? 'rejected' : 'sent' });
+  }
+
+  // Local ward: decide directly (quorum on this instance).
   const pending = Guardianship.follows.getPending(req.params.id);
   if (!pending) return res.status(404).json({ error: 'gone' });
-  // I must actually be a guardian of this ward.
   const guardians = Guardianship.listGuardians(pending.ward_slug).map((g) => g.other_uri);
   if (!guardians.includes(me)) return res.status(403).json({ error: 'not_a_guardian' });
   const r = Guardianship.follows.decide(pending.id, me, decision, guardians);
