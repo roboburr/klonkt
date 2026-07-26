@@ -209,6 +209,15 @@ export async function renderPage(req, res, viewName, data = {}) {
     const pageContent = await ejs.renderFile(viewPath, locals, { async: false });
 
     if (isPartial) {
+      // A "Load more" append (hx-swap=beforeend into a sub-list) is NOT a
+      // navigation: it only adds rows to the existing page. It must NOT touch
+      // the site chrome or the body class. Emitting the nav HX-Trigger + OOB
+      // chrome here (below) rebuilds the header for the DEFAULT bodyClass —
+      // which, on a 'on-special' page like Messages, swaps in the full Klonkt
+      // header that the page had hidden. So for an append, send content only.
+      if (req.query.append === '1') {
+        return res.send(injectCspNonce(pageContent, res.locals.cspNonce));
+      }
       // HTMX: just send the content. Set HX-Trigger for body class swap.
       // HTTP-header values are Latin-1 only — a title with an em-dash, smart
       // quote or emoji (e.g. "Welkom — gebouwd met Klonkt") would make
