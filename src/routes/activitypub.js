@@ -161,9 +161,14 @@ router.get('/ap/users/:slug/inbox', (req, res) => {
       // Friends' media travels along (media_json → AS2 attachment), so the
       // client renders their images/audio like own outbox posts.
       attachment: AP.timelineAttachments(t.media_json),
-      // FEP-9098 custom emojis: the note's Emoji tags, so the client can
-      // render :shortcode: as an image instead of literal text.
-      tag: AP.timelineEmojis(t.emoji_json),
+      // The note's preserved tags, so the client can render them: FEP-9098
+      // Emoji tags (:shortcode: → image) and FEP-e232 Link tags (quotes /
+      // inline object references). Combined into one `tag` array; omitted
+      // when the note has neither.
+      tag: (() => {
+        const tags = [...(AP.timelineEmojis(t.emoji_json) || []), ...(AP.timelineObjectLinks(t.link_json) || [])];
+        return tags.length ? tags : undefined;
+      })(),
     },
   }));
   AP.sendAP(res, {

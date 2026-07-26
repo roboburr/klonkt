@@ -1538,6 +1538,8 @@ export async function handleInbox(req, slugParam) {
           if (Guardianship.objectHasGuardians(o)) { try { db.prepare('UPDATE ap_timeline SET has_guardians = 1 WHERE id = ? AND slug = ?').run(o.id, s.slug); } catch { /* ignore */ } }
           // FEP-9098: keep the note's custom-emoji tags so the C2S inbox read can serve them.
           { const ej = extractEmojiTags(o.tag); if (ej) { try { db.prepare('UPDATE ap_timeline SET emoji_json = ? WHERE id = ? AND slug = ?').run(ej, o.id, s.slug); } catch { /* ignore */ } } }
+          // FEP-e232: keep the note's object-link (quote/ref) tags for the same read.
+          { const lj = extractObjectLinkTags(o.tag); if (lj) { try { db.prepare('UPDATE ap_timeline SET link_json = ? WHERE id = ? AND slug = ?').run(lj, o.id, s.slug); } catch { /* ignore */ } } }
           if (poll) { try { db.prepare('UPDATE ap_timeline SET poll_json = ? WHERE id = ? AND slug = ?').run(JSON.stringify(poll), o.id, s.slug); } catch { /* ignore */ } }
         }
         console.log('[AP] timeline +', actorUri, 'x' + subs.length);
@@ -2581,6 +2583,27 @@ export function timelineEmojis(emojiJson) {
   catch { return undefined; }
 }
 
+// FEP-e232 object links (quotes / inline references). Inbound: keep the note's
+// Link tags whose mediaType marks an AP object (the AS2-profiled ld+json, or
+// activity+json as its equivalent) as JSON, so the C2S inbox read can serve
+// them back and a client (Shaer) can render the quote/reference. Mirrors
+// extractEmojiTags. Plain hyperlinks (text/html) and Mentions are dropped.
+export function extractObjectLinkTags(tag) {
+  const arr = Array.isArray(tag) ? tag : (tag ? [tag] : []);
+  const links = arr.filter((t) => {
+    if (!t || (Array.isArray(t.type) ? t.type[0] : t.type) !== 'Link') return false;
+    if (typeof t.href !== 'string' || !t.href) return false;
+    const mt = String(t.mediaType || '').toLowerCase();
+    return (mt.startsWith('application/ld+json') && mt.includes('activitystreams'))
+      || mt.startsWith('application/activity+json');
+  });
+  return links.length ? JSON.stringify(links) : null;
+}
+export function timelineObjectLinks(linkJson) {
+  try { const arr = linkJson ? JSON.parse(linkJson) : null; return (Array.isArray(arr) && arr.length) ? arr : undefined; }
+  catch { return undefined; }
+}
+
 // ── Cirkel = posts from the accounts you auto-boost ("feature an artist") ──
 let _abCount, _cirkelPosts, _cirkelMembers;
 export function autoBoostCount(slug) {
@@ -2677,7 +2700,7 @@ async function resolveApActor(siteUrl) {
 // note and refreshes content + media (recovers covers/edits that were delivered
 // during a flux window, e.g. a fleet-wide update), and drops notes that are gone
 // (404/410). Bump SELFHEAL_VERSION only on a release that warrants a re-sync.
-const SELFHEAL_VERSION = 8; // v8: also re-capture FEP-9098 custom-emoji tags (emoji_json) onto already-cached posts
+const SELFHEAL_VERSION = 9; // v9: also re-capture FEP-e232 object-link tags (link_json) onto already-cached posts
 async function fetchNoteAP(url) {
   try {
     const r = await fetch(url, { headers: { Accept: 'application/activity+json' } });
@@ -2738,6 +2761,8 @@ export async function backfillFromOutbox(slug, actorUri, limit = 20) {
         if (r && r.changes > 0) added++;
         // FEP-9098: keep custom-emoji tags from backfilled posts too.
         { const ej = extractEmojiTags(o.tag); if (ej) { try { db.prepare('UPDATE ap_timeline SET emoji_json = ? WHERE id = ? AND slug = ?').run(ej, o.id, slug); } catch { /* ignore */ } } }
+        // FEP-e232: keep object-link (quote/ref) tags from backfilled posts too.
+        { const lj = extractObjectLinkTags(o.tag); if (lj) { try { db.prepare('UPDATE ap_timeline SET link_json = ? WHERE id = ? AND slug = ?').run(lj, o.id, slug); } catch { /* ignore */ } } }
         // Set poll_json if this is a poll and we don't already have it (COALESCE preserves a vote).
         if (poll) { try { db.prepare('UPDATE ap_timeline SET poll_json = COALESCE(poll_json, ?) WHERE id = ? AND slug = ?').run(JSON.stringify(poll), o.id, slug); } catch { /* ignore */ } }
       } catch { /* ignore */ }
@@ -2858,7 +2883,7 @@ export async function selfHealTimeline() {
     try { const r = db.prepare('SELECT value FROM app_settings WHERE key = ?').get('selfheal_version'); cur = r ? (parseInt(r.value, 10) || 0) : 0; } catch { return; }
     if (cur >= SELFHEAL_VERSION) return; // already healed for this version — skip on normal boots
     let rows = [];
-    try { rows = db.prepare('SELECT id, content, media_json, nsfw, cw, url, emoji_json FROM ap_timeline ORDER BY rowid DESC LIMIT 200').all(); } catch { /* no table */ }
+    try { rows = db.prepare('SELECT id, content, media_json, nsfw, cw, url, emoji_json, link_json FROM ap_timeline ORDER BY rowid DESC LIMIT 200').all(); } catch { /* no table */ }
     let healed = 0, failed = 0;
     for (const r of rows) {
       try {
@@ -2871,8 +2896,9 @@ export async function selfHealTimeline() {
         const cw = note.summary || null;
         const url = note.url || null;          // re-sync the human url (catches a remote slug rename)
         const emoji = extractEmojiTags(note.tag);   // FEP-9098: re-capture custom-emoji tags (v8)
-        if ((html && html !== r.content) || media !== (r.media_json || '[]') || nsfw !== (r.nsfw || 0) || (cw || '') !== (r.cw || '') || (url && url !== r.url) || (emoji || '') !== (r.emoji_json || '')) {
-          db.prepare('UPDATE ap_timeline SET content = ?, media_json = ?, nsfw = ?, cw = ?, url = COALESCE(?, url), emoji_json = ? WHERE id = ?').run(html || r.content, media, nsfw, cw, url, emoji, r.id);
+        const link = extractObjectLinkTags(note.tag);   // FEP-e232: re-capture object-link tags (v9)
+        if ((html && html !== r.content) || media !== (r.media_json || '[]') || nsfw !== (r.nsfw || 0) || (cw || '') !== (r.cw || '') || (url && url !== r.url) || (emoji || '') !== (r.emoji_json || '') || (link || '') !== (r.link_json || '')) {
+          db.prepare('UPDATE ap_timeline SET content = ?, media_json = ?, nsfw = ?, cw = ?, url = COALESCE(?, url), emoji_json = ?, link_json = ? WHERE id = ?').run(html || r.content, media, nsfw, cw, url, emoji, link, r.id);
           healed++;
         }
       } catch { failed++; /* per-note best-effort */ }
@@ -3376,7 +3402,7 @@ export default {
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, setMyReaction, getMyReactions, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate, deliverDirectNote,
-  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, timelineAttachments, timelineEmojis, sendInteraction, voteOnPoll, voteOnRemotePoll,
+  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, timelineAttachments, timelineEmojis, timelineObjectLinks, sendInteraction, voteOnPoll, voteOnRemotePoll,
   acceptGatedFollow, rejectGatedFollow, isWardGuardian, sendFollowDecision,
   parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread, sendReport, localMentionSlugs,
   autoBoostCount, boostedCount, markBoosted, unmarkBoosted, markLiked, unmarkLiked, getTimelineReaction, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
