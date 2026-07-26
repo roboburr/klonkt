@@ -1691,6 +1691,20 @@ export async function handleInbox(req, slugParam) {
             try { const r = tlStmts().ins.run(bn.id, s.slug, origUri || '', oai.name, oai.handle, oai.icon, oai.url, html, bn.url || null, new Date().toISOString(), media, bn.sensitive ? 1 : 0, bn.summary || null); inserted = r.changes > 0; } catch { /* ignore */ }
             if (inserted) { try { db.prepare('UPDATE ap_timeline SET reblog_name = ?, reblog_handle = ?, reblog_icon = ?, reblog_emoji_json = ? WHERE slug = ? AND id = ?').run(booster.name, booster.handle, booster.icon, (booster.emojis && Object.keys(booster.emojis).length) ? JSON.stringify(booster.emojis) : null, s.slug, bn.id); } catch { /* ignore */ } }
             storeAuthorEmoji(bn.id, s.slug, oai);   // custom-emoji display name for the byline
+            // A boost carries the same renderable tags as a Create: capture the
+            // note's content emojis (FEP-9098) and object links / quote (FEP-e232/
+            // 044f) so boosted posts render like any other, not as raw shortcodes.
+            { const ej = extractEmojiTags(bn.tag); if (ej) { try { db.prepare('UPDATE ap_timeline SET emoji_json = ? WHERE id = ? AND slug = ?').run(ej, bn.id, s.slug); } catch { /* ignore */ } } }
+            { const lj = extractLinkJson(bn); if (lj) { try { db.prepare('UPDATE ap_timeline SET link_json = ? WHERE id = ? AND slug = ?').run(lj, bn.id, s.slug); } catch { /* ignore */ } } }
+          }
+          // FEP-044f: resolve the embedded quote card for a boosted post too
+          // (out of band, best-effort, so it does not block the inbox response).
+          if (quoteHrefOf(bn)) {
+            const slugs = subs.map((s) => s.slug);
+            resolveQuote(bn).then((qj) => {
+              if (!qj) return;
+              for (const sl of slugs) { try { db.prepare('UPDATE ap_timeline SET quote_json = ? WHERE id = ? AND slug = ?').run(qj, bn.id, sl); } catch { /* ignore */ } }
+            }).catch(() => { /* best-effort */ });
           }
           console.log('[AP] timeline boost +', actorUri, 'x' + subs.length);
         }
