@@ -1,9 +1,9 @@
 <li class="tl-item">
-          <% if (p.reblog_name) { %><div class="tl-boost-by"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg> <strong><%= p.reblog_name %></strong> <%= t('tl.boosted') %></div><% } %>
+          <% if (p.reblog_name) { %><div class="tl-boost-by"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg> <strong><%- emojiName(p.reblog_name, p.reblog_emoji_json) %></strong> <%= t('tl.boosted') %></div><% } %>
           <div class="tl-head">
             <span class="tl-avatar"><% if (p.author_icon) { %><img src="<%= avatar(p.author_icon, 96) %>" alt="" loading="lazy"><% } else { %><%= (p.author_name || '?').charAt(0).toUpperCase() %><% } %></span>
             <span class="tl-id">
-              <a class="tl-author" href="<%= p.author_url || p.author_uri %>" target="_blank" rel="nofollow noopener"><%= p.author_name %></a>
+              <a class="tl-author" href="<%= p.author_url || p.author_uri %>" target="_blank" rel="nofollow noopener"><%- emojiName(p.author_name, p.author_emoji_json) %></a>
               <span class="tl-handle"><%= p.author_handle %></span>
             </span>
             <% if (p.published || p.created_at) { %><time class="tl-time"><%= formatDateTime(p.published || p.created_at) %></time><% } %>
@@ -18,10 +18,11 @@
             var _nsfwText = !!p.nsfw && !(imgs.length || vids.length || auds.length);
           %>
           <% if (_nsfwText) { %>
-            <div class="tl-content nsfw-media"><span class="nsfw-veil"><%- include('../partials/nsfw-veil', { cw: p.cw }) %></span><%- p.content %></div>
+            <div class="tl-content nsfw-media"><span class="nsfw-veil"><%- include('../partials/nsfw-veil', { cw: p.cw }) %></span><%- emojiHtml(p.content, p.emoji_json) %></div>
           <% } else { %>
-            <div class="tl-content"><%- p.content %></div>
+            <div class="tl-content"><%- emojiHtml(p.content, p.emoji_json) %></div>
           <% } %>
+          <% var _quote = noteQuote(p.quote_json); if (_quote) { %><%- include('../partials/quote-card', { q: _quote }) %><% } %>
           <% if (_nsfwVisual) { %><div class="nsfw-media"><% } %>
           <% if (imgs.length) { %>
             <div class="tl-media">

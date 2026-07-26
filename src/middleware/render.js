@@ -18,6 +18,7 @@ import PermissionsService from '../services/PermissionsService.js';
 import { isViewer } from './auth.js';
 import { getSetting, apEnabled } from '../services/SettingsService.js';
 import { isPremium as isPremiumInstance, premiumEnabled, premiumUnlocked } from '../services/PatreonService.js';
+import { emojiHtml, emojiName, parseQuote } from '../services/NoteRender.js';
 import ActivityPubService from '../services/ActivityPubService.js';
 import { imgProxyUrl } from '../services/ThumbnailService.js';
 import { audioEnabled as audioFeatureEnabled } from '../config/features.js';
@@ -163,6 +164,11 @@ export async function renderPage(req, res, viewName, data = {}) {
     permissions: PermissionsService,
     formatDate,
     formatDateTime,
+    // Render the Shaer-native bits server-side so the web timeline matches the
+    // apps: FEP-9098 custom emojis in content/names, and the FEP-044f quote.
+    emojiHtml,   // (html, emoji_json) → HTML with :shortcode: as <img>
+    emojiName,   // (text, emoji_json) → escaped name with :shortcode: as <img>
+    noteQuote: parseQuote,   // (quote_json) → the resolved quoted-post object or null
     // Rewrite a local /media/<file> cover to its on-demand downscaled thumbnail
     // (crisp grid/list images). External URLs + already-thumb URLs pass through.
     thumb: (url, w) => {

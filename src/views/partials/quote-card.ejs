@@ -1,0 +1,16 @@
+<%
+  // FEP-044f embedded quote card: the quoted post itself (author + content +
+  // first image), nested under a note — the web mirror of the Shaer QuoteCard.
+  // `q` is the resolved snapshot from noteQuote(p.quote_json).
+  var _qa = q.author || {};
+  var _qm = Array.isArray(q.media) ? q.media.filter(function (m) { return m && m.url && (!m.type || /^image\//.test(m.type)); }) : [];
+%>
+<div class="tl-quote">
+  <div class="tl-quote-head">
+    <% if (_qa.icon) { %><img class="tl-quote-avatar" src="<%= avatar(_qa.icon, 96) %>" alt="" loading="lazy"><% } %>
+    <span class="tl-quote-name"><%- emojiName(_qa.name || _qa.handle || '', _qa.emojis) %></span>
+    <% if (_qa.handle) { %><span class="tl-quote-handle"><%= _qa.handle %></span><% } %>
+  </div>
+  <% if (q.content) { %><div class="tl-quote-body"><%- emojiHtml(q.content, q.emojis) %></div><% } %>
+  <% if (_qm.length) { %><a class="tl-quote-media" href="<%= _qm[0].url %>" target="_blank" rel="noopener"><img src="<%= thumb(_qm[0].url, 640) %>" alt="" loading="lazy"></a><% } %>
+</div>
