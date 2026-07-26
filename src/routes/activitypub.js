@@ -190,6 +190,10 @@ router.get('/ap/users/:slug/inbox', (req, res) => {
         // FEP-9098: emojis in the booster's display name (":shortcode:"), if any.
         emojis: (() => { try { return t.reblog_emoji_json ? JSON.parse(t.reblog_emoji_json) : undefined; } catch { return undefined; } })(),
       } : undefined,
+      // Whether THIS account already liked/boosted the note, so the app's
+      // detail-view buttons show the current state (and can toggle/undo).
+      'shaer:liked': !!t.liked,
+      'shaer:boosted': !!t.boosted,
     },
   }));
   AP.sendAP(res, {

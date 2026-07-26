@@ -277,7 +277,12 @@ export function buildNote(base, site, post, opts = {}) {
       to: post.visibility === 'direct'
         ? (JSON.parse(post.to_actors || '[]'))
         : (post.to_actor ? [post.to_actor] : [PUBLIC]),
-      cc: post.visibility === 'direct' ? [] : [PUBLIC, `${meR}/followers`],
+      // Followers-only reply ('friends', shaer detail-view Reply): the parent
+      // author (in `to`) + our followers, but NO Public — it does not federate
+      // into open discovery. Default reply stays quiet-public (Public in cc).
+      cc: post.visibility === 'direct' ? []
+        : post.visibility === 'friends' ? [`${meR}/followers`]
+          : [PUBLIC, `${meR}/followers`],
       // FEP-633c 5.2.1: a ward's call for help. Only ever on direct notes.
       ...Guardianship.helpRequestProps(post),
       ...Guardianship.waveProps(post),
@@ -2144,7 +2149,10 @@ export async function ingestOutboxActivity(site, user, activity) {
         if (object.inReplyTo) {
           const parent = await resolveRemoteNote(c2sIdOf(object.inReplyTo)).catch(() => null);
           if (!parent) return { status: 502, error: 'cannot_resolve_inReplyTo' };
-          const r = await deliverReply(site, { postId: parent.localPostId || '', postSlug: null, parent, text: plain });
+          // Honour the client's visibility for the reply: 'friends' (followers-
+          // only, the Shaer detail-view Reply) drops Public; anything else stays
+          // quiet-public. 'direct' was already handled above.
+          const r = await deliverReply(site, { postId: parent.localPostId || '', postSlug: null, parent, text: plain, visibility: c2sVisibility(object) });
           if (!r || !r.id) return { status: 502, error: 'reply_failed' };
           return { status: 201, id: r.id, url: `${base}/ap/notes/${r.id}` };
         }
@@ -2256,7 +2264,7 @@ export const deliverDirectNote = Guardianship.deliverDirectNote;
 
 // Send a reply FROM this site to a remote actor (in reply to their inbound reply).
 // `parent` = an ap_interactions row (actor_uri, actor_url, actor_handle, object_uri).
-export async function deliverReply(site, { postId, postSlug, parent, text, html, language, attachments, mentions }) {
+export async function deliverReply(site, { postId, postSlug, parent, text, html, language, attachments, mentions, visibility }) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   // Rich replies: `html` is the reply editor's HTML (sanitized here); `text` is
   // the plain-text fallback (no-JS path, C2S `source`). Either may carry the reply.
@@ -2327,6 +2335,9 @@ export async function deliverReply(site, { postId, postSlug, parent, text, html,
   if (dup) { console.log('[AP] outreply skipped (duplicate)'); return { duplicate: true, delivered: 0 }; }
   const id = crypto.randomUUID();
   iStmts().insO.run(id, site.slug, postId, postSlug || null, parent.object_uri || null, toActorUri, toHandle, content, replyLang, mediaJson);
+  // Followers-only reply (shaer detail-view): mark the row so buildNote drops
+  // Public from cc. Default (undefined/'public'/'quiet') stays quiet-public.
+  if (visibility === 'friends') { try { db.prepare('UPDATE ap_outbox SET visibility = ? WHERE id = ?').run('friends', id); } catch { /* ignore */ } }
   const row = iStmts().getO.get(id);
   const note = buildReplyNote(base, site, row);
   const create = {
