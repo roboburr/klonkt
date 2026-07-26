@@ -5,8 +5,8 @@ process.env.DATABASE_PATH = ':memory:';
 process.env.PUBLIC_BASE_URL = 'https://test.example';
 const dbMod = await import('../src/config/database.js');
 dbMod.initializeDatabase();
-const { extractObjectLinkTags, timelineObjectLinks, extractQuoteUrl, extractLinkJson } = await import('../src/services/ActivityPubService.js');
-const AP = { extractObjectLinkTags, timelineObjectLinks, extractQuoteUrl, extractLinkJson };
+const { extractObjectLinkTags, timelineObjectLinks, extractQuoteUrl, extractLinkJson, quoteHrefOf, timelineQuote } = await import('../src/services/ActivityPubService.js');
+const AP = { extractObjectLinkTags, timelineObjectLinks, extractQuoteUrl, extractLinkJson, quoteHrefOf, timelineQuote };
 
 test('extractObjectLinkTags keeps AS2-profiled ld+json and activity+json Links; drops plain links and mentions', () => {
   const tag = [
@@ -57,4 +57,24 @@ test('extractLinkJson merges a real FEP-e232 Link with an object-level quote, de
   const arr = AP.timelineObjectLinks(AP.extractLinkJson(note));
   assert.equal(arr.length, 1);
   assert.equal(arr[0].href, 'https://s/objects/9');
+});
+
+// FEP-044f embedded quote card: the quoted-post URL feeds the resolver.
+test('quoteHrefOf reads an object-level quote or a quote-rel FEP-e232 Link', () => {
+  assert.equal(AP.quoteHrefOf({ quoteUrl: 'https://s/q1' }), 'https://s/q1');
+  assert.equal(AP.quoteHrefOf({
+    tag: [{ type: 'Link', href: 'https://s/q2', rel: 'https://misskey-hub.net/ns#_misskey_quote' }],
+  }), 'https://s/q2');
+  assert.equal(AP.quoteHrefOf({ content: 'plain, no quote' }), null);
+  // a plain (non-quote) FEP-e232 reference is not a quote target
+  assert.equal(AP.quoteHrefOf({ tag: [{ type: 'Link', href: 'https://s/ref', rel: 'mention' }] }), null);
+});
+
+test('timelineQuote round-trips the stored snapshot; junk → undefined', () => {
+  const snap = JSON.stringify({ url: 'https://s/q', author: { name: 'A', handle: '@a@s', icon: null }, content: '<p>hi</p>' });
+  const back = AP.timelineQuote(snap);
+  assert.equal(back.url, 'https://s/q');
+  assert.equal(back.author.handle, '@a@s');
+  assert.equal(AP.timelineQuote(null), undefined);
+  assert.equal(AP.timelineQuote('not json'), undefined);
 });

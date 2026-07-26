@@ -169,6 +169,10 @@ router.get('/ap/users/:slug/inbox', (req, res) => {
         const tags = [...(AP.timelineEmojis(t.emoji_json) || []), ...(AP.timelineObjectLinks(t.link_json) || [])];
         return tags.length ? tags : undefined;
       })(),
+      // FEP-044f: the resolved quoted post (author + content), so the client
+      // renders an embedded quote card instead of a bare link. Omitted when the
+      // note has no quote or the quoted post could not be resolved.
+      'shaer:quote': AP.timelineQuote(t.quote_json),
     },
   }));
   AP.sendAP(res, {

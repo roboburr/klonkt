@@ -1542,6 +1542,15 @@ export async function handleInbox(req, slugParam) {
           { const lj = extractLinkJson(o); if (lj) { try { db.prepare('UPDATE ap_timeline SET link_json = ? WHERE id = ? AND slug = ?').run(lj, o.id, s.slug); } catch { /* ignore */ } } }
           if (poll) { try { db.prepare('UPDATE ap_timeline SET poll_json = ? WHERE id = ? AND slug = ?').run(JSON.stringify(poll), o.id, s.slug); } catch { /* ignore */ } }
         }
+        // FEP-044f embedded quote card: resolve the quoted post out of band so
+        // the inbox response is not blocked on a remote fetch. Best-effort.
+        if (quoteHrefOf(o)) {
+          const slugs = subs.map((s) => s.slug);
+          resolveQuote(o).then((qj) => {
+            if (!qj) return;
+            for (const sl of slugs) { try { db.prepare('UPDATE ap_timeline SET quote_json = ? WHERE id = ? AND slug = ?').run(qj, o.id, sl); } catch { /* ignore */ } }
+          }).catch(() => { /* best-effort */ });
+        }
         console.log('[AP] timeline +', actorUri, 'x' + subs.length);
       }
     }
@@ -2634,6 +2643,27 @@ export function extractLinkJson(note) {
   return links.length ? JSON.stringify(links) : null;
 }
 
+// The URL of the quoted post, from either an object-level quote (FEP-044f) or a
+// quote-rel FEP-e232 Link tag. Used to resolve the embedded quote card.
+export function quoteHrefOf(note) {
+  const direct = extractQuoteUrl(note);
+  if (direct) return direct;
+  const arr = Array.isArray(note && note.tag) ? note.tag : (note && note.tag ? [note.tag] : []);
+  for (const t of arr) {
+    if (!t || (Array.isArray(t.type) ? t.type[0] : t.type) !== 'Link' || typeof t.href !== 'string') continue;
+    const rel = Array.isArray(t.rel) ? t.rel : (t.rel ? [t.rel] : []);
+    if (rel.some((r) => /quote/i.test(String(r)))) return t.href;
+  }
+  return null;
+}
+
+// Turn the stored quote snapshot back into the object the C2S inbox read serves
+// as `shaer:quote`, so the client can render the embedded quote card.
+export function timelineQuote(quoteJson) {
+  try { const q = quoteJson ? JSON.parse(quoteJson) : null; return (q && typeof q === 'object') ? q : undefined; }
+  catch { return undefined; }
+}
+
 // ── Cirkel = posts from the accounts you auto-boost ("feature an artist") ──
 let _abCount, _cirkelPosts, _cirkelMembers;
 export function autoBoostCount(slug) {
@@ -2730,7 +2760,7 @@ async function resolveApActor(siteUrl) {
 // note and refreshes content + media (recovers covers/edits that were delivered
 // during a flux window, e.g. a fleet-wide update), and drops notes that are gone
 // (404/410). Bump SELFHEAL_VERSION only on a release that warrants a re-sync.
-const SELFHEAL_VERSION = 10; // v10: also capture FEP-044f object-level quotes (quote/quoteUrl/quoteUri/_misskey_quote) into link_json
+const SELFHEAL_VERSION = 11; // v11: also resolve the FEP-044f embedded quote card (quote_json) onto already-cached posts
 async function fetchNoteAP(url) {
   try {
     const r = await fetch(url, { headers: { Accept: 'application/activity+json' } });
@@ -2747,6 +2777,30 @@ function mediaFromNote(note) {
     if (iu) atts.push({ url: iu, type: (im && im.mediaType) || 'image/jpeg' });
   }
   return JSON.stringify(atts);
+}
+
+// FEP-044f embedded quote card: resolve the quoted post to a compact, sanitised
+// snapshot { url, author{name,handle,icon}, content, published, media } so the
+// client can render it as a nested card instead of a bare link. Best-effort and
+// SSRF-safe (apGetJson): returns null on any failure, and the client falls back
+// to the object-link chip. The content goes through the same sanitiser as every
+// other note, so the kid-safe guarantees hold.
+async function resolveQuote(note) {
+  const url = quoteHrefOf(note);
+  if (!url) return null;
+  const q = await apGetJson(url);
+  if (!q || typeof q !== 'object') return null;
+  const authorUri = typeof q.attributedTo === 'string' ? q.attributedTo
+    : (q.attributedTo && typeof q.attributedTo.id === 'string' ? q.attributedTo.id : null);
+  const ai = authorUri ? actorInfo(await fetchActor(authorUri), authorUri) : null;
+  const snapshot = {
+    url: safeUrl(q.url || q.id || url) || url,
+    author: ai ? { name: ai.name, handle: ai.handle, icon: ai.icon } : null,
+    content: HtmlSanitizerService.sanitize(q.content || ''),
+    published: q.published || null,
+    media: mediaFromNote(q),
+  };
+  return JSON.stringify(snapshot);
 }
 // A generic SSRF-safe AP GET (collections / pages).
 async function apGetJson(url) {
@@ -2793,6 +2847,8 @@ export async function backfillFromOutbox(slug, actorUri, limit = 20) {
         { const ej = extractEmojiTags(o.tag); if (ej) { try { db.prepare('UPDATE ap_timeline SET emoji_json = ? WHERE id = ? AND slug = ?').run(ej, o.id, slug); } catch { /* ignore */ } } }
         // FEP-e232 + FEP-044f: keep object-link/quote tags from backfilled posts too.
         { const lj = extractLinkJson(o); if (lj) { try { db.prepare('UPDATE ap_timeline SET link_json = ? WHERE id = ? AND slug = ?').run(lj, o.id, slug); } catch { /* ignore */ } } }
+        // FEP-044f: resolve the embedded quote card for backfilled posts too.
+        if (quoteHrefOf(o)) { const qj = await resolveQuote(o); if (qj) { try { db.prepare('UPDATE ap_timeline SET quote_json = ? WHERE id = ? AND slug = ?').run(qj, o.id, slug); } catch { /* ignore */ } } }
         // Set poll_json if this is a poll and we don't already have it (COALESCE preserves a vote).
         if (poll) { try { db.prepare('UPDATE ap_timeline SET poll_json = COALESCE(poll_json, ?) WHERE id = ? AND slug = ?').run(JSON.stringify(poll), o.id, slug); } catch { /* ignore */ } }
       } catch { /* ignore */ }
@@ -2913,7 +2969,7 @@ export async function selfHealTimeline() {
     try { const r = db.prepare('SELECT value FROM app_settings WHERE key = ?').get('selfheal_version'); cur = r ? (parseInt(r.value, 10) || 0) : 0; } catch { return; }
     if (cur >= SELFHEAL_VERSION) return; // already healed for this version — skip on normal boots
     let rows = [];
-    try { rows = db.prepare('SELECT id, content, media_json, nsfw, cw, url, emoji_json, link_json FROM ap_timeline ORDER BY rowid DESC LIMIT 200').all(); } catch { /* no table */ }
+    try { rows = db.prepare('SELECT id, content, media_json, nsfw, cw, url, emoji_json, link_json, quote_json FROM ap_timeline ORDER BY rowid DESC LIMIT 200').all(); } catch { /* no table */ }
     let healed = 0, failed = 0;
     for (const r of rows) {
       try {
@@ -2927,8 +2983,11 @@ export async function selfHealTimeline() {
         const url = note.url || null;          // re-sync the human url (catches a remote slug rename)
         const emoji = extractEmojiTags(note.tag);   // FEP-9098: re-capture custom-emoji tags (v8)
         const link = extractLinkJson(note);   // FEP-e232 + FEP-044f: re-capture object-link/quote tags (v9)
-        if ((html && html !== r.content) || media !== (r.media_json || '[]') || nsfw !== (r.nsfw || 0) || (cw || '') !== (r.cw || '') || (url && url !== r.url) || (emoji || '') !== (r.emoji_json || '') || (link || '') !== (r.link_json || '')) {
-          db.prepare('UPDATE ap_timeline SET content = ?, media_json = ?, nsfw = ?, cw = ?, url = COALESCE(?, url), emoji_json = ?, link_json = ? WHERE id = ?').run(html || r.content, media, nsfw, cw, url, emoji, link, r.id);
+        // FEP-044f: resolve the embedded quote card (v11). COALESCE-style: keep a
+        // cached snapshot if the quoted post is momentarily unreachable now.
+        const quote = quoteHrefOf(note) ? (await resolveQuote(note)) || r.quote_json || null : null;
+        if ((html && html !== r.content) || media !== (r.media_json || '[]') || nsfw !== (r.nsfw || 0) || (cw || '') !== (r.cw || '') || (url && url !== r.url) || (emoji || '') !== (r.emoji_json || '') || (link || '') !== (r.link_json || '') || (quote || '') !== (r.quote_json || '')) {
+          db.prepare('UPDATE ap_timeline SET content = ?, media_json = ?, nsfw = ?, cw = ?, url = COALESCE(?, url), emoji_json = ?, link_json = ?, quote_json = ? WHERE id = ?').run(html || r.content, media, nsfw, cw, url, emoji, link, quote, r.id);
           healed++;
         }
       } catch { failed++; /* per-note best-effort */ }
@@ -3432,7 +3491,7 @@ export default {
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, setMyReaction, getMyReactions, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate, deliverDirectNote,
-  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, timelineAttachments, timelineEmojis, timelineObjectLinks, sendInteraction, voteOnPoll, voteOnRemotePoll,
+  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, timelineAttachments, timelineEmojis, timelineObjectLinks, timelineQuote, sendInteraction, voteOnPoll, voteOnRemotePoll,
   acceptGatedFollow, rejectGatedFollow, isWardGuardian, sendFollowDecision,
   parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread, sendReport, localMentionSlugs,
   autoBoostCount, boostedCount, markBoosted, unmarkBoosted, markLiked, unmarkLiked, getTimelineReaction, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
