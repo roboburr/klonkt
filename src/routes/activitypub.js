@@ -173,6 +173,19 @@ router.get('/ap/users/:slug/inbox', (req, res) => {
       // renders an embedded quote card instead of a bare link. Omitted when the
       // note has no quote or the quoted post could not be resolved.
       'shaer:quote': AP.timelineQuote(t.quote_json),
+      // The post author's display info (name / @handle / avatar), so every card
+      // gets a byline header like the quote card. attributedTo stays the bare
+      // actor URI; this is the resolved presentation Klonkt already stored.
+      'shaer:author': (t.author_name || t.author_handle || t.author_icon) ? {
+        name: t.author_name || undefined, handle: t.author_handle || undefined,
+        icon: t.author_icon || undefined, url: t.author_url || undefined,
+      } : undefined,
+      // When a followed account boosted this, who did ("X boosted"). Omitted for
+      // ordinary posts.
+      'shaer:booster': (t.reblog_name || t.reblog_handle || t.reblog_icon) ? {
+        name: t.reblog_name || undefined, handle: t.reblog_handle || undefined,
+        icon: t.reblog_icon || undefined,
+      } : undefined,
     },
   }));
   AP.sendAP(res, {
