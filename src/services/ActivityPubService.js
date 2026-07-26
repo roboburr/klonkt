@@ -2677,7 +2677,7 @@ async function resolveApActor(siteUrl) {
 // note and refreshes content + media (recovers covers/edits that were delivered
 // during a flux window, e.g. a fleet-wide update), and drops notes that are gone
 // (404/410). Bump SELFHEAL_VERSION only on a release that warrants a re-sync.
-const SELFHEAL_VERSION = 7; // v7: rerun v6 with retry-until-clean semantics (origins briefly offline no longer stay stale forever)
+const SELFHEAL_VERSION = 8; // v8: also re-capture FEP-9098 custom-emoji tags (emoji_json) onto already-cached posts
 async function fetchNoteAP(url) {
   try {
     const r = await fetch(url, { headers: { Accept: 'application/activity+json' } });
@@ -2858,7 +2858,7 @@ export async function selfHealTimeline() {
     try { const r = db.prepare('SELECT value FROM app_settings WHERE key = ?').get('selfheal_version'); cur = r ? (parseInt(r.value, 10) || 0) : 0; } catch { return; }
     if (cur >= SELFHEAL_VERSION) return; // already healed for this version — skip on normal boots
     let rows = [];
-    try { rows = db.prepare('SELECT id, content, media_json, nsfw, cw, url FROM ap_timeline ORDER BY rowid DESC LIMIT 200').all(); } catch { /* no table */ }
+    try { rows = db.prepare('SELECT id, content, media_json, nsfw, cw, url, emoji_json FROM ap_timeline ORDER BY rowid DESC LIMIT 200').all(); } catch { /* no table */ }
     let healed = 0, failed = 0;
     for (const r of rows) {
       try {
@@ -2870,8 +2870,9 @@ export async function selfHealTimeline() {
         const nsfw = note.sensitive ? 1 : 0;   // re-sync NSFW/sensitive + CW onto already-cached posts
         const cw = note.summary || null;
         const url = note.url || null;          // re-sync the human url (catches a remote slug rename)
-        if ((html && html !== r.content) || media !== (r.media_json || '[]') || nsfw !== (r.nsfw || 0) || (cw || '') !== (r.cw || '') || (url && url !== r.url)) {
-          db.prepare('UPDATE ap_timeline SET content = ?, media_json = ?, nsfw = ?, cw = ?, url = COALESCE(?, url) WHERE id = ?').run(html || r.content, media, nsfw, cw, url, r.id);
+        const emoji = extractEmojiTags(note.tag);   // FEP-9098: re-capture custom-emoji tags (v8)
+        if ((html && html !== r.content) || media !== (r.media_json || '[]') || nsfw !== (r.nsfw || 0) || (cw || '') !== (r.cw || '') || (url && url !== r.url) || (emoji || '') !== (r.emoji_json || '')) {
+          db.prepare('UPDATE ap_timeline SET content = ?, media_json = ?, nsfw = ?, cw = ?, url = COALESCE(?, url), emoji_json = ? WHERE id = ?').run(html || r.content, media, nsfw, cw, url, emoji, r.id);
           healed++;
         }
       } catch { failed++; /* per-note best-effort */ }
