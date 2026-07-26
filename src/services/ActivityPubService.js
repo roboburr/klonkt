@@ -1538,8 +1538,8 @@ export async function handleInbox(req, slugParam) {
           if (Guardianship.objectHasGuardians(o)) { try { db.prepare('UPDATE ap_timeline SET has_guardians = 1 WHERE id = ? AND slug = ?').run(o.id, s.slug); } catch { /* ignore */ } }
           // FEP-9098: keep the note's custom-emoji tags so the C2S inbox read can serve them.
           { const ej = extractEmojiTags(o.tag); if (ej) { try { db.prepare('UPDATE ap_timeline SET emoji_json = ? WHERE id = ? AND slug = ?').run(ej, o.id, s.slug); } catch { /* ignore */ } } }
-          // FEP-e232: keep the note's object-link (quote/ref) tags for the same read.
-          { const lj = extractObjectLinkTags(o.tag); if (lj) { try { db.prepare('UPDATE ap_timeline SET link_json = ? WHERE id = ? AND slug = ?').run(lj, o.id, s.slug); } catch { /* ignore */ } } }
+          // FEP-e232 + FEP-044f: keep the note's object-link/quote tags for the same read.
+          { const lj = extractLinkJson(o); if (lj) { try { db.prepare('UPDATE ap_timeline SET link_json = ? WHERE id = ? AND slug = ?').run(lj, o.id, s.slug); } catch { /* ignore */ } } }
           if (poll) { try { db.prepare('UPDATE ap_timeline SET poll_json = ? WHERE id = ? AND slug = ?').run(JSON.stringify(poll), o.id, s.slug); } catch { /* ignore */ } }
         }
         console.log('[AP] timeline +', actorUri, 'x' + subs.length);
@@ -2604,6 +2604,36 @@ export function timelineObjectLinks(linkJson) {
   catch { return undefined; }
 }
 
+// FEP-044f quote posts: a quote is usually NOT an FEP-e232 tag but an
+// object-level property. FEP-044f §"how to recognise" lists them all:
+// `quote` (the FEP property, a string or an embedded Link/object), and the
+// de-facto `quoteUrl` (as:), `quoteUri` (fedibird), `_misskey_quote` (misskey).
+// This returns the quoted object's URL from whichever is present.
+export function extractQuoteUrl(note) {
+  if (!note || typeof note !== 'object') return null;
+  const q = note.quote ?? note.quoteUrl ?? note.quoteUri ?? note['_misskey_quote'];
+  if (!q) return null;
+  if (typeof q === 'string') return q || null;
+  if (typeof q === 'object') return (typeof q.id === 'string' && q.id) || (typeof q.href === 'string' && q.href) || null;
+  return null;
+}
+
+// The note's object-link tags for storage: real FEP-e232 Link tags PLUS any
+// FEP-044f object-level quote, normalised to one FEP-e232-shaped Link (rel
+// _misskey_quote) so the client's single object-link path renders them all.
+// Deduped by href. Returns the JSON to store (or null if the note has neither).
+export function extractLinkJson(note) {
+  const links = [];
+  const fromTag = extractObjectLinkTags(note && note.tag);
+  if (fromTag) { try { links.push(...JSON.parse(fromTag)); } catch { /* ignore */ } }
+  const qUrl = extractQuoteUrl(note);
+  if (qUrl && !links.some((l) => l && l.href === qUrl)) {
+    links.push({ type: 'Link', mediaType: 'application/activity+json', href: qUrl,
+      rel: ['https://misskey-hub.net/ns#_misskey_quote'], name: qUrl });
+  }
+  return links.length ? JSON.stringify(links) : null;
+}
+
 // ── Cirkel = posts from the accounts you auto-boost ("feature an artist") ──
 let _abCount, _cirkelPosts, _cirkelMembers;
 export function autoBoostCount(slug) {
@@ -2700,7 +2730,7 @@ async function resolveApActor(siteUrl) {
 // note and refreshes content + media (recovers covers/edits that were delivered
 // during a flux window, e.g. a fleet-wide update), and drops notes that are gone
 // (404/410). Bump SELFHEAL_VERSION only on a release that warrants a re-sync.
-const SELFHEAL_VERSION = 9; // v9: also re-capture FEP-e232 object-link tags (link_json) onto already-cached posts
+const SELFHEAL_VERSION = 10; // v10: also capture FEP-044f object-level quotes (quote/quoteUrl/quoteUri/_misskey_quote) into link_json
 async function fetchNoteAP(url) {
   try {
     const r = await fetch(url, { headers: { Accept: 'application/activity+json' } });
@@ -2761,8 +2791,8 @@ export async function backfillFromOutbox(slug, actorUri, limit = 20) {
         if (r && r.changes > 0) added++;
         // FEP-9098: keep custom-emoji tags from backfilled posts too.
         { const ej = extractEmojiTags(o.tag); if (ej) { try { db.prepare('UPDATE ap_timeline SET emoji_json = ? WHERE id = ? AND slug = ?').run(ej, o.id, slug); } catch { /* ignore */ } } }
-        // FEP-e232: keep object-link (quote/ref) tags from backfilled posts too.
-        { const lj = extractObjectLinkTags(o.tag); if (lj) { try { db.prepare('UPDATE ap_timeline SET link_json = ? WHERE id = ? AND slug = ?').run(lj, o.id, slug); } catch { /* ignore */ } } }
+        // FEP-e232 + FEP-044f: keep object-link/quote tags from backfilled posts too.
+        { const lj = extractLinkJson(o); if (lj) { try { db.prepare('UPDATE ap_timeline SET link_json = ? WHERE id = ? AND slug = ?').run(lj, o.id, slug); } catch { /* ignore */ } } }
         // Set poll_json if this is a poll and we don't already have it (COALESCE preserves a vote).
         if (poll) { try { db.prepare('UPDATE ap_timeline SET poll_json = COALESCE(poll_json, ?) WHERE id = ? AND slug = ?').run(JSON.stringify(poll), o.id, slug); } catch { /* ignore */ } }
       } catch { /* ignore */ }
@@ -2896,7 +2926,7 @@ export async function selfHealTimeline() {
         const cw = note.summary || null;
         const url = note.url || null;          // re-sync the human url (catches a remote slug rename)
         const emoji = extractEmojiTags(note.tag);   // FEP-9098: re-capture custom-emoji tags (v8)
-        const link = extractObjectLinkTags(note.tag);   // FEP-e232: re-capture object-link tags (v9)
+        const link = extractLinkJson(note);   // FEP-e232 + FEP-044f: re-capture object-link/quote tags (v9)
         if ((html && html !== r.content) || media !== (r.media_json || '[]') || nsfw !== (r.nsfw || 0) || (cw || '') !== (r.cw || '') || (url && url !== r.url) || (emoji || '') !== (r.emoji_json || '') || (link || '') !== (r.link_json || '')) {
           db.prepare('UPDATE ap_timeline SET content = ?, media_json = ?, nsfw = ?, cw = ?, url = COALESCE(?, url), emoji_json = ?, link_json = ? WHERE id = ?').run(html || r.content, media, nsfw, cw, url, emoji, link, r.id);
           healed++;
