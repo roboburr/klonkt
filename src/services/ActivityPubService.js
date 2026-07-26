@@ -868,12 +868,29 @@ function actorInfo(doc, actorUri) {
   let host = ''; try { host = new URL(actorUri).host; } catch { /* keep empty */ }
   const handle = doc && doc.preferredUsername ? `@${doc.preferredUsername}@${host}` : deriveHandle(actorUri);
   const icon = doc && doc.icon ? (doc.icon.url || (Array.isArray(doc.icon) && doc.icon[0] && doc.icon[0].url)) : null;
+  const name = (doc && (doc.name || doc.preferredUsername)) || handle;
   return {
-    name: (doc && (doc.name || doc.preferredUsername)) || handle,
+    name,
     handle,
     url: safeUrl((doc && (doc.url || doc.id)) || actorUri) || null,
     icon: safeUrl(icon) || null,
+    // FEP-9098 custom emojis in the display name (":shortcode:"), so the byline
+    // renders them. Only computed when the name actually has a shortcode.
+    emojis: /:[A-Za-z0-9_+-]+:/.test(name) ? actorNameEmojis(doc) : undefined,
   };
+}
+
+// Map ":shortcode:" → image url from an actor doc's Emoji tags (for a custom-
+// emoji display name). Undefined when there are none.
+function actorNameEmojis(doc) {
+  const arr = doc && Array.isArray(doc.tag) ? doc.tag : (doc && doc.tag ? [doc.tag] : []);
+  const out = {};
+  for (const t of arr) {
+    if (!t || (Array.isArray(t.type) ? t.type[0] : t.type) !== 'Emoji' || typeof t.name !== 'string' || !t.icon) continue;
+    const u = t.icon.url || (Array.isArray(t.icon) && t.icon[0] && t.icon[0].url);
+    if (u) out[t.name] = u;
+  }
+  return Object.keys(out).length ? out : undefined;
 }
 
 // Given an inReplyTo note URL, find which local post the thread belongs to + the
@@ -1538,6 +1555,8 @@ export async function handleInbox(req, slugParam) {
           if (Guardianship.objectHasGuardians(o)) { try { db.prepare('UPDATE ap_timeline SET has_guardians = 1 WHERE id = ? AND slug = ?').run(o.id, s.slug); } catch { /* ignore */ } }
           // FEP-9098: keep the note's custom-emoji tags so the C2S inbox read can serve them.
           { const ej = extractEmojiTags(o.tag); if (ej) { try { db.prepare('UPDATE ap_timeline SET emoji_json = ? WHERE id = ? AND slug = ?').run(ej, o.id, s.slug); } catch { /* ignore */ } } }
+          storeAuthorEmoji(o.id, s.slug, ai);   // custom-emoji display name for the byline
+
           // FEP-e232 + FEP-044f: keep the note's object-link/quote tags for the same read.
           { const lj = extractLinkJson(o); if (lj) { try { db.prepare('UPDATE ap_timeline SET link_json = ? WHERE id = ? AND slug = ?').run(lj, o.id, s.slug); } catch { /* ignore */ } } }
           if (poll) { try { db.prepare('UPDATE ap_timeline SET poll_json = ? WHERE id = ? AND slug = ?').run(JSON.stringify(poll), o.id, s.slug); } catch { /* ignore */ } }
@@ -1671,6 +1690,7 @@ export async function handleInbox(req, slugParam) {
             let inserted = false;
             try { const r = tlStmts().ins.run(bn.id, s.slug, origUri || '', oai.name, oai.handle, oai.icon, oai.url, html, bn.url || null, new Date().toISOString(), media, bn.sensitive ? 1 : 0, bn.summary || null); inserted = r.changes > 0; } catch { /* ignore */ }
             if (inserted) { try { db.prepare('UPDATE ap_timeline SET reblog_name = ?, reblog_handle = ?, reblog_icon = ? WHERE slug = ? AND id = ?').run(booster.name, booster.handle, booster.icon, s.slug, bn.id); } catch { /* ignore */ } }
+            storeAuthorEmoji(bn.id, s.slug, oai);   // custom-emoji display name for the byline
           }
           console.log('[AP] timeline boost +', actorUri, 'x' + subs.length);
         }
@@ -2664,6 +2684,14 @@ export function timelineQuote(quoteJson) {
   catch { return undefined; }
 }
 
+// Store the author's display-name emoji map (from actorInfo().emojis) on a
+// timeline row, so the byline can render a ":shortcode:" name. No-op when the
+// name has no custom emoji (the common case).
+function storeAuthorEmoji(id, slug, ai) {
+  if (!ai || !ai.emojis || !Object.keys(ai.emojis).length) return;
+  try { db.prepare('UPDATE ap_timeline SET author_emoji_json = ? WHERE id = ? AND slug = ?').run(JSON.stringify(ai.emojis), id, slug); } catch { /* ignore */ }
+}
+
 // ── Cirkel = posts from the accounts you auto-boost ("feature an artist") ──
 let _abCount, _cirkelPosts, _cirkelMembers;
 export function autoBoostCount(slug) {
@@ -2760,7 +2788,7 @@ async function resolveApActor(siteUrl) {
 // note and refreshes content + media (recovers covers/edits that were delivered
 // during a flux window, e.g. a fleet-wide update), and drops notes that are gone
 // (404/410). Bump SELFHEAL_VERSION only on a release that warrants a re-sync.
-const SELFHEAL_VERSION = 12; // v12: quote card snapshot media as array + quoted-post emojis
+const SELFHEAL_VERSION = 13; // v13: capture custom-emoji display names (author_emoji_json) onto already-cached posts
 async function fetchNoteAP(url) {
   try {
     const r = await fetch(url, { headers: { Accept: 'application/activity+json' } });
@@ -2855,6 +2883,7 @@ export async function backfillFromOutbox(slug, actorUri, limit = 20) {
         if (r && r.changes > 0) added++;
         // FEP-9098: keep custom-emoji tags from backfilled posts too.
         { const ej = extractEmojiTags(o.tag); if (ej) { try { db.prepare('UPDATE ap_timeline SET emoji_json = ? WHERE id = ? AND slug = ?').run(ej, o.id, slug); } catch { /* ignore */ } } }
+        storeAuthorEmoji(o.id, slug, ai);   // custom-emoji display name for the byline
         // FEP-e232 + FEP-044f: keep object-link/quote tags from backfilled posts too.
         { const lj = extractLinkJson(o); if (lj) { try { db.prepare('UPDATE ap_timeline SET link_json = ? WHERE id = ? AND slug = ?').run(lj, o.id, slug); } catch { /* ignore */ } } }
         // FEP-044f: resolve the embedded quote card for backfilled posts too.
@@ -2979,7 +3008,7 @@ export async function selfHealTimeline() {
     try { const r = db.prepare('SELECT value FROM app_settings WHERE key = ?').get('selfheal_version'); cur = r ? (parseInt(r.value, 10) || 0) : 0; } catch { return; }
     if (cur >= SELFHEAL_VERSION) return; // already healed for this version — skip on normal boots
     let rows = [];
-    try { rows = db.prepare('SELECT id, content, media_json, nsfw, cw, url, emoji_json, link_json, quote_json FROM ap_timeline ORDER BY rowid DESC LIMIT 200').all(); } catch { /* no table */ }
+    try { rows = db.prepare('SELECT id, content, media_json, nsfw, cw, url, emoji_json, link_json, quote_json, author_uri, author_name, author_emoji_json FROM ap_timeline ORDER BY rowid DESC LIMIT 200').all(); } catch { /* no table */ }
     let healed = 0, failed = 0;
     for (const r of rows) {
       try {
@@ -2999,6 +3028,12 @@ export async function selfHealTimeline() {
         if ((html && html !== r.content) || media !== (r.media_json || '[]') || nsfw !== (r.nsfw || 0) || (cw || '') !== (r.cw || '') || (url && url !== r.url) || (emoji || '') !== (r.emoji_json || '') || (link || '') !== (r.link_json || '') || (quote || '') !== (r.quote_json || '')) {
           db.prepare('UPDATE ap_timeline SET content = ?, media_json = ?, nsfw = ?, cw = ?, url = COALESCE(?, url), emoji_json = ?, link_json = ?, quote_json = ? WHERE id = ?').run(html || r.content, media, nsfw, cw, url, emoji, link, quote, r.id);
           healed++;
+        }
+        // v13: a custom-emoji display name needs the author's emoji map. Fetch
+        // the actor once, only for rows whose name has a shortcode and no map yet.
+        if (/:[A-Za-z0-9_+-]+:/.test(r.author_name || '') && !r.author_emoji_json && r.author_uri) {
+          const ai = actorInfo(await fetchActor(r.author_uri), r.author_uri);
+          if (ai.emojis) { try { db.prepare('UPDATE ap_timeline SET author_emoji_json = ? WHERE id = ?').run(JSON.stringify(ai.emojis), r.id); } catch { /* ignore */ } }
         }
       } catch { failed++; /* per-note best-effort */ }
     }

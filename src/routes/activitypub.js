@@ -179,6 +179,8 @@ router.get('/ap/users/:slug/inbox', (req, res) => {
       'shaer:author': (t.author_name || t.author_handle || t.author_icon) ? {
         name: t.author_name || undefined, handle: t.author_handle || undefined,
         icon: t.author_icon || undefined, url: t.author_url || undefined,
+        // FEP-9098: emojis in the display name (":shortcode:"), if any.
+        emojis: (() => { try { return t.author_emoji_json ? JSON.parse(t.author_emoji_json) : undefined; } catch { return undefined; } })(),
       } : undefined,
       // When a followed account boosted this, who did ("X boosted"). Omitted for
       // ordinary posts.
