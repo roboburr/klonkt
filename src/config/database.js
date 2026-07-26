@@ -550,6 +550,7 @@ export function initializeDatabase() {
   ensureColumn('ap_timeline', 'link_json', 'TEXT');          // FEP-e232 object-link (quote/ref) tags from the inbound note, served back as `tag`
   ensureColumn('ap_timeline', 'quote_json', 'TEXT');         // FEP-044f resolved quoted-post snapshot (author + content), for the embedded quote card
   ensureColumn('ap_timeline', 'author_emoji_json', 'TEXT');  // FEP-9098 custom emojis in the author's display name (shaer:author.emojis)
+  ensureColumn('ap_timeline', 'reblog_emoji_json', 'TEXT');  // FEP-9098 custom emojis in the booster's display name (shaer:booster.emojis)
   ensureColumn('ap_timeline', 'reblog_name', 'TEXT');        // a followed account boosted this → "X boosted"
   ensureColumn('ap_timeline', 'reblog_handle', 'TEXT');      //   the booster's @handle
   ensureColumn('ap_timeline', 'reblog_icon', 'TEXT');        //   the booster's avatar

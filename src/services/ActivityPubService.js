@@ -1689,7 +1689,7 @@ export async function handleInbox(req, slugParam) {
             // have the note (e.g. we also follow the author), keep it and DON'T relabel it.
             let inserted = false;
             try { const r = tlStmts().ins.run(bn.id, s.slug, origUri || '', oai.name, oai.handle, oai.icon, oai.url, html, bn.url || null, new Date().toISOString(), media, bn.sensitive ? 1 : 0, bn.summary || null); inserted = r.changes > 0; } catch { /* ignore */ }
-            if (inserted) { try { db.prepare('UPDATE ap_timeline SET reblog_name = ?, reblog_handle = ?, reblog_icon = ? WHERE slug = ? AND id = ?').run(booster.name, booster.handle, booster.icon, s.slug, bn.id); } catch { /* ignore */ } }
+            if (inserted) { try { db.prepare('UPDATE ap_timeline SET reblog_name = ?, reblog_handle = ?, reblog_icon = ?, reblog_emoji_json = ? WHERE slug = ? AND id = ?').run(booster.name, booster.handle, booster.icon, (booster.emojis && Object.keys(booster.emojis).length) ? JSON.stringify(booster.emojis) : null, s.slug, bn.id); } catch { /* ignore */ } }
             storeAuthorEmoji(bn.id, s.slug, oai);   // custom-emoji display name for the byline
           }
           console.log('[AP] timeline boost +', actorUri, 'x' + subs.length);
@@ -2788,7 +2788,7 @@ async function resolveApActor(siteUrl) {
 // note and refreshes content + media (recovers covers/edits that were delivered
 // during a flux window, e.g. a fleet-wide update), and drops notes that are gone
 // (404/410). Bump SELFHEAL_VERSION only on a release that warrants a re-sync.
-const SELFHEAL_VERSION = 13; // v13: capture custom-emoji display names (author_emoji_json) onto already-cached posts
+const SELFHEAL_VERSION = 14; // v14: capture custom-emoji booster names (reblog_emoji_json) onto already-cached boosts
 async function fetchNoteAP(url) {
   try {
     const r = await fetch(url, { headers: { Accept: 'application/activity+json' } });
@@ -3008,7 +3008,7 @@ export async function selfHealTimeline() {
     try { const r = db.prepare('SELECT value FROM app_settings WHERE key = ?').get('selfheal_version'); cur = r ? (parseInt(r.value, 10) || 0) : 0; } catch { return; }
     if (cur >= SELFHEAL_VERSION) return; // already healed for this version — skip on normal boots
     let rows = [];
-    try { rows = db.prepare('SELECT id, content, media_json, nsfw, cw, url, emoji_json, link_json, quote_json, author_uri, author_name, author_emoji_json FROM ap_timeline ORDER BY rowid DESC LIMIT 200').all(); } catch { /* no table */ }
+    try { rows = db.prepare('SELECT id, slug, content, media_json, nsfw, cw, url, emoji_json, link_json, quote_json, author_uri, author_name, author_emoji_json, reblog_name, reblog_handle, reblog_emoji_json FROM ap_timeline ORDER BY rowid DESC LIMIT 200').all(); } catch { /* no table */ }
     let healed = 0, failed = 0;
     for (const r of rows) {
       try {
@@ -3034,6 +3034,14 @@ export async function selfHealTimeline() {
         if (/:[A-Za-z0-9_+-]+:/.test(r.author_name || '') && !r.author_emoji_json && r.author_uri) {
           const ai = actorInfo(await fetchActor(r.author_uri), r.author_uri);
           if (ai.emojis) { try { db.prepare('UPDATE ap_timeline SET author_emoji_json = ? WHERE id = ?').run(JSON.stringify(ai.emojis), r.id); } catch { /* ignore */ } }
+        }
+        // v14: same for the booster's display name ("X boosted"). The row stores
+        // no booster URI, so resolve it from the handle via webfinger. Scoped to
+        // this exact row (slug) since a note can be boosted by different people.
+        if (/:[A-Za-z0-9_+-]+:/.test(r.reblog_name || '') && !r.reblog_emoji_json && r.reblog_handle) {
+          const bUri = await webfingerResolve(r.reblog_handle);
+          const em = bUri ? actorNameEmojis(await fetchActor(bUri)) : undefined;
+          if (em) { try { db.prepare('UPDATE ap_timeline SET reblog_emoji_json = ? WHERE id = ? AND slug = ?').run(JSON.stringify(em), r.id, r.slug); } catch { /* ignore */ } }
         }
       } catch { failed++; /* per-note best-effort */ }
     }

@@ -187,6 +187,8 @@ router.get('/ap/users/:slug/inbox', (req, res) => {
       'shaer:booster': (t.reblog_name || t.reblog_handle || t.reblog_icon) ? {
         name: t.reblog_name || undefined, handle: t.reblog_handle || undefined,
         icon: t.reblog_icon || undefined,
+        // FEP-9098: emojis in the booster's display name (":shortcode:"), if any.
+        emojis: (() => { try { return t.reblog_emoji_json ? JSON.parse(t.reblog_emoji_json) : undefined; } catch { return undefined; } })(),
       } : undefined,
     },
   }));
