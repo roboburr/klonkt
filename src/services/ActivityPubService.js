@@ -2760,7 +2760,7 @@ async function resolveApActor(siteUrl) {
 // note and refreshes content + media (recovers covers/edits that were delivered
 // during a flux window, e.g. a fleet-wide update), and drops notes that are gone
 // (404/410). Bump SELFHEAL_VERSION only on a release that warrants a re-sync.
-const SELFHEAL_VERSION = 11; // v11: also resolve the FEP-044f embedded quote card (quote_json) onto already-cached posts
+const SELFHEAL_VERSION = 12; // v12: quote card snapshot media as array + quoted-post emojis
 async function fetchNoteAP(url) {
   try {
     const r = await fetch(url, { headers: { Accept: 'application/activity+json' } });
@@ -2793,12 +2793,22 @@ async function resolveQuote(note) {
   const authorUri = typeof q.attributedTo === 'string' ? q.attributedTo
     : (q.attributedTo && typeof q.attributedTo.id === 'string' ? q.attributedTo.id : null);
   const ai = authorUri ? actorInfo(await fetchActor(authorUri), authorUri) : null;
+  // The quoted post's own FEP-9098 emojis, so :shortcode: renders in the card.
+  const emojis = {};
+  try {
+    for (const e of JSON.parse(extractEmojiTags(q.tag) || '[]')) {
+      const u = e.icon && (e.icon.url || (Array.isArray(e.icon) && e.icon[0] && e.icon[0].url));
+      if (typeof e.name === 'string' && u) emojis[e.name] = u;
+    }
+  } catch { /* ignore */ }
+  let media = []; try { media = JSON.parse(mediaFromNote(q)); } catch { /* ignore */ }
   const snapshot = {
     url: safeUrl(q.url || q.id || url) || url,
     author: ai ? { name: ai.name, handle: ai.handle, icon: ai.icon } : null,
     content: HtmlSanitizerService.sanitize(q.content || ''),
     published: q.published || null,
-    media: mediaFromNote(q),
+    media,
+    emojis: Object.keys(emojis).length ? emojis : undefined,
   };
   return JSON.stringify(snapshot);
 }
