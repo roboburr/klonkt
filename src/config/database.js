@@ -570,6 +570,8 @@ export function initializeDatabase() {
   // replies; followers/direct replies surface in notifications (and later Messages) with post
   // context instead. Existing rows default to 'public' (historically almost all were).
   ensureColumn('ap_interactions', 'visibility', "TEXT DEFAULT 'public'");
+  ensureColumn('ap_interactions', 'emoji_json', 'TEXT');        // FEP-9098 custom emojis in a reply's content (messages + thread)
+  ensureColumn('ap_interactions', 'actor_emoji_json', 'TEXT');  // FEP-9098 custom emojis in the reply author's display name
   // Rich replies: the reply's language (BCP47 code) → contentMap on the outgoing Note.
   ensureColumn('ap_outbox', 'language', 'TEXT');
   // Rich replies: JSON array [{url, mediaType, name}] → `attachment` on the Note.

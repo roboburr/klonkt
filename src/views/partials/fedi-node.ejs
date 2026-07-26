@@ -5,12 +5,12 @@
 </div>
 <div class="comment-body">
   <div class="comment-meta">
-    <% if (n.actor_url) { %><a class="comment-author" href="<%= n.actor_url %>" rel="nofollow noopener" target="_blank"><%= n.actor_name %></a>
-    <% } else { %><span class="comment-author"><%= n.actor_name %></span><% } %>
+    <% if (n.actor_url) { %><a class="comment-author" href="<%= n.actor_url %>" rel="nofollow noopener" target="_blank"><%- emojiName(n.actor_name, n.actor_emoji_json) %></a>
+    <% } else { %><span class="comment-author"><%- emojiName(n.actor_name, n.actor_emoji_json) %></span><% } %>
     <% if (n.actor_handle) { %><span class="fedi-handle"><%= n.actor_handle %></span><% } %>
     <% if (n.created_at) { %><span class="comment-time"><%= formatDateTime(n.created_at) %></span><% } %>
   </div>
-  <div class="comment-content"><%- n.content %></div>
+  <div class="comment-content"><%- emojiHtml(n.content, n.emoji_json) %></div>
   <%# Rich replies: media on our own sent replies (attachments on the Note).
       Visitors see these too, and the reply editor (owner-only) may not render,
       so make sure the stylesheet is on the page either way. %>

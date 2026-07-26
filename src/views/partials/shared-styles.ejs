@@ -192,4 +192,13 @@ body.on-post[data-grid-cols="4"] .grid-cols-btn[data-cols="4"] {
   border: 1px solid color-mix(in srgb, var(--ink, #000) 14%, transparent); }
 .load-more-btn:hover { background: color-mix(in srgb, var(--ink, #000) 9%, transparent); }
 .load-more-btn.htmx-request { opacity: .6; pointer-events: none; }
+
+/* FEP-9098 custom emojis: small inline images (Shaer parity), rendered in note
+   content and display names across the timeline, messages and threads. Never
+   styled as media (no rounding/background), and never blown up to media width. */
+img.emoji { height: 1.3em; width: auto; margin: 0 .05em; vertical-align: -0.2em;
+  display: inline-block; border-radius: 0; background: none; box-shadow: none; }
+.tl-content img.emoji, .tl-quote-body img.emoji, .msg-content img.emoji, .comment-content img.emoji,
+.tl-author img.emoji, .tl-boost-by img.emoji, .tl-quote-name img.emoji, .msg-who img.emoji, .comment-author img.emoji {
+  max-width: none; height: 1.3em; border-radius: 0; background: none; box-shadow: none; vertical-align: -0.2em; }
 </style>

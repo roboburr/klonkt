@@ -824,10 +824,10 @@ export function noteVisibility(o) {
 
 function iStmts() {
   if (!_insI) {
-    _insI = db.prepare('INSERT OR IGNORE INTO ap_interactions (kind, post_id, object_uri, actor_uri, actor_name, actor_handle, actor_url, actor_icon, content, published, parent_uri, visibility, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)');
+    _insI = db.prepare('INSERT OR IGNORE INTO ap_interactions (kind, post_id, object_uri, actor_uri, actor_name, actor_handle, actor_url, actor_icon, content, published, parent_uri, visibility, emoji_json, actor_emoji_json, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)');
     _delLA = db.prepare('DELETE FROM ap_interactions WHERE kind = ? AND post_id = ? AND actor_uri = ?');
     _delReply = db.prepare("DELETE FROM ap_interactions WHERE kind = 'reply' AND object_uri = ?");
-    _listI = db.prepare('SELECT id, kind, object_uri, parent_uri, actor_uri, actor_name, actor_handle, actor_url, actor_icon, content, published, created_at, acted_boost, acted_like, visibility FROM ap_interactions WHERE post_id = ? ORDER BY created_at ASC');
+    _listI = db.prepare('SELECT id, kind, object_uri, parent_uri, actor_uri, actor_name, actor_handle, actor_url, actor_icon, content, published, created_at, acted_boost, acted_like, visibility, emoji_json, actor_emoji_json FROM ap_interactions WHERE post_id = ? ORDER BY created_at ASC');
     _getI = db.prepare('SELECT * FROM ap_interactions WHERE id = ?');
     _insO = db.prepare('INSERT INTO ap_outbox (id, site_slug, post_id, post_slug, in_reply_to, to_actor, to_handle, content, language, attachments, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)');
     _listO = db.prepare('SELECT * FROM ap_outbox WHERE post_id = ? ORDER BY created_at ASC');
@@ -944,6 +944,7 @@ export function getInteractions(postId, base, site) {
       actor_uri: r.actor_uri,
       actor_name: r.actor_name, actor_handle: r.actor_handle, actor_url: r.actor_url,
       actor_icon: r.actor_icon, content: stripLeadingMentions(r.content), created_at: r.published || r.created_at,
+      emoji_json: r.emoji_json, actor_emoji_json: r.actor_emoji_json,   // FEP-9098 (thread render)
       acted_boost: !!r.acted_boost, acted_like: !!r.acted_like,
       children: [],
     });
@@ -1511,7 +1512,7 @@ export async function handleInbox(req, slugParam) {
       const ai = actorInfo(await resolveActor(actorUri), actorUri);
       const html = HtmlSanitizerService.sanitize(o.content || '');
       if (isRejectedObject(o.id)) { console.log('[AP] reply skipped (tombstoned)', o.id); return 202; }
-      iStmts().ins.run('reply', tgt.post_id, o.id || '', actorUri, ai.name, ai.handle, ai.url, ai.icon, html, o.published || null, tgt.parent_uri, noteVisibility(o));
+      iStmts().ins.run('reply', tgt.post_id, o.id || '', actorUri, ai.name, ai.handle, ai.url, ai.icon, html, o.published || null, tgt.parent_uri, noteVisibility(o), extractEmojiTags(o.tag), emojiJsonOf(ai.emojis));
       console.log('[AP] reply', actorUri, '→', tgt.post_id);
       {
         // Private (followers/direct) replies push as a DM ping WITHOUT content
@@ -1656,7 +1657,7 @@ export async function handleInbox(req, slugParam) {
         return;
       }
       const ai = actorInfo(await resolveActor(actorUri), actorUri);
-      iStmts().ins.run(type.toLowerCase(), pid, '', actorUri, ai.name, ai.handle, ai.url, ai.icon, null, null, null, noteVisibility(act));
+      iStmts().ins.run(type.toLowerCase(), pid, '', actorUri, ai.name, ai.handle, ai.url, ai.icon, null, null, null, noteVisibility(act), null, emojiJsonOf(ai.emojis));
       console.log('[AP]', type === 'Like' ? 'like' : 'boost', actorUri, '→', pid);
       {
         const ctx = pushPostCtx(pid);
@@ -2706,6 +2707,9 @@ function storeAuthorEmoji(id, slug, ai) {
   try { db.prepare('UPDATE ap_timeline SET author_emoji_json = ? WHERE id = ? AND slug = ?').run(JSON.stringify(ai.emojis), id, slug); } catch { /* ignore */ }
 }
 
+// A display-name emoji map (actorInfo().emojis) → JSON to store, or null.
+function emojiJsonOf(map) { return (map && Object.keys(map).length) ? JSON.stringify(map) : null; }
+
 // ── Cirkel = posts from the accounts you auto-boost ("feature an artist") ──
 let _abCount, _cirkelPosts, _cirkelMembers;
 export function autoBoostCount(slug) {
@@ -2995,7 +2999,7 @@ async function crawlThread(postId) {
         const ai = actorInfo(actor, actorUri);
         const html = HtmlSanitizerService.sanitize(child.content || '');
         // The child replies to `note` by construction (it's in note's replies collection).
-        try { iStmts().ins.run('reply', postId, child.id, actorUri, ai.name, ai.handle, ai.url, ai.icon, html, child.published || null, note.id || noteUri, noteVisibility(child)); added++; } catch { /* ignore */ }
+        try { iStmts().ins.run('reply', postId, child.id, actorUri, ai.name, ai.handle, ai.url, ai.icon, html, child.published || null, note.id || noteUri, noteVisibility(child), extractEmojiTags(child.tag), emojiJsonOf(ai.emojis)); added++; } catch { /* ignore */ }
         nextFrontier.push(child.id); // expand this reply's own replies next depth
       }
     }
@@ -3308,6 +3312,7 @@ export function getNotifications(slug, limit) {
   try {
     const rows = db.prepare(`
       SELECT i.kind, i.actor_name, i.actor_handle, i.actor_url, i.actor_icon, i.content, i.created_at, i.visibility,
+             i.emoji_json, i.actor_emoji_json,
              p.slug AS post_slug, p.title AS post_title
       FROM ap_interactions i LEFT JOIN posts p ON p.id = i.post_id
       WHERE p.site_id = (SELECT id FROM sites WHERE slug = ?)
@@ -3316,6 +3321,7 @@ export function getNotifications(slug, limit) {
     for (const r of rows) out.push({
       type: r.kind, name: r.actor_name, handle: r.actor_handle, url: r.actor_url, icon: r.actor_icon,
       content: stripLeadingMentions(r.content), post_slug: r.post_slug, post_title: r.post_title, created_at: r.created_at,
+      emoji_json: r.emoji_json, actor_emoji_json: r.actor_emoji_json,   // FEP-9098 (messages render)
       // followers/direct = a private message to the owner (not on the public thread) → 🔒 in Messages
       visibility: r.visibility || 'public',
     });

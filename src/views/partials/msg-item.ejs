@@ -39,7 +39,7 @@
                 <span class="msg-who"><%= t('msg.you') %></span>
                 <% if (n.to_handle) { %><span class="msg-handle">→ <%= n.to_handle %></span><% } %>
               <% } else { %>
-                <a class="msg-who" href="<%= n.url %>" target="_blank" rel="nofollow noopener"><%= _who %></a>
+                <a class="msg-who" href="<%= n.url %>" target="_blank" rel="nofollow noopener"><%- emojiName(_who, n.actor_emoji_json) %></a>
                 <% if (n.handle && n.name) { %><span class="msg-handle"><%= n.handle %></span><% } %>
               <% } %>
               <% if (_new) { %><span class="msg-new" title="<%= t('msg.new') %>"></span><% } %>
@@ -66,7 +66,7 @@
             </div>
 
             <% if (_t === 'report' && n.content) { %><div class="msg-content"><%= n.content %></div>
-            <% } else if ((_t === 'reply' || _t === 'mention' || _t === 'sent') && n.content) { %><div class="msg-content"><%- n.content %></div>
+            <% } else if ((_t === 'reply' || _t === 'mention' || _t === 'sent') && n.content) { %><div class="msg-content"><%- emojiHtml(n.content, n.emoji_json) %></div>
               <% if (_t === 'mention' && n.wave && n.actorUri && canMutate) { %>
                 <form class="msg-quickreply" method="post" action="<%= (typeof siteUrlBase !== 'undefined' ? siteUrlBase : '') %>/messages/quick-reply" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
                   <input type="hidden" name="to" value="<%= n.actorUri %>">
