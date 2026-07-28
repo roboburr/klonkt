@@ -96,6 +96,10 @@ const siteTimezone = () => getSetting('timezone') || undefined;
  */
 const parseStamp = (v) => {
   if (!v) return null;
+  if (typeof v === 'number') {   // epoch ms (e.g. an availability endTime)
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
   const s = String(v);
   const d = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?$/.test(s)
     ? new Date(`${s.replace(' ', 'T')}Z`)

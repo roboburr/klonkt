@@ -144,3 +144,17 @@ button.small { padding: 6px 12px; font-size: .82rem; }
 .g-warn p.grave { color: var(--ink); font-weight: 500; }
 .g-warn .row { margin-top: 10px; gap: 8px; }
 button.danger { background: var(--danger); color: #fff; border-color: var(--danger); }
+
+/* ── Beschikbaarheid (FEP-633c 3.6) ────────────────────────────────────────
+   De buddy-list-stip op de verantwoordelijkheids-as: groen beschikbaar, geel
+   afwezig-verklaard met een einde, grijs slapend-geconstateerd (een antwoord
+   herstelt alles). Labels zijn UI; de draad houdt de spec-termen. */
+.g-avdot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: 0 0 auto; }
+.g-avdot.is-active { background: var(--ok); }
+.g-avdot.is-away { background: #e0a83a; }
+.g-avdot.is-dormant { background: #8a93a3; }
+.g-avlabel { color: var(--sub); font-size: .8rem; white-space: nowrap; }
+.row.g-guard { gap: 8px; margin-top: 6px; }
+.g-away-row { display: flex; gap: 8px; }
+.g-card.lapse { border-left: 3px solid #8a93a3; }
+.g-card.lapse .row { margin-top: 8px; gap: 8px; }

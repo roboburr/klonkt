@@ -72,6 +72,19 @@
       <p id="wards-empty" class="g-empty"><%= t('guardian.wards_empty') %></p>
     </section>
 
+    <!-- 4b. Even afwezig (FEP-633c 3.6.1): de verantwoordelijke handeling.
+            Wie zich afmeldt telt niet mee in de besluiten, en een enkel
+            antwoord brengt je meteen terug. Alleen zichtbaar met wards. -->
+    <section id="away-section" hidden>
+      <div class="g-sec-head"><h2><%= t('guardian.away_title') %></h2></div>
+      <p class="g-sec-sub"><%= t('guardian.away_sub') %></p>
+      <div class="g-away-row">
+        <button id="away-week" class="quiet small"><%= t('guardian.away_week') %></button>
+        <button id="away-month" class="quiet small"><%= t('guardian.away_month') %></button>
+      </div>
+      <p id="away-msg" class="g-msg" hidden></p>
+    </section>
+
     <!-- 5. Meldingen. -->
     <section id="push-section">
       <div class="g-sec-head"><h2><%= t('guardian.push_title') %></h2></div>

@@ -47,7 +47,11 @@ function uiStrings(L) {
     'panel_actions', 'badge_help', 'badge_follow', 'badge_follow_one', 'help_empty',
     // Releasing a ward: a deliberate two-step answer, never one click.
     'release_title', 'release_effect', 'release_local', 'release_step_down',
-    'release_last', 'release_unknown', 'release_yes', 'release_no'];
+    'release_last', 'release_unknown', 'release_yes', 'release_no',
+    // Availability (FEP-633c 3.6): the dots, the step-away, the lapse.
+    'avail_available', 'avail_away', 'avail_dormant', 'panel_guards', 'panel_guards_remote',
+    'lapse_propose', 'lapse_line', 'lapse_tally', 'lapse_note', 'lapse_agree', 'lapse_disagree', 'voted',
+    'away_title', 'away_sub', 'away_week', 'away_month', 'away_done'];
   const s = Object.fromEntries(keys.map((k) => [k, i18nT(L, `guardian.${k}`)]));
   s.wave = i18nT(L, 'guardian.wave');
   s.waved = i18nT(L, 'guardian.waved');
@@ -78,11 +82,41 @@ function dashboardState(site, L) {
     // Committed wards, each carrying the gated settings a guardian may change.
     // `embeds` is null for a ward we do not host: that setting lives on the
     // ward's own server, so we show it as not-adjustable rather than lying.
-    wards: Guardianship.listWards(site.slug).map((w) => ({ ...w, embeds: wardEmbedSetting(w.other_uri) })),
+    // `guardians` (FEP-633c 3.6): the fellow guardians of a LOCAL ward with
+    // their availability; null for a remote ward, whose server tracks it.
+    wards: Guardianship.listWards(site.slug).map((w) => ({
+      ...w,
+      embeds: wardEmbedSetting(w.other_uri),
+      guardians: wardGuardianStatuses(w.other_uri),
+    })),
     offers: Guardianship.offersCollection(`${me}/queues/offers`, site.slug, me).orderedItems,
+    // Running lapses (3.6.3) this guardian or its local wards are party to.
+    lapses: Guardianship.availability.lapseQueueItems(site.slug, me, Date.now()),
     help,
     strings: uiStrings(L),
   };
+}
+
+/** The guardians of a ward WE host, with availability (3.6.1: owner-only in
+ *  spirit; the co-guardians are among the owners of the relationship). Null
+ *  for a remote ward: its server tracks availability, not us. */
+function wardGuardianStatuses(wardUri) {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  if (!base || !String(wardUri || '').startsWith(`${base}/`)) return null;
+  const slug = String(wardUri).trim().replace(/\/+$/, '').split('/').pop();
+  try {
+    const uris = Guardianship.listGuardians(slug).map((g) => ({ uri: g.other_uri, handle: g.other_handle }));
+    const st = Object.fromEntries(
+      Guardianship.availability.statusesFor(slug, uris.map((u) => u.uri), Date.now()).map((s) => [s.id, s]),
+    );
+    return uris.map((u) => ({
+      uri: u.uri,
+      handle: u.handle,
+      availability: (st[u.uri] || {})['shaer:availability'] || 'active',
+      awayUntil: (st[u.uri] || {})['shaer:awayUntil'] || null,
+      lapse: (st[u.uri] || {})['shaer:lapse'] || null,
+    }));
+  } catch { return null; }
 }
 
 // ── The PWA page ─────────────────────────────────────────────────────────
@@ -263,6 +297,55 @@ router.post('/adopt', requireAuth, express.json({ limit: '4kb' }), async (req, r
 // ── Answer an offer (co-guardian accept/reject, or the candidate's final
 //    "complete"). All three are a C2S Accept/Reject on the offer id; the
 //    handshake module decides when it commits (§3.1).
+// ── Step away (FEP-633c 3.6.1): the guardian declares itself unavailable ──
+// One direct note with shaer:away and an endTime to every ward, the same
+// path Shaer takes over C2S. Wards on this instance are applied directly (a
+// local inbox never receives its own delivery); the rest travels S2S.
+router.post('/api/away', requireAuth, express.json({ limit: '2kb' }), async (req, res) => {
+  const site = siteForUser(req);
+  if (!site) return res.status(404).json({ error: 'no_site' });
+  const days = Math.min(365, Math.max(1, parseInt(req.body?.days, 10) || 0));
+  if (!days) return res.status(400).json({ error: 'away_needs_an_end' });
+  const wards = Guardianship.listWards(site.slug).map((w) => w.other_uri);
+  if (!wards.length) return res.status(409).json({ error: 'no_wards' });
+  const until = Date.now() + days * 24 * 3600 * 1000;
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  const me = AP.actorId(base, site.slug);
+  let applied = 0;
+  for (const uri of wards) {
+    const wslug = uri.startsWith(`${base}/`) ? uri.replace(/\/+$/, '').split('/').pop() : null;
+    if (wslug && Guardianship.listGuardians(wslug).some((g) => g.other_uri === me)) {
+      Guardianship.availability.declareAway(wslug, me, until);
+      applied++;
+    }
+  }
+  const L = resolveLang(req);
+  const text = i18nT(L, 'guardian.away_msg', { date: new Date(until).toLocaleDateString('nl-NL') });
+  const r = await AP.deliverDirectNote(site, { recipients: wards, text, awayUntil: until }).catch(() => null);
+  if (!applied && !(r && r.id)) return res.status(502).json({ error: 'away_failed' });
+  res.json({ ok: true, until });
+});
+
+// ── Propose a lapse (FEP-633c 3.6.3) against a dormant co-guardian ────────
+// The same C2S pipeline the Shaer apps would use: an Offer of shaer:Lapse.
+// A local ward opens directly; a remote ward gets the proposal delivered,
+// because the ward's server is the one that tallies and enforces.
+router.post('/api/lapse', requireAuth, express.json({ limit: '4kb' }), async (req, res) => {
+  const site = siteForUser(req);
+  if (!site) return res.status(404).json({ error: 'no_site' });
+  const ward = String(req.body?.ward || '').trim();
+  const target = String(req.body?.target || '').trim();
+  if (!ward || !target) return res.status(400).json({ error: 'missing_ward_or_target' });
+  if (!Guardianship.listWards(site.slug).some((w) => w.other_uri === ward)) {
+    return res.status(403).json({ error: 'not_my_ward' });
+  }
+  const r = await AP.ingestOutboxActivity(site, req.session.user, {
+    type: 'Offer', object: { type: 'shaer:Lapse', 'shaer:ward': ward, object: target },
+  });
+  if (!r || r.status >= 400) return res.status(r?.status || 500).json({ error: r?.error || 'lapse_failed' });
+  res.json({ ok: true, lapse: r.id });
+});
+
 router.post('/offer', requireAuth, express.json({ limit: '4kb' }), async (req, res) => {
   const site = siteForUser(req);
   if (!site) return res.status(404).json({ error: 'no_site' });

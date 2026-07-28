@@ -122,12 +122,46 @@
     card.appendChild(row);
     return card;
   }
+  /** A running lapse (FEP-633c 3.6.3): the available co-guardians deciding
+   *  to release a dormant one. Votes ride the same Accept/Reject wire as the
+   *  offers; buttons appear only for set members (the ward watches, it does
+   *  not vote). */
+  function lapseCard(l) {
+    var card = el('div', 'g-card lapse');
+    card.appendChild(el('div', 'who', (T.lapse_line || '{who} has stopped answering as a guardian of {ward}.')
+      .replace('{who}', handleOf(l.object.object)).replace('{ward}', handleOf(l.object['shaer:ward']))));
+    card.appendChild(el('div', 'g-avlabel', (T.lapse_tally || '{n} of {need} agreed; closes {date}.')
+      .replace('{n}', l['shaer:accepts']).replace('{need}', l['shaer:threshold'])
+      .replace('{date}', new Date(l['shaer:closesAt']).toLocaleDateString())));
+    var row = el('div', 'row');
+    var inSet = (l['shaer:set'] || []).indexOf(S.me) >= 0;
+    if (inSet && !l['shaer:myVote']) {
+      var yes = el('button', 'small', T.lapse_agree || 'Agree');
+      yes.addEventListener('click', function () { answer(l.id, 'accept', yes); });
+      var no = el('button', 'quiet small', T.lapse_disagree || 'Disagree');
+      no.addEventListener('click', function () { answer(l.id, 'reject', no); });
+      row.appendChild(yes); row.appendChild(no);
+    } else if (inSet) {
+      row.appendChild(el('span', 'g-avlabel', T.voted || 'You voted'));
+    }
+    card.appendChild(row);
+    card.appendChild(el('p', 'g-empty small', T.lapse_note || ''));
+    return card;
+  }
+
   function renderPending() {
     var list = document.getElementById('pending-list');
     list.textContent = '';
     var offers = S.offers || [];
-    offers.forEach(function (o) { list.appendChild(offerCard(o)); });
-    show('pending-section', offers.length > 0);
+    // The offers state carries the adoption offers; the lapse proposals ride
+    // separately so a lapse never renders as an adoption.
+    var lapses = (S.lapses || []).filter(function (l) { return l['shaer:outcome'] === 'open'; });
+    offers.forEach(function (o) {
+      if (o.object && o.object.type === 'shaer:Lapse') return;   // rendered below
+      list.appendChild(offerCard(o));
+    });
+    lapses.forEach(function (l) { list.appendChild(lapseCard(l)); });
+    show('pending-section', offers.length > 0 || lapses.length > 0);
   }
 
   // ── 4. Accepted wards: one panel per child ─────────────────────────────
@@ -232,6 +266,39 @@
     return box;
   }
 
+  /** The availability dot (FEP-633c 3.6): buddy-list language on the
+   *  responsibility axis. Green available, yellow declared away with an end,
+   *  grey observed dormant (one answer restores). */
+  function availLabel(g) {
+    if (g.availability === 'away') {
+      var date = g.awayUntil ? new Date(g.awayUntil).toLocaleDateString() : '?';
+      return (T.avail_away || 'Unavailable till {date}').replace('{date}', date);
+    }
+    if (g.availability === 'dormant') return T.avail_dormant || 'Offline';
+    return T.avail_available || 'Available';
+  }
+  function availRow(g, wardUri) {
+    var row = el('div', 'row g-guard');
+    var dot = el('span', 'g-avdot ' + (g.availability === 'away' ? 'is-away' : g.availability === 'dormant' ? 'is-dormant' : 'is-active'));
+    row.appendChild(dot);
+    row.appendChild(el('span', 'who grow', handleOf(g.uri, g.handle)));
+    row.appendChild(el('span', 'g-avlabel', availLabel(g)));
+    // A dormant fellow guardian without a running lapse: the deliberate,
+    // rare next step (3.6.3). Never shown for anyone still answering.
+    if (g.availability === 'dormant' && !g.lapse && g.uri !== S.me) {
+      var btn = el('button', 'quiet small', T.lapse_propose || 'Propose release');
+      btn.addEventListener('click', function () {
+        btn.disabled = true;
+        fetch('/guardian/api/lapse', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ward: wardUri, target: g.uri, site: S.site }),
+        }).then(refresh).catch(function () { btn.disabled = false; });
+      });
+      row.appendChild(btn);
+    }
+    return row;
+  }
+
   function wardPanel(w) {
     var uri = w.other_uri;
     var panel = el('div', 'g-panel');
@@ -243,6 +310,18 @@
     setRow.appendChild(embedsButton(w));
     set.appendChild(setRow);
     panel.appendChild(set);
+
+    // The fellow guardians of this child, with availability (3.6). For a
+    // ward on another server the states live there, and saying so honestly
+    // beats guessing.
+    var gsec = el('div', 'g-panel-sec');
+    gsec.appendChild(el('h3', null, T.panel_guards || 'Guardians of this child'));
+    if (w.guardians && w.guardians.length) {
+      w.guardians.forEach(function (g) { gsec.appendChild(availRow(g, uri)); });
+    } else {
+      gsec.appendChild(el('p', 'g-empty small', T.panel_guards_remote || ''));
+    }
+    panel.appendChild(gsec);
 
     sectionInto(panel, T.panel_follow || 'Follow requests',
       FOLLOWS.filter(function (f) { return f.wardUri === uri; }),
@@ -313,7 +392,36 @@
       list.appendChild(card);
     });
     show('wards-empty', wards.length === 0);
+    // Step away (3.6.1) only means something with wards to tell.
+    show('away-section', wards.length > 0);
   }
+
+  // ── 4b. Step away (FEP-633c 3.6.1) ─────────────────────────────────────
+  function declareAway(days, btn) {
+    btn.disabled = true;
+    fetch('/guardian/api/away', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ days: days, site: S.site }),
+    }).then(function (r) { return r.json(); })
+      .then(function (j) {
+        btn.disabled = false;
+        var msg = document.getElementById('away-msg');
+        msg.hidden = false;
+        if (j && j.ok) {
+          msg.className = 'g-msg';
+          msg.textContent = (T.away_done || 'Your wards know you are unavailable until {date}.')
+            .replace('{date}', new Date(j.until).toLocaleDateString());
+        } else {
+          msg.className = 'g-msg err';
+          msg.textContent = (j && j.error) || (T.failed || 'failed');
+        }
+      })
+      .catch(function () { btn.disabled = false; });
+  }
+  var awayWeek = document.getElementById('away-week');
+  var awayMonth = document.getElementById('away-month');
+  if (awayWeek) awayWeek.addEventListener('click', function () { declareAway(7, awayWeek); });
+  if (awayMonth) awayMonth.addEventListener('click', function () { declareAway(30, awayMonth); });
 
   function sendWave(uri, btn) {
     btn.disabled = true;

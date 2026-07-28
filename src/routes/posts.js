@@ -946,8 +946,20 @@ router.get('/messages', requireSiteManager, (req, res) => {
     try { const u = new URL(uri); return `@${u.pathname.split('/').filter(Boolean).pop()}@${u.host}`; }
     catch { return uri; }
   };
+  // With their availability (FEP-633c 3.6.1): the ward always sees the real
+  // size of its safety net, not just the names. Owner-only by construction:
+  // this page is the owner's.
+  const gStatus = site ? Object.fromEntries(
+    Guardianship.availability.statusesFor(site.slug, Guardianship.listGuardians(site.slug).map((g) => g.other_uri), Date.now())
+      .map((s) => [s.id, s]),
+  ) : {};
   const myGuardians = (site ? Guardianship.listGuardians(site.slug) : [])
-    .map((g) => ({ uri: g.other_uri, handle: guardianHandle(g.other_uri, g.other_handle) }));
+    .map((g) => ({
+      uri: g.other_uri,
+      handle: guardianHandle(g.other_uri, g.other_handle),
+      availability: (gStatus[g.other_uri] || {})['shaer:availability'] || 'active',
+      awayUntil: (gStatus[g.other_uri] || {})['shaer:awayUntil'] || null,
+    }));
   renderPage(req, res, 'pages/messages', {
     pageTitleKey: 'msg.title', bodyClass: 'on-special', items, seenAt,
     hasMore, nextOffset: offset + FEED_PAGE, moreBase, guardianOffers, myGuardians,
