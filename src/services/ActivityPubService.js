@@ -21,6 +21,7 @@ import net from 'net';
 import db from '../config/database.js';
 import HtmlSanitizerService from './HtmlSanitizerService.js';
 import AudioEmbedService from './AudioEmbedService.js';
+import EmbedResolver from './EmbedResolver.js';
 import Push from './PushService.js';
 import { getTenancy } from './SettingsService.js';
 import { t as i18nT } from './i18n.js';
@@ -1575,6 +1576,16 @@ export async function handleInbox(req, slugParam) {
             if (!qj) return;
             for (const sl of slugs) { try { db.prepare('UPDATE ap_timeline SET quote_json = ? WHERE id = ? AND slug = ?').run(qj, o.id, sl); } catch { /* ignore */ } }
           }).catch(() => { /* best-effort */ });
+        } else {
+          // No fediverse quote: try an EXTERNAL embed (oEmbed / known provider),
+          // thumbnail-only. Also out of band, and stored for everyone; the gate
+          // that decides who may SEE it is applied at serve time (§5.3-style
+          // gated feature, see the inbox read).
+          const slugs = subs.map((s) => s.slug);
+          resolveExternalEmbed(o.content).then((ej) => {
+            if (!ej) return;
+            for (const sl of slugs) { try { db.prepare('UPDATE ap_timeline SET embed_json = ? WHERE id = ? AND slug = ?').run(ej, o.id, sl); } catch { /* ignore */ } }
+          }).catch(() => { /* best-effort */ });
         }
         console.log('[AP] timeline +', actorUri, 'x' + subs.length);
       }
@@ -2836,6 +2847,53 @@ function mediaFromNote(note) {
   return JSON.stringify(atts);
 }
 
+// The first external (non-fediverse) link in a note, resolved to the same card
+// shape as a quote: THUMBNAIL ONLY, never the provider's iframe. An arbitrary
+// third-party frame inside a kid-safe app is a hole you cannot close again, so
+// the embed carries an image and a title and nothing executable.
+// Returns the JSON to store, or null when there is nothing worth showing.
+export async function resolveExternalEmbed(html) {
+  const first = firstExternalUrl(html);
+  if (!first) return null;
+  const io = EmbedResolver.liveIO({
+    safeFetch,
+    detectProvider: (u) => AudioEmbedService.detectProvider(u),
+    fetchActor,
+    actorInfo,
+  });
+  const card = await EmbedResolver.resolveEmbed(first, io).catch(() => null);
+  // 'ap' is handled by the quote path; a bare 'link' is not worth a card.
+  if (!card || card.kind === 'ap' || card.kind === 'link') return null;
+  const thumb = (card.media || []).find((m) => m && m.url);
+  if (!thumb && !card.title) return null;
+  return JSON.stringify({
+    url: card.url,
+    kind: card.kind,                       // 'provider' | 'oembed'
+    provider: card.provider || null,
+    title: card.title || null,
+    author: card.author || null,
+    media: thumb ? [thumb] : [],           // thumbnail only, no html/iframe
+  });
+}
+
+/** The first http(s) link in sanitized note HTML that is not a mention/hashtag. */
+export function firstExternalUrl(html) {
+  if (!html || typeof html !== 'string') return null;
+  for (const m of html.matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*>/gi)) {
+    const tag = m[0];
+    if (/\b(mention|hashtag|u-url)\b/i.test(tag) && /mention|hashtag/i.test(tag)) continue;
+    const href = m[1];
+    if (/^https?:\/\//i.test(href)) return href;
+  }
+  return null;
+}
+
+/** The stored external-embed card, for the C2S read. */
+export function timelineEmbed(embedJson) {
+  try { const e = embedJson ? JSON.parse(embedJson) : null; return (e && typeof e === 'object' && e.url) ? e : undefined; }
+  catch { return undefined; }
+}
+
 // FEP-044f embedded quote card: resolve the quoted post to a compact, sanitised
 // snapshot { url, author{name,handle,icon}, content, published, media } so the
 // client can render it as a nested card instead of a bare link. Best-effort and
@@ -3575,7 +3633,7 @@ export default {
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, setMyReaction, getMyReactions, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate, deliverDirectNote,
-  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, timelineAttachments, timelineEmojis, timelineObjectLinks, timelineQuote, sendInteraction, voteOnPoll, voteOnRemotePoll,
+  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, timelineAttachments, timelineEmojis, timelineObjectLinks, timelineQuote, timelineEmbed, sendInteraction, voteOnPoll, voteOnRemotePoll,
   acceptGatedFollow, rejectGatedFollow, isWardGuardian, sendFollowDecision,
   parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread, sendReport, localMentionSlugs,
   autoBoostCount, boostedCount, markBoosted, unmarkBoosted, markLiked, unmarkLiked, getTimelineReaction, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,

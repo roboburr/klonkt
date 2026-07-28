@@ -16,6 +16,23 @@ export function hasGuardiansProps(slug) {
   catch { return {}; }
 }
 
+/**
+ * May EXTERNAL (non-fediverse) embeds be shown to this account?
+ *
+ * A gated feature in the FEP-633c sense: a ward's world outside the fediverse
+ * is the guardians' call. `setting` is `sites.external_embeds`:
+ *   null/undefined → auto: off for a ward, on for anyone else
+ *   0 → off, 1 → on (the guardians decided)
+ *
+ * Pure, so the rule is testable on its own. The gate is applied SERVER-side:
+ * a blocked embed is never serialised into the feed, because an embed that the
+ * client merely hides has still been delivered.
+ */
+export function externalEmbedsAllowed(setting, isWard) {
+  if (setting === 0 || setting === 1) return setting === 1;
+  return !isWard;
+}
+
 /** True when an incoming object carries the ward hint (§2.2). Register-only for
  *  now; acted on later at reddings-boei / escalation routing. */
 export function objectHasGuardians(o) {
@@ -47,4 +64,4 @@ export function isWave(object) {
   return !!object && (object['shaer:wave'] === true || object.wave === true);
 }
 
-export default { helpRequestProps, isHelpRequest, waveProps, isWave, hasGuardiansProps, objectHasGuardians };
+export default { helpRequestProps, isHelpRequest, waveProps, isWave, hasGuardiansProps, objectHasGuardians, externalEmbedsAllowed };

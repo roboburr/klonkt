@@ -144,6 +144,12 @@ router.get('/ap/users/:slug/inbox', (req, res) => {
   const auth = OAuth.verifyBearer(req.headers.authorization);
   if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
   const base = baseUrl(req);
+  // Gated feature (FEP-633c): may this account see EXTERNAL embeds? A ward's
+  // world outside the fediverse is the guardians' call. The gate is applied
+  // here, at serialisation: a blocked embed is never sent, because an embed the
+  // client merely hides has still been delivered to the device.
+  const isWard = (() => { try { return Guardianship.listGuardians(auth.site.slug).length > 0; } catch { return false; } })();
+  const embedsAllowed = Guardianship.externalEmbedsAllowed(auth.site.external_embeds, isWard);
   const items = AP.getTimeline(auth.site.slug, 60).map((t) => ({
     id: `${t.id}#create`,
     type: 'Create',
@@ -194,6 +200,9 @@ router.get('/ap/users/:slug/inbox', (req, res) => {
       // detail-view buttons show the current state (and can toggle/undo).
       'shaer:liked': !!t.liked,
       'shaer:boosted': !!t.boosted,
+      // An external (non-fediverse) embed, thumbnail-only and never an iframe.
+      // Omitted entirely when the gate is closed (see above).
+      'shaer:embed': embedsAllowed ? AP.timelineEmbed(t.embed_json) : undefined,
     },
   }));
   AP.sendAP(res, {

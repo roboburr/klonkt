@@ -131,7 +131,12 @@ export function initializeDatabase() {
   ensureColumn('sites', 'feed_view_switch',  'INTEGER DEFAULT 1');       // show switcher
   ensureColumn('sites', 'show_search',     'INTEGER DEFAULT 1');
   ensureColumn('sites', 'show_archive_link', 'INTEGER DEFAULT 1');
-  ensureColumn('sites', 'og_theme', 'TEXT');               // OG share-card variant: NULL=auto (follow site theme) | 'light' | 'dark'
+  // Gated feature (FEP-633c): may external (non-fediverse) embeds be shown to
+  // this account? NULL = auto, which means OFF for a ward and ON for anyone
+  // else. The guardians flip it; the gate itself lives server-side, so a ward
+  // never even receives the thumbnail it is not allowed to see.
+  ensureColumn('sites', 'external_embeds', 'INTEGER');
+  ensureColumn('sites', 'og_theme', 'TEXT');             // OG share-card variant: NULL=auto (follow site theme) | 'light' | 'dark'
 
   // Per-post noindex + type
   ensureColumn('posts', 'noindex', 'INTEGER DEFAULT 0');
@@ -549,6 +554,7 @@ export function initializeDatabase() {
   ensureColumn('ap_timeline', 'emoji_json', 'TEXT');         // FEP-9098 custom emoji Emoji tags from the inbound note, served back as `tag`
   ensureColumn('ap_timeline', 'link_json', 'TEXT');          // FEP-e232 object-link (quote/ref) tags from the inbound note, served back as `tag`
   ensureColumn('ap_timeline', 'quote_json', 'TEXT');         // FEP-044f resolved quoted-post snapshot (author + content), for the embedded quote card
+  ensureColumn('ap_timeline', 'embed_json', 'TEXT');         // resolved EXTERNAL embed (oEmbed/provider), thumbnail-only; gated per site (sites.external_embeds)
   ensureColumn('ap_timeline', 'author_emoji_json', 'TEXT');  // FEP-9098 custom emojis in the author's display name (shaer:author.emojis)
   ensureColumn('ap_timeline', 'reblog_emoji_json', 'TEXT');  // FEP-9098 custom emojis in the booster's display name (shaer:booster.emojis)
   ensureColumn('ap_timeline', 'reblog_name', 'TEXT');        // a followed account boosted this → "X boosted"
