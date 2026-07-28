@@ -31,21 +31,9 @@
 </header>
 
   <main>
-    <!-- 0. Wards' corner: meelezen met je wards (read-only). -->
-    <section id="feed-section" hidden>
-      <div class="g-sec-head"><h2><%= t('guardian.feed_title') %></h2></div>
-      <p class="g-sec-sub"><%= t('guardian.feed_sub') %></p>
-      <div id="feed-list" class="g-list"></div>
-    </section>
-
-    <!-- 0b. Follow-verzoeken op je wards (FEP-633c §5.3). -->
-    <section id="follow-section" hidden>
-      <div class="g-sec-head"><h2><%= t('guardian.follow_title') %></h2></div>
-      <p class="g-sec-sub"><%= t('guardian.follow_sub') %></p>
-      <div id="follow-list" class="g-list"></div>
-    </section>
-
-    <!-- 1. Berichtencentrum: hulpverzoeken. Dat is waar dit voor bestaat. -->
+    <!-- 1. Hulpverzoeken, uitgelicht over alle wards heen. Dat is waar dit voor
+            bestaat, en het moet opvallen zonder dat je eerst een kind opent.
+            De volledige geschiedenis per kind staat in dat kind zijn paneel. -->
     <section id="help-section">
       <div class="g-sec-head">
         <h2><%= t('guardian.help_title') %></h2>
@@ -75,7 +63,9 @@
       <div id="pending-list" class="g-list"></div>
     </section>
 
-    <!-- 4. Mijn wards (geaccepteerd). -->
+    <!-- 4. Mijn wards. Elk kind is een regel die opent naar een paneel met
+            alles over dat kind: instellingen, volgverzoeken, hulpvragen en
+            recente berichten. Een guardian denkt per kind, niet per functie. -->
     <section id="wards-section">
       <div class="g-sec-head"><h2><%= t('guardian.wards_title') %></h2></div>
       <div id="wards-list" class="g-list"></div>

@@ -42,34 +42,46 @@
   function show(id, on) { document.getElementById(id).hidden = !on; }
 
   // ── 1. Help requests ───────────────────────────────────────────────────
+  // A call for help is not an alarm: it may well be settled quietly between a
+  // guardian and the child. So the card carries no siren, it just has to be
+  // impossible to miss. It shows up twice on purpose (Robins keuze): the recent
+  // ones across all children at the top, the full history of one child in that
+  // child's panel.
+  var HELP_TOP = 5;
+
+  function helpCard(h) {
+    var card = el('div', 'g-card help');
+    var row = el('div', 'row');
+    var who = el('span', 'who grow');
+    // name_html carries the custom emojis (FEP-9098) of the display name, the
+    // same way de Krant renders a byline. Falls back to the plain name.
+    if (h.name_html) who.innerHTML = h.name_html;
+    else who.textContent = h.actor_name || handleOf(h.actor_uri, h.actor_handle);
+    row.appendChild(who);
+    row.appendChild(el('span', 'when', when(h, h.published || h.created_at)));
+    card.appendChild(row);
+    var body = el('div', 'body g-note');
+    // body_html is the shared note-body partial, rendered server-side: the
+    // content with its emojis, the quote / link-preview card and the media.
+    // Falls back to the bare content for rows stored before that existed.
+    body.innerHTML = h.body_html || h.content || '';   // sanitized server-side on ingest
+    card.appendChild(body);
+    if (h.note_url) {
+      var a = el('a', 'g-link', T.open || 'open');
+      a.href = h.note_url; a.target = '_blank'; a.rel = 'noopener';
+      card.appendChild(a);
+    }
+    return card;
+  }
+
   function renderHelp() {
     var list = document.getElementById('help-list');
     list.textContent = '';
     var help = S.help || [];
-    help.forEach(function (h) {
-      var card = el('div', 'g-card help');
-      var row = el('div', 'row');
-      var who = el('span', 'who grow');
-      // name_html carries the custom emojis (FEP-9098) of the display name, the
-      // same way de Krant renders a byline. Falls back to the plain name.
-      if (h.name_html) who.innerHTML = h.name_html;
-      else who.textContent = h.actor_name || handleOf(h.actor_uri, h.actor_handle);
-      row.appendChild(who);
-      row.appendChild(el('span', 'when', when(h, h.published || h.created_at)));
-      card.appendChild(row);
-      var body = el('div', 'body g-note');
-      // body_html is the shared note-body partial, rendered server-side: the
-      // content with its emojis, the quote / link-preview card and the media.
-      // Falls back to the bare content for rows stored before that existed.
-      body.innerHTML = h.body_html || h.content || '';   // sanitized server-side on ingest
-      card.appendChild(body);
-      if (h.note_url) {
-        var a = el('a', 'g-link', T.open || 'open');
-        a.href = h.note_url; a.target = '_blank'; a.rel = 'noopener';
-        card.appendChild(a);
-      }
-      list.appendChild(card);
-    });
+    help.slice(0, HELP_TOP).forEach(function (h) { list.appendChild(helpCard(h)); });
+    if (help.length > HELP_TOP) {
+      list.appendChild(el('p', 'g-sec-sub', '+ ' + (help.length - HELP_TOP) + ' — ' + (T.panel_help || '')));
+    }
     var badge = document.getElementById('help-count');
     badge.textContent = help.length; badge.hidden = help.length === 0;
     show('help-empty', help.length === 0);
@@ -118,58 +130,128 @@
     show('pending-section', offers.length > 0);
   }
 
-  // ── 4. Accepted wards ──────────────────────────────────────────────────
+  // ── 4. Accepted wards: one panel per child ─────────────────────────────
+  // A guardian thinks per child, not per function, so everything about one
+  // child sits behind that child's row: the gated settings, the follow requests
+  // waiting on them, their calls for help, their recent posts. The row itself
+  // carries counts, so nothing that needs an answer hides inside a closed
+  // panel.
+  var openPanels = {};   // ward uri -> open, so a refresh does not close it
+  // The follow requests and the wards' posts arrive from their own endpoints
+  // and are grouped into the panels by ward, so they are cached here rather
+  // than rendered into a section of their own.
+  var FEED = [], FOLLOWS = [];
+
+  function sectionInto(panel, title, items, empty, build) {
+    var h = el('div', 'g-panel-sec');
+    h.appendChild(el('h3', null, title));
+    if (!items.length) h.appendChild(el('p', 'g-empty small', empty));
+    else items.forEach(function (it) { h.appendChild(build(it)); });
+    panel.appendChild(h);
+    return h;
+  }
+
+  function embedsButton(w) {
+    // Gated feature: external (non-fediverse) embeds. Off by default for a
+    // ward; only a guardian can open it, and the gate is enforced server-side
+    // when the feed is built, so this button is the only thing that moves it.
+    // Shown for EVERY ward, including one on another server. There the value is
+    // unknown (it lives on the ward's server), but proposing is exactly as
+    // possible: the proposal travels, the ward's server tallies the guardians
+    // and enforces. A guardian next door must not have more say than one far
+    // away.
+    var known = w.embeds === true || w.embeds === false;
+    var emb = el('button', 'quiet small',
+      (known ? (w.embeds ? T.embeds_on : T.embeds_off) : T.embeds_propose) || 'Link previews');
+    emb.addEventListener('click', function () {
+      emb.disabled = true;
+      fetch('/guardian/wards/embeds', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uri: w.other_uri, allow: known ? !w.embeds : true }),
+      }).then(function (r) { return r.json(); })
+        .then(function (j) {
+          // Not settled yet: the other guardians still have to answer.
+          if (j && j.state === 'open') {
+            emb.textContent = (T.embeds_waiting || 'waiting for the other guardians');
+            emb.disabled = true;
+            return;
+          }
+          refresh();
+        })
+        .catch(function () { emb.disabled = false; });
+    });
+    return emb;
+  }
+
+  function wardPanel(w) {
+    var uri = w.other_uri;
+    var panel = el('div', 'g-panel');
+    panel.hidden = !openPanels[uri];
+
+    var set = el('div', 'g-panel-sec');
+    set.appendChild(el('h3', null, T.settings_title || 'Settings'));
+    var setRow = el('div', 'row');
+    setRow.appendChild(embedsButton(w));
+    set.appendChild(setRow);
+    panel.appendChild(set);
+
+    sectionInto(panel, T.panel_follow || 'Follow requests',
+      FOLLOWS.filter(function (f) { return f.wardUri === uri; }),
+      T.panel_follow_empty || '', followCard);
+
+    sectionInto(panel, T.panel_help || 'Calls for help',
+      (S.help || []).filter(function (h) { return h.actor_uri === uri; }),
+      T.panel_help_empty || '', helpCard);
+
+    sectionInto(panel, T.panel_posts || 'Recent posts',
+      FEED.filter(function (p) { return p.authorUri === uri; }),
+      T.panel_posts_empty || '', feedCard);
+
+    var act = el('div', 'g-panel-sec');
+    act.appendChild(el('h3', null, T.panel_actions || 'Actions'));
+    var actRow = el('div', 'row');
+    var wave = el('button', 'small', T.wave || '👋 Wave');
+    wave.addEventListener('click', function () { sendWave(uri, wave); });
+    actRow.appendChild(wave);
+    var rel = el('button', 'quiet small', T.release);
+    // Releasing a ward is heavy and hard to undo (coming back needs a fresh
+    // offer the ward accepts), so it asks first and spells out what changes.
+    rel.addEventListener('click', function () {
+      var who = handleOf(uri, w.other_handle);
+      var msg = (T.release_confirm || 'Release {who}?').replace('{who}', who);
+      if (window.confirm(msg)) remove(uri, rel);
+    });
+    actRow.appendChild(rel);
+    act.appendChild(actRow);
+    panel.appendChild(act);
+    return panel;
+  }
+
   function renderWards() {
     var list = document.getElementById('wards-list');
     list.textContent = '';
     var wards = S.wards || [];
     wards.forEach(function (w) {
-      var card = el('div', 'g-card');
+      var uri = w.other_uri;
+      var card = el('div', 'g-card ward');
       var row = el('div', 'row');
-      row.appendChild(el('span', 'who grow', handleOf(w.other_uri, w.other_handle)));
+      row.appendChild(el('span', 'who grow', handleOf(uri, w.other_handle)));
+      // Counts on the row: whatever is waiting must be visible with the panel shut.
+      var nHelp = (S.help || []).filter(function (h) { return h.actor_uri === uri; }).length;
+      var nFollow = FOLLOWS.filter(function (f) { return f.wardUri === uri; }).length;
+      if (nHelp) row.appendChild(el('span', 'tag help', '🛟 ' + nHelp));
+      if (nFollow) row.appendChild(el('span', 'tag co', nFollow + ' ' + (nFollow === 1 ? (T.badge_follow_one || '') : (T.badge_follow || ''))));
       row.appendChild(el('span', 'tag ok', T.active));
-      var wave = el('button', 'small', T.wave || '👋 Wave');
-      wave.addEventListener('click', function () { sendWave(w.other_uri, wave); });
-      row.appendChild(wave);
-      // Gated feature: external (non-fediverse) embeds. Off by default for a
-      // ward; only a guardian can open it, and the gate is enforced server-side
-      // when the feed is built, so this button is the only thing that moves it.
-      // Shown for EVERY ward, including one on another server. There the value
-      // is unknown (it lives on the ward's server), but proposing is exactly as
-      // possible: the proposal travels, the ward's server tallies the guardians
-      // and enforces. A guardian next door must not have more say than one far
-      // away.
-      var known = w.embeds === true || w.embeds === false;
-      var emb = el('button', 'quiet small',
-        (known ? (w.embeds ? T.embeds_on : T.embeds_off) : T.embeds_propose) || 'Link previews');
-      emb.addEventListener('click', function () {
-        emb.disabled = true;
-        fetch('/guardian/wards/embeds', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ uri: w.other_uri, allow: known ? !w.embeds : true }),
-        }).then(function (r) { return r.json(); })
-          .then(function (j) {
-            // Not settled yet: the other guardians still have to answer.
-            if (j && j.state === 'open') {
-              emb.textContent = (T.embeds_waiting || 'waiting for the other guardians');
-              emb.disabled = true;
-              return;
-            }
-            refresh();
-          })
-          .catch(function () { emb.disabled = false; });
-      });
-      row.appendChild(emb);
-      var btn = el('button', 'quiet small', T.release);
-      // Releasing a ward is heavy and hard to undo (coming back needs a fresh
-      // offer the ward accepts), so it asks first and spells out what changes.
-      btn.addEventListener('click', function () {
-        var who = handleOf(w.other_uri, w.other_handle);
-        var msg = (T.release_confirm || 'Release {who}?').replace('{who}', who);
-        if (window.confirm(msg)) remove(w.other_uri, btn);
-      });
-      row.appendChild(btn);
+      var toggle = el('button', 'quiet small', openPanels[uri] ? T.panel_close : T.panel_open);
+      row.appendChild(toggle);
       card.appendChild(row);
+      var panel = wardPanel(w);
+      card.appendChild(panel);
+      toggle.addEventListener('click', function () {
+        openPanels[uri] = !openPanels[uri];
+        panel.hidden = !openPanels[uri];
+        toggle.textContent = openPanels[uri] ? T.panel_close : T.panel_open;
+      });
       list.appendChild(card);
     });
     show('wards-empty', wards.length === 0);
@@ -196,35 +278,32 @@
   function renderAll() { renderHelp(); renderPending(); renderWards(); }
 
   // ── 0. Wards' corner: read-only feed of your wards' posts ───────────────
-  function renderFeed(items) {
-    var list = document.getElementById('feed-list');
-    list.textContent = '';
-    (items || []).forEach(function (p) {
-      var card = el('div', 'g-card feed');
-      var head = el('div', 'row');
-      head.appendChild(el('span', 'who grow', p.author));
-      if (p.published) head.appendChild(el('span', 'g-when', when(p, p.published)));
-      card.appendChild(head);
-      var body = el('div', 'feed-body');
-      if (p.cw) {
-        var d = document.createElement('details');
-        var sum = document.createElement('summary'); sum.textContent = p.cw; d.appendChild(sum);
-        var inner = el('div'); inner.innerHTML = p.content || ''; d.appendChild(inner);
-        body.appendChild(d);
-      } else {
-        body.innerHTML = p.content || '';   // server-sanitized HTML (same as Berichten)
-      }
-      card.appendChild(body);
-      list.appendChild(card);
-    });
-    show('feed-section', (items || []).length > 0);
+  // Lives inside each child's panel now, so the fetches only fill a cache and
+  // ask the ward list to redraw. A guardian watches, it does not publish.
+  function feedCard(p) {
+    var card = el('div', 'g-card feed');
+    var head = el('div', 'row');
+    head.appendChild(el('span', 'who grow', p.author));
+    if (p.published) head.appendChild(el('span', 'g-when', when(p, p.published)));
+    card.appendChild(head);
+    var body = el('div', 'feed-body');
+    if (p.cw) {
+      var d = document.createElement('details');
+      var sum = document.createElement('summary'); sum.textContent = p.cw; d.appendChild(sum);
+      var inner = el('div'); inner.innerHTML = p.content || ''; d.appendChild(inner);
+      body.appendChild(d);
+    } else {
+      body.innerHTML = p.content || '';   // server-sanitized HTML (same as Berichten)
+    }
+    card.appendChild(body);
+    return card;
   }
 
   function loadFeed() {
     return fetch('/guardian/api/feed?site=' + encodeURIComponent(S.site))
       .then(function (r) { return r.json(); })
-      .then(function (f) { if (f && !f.error) renderFeed(f.items); })
-      .catch(function () { /* corner just stays hidden */ });
+      .then(function (f) { if (f && !f.error) { FEED = f.items || []; renderWards(); } })
+      .catch(function () { /* panels just show "nothing yet" */ });
   }
 
   // ── 0b. Follow requests on your wards (§5.3) ────────────────────────────
@@ -235,28 +314,25 @@
       body: JSON.stringify({ decision: decision, site: S.site }),
     }).then(loadFollowReqs);
   }
-  function renderFollowReqs(items) {
-    var list = document.getElementById('follow-list');
-    list.textContent = '';
-    (items || []).forEach(function (f) {
-      var card = el('div', 'g-card');
-      var row = el('div', 'row');
-      row.appendChild(el('span', 'who grow', f.follower + '  →  ' + f.ward));
-      var ok = el('button', 'small', T.accept || 'Accept');
-      ok.addEventListener('click', function () { answerFollow(f.id, 'approve', ok); });
-      var no = el('button', 'quiet small', T.reject || 'Deny');
-      no.addEventListener('click', function () { answerFollow(f.id, 'reject', no); });
-      row.appendChild(ok); row.appendChild(no);
-      card.appendChild(row);
-      list.appendChild(card);
-    });
-    show('follow-section', (items || []).length > 0);
+  function followCard(f) {
+    var card = el('div', 'g-card');
+    var row = el('div', 'row');
+    // Inside the child's own panel the ward name is a given, so only the
+    // person asking is named here.
+    row.appendChild(el('span', 'who grow', f.follower));
+    var ok = el('button', 'small', T.accept || 'Accept');
+    ok.addEventListener('click', function () { answerFollow(f.id, 'approve', ok); });
+    var no = el('button', 'quiet small', T.reject || 'Deny');
+    no.addEventListener('click', function () { answerFollow(f.id, 'reject', no); });
+    row.appendChild(ok); row.appendChild(no);
+    card.appendChild(row);
+    return card;
   }
   function loadFollowReqs() {
     return fetch('/guardian/api/follow-requests?site=' + encodeURIComponent(S.site))
       .then(function (r) { return r.json(); })
-      .then(function (f) { if (f && !f.error) renderFollowReqs(f.items); })
-      .catch(function () { /* stays hidden */ });
+      .then(function (f) { if (f && !f.error) { FOLLOWS = f.items || []; renderWards(); } })
+      .catch(function () { /* panels just show "none waiting" */ });
   }
 
   function refresh() {

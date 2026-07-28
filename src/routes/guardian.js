@@ -40,7 +40,11 @@ function uiStrings(L) {
   const keys = ['sent', 'sent_retry', 'sending', 'not_found', 'failed', 'network',
     'pending', 'active', 'retract', 'release', 'release_confirm', 'open', 'push_unavailable',
     'embeds_on', 'embeds_off', 'embeds_propose', 'embeds_waiting',
-    'accept', 'reject', 'complete', 'awaiting_others', 'coguard'];
+    'accept', 'reject', 'complete', 'awaiting_others', 'coguard',
+    // The per-ward panel: everything about one child in one place.
+    'settings_title', 'panel_open', 'panel_close', 'panel_help', 'panel_help_empty',
+    'panel_follow', 'panel_follow_empty', 'panel_posts', 'panel_posts_empty',
+    'panel_actions', 'badge_help', 'badge_follow', 'badge_follow_one', 'help_empty'];
   const s = Object.fromEntries(keys.map((k) => [k, i18nT(L, `guardian.${k}`)]));
   s.wave = i18nT(L, 'guardian.wave');
   s.waved = i18nT(L, 'guardian.waved');
@@ -138,6 +142,7 @@ router.get('/api/feed', requireAuth, (req, res) => {
     .map((p) => ({
       id: p.id,
       author: p.author_handle || p.author_name || p.author_uri,
+      authorUri: p.author_uri,   // the grouping key: which child's panel this belongs in
       authorName: p.author_name,
       authorIcon: p.author_icon,
       content: p.content,
@@ -156,7 +161,7 @@ router.get('/api/feed', requireAuth, (req, res) => {
 function wardSlugsOf(site) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   return Guardianship.listWards(site.slug)
-    .map((w) => (w.other_uri.startsWith(base) ? w.other_uri.split('/').pop() : null))
+    .map((w) => (w.other_uri.startsWith(base) ? { slug: w.other_uri.split('/').pop(), uri: w.other_uri } : null))
     .filter(Boolean);
 }
 
@@ -165,16 +170,18 @@ router.get('/api/follow-requests', requireAuth, (req, res) => {
   if (!site) return res.status(404).json({ error: 'no_site' });
   const items = [];
   const host = (() => { try { return new URL(process.env.PUBLIC_BASE_URL || '').host; } catch { return ''; } })();
+  // wardUri is the grouping key for the per-ward panel: the handle is for
+  // reading, the URI is what identifies the child across both cases below.
   // Local wards (guardian co-located): read the pending follows directly.
-  for (const wardSlug of wardSlugsOf(site)) {
-    for (const f of Guardianship.follows.listForWard(wardSlug)) {
-      items.push({ id: f.id, ward: `@${wardSlug}@${host}`, follower: f.follower_handle || f.follower_name || f.follower_uri, followerIcon: f.follower_icon, remote: false, created: f.created_at });
+  for (const w of wardSlugsOf(site)) {
+    for (const f of Guardianship.follows.listForWard(w.slug)) {
+      items.push({ id: f.id, ward: `@${w.slug}@${host}`, wardUri: w.uri, follower: f.follower_handle || f.follower_name || f.follower_uri, followerIcon: f.follower_icon, remote: false, created: f.created_at });
     }
   }
   // Remote wards: the copies forwarded here as Offer(Follow) (cross-instance).
   for (const rev of Guardianship.follows.listReviews(site.slug)) {
     const wardName = (() => { try { const u = new URL(rev.ward_uri); return `@${u.pathname.split('/').pop()}@${u.host}`; } catch { return rev.ward_uri; } })();
-    items.push({ id: rev.id, ward: wardName, follower: rev.follower_handle || rev.follower_uri, followerIcon: rev.follower_icon, remote: true, created: rev.created_at });
+    items.push({ id: rev.id, ward: wardName, wardUri: rev.ward_uri, follower: rev.follower_handle || rev.follower_uri, followerIcon: rev.follower_icon, remote: true, created: rev.created_at });
   }
   res.json({ items });
 });

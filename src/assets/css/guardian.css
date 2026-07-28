@@ -117,3 +117,19 @@ button.small { padding: 6px 12px; font-size: .82rem; }
 .g-note .tl-media-img img { width: 100%; height: auto; display: block; background: #fff; }
 .g-note .tl-media-video, .g-note .tl-media-audio { width: 100%; margin: 8px 0 0; border-radius: 10px; display: block; }
 .g-note .tl-media-video { max-height: 320px; background: #000; }
+
+/* ── Paneel per ward ───────────────────────────────────────────────────────
+   Een guardian denkt per kind, niet per functie: achter de regel van een kind
+   zit alles over dat kind. De regel zelf draagt de tellers, zodat een dicht
+   paneel nooit iets verbergt dat een antwoord nodig heeft. */
+.g-card.ward > .row { gap: 8px; }
+.g-panel { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.g-panel[hidden] { display: none; }
+.g-panel-sec + .g-panel-sec { margin-top: 16px; }
+.g-panel-sec h3 { margin: 0 0 6px; font-size: .82rem; font-weight: 600; letter-spacing: .03em;
+  text-transform: uppercase; color: var(--sub); }
+.g-panel-sec .g-card { background: transparent; border-color: var(--line); }
+.g-panel-sec .g-card + .g-card { margin-top: 6px; }
+.g-panel-sec .row { flex-wrap: wrap; }
+.g-empty.small { margin: 0; font-size: .85rem; }
+.tag.help { color: var(--accent); border-color: var(--accent); }
