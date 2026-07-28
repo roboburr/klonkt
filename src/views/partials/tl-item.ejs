@@ -22,7 +22,21 @@
           <% } else { %>
             <div class="tl-content"><%- emojiHtml(p.content, p.emoji_json) %></div>
           <% } %>
-          <% var _quote = noteQuote(p.quote_json); if (_quote) { %><%- include('../partials/quote-card', { q: _quote }) %><% } %>
+          <%
+            // One card for both: a fediverse quote and an external embed look
+            // identical; only where they came from differs. An embed carries a
+            // title and a thumbnail, never an iframe.
+            var _quote = noteQuote(p.quote_json);
+            if (!_quote) {
+              var _emb = noteQuote(p.embed_json);
+              // The title comes from a third-party oEmbed provider, so it is
+              // escaped here: the quote card renders `content` as HTML (fine for
+              // AP content, which we sanitise on the way in, but not for this).
+              if (_emb) _quote = { url: _emb.url, author: _emb.author || (_emb.provider ? { name: _emb.provider } : null),
+                                   content: _emb.title ? ('<p>' + emojiName(_emb.title, null) + '</p>') : '', media: _emb.media || [] };
+            }
+          %>
+          <% if (_quote) { %><%- include('../partials/quote-card', { q: _quote }) %><% } %>
           <% if (_nsfwVisual) { %><div class="nsfw-media"><% } %>
           <% if (imgs.length) { %>
             <div class="tl-media">

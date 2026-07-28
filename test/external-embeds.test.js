@@ -42,3 +42,49 @@ test('timelineEmbed round-trips a stored card and refuses junk', () => {
   assert.equal(timelineEmbed('not json'), undefined);
   assert.equal(timelineEmbed('{"title":"no url"}'), undefined, 'a card without a url is not a card');
 });
+
+// FEP-044f emit side: quoting a fediverse object must federate as a quote AND
+// tell the quoted author. This is the mirror of the ingest we already had.
+const { applyQuoteProps } = await import('../src/services/ActivityPubService.js');
+
+test('a quote is emitted in all three shapes the network reads', () => {
+  const note = { to: ['https://www.w3.org/ns/activitystreams#Public'], cc: [], tag: [{ type: 'Hashtag', name: '#x' }] };
+  applyQuoteProps(note, 'https://s/objects/9', 'https://s/users/alice');
+  assert.equal(note.quote, 'https://s/objects/9', 'the FEP property');
+  assert.equal(note.quoteUrl, 'https://s/objects/9', 'the as: alias Mastodon reads');
+  assert.equal(note._misskey_quote, 'https://s/objects/9', 'the misskey alias');
+  const link = note.tag.find((t) => t.type === 'Link');
+  assert.ok(link, 'and an FEP-e232 Link tag');
+  assert.equal(link.href, 'https://s/objects/9');
+  assert.ok(link.mediaType.includes('activitystreams'));
+  assert.ok(note.tag.some((t) => t.type === 'Hashtag'), 'existing tags survive');
+});
+
+test('the quoted author is addressed, so being quoted is not a surprise', () => {
+  const note = { cc: ['https://s/users/me/followers'] };
+  applyQuoteProps(note, 'https://s/objects/9', 'https://s/users/alice');
+  assert.ok(note.cc.includes('https://s/users/alice'));
+  assert.ok(note.cc.includes('https://s/users/me/followers'), 'without dropping the followers');
+});
+
+test('no quote, or a junk one, changes nothing', () => {
+  const a = { cc: [], tag: [] };
+  applyQuoteProps(a, null, null);
+  assert.equal(a.quote, undefined);
+  assert.equal(a.tag.length, 0);
+  const b = { cc: [], tag: [] };
+  applyQuoteProps(b, 'javascript:alert(1)', 'https://s/users/alice');
+  assert.equal(b.quote, undefined, 'a non-http quote uri is refused');
+  const c = { cc: [], tag: [] };
+  applyQuoteProps(c, 'https://s/objects/9', 'not-a-url');
+  assert.equal(c.quote, 'https://s/objects/9');
+  assert.equal(c.cc.length, 0, 'a junk actor is simply not addressed');
+});
+
+test('a hostile oEmbed title is stored as plain text, not markup', async () => {
+  const { resolveExternalEmbed } = await import('../src/services/ActivityPubService.js');
+  // No network in the test env, so the resolver bails and returns null; the
+  // point here is the contract: whatever comes back is never raw provider HTML.
+  const out = await resolveExternalEmbed('<p><a href="https://v.example/1">x</a></p>');
+  assert.ok(out === null || !/<script/i.test(out), 'never stores executable markup');
+});

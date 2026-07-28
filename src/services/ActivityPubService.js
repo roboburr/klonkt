@@ -502,6 +502,9 @@ export function buildNote(base, site, post, opts = {}) {
   };
   // FEP-633c §2.2: object hint that the author is a ward (safely ignorable).
   Object.assign(note, Guardianship.hasGuardiansProps(site.slug));
+  // FEP-044f: this post quotes a fediverse object. Emit it the way the network
+  // actually reads it, and address the quoted author so they get told.
+  applyQuoteProps(note, post.quote_uri, post.quote_actor);
   if (post.nsfw) note.summary = post.content_warning || 'Gevoelige inhoud';
   if (attachment.length) note.attachment = attachment;
   // When the cover attachment is suppressed (hosted audio OR an external embed/link-only track →
@@ -1774,10 +1777,27 @@ export async function deliverCreate(site, post) {
   // Resolve inline @user@host mentions → link them in the note + collect their inboxes, so a
   // mentioned person is notified even if they don't follow us (Mastodon-standard mention).
   const mres = await resolveMentionsInText(base, post.content || '');
-  const post2 = mres.inboxes.length ? { ...post, content: mres.html } : post;
+  let post2 = mres.inboxes.length ? { ...post, content: mres.html } : post;
+  // FEP-044f: does this post quote a fediverse object? Resolve it once, here,
+  // and remember it on the post, so buildNote (sync, also used by the outbox)
+  // never has to fetch. The quoted author's inbox joins the delivery set: that
+  // IS the notification.
+  const quoteInboxes = [];
+  if (post2.quote_uri === undefined || post2.quote_uri === null) {
+    const q = await resolveOwnQuote(post2.content || '');
+    if (q) {
+      try { db.prepare('UPDATE posts SET quote_uri = ?, quote_actor = ? WHERE id = ?').run(q.uri, q.actor || null, post.id); } catch { /* ignore */ }
+      post2 = { ...post2, quote_uri: q.uri, quote_actor: q.actor || null };
+    }
+  }
+  if (post2.quote_actor) {
+    const a = await fetchActor(post2.quote_actor).catch(() => null);
+    const inbox = a && ((a.endpoints && a.endpoints.sharedInbox) || a.inbox);
+    if (inbox) quoteInboxes.push(inbox);
+  }
   const followers = fStmts().list.all(site.slug);
-  const inboxes = [...new Set([...followers.map((f) => f.shared_inbox || f.inbox), ...mres.inboxes].filter(Boolean))];
-  if (!inboxes.length) return; // no followers and no one mentioned
+  const inboxes = [...new Set([...followers.map((f) => f.shared_inbox || f.inbox), ...mres.inboxes, ...quoteInboxes].filter(Boolean))];
+  if (!inboxes.length) return; // no followers, no one mentioned, no one quoted
   const keys = getOrCreateKeys(site.slug);
   const keyId = `${actorId(base, site.slug)}#main-key`;
   const create = buildCreate(base, site, post2);
@@ -2847,6 +2867,31 @@ function mediaFromNote(note) {
   return JSON.stringify(atts);
 }
 
+// FEP-044f, emit side. The mirror of extractQuoteUrl (ingest): when one of our
+// own posts quotes a fediverse object, say so in the shapes the network really
+// reads. `quote` is the FEP property; quoteUrl / _misskey_quote are the de-facto
+// ones Mastodon and Misskey look at, and the FEP-e232 `Link` in `tag` is the
+// third form. All three point at the same object, which is what every reader
+// expects. The quoted author goes in `cc`, because being quoted without being
+// told is exactly the rudeness this FEP is trying to design away.
+export function applyQuoteProps(note, quoteUri, quoteActor) {
+  if (!note || typeof quoteUri !== 'string' || !/^https?:\/\//i.test(quoteUri)) return note;
+  note.quote = quoteUri;
+  note.quoteUrl = quoteUri;
+  note['_misskey_quote'] = quoteUri;
+  note.tag = [...(note.tag || []), {
+    type: 'Link',
+    mediaType: 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
+    href: quoteUri,
+    rel: ['https://misskey-hub.net/ns#_misskey_quote'],
+    name: quoteUri,
+  }];
+  if (typeof quoteActor === 'string' && /^https?:\/\//i.test(quoteActor)) {
+    note.cc = [...new Set([...(note.cc || []), quoteActor])];
+  }
+  return note;
+}
+
 // The first external (non-fediverse) link in a note, resolved to the same card
 // shape as a quote: THUMBNAIL ONLY, never the provider's iframe. An arbitrary
 // third-party frame inside a kid-safe app is a hole you cannot close again, so
@@ -2866,14 +2911,32 @@ export async function resolveExternalEmbed(html) {
   if (!card || card.kind === 'ap' || card.kind === 'link') return null;
   const thumb = (card.media || []).find((m) => m && m.url);
   if (!thumb && !card.title) return null;
+  // Title, provider and author name come from a third party. Store them as
+  // PLAIN TEXT (tags stripped, length-capped), so no renderer downstream has to
+  // be the one that remembers to escape. A card is a card, not an essay.
+  const plain = (v) => (v ? HtmlSanitizerService.toPlainText(String(v)).trim().slice(0, 200) : null);
   return JSON.stringify({
     url: card.url,
     kind: card.kind,                       // 'provider' | 'oembed'
-    provider: card.provider || null,
-    title: card.title || null,
-    author: card.author || null,
+    provider: plain(card.provider),
+    title: plain(card.title),
+    author: card.author ? { ...card.author, name: plain(card.author.name), handle: plain(card.author.handle) } : null,
     media: thumb ? [thumb] : [],           // thumbnail only, no html/iframe
   });
+}
+
+/**
+ * Does our own post link to a fediverse object? Returns { uri, actor } when the
+ * first external link resolves to a quotable AP object, else null. Runs once at
+ * publish time; the answer is stored on the post.
+ */
+export async function resolveOwnQuote(html) {
+  const first = firstExternalUrl(html);
+  if (!first) return null;
+  const io = EmbedResolver.liveIO({ safeFetch, detectProvider: () => null, fetchActor, actorInfo });
+  const card = await EmbedResolver.resolveEmbed(first, io).catch(() => null);
+  if (!card || card.kind !== 'ap' || !card.id) return null;
+  return { uri: card.id, actor: card.attributedTo || null };
 }
 
 /** The first http(s) link in sanitized note HTML that is not a mention/hashtag. */
@@ -3633,7 +3696,7 @@ export default {
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, setMyReaction, getMyReactions, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate, deliverDirectNote,
-  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, timelineAttachments, timelineEmojis, timelineObjectLinks, timelineQuote, timelineEmbed, sendInteraction, voteOnPoll, voteOnRemotePoll,
+  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, timelineAttachments, timelineEmojis, timelineObjectLinks, timelineQuote, timelineEmbed, applyQuoteProps, sendInteraction, voteOnPoll, voteOnRemotePoll,
   acceptGatedFollow, rejectGatedFollow, isWardGuardian, sendFollowDecision,
   parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread, sendReport, localMentionSlugs,
   autoBoostCount, boostedCount, markBoosted, unmarkBoosted, markLiked, unmarkLiked, getTimelineReaction, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
