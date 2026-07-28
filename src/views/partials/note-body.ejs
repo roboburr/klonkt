@@ -1,0 +1,47 @@
+<%
+  /* The body of a post, rendered the same way wherever a post shows up: de
+     Krant, Berichten and the Guardian PWA. Takes `nb` with the column names an
+     ap_timeline row uses (content, emoji_json, media_json, quote_json,
+     embed_json, nsfw, cw); ap_mentions and ap_interactions carry the same names
+     so a mention or a reply can be handed straight to it.
+
+     Krant-only trimmings (the boost byline, polls, the audio player iframe, the
+     action bar) stay in tl-item: they are about the feed, not about the post. */
+  var _m = []; try { _m = JSON.parse(nb.media_json || '[]'); } catch (e) { _m = []; }
+  var _imgs = _m.filter(function (m) { return m && m.url && (!m.type || /^image\//.test(m.type)); });
+  var _vids = _m.filter(function (m) { return m && m.url && m.type && /^video\//.test(m.type); });
+  var _auds = _m.filter(function (m) { return m && m.url && m.type && /^audio\//.test(m.type); });
+  var _hasVisual = _imgs.length || _vids.length || _auds.length;
+  var _nsfwVisual = !!nb.nsfw && _hasVisual;
+  var _nsfwText = !!nb.nsfw && !_hasVisual;
+  // One card for both: a fediverse quote and an external link preview look
+  // identical; only where they came from differs. An embed carries a title and
+  // a thumbnail, never an iframe.
+  var _quote = noteQuote(nb.quote_json);
+  if (!_quote) {
+    var _emb = noteQuote(nb.embed_json);
+    // The title comes from a third-party oEmbed provider, so it is escaped
+    // here: the quote card renders `content` as HTML (fine for AP content,
+    // which we sanitise on the way in, but not for this).
+    if (_emb) _quote = { url: _emb.url, author: _emb.author || (_emb.provider ? { name: _emb.provider } : null),
+                         content: _emb.title ? ('<p>' + emojiName(_emb.title, null) + '</p>') : '', media: _emb.media || [] };
+  }
+  var _noAudio = !!nb.suppressAudio;   // the Klonkt player iframe already covers these tracks
+%>
+<% if (_nsfwText) { %>
+  <div class="tl-content nsfw-media"><span class="nsfw-veil"><%- include('../partials/nsfw-veil', { cw: nb.cw }) %></span><%- emojiHtml(nb.content, nb.emoji_json) %></div>
+<% } else { %>
+  <div class="tl-content"><%- emojiHtml(nb.content, nb.emoji_json) %></div>
+<% } %>
+<% if (_quote) { %><%- include('../partials/quote-card', { q: _quote }) %><% } %>
+<% if (_nsfwVisual) { %><div class="nsfw-media"><% } %>
+<% if (_imgs.length) { %>
+  <div class="tl-media">
+    <% _imgs.forEach(function (m) { %>
+      <a class="tl-media-img" href="<%= m.url %>" target="_blank" rel="noopener"><img src="<%= thumb(m.url, 1280) %>" alt="" loading="lazy" decoding="async"></a>
+    <% }); %>
+  </div>
+<% } %>
+<% _vids.forEach(function (m) { %><video class="tl-media-video" src="<%= m.url %>" poster="<%= thumb(m.url, 1280) %>" controls preload="metadata" playsinline></video><% }); %>
+<% if (!_noAudio) { _auds.forEach(function (m) { %><audio class="tl-media-audio" src="<%= m.url %>" controls preload="none"></audio><% }); } %>
+<% if (_nsfwVisual) { %><div class="nsfw-veil"><%- include('../partials/nsfw-veil', { cw: nb.cw }) %></div></div><% } %>

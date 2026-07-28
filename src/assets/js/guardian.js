@@ -42,11 +42,19 @@
     help.forEach(function (h) {
       var card = el('div', 'g-card help');
       var row = el('div', 'row');
-      row.appendChild(el('span', 'who grow', h.actor_name || handleOf(h.actor_uri, h.actor_handle)));
+      var who = el('span', 'who grow');
+      // name_html carries the custom emojis (FEP-9098) of the display name, the
+      // same way de Krant renders a byline. Falls back to the plain name.
+      if (h.name_html) who.innerHTML = h.name_html;
+      else who.textContent = h.actor_name || handleOf(h.actor_uri, h.actor_handle);
+      row.appendChild(who);
       row.appendChild(el('span', 'when', when(h.published || h.created_at)));
       card.appendChild(row);
-      var body = el('div', 'body');
-      body.innerHTML = h.content || '';          // sanitized server-side on ingest
+      var body = el('div', 'body g-note');
+      // body_html is the shared note-body partial, rendered server-side: the
+      // content with its emojis, the quote / link-preview card and the media.
+      // Falls back to the bare content for rows stored before that existed.
+      body.innerHTML = h.body_html || h.content || '';   // sanitized server-side on ingest
       card.appendChild(body);
       if (h.note_url) {
         var a = el('a', 'g-link', T.open || 'open');

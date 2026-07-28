@@ -37,6 +37,37 @@ import { t as i18nT, resolveLang, SUPPORTED as LANGS, LANG_NAMES } from '../serv
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const VIEWS_DIR = path.join(__dirname, '..', 'views');
 
+/**
+ * Render a post body to an HTML string with the SAME partial de Krant uses.
+ *
+ * For surfaces that are not an EJS page: the Guardian PWA builds its cards in
+ * the browser, so it gets the finished HTML in its state blob instead of the
+ * raw columns. One renderer, so a post cannot drift into looking different
+ * depending on where you run into it.
+ */
+export function renderNoteBody(nb, lang) {
+  if (!nb || !nb.content) return '';
+  const _l = lang || 'nl';
+  // ejs.renderFile hands back a Promise even with async:false, and the callers
+  // here are plain synchronous route code. Compile the file ourselves instead;
+  // `filename` is what lets the partial's own relative includes resolve.
+  const file = path.join(VIEWS_DIR, 'partials', 'note-body.ejs');
+  try {
+    return ejs.render(fs.readFileSync(file, 'utf8'), {
+      nb,
+      t: (key, vars) => i18nT(_l, key, vars),
+      emojiHtml,
+      emojiName,
+      noteQuote: parseQuote,
+      thumb: (url, w) => (typeof url === 'string' && /^https?:\/\//i.test(url) ? imgProxyUrl(url, w || 480) : url),
+      avatar: (url, w) => (typeof url === 'string' && /^https?:\/\//i.test(url) ? imgProxyUrl(url, w || 128) : url),
+    }, { filename: file, async: false });
+  } catch (e) {
+    console.warn('[render] note body failed:', e.message);
+    return '';
+  }
+}
+
 // App version (from package.json) + short commit hash (from .klonkt-version, written by
 // the deploy script) — shown in the footer next to "Klonkt Beta". The hash is updated
 // automatically on every deploy, so the displayed version is never stale.

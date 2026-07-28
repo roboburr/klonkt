@@ -123,10 +123,9 @@
   .tl-handle { color: var(--ink-soft, #888); font-size: .82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tl-time { color: var(--ink-soft, #999); font-size: .78rem; flex: 0 0 auto; align-self: flex-start; white-space: nowrap; }
 
-  .tl-content { line-height: 1.55; overflow-wrap: anywhere; }
-  .tl-content p { margin: .4rem 0; } .tl-content p:first-child { margin-top: 0; } .tl-content p:last-child { margin-bottom: 0; }
-  .tl-content a { color: var(--accent, #06c); }
-  .tl-content img { max-width: 100%; height: auto; border-radius: 10px; background: #fff; }
+  /* .tl-content, .tl-quote* and .tl-media* now live in partials/shared-styles,
+     next to partials/note-body: the markup is shared with Berichten and the
+     Guardian PWA, so the styling has to be too. What stays here is Krant-only. */
   /* Long posts collapse to a max height with a fade + "read more" (added by JS only when it overflows). */
   .tl-content.tl-clamp { max-height: 20em; overflow: hidden;
     -webkit-mask-image: linear-gradient(180deg, #000 72%, transparent);
@@ -136,34 +135,6 @@
     font-size: .85rem; cursor: pointer; }
   .tl-readmore:hover { text-decoration: underline; }
 
-  /* FEP-044f embedded quote card (mirror of the Shaer QuoteCard). */
-  .tl-quote { margin: .75rem 0 0; padding: .6rem .7rem; border-radius: 12px;
-    border: 1px solid color-mix(in srgb, var(--ink, #000) 12%, transparent);
-    background: color-mix(in srgb, var(--ink, #000) 3.5%, transparent); }
-  .tl-quote-head { display: flex; align-items: center; gap: .4rem; margin: 0 0 .35rem; min-width: 0; }
-  .tl-quote-avatar { flex: 0 0 auto; width: 22px; height: 22px; border-radius: 50%; object-fit: cover; background: #fff; }
-  .tl-quote-name { font-weight: 700; font-size: .85rem; color: var(--ink, inherit); white-space: nowrap; }
-  .tl-quote-handle { color: var(--ink-soft, #888); font-size: .78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-  .tl-quote-body { line-height: 1.5; font-size: .92rem; color: var(--ink-soft, #555);
-    overflow-wrap: anywhere; max-height: 16em; overflow: hidden; }
-  .tl-quote-body p { margin: .3rem 0; } .tl-quote-body p:first-child { margin-top: 0; } .tl-quote-body p:last-child { margin-bottom: 0; }
-  .tl-quote-body a { color: var(--accent, #06c); }
-  .tl-quote-media { display: block; margin: .45rem 0 0; }
-  .tl-quote-media img { max-width: 100%; height: auto; border-radius: 8px; }
-
-  /* Always show the FULL image at its natural ratio — never cropped, no letterbox. */
-  .tl-media { display: flex; flex-direction: column; gap: .4rem; margin: .75rem 0 0; }
-  .tl-media-img { display: block; border-radius: 12px; overflow: hidden;
-    background-image: linear-gradient(135deg,
-      color-mix(in srgb, var(--accent, #888) 22%, var(--paper-2, var(--paper))) 0%,
-      color-mix(in srgb, var(--accent, #888) 6%, var(--paper-2, var(--paper))) 100%); }
-  .tl-media-img img { width: 100%; height: auto; display: block; background: #fff; transition: opacity .4s ease; }
-  .tl-media-img img.is-loading { opacity: 0; }
-  /* Reserve placeholder space while the (natural-aspect) feed image loads. */
-  .tl-media-img:has(img.is-loading) { min-height: 220px; }
-
-  .tl-media-video, .tl-media-audio { width: 100%; margin: .75rem 0 0; border-radius: 12px; display: block; }
-  .tl-media-video { max-height: 480px; background: #000; }
   .tl-poll { margin: .75rem 0 0; display: flex; flex-direction: column; gap: 8px; }
   .tl-poll-form { display: flex; flex-direction: column; gap: 8px; }
   .tl-poll-choice { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line, rgba(128,128,128,.3)); border-radius: 10px; cursor: pointer; }

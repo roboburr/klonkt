@@ -18,7 +18,8 @@ import { requireAuth } from '../middleware/auth.js';
 import AP from '../services/ActivityPubService.js';
 import * as Guardianship from '../services/guardianship/index.js';
 import { t as i18nT, resolveLang } from '../services/i18n.js';
-import { injectCspNonce } from '../middleware/render.js';
+import { injectCspNonce, renderNoteBody } from '../middleware/render.js';
+import { emojiName } from '../services/NoteRender.js';
 
 const router = express.Router();
 const __dir = path.dirname(fileURLToPath(import.meta.url));
@@ -50,9 +51,17 @@ function dashboardState(site, L) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   const me = AP.actorId(base, site.slug);
   const help = db.prepare(
-    `SELECT object_uri, note_url, actor_uri, actor_name, actor_handle, actor_icon, content, published, created_at
+    `SELECT object_uri, note_url, actor_uri, actor_name, actor_handle, actor_icon, content, published, created_at,
+            emoji_json, actor_emoji_json, media_json, quote_json, embed_json
      FROM ap_mentions WHERE slug = ? AND help_request = 1 ORDER BY created_at DESC LIMIT 50`
-  ).all(site.slug);
+  ).all(site.slug).map((h) => ({
+    ...h,
+    // The dashboard is built in the browser, so it gets the body finished: the
+    // same partial de Krant and Berichten use. A 🛟 often carries a screenshot
+    // and a link to the post it is about; both belong in the card.
+    body_html: renderNoteBody(h, L),
+    name_html: emojiName(h.actor_name || '', h.actor_emoji_json),
+  }));
   return {
     site: site.slug,
     me,

@@ -9,48 +9,12 @@
             <% if (p.published || p.created_at) { %><time class="tl-time"><%= formatDateTime(p.published || p.created_at) %></time><% } %>
           </div>
 
-          <%
-            var media = []; try { media = JSON.parse(p.media_json || '[]'); } catch (e) { media = []; }
-            var imgs = media.filter(function(m){ return m && m.url && (!m.type || /^image\//.test(m.type)); });
-            var vids = media.filter(function(m){ return m && m.url && m.type && /^video\//.test(m.type); });
-            var auds = media.filter(function(m){ return m && m.url && m.type && /^audio\//.test(m.type); });
-            var _nsfwVisual = !!p.nsfw && (imgs.length || vids.length || auds.length);
-            var _nsfwText = !!p.nsfw && !(imgs.length || vids.length || auds.length);
-          %>
-          <% if (_nsfwText) { %>
-            <div class="tl-content nsfw-media"><span class="nsfw-veil"><%- include('../partials/nsfw-veil', { cw: p.cw }) %></span><%- emojiHtml(p.content, p.emoji_json) %></div>
-          <% } else { %>
-            <div class="tl-content"><%- emojiHtml(p.content, p.emoji_json) %></div>
-          <% } %>
-          <%
-            // One card for both: a fediverse quote and an external embed look
-            // identical; only where they came from differs. An embed carries a
-            // title and a thumbnail, never an iframe.
-            var _quote = noteQuote(p.quote_json);
-            if (!_quote) {
-              var _emb = noteQuote(p.embed_json);
-              // The title comes from a third-party oEmbed provider, so it is
-              // escaped here: the quote card renders `content` as HTML (fine for
-              // AP content, which we sanitise on the way in, but not for this).
-              if (_emb) _quote = { url: _emb.url, author: _emb.author || (_emb.provider ? { name: _emb.provider } : null),
-                                   content: _emb.title ? ('<p>' + emojiName(_emb.title, null) + '</p>') : '', media: _emb.media || [] };
-            }
-          %>
-          <% if (_quote) { %><%- include('../partials/quote-card', { q: _quote }) %><% } %>
-          <% if (_nsfwVisual) { %><div class="nsfw-media"><% } %>
-          <% if (imgs.length) { %>
-            <div class="tl-media">
-              <% imgs.forEach(function(m){ %>
-                <a class="tl-media-img" href="<%= m.url %>" target="_blank" rel="noopener"><img src="<%= thumb(m.url, 1280) %>" alt="" loading="lazy" decoding="async"></a>
-              <% }); %>
-            </div>
-          <% } %>
-          <% vids.forEach(function(m){ %><video class="tl-media-video" src="<%= m.url %>" poster="<%= thumb(m.url, 1280) %>" controls preload="metadata" playsinline></video><% }); %>
-          <% /* A Klonkt audio post carries an embed player (embedHtml/embedUrl) that already
-                covers these tracks, so don't ALSO render the raw Audio attachments as bare
-                players here. Posts without a Klonkt embed (e.g. a plain remote audio) keep them. */ %>
-          <% if (!p.embedHtml && !p.embedUrl) { auds.forEach(function(m){ %><audio class="tl-media-audio" src="<%= m.url %>" controls preload="none"></audio><% }); } %>
-          <% if (_nsfwVisual) { %><div class="nsfw-veil"><%- include('../partials/nsfw-veil', { cw: p.cw }) %></div></div><% } %>
+          <% /* Content, quote/preview card and media: shared with Berichten and the
+                Guardian PWA so a post looks the same wherever it turns up.
+                suppressAudio: a Klonkt audio post carries an embed player below
+                that already covers these tracks, so don't ALSO render the raw
+                Audio attachments as bare players. */ %>
+          <%- include('../partials/note-body', { nb: Object.assign({}, p, { suppressAudio: !!(p.embedHtml || p.embedUrl) }) }) %>
 
           <% if (p.embedHtml) { %><div class="tl-embed"><%- p.embedHtml %></div><% } %>
           <% if (p.embedUrl) { %><a class="tl-embed-open" href="<%= p.embedUrl %>" target="_blank" rel="noopener">▶ <%= t('tl.open_player') %></a><% } %>

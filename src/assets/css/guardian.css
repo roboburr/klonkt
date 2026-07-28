@@ -87,3 +87,33 @@ button.small { padding: 6px 12px; font-size: .82rem; }
 .g-card.feed .g-when { color: var(--muted, #888); font-size: .8em; margin-left: auto; }
 .g-card.feed .feed-body { margin-top: 6px; line-height: 1.4; }
 .g-card.feed .feed-body img { max-width: 100%; border-radius: 8px; }
+
+/* ── The body of a post ────────────────────────────────────────────────────
+   The 🛟 card shows a real post, so it is rendered by the same partial de
+   Krant and Berichten use (partials/note-body). These are that partial's
+   classes, in the PWA's own colours: the dashboard is standalone and does not
+   load the site's stylesheet. */
+.g-note .tl-content { line-height: 1.5; overflow-wrap: anywhere; }
+.g-note .tl-content p { margin: .35rem 0; }
+.g-note .tl-content p:first-child { margin-top: 0; }
+.g-note .tl-content p:last-child { margin-bottom: 0; }
+.g-note .tl-content a { color: var(--accent); }
+.g-note img.emoji { height: 1.25em; width: auto; margin: 0 .05em; vertical-align: -.2em;
+  display: inline-block; border-radius: 0; background: none; }
+
+/* Quote card and link preview: one card, two origins. */
+.g-note .tl-quote { margin: 8px 0 0; padding: 8px 10px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--card-2, rgba(128,128,128,.07)); }
+.g-note .tl-quote-head { display: flex; align-items: center; gap: 6px; margin: 0 0 4px; min-width: 0; }
+.g-note .tl-quote-avatar { flex: 0 0 auto; width: 20px; height: 20px; border-radius: 50%; object-fit: cover; }
+.g-note .tl-quote-name { font-weight: 600; font-size: .82rem; white-space: nowrap; }
+.g-note .tl-quote-handle { color: var(--sub); font-size: .76rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.g-note .tl-quote-body { color: var(--sub); font-size: .88rem; line-height: 1.45; max-height: 14em; overflow: hidden; }
+.g-note .tl-quote-media { display: block; margin: 6px 0 0; }
+
+/* The capture a 🛟 usually carries. */
+.g-note .tl-media { display: flex; flex-direction: column; gap: 6px; margin: 8px 0 0; }
+.g-note .tl-media-img { display: block; border-radius: 10px; overflow: hidden; }
+.g-note .tl-media-img img { width: 100%; height: auto; display: block; background: #fff; }
+.g-note .tl-media-video, .g-note .tl-media-audio { width: 100%; margin: 8px 0 0; border-radius: 10px; display: block; }
+.g-note .tl-media-video { max-height: 320px; background: #000; }

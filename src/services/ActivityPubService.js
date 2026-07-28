@@ -831,6 +831,19 @@ export function noteVisibility(o) {
   return 'direct';
 }
 
+/**
+ * Does this note belong in the home timeline (de Krant)?
+ *
+ * Only if it is a POST. A direct note is addressed to named people, so it is a
+ * message: a plain DM, a ward's 🛟 help request (FEP-633c 5.2.1) or a
+ * guardian's wave. Those are stored as mentions instead and surface in
+ * Berichten and the Guardian PWA. A reply belongs to its thread, not the feed.
+ */
+export function belongsInTimeline(o) {
+  if (!o || !o.id || o.inReplyTo) return false;
+  return noteVisibility(o) !== 'direct';
+}
+
 function iStmts() {
   if (!_insI) {
     _insI = db.prepare('INSERT OR IGNORE INTO ap_interactions (kind, post_id, object_uri, actor_uri, actor_name, actor_handle, actor_url, actor_icon, content, published, parent_uri, visibility, emoji_json, actor_emoji_json, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)');
@@ -1523,6 +1536,19 @@ export async function handleInbox(req, slugParam) {
       if (isRejectedObject(o.id)) { console.log('[AP] reply skipped (tombstoned)', o.id); return 202; }
       iStmts().ins.run('reply', tgt.post_id, o.id || '', actorUri, ai.name, ai.handle, ai.url, ai.icon, html, o.published || null, tgt.parent_uri, noteVisibility(o), extractEmojiTags(o.tag), emojiJsonOf(ai.emojis));
       console.log('[AP] reply', actorUri, '→', tgt.post_id);
+      // A reply is a post too: Berichten renders it the way de Krant renders a
+      // timeline row, so it needs the same media and the same quote/preview card.
+      {
+        const where = 'kind = ? AND post_id = ? AND actor_uri = ? AND object_uri = ?';
+        const key = ['reply', tgt.post_id, actorUri, o.id || ''];
+        const mj = mediaFromNote(o);
+        if (mj && mj !== '[]') { try { db.prepare(`UPDATE ap_interactions SET media_json = ? WHERE ${where}`).run(mj, ...key); } catch { /* ignore */ } }
+        resolveCard(o).then((c) => {
+          if (!c) return;
+          const col = c.column === 'quote_json' ? 'quote_json' : 'embed_json';   // never a value from the wire
+          try { db.prepare(`UPDATE ap_interactions SET ${col} = ? WHERE ${where}`).run(c.json, ...key); } catch { /* ignore */ }
+        }).catch(() => { /* best-effort */ });
+      }
       {
         // Private (followers/direct) replies push as a DM ping WITHOUT content
         // (the push service should never carry private text, design decision);
@@ -1540,7 +1566,7 @@ export async function handleInbox(req, slugParam) {
       return 202;
     }
     // Home timeline (client): a top-level post from an account we follow.
-    if (actorUri && !isLocalActor && !o.inReplyTo && o.id) {
+    if (actorUri && !isLocalActor && belongsInTimeline(o)) {
       let subs = []; try { subs = db.prepare('SELECT slug, auto_boost FROM ap_following WHERE actor_uri = ?').all(actorUri); } catch { /* table may not exist yet */ }
       if (subs.length) {
         const ai = actorInfo(await resolveActor(actorUri), actorUri);
@@ -1609,9 +1635,19 @@ export async function handleInbox(req, slugParam) {
         const hasG = Guardianship.objectHasGuardians(o);   // §2.2 hint, register-only
         for (const slug of slugs) {
           try {
-            const r = db.prepare('INSERT OR IGNORE INTO ap_mentions (slug, object_uri, note_url, actor_uri, actor_name, actor_handle, actor_icon, actor_url, content, published, help_request, wave, has_guardians, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)')
-              .run(slug, o.id, safeUrl(o.url) || null, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.published || null, help ? 1 : 0, wave ? 1 : 0, hasG ? 1 : 0);
+            const r = db.prepare(`INSERT OR IGNORE INTO ap_mentions (slug, object_uri, note_url, actor_uri, actor_name, actor_handle, actor_icon, actor_url, content, published, help_request, wave, has_guardians, emoji_json, actor_emoji_json, media_json, created_at)
+                                  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)`)
+              .run(slug, o.id, safeUrl(o.url) || null, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.published || null, help ? 1 : 0, wave ? 1 : 0, hasG ? 1 : 0,
+                extractEmojiTags(o.tag), emojiJsonOf(ai.emojis), mediaFromNote(o));
             if (r.changes) {
+              // The quote / link-preview card resolves out of band (a remote
+              // fetch), exactly as it does for a timeline post, so the inbox
+              // answer is never blocked on it.
+              resolveCard(o).then((c) => {
+                if (!c) return;
+                const col = c.column === 'quote_json' ? 'quote_json' : 'embed_json';   // never a value from the wire
+                try { db.prepare(`UPDATE ap_mentions SET ${col} = ? WHERE slug = ? AND object_uri = ?`).run(c.json, slug, o.id); } catch { /* ignore */ }
+              }).catch(() => { /* best-effort */ });
               console.log('[AP] mention', actorUri, '→', slug, help ? '(help request)' : '');
               const vis = noteVisibility(o);
               const priv = vis === 'direct' || vis === 'followers';
@@ -2848,7 +2884,7 @@ async function resolveApActor(siteUrl) {
 // note and refreshes content + media (recovers covers/edits that were delivered
 // during a flux window, e.g. a fleet-wide update), and drops notes that are gone
 // (404/410). Bump SELFHEAL_VERSION only on a release that warrants a re-sync.
-const SELFHEAL_VERSION = 20; // v20: oEmbed provider registry, so platforms that hide their tags from a server still resolve
+const SELFHEAL_VERSION = 21; // v21: drop direct notes (🛟 help requests, waves) that were cached as timeline posts
 async function fetchNoteAP(url) {
   try {
     const r = await fetch(url, { headers: { Accept: 'application/activity+json' } });
@@ -2990,6 +3026,24 @@ async function resolveQuote(note) {
   };
   return JSON.stringify(snapshot);
 }
+
+/**
+ * The card under a post: a fediverse quote (FEP-044f) when the note has one,
+ * otherwise an external link preview. Both render as the SAME card, so only one
+ * of the two is ever stored. Returns {column, json} or null.
+ *
+ * Both halves reach out over the network, which is why every caller runs this
+ * out of band: an inbox answer must never wait on a third party.
+ */
+async function resolveCard(o) {
+  if (quoteHrefOf(o)) {
+    const qj = await resolveQuote(o);
+    return qj ? { column: 'quote_json', json: qj } : null;
+  }
+  const ej = await resolveExternalEmbed(o && o.content);
+  return ej ? { column: 'embed_json', json: ej } : null;
+}
+
 // A generic SSRF-safe AP GET (collections / pages).
 async function apGetJson(url) {
   try {
@@ -3157,6 +3211,18 @@ export async function selfHealTimeline() {
     let cur = 0;
     try { const r = db.prepare('SELECT value FROM app_settings WHERE key = ?').get('selfheal_version'); cur = r ? (parseInt(r.value, 10) || 0) : 0; } catch { return; }
     if (cur >= SELFHEAL_VERSION) return; // already healed for this version — skip on normal boots
+    // v21: direct notes used to land in the timeline as if they were posts, so a
+    // ward's 🛟 help request showed up in the guardian's Krant. The insert now
+    // refuses them; drop the ones already cached. Scoped to the two kinds we can
+    // still recognise afterwards (help request, wave) — a plain public mention
+    // from someone you follow IS a timeline post and must stay.
+    try {
+      const r = db.prepare(`DELETE FROM ap_timeline WHERE EXISTS (
+        SELECT 1 FROM ap_mentions m
+         WHERE m.object_uri = ap_timeline.id AND m.slug = ap_timeline.slug
+           AND (m.help_request = 1 OR m.wave = 1))`).run();
+      if (r.changes) console.log(`[AP] self-heal v21: ${r.changes} direct note(s) removed from the timeline`);
+    } catch { /* table may predate the columns */ }
     let rows = [];
     try { rows = db.prepare('SELECT id, slug, content, media_json, nsfw, cw, url, emoji_json, link_json, quote_json, author_uri, author_name, author_emoji_json, reblog_name, reblog_handle, reblog_emoji_json, embed_json FROM ap_timeline ORDER BY rowid DESC LIMIT 200').all(); } catch { /* no table */ }
     let healed = 0, failed = 0;
@@ -3455,7 +3521,7 @@ export function getNotifications(slug, limit) {
   try {
     const rows = db.prepare(`
       SELECT i.kind, i.actor_name, i.actor_handle, i.actor_url, i.actor_icon, i.content, i.created_at, i.visibility,
-             i.emoji_json, i.actor_emoji_json,
+             i.emoji_json, i.actor_emoji_json, i.media_json, i.quote_json, i.embed_json,
              p.slug AS post_slug, p.title AS post_title
       FROM ap_interactions i LEFT JOIN posts p ON p.id = i.post_id
       WHERE p.site_id = (SELECT id FROM sites WHERE slug = ?)
@@ -3465,6 +3531,7 @@ export function getNotifications(slug, limit) {
       type: r.kind, name: r.actor_name, handle: r.actor_handle, url: r.actor_url, icon: r.actor_icon,
       content: stripLeadingMentions(r.content), post_slug: r.post_slug, post_title: r.post_title, created_at: r.created_at,
       emoji_json: r.emoji_json, actor_emoji_json: r.actor_emoji_json,   // FEP-9098 (messages render)
+      media_json: r.media_json, quote_json: r.quote_json, embed_json: r.embed_json,   // rendered like a Krant post
       // followers/direct = a private message to the owner (not on the public thread) → 🔒 in Messages
       visibility: r.visibility || 'public',
     });
@@ -3487,8 +3554,12 @@ export function getNotifications(slug, limit) {
     }
   } catch { /* ignore */ }
   try {
-    for (const r of db.prepare('SELECT object_uri, note_url, actor_uri, actor_name, actor_handle, actor_icon, actor_url, content, wave, created_at FROM ap_mentions WHERE slug = ? ORDER BY created_at DESC LIMIT ?').all(slug, L)) {
-      out.push({ type: 'mention', name: r.actor_name, handle: r.actor_handle, url: r.actor_url || r.actor_uri, icon: r.actor_icon, content: stripLeadingMentions(r.content), note_url: r.note_url || r.object_uri, wave: r.wave ? 1 : 0, actorUri: r.actor_uri, created_at: r.created_at });
+    for (const r of db.prepare(`SELECT object_uri, note_url, actor_uri, actor_name, actor_handle, actor_icon, actor_url, content, wave, help_request, created_at,
+                                       emoji_json, actor_emoji_json, media_json, quote_json, embed_json
+                                FROM ap_mentions WHERE slug = ? ORDER BY created_at DESC LIMIT ?`).all(slug, L)) {
+      out.push({ type: 'mention', name: r.actor_name, handle: r.actor_handle, url: r.actor_url || r.actor_uri, icon: r.actor_icon, content: stripLeadingMentions(r.content), note_url: r.note_url || r.object_uri, wave: r.wave ? 1 : 0, help_request: r.help_request ? 1 : 0, actorUri: r.actor_uri, created_at: r.created_at,
+        // Same trimmings a Krant row has, so Berichten renders the post identically.
+        emoji_json: r.emoji_json, actor_emoji_json: r.actor_emoji_json, media_json: r.media_json, quote_json: r.quote_json, embed_json: r.embed_json });
     }
   } catch { /* ignore */ }
   // Your own polls that have closed → a "results are in" item, derived read-time
@@ -3715,6 +3786,6 @@ export default {
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
   getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
   linkifyBody, bakePostContent, bakePostContentWithMentions, listFollowers, removeFollower, listConnections,
-  noteVisibility, isRejectedObject, rejectInteraction, interactionReportTarget,
+  noteVisibility, belongsInTimeline, isRejectedObject, rejectInteraction, interactionReportTarget,
   getMessages, notificationsSeenAt, ingestOutboxActivity, c2sVisibility, actorDisplay, buildActorRef, prefersEnriched,
 };

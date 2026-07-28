@@ -201,4 +201,51 @@ img.emoji { height: 1.3em; width: auto; margin: 0 .05em; vertical-align: -0.2em;
 .tl-content img.emoji, .tl-quote-body img.emoji, .msg-content img.emoji, .comment-content img.emoji,
 .tl-author img.emoji, .tl-boost-by img.emoji, .tl-quote-name img.emoji, .msg-who img.emoji, .comment-author img.emoji {
   max-width: none; height: 1.3em; border-radius: 0; background: none; box-shadow: none; vertical-align: -0.2em; }
+
+/* ── The body of a post ────────────────────────────────────────────────────
+   Shared with partials/note-body.ejs, so a post looks the same in de Krant, in
+   Berichten and in the Guardian PWA. These used to live in the Krant's own
+   <style> block, which is why a post outside de Krant came out unstyled.
+   Krant-only behaviour (the clamp + "read more", the poll, the action bar)
+   stays in pages/news.ejs. */
+.tl-content { line-height: 1.55; overflow-wrap: anywhere; }
+.tl-content p { margin: .4rem 0; } .tl-content p:first-child { margin-top: 0; } .tl-content p:last-child { margin-bottom: 0; }
+.tl-content a { color: var(--accent, #06c); }
+.tl-content img { max-width: 100%; height: auto; border-radius: 10px; background: #fff; }
+
+/* FEP-044f embedded quote card (mirror of the Shaer QuoteCard). Also carries
+   an external link preview: same card, different origin. */
+.tl-quote { margin: .75rem 0 0; padding: .6rem .7rem; border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--ink, #000) 12%, transparent);
+  background: color-mix(in srgb, var(--ink, #000) 3.5%, transparent); }
+.tl-quote-head { display: flex; align-items: center; gap: .4rem; margin: 0 0 .35rem; min-width: 0; }
+.tl-quote-avatar { flex: 0 0 auto; width: 22px; height: 22px; border-radius: 50%; object-fit: cover; background: #fff; }
+.tl-quote-name { font-weight: 700; font-size: .85rem; color: var(--ink, inherit); white-space: nowrap; }
+.tl-quote-handle { color: var(--ink-soft, #888); font-size: .78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.tl-quote-body { line-height: 1.5; font-size: .92rem; color: var(--ink-soft, #555);
+  overflow-wrap: anywhere; max-height: 16em; overflow: hidden; }
+.tl-quote-body p { margin: .3rem 0; } .tl-quote-body p:first-child { margin-top: 0; } .tl-quote-body p:last-child { margin-bottom: 0; }
+.tl-quote-body a { color: var(--accent, #06c); }
+.tl-quote-media { display: block; margin: .45rem 0 0; }
+.tl-quote-media img { max-width: 100%; height: auto; border-radius: 8px; }
+
+/* Always show the FULL image at its natural ratio — never cropped, no letterbox. */
+.tl-media { display: flex; flex-direction: column; gap: .4rem; margin: .75rem 0 0; }
+.tl-media-img { display: block; border-radius: 12px; overflow: hidden;
+  background-image: linear-gradient(135deg,
+    color-mix(in srgb, var(--accent, #888) 22%, var(--paper-2, var(--paper))) 0%,
+    color-mix(in srgb, var(--accent, #888) 6%, var(--paper-2, var(--paper))) 100%); }
+.tl-media-img img { width: 100%; height: auto; display: block; background: #fff; transition: opacity .4s ease; }
+.tl-media-img img.is-loading { opacity: 0; }
+/* Reserve placeholder space while the (natural-aspect) feed image loads. */
+.tl-media-img:has(img.is-loading) { min-height: 220px; }
+.tl-media-video, .tl-media-audio { width: 100%; margin: .75rem 0 0; border-radius: 12px; display: block; }
+.tl-media-video { max-height: 480px; background: #000; }
+
+/* In Berichten a post sits inside a notification row, so it starts tighter and
+   its media stays modest: the row is a pointer to the post, not the post page. */
+.msg-note .tl-content { line-height: 1.5; }
+.msg-note .tl-quote, .msg-note .tl-media, .msg-note .tl-media-video, .msg-note .tl-media-audio { margin-top: .5rem; }
+.msg-note .tl-media-img:has(img.is-loading) { min-height: 120px; }
+.msg-note .tl-media-video { max-height: 320px; }
 </style>

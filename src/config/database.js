@@ -621,6 +621,17 @@ export function initializeDatabase() {
   // used later at reddings-boei / escalation routing.
   ensureColumn('ap_timeline', 'has_guardians', 'INTEGER');
   ensureColumn('ap_mentions', 'has_guardians', 'INTEGER');
+  // Berichten and de Krant render a post the same way, so a mention or a reply
+  // needs the same trimmings a timeline row already has: custom emojis, the
+  // media the note carried, and the quote / link-preview card.
+  ensureColumn('ap_mentions', 'emoji_json', 'TEXT');        // FEP-9098, in the content
+  ensureColumn('ap_mentions', 'actor_emoji_json', 'TEXT');  // FEP-9098, in the display name
+  ensureColumn('ap_mentions', 'media_json', 'TEXT');
+  ensureColumn('ap_mentions', 'quote_json', 'TEXT');        // FEP-044f quoted post
+  ensureColumn('ap_mentions', 'embed_json', 'TEXT');        // external link preview
+  ensureColumn('ap_interactions', 'media_json', 'TEXT');
+  ensureColumn('ap_interactions', 'quote_json', 'TEXT');
+  ensureColumn('ap_interactions', 'embed_json', 'TEXT');
   ensureColumn('ap_followers', 'name', 'TEXT');    // cached display name (shaer-aa3)
   ensureColumn('ap_followers', 'handle', 'TEXT');  // @user@host
   ensureColumn('ap_followers', 'icon', 'TEXT');    // avatar URL

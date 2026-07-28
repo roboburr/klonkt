@@ -919,7 +919,7 @@ router.get('/messages', requireSiteManager, (req, res) => {
   const site = res.locals.site;
   const append = req.query.append === '1';
   const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
-  const page = site ? ActivityPubService.getMessages(site.slug, FEED_PAGE + 1, offset) : [];
+  const page = gateEmbeds(site, site ? ActivityPubService.getMessages(site.slug, FEED_PAGE + 1, offset) : []);
   const hasMore = page.length > FEED_PAGE;
   const items = page.slice(0, FEED_PAGE);
   // Read the watermark BEFORE marking seen → unread dots on items newer than last visit.
@@ -1083,13 +1083,29 @@ function klonktAudioEmbed(html, url) {
   return { origin: u.origin, embedUrl: src, content, html: `<iframe class="tl-embed-frame tl-embed-klonkt" src="${src}" title="Audio" loading="lazy" frameborder="0" allow="autoplay; encrypted-media"></iframe>` };
 }
 
+/**
+ * FEP-633c §5.3-style gated feature: may this account see previews of links
+ * that point OUTSIDE the fediverse? For a ward that is the guardians' call.
+ *
+ * Applied at SERVE time on every surface, the way the app's inbox read already
+ * does it (routes/activitypub.js): a card the client merely hides has still
+ * been delivered.
+ */
+function gateEmbeds(site, rows) {
+  if (!site || !rows.length) return rows;
+  let isWard = false;
+  try { isWard = Guardianship.listGuardians(site.slug).length > 0; } catch { /* no relations yet */ }
+  if (Guardianship.externalEmbedsAllowed(site.external_embeds, isWard)) return rows;
+  return rows.map((r) => (r && r.embed_json ? { ...r, embed_json: null } : r));
+}
+
 router.get('/news', requireSiteManager, (req, res) => {
   const site = res.locals.site;
   const append = req.query.append === '1';
   const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
   const cspOrigins = new Set();
   // Fetch one extra to know whether a "Load more" button belongs on this page.
-  const rows = site ? ActivityPubService.getTimeline(site.slug, FEED_PAGE + 1, offset) : [];
+  const rows = gateEmbeds(site, site ? ActivityPubService.getTimeline(site.slug, FEED_PAGE + 1, offset) : []);
   const hasMore = rows.length > FEED_PAGE;
   const timeline = rows.slice(0, FEED_PAGE).map((p) => {
     let embedHtml = timelineEmbedHtml(p.content);
