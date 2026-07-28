@@ -23,32 +23,6 @@
     <% }); %>
   <% } %>
 
-  <%# FEP-633c §2: the ward always sees who guards it (committed relations). %>
-  <% if (typeof myGuardians !== 'undefined' && myGuardians.length) { %>
-    <div class="alert" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-left:3px solid #35a2ff;">
-      <span style="font-size:1.4em;">&#128737;</span>
-      <div style="flex:1;min-width:200px;">
-        <strong><%= t('msg.guardians_label') %></strong><br>
-        <%# Availability (FEP-633c 3.6): the ward sees the real size of its
-            safety net, in buddy-list language on the responsibility axis.
-            Labels are UI (Robins besluit); the wire keeps the spec terms.
-            Owner-only by construction: this page is the owner's. %>
-        <span class="msg-guardians">
-          <% myGuardians.forEach(function(g){
-               var _st = g.availability === 'away' ? 'away' : (g.availability === 'dormant' ? 'dormant' : 'active');
-               var _lbl = _st === 'away' ? t('msg.g_away', { date: g.awayUntil ? formatDate(g.awayUntil) : '?' })
-                        : (_st === 'dormant' ? t('msg.g_offline') : t('msg.g_available')); %>
-            <span class="msg-guardian">
-              <span class="msg-gdot msg-gdot-<%= _st %>" aria-hidden="true"></span>
-              <%= g.handle %>
-              <span class="msg-gstate"><%= _lbl %></span>
-            </span>
-          <% }); %>
-        </span>
-      </div>
-    </div>
-  <% } %>
-
   <div class="msg-filters" role="tablist" aria-label="<%= t('msg.title') %>">
     <button type="button" class="msg-chip is-on" data-show="all"><%= t('msg.filter_all') %></button>
     <button type="button" class="msg-chip" data-show="msgs"><%= t('msg.filter_msgs') %></button>
@@ -144,16 +118,6 @@
 </script>
 
 <style>
-  /* Availability of the ward's guardians (FEP-633c 3.6): the buddy-list dot
-     on the responsibility axis. Green available, yellow declared away, grey
-     observed dormant (one answer restores). */
-  .msg-guardians { display: flex; flex-wrap: wrap; gap: .35rem 1rem; }
-  .msg-guardian { display: inline-flex; align-items: center; gap: .35rem; white-space: nowrap; }
-  .msg-gdot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-  .msg-gdot-active { background: #4caf7d; }
-  .msg-gdot-away { background: #e0a83a; }
-  .msg-gdot-dormant { background: #8a93a3; }
-  .msg-gstate { color: var(--ink-soft, #888); font-size: .82rem; }
   .msg-wrap { max-width: 640px; margin: 1rem auto; padding: 0 1rem; }
   .msg-title { margin: 0 0 .9rem; }
   .msg-empty { color: var(--ink-soft, #888); }

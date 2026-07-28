@@ -4,6 +4,29 @@
   <% if (typeof success !== 'undefined' && success) { %><div class="alert alert-success"><%= success %></div><% } %>
   <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
 
+  <%# FEP-633c §2 + §3.6: who guards this account, and how available each of
+      them is. Connect is the "who am I connected to" page, and a guardian is
+      the one connection a ward should never have to hunt for. Availability in
+      buddy-list language on the responsibility axis; the labels are UI, the
+      wire keeps the spec terms. Never public: this page is the owner's. %>
+  <% if (typeof myGuardians !== 'undefined' && myGuardians.length) { %>
+    <section class="conn-guardians">
+      <h2 class="conn-gtitle">&#128737; <%= t('msg.guardians_label') %></h2>
+      <ul class="conn-glist">
+        <% myGuardians.forEach(function(g){
+             var _st = g.availability === 'away' ? 'away' : (g.availability === 'dormant' ? 'dormant' : 'active');
+             var _lbl = _st === 'away' ? t('msg.g_away', { date: g.awayUntil ? formatDate(g.awayUntil) : '?' })
+                      : (_st === 'dormant' ? t('msg.g_offline') : t('msg.g_available')); %>
+          <li class="conn-guardian">
+            <span class="conn-gdot conn-gdot--<%= _st %>" aria-hidden="true"></span>
+            <span class="conn-ghandle"><%= g.handle %></span>
+            <span class="conn-gstate"><%= _lbl %></span>
+          </li>
+        <% }); %>
+      </ul>
+    </section>
+  <% } %>
+
   <form method="post" action="/news/follow" class="tl-follow">
     <input type="text" name="handle" placeholder="@naam@server.social of site.com" autocomplete="off" spellcheck="false" required>
     <button type="submit" class="btn btn-primary"><%= t('tl.follow_btn') %></button>
@@ -82,6 +105,23 @@
 </div>
 
 <style>
+  /* Guardians (FEP-633c 3.6): the buddy-list dot on the responsibility axis.
+     Green available, yellow declared away with an end, grey observed dormant
+     (one answer restores). Set apart from the follow list on purpose: these
+     are not people you chose to follow, they are the ones looking after you. */
+  .conn-guardians { margin: 0 0 1.25rem; padding: .8rem 1rem; border-radius: 12px;
+    border: 1px solid color-mix(in srgb, var(--ink, #000) 10%, transparent);
+    background: color-mix(in srgb, var(--ink, #000) 2.5%, transparent);
+    border-left: 3px solid #35a2ff; }
+  .conn-gtitle { margin: 0 0 .5rem; font-size: .95rem; }
+  .conn-glist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .35rem; }
+  .conn-guardian { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+  .conn-gdot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+  .conn-gdot--active { background: #4caf7d; }
+  .conn-gdot--away { background: #e0a83a; }
+  .conn-gdot--dormant { background: #8a93a3; }
+  .conn-ghandle { font-weight: 600; }
+  .conn-gstate { color: var(--ink-soft, #888); font-size: .82rem; }
   .tl-wrap { max-width: 640px; margin: 1rem auto; padding: 0 1rem; }
   .tl-title { margin: 0 0 .75rem; }
   .tl-empty { color: var(--ink-soft, #888); }

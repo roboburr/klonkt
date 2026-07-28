@@ -938,31 +938,9 @@ router.get('/messages', requireSiteManager, (req, res) => {
   const guardianOffers = (site
     ? Guardianship.offersCollection(`${gMe}/queues/offers`, site.slug, gMe).orderedItems
     : []).filter((o) => o['shaer:ward'] === gMe && o['shaer:needsMyAccept']);
-  // FEP-633c §2: who guards this account (committed). Shown so a ward can always
-  // see its guardians, not just pending offers. Derive a display @handle when the
-  // stored one is missing or is the escalation (inbox) handle rather than a @handle.
-  const guardianHandle = (uri, cached) => {
-    if (cached && cached.charAt(0) === '@') return cached;
-    try { const u = new URL(uri); return `@${u.pathname.split('/').filter(Boolean).pop()}@${u.host}`; }
-    catch { return uri; }
-  };
-  // With their availability (FEP-633c 3.6.1): the ward always sees the real
-  // size of its safety net, not just the names. Owner-only by construction:
-  // this page is the owner's.
-  const gStatus = site ? Object.fromEntries(
-    Guardianship.availability.statusesFor(site.slug, Guardianship.listGuardians(site.slug).map((g) => g.other_uri), Date.now())
-      .map((s) => [s.id, s]),
-  ) : {};
-  const myGuardians = (site ? Guardianship.listGuardians(site.slug) : [])
-    .map((g) => ({
-      uri: g.other_uri,
-      handle: guardianHandle(g.other_uri, g.other_handle),
-      availability: (gStatus[g.other_uri] || {})['shaer:availability'] || 'active',
-      awayUntil: (gStatus[g.other_uri] || {})['shaer:awayUntil'] || null,
-    }));
   renderPage(req, res, 'pages/messages', {
     pageTitleKey: 'msg.title', bodyClass: 'on-special', items, seenAt,
-    hasMore, nextOffset: offset + FEED_PAGE, moreBase, guardianOffers, myGuardians,
+    hasMore, nextOffset: offset + FEED_PAGE, moreBase, guardianOffers,
     success: req.query.success || null, error: req.query.error || null,
   });
 });
@@ -1161,9 +1139,29 @@ router.get('/news', requireSiteManager, (req, res) => {
 router.get('/connect', requireSiteManager, (req, res) => {
   const site = res.locals.site;
   const connections = site ? ActivityPubService.listConnections(site.slug) : [];
+  // FEP-633c §2: the ward always sees who guards it, and §3.6 how available
+  // each of them is. Connect is where "who am I connected to" belongs; a
+  // guardian is the one connection a ward should never have to hunt for.
+  // Owner-only by construction: this page is the owner's.
+  const guardianHandle = (uri, cached) => {
+    if (cached && cached.charAt(0) === '@') return cached;
+    try { const u = new URL(uri); return `@${u.pathname.split('/').filter(Boolean).pop()}@${u.host}`; }
+    catch { return uri; }
+  };
+  const gStatus = site ? Object.fromEntries(
+    Guardianship.availability.statusesFor(site.slug, Guardianship.listGuardians(site.slug).map((g) => g.other_uri), Date.now())
+      .map((s) => [s.id, s]),
+  ) : {};
+  const myGuardians = (site ? Guardianship.listGuardians(site.slug) : [])
+    .map((g) => ({
+      uri: g.other_uri,
+      handle: guardianHandle(g.other_uri, g.other_handle),
+      availability: (gStatus[g.other_uri] || {})['shaer:availability'] || 'active',
+      awayUntil: (gStatus[g.other_uri] || {})['shaer:awayUntil'] || null,
+    }));
   renderPage(req, res, 'pages/connect', {
     pageTitle: 'Connect', bodyClass: 'on-special',
-    connections,
+    connections, myGuardians,
     success: req.query.success || null, error: req.query.error || null,
   });
 });
