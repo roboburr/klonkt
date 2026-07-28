@@ -2848,7 +2848,7 @@ async function resolveApActor(siteUrl) {
 // note and refreshes content + media (recovers covers/edits that were delivered
 // during a flux window, e.g. a fleet-wide update), and drops notes that are gone
 // (404/410). Bump SELFHEAL_VERSION only on a release that warrants a re-sync.
-const SELFHEAL_VERSION = 17; // v17: re-resolve link previews now that OpenGraph works and big pages are read instead of refused
+const SELFHEAL_VERSION = 18; // v18: link previews no longer hang behind the note re-fetch (an unreachable origin skipped the whole row)
 async function fetchNoteAP(url) {
   try {
     const r = await fetch(url, { headers: { Accept: 'application/activity+json' } });
@@ -3161,6 +3161,17 @@ export async function selfHealTimeline() {
     try { rows = db.prepare('SELECT id, slug, content, media_json, nsfw, cw, url, emoji_json, link_json, quote_json, author_uri, author_name, author_emoji_json, reblog_name, reblog_handle, reblog_emoji_json, embed_json FROM ap_timeline ORDER BY rowid DESC LIMIT 200').all(); } catch { /* no table */ }
     let healed = 0, failed = 0;
     for (const r of rows) {
+      // Link previews first, and deliberately BEFORE the note re-fetch. A
+      // preview is resolved from the content we already hold, so hanging it
+      // behind a remote fetch meant one unreachable origin skipped the whole
+      // row (`continue` below) and the card never appeared. It needs nothing
+      // from the origin, so it must not depend on it.
+      if (!r.quote_json && !r.embed_json) {
+        try {
+          const ej = await resolveExternalEmbed(r.content);
+          if (ej) db.prepare('UPDATE ap_timeline SET embed_json = ? WHERE id = ?').run(ej, r.id);
+        } catch { /* best-effort, never blocks the heal */ }
+      }
       try {
         const note = await fetchNoteAP(r.id);
         if (note === 404) { db.prepare('DELETE FROM ap_timeline WHERE id = ?').run(r.id); healed++; continue; }
@@ -3184,14 +3195,6 @@ export async function selfHealTimeline() {
         if (/:[A-Za-z0-9_+-]+:/.test(r.author_name || '') && !r.author_emoji_json && r.author_uri) {
           const ai = actorInfo(await fetchActor(r.author_uri), r.author_uri);
           if (ai.emojis) { try { db.prepare('UPDATE ap_timeline SET author_emoji_json = ? WHERE id = ?').run(JSON.stringify(ai.emojis), r.id); } catch { /* ignore */ } }
-        }
-        // v16: link previews. A post from before the embed pipeline has no
-        // card at all, which is why nothing showed. Only for rows that have no
-        // quote (a quote already IS the card) and no embed yet, so this costs
-        // one page fetch per candidate and never repeats.
-        if (!r.quote_json) {
-          const ej = await resolveExternalEmbed(html || r.content).catch(() => null);
-          if (ej) { try { db.prepare('UPDATE ap_timeline SET embed_json = ? WHERE id = ?').run(ej, r.id); } catch { /* ignore */ } }
         }
         // v14: same for the booster's display name ("X boosted"). The row stores
         // no booster URI, so resolve it from the handle via webfinger. Scoped to
