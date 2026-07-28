@@ -316,7 +316,7 @@ router.post('/wards/embeds', requireAuth, express.json({ limit: '4kb' }), (req, 
     const r = Guardianship.gated.recordGatedVote(localWard.slug, feature, me, allow);
     return res.json({ ok: true, allow, state: r.state, need: r.need, of: r.of });
   }
-  AP.deliverTo(site, uri, offer).catch(() => { /* queued, best-effort */ });
+  AP.deliverToActor(site, uri, offer).catch(() => { /* queued, best-effort */ });
   res.json({ ok: true, allow, state: 'open', federated: true });
 });
 

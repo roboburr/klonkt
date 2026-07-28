@@ -60,3 +60,24 @@ test('unknown features are refused, never guessed onto a column', () => {
   assert.equal(featureColumn('shaer:somethingElse'), null);
   assert.equal(featureColumn('external_embeds = 1; DROP TABLE sites'), null);
 });
+
+// Guard against the mistake that made the button do nothing: the route called
+// AP.deliverTo, which existed only as a key in the guardianship deps object and
+// not as an export. It threw a TypeError, Express answered 500, and the button
+// silently reset. A grep hit is not an export.
+test('the guardian route can reach every ActivityPub helper it calls', async () => {
+  const AP = (await import('../src/services/ActivityPubService.js')).default;
+  for (const fn of ['actorId', 'deliverToActor', 'followActor', 'backfillFromOutbox', 'getTimeline']) {
+    assert.equal(typeof AP[fn], 'function', `AP.${fn} must be exported, the guardian route calls it`);
+  }
+});
+
+test('a gated-setting Offer carries ward, feature and value', async () => {
+  const { buildGatedOffer, parseGatedSetting } = await import('../src/services/guardianship/gated.js');
+  const o = buildGatedOffer('https://a/gated/1', 'https://a/g1', 'https://b/ward', 'shaer:externalEmbeds', true);
+  assert.equal(o.type, 'Offer');
+  assert.deepEqual(o.to, ['https://b/ward'], 'addressed to the ward server, which tallies');
+  const parsed = parseGatedSetting(o.object);
+  assert.deepEqual(parsed, { ward: 'https://b/ward', feature: 'shaer:externalEmbeds', value: true });
+  assert.equal(parseGatedSetting({ type: 'Relationship' }), null, 'a different Offer is not ours');
+});
