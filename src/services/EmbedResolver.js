@@ -230,7 +230,11 @@ async function safeHead(safeFetch, url, extra = {}) {
       // Scan only the new chunk (plus overlap), not the whole buffer: testing
       // the full string every read turns a 1MB page into quadratic work.
       const window = tail + chunk;
-      if (len >= MAX_HEAD || /<\/head>/i.test(window) || /og:image/i.test(window)) done_ = true;
+      // Stop on the real <meta property="og:image">, not on the bare string.
+      // Big sites carry "og:image" inside inline JSON long before the actual
+      // tag, and stopping there cut the page off just short of the meta block:
+      // the same near-miss as the old size cap, with a different cause.
+      if (len >= MAX_HEAD || /<\/head>/i.test(window) || /<meta[^>]{0,300}og:image/i.test(window)) done_ = true;
       tail = chunk.slice(-512);
     }
     try { await reader.cancel(); } catch { /* already closed */ }

@@ -181,3 +181,19 @@ test('a huge page is truncated, not rejected', async () => {
   const page = await io.getPage('https://x/huge');
   assert.ok(page && page.includes('og:image'), 'the head survives the cap');
 });
+
+// Regression: big sites carry the bare string "og:image" inside inline JSON long
+// before the real meta tag. Stopping the read there cut the page off just short
+// of the tags and produced no card at all.
+test('the head read does not stop on an og:image mention inside a script', async () => {
+  const { liveIO } = await import('../src/services/EmbedResolver.js');
+  const page = '<html><head><script>var cfg={"og:image":"decoy"};</script>'
+    + 'y'.repeat(3000)
+    + '<meta property="og:title" content="Echt"><meta property="og:image" content="https://x/real.png">'
+    + '</head></html>';
+  const fakeFetch = async () => ({ ok: true, headers: { get: () => '999' }, text: async () => page });
+  const io = liveIO({ safeFetch: fakeFetch, detectProvider: () => null });
+  const got = await io.getPage('https://x/p');
+  const { findOpenGraph } = await import('../src/services/EmbedResolver.js');
+  assert.equal(findOpenGraph(got).image, 'https://x/real.png', 'reads past the decoy to the real tag');
+});
