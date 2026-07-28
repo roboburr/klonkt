@@ -38,6 +38,7 @@ function siteForUser(req) {
 function uiStrings(L) {
   const keys = ['sent', 'sent_retry', 'sending', 'not_found', 'failed', 'network',
     'pending', 'active', 'retract', 'release', 'release_confirm', 'open', 'push_unavailable',
+    'embeds_on', 'embeds_off',
     'accept', 'reject', 'complete', 'awaiting_others', 'coguard'];
   const s = Object.fromEntries(keys.map((k) => [k, i18nT(L, `guardian.${k}`)]));
   s.wave = i18nT(L, 'guardian.wave');
@@ -55,7 +56,10 @@ function dashboardState(site, L) {
   return {
     site: site.slug,
     me,
-    wards: Guardianship.listWards(site.slug),               // committed wards
+    // Committed wards, each carrying the gated settings a guardian may change.
+    // `embeds` is null for a ward we do not host: that setting lives on the
+    // ward's own server, so we show it as not-adjustable rather than lying.
+    wards: Guardianship.listWards(site.slug).map((w) => ({ ...w, embeds: wardEmbedSetting(w.other_uri) })),
     offers: Guardianship.offersCollection(`${me}/queues/offers`, site.slug, me).orderedItems,
     help,
     strings: uiStrings(L),
@@ -265,6 +269,42 @@ router.post('/wards/remove', requireAuth, express.json({ limit: '4kb' }), (req, 
   if (!uri) return res.status(400).json({ error: 'empty_uri' });
   Guardianship.removeRelation(site.slug, 'guardian', uri);
   res.json({ ok: true });
+});
+
+/**
+ * The external-embeds setting of a ward we host: true/false when a guardian has
+ * decided, null when it is still on auto (which means off for a ward) or when
+ * the ward lives elsewhere and the setting is not ours to show.
+ */
+function wardEmbedSetting(uri) {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  if (!base || !String(uri || '').startsWith(`${base}/`)) return null;
+  const slug = String(uri).trim().replace(/\/+$/, '').split('/').pop();
+  const row = slug ? db.prepare('SELECT external_embeds FROM sites WHERE slug = ?').get(slug) : null;
+  if (!row) return null;
+  return row.external_embeds === null || row.external_embeds === undefined ? false : row.external_embeds === 1;
+}
+
+// ── Gated feature: may this ward see external (non-fediverse) embeds? ──
+// The first real gated setting (FEP-633c §5-style). The gate itself is applied
+// server-side when the feed is serialised, so this endpoint is the only way it
+// can move, and only a committed guardian of THAT ward may move it.
+router.post('/wards/embeds', requireAuth, express.json({ limit: '4kb' }), (req, res) => {
+  const site = siteForUser(req);
+  if (!site) return res.status(404).json({ error: 'no_site' });
+  const uri = String(req.body?.uri || '').trim();
+  const allow = req.body?.allow === true;
+  if (!uri) return res.status(400).json({ error: 'empty_uri' });
+  // Only a guardian of this ward, and only for a ward we host: a setting on a
+  // remote ward belongs to that ward's own server (federating it is Fase 4).
+  const isMyWard = Guardianship.listWards(site.slug).some((w) => w.other_uri === uri);
+  if (!isMyWard) return res.status(403).json({ error: 'not_your_ward' });
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  const slug = (base && uri.startsWith(`${base}/`)) ? uri.trim().replace(/\/+$/, '').split('/').pop() : null;
+  const ward = slug ? db.prepare('SELECT id, slug FROM sites WHERE slug = ?').get(slug) : null;
+  if (!ward) return res.status(400).json({ error: 'remote_ward_not_supported' });
+  db.prepare('UPDATE sites SET external_embeds = ? WHERE id = ?').run(allow ? 1 : 0, ward.id);
+  res.json({ ok: true, allow });
 });
 
 // ── The installable identity: own scope so the Guardian corner installs as

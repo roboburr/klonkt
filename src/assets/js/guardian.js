@@ -116,6 +116,22 @@
       var wave = el('button', 'small', T.wave || '👋 Wave');
       wave.addEventListener('click', function () { sendWave(w.other_uri, wave); });
       row.appendChild(wave);
+      // Gated feature: external (non-fediverse) embeds. Off by default for a
+      // ward; only a guardian can open it, and the gate is enforced server-side
+      // when the feed is built, so this button is the only thing that moves it.
+      if (w.embeds !== null && w.embeds !== undefined) {
+        var emb = el('button', 'quiet small', (w.embeds ? T.embeds_on : T.embeds_off) || 'Embeds');
+        emb.addEventListener('click', function () {
+          emb.disabled = true;
+          fetch('/guardian/wards/embeds', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ uri: w.other_uri, allow: !w.embeds }),
+          }).then(function (r) { return r.json(); })
+            .then(function () { refresh(); })
+            .catch(function () { emb.disabled = false; });
+        });
+        row.appendChild(emb);
+      }
       var btn = el('button', 'quiet small', T.release);
       // Releasing a ward is heavy and hard to undo (coming back needs a fresh
       // offer the ward accepts), so it asks first and spells out what changes.
