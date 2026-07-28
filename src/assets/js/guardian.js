@@ -202,18 +202,32 @@
     if (check.last === true) box.appendChild(el('p', 'grave', T.release_last || ''));
     else if (check.last === false) box.appendChild(el('p', null, T.release_step_down || ''));
     else box.appendChild(el('p', 'grave', T.release_unknown || ''));
-    if (check.federates === false) box.appendChild(el('p', null, T.release_local || ''));
+    box.appendChild(el('p', null, T.release_local || ''));
 
     var row = el('div', 'row');
-    var yes = el('button', 'danger small', T.release_yes || 'Yes');
-    yes.addEventListener('click', function () { yes.disabled = true; remove(uri, yes); });
     var no = el('button', 'small', T.release_no || 'No');
     no.addEventListener('click', function () {
       host.removeChild(box);
       relBtn.hidden = false; relBtn.disabled = false;
     });
     // No first: the way out should be the easy one to hit.
-    row.appendChild(no); row.appendChild(yes);
+    row.appendChild(no);
+    // Being the last guardian is not a warning but a wall: the server refuses
+    // it (§3.4), so offering a yes here would only produce an error. The text
+    // above already says what has to happen instead.
+    if (check.last !== true) {
+      var yes = el('button', 'danger small', T.release_yes || 'Yes');
+      yes.addEventListener('click', function () {
+        yes.disabled = true;
+        remove(uri, yes, function (err) {
+          // The guardian set can change between the check and the click.
+          yes.disabled = false;
+          box.appendChild(el('p', 'grave', err === 'would_emancipate' ? (T.release_last || '') : (T.failed || '')));
+          if (err === 'would_emancipate') yes.remove();
+        });
+      });
+      row.appendChild(yes);
+    }
     box.appendChild(row);
     return box;
   }
@@ -311,12 +325,19 @@
       .catch(function () { btn.disabled = false; });
   }
 
-  function remove(uri, btn) {
+  function remove(uri, btn, onError) {
     btn.disabled = true;
     fetch('/guardian/wards/remove', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ uri: uri, site: S.site }),
-    }).then(refresh);
+    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        // The server can refuse: emptying shaer:guardians is emancipation and
+        // not one guardian's call (§3.4). Say so instead of silently redrawing.
+        if (!res.ok) { if (onError) onError(res.j && res.j.error); return; }
+        refresh();
+      })
+      .catch(function () { if (onError) onError('network'); else btn.disabled = false; });
   }
 
   function renderAll() { renderHelp(); renderPending(); renderWards(); }

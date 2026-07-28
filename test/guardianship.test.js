@@ -132,3 +132,104 @@ test('helpRequest props only ride direct notes', () => {
   assert.equal(G.isHelpRequest({ 'shaer:helpRequest': true }), true);
   assert.equal(G.isHelpRequest({}), false);
 });
+
+// ── §3.2/§3.3: ending a guardianship ─────────────────────────────────────
+// This used to be a local delete that never left the building: the guardian's
+// dashboard forgot the ward, while the ward's server kept listing them in
+// shaer:guardians. Robin calls that a bug, and it is: the Undo has to travel.
+// At this point in the file the kid has two guardians, parent and gran.
+
+test('a guardian leaving sends an Undo that both sides act on (§3.2)', async () => {
+  assert.deepEqual(G.listGuardians('kid').map((g) => g.other_uri).sort(), [ME, GRAN].sort(), 'two guardians to start');
+
+  const r = await G.endGuardianship(gran, KID);
+  assert.equal(r.status, 202);
+  assert.equal(r.delivered, true, 'the Undo went out, it is not a local delete');
+
+  // The ward's own actor document is the thing that had to change.
+  assert.deepEqual(G.listGuardians('kid').map((g) => g.other_uri), [ME]);
+  assert.deepEqual(AP.buildActor('https://test.example', kid)['shaer:guardians'], [ME]);
+  assert.deepEqual(G.listWards('gran'), [], 'and the leaving guardian lost the ward');
+  assert.deepEqual(G.listWards('parent').map((w) => w.other_uri), [KID], 'the other guardian stays');
+});
+
+test('the last guardian cannot walk out alone: that is emancipation (§3.4)', async () => {
+  const r = await G.endGuardianship(parent, KID);
+  assert.equal(r.status, 409);
+  assert.equal(r.error, 'would_emancipate');
+  // Nothing moved on either side. Emptying shaer:guardians takes the flow of
+  // §3.4 (three consenting adults, or a majority plus two witnesses), never one
+  // party's click.
+  assert.deepEqual(G.listGuardians('kid').map((g) => g.other_uri), [ME]);
+  assert.deepEqual(G.listWards('parent').map((w) => w.other_uri), [KID]);
+});
+
+test('an Undo for a ward that is not yours is refused', async () => {
+  const r = await G.endGuardianship(gran, KID);   // gran already left
+  assert.equal(r.status, 404);
+  assert.equal(r.error, 'not_my_ward');
+});
+
+test('the same Undo over C2S takes the same path', async () => {
+  // A Guardian app POSTs this to its own outbox; the dashboard button calls
+  // endGuardianship directly. One path, so the two cannot drift apart.
+  const undo = { type: 'Undo', object: { type: 'Relationship', subject: KID, relationship: 'shaer:Guardian', object: GRAN } };
+  const mine = await G.handleGuardianshipOutbox(gran, undo);
+  assert.equal(mine.status, 404, 'gran no longer guards the kid');
+
+  // And you cannot end someone else's relation by describing it.
+  const notMine = await G.handleGuardianshipOutbox(parent, undo);
+  assert.equal(notMine.status, 403);
+  assert.equal(notMine.error, 'not_your_relation');
+});
+
+test('an inbound Undo from someone who is not the guardian changes nothing', async () => {
+  const before = G.listGuardians('kid').map((g) => g.other_uri);
+  await G.handleGuardianshipInbox(kid, {
+    actor: GRAN,   // gran claims to end PARENT's relation
+    type: 'Undo', object: { type: 'Relationship', subject: KID, relationship: 'shaer:Guardian', object: ME },
+  });
+  assert.deepEqual(G.listGuardians('kid').map((g) => g.other_uri), before);
+});
+
+test('a ward on this same instance is updated even though nothing is delivered', async () => {
+  // The browser found this: an inbox on this machine is not reachable over HTTP
+  // from this machine (nor should it be), so a co-located ward never receives
+  // the Undo. The guardian's side had dropped the ward while the ward's side
+  // still listed the guardian. Each instance must write what it hosts.
+  const kid2 = site('s4', 'kid2');
+  const g1 = site('s5', 'g1');
+  const g2 = site('s6', 'g2');
+  const [KID2, G1, G2] = [A('kid2'), A('g1'), A('g2')];
+
+  const o1 = await G.handleGuardianshipOutbox(g1, {
+    type: 'Offer', object: { type: 'Relationship', subject: KID2, relationship: 'shaer:Guardian', object: G1 } });
+  await G.handleGuardianshipOutbox(kid2, { type: 'Accept', object: o1.id });
+  const o2 = await G.handleGuardianshipOutbox(g2, {
+    type: 'Offer', object: { type: 'Relationship', subject: KID2, relationship: 'shaer:Guardian', object: G2 } });
+  await G.handleGuardianshipOutbox(kid2, { type: 'Accept', object: o2.id });
+  await G.handleGuardianshipOutbox(g1, { type: 'Accept', object: o2.id });
+  assert.deepEqual(G.listGuardians('kid2').map((g) => g.other_uri).sort(), [G1, G2].sort());
+
+  // Now deliver nothing at all, the way a loopback inbox behaves in practice.
+  const wired = {
+    selfId: A,
+    localSlug: (uri) => (uri.startsWith('https://test.example/ap/users/') ? uri.split('/').pop() : null),
+    deriveHandle: (uri) => '@' + uri.split('/').pop() + '@test.example',
+    fetchActor: async () => null,
+    deliverTo: async () => ({ delivered: false }),
+    onEvent: null,
+  };
+  G.wireHandshake(wired);
+  const r = await G.endGuardianship(g2, KID2);
+  assert.equal(r.status, 202);
+  assert.equal(r.delivered, false, 'nothing went over the wire');
+  assert.deepEqual(G.listWards('g2'), [], "the guardian's side is clear");
+  assert.deepEqual(G.listGuardians('kid2').map((g) => g.other_uri), [G1], "and so is the ward's");
+  assert.deepEqual(AP.buildActor('https://test.example', kid2)['shaer:guardians'], [G1]);
+
+  // Even undelivered, it must not empty the set: that is still emancipation.
+  const last = await G.endGuardianship(g1, KID2);
+  assert.equal(last.status, 409);
+  assert.deepEqual(G.listGuardians('kid2').map((g) => g.other_uri), [G1]);
+});

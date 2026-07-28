@@ -328,17 +328,20 @@ router.get('/wards/release-check', requireAuth, async (req, res) => {
     guardians,
     last: guardians === null ? null : guardians <= 1,
     local,
-    federates: false,   // the Undo does not travel yet (§3.2, fase 4)
   });
 });
 
-router.post('/wards/remove', requireAuth, express.json({ limit: '4kb' }), (req, res) => {
+router.post('/wards/remove', requireAuth, express.json({ limit: '4kb' }), async (req, res) => {
   const site = siteForUser(req);
   if (!site) return res.status(404).json({ error: 'no_site' });
   const uri = String(req.body?.uri || '').trim();
   if (!uri) return res.status(400).json({ error: 'empty_uri' });
-  Guardianship.removeRelation(site.slug, 'guardian', uri);
-  res.json({ ok: true });
+  // Ending a guardianship is an Undo of the Relationship that travels to the
+  // ward and the other guardians (§3.2), not a local delete. Same call the
+  // Guardian apps reach over C2S, so the two cannot drift apart.
+  const r = await Guardianship.endGuardianship(site, uri);
+  if (r.status >= 400) return res.status(r.status).json({ error: r.error });
+  res.json({ ok: true, delivered: r.delivered, guardiansLeft: r.guardiansLeft });
 });
 
 /**

@@ -1375,7 +1375,10 @@ export async function handleInbox(req, slugParam) {
   // FEP-633c: the adoption handshake. An Offer lands at the local ward; an
   // Accept/Reject answers an offer a local guardian sent. Anything the
   // guardianship module does not recognize falls through to the old paths.
-  if (type === 'Offer' || type === 'Accept' || type === 'Reject') {
+  // An Undo of the guardianship Relationship (§3.2) is handled here too, and it
+  // must be seen BEFORE the generic Undo branch below, which only knows about
+  // Follow/Like/Announce and would swallow it with a 202.
+  if (type === 'Offer' || type === 'Accept' || type === 'Reject' || (type === 'Undo' && Guardianship.parseUndoRelationship(act))) {
     // Every LOCAL party this activity is addressed to gets its own copy of the
     // handshake (a ward and a co-guardian may both live here). Gather candidate
     // local slugs from the inbox owner, the `to` list, and the ward.
@@ -1384,8 +1387,8 @@ export async function handleInbox(req, slugParam) {
     for (const t of (Array.isArray(act.to) ? act.to : (act.to ? [act.to] : []))) {
       if (typeof t === 'string') { const s = slugFromActorUrl(t); if (s) cand.add(s); }
     }
-    if (type === 'Offer') {
-      const rel = Guardianship.parseRelationship(act.object);
+    if (type === 'Offer' || type === 'Undo') {
+      const rel = type === 'Undo' ? Guardianship.parseUndoRelationship(act) : Guardianship.parseRelationship(act.object);
       if (rel) { const s = slugFromActorUrl(rel.ward); if (s) cand.add(s); }
     }
     let consumed = false;
@@ -3768,10 +3771,14 @@ Guardianship.wireHandshake({
       offer_received: ['push.n_guard_offer_t', 'push.n_guard_offer_b'],   // I am the ward
       offer_for_ward: ['push.n_guard_cog_t', 'push.n_guard_cog_b'],       // I co-guard this ward
       committed: ['push.n_guard_ward_t', 'push.n_guard_ward_b'],
+      // §3.2: a guardian ended the relation. The ward hears that someone who
+      // was looking after them has gone; a co-guardian hears they are one fewer.
+      guardian_left: ['push.n_guard_left_t', 'push.n_guard_left_b'],
+      coguardian_left: ['push.n_guard_cogleft_t', 'push.n_guard_cogleft_b'],
     }[ev.kind];
     if (!texts) return;
-    const who = deriveHandle(ev.candidate || ev.ward || ev.guardian || '') || '?';
-    const url = ev.kind === 'offer_received' ? `${pushPrefix(slug)}/messages` : '/guardian';
+    const who = deriveHandle(ev.candidate || ev.guardian || ev.ward || '') || '?';
+    const url = (ev.kind === 'offer_received' || ev.kind === 'guardian_left') ? `${pushPrefix(slug)}/messages` : '/guardian';
     pushEvent(slug, { type: 'guardian', title: i18nT(L, texts[0]), body: i18nT(L, texts[1], { who }), url });
   },
 });

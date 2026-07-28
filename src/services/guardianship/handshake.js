@@ -26,6 +26,24 @@ export function wireHandshake(d) { deps = d; }
 const idOf = (v) => (typeof v === 'string' ? v : (v && typeof v === 'object' && typeof v.id === 'string' ? v.id : null));
 const arr = (v) => (Array.isArray(v) ? v : (v ? [v] : [])).filter((x) => typeof x === 'string');
 
+/**
+ * FEP-633c §3.2/§3.3 — ending a guardianship.
+ *
+ * "After commit, either side MAY end the relationship with `Undo` of the
+ * `Relationship`. An `Undo` from a guardian, or from the ward co-signed by an
+ * existing guardian, removes the guardian from `shaer:guardians`."
+ *
+ * §3.3 bounds it: this is how ONE guardian goes while others remain. Removing
+ * the last one empties `shaer:guardians` and that is emancipation (§3.4), which
+ * has its own flow and is explicitly not a single party's call. So an Undo that
+ * would leave a ward with nobody is refused here rather than quietly performed.
+ */
+export function parseUndoRelationship(activity) {
+  const type = Array.isArray(activity && activity.type) ? activity.type[0] : (activity && activity.type);
+  if (type !== 'Undo') return null;
+  return parseRelationship(activity && activity.object);
+}
+
 /** Parse a Relationship object into {ward, candidate} or null. */
 export function parseRelationship(rel) {
   if (!rel || typeof rel !== 'object') return null;
@@ -86,6 +104,85 @@ function maybeCommit(slug, offerId) {
   return done;
 }
 
+/**
+ * End a guardianship from the local guardian's side and let it travel (§3.2).
+ *
+ * One path for both callers: the button in the Guardian PWA and an `Undo` a
+ * Guardian app POSTs to its own outbox. Addressed like the Offer that started
+ * it (§3.1.1): the ward, and every other guardian, so no copy is left behind
+ * believing the relation still stands.
+ */
+export async function endGuardianship(site, wardUri) {
+  const me = deps.selfId(site.slug);
+  if (!relations.getRelation(site.slug, 'guardian', wardUri)) return { status: 404, error: 'not_my_ward' };
+  const set = await existingGuardiansOf(wardUri);
+  const others = set.filter((g) => g !== me);
+  // Only a set we actually read counts as proof. A remote ward whose server is
+  // down reads as an empty set; refusing on that would trap the guardian, and
+  // the ward's server checks again on arrival anyway.
+  if (set.length && others.length === 0) return { status: 409, error: 'would_emancipate' };
+  const recipients = [wardUri, ...others];
+  const undo = {
+    id: `${me}/undo/${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`,
+    type: 'Undo', actor: me, to: recipients,
+    object: { type: 'Relationship', subject: wardUri, relationship: GUARDIAN_RELATIONSHIP_COMPACT, object: me },
+  };
+  const delivered = await fanout(site, recipients, undo);
+  relations.removeRelation(site.slug, 'guardian', wardUri);
+  // A ward we host ourselves never receives its own delivery: an inbox on this
+  // machine is not reachable over HTTP from this machine (and should not be).
+  // The commit path has the same shape and solves it the same way — each
+  // instance writes what it hosts (applyCommitLocally).
+  const wardSlug = deps.localSlug(wardUri);
+  if (wardSlug) dropGuardianFromWard(wardSlug, deps.selfId(site.slug));
+  notify(site.slug, { kind: 'guardianship_ended', ward: wardUri, delivered });
+  return { status: 202, delivered, guardiansLeft: others.length };
+}
+
+/**
+ * The ward's side of an ended guardianship: drop that guardian, unless doing so
+ * would empty the set. §3.3 only permits this while more than one remains;
+ * emptying it is emancipation (§3.4) and no single party decides that.
+ */
+function dropGuardianFromWard(wardSlug, guardianUri) {
+  const set = relations.listGuardians(wardSlug).map((r) => r.other_uri);
+  if (!set.includes(guardianUri)) return false;   // already gone: an Undo is idempotent
+  if (set.length <= 1) {
+    notify(wardSlug, { kind: 'guardianship_end_refused', guardian: guardianUri, reason: 'would_emancipate' });
+    return false;
+  }
+  relations.removeRelation(wardSlug, 'ward', guardianUri);
+  notify(wardSlug, { kind: 'guardian_left', guardian: guardianUri });
+  return true;
+}
+
+/** The receiving side of that Undo. Returns true when consumed. */
+function applyInboundUndo(site, activity) {
+  const rel = parseUndoRelationship(activity);
+  if (!rel) return false;
+  const me = deps.selfId(site.slug);
+  const actor = idOf(activity.actor);
+  const ward = rel.ward;
+  const guardian = rel.candidate;   // in an Undo the Relationship's object is the leaving guardian
+
+  if (ward === me) {
+    // I am the ward. Only the guardian itself may end its own relation here;
+    // the ward-co-signed variant of §3.2 needs a second signature and is not
+    // built, so it is refused rather than half-honoured.
+    if (actor !== guardian) return false;
+    dropGuardianFromWard(site.slug, guardian);
+    return true;
+  }
+
+  // I am one of the other guardians: nothing of mine changes, but being left
+  // as one of fewer is exactly the kind of thing a guardian should hear about.
+  if (relations.getRelation(site.slug, 'guardian', ward)) {
+    notify(site.slug, { kind: 'coguardian_left', ward, guardian });
+    return true;
+  }
+  return false;
+}
+
 // ── C2S: a LOCAL party acts (PWA, Berichten, or the Shaer app outbox) ──────
 
 /**
@@ -94,8 +191,17 @@ function maybeCommit(slug, offerId) {
  */
 export async function handleOutbox(site, activity) {
   const type = Array.isArray(activity.type) ? activity.type[0] : activity.type;
-  if (!['Offer', 'Accept', 'Reject'].includes(type)) return null;
+  if (!['Offer', 'Accept', 'Reject', 'Undo'].includes(type)) return null;
   const me = deps.selfId(site.slug);
+
+  // ── Undo: a guardian ends its own guardianship (§3.2). Same path as the
+  //    button in the Guardian PWA, so an app and the dashboard cannot drift.
+  if (type === 'Undo') {
+    const rel = parseUndoRelationship(activity);
+    if (!rel) return null;
+    if (rel.candidate !== me) return { status: 403, error: 'not_your_relation' };
+    return endGuardianship(site, rel.ward);
+  }
 
   // ── Offer: the local site is the guardian-candidate. ───────────────────
   if (type === 'Offer') {
@@ -151,7 +257,8 @@ export async function handleOutbox(site, activity) {
  */
 export async function handleInbox(site, activity) {
   const type = Array.isArray(activity.type) ? activity.type[0] : activity.type;
-  if (!['Offer', 'Accept', 'Reject'].includes(type)) return false;
+  if (!['Offer', 'Accept', 'Reject', 'Undo'].includes(type)) return false;
+  if (type === 'Undo') return applyInboundUndo(site, activity);
   const me = deps.selfId(site.slug);
   const actor = idOf(activity.actor);
 
@@ -215,4 +322,4 @@ function notify(slug, ev) {
   try { if (deps && typeof deps.onEvent === 'function') deps.onEvent(slug, ev); } catch { /* best-effort */ }
 }
 
-export default { wireHandshake, handleOutbox, handleInbox, parseRelationship };
+export default { wireHandshake, handleOutbox, handleInbox, parseRelationship, parseUndoRelationship, endGuardianship };
