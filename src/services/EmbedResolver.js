@@ -60,6 +60,49 @@ export function findOpenGraph(html) {
   return { image: image && /^https?:\/\//i.test(image) ? image : null, title: title || null, site: meta['og:site_name'] || null };
 }
 
+/**
+ * Match a URL against the public oEmbed provider registry (oembed.com).
+ *
+ * Discovery through the page is the pure way, but it only works when the page
+ * hands you its <link rel=oembed>, and big platforms do not always do that: from
+ * a datacentre IP, YouTube serves a stripped page with no oEmbed link and no
+ * OpenGraph at all, while its oEmbed API answers perfectly. The registry closes
+ * that gap without us keeping a list of hosts: it is published and maintained by
+ * oembed.com, we only read it.
+ *
+ * Pure, so the pattern matching is testable without a network.
+ */
+export function matchProviderEndpoint(url, providers) {
+  if (!Array.isArray(providers)) return null;
+  let host = '';
+  try { host = new URL(url).host.replace(/^www\./, ''); } catch { return null; }
+  const toRe = (scheme) => new RegExp('^' + String(scheme)
+    .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*/g, '.*') + '$', 'i');
+  for (const p of providers) {
+    for (const ep of (p.endpoints || [])) {
+      const target = typeof ep.url === 'string' ? ep.url.replace('{format}', 'json') : null;
+      if (!target) continue;
+      for (const scheme of (ep.schemes || [])) {
+        if (toRe(scheme).test(url)) return target;
+      }
+      // No schemes listed: fall back to the provider's own host.
+      if (!ep.schemes || !ep.schemes.length) {
+        let phost = '';
+        try { phost = new URL(p.provider_url).host.replace(/^www\./, ''); } catch { /* skip */ }
+        if (phost && (host === phost || host.endsWith('.' + phost))) return target;
+      }
+    }
+  }
+  return null;
+}
+
+/** Add the url + json format to an oEmbed endpoint. */
+export function oembedRequestUrl(endpoint, url) {
+  const sep = endpoint.includes('?') ? '&' : '?';
+  return `${endpoint}${sep}format=json&url=${encodeURIComponent(url)}`;
+}
+
 /** Is this JSON an ActivityPub object we can quote? */
 export function looksLikeAPObject(doc) {
   if (!doc || typeof doc !== 'object') return false;
@@ -135,8 +178,21 @@ export async function resolveEmbed(url, io = {}) {
     }
   }
 
-  // 2. oEmbed, then OpenGraph. One page fetch serves both: oEmbed is the richer
-  //    protocol, OpenGraph is the one most of the web actually ships.
+  // 2. The oEmbed registry: a cheap in-memory match, then one small API call.
+  //    Tried before the page because it is far cheaper AND because the big
+  //    platforms are exactly the ones that hide their tags from a server.
+  if (io.registry && io.getJSON) {
+    const providers = await io.registry().catch(() => null);
+    const endpoint = matchProviderEndpoint(url, providers);
+    if (endpoint) {
+      const o = await io.getJSON(oembedRequestUrl(endpoint, url)).catch(() => null);
+      const card = fromOEmbed(url, o);
+      if (card) return card;
+    }
+  }
+
+  // 3. oEmbed via the page, then OpenGraph. One page fetch serves both: oEmbed
+  //    is the richer protocol, OpenGraph is the one most of the web ships.
   //
   //    There is deliberately NO list of known providers here. A hardcoded list
   //    is a whitelist you have to keep maintaining, and it was actively harmful:
@@ -246,8 +302,23 @@ async function safeHead(safeFetch, url, extra = {}) {
  * Bind the resolver to the live fetchers.
  * @param {object} deps - { safeFetch, detectProvider, actorInfo, fetchActor }
  */
+// The provider registry, fetched once and kept for a day. It is a public list
+// maintained by oembed.com, not by us; if it is unreachable we simply fall back
+// to page discovery, so nothing breaks, it just gets less clever.
+const REGISTRY_URL = 'https://oembed.com/providers.json';
+const REGISTRY_TTL = 24 * 60 * 60 * 1000;
+let _registry = null;
+let _registryAt = 0;
+
 export function liveIO({ safeFetch, detectProvider, fetchActor, actorInfo }) {
   return {
+    registry: async () => {
+      if (_registry && Date.now() - _registryAt < REGISTRY_TTL) return _registry;
+      const body = await safeJsonText(safeFetch, REGISTRY_URL, 'application/json');
+      if (!body) return _registry;                       // keep a stale list over none
+      try { _registry = JSON.parse(body); _registryAt = Date.now(); } catch { /* keep the old one */ }
+      return _registry;
+    },
     provider: detectProvider ? (u) => { try { return detectProvider(u); } catch { return null; } } : null,
     getAP: async (u) => {
       const body = await safeJsonText(safeFetch, u, 'application/activity+json, application/ld+json');
@@ -272,4 +343,4 @@ export function liveIO({ safeFetch, detectProvider, fetchActor, actorInfo }) {
   };
 }
 
-export default { resolveEmbed, findOEmbedEndpoint, findOpenGraph, looksLikeAPObject, fromOEmbed, fromAPObject, liveIO };
+export default { resolveEmbed, findOEmbedEndpoint, findOpenGraph, matchProviderEndpoint, oembedRequestUrl, looksLikeAPObject, fromOEmbed, fromAPObject, liveIO };

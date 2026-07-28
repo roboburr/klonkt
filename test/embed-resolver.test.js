@@ -197,3 +197,48 @@ test('the head read does not stop on an og:image mention inside a script', async
   const { findOpenGraph } = await import('../src/services/EmbedResolver.js');
   assert.equal(findOpenGraph(got).image, 'https://x/real.png', 'reads past the decoy to the real tag');
 });
+
+// The public oEmbed registry (oembed.com). Not a list we maintain: we read one
+// that is published. It exists because discovery through the page fails exactly
+// where it matters most, from a server YouTube hands a stripped page to.
+const PROVIDERS = [
+  { provider_name: 'YouTube', provider_url: 'https://www.youtube.com/',
+    endpoints: [{ schemes: ['https://*.youtube.com/watch*', 'https://youtu.be/*'], url: 'https://www.youtube.com/oembed' }] },
+  { provider_name: 'Bare', provider_url: 'https://bare.example/', endpoints: [{ url: 'https://bare.example/oembed.{format}' }] },
+];
+
+test('matchProviderEndpoint matches wildcard schemes and falls back to the host', async () => {
+  const { matchProviderEndpoint } = await import('../src/services/EmbedResolver.js');
+  assert.equal(matchProviderEndpoint('https://youtu.be/abc?is=x', PROVIDERS), 'https://www.youtube.com/oembed');
+  assert.equal(matchProviderEndpoint('https://www.youtube.com/watch?v=abc', PROVIDERS), 'https://www.youtube.com/oembed');
+  assert.equal(matchProviderEndpoint('https://bare.example/thing/1', PROVIDERS), 'https://bare.example/oembed.json',
+    'no schemes listed, so the provider host decides, and {format} is filled in');
+  assert.equal(matchProviderEndpoint('https://elders.example/x', PROVIDERS), null);
+  assert.equal(matchProviderEndpoint('not a url', PROVIDERS), null);
+});
+
+test('oembedRequestUrl appends url + format, keeping an existing query', async () => {
+  const { oembedRequestUrl } = await import('../src/services/EmbedResolver.js');
+  assert.ok(oembedRequestUrl('https://x/oembed', 'https://a/b?c=1').includes('format=json&url=https%3A%2F%2Fa%2Fb%3Fc%3D1'));
+  assert.ok(oembedRequestUrl('https://x/oembed?k=1', 'https://a/b').startsWith('https://x/oembed?k=1&'));
+});
+
+test('the registry is tried before the page, and the page is not fetched when it hits', async () => {
+  let pageFetched = false;
+  const r = await resolveEmbed('https://youtu.be/abc', io({
+    registry: async () => PROVIDERS,
+    getJSON: async () => OEMBED_JSON,
+    getPage: async () => { pageFetched = true; return OG_PAGE; },
+  }));
+  assert.equal(r.kind, 'oembed');
+  assert.equal(r.title, 'A talk');
+  assert.ok(!pageFetched, 'a registry hit saves the whole page download');
+});
+
+test('an unreachable registry just falls through to the page', async () => {
+  const r = await resolveEmbed('https://lg.example/a', io({
+    registry: async () => { throw new Error('offline'); },
+    getPage: async () => OG_PAGE,
+  }));
+  assert.equal(r.kind, 'opengraph');
+});

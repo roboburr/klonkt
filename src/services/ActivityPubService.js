@@ -2848,7 +2848,7 @@ async function resolveApActor(siteUrl) {
 // note and refreshes content + media (recovers covers/edits that were delivered
 // during a flux window, e.g. a fleet-wide update), and drops notes that are gone
 // (404/410). Bump SELFHEAL_VERSION only on a release that warrants a re-sync.
-const SELFHEAL_VERSION = 19; // v19: head-read no longer stops on an og:image mention inside inline script
+const SELFHEAL_VERSION = 20; // v20: oEmbed provider registry, so platforms that hide their tags from a server still resolve
 async function fetchNoteAP(url) {
   try {
     const r = await fetch(url, { headers: { Accept: 'application/activity+json' } });
