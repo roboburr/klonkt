@@ -501,6 +501,27 @@ export function initializeDatabase() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (slug, offer_id, party_uri)
     );
+    -- FEP-633c §5.6: a gated setting a ward's guardians decide together, which
+    -- has to work when they live on other servers (the ordinary case). One row
+    -- per guardian answer; the ward's server tallies (§3.5) and enforces.
+    -- The proposals themselves, so an Accept that only references the offer
+    -- id can still be resolved to "which feature, which value".
+    CREATE TABLE IF NOT EXISTS ap_gated_offers (
+      offer_id TEXT PRIMARY KEY,
+      slug TEXT NOT NULL,          -- the ward, on this server
+      feature TEXT NOT NULL,
+      value INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS ap_gated_votes (
+      slug TEXT NOT NULL,          -- the WARD, on this server
+      feature TEXT NOT NULL,       -- e.g. 'shaer:externalEmbeds'
+      guardian_uri TEXT NOT NULL,  -- who answered (must be a committed guardian)
+      value INTEGER NOT NULL,      -- the value they voted for (0/1)
+      opened_at DATETIME NOT NULL, -- when this decision opened (the window start)
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (slug, feature, guardian_uri)
+    );
     CREATE TABLE IF NOT EXISTS ap_delivery (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       slug TEXT NOT NULL,          -- our site/actor that signs the delivery

@@ -18,6 +18,7 @@
 import { isGuardianRelationship, GUARDIAN_RELATIONSHIP_COMPACT } from './context.js';
 import * as offers from './offers.js';
 import * as relations from './relations.js';
+import * as gated from './gated.js';
 
 let deps = null;
 export function wireHandshake(d) { deps = d; }
@@ -154,7 +155,18 @@ export async function handleInbox(site, activity) {
   const me = deps.selfId(site.slug);
   const actor = idOf(activity.actor);
 
+  // §5.6: a guardian proposes a gated setting for THIS ward. The ward's server
+  // tallies and enforces, so the decision lands here, not on the proposer.
   if (type === 'Offer') {
+    const gs = gated.parseGatedSetting(activity.object);
+    if (gs) {
+      if (gs.ward !== me) return false;                       // not our ward
+      gated.rememberGatedOffer(idOf(activity), site.slug, gs.feature, gs.value);
+      // The proposer's Offer carries its own agreement (§3.1's one-step clause).
+      const r = gated.recordGatedVote(site.slug, gs.feature, actor, gs.value);
+      notify(site.slug, { kind: 'gated_setting', feature: gs.feature, value: gs.value, state: r.state });
+      return true;
+    }
     const rel = parseRelationship(activity.object);
     if (!rel) return false;
     // I must be a party: the ward, or one of the existing guardians in `to`.
@@ -174,6 +186,16 @@ export async function handleInbox(site, activity) {
 
   // Accept / Reject of an offer we (also) track.
   const offerId = idOf(activity.object);
+  // §5.6: a fellow guardian answering a gated-setting proposal. The Accept only
+  // references the offer, so the value comes from the proposal we stored. A
+  // Reject is a vote for the opposite, not a shrug: it is still an answer.
+  const gsOffer = gated.recallGatedOffer(offerId);
+  if (gsOffer && gsOffer.slug === site.slug) {
+    const value = type === 'Accept' ? !!gsOffer.value : !gsOffer.value;
+    const r = gated.recordGatedVote(site.slug, gsOffer.feature, actor, value);
+    notify(site.slug, { kind: 'gated_setting', feature: gsOffer.feature, value, state: r.state });
+    return true;
+  }
   let offer = offers.getOffer(site.slug, offerId);
   if (!offer) return false;
   if (!offers.isParty(offer, actor)) return false;

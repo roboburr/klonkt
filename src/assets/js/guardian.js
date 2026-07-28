@@ -119,19 +119,32 @@
       // Gated feature: external (non-fediverse) embeds. Off by default for a
       // ward; only a guardian can open it, and the gate is enforced server-side
       // when the feed is built, so this button is the only thing that moves it.
-      if (w.embeds !== null && w.embeds !== undefined) {
-        var emb = el('button', 'quiet small', (w.embeds ? T.embeds_on : T.embeds_off) || 'Embeds');
-        emb.addEventListener('click', function () {
-          emb.disabled = true;
-          fetch('/guardian/wards/embeds', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ uri: w.other_uri, allow: !w.embeds }),
-          }).then(function (r) { return r.json(); })
-            .then(function () { refresh(); })
-            .catch(function () { emb.disabled = false; });
-        });
-        row.appendChild(emb);
-      }
+      // Shown for EVERY ward, including one on another server. There the value
+      // is unknown (it lives on the ward's server), but proposing is exactly as
+      // possible: the proposal travels, the ward's server tallies the guardians
+      // and enforces. A guardian next door must not have more say than one far
+      // away.
+      var known = w.embeds === true || w.embeds === false;
+      var emb = el('button', 'quiet small',
+        (known ? (w.embeds ? T.embeds_on : T.embeds_off) : T.embeds_propose) || 'Link previews');
+      emb.addEventListener('click', function () {
+        emb.disabled = true;
+        fetch('/guardian/wards/embeds', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uri: w.other_uri, allow: known ? !w.embeds : true }),
+        }).then(function (r) { return r.json(); })
+          .then(function (j) {
+            // Not settled yet: the other guardians still have to answer.
+            if (j && j.state === 'open') {
+              emb.textContent = (T.embeds_waiting || 'waiting for the other guardians');
+              emb.disabled = true;
+              return;
+            }
+            refresh();
+          })
+          .catch(function () { emb.disabled = false; });
+      });
+      row.appendChild(emb);
       var btn = el('button', 'quiet small', T.release);
       // Releasing a ward is heavy and hard to undo (coming back needs a fresh
       // offer the ward accepts), so it asks first and spells out what changes.

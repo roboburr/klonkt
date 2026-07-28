@@ -38,7 +38,7 @@ function siteForUser(req) {
 function uiStrings(L) {
   const keys = ['sent', 'sent_retry', 'sending', 'not_found', 'failed', 'network',
     'pending', 'active', 'retract', 'release', 'release_confirm', 'open', 'push_unavailable',
-    'embeds_on', 'embeds_off',
+    'embeds_on', 'embeds_off', 'embeds_propose', 'embeds_waiting',
     'accept', 'reject', 'complete', 'awaiting_others', 'coguard'];
   const s = Object.fromEntries(keys.map((k) => [k, i18nT(L, `guardian.${k}`)]));
   s.wave = i18nT(L, 'guardian.wave');
@@ -299,12 +299,25 @@ router.post('/wards/embeds', requireAuth, express.json({ limit: '4kb' }), (req, 
   // remote ward belongs to that ward's own server (federating it is Fase 4).
   const isMyWard = Guardianship.listWards(site.slug).some((w) => w.other_uri === uri);
   if (!isMyWard) return res.status(403).json({ error: 'not_your_ward' });
+  // §5.6: propose it to the WARD'S server, wherever that is. The ward's server
+  // tallies (a majority of its guardians, §3.5) and enforces. Co-location is
+  // just the case where that server happens to be this one, so it takes the
+  // same road: propose, then let the tally decide. Anything else would make a
+  // guardian on the ward's own instance more powerful than one elsewhere.
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
-  const slug = (base && uri.startsWith(`${base}/`)) ? uri.trim().replace(/\/+$/, '').split('/').pop() : null;
-  const ward = slug ? db.prepare('SELECT id, slug FROM sites WHERE slug = ?').get(slug) : null;
-  if (!ward) return res.status(400).json({ error: 'remote_ward_not_supported' });
-  db.prepare('UPDATE sites SET external_embeds = ? WHERE id = ?').run(allow ? 1 : 0, ward.id);
-  res.json({ ok: true, allow });
+  const me = AP.actorId(base, site.slug);
+  const feature = 'shaer:externalEmbeds';
+  const offerId = `${me}/gated/${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
+  const offer = Guardianship.gated.buildGatedOffer(offerId, me, uri, feature, allow);
+  const localSlug = (base && uri.startsWith(`${base}/`)) ? uri.replace(/\/+$/, '').split('/').pop() : null;
+  const localWard = localSlug ? db.prepare('SELECT slug FROM sites WHERE slug = ?').get(localSlug) : null;
+  if (localWard) {
+    Guardianship.gated.rememberGatedOffer(offerId, localWard.slug, feature, allow);
+    const r = Guardianship.gated.recordGatedVote(localWard.slug, feature, me, allow);
+    return res.json({ ok: true, allow, state: r.state, need: r.need, of: r.of });
+  }
+  AP.deliverTo(site, uri, offer).catch(() => { /* queued, best-effort */ });
+  res.json({ ok: true, allow, state: 'open', federated: true });
 });
 
 // ── The installable identity: own scope so the Guardian corner installs as

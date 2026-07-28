@@ -25,3 +25,6 @@ export {
   listGuardians, listWards, isGuardian, getRelation, removeRelation,
   actorProps as guardianshipActorProps,
 } from './relations.js';
+
+// §5.6 gated settings (decided by the guardians, enforced by the ward's server)
+export * as gated from './gated.js';
