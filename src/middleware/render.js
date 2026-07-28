@@ -84,14 +84,35 @@ try {
 // all server-side formatted dates so they display in the site's timezone instead of UTC.
 const siteTimezone = () => getSetting('timezone') || undefined;
 
-const formatDate = (iso) => {
-  if (!iso) return '';
-  return new Date(iso).toLocaleDateString('nl-NL', { timeZone: siteTimezone(), day: 'numeric', month: 'long', year: 'numeric' });
+/**
+ * Read a stored timestamp as the moment it actually is.
+ *
+ * SQLite's CURRENT_TIMESTAMP writes UTC without saying so ("2026-07-28
+ * 18:20:33"), and new Date() reads a string in that shape as LOCAL time. That
+ * is right only as long as the server runs on UTC; set the machine to
+ * Europe/Amsterdam and every stored date silently shifts two hours. So say UTC
+ * out loud. Anything already carrying a zone (AP `published` ends in Z) is left
+ * to the normal parser.
+ */
+const parseStamp = (v) => {
+  if (!v) return null;
+  const s = String(v);
+  const d = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?$/.test(s)
+    ? new Date(`${s.replace(' ', 'T')}Z`)
+    : new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
 };
 
-const formatDateTime = (iso) => {
-  if (!iso) return '';
-  return new Date(iso).toLocaleString('nl-NL', { timeZone: siteTimezone(), dateStyle: 'medium', timeStyle: 'short' });
+const formatDate = (iso) => {
+  const d = parseStamp(iso);
+  return d ? d.toLocaleDateString('nl-NL', { timeZone: siteTimezone(), day: 'numeric', month: 'long', year: 'numeric' }) : '';
+};
+
+/** A timestamp in the site's own timezone (Beheer → Instellingen). Exported so
+ *  surfaces outside the EJS pages (the Guardian PWA) read the same clock. */
+export const formatDateTime = (iso) => {
+  const d = parseStamp(iso);
+  return d ? d.toLocaleString('nl-NL', { timeZone: siteTimezone(), dateStyle: 'medium', timeStyle: 'short' }) : '';
 };
 
 export async function renderPage(req, res, viewName, data = {}) {

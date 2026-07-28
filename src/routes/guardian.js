@@ -18,7 +18,7 @@ import { requireAuth } from '../middleware/auth.js';
 import AP from '../services/ActivityPubService.js';
 import * as Guardianship from '../services/guardianship/index.js';
 import { t as i18nT, resolveLang } from '../services/i18n.js';
-import { injectCspNonce, renderNoteBody } from '../middleware/render.js';
+import { injectCspNonce, renderNoteBody, formatDateTime } from '../middleware/render.js';
 import { emojiName } from '../services/NoteRender.js';
 
 const router = express.Router();
@@ -61,6 +61,9 @@ function dashboardState(site, L) {
     // and a link to the post it is about; both belong in the card.
     body_html: renderNoteBody(h, L),
     name_html: emojiName(h.actor_name || '', h.actor_emoji_json),
+    // In the site's own timezone, the same as everywhere else in Klonkt. The
+    // PWA used to slice the raw UTC string, so a 20:20 call for help read 18:20.
+    when_text: formatDateTime(h.published || h.created_at),
   }));
   return {
     site: site.slug,
@@ -140,6 +143,7 @@ router.get('/api/feed', requireAuth, (req, res) => {
       content: p.content,
       url: p.url,
       published: p.published || p.created_at,
+      when_text: formatDateTime(p.published || p.created_at),
       cw: p.cw || null,
       media: p.media_json ? JSON.parse(p.media_json) : [],
     }));

@@ -3520,7 +3520,7 @@ export function getNotifications(slug, limit) {
   } catch { /* ignore */ }
   try {
     const rows = db.prepare(`
-      SELECT i.kind, i.actor_name, i.actor_handle, i.actor_url, i.actor_icon, i.content, i.created_at, i.visibility,
+      SELECT i.kind, i.actor_name, i.actor_handle, i.actor_url, i.actor_icon, i.content, i.created_at, i.published, i.visibility,
              i.emoji_json, i.actor_emoji_json, i.media_json, i.quote_json, i.embed_json,
              p.slug AS post_slug, p.title AS post_title
       FROM ap_interactions i LEFT JOIN posts p ON p.id = i.post_id
@@ -3530,6 +3530,10 @@ export function getNotifications(slug, limit) {
     for (const r of rows) out.push({
       type: r.kind, name: r.actor_name, handle: r.actor_handle, url: r.actor_url, icon: r.actor_icon,
       content: stripLeadingMentions(r.content), post_slug: r.post_slug, post_title: r.post_title, created_at: r.created_at,
+      // When the post was written, for display. created_at (when it reached us)
+      // stays the sort key and the unread watermark: a note that federated late
+      // is still new to you.
+      published: r.published,
       emoji_json: r.emoji_json, actor_emoji_json: r.actor_emoji_json,   // FEP-9098 (messages render)
       media_json: r.media_json, quote_json: r.quote_json, embed_json: r.embed_json,   // rendered like a Krant post
       // followers/direct = a private message to the owner (not on the public thread) → 🔒 in Messages
@@ -3554,10 +3558,10 @@ export function getNotifications(slug, limit) {
     }
   } catch { /* ignore */ }
   try {
-    for (const r of db.prepare(`SELECT object_uri, note_url, actor_uri, actor_name, actor_handle, actor_icon, actor_url, content, wave, help_request, created_at,
+    for (const r of db.prepare(`SELECT object_uri, note_url, actor_uri, actor_name, actor_handle, actor_icon, actor_url, content, wave, help_request, created_at, published,
                                        emoji_json, actor_emoji_json, media_json, quote_json, embed_json
                                 FROM ap_mentions WHERE slug = ? ORDER BY created_at DESC LIMIT ?`).all(slug, L)) {
-      out.push({ type: 'mention', name: r.actor_name, handle: r.actor_handle, url: r.actor_url || r.actor_uri, icon: r.actor_icon, content: stripLeadingMentions(r.content), note_url: r.note_url || r.object_uri, wave: r.wave ? 1 : 0, help_request: r.help_request ? 1 : 0, actorUri: r.actor_uri, created_at: r.created_at,
+      out.push({ type: 'mention', name: r.actor_name, handle: r.actor_handle, url: r.actor_url || r.actor_uri, icon: r.actor_icon, content: stripLeadingMentions(r.content), note_url: r.note_url || r.object_uri, wave: r.wave ? 1 : 0, help_request: r.help_request ? 1 : 0, actorUri: r.actor_uri, created_at: r.created_at, published: r.published,
         // Same trimmings a Krant row has, so Berichten renders the post identically.
         emoji_json: r.emoji_json, actor_emoji_json: r.actor_emoji_json, media_json: r.media_json, quote_json: r.quote_json, embed_json: r.embed_json });
     }

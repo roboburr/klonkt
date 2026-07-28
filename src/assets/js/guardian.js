@@ -31,7 +31,14 @@
     try { var u = new URL(uri); return '@' + u.pathname.split('/').filter(Boolean).pop() + '@' + u.host; }
     catch (e) { return uri; }
   }
-  function when(s) { return String(s || '').slice(0, 16).replace('T', ' '); }
+  // The server hands over a timestamp already formatted in the site's timezone
+  // (Beheer -> Instellingen), the same clock de Krant and Berichten show. The
+  // slice is only a fallback for a row that predates that field: it shows raw
+  // UTC, which is what made a 20:20 call for help read 18:20.
+  function when(item, raw) {
+    if (item && item.when_text) return item.when_text;
+    return String(raw || '').slice(0, 16).replace('T', ' ');
+  }
   function show(id, on) { document.getElementById(id).hidden = !on; }
 
   // ── 1. Help requests ───────────────────────────────────────────────────
@@ -48,7 +55,7 @@
       if (h.name_html) who.innerHTML = h.name_html;
       else who.textContent = h.actor_name || handleOf(h.actor_uri, h.actor_handle);
       row.appendChild(who);
-      row.appendChild(el('span', 'when', when(h.published || h.created_at)));
+      row.appendChild(el('span', 'when', when(h, h.published || h.created_at)));
       card.appendChild(row);
       var body = el('div', 'body g-note');
       // body_html is the shared note-body partial, rendered server-side: the
@@ -196,7 +203,7 @@
       var card = el('div', 'g-card feed');
       var head = el('div', 'row');
       head.appendChild(el('span', 'who grow', p.author));
-      if (p.published) head.appendChild(el('span', 'g-when', when(p.published)));
+      if (p.published) head.appendChild(el('span', 'g-when', when(p, p.published)));
       card.appendChild(head);
       var body = el('div', 'feed-body');
       if (p.cw) {

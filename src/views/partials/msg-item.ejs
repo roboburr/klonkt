@@ -43,7 +43,10 @@
                 <% if (n.handle && n.name) { %><span class="msg-handle"><%= n.handle %></span><% } %>
               <% } %>
               <% if (_new) { %><span class="msg-new" title="<%= t('msg.new') %>"></span><% } %>
-              <% if (n.created_at) { %><span class="msg-time"><%= formatDateTime(n.created_at) %></span><% } %>
+              <% /* When the post was written, like de Krant and de Guardian PWA
+                    show it. created_at (when it reached us) stays the sort key
+                    and drives the "new since your last visit" dot above. */ %>
+              <% if (n.published || n.created_at) { %><span class="msg-time"><%= formatDateTime(n.published || n.created_at) %></span><% } %>
             </div>
 
             <div class="msg-what">
