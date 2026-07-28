@@ -15,10 +15,12 @@
  * delegates; nothing here imports ActivityPubService back.
  */
 export { SHAER_CONTEXT, GUARDIAN_RELATIONSHIP, GUARDIAN_RELATIONSHIP_COMPACT, isGuardianRelationship } from './context.js';
-export { helpRequestProps, isHelpRequest, waveProps, isWave, hasGuardiansProps, objectHasGuardians, externalEmbedsAllowed } from './notes.js';
+export { helpRequestProps, isHelpRequest, waveProps, isWave, awayProps, hasGuardiansProps, objectHasGuardians, externalEmbedsAllowed } from './notes.js';
 export { wireDelivery, c2sVisibility, deliverDirectNote } from './delivery.js';
 export { wireHandshake, handleOutbox as handleGuardianshipOutbox, handleInbox as handleGuardianshipInbox, parseRelationship, parseUndoRelationship, endGuardianship } from './handshake.js';
-export { offersCollection, followsCollection, wardsCollection } from './queues.js';
+export { offersCollection, followsCollection, wardsCollection, guardiansCollection } from './queues.js';
+export * as availability from './availability.js';
+export { wireAvailability } from './availability.js';
 export * as follows from './follows.js';
 export { listForParty as listOffersForParty, getOffer, findOfferAnywhere } from './offers.js';
 export {

@@ -522,6 +522,44 @@ export function initializeDatabase() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (slug, feature, guardian_uri)
     );
+    -- Guardian availability (FEP-633c 3.6): one guardian's attention as seen
+    -- from one ward on this server. Never public; the ward reads it via the
+    -- owner-only guardians queue. One rule above all: one answer restores
+    -- everything, so every row here is one answer away from disappearing.
+    CREATE TABLE IF NOT EXISTS ap_guardian_attention (
+      ward_slug TEXT NOT NULL,
+      guardian_uri TEXT NOT NULL,
+      state TEXT NOT NULL DEFAULT 'active',  -- 'active' | 'away' | 'dormant'
+      away_until INTEGER,                    -- epoch ms while declared away
+      PRIMARY KEY (ward_slug, guardian_uri)
+    );
+    -- The ONLY admissible dormancy evidence (3.6.2): directly addressed
+    -- requests that went unanswered. Calendar time alone never counts.
+    CREATE TABLE IF NOT EXISTS ap_attention_requests (
+      ward_slug TEXT NOT NULL,
+      guardian_uri TEXT NOT NULL,
+      request_id TEXT NOT NULL,
+      asked_at INTEGER NOT NULL,             -- epoch ms
+      PRIMARY KEY (ward_slug, guardian_uri, request_id)
+    );
+    -- A lapse (3.6.3): the available co-guardians deciding to release a
+    -- dormant one. Irreversible, so the window always runs in full; any sign
+    -- of life from the target cancels it outright.
+    CREATE TABLE IF NOT EXISTS ap_lapses (
+      id TEXT PRIMARY KEY,
+      ward_slug TEXT NOT NULL,
+      ward_uri TEXT NOT NULL,
+      target_uri TEXT NOT NULL,
+      opened_by TEXT NOT NULL,
+      set_json TEXT NOT NULL,                -- the available set at open, target excluded
+      accepts_json TEXT NOT NULL DEFAULT '[]',
+      rejects_json TEXT NOT NULL DEFAULT '[]',
+      opened_at INTEGER NOT NULL,            -- epoch ms
+      window_ms INTEGER NOT NULL,
+      cancelled INTEGER NOT NULL DEFAULT 0,
+      applied INTEGER NOT NULL DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
     CREATE TABLE IF NOT EXISTS ap_delivery (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       slug TEXT NOT NULL,          -- our site/actor that signs the delivery
@@ -616,6 +654,7 @@ export function initializeDatabase() {
   ensureColumn('ap_outbox', 'help_request', 'INTEGER'); // FEP-633c shaer:helpRequest (ward's call for help)
   ensureColumn('ap_mentions', 'help_request', 'INTEGER'); // inbound ward call-for-help (Guardian PWA message centre)
   ensureColumn('ap_outbox', 'wave', 'INTEGER');    // FEP-633c shaer:wave (guardian -> ward nudge)
+  ensureColumn('ap_outbox', 'away_until', 'INTEGER'); // FEP-633c 3.6.1 shaer:away + endTime (epoch ms)
   ensureColumn('ap_mentions', 'wave', 'INTEGER');  // inbound guardian wave
   // FEP-633c §2.2: object hint that the author is a ward. Register-only for now;
   // used later at reddings-boei / escalation routing.

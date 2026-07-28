@@ -10,14 +10,19 @@
  */
 import * as offers from './offers.js';
 import * as relations from './relations.js';
+import * as availability from './availability.js';
 
 const collection = (id, items) => ({
   id, type: 'OrderedCollection', totalItems: items.length, orderedItems: items,
 });
 
-/** Pending offers where the local site is a party, each with its accept tally. */
+/** Pending offers where the local site is a party, each with its accept
+ *  tally. The same collection carries the running lapses (§3.6.3) this
+ *  account is a party to, exactly as the daemon serves them, so the Shaer
+ *  clients render both without a second fetch. */
 export function offersCollection(id, slug, me) {
   const items = offers.listForParty(slug, me).map((o) => offers.queueItem(o, me));
+  items.push(...availability.lapseQueueItems(slug, me, Date.now()));
   return collection(id, items);
 }
 
@@ -33,4 +38,11 @@ export function wardsCollection(id, slug) {
   return collection(id, items);
 }
 
-export default { offersCollection, followsCollection, wardsCollection };
+/** The ward's guardians with their availability (§3.6.1: never public,
+ *  owner-only): the real size of the safety net. Same shape as the daemon. */
+export function guardiansCollection(id, slug) {
+  const uris = relations.listGuardians(slug).map((r) => r.other_uri);
+  return collection(id, availability.statusesFor(slug, uris, Date.now()));
+}
+
+export default { offersCollection, followsCollection, wardsCollection, guardiansCollection };

@@ -64,4 +64,13 @@ export function isWave(object) {
   return !!object && (object['shaer:wave'] === true || object.wave === true);
 }
 
-export default { helpRequestProps, isHelpRequest, waveProps, isWave, hasGuardiansProps, objectHasGuardians, externalEmbedsAllowed };
+/** shaer:away (3.6.1): a guardian declaring itself away to its ward, with an
+ *  end. Rides a direct note like the help request, so a ward on a plain
+ *  server reads a human message; endTime is plain AS2. */
+export function awayProps(post) {
+  return (post && post.visibility === 'direct' && post.away_until)
+    ? { 'shaer:away': true, endTime: new Date(post.away_until).toISOString() }
+    : {};
+}
+
+export default { helpRequestProps, isHelpRequest, waveProps, isWave, awayProps, hasGuardiansProps, objectHasGuardians, externalEmbedsAllowed };

@@ -209,8 +209,12 @@ router.post('/api/follow/:id', requireAuth, express.json({ limit: '4kb' }), asyn
   // Local ward: decide directly (quorum on this instance).
   const pending = Guardianship.follows.getPending(req.params.id);
   if (!pending) return res.status(404).json({ error: 'gone' });
-  const guardians = Guardianship.listGuardians(pending.ward_slug).map((g) => g.other_uri);
-  if (!guardians.includes(me)) return res.status(403).json({ error: 'not_a_guardian' });
+  const allGuardians = Guardianship.listGuardians(pending.ward_slug).map((g) => g.other_uri);
+  if (!allGuardians.includes(me)) return res.status(403).json({ error: 'not_a_guardian' });
+  // Acting from the dashboard is an answer (3.6), and the quorum runs over
+  // the available set (3.5): both applied here, the same as over the wire.
+  Guardianship.availability.oneAnswer(me, Date.now());
+  const guardians = Guardianship.availability.availableSet(pending.ward_slug, allGuardians, Date.now());
   const r = Guardianship.follows.decide(pending.id, me, decision, guardians);
   try {
     if (r.outcome === 'approved') { await AP.acceptGatedFollow(r.follow); Guardianship.follows.remove(r.follow.id); }

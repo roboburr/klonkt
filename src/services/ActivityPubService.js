@@ -287,6 +287,7 @@ export function buildNote(base, site, post, opts = {}) {
       // FEP-633c 5.2.1: a ward's call for help. Only ever on direct notes.
       ...Guardianship.helpRequestProps(post),
       ...Guardianship.waveProps(post),
+      ...Guardianship.awayProps(post),
       // FEP-633c §2.2: object hint that the author is a ward.
       ...Guardianship.hasGuardiansProps(site.slug),
       tag: [
@@ -1364,6 +1365,16 @@ export async function handleInbox(req, slugParam) {
       console.warn('[AP] inbox REJECTED (signature)', type, claimedActor || '?', 'from', ip, verified ? '(signer mismatch)' : '(unsigned/invalid)');
       return 401;
     }
+    // One answer restores everything (FEP-633c 3.6): any VERIFIED activity
+    // from an actor that guards someone here restores it to active for those
+    // wards and cancels any lapse running against it, before the activity is
+    // even looked at. Signature-gated on purpose: an unverified claim of
+    // being gran must not wake gran up.
+    try {
+      const ev = Guardianship.availability.oneAnswer(claimedActor, Date.now());
+      if (ev.restored.length) console.log('[AP] guardian restored (one answer, 3.6):', claimedActor, '→', ev.restored.join(', '));
+      for (const c of ev.cancelledLapses) console.log('[AP] lapse cancelled by an answer from its target:', c.id);
+    } catch { /* availability is never load-bearing for delivery */ }
   }
 
   // FEP-633c §5.3 (modelled on the adoption offer): a gated follow forwarded to
@@ -1453,6 +1464,12 @@ export async function handleInbox(req, slugParam) {
       const wardActor = actorId(base, slug);
       const wardKeys = getOrCreateKeys(slug);
       const followObj = { id: followId, type: 'Follow', actor: who, object: wardActor };
+      // Dormancy evidence (FEP-633c 3.6.2): this decision directly addresses
+      // every guardian. The ONLY admissible evidence is a request like this
+      // one going unanswered; recordRequest itself skips a declared absence.
+      for (const g of wardGuardians) {
+        try { Guardianship.availability.recordRequest(slug, g, followId, Date.now()); } catch { /* never load-bearing */ }
+      }
       for (const g of wardGuardians) {
         // Local ONLY when the guardian lives on THIS instance: slugFromActorUrl
         // ignores the host (an /ap/users/x path on a remote host is someone
@@ -1636,6 +1653,21 @@ export async function handleInbox(req, slugParam) {
         const help = Guardianship.isHelpRequest(o);
         const wave = Guardianship.isWave(o);
         const hasG = Guardianship.objectHasGuardians(o);   // §2.2 hint, register-only
+        // FEP-633c 3.6.1: a guardian declares itself away to its ward, on the
+        // same direct note the mention below stores (so the kid also reads it
+        // as an ordinary message). Recorded only from an actual guardian of
+        // the addressed ward, and only with an end: an absence without an end
+        // is logged and dropped, never guessed.
+        if (Guardianship.availability.isAway(o)) {
+          const until = Guardianship.availability.parseEndTime(o.endTime);
+          for (const slug of slugs) {
+            const isG = (() => { try { return Guardianship.listGuardians(slug).some((g) => g.other_uri === actorUri); } catch { return false; } })();
+            if (!isG) continue;
+            if (!until || until <= Date.now()) { console.warn('[AP] away without a (future) end ignored (3.6.1):', actorUri, '→', slug); continue; }
+            Guardianship.availability.declareAway(slug, actorUri, until);
+            console.log('[AP] guardian declared away (3.6.1):', actorUri, '→', slug, 'until', new Date(until).toISOString());
+          }
+        }
         for (const slug of slugs) {
           try {
             const r = db.prepare(`INSERT OR IGNORE INTO ap_mentions (slug, object_uri, note_url, actor_uri, actor_name, actor_handle, actor_icon, actor_url, content, published, help_request, wave, has_guardians, emoji_json, actor_emoji_json, media_json, created_at)
@@ -2212,7 +2244,26 @@ export async function ingestOutboxActivity(site, user, activity) {
             } : null)
             .filter(Boolean);
           const help = object['shaer:helpRequest'] === true || object.helpRequest === true;
-          const r = await deliverDirectNote(site, { recipients, text: plain, language: object.language || null, inReplyTo: typeof object.inReplyTo === 'string' ? object.inReplyTo : null, attachments: atts, helpRequest: help });
+          // FEP-633c 3.6.1: a guardian here declaring itself away to its
+          // wards. An away without a (future) end fails loudly, exactly as
+          // the daemon refuses it: stored quietly it would be a nominal
+          // guardian holding a seat.
+          let awayUntil = null;
+          if (Guardianship.availability.isAway(object)) {
+            awayUntil = Guardianship.availability.parseEndTime(object.endTime);
+            if (!awayUntil || awayUntil <= Date.now()) return { status: 400, error: 'away_needs_an_end' };
+            // A ward we host ourselves never receives its own delivery
+            // (private ranges, loopback): apply locally, the way the
+            // handshake commit does.
+            const meUri = selfActorId(site.slug);
+            for (const uri of recipients) {
+              const wslug = uri.startsWith(`${base}/`) ? slugFromActorUrl(uri) : null;
+              if (wslug && Guardianship.listGuardians(wslug).some((g) => g.other_uri === meUri)) {
+                Guardianship.availability.declareAway(wslug, meUri, awayUntil);
+              }
+            }
+          }
+          const r = await deliverDirectNote(site, { recipients, text: plain, language: object.language || null, inReplyTo: typeof object.inReplyTo === 'string' ? object.inReplyTo : null, attachments: atts, helpRequest: help, awayUntil });
           if (!r || !r.id) return { status: 502, error: 'direct_failed' };
           return { status: 201, id: r.id, url: `${base}/ap/notes/${r.id}` };
         }
@@ -3438,9 +3489,13 @@ async function handleFollowApprovalInbox(act, slugParam) {
   if (!followId) return false;
   const pending = Guardianship.follows.getPending(followId);
   if (!pending) return false;
-  const guardians = Guardianship.listGuardians(pending.ward_slug).map((g) => g.other_uri);
-  if (!guardians.includes(actorUri)) return false;   // only a real guardian of this ward decides
+  const allGuardians = Guardianship.listGuardians(pending.ward_slug).map((g) => g.other_uri);
+  if (!allGuardians.includes(actorUri)) return false;   // only a real guardian of this ward decides
   const decision = type === 'Reject' ? 'reject' : 'approve';
+  // §3.5: the quorum runs over the AVAILABLE set. The voter itself was
+  // restored by the one-answer rule when its activity arrived, so answering
+  // is exactly what counts a guardian back in.
+  const guardians = Guardianship.availability.availableSet(pending.ward_slug, allGuardians, Date.now());
   const r = Guardianship.follows.decide(followId, actorUri, decision, guardians);
   try {
     if (r.outcome === 'approved') { await acceptGatedFollow(r.follow); Guardianship.follows.remove(followId); }
@@ -3780,6 +3835,30 @@ Guardianship.wireHandshake({
     const who = deriveHandle(ev.candidate || ev.guardian || ev.ward || '') || '?';
     const url = (ev.kind === 'offer_received' || ev.kind === 'guardian_left') ? `${pushPrefix(slug)}/messages` : '/guardian';
     pushEvent(slug, { type: 'guardian', title: i18nT(L, texts[0]), body: i18nT(L, texts[1], { who }), url });
+  },
+});
+
+// The notification duty of FEP-633c 3.6.2, wired once for every place a
+// dormancy promotion can happen (queue reads, fan-outs, tallies): marking a
+// guardian dormant MUST notify it, in protocol AND over the §6 handle. The
+// one-answer rule is worthless to someone who does not know an answer is
+// wanted. The handle of a committed guardian is its inbox (§6 minimum), which
+// is the same door this delivery knocks on; both attempts are logged.
+Guardianship.wireAvailability({
+  onDormant: (wardSlug, guardianUri) => {
+    const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+    const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(wardSlug);
+    if (!base || !site) return;
+    const me = selfActorId(wardSlug);
+    const note = {
+      id: `${me}/dormant/${Date.now().toString(36)}${rid()}`,
+      type: 'Note', attributedTo: me, to: [guardianUri],
+      'shaer:dormant': true,
+      content: '<p>You have been observed dormant as a guardian. Nothing is wrong and nothing is held against you: one answer restores everything (FEP-633c 3.6.2).</p>',
+    };
+    deliverToActor(site, guardianUri, { id: `${note.id}#create`, type: 'Create', actor: me, to: [guardianUri], object: note })
+      .catch(() => { /* retried by the queue */ });
+    console.log('[AP] guardian observed dormant (3.6.2):', guardianUri, 'ward', wardSlug, '(notified in protocol; the §6 handle is the same inbox)');
   },
 });
 

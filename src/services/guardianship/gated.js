@@ -14,6 +14,7 @@
  */
 import db from '../../config/database.js';
 import { listGuardians } from './relations.js';
+import * as availability from './availability.js';
 
 /** The window a gated-setting decision stays open. Reversible, so a day. */
 export const GATED_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -66,8 +67,15 @@ export function featureColumn(feature) {
 export function recordGatedVote(slug, feature, guardianUri, value) {
   const column = featureColumn(feature);
   if (!column) return { state: 'expired', error: 'unknown_feature' };
-  const guardians = listGuardians(slug).map((g) => g.other_uri);
-  if (!guardians.includes(guardianUri)) return { state: 'expired', error: 'not_a_guardian' };
+  const all = listGuardians(slug).map((g) => g.other_uri);
+  if (!all.includes(guardianUri)) return { state: 'expired', error: 'not_a_guardian' };
+  // A vote is an answer, whatever it is a vote on (§3.6): the voter is
+  // restored first, so it always counts itself back into the set below.
+  availability.oneAnswer(guardianUri, Date.now());
+  // §3.5: the threshold runs over the AVAILABLE set. Membership is checked
+  // against the full list above: any guardian may answer, and answering is
+  // exactly what brings it back in.
+  const guardians = availability.availableSet(slug, all, Date.now());
 
   // The window opens with the first answer, and a stale decision starts over:
   // a proposal from last month should not silently count toward today's.
@@ -99,7 +107,8 @@ export function recordGatedVote(slug, feature, guardianUri, value) {
 export function gatedProgress(slug, feature) {
   const votes = db.prepare('SELECT guardian_uri, value FROM ap_gated_votes WHERE slug = ? AND feature = ?')
     .all(slug, feature);
-  const guardians = listGuardians(slug).map((g) => g.other_uri);
+  // Progress over the available set (§3.5), like the tally itself.
+  const guardians = availability.availableSet(slug, listGuardians(slug).map((g) => g.other_uri), Date.now());
   return { votes: votes.length, need: thresholdFor(guardians.length), of: guardians.length };
 }
 

@@ -19,6 +19,7 @@ import { isGuardianRelationship, GUARDIAN_RELATIONSHIP_COMPACT } from './context
 import * as offers from './offers.js';
 import * as relations from './relations.js';
 import * as gated from './gated.js';
+import * as availability from './availability.js';
 
 let deps = null;
 export function wireHandshake(d) { deps = d; }
@@ -193,6 +194,11 @@ export async function handleOutbox(site, activity) {
   const type = Array.isArray(activity.type) ? activity.type[0] : activity.type;
   if (!['Offer', 'Accept', 'Reject', 'Undo'].includes(type)) return null;
   const me = deps.selfId(site.slug);
+  // One answer restores everything (§3.6): any C2S activity from this actor
+  // is that answer, for every local ward it guards. Runs before anything is
+  // even looked at, so the target of a running lapse cancels it by doing
+  // anything at all — including trying to vote on it.
+  try { availability.oneAnswer(me, Date.now()); } catch { /* never load-bearing */ }
 
   // ── Undo: a guardian ends its own guardianship (§3.2). Same path as the
   //    button in the Guardian PWA, so an app and the dashboard cannot drift.
@@ -205,6 +211,26 @@ export async function handleOutbox(site, activity) {
 
   // ── Offer: the local site is the guardian-candidate. ───────────────────
   if (type === 'Offer') {
+    // §3.6.3 over C2S: a guardian here proposes releasing a dormant
+    // co-guardian. A ward we host opens locally; a remote ward gets the
+    // proposal delivered, because the ward's server is the one that tallies
+    // and enforces (the §5.6 line: a guardian next door must not have more
+    // say than one far away).
+    const lp = availability.parseLapse(activity.object);
+    if (lp) {
+      const id = `${me}/lapses/${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
+      const wardSlug = deps.localSlug(lp.ward);
+      if (wardSlug) {
+        const r = availability.openLapse({ id, wardSlug, wardUri: lp.ward, target: lp.target, openedBy: me, now: Date.now() });
+        if (r.error) return { status: r.error === 'not_in_available_set' ? 403 : 409, error: r.error };
+        deps.deliverTo(site, lp.target, { id, type: 'Offer', actor: me, to: [lp.target], object: { type: 'shaer:Lapse', 'shaer:ward': lp.ward, object: lp.target } }).catch(() => { /* best-effort */ });
+        notify(wardSlug, { kind: 'lapse_opened', lapse: id, target: lp.target, set: r.set });
+        return { status: 202, id, url: id, 'shaer:set': r.set, 'shaer:threshold': r.threshold };
+      }
+      const offer = { id, type: 'Offer', actor: me, to: [lp.ward], object: { type: 'shaer:Lapse', 'shaer:ward': lp.ward, object: lp.target } };
+      const delivered = await fanout(site, [lp.ward], offer);
+      return { status: 202, id, url: id, delivered };
+    }
     const rel = parseRelationship(activity.object);
     if (!rel) return null;
     if (rel.candidate !== me) return { status: 403, error: 'only_the_candidate_offers' };   // fixed initiator (§3.1)
@@ -230,6 +256,14 @@ export async function handleOutbox(site, activity) {
   // ── Accept / Reject: the local site is a party answering an offer. ─────
   const offerId = idOf(activity.object);
   if (!offerId) return { status: 400, error: 'missing_offer' };
+  // A lapse vote over C2S (§3.6.3): the same Accept/Reject wire the offers
+  // and gated follows use, which is exactly why the Shaer clients need no
+  // new verbs for it.
+  if (availability.getLapse(offerId)) {
+    const r = availability.lapseVote(offerId, me, type === 'Accept', Date.now());
+    if (r && r.error) return { status: r.error === 'not_in_set' ? 403 : 409, error: r.error };
+    return { status: 202, id: offerId, url: offerId, 'shaer:outcome': 'open', 'shaer:accepts': r.accepts, 'shaer:threshold': r.threshold };
+  }
   let offer = offers.getOffer(site.slug, offerId);
   if (!offer) return { status: 404, error: 'no_such_offer' };
   const others = offers.parties(offer).filter((p) => p !== me);
@@ -274,6 +308,26 @@ export async function handleInbox(site, activity) {
       notify(site.slug, { kind: 'gated_setting', feature: gs.feature, value: gs.value, state: r.state });
       return true;
     }
+    // §3.6.3: a co-guardian proposes releasing a dormant guardian of THIS
+    // ward. The ward's server opens, tallies and (after the full window)
+    // executes, exactly as it does for the gated settings above.
+    const lp = availability.parseLapse(activity.object);
+    if (lp) {
+      if (lp.ward !== me) return false;   // not our ward
+      const id = idOf(activity) || `${me}/lapses/${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
+      const r = availability.openLapse({ id, wardSlug: site.slug, wardUri: me, target: lp.target, openedBy: actor, now: Date.now() });
+      if (r.error) {
+        notify(site.slug, { kind: 'lapse_refused', reason: r.error, target: lp.target });
+        return true;   // consumed: the refusal is the answer
+      }
+      // The target is notified like any dormancy marking (§3.6.2): in
+      // protocol (a copy of the Offer, so one answer can cancel it) AND the
+      // §6 handle, which for a committed guardian is its inbox — the same
+      // door this delivery knocks on.
+      deps.deliverTo(site, lp.target, activity).catch(() => { /* best-effort */ });
+      notify(site.slug, { kind: 'lapse_opened', lapse: id, target: lp.target, set: r.set });
+      return true;
+    }
     const rel = parseRelationship(activity.object);
     if (!rel) return false;
     // I must be a party: the ward, or one of the existing guardians in `to`.
@@ -301,6 +355,14 @@ export async function handleInbox(site, activity) {
     const value = type === 'Accept' ? !!gsOffer.value : !gsOffer.value;
     const r = gated.recordGatedVote(site.slug, gsOffer.feature, actor, value);
     notify(site.slug, { kind: 'gated_setting', feature: gsOffer.feature, value, state: r.state });
+    return true;
+  }
+  // §3.6.3: a set member answering a running lapse. Irreversible, so even a
+  // full tally leaves it open until the window closes (§3.5); the completion
+  // happens lazily on reads (queues) once the window has run.
+  if (availability.getLapse(offerId)) {
+    const r = availability.lapseVote(offerId, actor, type === 'Accept', Date.now());
+    notify(site.slug, { kind: 'lapse_vote', lapse: offerId, by: actor, state: r && !r.error ? 'recorded' : (r && r.error) || 'refused' });
     return true;
   }
   let offer = offers.getOffer(site.slug, offerId);

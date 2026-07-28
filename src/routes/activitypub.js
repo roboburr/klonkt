@@ -134,6 +134,9 @@ function queueRoute(name, build) {
 queueRoute('offers', (id, slug, me) => Guardianship.offersCollection(id, slug, me));
 queueRoute('follows', (id) => Guardianship.followsCollection(id));
 queueRoute('wards', (id, slug) => Guardianship.wardsCollection(id, slug));
+// Availability (FEP-633c 3.6.1) is never public: the ward reads its
+// guardians' real states here and nowhere else.
+queueRoute('guardians', (id, slug) => Guardianship.guardiansCollection(id, slug));
 
 // ── Inbox read (owner only, AP C2S) ───────────────────────────────
 // GET on the inbox is part of ActivityPub C2S: the account owner (a bearer
