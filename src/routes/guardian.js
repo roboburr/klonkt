@@ -37,7 +37,7 @@ function siteForUser(req) {
 /** Everything the dashboard shows, one shape for page and API. */
 function uiStrings(L) {
   const keys = ['sent', 'sent_retry', 'sending', 'not_found', 'failed', 'network',
-    'pending', 'active', 'retract', 'release', 'open', 'push_unavailable',
+    'pending', 'active', 'retract', 'release', 'release_confirm', 'open', 'push_unavailable',
     'accept', 'reject', 'complete', 'awaiting_others', 'coguard'];
   const s = Object.fromEntries(keys.map((k) => [k, i18nT(L, `guardian.${k}`)]));
   s.wave = i18nT(L, 'guardian.wave');

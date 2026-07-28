@@ -117,7 +117,13 @@
       wave.addEventListener('click', function () { sendWave(w.other_uri, wave); });
       row.appendChild(wave);
       var btn = el('button', 'quiet small', T.release);
-      btn.addEventListener('click', function () { remove(w.other_uri, btn); });
+      // Releasing a ward is heavy and hard to undo (coming back needs a fresh
+      // offer the ward accepts), so it asks first and spells out what changes.
+      btn.addEventListener('click', function () {
+        var who = handleOf(w.other_uri, w.other_handle);
+        var msg = (T.release_confirm || 'Release {who}?').replace('{who}', who);
+        if (window.confirm(msg)) remove(w.other_uri, btn);
+      });
       row.appendChild(btn);
       card.appendChild(row);
       list.appendChild(card);
