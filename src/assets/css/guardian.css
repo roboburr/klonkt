@@ -8,6 +8,7 @@
   --line: #2c3646;
   --accent: #ff6b35;
   --ok: #4caf7d;
+  --danger: #e05a5a;   /* alleen voor onomkeerbare stappen, zoals een ward loslaten */
 }
 * { box-sizing: border-box; }
 body {
@@ -133,3 +134,13 @@ button.small { padding: 6px 12px; font-size: .82rem; }
 .g-panel-sec .row { flex-wrap: wrap; }
 .g-empty.small { margin: 0; font-size: .85rem; }
 .tag.help { color: var(--accent); border-color: var(--accent); }
+
+/* Loslaten van een ward: geen browser-confirm maar een stap in het paneel, met
+   de gevolgen erbij. Rustig van kleur; het is een besluit, geen alarm. */
+.g-warn { margin-top: 10px; padding: 12px 14px; border-radius: 10px;
+  border: 1px solid var(--danger); background: color-mix(in srgb, var(--danger) 8%, transparent); }
+.g-warn strong { display: block; margin-bottom: 6px; }
+.g-warn p { margin: 0 0 8px; font-size: .88rem; line-height: 1.45; color: var(--sub); }
+.g-warn p.grave { color: var(--ink); font-weight: 500; }
+.g-warn .row { margin-top: 10px; gap: 8px; }
+button.danger { background: var(--danger); color: #fff; border-color: var(--danger); }

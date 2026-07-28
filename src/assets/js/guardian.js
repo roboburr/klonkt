@@ -183,6 +183,41 @@
     return emb;
   }
 
+  /**
+   * The second step of releasing a ward: what it does, then yes or no.
+   *
+   * The warning is assembled from what the server found, not from a fixed
+   * sentence, because releasing means two different things (FEP-633c): stepping
+   * down while other guardians remain (§3.3), or being the last one, which is
+   * emancipation and explicitly not one guardian's call (§3.4). And as long as
+   * the Undo does not federate, the ward's server keeps listing you either way
+   * — a guardian has to know that before pressing, not after.
+   */
+  function releaseStep(w, check, host, relBtn) {
+    var uri = w.other_uri;
+    var who = handleOf(uri, w.other_handle);
+    var box = el('div', 'g-warn');
+    box.appendChild(el('strong', null, (T.release_title || 'Release {who}?').replace('{who}', who)));
+    box.appendChild(el('p', null, T.release_effect || ''));
+    if (check.last === true) box.appendChild(el('p', 'grave', T.release_last || ''));
+    else if (check.last === false) box.appendChild(el('p', null, T.release_step_down || ''));
+    else box.appendChild(el('p', 'grave', T.release_unknown || ''));
+    if (check.federates === false) box.appendChild(el('p', null, T.release_local || ''));
+
+    var row = el('div', 'row');
+    var yes = el('button', 'danger small', T.release_yes || 'Yes');
+    yes.addEventListener('click', function () { yes.disabled = true; remove(uri, yes); });
+    var no = el('button', 'small', T.release_no || 'No');
+    no.addEventListener('click', function () {
+      host.removeChild(box);
+      relBtn.hidden = false; relBtn.disabled = false;
+    });
+    // No first: the way out should be the easy one to hit.
+    row.appendChild(no); row.appendChild(yes);
+    box.appendChild(row);
+    return box;
+  }
+
   function wardPanel(w) {
     var uri = w.other_uri;
     var panel = el('div', 'g-panel');
@@ -214,12 +249,21 @@
     wave.addEventListener('click', function () { sendWave(uri, wave); });
     actRow.appendChild(wave);
     var rel = el('button', 'quiet small', T.release);
-    // Releasing a ward is heavy and hard to undo (coming back needs a fresh
-    // offer the ward accepts), so it asks first and spells out what changes.
+    // Letting a child go is a decision, not a click. It opens a step that first
+    // asks the server what releasing this particular ward actually does, then
+    // says it plainly and asks yes or no. Never window.confirm: that hides a
+    // long explanation behind an OK button people press to make it go away.
     rel.addEventListener('click', function () {
-      var who = handleOf(uri, w.other_handle);
-      var msg = (T.release_confirm || 'Release {who}?').replace('{who}', who);
-      if (window.confirm(msg)) remove(uri, rel);
+      rel.disabled = true;
+      // site matters: with several of your own sites the server would otherwise
+      // check this ward against the wrong one and answer "not my ward".
+      fetch('/guardian/wards/release-check?site=' + encodeURIComponent(S.site) + '&uri=' + encodeURIComponent(uri))
+        .then(function (r) { return r.json(); })
+        .then(function (c) {
+          rel.hidden = true;
+          act.appendChild(releaseStep(w, c || {}, act, rel));
+        })
+        .catch(function () { rel.disabled = false; });
     });
     actRow.appendChild(rel);
     act.appendChild(actRow);

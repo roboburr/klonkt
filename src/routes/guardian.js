@@ -44,7 +44,10 @@ function uiStrings(L) {
     // The per-ward panel: everything about one child in one place.
     'settings_title', 'panel_open', 'panel_close', 'panel_help', 'panel_help_empty',
     'panel_follow', 'panel_follow_empty', 'panel_posts', 'panel_posts_empty',
-    'panel_actions', 'badge_help', 'badge_follow', 'badge_follow_one', 'help_empty'];
+    'panel_actions', 'badge_help', 'badge_follow', 'badge_follow_one', 'help_empty',
+    // Releasing a ward: a deliberate two-step answer, never one click.
+    'release_title', 'release_effect', 'release_local', 'release_step_down',
+    'release_last', 'release_unknown', 'release_yes', 'release_no'];
   const s = Object.fromEntries(keys.map((k) => [k, i18nT(L, `guardian.${k}`)]));
   s.wave = i18nT(L, 'guardian.wave');
   s.waved = i18nT(L, 'guardian.waved');
@@ -282,6 +285,53 @@ router.get('/app.js', pwaAsset('js/guardian.js', 'application/javascript'));
 router.get('/app.css', pwaAsset('css/guardian.css', 'text/css'));
 
 // ── Manage: release a committed ward (local Undo; federation is Fase 4). ──
+/**
+ * What actually happens if this guardian releases this ward?
+ *
+ * Releasing is not one action but two very different ones, and the difference
+ * is the number of guardians the child has left (FEP-633c):
+ *   - more than one → §3.3, you step down and the child stays a ward;
+ *   - you are the last → §3.4, that is emancipation, and the FEP is explicit
+ *     that no single guardian decides it alone (three consenting adults, or a
+ *     majority plus two witnesses).
+ * On top of that, today's release is LOCAL: the Undo is not federated yet
+ * (relations.js, fase 4), so the ward's server keeps listing this guardian.
+ * A guardian pressing the button would otherwise believe the child is released.
+ *
+ * Answered on demand rather than in the dashboard state: for a ward we do not
+ * host this reaches out to that ward's server, and nobody should pay for that
+ * on every refresh.
+ */
+router.get('/wards/release-check', requireAuth, async (req, res) => {
+  const site = siteForUser(req);
+  if (!site) return res.status(404).json({ error: 'no_site' });
+  const uri = String(req.query.uri || '').trim();
+  if (!uri) return res.status(400).json({ error: 'empty_uri' });
+  if (!Guardianship.listWards(site.slug).some((w) => w.other_uri === uri)) {
+    return res.status(403).json({ error: 'not_my_ward' });
+  }
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  const local = !!base && uri.startsWith(`${base}/`);
+  let guardians = null;   // null = we could not find out; say so rather than guess
+  if (local) {
+    const slug = uri.replace(/\/+$/, '').split('/').pop();
+    try { guardians = Guardianship.listGuardians(slug).length; } catch { /* stays null */ }
+  } else {
+    const doc = await AP.fetchActor(uri).catch(() => null);
+    const g = doc && doc['shaer:guardians'];
+    if (Array.isArray(g)) guardians = g.length;
+    else if (typeof g === 'string') guardians = 1;
+    else if (g && Array.isArray(g.items)) guardians = g.items.length;
+    else if (doc) guardians = 0;   // the actor answered and names no guardians
+  }
+  res.json({
+    guardians,
+    last: guardians === null ? null : guardians <= 1,
+    local,
+    federates: false,   // the Undo does not travel yet (§3.2, fase 4)
+  });
+});
+
 router.post('/wards/remove', requireAuth, express.json({ limit: '4kb' }), (req, res) => {
   const site = siteForUser(req);
   if (!site) return res.status(404).json({ error: 'no_site' });

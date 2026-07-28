@@ -38,6 +38,32 @@ test('every panel section has something to group by', () => {
   }
 });
 
+test('releasing a ward is two steps, not a browser confirm', () => {
+  // Robins besluit: letting a child go is a decision. window.confirm hides a
+  // long explanation behind an OK button people press to make it go away.
+  // A call, not the word: the comment above the release button names it too.
+  assert.ok(!/window\.confirm\s*\(/.test(client), 'the release must ask in the panel, with its own yes and no');
+  assert.match(client, /release-check/, 'and it first asks the server what releasing this ward actually does');
+  for (const k of ['release_last', 'release_step_down', 'release_unknown']) {
+    assert.ok(client.includes(k), `the warning must cover the ${k} case`);
+  }
+  assert.match(route, /not_my_ward/, 'and the check refuses a ward that is not yours');
+});
+
+test('every CSS variable the PWA uses is one it defines', () => {
+  // The dashboard is standalone: it never inherits the site theme, so an
+  // undefined var silently renders as nothing. --danger did exactly that: the
+  // warning box lost its border and the confirm button its background.
+  const css = read('../src/assets/css/guardian.css');
+  const root = (css.match(/:root\s*\{([\s\S]*?)\}/) || [])[1] || '';
+  const defined = new Set([...root.matchAll(/(--[a-z0-9-]+)\s*:/g)].map((m) => m[1]));
+  const used = [...new Set([...css.matchAll(/var\((--[a-z0-9-]+)(\s*,)?/g)]
+    .filter((m) => !m[2])            // one with a fallback is fine
+    .map((m) => m[1]))];
+  const missing = used.filter((v) => !defined.has(v));
+  assert.deepEqual(missing, [], `guardian.css uses ${missing.join(', ')} without defining it`);
+});
+
 test('the labels the panel renders are all served to it', () => {
   // uiStrings() picks the keys by hand, so a label used in the client but not
   // listed there renders as an empty string with no error anywhere. Two shapes
