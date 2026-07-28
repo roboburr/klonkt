@@ -2848,7 +2848,7 @@ async function resolveApActor(siteUrl) {
 // note and refreshes content + media (recovers covers/edits that were delivered
 // during a flux window, e.g. a fleet-wide update), and drops notes that are gone
 // (404/410). Bump SELFHEAL_VERSION only on a release that warrants a re-sync.
-const SELFHEAL_VERSION = 15; // v15: re-capture emoji_json/link_json for boosts that arrived before the Announce-path tag fix
+const SELFHEAL_VERSION = 16; // v16: resolve external link previews (embed_json) for posts that predate the embed pipeline
 async function fetchNoteAP(url) {
   try {
     const r = await fetch(url, { headers: { Accept: 'application/activity+json' } });
@@ -3158,7 +3158,7 @@ export async function selfHealTimeline() {
     try { const r = db.prepare('SELECT value FROM app_settings WHERE key = ?').get('selfheal_version'); cur = r ? (parseInt(r.value, 10) || 0) : 0; } catch { return; }
     if (cur >= SELFHEAL_VERSION) return; // already healed for this version — skip on normal boots
     let rows = [];
-    try { rows = db.prepare('SELECT id, slug, content, media_json, nsfw, cw, url, emoji_json, link_json, quote_json, author_uri, author_name, author_emoji_json, reblog_name, reblog_handle, reblog_emoji_json FROM ap_timeline ORDER BY rowid DESC LIMIT 200').all(); } catch { /* no table */ }
+    try { rows = db.prepare('SELECT id, slug, content, media_json, nsfw, cw, url, emoji_json, link_json, quote_json, author_uri, author_name, author_emoji_json, reblog_name, reblog_handle, reblog_emoji_json, embed_json FROM ap_timeline ORDER BY rowid DESC LIMIT 200').all(); } catch { /* no table */ }
     let healed = 0, failed = 0;
     for (const r of rows) {
       try {
@@ -3184,6 +3184,14 @@ export async function selfHealTimeline() {
         if (/:[A-Za-z0-9_+-]+:/.test(r.author_name || '') && !r.author_emoji_json && r.author_uri) {
           const ai = actorInfo(await fetchActor(r.author_uri), r.author_uri);
           if (ai.emojis) { try { db.prepare('UPDATE ap_timeline SET author_emoji_json = ? WHERE id = ?').run(JSON.stringify(ai.emojis), r.id); } catch { /* ignore */ } }
+        }
+        // v16: link previews. A post from before the embed pipeline has no
+        // card at all, which is why nothing showed. Only for rows that have no
+        // quote (a quote already IS the card) and no embed yet, so this costs
+        // one page fetch per candidate and never repeats.
+        if (!r.quote_json && !r.embed_json) {
+          const ej = await resolveExternalEmbed(html || r.content).catch(() => null);
+          if (ej) { try { db.prepare('UPDATE ap_timeline SET embed_json = ? WHERE id = ?').run(ej, r.id); } catch { /* ignore */ } }
         }
         // v14: same for the booster's display name ("X boosted"). The row stores
         // no booster URI, so resolve it from the handle via webfinger. Scoped to

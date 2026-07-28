@@ -36,6 +36,30 @@ function decodeEntities(s) {
   return String(s).replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
 }
 
+/**
+ * OpenGraph, the one that actually carries link previews on the open web.
+ * oEmbed is the richer protocol but most sites simply do not implement it;
+ * og:image / og:title is what Mastodon and everyone else reads, so it is the
+ * fallback that makes thumbnails appear at all. Same page fetch as the oEmbed
+ * discovery, so it costs nothing extra.
+ */
+export function findOpenGraph(html) {
+  if (!html || typeof html !== 'string') return null;
+  const meta = {};
+  for (const tag of html.match(/<meta\b[^>]*>/gi) || []) {
+    const key = (tag.match(/\b(?:property|name)\s*=\s*["']([^"']+)["']/i) || [])[1];
+    if (!key) continue;
+    const k = key.toLowerCase();
+    if (!/^(og:image|og:title|og:site_name|og:description|twitter:image|twitter:title)$/.test(k)) continue;
+    const val = (tag.match(/\bcontent\s*=\s*["']([^"']*)["']/i) || [])[1];
+    if (val && !meta[k]) meta[k] = decodeEntities(val);
+  }
+  const image = meta['og:image'] || meta['twitter:image'];
+  const title = meta['og:title'] || meta['twitter:title'];
+  if (!image && !title) return null;
+  return { image: image && /^https?:\/\//i.test(image) ? image : null, title: title || null, site: meta['og:site_name'] || null };
+}
+
 /** Is this JSON an ActivityPub object we can quote? */
 export function looksLikeAPObject(doc) {
   if (!doc || typeof doc !== 'object') return false;
@@ -117,14 +141,29 @@ export async function resolveEmbed(url, io = {}) {
     if (p) return { kind: 'provider', url, provider: p.provider, id: p.id || null, media: [] };
   }
 
-  // 3. oEmbed: the generic path for everything else.
-  if (io.getPage && io.getJSON) {
+  // 3. oEmbed, then OpenGraph. One page fetch serves both: oEmbed is the richer
+  //    protocol, OpenGraph is the one most of the web actually ships.
+  if (io.getPage) {
     const page = await io.getPage(url).catch(() => null);
-    const endpoint = findOEmbedEndpoint(page);
-    if (endpoint) {
-      const o = await io.getJSON(endpoint).catch(() => null);
-      const card = fromOEmbed(url, o);
-      if (card) return card;
+    if (page) {
+      const endpoint = findOEmbedEndpoint(page);
+      if (endpoint && io.getJSON) {
+        const o = await io.getJSON(endpoint).catch(() => null);
+        const card = fromOEmbed(url, o);
+        if (card) return card;
+      }
+      const og = findOpenGraph(page);
+      if (og) {
+        return {
+          kind: 'opengraph',
+          url,
+          title: og.title,
+          author: og.site ? { name: og.site, handle: null, icon: null } : null,
+          provider: og.site,
+          html: null,
+          media: og.image ? [{ url: og.image, type: 'image/*' }] : [],
+        };
+      }
     }
   }
 
@@ -139,10 +178,11 @@ export async function resolveEmbed(url, io = {}) {
 // so a hostile URL in a post cannot make the server probe an internal host.
 
 const MAX_BODY = 512_000;   // an oEmbed page/endpoint is small; refuse the rest
+const UA = 'Mozilla/5.0 (compatible; Klonkt/1.0; +https://klonkt.com)';
 
-async function safeText(safeFetch, url, accept) {
+async function safeText(safeFetch, url, accept, extra = {}) {
   try {
-    const r = await safeFetch(url, { headers: { Accept: accept } });
+    const r = await safeFetch(url, { headers: { Accept: accept, ...extra } });
     if (!r.ok) return null;
     if (Number(r.headers.get('content-length') || 0) > MAX_BODY) return null;
     const body = await r.text();
@@ -162,7 +202,9 @@ export function liveIO({ safeFetch, detectProvider, fetchActor, actorInfo }) {
       if (!body) return null;
       try { return JSON.parse(body); } catch { return null; }   // an HTML page is simply not AP
     },
-    getPage: (u) => safeText(safeFetch, u, 'text/html'),
+    // Plenty of sites only hand out their OpenGraph tags to something that
+    // looks like a browser, so the page fetch identifies itself.
+    getPage: (u) => safeText(safeFetch, u, 'text/html', { 'User-Agent': UA }),
     getJSON: async (u) => {
       const body = await safeText(safeFetch, u, 'application/json');
       if (!body) return null;
@@ -178,4 +220,4 @@ export function liveIO({ safeFetch, detectProvider, fetchActor, actorInfo }) {
   };
 }
 
-export default { resolveEmbed, findOEmbedEndpoint, looksLikeAPObject, fromOEmbed, fromAPObject, liveIO };
+export default { resolveEmbed, findOEmbedEndpoint, findOpenGraph, looksLikeAPObject, fromOEmbed, fromAPObject, liveIO };

@@ -119,3 +119,46 @@ test('liveIO caps oversized bodies and never throws on a bad fetch', async () =>
   assert.deepEqual(await io.getAP('https://x/ok'), { type: 'Note', id: 'https://s/1' });
   assert.ok(calls.some((c) => c[1].includes('activity+json')), 'AP asks for activity+json');
 });
+
+// OpenGraph: the one that actually carries link previews on the open web.
+// oEmbed is richer, but most sites simply do not ship it, which is why cards
+// stayed empty until this fallback existed.
+const OG_PAGE = '<html><head><meta property="og:title" content="Linux f&amp;uuml;r Einsteiger">'
+  + '<meta property="og:site_name" content="Linux Guides">'
+  + '<meta property="og:image" content="https://lg.example/tux.png"></head></html>';
+
+test('findOpenGraph reads og:image/title/site and decodes entities', async () => {
+  const { findOpenGraph } = await import('../src/services/EmbedResolver.js');
+  const og = findOpenGraph(OG_PAGE);
+  assert.equal(og.image, 'https://lg.example/tux.png');
+  assert.equal(og.site, 'Linux Guides');
+  assert.ok(og.title.startsWith('Linux f'));
+  assert.equal(findOpenGraph('<html><head><title>x</title></head></html>'), null);
+  assert.equal(findOpenGraph(null), null);
+});
+
+test('findOpenGraph falls back to twitter:image and refuses a non-http image', async () => {
+  const { findOpenGraph } = await import('../src/services/EmbedResolver.js');
+  const tw = findOpenGraph('<meta name="twitter:image" content="https://x/y.png"><meta name="twitter:title" content="T">');
+  assert.equal(tw.image, 'https://x/y.png');
+  const bad = findOpenGraph('<meta property="og:image" content="javascript:alert(1)"><meta property="og:title" content="T">');
+  assert.equal(bad.image, null, 'a non-http image is dropped, the title survives');
+  assert.equal(bad.title, 'T');
+});
+
+test('oEmbed still wins over OpenGraph when a page offers both', async () => {
+  const both = OEMBED_PAGE.replace('</head>', '<meta property="og:title" content="OG"></head>');
+  const r = await resolveEmbed('https://v.example/1', io({
+    getPage: async () => both, getJSON: async () => OEMBED_JSON,
+  }));
+  assert.equal(r.kind, 'oembed');
+  assert.equal(r.title, 'A talk');
+});
+
+test('a page with only OpenGraph yields a thumbnail card', async () => {
+  const r = await resolveEmbed('https://lg.example/artikel', io({ getPage: async () => OG_PAGE }));
+  assert.equal(r.kind, 'opengraph');
+  assert.equal(r.media[0].url, 'https://lg.example/tux.png');
+  assert.equal(r.provider, 'Linux Guides');
+  assert.equal(r.url, 'https://lg.example/artikel');
+});
