@@ -2848,7 +2848,7 @@ async function resolveApActor(siteUrl) {
 // note and refreshes content + media (recovers covers/edits that were delivered
 // during a flux window, e.g. a fleet-wide update), and drops notes that are gone
 // (404/410). Bump SELFHEAL_VERSION only on a release that warrants a re-sync.
-const SELFHEAL_VERSION = 16; // v16: resolve external link previews (embed_json) for posts that predate the embed pipeline
+const SELFHEAL_VERSION = 17; // v17: re-resolve link previews now that OpenGraph works and big pages are read instead of refused
 async function fetchNoteAP(url) {
   try {
     const r = await fetch(url, { headers: { Accept: 'application/activity+json' } });
@@ -3189,7 +3189,7 @@ export async function selfHealTimeline() {
         // card at all, which is why nothing showed. Only for rows that have no
         // quote (a quote already IS the card) and no embed yet, so this costs
         // one page fetch per candidate and never repeats.
-        if (!r.quote_json && !r.embed_json) {
+        if (!r.quote_json) {
           const ej = await resolveExternalEmbed(html || r.content).catch(() => null);
           if (ej) { try { db.prepare('UPDATE ap_timeline SET embed_json = ? WHERE id = ?').run(ej, r.id); } catch { /* ignore */ } }
         }

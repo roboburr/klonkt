@@ -51,14 +51,19 @@ test('an ActivityPub object resolves over AP, never over oEmbed', async () => {
   assert.ok(!pageFetched, 'AP wins before any oEmbed discovery happens');
 });
 
-test('a known provider beats oEmbed but loses to AP', async () => {
+// Regression: a hardcoded provider list used to short-circuit here and return a
+// card with no title and no thumbnail, so a YouTube link ended up storing
+// nothing at all. There is no provider list any more; every non-fediverse URL
+// takes the generic path, which is exactly what gives it a thumbnail.
+test('a video host is not special-cased and still gets a real card', async () => {
   const r = await resolveEmbed('https://youtu.be/abcdefghijk', io({
-    provider: () => ({ provider: 'youtube', id: 'abcdefghijk' }),
+    provider: () => ({ provider: 'youtube', id: 'abcdefghijk' }),   // ignored on purpose
     getPage: async () => OEMBED_PAGE,
     getJSON: async () => OEMBED_JSON,
   }));
-  assert.equal(r.kind, 'provider');
-  assert.equal(r.provider, 'youtube');
+  assert.equal(r.kind, 'oembed');
+  assert.equal(r.title, 'A talk');
+  assert.ok(r.media[0].url, 'and it has a thumbnail, which the old path never produced');
 });
 
 test('anything else goes through oEmbed discovery', async () => {
@@ -114,7 +119,8 @@ test('liveIO caps oversized bodies and never throws on a bad fetch', async () =>
     return { ok: true, headers: { get: () => '10' }, text: async () => '{"type":"Note","id":"https://s/1"}' };
   };
   const io = liveIO({ safeFetch: fakeFetch, detectProvider: () => null });
-  assert.equal(await io.getPage('https://x/huge'), null, 'oversized body refused');
+  // A JSON payload must parse whole, so an oversized one is refused outright.
+  assert.equal(await io.getJSON('https://x/huge'), null, 'oversized JSON refused');
   assert.equal(await io.getAP('https://x/boom'), null, 'a refused fetch is not an error');
   assert.deepEqual(await io.getAP('https://x/ok'), { type: 'Note', id: 'https://s/1' });
   assert.ok(calls.some((c) => c[1].includes('activity+json')), 'AP asks for activity+json');
@@ -161,4 +167,17 @@ test('a page with only OpenGraph yields a thumbnail card', async () => {
   assert.equal(r.media[0].url, 'https://lg.example/tux.png');
   assert.equal(r.provider, 'Linux Guides');
   assert.equal(r.url, 'https://lg.example/artikel');
+});
+
+// Regression, the one that kept YouTube blank: a page is read from the START and
+// cut off, never refused for being large. Refusing it meant no thumbnail at all
+// for exactly the sites people share most.
+test('a huge page is truncated, not rejected', async () => {
+  const { liveIO } = await import('../src/services/EmbedResolver.js');
+  const big = '<html><head>' + 'x'.repeat(5000) + '<meta property="og:title" content="T">'
+    + '<meta property="og:image" content="https://x/i.png"></head></html>';
+  const fakeFetch = async () => ({ ok: true, headers: { get: () => String(9_000_000) }, text: async () => big });
+  const io = liveIO({ safeFetch: fakeFetch, detectProvider: () => null });
+  const page = await io.getPage('https://x/huge');
+  assert.ok(page && page.includes('og:image'), 'the head survives the cap');
 });

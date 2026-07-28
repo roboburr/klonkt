@@ -6,10 +6,10 @@
 //      real semantics: FEP-044f `quote` + an FEP-e232 Link tag, the quoted
 //      author gets addressed, and the permission model applies. Never resolved
 //      over oEmbed, because oEmbed has none of that.
-//   2. Known provider      → the existing player (YouTube/Spotify/Bandcamp/…).
-//   3. oEmbed discovery    → the generic path, and the preferred implementation
-//      for everything outside the fediverse.
-//   4. Otherwise           → a plain link.
+//   2. oEmbed, else OpenGraph → one page fetch, and no list of providers to
+//      maintain. Whether an embed may be shown at all is a guardian decision
+//      (the gate), not a question of which host it came from.
+//   3. Otherwise           → a plain link.
 //
 // Everything returns the SAME normalised shape, so one renderer draws them all
 // (the quote card). Pure except for the two injected fetchers, so the ordering
@@ -135,14 +135,15 @@ export async function resolveEmbed(url, io = {}) {
     }
   }
 
-  // 2. A provider we already play ourselves.
-  if (io.provider) {
-    const p = io.provider(url);
-    if (p) return { kind: 'provider', url, provider: p.provider, id: p.id || null, media: [] };
-  }
-
-  // 3. oEmbed, then OpenGraph. One page fetch serves both: oEmbed is the richer
+  // 2. oEmbed, then OpenGraph. One page fetch serves both: oEmbed is the richer
   //    protocol, OpenGraph is the one most of the web actually ships.
+  //
+  //    There is deliberately NO list of known providers here. A hardcoded list
+  //    is a whitelist you have to keep maintaining, and it was actively harmful:
+  //    a YouTube link matched the list, short-circuited before oEmbed, and came
+  //    out as a card with no title and no thumbnail, so nothing was stored at
+  //    all. YouTube serves both oEmbed and og:image like everyone else, so the
+  //    generic path handles it better than the special case did.
   if (io.getPage) {
     const page = await io.getPage(url).catch(() => null);
     if (page) {
@@ -177,16 +178,63 @@ export async function resolveEmbed(url, io = {}) {
 // goes through safeFetch (which refuses private ranges and caps redirects),
 // so a hostile URL in a post cannot make the server probe an internal host.
 
-const MAX_BODY = 512_000;   // an oEmbed page/endpoint is small; refuse the rest
+const MAX_JSON = 512_000;   // an oEmbed/AP payload must parse whole, so cap and refuse
+// Of a web page we only ever need the <head>. The cap has to clear the worst
+// real case rather than the tidy one: YouTube ships ~665kB of inline script
+// before its og:image and closes <head> at ~673kB, and at 512kB we cut the page
+// off just short of the tags and produced nothing. We stop as soon as the tags
+// are in hand, so a normal page still costs a few dozen kB.
+const MAX_HEAD = 1_048_576;
 const UA = 'Mozilla/5.0 (compatible; Klonkt/1.0; +https://klonkt.com)';
 
-async function safeText(safeFetch, url, accept, extra = {}) {
+/** A whole small document, refused when it is too big to be one. */
+async function safeJsonText(safeFetch, url, accept) {
   try {
-    const r = await safeFetch(url, { headers: { Accept: accept, ...extra } });
+    const r = await safeFetch(url, { headers: { Accept: accept } });
     if (!r.ok) return null;
-    if (Number(r.headers.get('content-length') || 0) > MAX_BODY) return null;
+    if (Number(r.headers.get('content-length') || 0) > MAX_JSON) return null;
     const body = await r.text();
-    return body.length > MAX_BODY ? body.slice(0, MAX_BODY) : body;
+    return body.length > MAX_JSON ? null : body;   // truncated JSON is useless
+  } catch { return null; }
+}
+
+/**
+ * The START of a web page, streamed and cut off at MAX_HEAD.
+ *
+ * Refusing a page for being large was wrong: YouTube's watch page is megabytes,
+ * so it was rejected outright and never produced a thumbnail, even though its
+ * og:image sits in the first few kilobytes like everyone else's. We only ever
+ * read the <head>, so read that much and stop pulling. The cap still protects
+ * us from someone streaming us an endless body.
+ */
+async function safeHead(safeFetch, url, extra = {}) {
+  try {
+    const r = await safeFetch(url, { headers: { Accept: 'text/html,application/xhtml+xml', ...extra } });
+    if (!r.ok) return null;
+    if (!r.body || typeof r.body.getReader !== 'function') {
+      const body = await r.text();                       // no stream (or a test double)
+      return body.length > MAX_HEAD ? body.slice(0, MAX_HEAD) : body;
+    }
+    const reader = r.body.getReader();
+    const dec = new TextDecoder('utf-8');
+    const parts = [];
+    let len = 0;
+    let tail = '';        // carry a little context so a tag split across chunks still matches
+    let done_ = false;
+    while (!done_) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = dec.decode(value, { stream: true });
+      parts.push(chunk);
+      len += chunk.length;
+      // Scan only the new chunk (plus overlap), not the whole buffer: testing
+      // the full string every read turns a 1MB page into quadratic work.
+      const window = tail + chunk;
+      if (len >= MAX_HEAD || /<\/head>/i.test(window) || /og:image/i.test(window)) done_ = true;
+      tail = chunk.slice(-512);
+    }
+    try { await reader.cancel(); } catch { /* already closed */ }
+    return parts.join('').slice(0, MAX_HEAD);
   } catch { return null; }
 }
 
@@ -198,15 +246,15 @@ export function liveIO({ safeFetch, detectProvider, fetchActor, actorInfo }) {
   return {
     provider: detectProvider ? (u) => { try { return detectProvider(u); } catch { return null; } } : null,
     getAP: async (u) => {
-      const body = await safeText(safeFetch, u, 'application/activity+json, application/ld+json');
+      const body = await safeJsonText(safeFetch, u, 'application/activity+json, application/ld+json');
       if (!body) return null;
       try { return JSON.parse(body); } catch { return null; }   // an HTML page is simply not AP
     },
     // Plenty of sites only hand out their OpenGraph tags to something that
     // looks like a browser, so the page fetch identifies itself.
-    getPage: (u) => safeText(safeFetch, u, 'text/html', { 'User-Agent': UA }),
+    getPage: (u) => safeHead(safeFetch, u, { 'User-Agent': UA }),
     getJSON: async (u) => {
-      const body = await safeText(safeFetch, u, 'application/json');
+      const body = await safeJsonText(safeFetch, u, 'application/json');
       if (!body) return null;
       try { return JSON.parse(body); } catch { return null; }
     },
