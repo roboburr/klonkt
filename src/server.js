@@ -263,6 +263,14 @@ app.use('/media', express.static(process.env.MEDIA_PATH || './storage/media', {
   // causes the browser to block those images (the file arrives, but the browser
   // refuses to render it). Set cross-origin explicitly for /media.
   setHeaders: (res) => res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin'),
+  // An upload never changes under its name (unique filenames; a new upload is
+  // a new name), so say so. Without this the default is max-age=0 and every
+  // platform image-loader may re-ask for every image on every screen: Shaer's
+  // cards visibly re-loaded what the previous view had just shown. The thumbs
+  // and the avatar proxy already declared this; the originals were the one
+  // place that forgot.
+  maxAge: isDev ? 0 : '1y',
+  immutable: !isDev,
 }));
 
 // (Removed) TWA / digital-asset-links — only needed for the APK/TWA variant.
