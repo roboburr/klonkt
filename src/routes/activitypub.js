@@ -160,7 +160,7 @@ router.get('/ap/users/:slug/inbox', (req, res) => {
   // the app knows what it may offer instead of guessing.
   const playbackAllowed = embedsAllowed
     && Guardianship.externalPlaybackAllowed(auth.site.external_playback, isWard);
-  const items = AP.getTimeline(auth.site.slug, 60).map((t) => ({
+  const posts = AP.getTimeline(auth.site.slug, 60).map((t) => ({
     id: `${t.id}#create`,
     type: 'Create',
     actor: t.author_uri,
@@ -216,6 +216,47 @@ router.get('/ap/users/:slug/inbox', (req, res) => {
       'shaer:embed': embedsAllowed ? AP.timelineEmbed(t.embed_json, { playback: playbackAllowed }) : undefined,
     },
   }));
+  // The direct notes addressed to this account: a plain DM, a guardian's wave
+  // (§5), a ward's 🛟 help request (§5.2.1). Those are messages, not posts, so
+  // they are not in the timeline; without them the app's Berichten shows only
+  // what you said yourself. Same shape as a post, so one parser handles both.
+  const me = AP.actorId(base, auth.site.slug);
+  const myHandle = (() => { try { return `@${auth.site.slug}@${new URL(base).host}`; } catch { return `@${auth.site.slug}`; } })();
+  const messages = AP.getDirectMessages(auth.site.slug, 60).map((m) => ({
+    id: `${m.object_uri}#create`,
+    type: 'Create',
+    actor: m.actor_uri,
+    published: AP.isoStamp(m.published || m.created_at),
+    object: {
+      id: m.object_uri,
+      type: 'Note',
+      attributedTo: m.actor_uri,
+      content: AP.stripLeadingMentions(m.content),
+      url: m.note_url || undefined,
+      published: AP.isoStamp(m.published || m.created_at),
+      // Addressed to us and to nobody we know of: the other recipients of a
+      // note to several people are not ours to see, so we serve what we know.
+      to: [me],
+      // The Mention is how the client recognises itself as the addressee and
+      // groups the note into a conversation. No FEP-e232 link tags here: a
+      // mention row keeps the resolved quote, not the raw tags.
+      tag: [{ type: 'Mention', href: me, name: myHandle }, ...(AP.timelineEmojis(m.emoji_json) || [])],
+      attachment: AP.timelineAttachments(m.media_json),
+      // FEP-633c: what kind of message this is. The wave is a gentle nudge from
+      // a guardian; the help request is the buoy. Both render differently.
+      'shaer:wave': m.wave ? true : undefined,
+      'shaer:helpRequest': m.help_request ? true : undefined,
+      'shaer:quote': AP.timelineQuote(m.quote_json),
+      'shaer:author': (m.actor_name || m.actor_handle || m.actor_icon) ? {
+        name: m.actor_name || undefined, handle: m.actor_handle || undefined,
+        icon: m.actor_icon || undefined, url: m.actor_url || undefined,
+        emojis: (() => { try { return m.actor_emoji_json ? JSON.parse(m.actor_emoji_json) : undefined; } catch { return undefined; } })(),
+      } : undefined,
+      'shaer:embed': embedsAllowed ? AP.timelineEmbed(m.embed_json, { playback: playbackAllowed }) : undefined,
+    },
+  }));
+  // Newest first over both, so the app can keep treating this as one feed.
+  const items = [...posts, ...messages].sort((a, b) => String(b.published || '').localeCompare(String(a.published || '')));
   AP.sendAP(res, {
     '@context': AP.AP_CONTEXT,
     id: `${base}/ap/users/${auth.site.slug}/inbox`,

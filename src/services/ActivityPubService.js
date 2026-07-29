@@ -2733,6 +2733,48 @@ function tlStmts() {
 }
 export function getTimeline(slug, limit, offset) { return tlStmts().list.all(slug, limit || 50, offset || 0); }
 
+/**
+ * The direct notes addressed to this account: a plain DM, a guardian's wave
+ * (§5), a ward's 🛟 help request (§5.2.1). They live in ap_mentions and NOT in
+ * the timeline, because a note addressed to named people is a message and not a
+ * post (belongsInTimeline).
+ *
+ * A client that only reads the timeline therefore sees none of them, which is
+ * exactly what happened to Shaer: Berichten showed your own replies (those come
+ * from your outbox) and nothing that was said to you. The C2S inbox read serves
+ * both, so the app has one door for everything that arrives.
+ *
+ * A public mention from someone you follow is stored in both tables; those are
+ * skipped here and stay a post.
+ */
+export function getDirectMessages(slug, limit) {
+  try {
+    return db.prepare(`
+      SELECT m.object_uri, m.note_url, m.actor_uri, m.actor_name, m.actor_handle, m.actor_icon, m.actor_url,
+             m.content, m.published, m.created_at, m.wave, m.help_request,
+             m.emoji_json, m.actor_emoji_json, m.media_json, m.quote_json, m.embed_json
+      FROM ap_mentions m
+      WHERE m.slug = ?
+        AND NOT EXISTS (SELECT 1 FROM ap_timeline t WHERE t.slug = m.slug AND t.id = m.object_uri)
+      ORDER BY COALESCE(m.published, m.created_at) DESC LIMIT ?`).all(slug, limit || 60);
+  } catch { return []; }
+}
+
+/**
+ * A stored stamp as an ISO instant. SQLite's CURRENT_TIMESTAMP writes
+ * 'YYYY-MM-DD HH:MM:SS' in UTC, which Date.parse reads as LOCAL time; on a
+ * server two hours ahead that dated every message two hours early and put the
+ * conversation in the wrong order. A `published` from the wire is already ISO
+ * and passes through untouched.
+ */
+export function isoStamp(v) {
+  if (!v) return undefined;
+  const s = String(v);
+  if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}$/.test(s)) return `${s.replace(' ', 'T')}Z`;
+  const t = Date.parse(s);
+  return Number.isFinite(t) ? new Date(t).toISOString() : undefined;
+}
+
 // Inbox C2S read: a timeline row's media_json ([{url, type}], written on the
 // inbound Create) → AS2 `attachment` array, so a client (Shaer) can render a
 // friend's images/audio/video natively, exactly like own outbox posts. The
@@ -3926,12 +3968,12 @@ Guardianship.wireAvailability({
 });
 
 export default {
-  AP_CONTEXT, getOrCreateKeys, apWants, sendAP, actorId, noteId,
+  AP_CONTEXT, getOrCreateKeys, apWants, sendAP, actorId, noteId, stripLeadingMentions,
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers, buildFollowing, buildFeatured,
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, setMyReaction, getMyReactions, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate, deliverDirectNote,
-  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, timelineAttachments, timelineEmojis, timelineObjectLinks, timelineQuote, timelineEmbed, applyQuoteProps, deliverToActor, sendInteraction, voteOnPoll, voteOnRemotePoll,
+  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, getDirectMessages, isoStamp, timelineAttachments, timelineEmojis, timelineObjectLinks, timelineQuote, timelineEmbed, applyQuoteProps, deliverToActor, sendInteraction, voteOnPoll, voteOnRemotePoll,
   acceptGatedFollow, rejectGatedFollow, isWardGuardian, sendFollowDecision,
   parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread, sendReport, localMentionSlugs,
   autoBoostCount, boostedCount, markBoosted, unmarkBoosted, markLiked, unmarkLiked, getTimelineReaction, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
