@@ -524,7 +524,7 @@ function proposeGated(req, res) {
   }
   AP.deliverToActor(site, uri, offer).catch(() => { /* queued, best-effort */ });
   res.json({ ok: true, allow, state: 'open', federated: true });
-});
+}
 
 // ── The installable identity: own scope so the Guardian corner installs as
 //    its own app next to the site PWA.
