@@ -301,12 +301,43 @@ export async function handleInbox(site, activity) {
   if (type === 'Offer') {
     const gs = gated.parseGatedSetting(activity.object);
     if (gs) {
-      if (gs.ward !== me) return false;                       // not our ward
-      gated.rememberGatedOffer(idOf(activity), site.slug, gs.feature, gs.value);
-      // The proposer's Offer carries its own agreement (§3.1's one-step clause).
-      const r = gated.recordGatedVote(site.slug, gs.feature, actor, gs.value);
-      notify(site.slug, { kind: 'gated_setting', feature: gs.feature, value: gs.value, state: r.state });
-      return true;
+      const offerId = idOf(activity);
+      // ── I am the WARD: record, tally, and forward to the other guardians.
+      if (gs.ward === me) {
+        gated.rememberGatedOffer(offerId, site.slug, gs.feature, gs.value);
+        // The proposer's Offer carries its own agreement (§3.1's one-step clause).
+        const r = gated.recordGatedVote(site.slug, gs.feature, actor, gs.value);
+        // The forward is the leg that was missing. A proposal addressed to the
+        // ward's server reaches only the proposer and the ward; the other
+        // guardians never learn it exists, so a threshold of two can never be
+        // met and every proposal expires unanswered. The ward's server is the
+        // one that knows the authoritative guardian list, which is exactly why
+        // §5.3 forwards a gated follow from here too.
+        if (r.state === 'open') {
+          for (const g of relations.listGuardians(site.slug).map((x) => x.other_uri)) {
+            if (g === actor) continue;   // the proposer already answered
+            deps.deliverTo(site, g, {
+              id: offerId, type: 'Offer', actor, to: [g], object: activity.object,
+            }).catch(() => { /* the delivery queue retries */ });
+          }
+        } else {
+          gated.clearGatedReviews(offerId);   // settled at once: nothing left to ask
+        }
+        notify(site.slug, { kind: 'gated_setting', feature: gs.feature, value: gs.value, state: r.state });
+        return true;
+      }
+      // ── I am one of the GUARDIANS: the forwarded copy. Store it so this
+      //    guardian can answer; the answer goes back to the ward, which tallies.
+      if (relations.getRelation(site.slug, 'guardian', gs.ward)) {
+        const wardDoc = await deps.fetchActor(gs.ward).catch(() => null);
+        gated.recordGatedReview(site.slug, {
+          id: offerId, wardUri: gs.ward, wardInbox: wardDoc && wardDoc.inbox,
+          proposer: actor, feature: gs.feature, value: gs.value,
+        });
+        notify(site.slug, { kind: 'gated_review', feature: gs.feature, value: gs.value, ward: gs.ward });
+        return true;
+      }
+      return false;   // not our ward, and not a ward we guard
     }
     // §3.6.3: a co-guardian proposes releasing a dormant guardian of THIS
     // ward. The ward's server opens, tallies and (after the full window)

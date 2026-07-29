@@ -144,6 +144,40 @@ export function buildGatedOffer(offerId, actor, ward, feature, value) {
   };
 }
 
+// ── The guardian-side copy (the missing leg of §5.6) ──────────────
+// A proposal addressed to the ward's server reaches only the proposer and the
+// ward. The other guardians never learn it exists, so a threshold of two can
+// never be met and every proposal expires unanswered. The ward's server
+// therefore FORWARDS it, exactly as it forwards a gated follow (§5.3): each
+// guardian stores a copy it can answer, and the answer travels back to the
+// ward, which tallies.
+
+let _rs = null;
+function rstmts() {
+  if (!_rs) {
+    _rs = {
+      ins: db.prepare(`INSERT INTO ap_gated_reviews (id, guardian_slug, ward_uri, ward_inbox, proposer, feature, value)
+                       VALUES (?,?,?,?,?,?,?)
+                       ON CONFLICT(guardian_slug, id) DO UPDATE SET value = excluded.value, ward_inbox = excluded.ward_inbox`),
+      get: db.prepare('SELECT * FROM ap_gated_reviews WHERE guardian_slug = ? AND id = ?'),
+      bySlug: db.prepare('SELECT * FROM ap_gated_reviews WHERE guardian_slug = ? ORDER BY created_at DESC'),
+      del: db.prepare('DELETE FROM ap_gated_reviews WHERE guardian_slug = ? AND id = ?'),
+      delAll: db.prepare('DELETE FROM ap_gated_reviews WHERE id = ?'),
+    };
+  }
+  return _rs;
+}
+
+export function recordGatedReview(guardianSlug, r) {
+  rstmts().ins.run(r.id, guardianSlug, r.wardUri, r.wardInbox || null, r.proposer || null, r.feature, r.value ? 1 : 0);
+  return rstmts().get.get(guardianSlug, r.id);
+}
+export function getGatedReview(guardianSlug, id) { return rstmts().get.get(guardianSlug, id); }
+export function listGatedReviews(guardianSlug) { return rstmts().bySlug.all(guardianSlug); }
+export function removeGatedReview(guardianSlug, id) { rstmts().del.run(guardianSlug, id); }
+/** Drop every guardian's copy once the decision has settled or lapsed. */
+export function clearGatedReviews(id) { rstmts().delAll.run(id); }
+
 export function rememberGatedOffer(offerId, slug, feature, value) {
   try {
     db.prepare('INSERT OR REPLACE INTO ap_gated_offers (offer_id, slug, feature, value) VALUES (?,?,?,?)')
@@ -159,4 +193,5 @@ export function recallGatedOffer(offerId) {
 export default {
   tallyGatedSetting, thresholdFor, featureColumn, recordGatedVote, gatedProgress, GATED_WINDOW_MS,
   parseGatedSetting, buildGatedOffer, rememberGatedOffer, recallGatedOffer,
+  recordGatedReview, getGatedReview, listGatedReviews, removeGatedReview, clearGatedReviews,
 };

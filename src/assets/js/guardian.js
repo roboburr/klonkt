@@ -149,10 +149,38 @@
     return card;
   }
 
+  /** A gated-setting proposal (FEP-633c 5.6) a fellow guardian opened on a
+   *  ward we share, forwarded here by the ward's server. Answering is the
+   *  whole point: without a second voice the threshold is never met and the
+   *  proposal quietly expires. */
+  function gatedCard(g) {
+    var card = el('div', 'g-card gated');
+    var line = g.value ? (T.gated_line_on || '') : (T.gated_line_off || '');
+    card.appendChild(el('div', 'who', line
+      .replace('{who}', handleOf(g.proposer || ''))
+      .replace('{ward}', handleOf(g.ward))));
+    var row = el('div', 'row');
+    var yes = el('button', 'small', T.gated_agree || 'Agree');
+    var no = el('button', 'quiet small', T.gated_disagree || 'Disagree');
+    function answerGated(decision, btn) {
+      btn.disabled = true;
+      fetch('/guardian/api/gated/' + encodeURIComponent(g.id), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ answer: decision, site: S.site }),
+      }).then(refresh).catch(function () { btn.disabled = false; });
+    }
+    yes.addEventListener('click', function () { answerGated('accept', yes); });
+    no.addEventListener('click', function () { answerGated('reject', no); });
+    row.appendChild(yes); row.appendChild(no);
+    card.appendChild(row);
+    return card;
+  }
+
   function renderPending() {
     var list = document.getElementById('pending-list');
     list.textContent = '';
     var offers = S.offers || [];
+    var gated = S.gatedReviews || [];
     // The offers state carries the adoption offers; the lapse proposals ride
     // separately so a lapse never renders as an adoption.
     var lapses = (S.lapses || []).filter(function (l) { return l['shaer:outcome'] === 'open'; });
@@ -161,7 +189,8 @@
       list.appendChild(offerCard(o));
     });
     lapses.forEach(function (l) { list.appendChild(lapseCard(l)); });
-    show('pending-section', offers.length > 0 || lapses.length > 0);
+    gated.forEach(function (g) { list.appendChild(gatedCard(g)); });
+    show('pending-section', offers.length > 0 || lapses.length > 0 || gated.length > 0);
   }
 
   // ── 4. Accepted wards: one panel per child ─────────────────────────────

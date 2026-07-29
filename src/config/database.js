@@ -513,6 +513,23 @@ export function initializeDatabase() {
       value INTEGER NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+    -- The guardian-side COPY of a gated-setting proposal on a ward, forwarded
+    -- here by the WARD's server (the same shape ap_follow_reviews has for a
+    -- gated follow). Without it a guardian on another server never learns a
+    -- proposal exists and can never answer it, so a threshold of two can never
+    -- be reached and every proposal expires. The answer goes back to the
+    -- ward's inbox, which tallies (5.6).
+    CREATE TABLE IF NOT EXISTS ap_gated_reviews (
+      id TEXT NOT NULL,            -- the offer id, as minted by the proposer
+      guardian_slug TEXT NOT NULL, -- us, one of the ward's guardians
+      ward_uri TEXT NOT NULL,
+      ward_inbox TEXT,
+      proposer TEXT,               -- who opened it (for display)
+      feature TEXT NOT NULL,
+      value INTEGER NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (guardian_slug, id)
+    );
     CREATE TABLE IF NOT EXISTS ap_gated_votes (
       slug TEXT NOT NULL,          -- the WARD, on this server
       feature TEXT NOT NULL,       -- e.g. 'shaer:externalEmbeds'

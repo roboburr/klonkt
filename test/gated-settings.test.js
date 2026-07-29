@@ -81,3 +81,55 @@ test('a gated-setting Offer carries ward, feature and value', async () => {
   assert.deepEqual(parsed, { ward: 'https://b/ward', feature: 'shaer:externalEmbeds', value: true });
   assert.equal(parseGatedSetting({ type: 'Relationship' }), null, 'a different Offer is not ours');
 });
+
+// The leg that was missing, found on the live fleet: a proposal addressed to
+// the ward's server reached only the proposer and the ward. The two guardians
+// on other servers never learned it existed, so the threshold of two could
+// never be met and every proposal expired unanswered. Link previews for beta
+// stayed off not because anyone objected, but because nobody could answer.
+test('the ward forwards a proposal to the other guardians, or nobody can answer', async () => {
+  const dbMod2 = await import('../src/config/database.js');
+  const database = dbMod2.default;
+  const G = await import('../src/services/guardianship/index.js');
+  const WARD = 'https://test.example/ap/users/kid9';
+  const [A, B, C] = ['https://a.test/u/a', 'https://b.test/u/b', 'https://c.test/u/c'];
+  database.prepare('INSERT OR IGNORE INTO users (id, username, email, password_hash, role) VALUES (?,?,?,?,?)').run('u9', 'u9', 'u9@t', 'x', 'god');
+  database.prepare('INSERT OR IGNORE INTO sites (id, slug, title, owner_id, is_primary) VALUES (?,?,?,?,0)').run('s9', 'kid9', 'kid9', 'u9');
+  for (const g of [A, B, C]) {
+    database.prepare("INSERT OR IGNORE INTO ap_guardianships (slug, role, other_uri, status, offer_id) VALUES ('kid9','ward',?, 'accepted','o')").run(g);
+  }
+  const sent = [];
+  G.wireHandshake({
+    selfId: (slug) => `https://test.example/ap/users/${slug}`,
+    localSlug: (u) => (u.startsWith('https://test.example/ap/users/') ? u.split('/').pop() : null),
+    deriveHandle: (u) => '@' + u.split('/').pop(),
+    fetchActor: async (u) => ({ id: u, inbox: `${u}/inbox` }),
+    deliverTo: async (s, to, act) => { sent.push({ to, act }); return { delivered: true }; },
+    onEvent: null,
+  });
+  const site = database.prepare('SELECT * FROM sites WHERE slug = ?').get('kid9');
+
+  // A proposes. The ward records A's own vote (1 of 3, threshold 2: open).
+  const offer = G.gated.buildGatedOffer('https://a.test/gated/1', A, WARD, 'shaer:externalEmbeds', true);
+  assert.equal(await G.handleGuardianshipInbox(site, { ...offer, actor: A }), true);
+  assert.equal(database.prepare('SELECT external_embeds FROM sites WHERE slug = ?').get('kid9').external_embeds, null, 'one voice is not a majority');
+
+  // The forward: B and C are told, A is not asked twice.
+  const told = sent.filter((x) => x.act.object && x.act.object['shaer:feature']).map((x) => x.to).sort();
+  assert.deepEqual(told, [B, C].sort(), 'both other guardians must receive the proposal');
+
+  // B receives its copy on its own server and can answer it.
+  database.prepare('INSERT OR IGNORE INTO sites (id, slug, title, owner_id, is_primary) VALUES (?,?,?,?,0)').run('s10', 'gb', 'gb', 'u9');
+  database.prepare("INSERT OR IGNORE INTO ap_guardianships (slug, role, other_uri, status, offer_id) VALUES ('gb','guardian',?, 'accepted','o')").run(WARD);
+  const gbSite = database.prepare('SELECT * FROM sites WHERE slug = ?').get('gb');
+  assert.equal(await G.handleGuardianshipInbox(gbSite, { ...offer, actor: A, to: ['https://test.example/ap/users/gb'] }), true);
+  const review = G.gated.listGatedReviews('gb')[0];
+  assert.ok(review, 'the guardian stores a copy it can answer');
+  assert.equal(review.feature, 'shaer:externalEmbeds');
+  assert.equal(review.ward_uri, WARD);
+
+  // B's Accept reaches the ward: 2 of 3, the threshold, and the gate opens.
+  assert.equal(await G.handleGuardianshipInbox(site, { type: 'Accept', actor: B, object: 'https://a.test/gated/1' }), true);
+  assert.equal(database.prepare('SELECT external_embeds FROM sites WHERE slug = ?').get('kid9').external_embeds, 1,
+    'two of three agreed, so the ward may see link previews');
+});

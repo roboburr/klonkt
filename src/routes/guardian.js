@@ -51,7 +51,9 @@ function uiStrings(L) {
     // Availability (FEP-633c 3.6): the dots, the step-away, the lapse.
     'avail_available', 'avail_away', 'avail_dormant', 'panel_guards', 'panel_guards_remote',
     'lapse_propose', 'lapse_line', 'lapse_tally', 'lapse_note', 'lapse_agree', 'lapse_disagree', 'voted',
-    'away_title', 'away_sub', 'away_week', 'away_month', 'away_done'];
+    'away_title', 'away_sub', 'away_week', 'away_month', 'away_done',
+    // A gated-setting proposal from a fellow guardian (5.6).
+    'gated_title', 'gated_line_on', 'gated_line_off', 'gated_agree', 'gated_disagree'];
   const s = Object.fromEntries(keys.map((k) => [k, i18nT(L, `guardian.${k}`)]));
   s.wave = i18nT(L, 'guardian.wave');
   s.waved = i18nT(L, 'guardian.waved');
@@ -92,6 +94,12 @@ function dashboardState(site, L) {
     offers: Guardianship.offersCollection(`${me}/queues/offers`, site.slug, me).orderedItems,
     // Running lapses (3.6.3) this guardian or its local wards are party to.
     lapses: Guardianship.availability.lapseQueueItems(site.slug, me, Date.now()),
+    // Gated-setting proposals another guardian opened on a ward we share
+    // (5.6), forwarded here by the ward's server. Without answering these the
+    // threshold is never met and the proposal simply expires.
+    gatedReviews: Guardianship.gated.listGatedReviews(site.slug).map((r) => ({
+      id: r.id, ward: r.ward_uri, proposer: r.proposer, feature: r.feature, value: !!r.value,
+    })),
     help,
     strings: uiStrings(L),
   };
@@ -344,6 +352,27 @@ router.post('/api/lapse', requireAuth, express.json({ limit: '4kb' }), async (re
   });
   if (!r || r.status >= 400) return res.status(r?.status || 500).json({ error: r?.error || 'lapse_failed' });
   res.json({ ok: true, lapse: r.id });
+});
+
+// ── Answer a forwarded gated-setting proposal (FEP-633c 5.6) ─────────────
+// The decision belongs to the ward's server, so the answer travels there as an
+// Accept/Reject on the offer id, exactly like a gated follow's decision.
+router.post('/api/gated/:id', requireAuth, express.json({ limit: '2kb' }), async (req, res) => {
+  const site = siteForUser(req);
+  if (!site) return res.status(404).json({ error: 'no_site' });
+  const review = Guardianship.gated.getGatedReview(site.slug, req.params.id);
+  if (!review) return res.status(404).json({ error: 'gone' });
+  const agree = req.body?.answer !== 'reject';
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  const me = AP.actorId(base, site.slug);
+  const activity = {
+    id: `${me}#gated-${Date.now().toString(36)}`,
+    type: agree ? 'Accept' : 'Reject', actor: me, to: [review.ward_uri], object: review.id,
+  };
+  try { await AP.deliverToActor(site, review.ward_uri, activity); }
+  catch { return res.status(502).json({ error: 'delivery' }); }
+  Guardianship.gated.removeGatedReview(site.slug, review.id);
+  res.json({ ok: true, answer: agree ? 'accept' : 'reject' });
 });
 
 router.post('/offer', requireAuth, express.json({ limit: '4kb' }), async (req, res) => {
