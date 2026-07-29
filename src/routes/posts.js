@@ -1083,10 +1083,29 @@ function klonktAudioEmbed(html, url) {
  */
 function gateEmbeds(site, rows) {
   if (!site || !rows.length) return rows;
-  let isWard = false;
-  try { isWard = Guardianship.listGuardians(site.slug).length > 0; } catch { /* no relations yet */ }
-  if (Guardianship.externalEmbedsAllowed(site.external_embeds, isWard)) return rows;
+  if (embedsAllowedFor(site)) return rows;
   return rows.map((r) => (r && r.embed_json ? { ...r, embed_json: null } : r));
+}
+
+function isWardSite(site) {
+  try { return !!site && Guardianship.listGuardians(site.slug).length > 0; } catch { return false; }
+}
+function embedsAllowedFor(site) {
+  return !site || Guardianship.externalEmbedsAllowed(site.external_embeds, isWardSite(site));
+}
+/**
+ * May a third-party PLAYER run inside this page? (FEP-633c 5.6, the heavier
+ * sibling of the preview gate.) This was the hole: the player iframe is built
+ * from the note's content by timelineEmbedHtml, on a path that never touched
+ * gateEmbeds. A ward whose guardians had allowed nothing still got the full
+ * YouTube player on the web, while the app showed nothing at all: the heavy
+ * thing open, the light thing shut. Playback also requires the preview gate,
+ * because you cannot play what you may not see.
+ */
+function playbackAllowedFor(site) {
+  if (!site) return true;
+  if (!embedsAllowedFor(site)) return false;
+  return Guardianship.externalPlaybackAllowed(site.external_playback, isWardSite(site));
 }
 
 router.get('/news', requireSiteManager, (req, res) => {
@@ -1097,8 +1116,11 @@ router.get('/news', requireSiteManager, (req, res) => {
   // Fetch one extra to know whether a "Load more" button belongs on this page.
   const rows = gateEmbeds(site, site ? ActivityPubService.getTimeline(site.slug, FEED_PAGE + 1, offset) : []);
   const hasMore = rows.length > FEED_PAGE;
+  // Players (a third party's engine inside our page) ride the playback gate;
+  // a Klonkt site's own audio embed is ours and stays.
+  const mayPlay = playbackAllowedFor(site);
   const timeline = rows.slice(0, FEED_PAGE).map((p) => {
-    let embedHtml = timelineEmbedHtml(p.content);
+    let embedHtml = mayPlay ? timelineEmbedHtml(p.content) : null;
     let content = p.content;
     let embedUrl = null;
     if (!embedHtml) {

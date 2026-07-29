@@ -136,6 +136,11 @@ export function initializeDatabase() {
   // else. The guardians flip it; the gate itself lives server-side, so a ward
   // never even receives the thumbnail it is not allowed to see.
   ensureColumn('sites', 'external_embeds', 'INTEGER');
+  // The heavier sibling (FEP-633c 5.6): may a player from outside this app run
+  // INSIDE it? A preview is a picture; playback hands the screen to a third
+  // party's engine, recommendations and all. Two settings, so the guardians can
+  // allow the one without the other. NULL = auto, which means off for a ward.
+  ensureColumn('sites', 'external_playback', 'INTEGER');
   ensureColumn('sites', 'og_theme', 'TEXT');             // OG share-card variant: NULL=auto (follow site theme) | 'light' | 'dark'
 
   // Per-post noindex + type

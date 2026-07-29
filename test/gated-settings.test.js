@@ -133,3 +133,44 @@ test('the ward forwards a proposal to the other guardians, or nobody can answer'
   assert.equal(database.prepare('SELECT external_embeds FROM sites WHERE slug = ?').get('kid9').external_embeds, 1,
     'two of three agreed, so the ward may see link previews');
 });
+
+// Playback is the heavier sibling of the preview (5.6): seeing that a video
+// exists is one decision, letting a third party's player run inside the app is
+// another. The hole this closes: the web Krant built the YouTube iframe from
+// the note's content on a path that never touched the gate, so a ward whose
+// guardians had allowed nothing still got the full player, while the app
+// showed nothing at all. The heavy thing open, the light thing shut.
+test('a player URL rides only when the playback gate is open', async () => {
+  const AP2 = (await import('../src/services/ActivityPubService.js')).default;
+  const yt = JSON.stringify({ url: 'https://www.youtube.com/watch?v=HetoL4XpHwY', title: 'x', media: [] });
+
+  const shut = AP2.timelineEmbed(yt);
+  assert.ok(shut && shut.url, 'the card itself still travels');
+  assert.equal(shut['shaer:playerUrl'], undefined, 'no player without the gate');
+
+  const open = AP2.timelineEmbed(yt, { playback: true });
+  assert.match(open['shaer:playerUrl'], /^https:\/\/www\.youtube-nocookie\.com\/embed\/HetoL4XpHwY/,
+    'privacy-enhanced only: nocookie, no related videos');
+  assert.match(open['shaer:playerUrl'], /rel=0/);
+});
+
+test('a page we will not frame simply stays a thumbnail', async () => {
+  const AP2 = (await import('../src/services/ActivityPubService.js')).default;
+  const page = JSON.stringify({ url: 'https://yougubrands.com/about', title: 'About', media: [] });
+  assert.equal(AP2.timelineEmbed(page, { playback: true })['shaer:playerUrl'], undefined);
+  assert.equal(AP2.playerUrlFor('https://nos.nl/artikel/1'), null);
+  // PeerTube is decentralised, so it is matched by shape, not by a host list.
+  assert.equal(AP2.playerUrlFor('https://tilvids.com/w/abc123def'), 'https://tilvids.com/videos/embed/abc123def');
+});
+
+test('playback needs the preview gate: you cannot play what you may not see', async () => {
+  const G2 = await import('../src/services/guardianship/index.js');
+  // Both auto (a ward): both shut.
+  assert.equal(G2.externalEmbedsAllowed(null, true), false);
+  assert.equal(G2.externalPlaybackAllowed(null, true), false);
+  // Guardians opened previews only: playback stays a separate decision.
+  assert.equal(G2.externalEmbedsAllowed(1, true), true);
+  assert.equal(G2.externalPlaybackAllowed(null, true), false);
+  // An adult account has nothing gated.
+  assert.equal(G2.externalPlaybackAllowed(null, false), true);
+});

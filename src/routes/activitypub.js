@@ -153,6 +153,13 @@ router.get('/ap/users/:slug/inbox', (req, res) => {
   // client merely hides has still been delivered to the device.
   const isWard = (() => { try { return Guardianship.listGuardians(auth.site.slug).length > 0; } catch { return false; } })();
   const embedsAllowed = Guardianship.externalEmbedsAllowed(auth.site.external_embeds, isWard);
+  // The heavier sibling (5.6): may a third party's PLAYER run inside the app,
+  // and may a link hand the child over to a browser? Both are the guardians'
+  // call, both default to off for a ward, and both need the preview gate open
+  // first: you cannot play, or follow, what you may not see. Served here so
+  // the app knows what it may offer instead of guessing.
+  const playbackAllowed = embedsAllowed
+    && Guardianship.externalPlaybackAllowed(auth.site.external_playback, isWard);
   const items = AP.getTimeline(auth.site.slug, 60).map((t) => ({
     id: `${t.id}#create`,
     type: 'Create',
@@ -205,13 +212,25 @@ router.get('/ap/users/:slug/inbox', (req, res) => {
       'shaer:boosted': !!t.boosted,
       // An external (non-fediverse) embed, thumbnail-only and never an iframe.
       // Omitted entirely when the gate is closed (see above).
-      'shaer:embed': embedsAllowed ? AP.timelineEmbed(t.embed_json) : undefined,
+      // Carries shaer:playerUrl only when the playback gate is open too.
+      'shaer:embed': embedsAllowed ? AP.timelineEmbed(t.embed_json, { playback: playbackAllowed }) : undefined,
     },
   }));
   AP.sendAP(res, {
     '@context': AP.AP_CONTEXT,
     id: `${base}/ap/users/${auth.site.slug}/inbox`,
     type: 'OrderedCollection',
+    // What this account may do with what is in here (FEP-633c 5.6). Owner-only
+    // by construction, and never on the public actor document: it says
+    // something about a child, and only the child and its guardians need it.
+    'shaer:capabilities': {
+      'shaer:externalEmbeds': embedsAllowed,
+      'shaer:externalPlayback': playbackAllowed,
+      // Leaving the app is the same decision as playing inside it: with the
+      // gate shut a link is shown but not followed, so the door is closed too
+      // and not just the picture over it.
+      'shaer:externalLinks': playbackAllowed,
+    },
     totalItems: items.length,
     orderedItems: items,
   });

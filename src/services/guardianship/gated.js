@@ -55,7 +55,10 @@ export function tallyGatedSetting(votes, guardianSet, ageMs, windowMs = GATED_WI
 }
 
 /** The column a feature maps onto. Unknown features are refused, not guessed. */
-const FEATURES = { 'shaer:externalEmbeds': 'external_embeds' };
+const FEATURES = {
+  'shaer:externalEmbeds': 'external_embeds',
+  'shaer:externalPlayback': 'external_playback',
+};
 export function featureColumn(feature) {
   return Object.prototype.hasOwnProperty.call(FEATURES, feature) ? FEATURES[feature] : null;
 }

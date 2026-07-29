@@ -53,7 +53,8 @@ function uiStrings(L) {
     'lapse_propose', 'lapse_line', 'lapse_tally', 'lapse_note', 'lapse_agree', 'lapse_disagree', 'voted',
     'away_title', 'away_sub', 'away_week', 'away_month', 'away_done',
     // A gated-setting proposal from a fellow guardian (5.6).
-    'gated_title', 'gated_line_on', 'gated_line_off', 'gated_agree', 'gated_disagree'];
+    'gated_title', 'gated_line_on', 'gated_line_off', 'gated_agree', 'gated_disagree',
+    'play_propose', 'play_on', 'play_off'];
   const s = Object.fromEntries(keys.map((k) => [k, i18nT(L, `guardian.${k}`)]));
   s.wave = i18nT(L, 'guardian.wave');
   s.waved = i18nT(L, 'guardian.waved');
@@ -89,6 +90,7 @@ function dashboardState(site, L) {
     wards: Guardianship.listWards(site.slug).map((w) => ({
       ...w,
       embeds: wardEmbedSetting(w.other_uri),
+      playback: wardPlaybackSetting(w.other_uri),
       guardians: wardGuardianStatuses(w.other_uri),
     })),
     offers: Guardianship.offersCollection(`${me}/queues/offers`, site.slug, me).orderedItems,
@@ -465,13 +467,16 @@ router.post('/wards/remove', requireAuth, express.json({ limit: '4kb' }), async 
  * decided, null when it is still on auto (which means off for a ward) or when
  * the ward lives elsewhere and the setting is not ours to show.
  */
-function wardEmbedSetting(uri) {
+function wardEmbedSetting(uri) { return wardGateSetting(uri, 'external_embeds'); }
+/** The playback gate of a ward we host (5.6): the heavier sibling. */
+function wardPlaybackSetting(uri) { return wardGateSetting(uri, 'external_playback'); }
+function wardGateSetting(uri, column) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   if (!base || !String(uri || '').startsWith(`${base}/`)) return null;
   const slug = String(uri).trim().replace(/\/+$/, '').split('/').pop();
-  const row = slug ? db.prepare('SELECT external_embeds FROM sites WHERE slug = ?').get(slug) : null;
+  const row = slug ? db.prepare(`SELECT ${column === 'external_playback' ? 'external_playback' : 'external_embeds'} AS v FROM sites WHERE slug = ?`).get(slug) : null;
   if (!row) return null;
-  return row.external_embeds === null || row.external_embeds === undefined ? false : row.external_embeds === 1;
+  return row.v === null || row.v === undefined ? false : row.v === 1;
 }
 
 // ── Gated feature: may this ward see external (non-fediverse) embeds? ──
@@ -479,6 +484,10 @@ function wardEmbedSetting(uri) {
 // server-side when the feed is serialised, so this endpoint is the only way it
 // can move, and only a committed guardian of THAT ward may move it.
 router.post('/wards/embeds', requireAuth, express.json({ limit: '4kb' }), (req, res) => {
+  req.body = { ...req.body, feature: req.body?.feature === 'shaer:externalPlayback' ? 'shaer:externalPlayback' : 'shaer:externalEmbeds' };
+  return proposeGated(req, res);
+});
+function proposeGated(req, res) {
   const site = siteForUser(req);
   if (!site) return res.status(404).json({ error: 'no_site' });
   const uri = String(req.body?.uri || '').trim();
@@ -495,7 +504,7 @@ router.post('/wards/embeds', requireAuth, express.json({ limit: '4kb' }), (req, 
   // guardian on the ward's own instance more powerful than one elsewhere.
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   const me = AP.actorId(base, site.slug);
-  const feature = 'shaer:externalEmbeds';
+  const feature = req.body.feature;   // normalised by the route above
   const offerId = `${me}/gated/${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
   const offer = Guardianship.gated.buildGatedOffer(offerId, me, uri, feature, allow);
   const localSlug = (base && uri.startsWith(`${base}/`)) ? uri.replace(/\/+$/, '').split('/').pop() : null;
@@ -503,6 +512,14 @@ router.post('/wards/embeds', requireAuth, express.json({ limit: '4kb' }), (req, 
   if (localWard) {
     Guardianship.gated.rememberGatedOffer(offerId, localWard.slug, feature, allow);
     const r = Guardianship.gated.recordGatedVote(localWard.slug, feature, me, allow);
+    // Same forward as the S2S path: without it the other guardians never learn
+    // the proposal exists and a threshold of two can never be met.
+    if (r.state === 'open') {
+      for (const g of Guardianship.listGuardians(localWard.slug).map((x) => x.other_uri)) {
+        if (g === me) continue;
+        AP.deliverToActor(site, g, { ...offer, to: [g] }).catch(() => { /* queued */ });
+      }
+    }
     return res.json({ ok: true, allow, state: r.state, need: r.need, of: r.of });
   }
   AP.deliverToActor(site, uri, offer).catch(() => { /* queued, best-effort */ });

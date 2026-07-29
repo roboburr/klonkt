@@ -3042,9 +3042,32 @@ export function firstExternalUrl(html) {
 }
 
 /** The stored external-embed card, for the C2S read. */
-export function timelineEmbed(embedJson) {
-  try { const e = embedJson ? JSON.parse(embedJson) : null; return (e && typeof e === 'object' && e.url) ? e : undefined; }
-  catch { return undefined; }
+export function timelineEmbed(embedJson, { playback = false } = {}) {
+  try {
+    const e = embedJson ? JSON.parse(embedJson) : null;
+    if (!e || typeof e !== 'object' || !e.url) return undefined;
+    // The player URL is served ONLY when the playback gate is open (FEP-633c
+    // 5.6). Deciding it here keeps the provider knowledge in one place: the
+    // client never needs a list of hosts, it just plays what it is handed.
+    // Privacy-enhanced variants only: nocookie for YouTube, the instance's own
+    // player for PeerTube. Without one the card stays a thumbnail.
+    const player = playback ? playerUrlFor(e.url) : null;
+    return player ? { ...e, 'shaer:playerUrl': player } : e;
+  } catch { return undefined; }
+}
+
+/** The embeddable player for a URL, or null when we will not frame it. */
+export function playerUrlFor(url) {
+  if (typeof url !== 'string') return null;
+  let p = null;
+  try { p = AudioEmbedService.detectProvider(url); } catch { p = null; }
+  if (p && p.provider === 'youtube' && p.id) return `https://www.youtube-nocookie.com/embed/${p.id}?rel=0&modestbranding=1&playsinline=1`;
+  if (p && p.provider === 'vimeo' && p.id) return `https://player.vimeo.com/video/${p.id}`;
+  // PeerTube is decentralised, so it is matched by its watch-URL shape rather
+  // than a provider list. Host chars are validated before it is inlined.
+  const pt = url.match(/^https?:\/\/([\w.-]+(?::\d+)?)\/(?:w|videos\/watch)\/([\w-]{6,})/i);
+  if (pt) return `https://${pt[1]}/videos/embed/${pt[2]}`;
+  return null;
 }
 
 // FEP-044f embedded quote card: resolve the quoted post to a compact, sanitised
@@ -3876,6 +3899,6 @@ export default {
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
   getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
   linkifyBody, bakePostContent, bakePostContentWithMentions, listFollowers, removeFollower, listConnections,
-  noteVisibility, belongsInTimeline, isRejectedObject, rejectInteraction, interactionReportTarget,
+  noteVisibility, belongsInTimeline, playerUrlFor, isRejectedObject, rejectInteraction, interactionReportTarget,
   getMessages, notificationsSeenAt, ingestOutboxActivity, c2sVisibility, actorDisplay, buildActorRef, prefersEnriched,
 };

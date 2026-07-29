@@ -33,6 +33,19 @@ export function externalEmbedsAllowed(setting, isWard) {
   return !isWard;
 }
 
+/**
+ * May a player run INSIDE the app/page for this account? The heavier sibling
+ * of the setting above, and deliberately separate: seeing that a video exists
+ * is not the same decision as handing the screen to a third party's player,
+ * with its engine, its end-screen and its next-video machine. Same shape, same
+ * default (off for a ward), and it only ever matters once embeds are allowed:
+ * you cannot play what you may not see.
+ */
+export function externalPlaybackAllowed(setting, isWard) {
+  if (setting === 0 || setting === 1) return setting === 1;
+  return !isWard;
+}
+
 /** True when an incoming object carries the ward hint (§2.2). Register-only for
  *  now; acted on later at reddings-boei / escalation routing. */
 export function objectHasGuardians(o) {
@@ -73,4 +86,4 @@ export function awayProps(post) {
     : {};
 }
 
-export default { helpRequestProps, isHelpRequest, waveProps, isWave, awayProps, hasGuardiansProps, objectHasGuardians, externalEmbedsAllowed };
+export default { helpRequestProps, isHelpRequest, waveProps, isWave, awayProps, hasGuardiansProps, objectHasGuardians, externalEmbedsAllowed, externalPlaybackAllowed };

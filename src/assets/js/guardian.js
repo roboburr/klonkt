@@ -214,6 +214,28 @@
     return h;
   }
 
+  function gateButton(w, feature, current, proposeLabel, onLabel, offLabel) {
+    var known = current === true || current === false;
+    var btn = el('button', 'quiet small', (known ? (current ? onLabel : offLabel) : proposeLabel) || feature);
+    btn.addEventListener('click', function () {
+      btn.disabled = true;
+      fetch('/guardian/wards/embeds', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uri: w.other_uri, feature: feature, allow: known ? !current : true }),
+      }).then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (j && j.state === 'open') {
+            btn.textContent = (T.embeds_waiting || 'waiting for the other guardians');
+            btn.disabled = true;
+            return;
+          }
+          refresh();
+        })
+        .catch(function () { btn.disabled = false; });
+    });
+    return btn;
+  }
+
   function embedsButton(w) {
     // Gated feature: external (non-fediverse) embeds. Off by default for a
     // ward; only a guardian can open it, and the gate is enforced server-side
@@ -336,7 +358,13 @@
     var set = el('div', 'g-panel-sec');
     set.appendChild(el('h3', null, T.settings_title || 'Settings'));
     var setRow = el('div', 'row');
-    setRow.appendChild(embedsButton(w));
+    setRow.appendChild(gateButton(w, 'shaer:externalEmbeds', w.embeds, T.embeds_propose, T.embeds_on, T.embeds_off));
+    // The heavier sibling (5.6): seeing that a video exists is one decision,
+    // letting a third party's player run inside the app is another. Only
+    // offered once previews are on: you cannot play what you may not see.
+    if (w.embeds === true) {
+      setRow.appendChild(gateButton(w, 'shaer:externalPlayback', w.playback, T.play_propose, T.play_on, T.play_off));
+    }
     set.appendChild(setRow);
     panel.appendChild(set);
 
