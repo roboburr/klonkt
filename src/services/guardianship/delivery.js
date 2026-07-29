@@ -40,7 +40,7 @@ export function c2sVisibility(object) {
 // guardian on any instance receives it as a private mention (the ward
 // call-for-help path).
 export async function deliverDirectNote(site, { recipients, text, language, inReplyTo, attachments, helpRequest, wave, awayUntil }) {
-  const { actorId, fetchActor, deriveHandle, escHtml, linkUrls, linkHashtags,
+  const { actorId, fetchActor, localActor, deliverTo, deriveHandle, escHtml, linkUrls, linkHashtags,
           getOutboxRow, buildReplyNote, AP_CONTEXT, getOrCreateKeys, deliver, enqueueDelivery } = deps;
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   const list = [...new Set((recipients || []).filter((u) => /^https?:\/\//i.test(String(u || ''))))].slice(0, 8);
@@ -49,9 +49,13 @@ export async function deliverDirectNote(site, { recipients, text, language, inRe
   // Resolve every recipient for a mention anchor + a delivery inbox.
   const resolved = [];
   for (const uri of list) {
-    const a = await fetchActor(uri).catch(() => null);
+    // An actor we host is read from our own database, not fetched from our own
+    // hostname: that request has to leave the machine and come back, and when
+    // it does not, the recipient is silently dropped from the note. Everything
+    // that decides anything still runs below, for local and remote alike.
+    const a = (localActor && localActor(uri)) || await fetchActor(uri).catch(() => null);
     if (!a || !(a.inbox || (a.endpoints && a.endpoints.sharedInbox))) continue;
-    resolved.push({ uri, inbox: (a.endpoints && a.endpoints.sharedInbox) || a.inbox, handle: deriveHandle(uri), url: a.url || uri });
+    resolved.push({ uri, inbox: (a.endpoints && a.endpoints.sharedInbox) || a.inbox, local: !!a.local, handle: deriveHandle(uri), url: a.url || uri });
   }
   if (!resolved.length) return null;
   const mention = resolved.map((r) => {
@@ -82,7 +86,17 @@ export async function deliverDirectNote(site, { recipients, text, language, inRe
   const keys = getOrCreateKeys(site.slug);
   const keyId = `${me}#main-key`;
   let delivered = 0;
-  for (const inbox of [...new Set(resolved.map((r) => r.inbox))]) {
+  // A recipient on this machine takes the loopback (deliverToActor), which
+  // hands the Create to the same inbox handler an HTTP POST would reach: the
+  // note is stored, the mention is stored, and a shaer:away on it is applied,
+  // all by the code that does it for everyone else. A hairpin POST to our own
+  // hostname is not that code path, it is a second one that only appears to be.
+  for (const r of resolved.filter((x) => x.local)) {
+    const res = await deliverTo(site, r.uri, create).catch(() => null);
+    if (res && res.delivered) delivered++;
+  }
+  // Remote: one POST per inbox, so two guardians on the same server share it.
+  for (const inbox of [...new Set(resolved.filter((x) => !x.local).map((r) => r.inbox))]) {
     let ok = false;
     try { const st = await deliver(inbox, create, keyId, keys.private_pem); ok = st >= 200 && st < 300; } catch { ok = false; }
     if (ok) delivered++;

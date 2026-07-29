@@ -308,9 +308,12 @@ router.post('/adopt', requireAuth, express.json({ limit: '4kb' }), async (req, r
 //    "complete"). All three are a C2S Accept/Reject on the offer id; the
 //    handshake module decides when it commits (§3.1).
 // ── Step away (FEP-633c 3.6.1): the guardian declares itself unavailable ──
-// One direct note with shaer:away and an endTime to every ward, the same
-// path Shaer takes over C2S. Wards on this instance are applied directly (a
-// local inbox never receives its own delivery); the rest travels S2S.
+// One direct note with shaer:away and an endTime to every ward, the same path
+// Shaer takes over C2S, and the only path: a ward on this instance receives
+// that note through the loopback and applies the absence in its own inbox
+// handler, exactly as a ward elsewhere does. This route used to write the
+// local wards itself as well, which meant the wire version could break without
+// anyone here noticing.
 router.post('/api/away', requireAuth, express.json({ limit: '2kb' }), async (req, res) => {
   const site = siteForUser(req);
   if (!site) return res.status(404).json({ error: 'no_site' });
@@ -319,20 +322,10 @@ router.post('/api/away', requireAuth, express.json({ limit: '2kb' }), async (req
   const wards = Guardianship.listWards(site.slug).map((w) => w.other_uri);
   if (!wards.length) return res.status(409).json({ error: 'no_wards' });
   const until = Date.now() + days * 24 * 3600 * 1000;
-  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
-  const me = AP.actorId(base, site.slug);
-  let applied = 0;
-  for (const uri of wards) {
-    const wslug = uri.startsWith(`${base}/`) ? uri.replace(/\/+$/, '').split('/').pop() : null;
-    if (wslug && Guardianship.listGuardians(wslug).some((g) => g.other_uri === me)) {
-      Guardianship.availability.declareAway(wslug, me, until);
-      applied++;
-    }
-  }
   const L = resolveLang(req);
   const text = i18nT(L, 'guardian.away_msg', { date: new Date(until).toLocaleDateString('nl-NL') });
   const r = await AP.deliverDirectNote(site, { recipients: wards, text, awayUntil: until }).catch(() => null);
-  if (!applied && !(r && r.id)) return res.status(502).json({ error: 'away_failed' });
+  if (!(r && r.id)) return res.status(502).json({ error: 'away_failed' });
   res.json({ ok: true, until });
 });
 
@@ -507,30 +500,16 @@ function proposeGated(req, res) {
   const feature = req.body.feature;   // normalised by the route above
   const offerId = `${me}/gated/${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
   const offer = Guardianship.gated.buildGatedOffer(offerId, me, uri, feature, allow);
-  const localSlug = (base && uri.startsWith(`${base}/`)) ? uri.replace(/\/+$/, '').split('/').pop() : null;
-  const localWard = localSlug ? db.prepare('SELECT slug FROM sites WHERE slug = ?').get(localSlug) : null;
-  if (localWard) {
-    Guardianship.gated.rememberGatedOffer(offerId, localWard.slug, feature, allow);
-    const r = Guardianship.gated.recordGatedVote(localWard.slug, feature, me, allow);
-    // Same forward as the S2S path: without it the other guardians never learn
-    // the proposal exists and a threshold of two can never be met.
-    if (r.state === 'open') {
-      const wardActor = AP.actorId(base, localWard.slug);
-      for (const g of Guardianship.listGuardians(localWard.slug).map((x) => x.other_uri)) {
-        if (g === me) continue;
-        // Signed by the ward, so the body must say the ward: anything else is
-        // a signer mismatch and the receiver answers 401 (as it should).
-        AP.deliverToActor(
-          db.prepare('SELECT * FROM sites WHERE slug = ?').get(localWard.slug),
-          g,
-          { ...offer, actor: wardActor, to: [g], 'shaer:proposer': me },
-        ).catch(() => { /* queued */ });
-      }
-    }
-    return res.json({ ok: true, allow, state: r.state, need: r.need, of: r.of });
-  }
+  // ONE path, whether the ward lives here or on the other side of the world
+  // (Robins regel, 29-7): propose over the wire and let the ward's server do
+  // what it does for everyone. deliverToActor loops a local recipient back
+  // into the same inbox handler, so co-location changes the transport and
+  // nothing else. The old shortcut recorded the vote here directly, which is
+  // how the remote path stayed broken for a month without anyone noticing.
   AP.deliverToActor(site, uri, offer).catch(() => { /* queued, best-effort */ });
-  res.json({ ok: true, allow, state: 'open', federated: true });
+  const localSlug = (base && uri.startsWith(`${base}/`)) ? uri.replace(/\/+$/, '').split('/').pop() : null;
+  const progress = localSlug ? Guardianship.gated.gatedProgress(localSlug, feature) : null;
+  res.json({ ok: true, allow, state: 'open', ...(progress || { federated: true }) });
 }
 
 // ── The installable identity: own scope so the Guardian corner installs as

@@ -218,15 +218,11 @@ export async function handleOutbox(site, activity) {
     // say than one far away).
     const lp = availability.parseLapse(activity.object);
     if (lp) {
+      // ONE path (Robins regel, 29-7): the ward's server opens, tallies and
+      // enforces, wherever it lives. A local ward is reached by the same
+      // deliverTo, which loops back into the inbox handler; co-location is a
+      // transport detail and never a shortcut past the decision.
       const id = `${me}/lapses/${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
-      const wardSlug = deps.localSlug(lp.ward);
-      if (wardSlug) {
-        const r = availability.openLapse({ id, wardSlug, wardUri: lp.ward, target: lp.target, openedBy: me, now: Date.now() });
-        if (r.error) return { status: r.error === 'not_in_available_set' ? 403 : 409, error: r.error };
-        deps.deliverTo(site, lp.target, { id, type: 'Offer', actor: me, to: [lp.target], object: { type: 'shaer:Lapse', 'shaer:ward': lp.ward, object: lp.target } }).catch(() => { /* best-effort */ });
-        notify(wardSlug, { kind: 'lapse_opened', lapse: id, target: lp.target, set: r.set });
-        return { status: 202, id, url: id, 'shaer:set': r.set, 'shaer:threshold': r.threshold };
-      }
       const offer = { id, type: 'Offer', actor: me, to: [lp.ward], object: { type: 'shaer:Lapse', 'shaer:ward': lp.ward, object: lp.target } };
       const delivered = await fanout(site, [lp.ward], offer);
       return { status: 202, id, url: id, delivered };

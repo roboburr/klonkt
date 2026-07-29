@@ -1344,14 +1344,19 @@ function pushPostCtx(postId) {
 }
 
 // Handle an incoming inbox POST. slugParam = null for the shared /ap/inbox.
-export async function handleInbox(req, slugParam) {
+export async function handleInbox(req, slugParam, preVerified = null) {
   const act = req.body || {};
   const type = act.type;
   // Real client IP (behind the proxy via `trust proxy`) — logged on dropped/rejected/
   // ignored inbox hits so an operator can see who is probing their fediverse inbox.
   const ip = req.ip || (req.connection && req.connection.remoteAddress) || '?';
   const base = (process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
-  const verified = await verifyRequest(req).catch(() => null);
+  // preVerified is the loopback (see deliverToActor): a delivery between two
+  // actors on THIS instance never crosses a socket, so there is no signature to
+  // check — but we do know who signed, because we signed it. Handing that in
+  // keeps everything below identical, including the actor-versus-signer check,
+  // which is exactly the check that must not be skipped for being local.
+  const verified = preVerified || await verifyRequest(req).catch(() => null);
 
   // ENFORCE HTTP signatures: a data-affecting activity must be signed by the very
   // actor it claims to be. No valid signature, or signer ≠ actor → reject (no
@@ -1533,8 +1538,14 @@ export async function handleInbox(req, slugParam) {
 
   const actorUri = typeof act.actor === 'string' ? act.actor : (act.actor && act.actor.id);
   const resolveActor = async (uri) => ((verified && verified.id === uri) ? verified : await fetchActor(uri).catch(() => null));
-  // Activities from our OWN actors are already stored via ap_outbox — don't re-store.
-  const isLocalActor = !!(base && actorUri && actorUri.startsWith(`${base}/ap/users/`));
+  // Our OWN activity is already stored via ap_outbox: don't store it twice.
+  // "Our own" means THIS inbox's owner, not "anyone who happens to live on this
+  // machine". The old reading dropped every activity between two sites on one
+  // instance, so a note from a co-located guardian to its ward was accepted
+  // with a 202 and then quietly thrown away: no mention, no away, no help
+  // request. Neighbours are not us (Robins regel, 29-7: on this machine
+  // everything behaves as if every Klonkt were somewhere else).
+  const isLocalActor = !!(actorUri && slugParam && actorUri === actorId(base, slugParam));
 
   // Inbound reply: a Create whose object replies to one of our notes (post OR comment).
   if (type === 'Create' && act.object && (act.object.type === 'Note' || act.object.type === 'Article' || act.object.type === 'Question')) {
@@ -2252,16 +2263,9 @@ export async function ingestOutboxActivity(site, user, activity) {
           if (Guardianship.availability.isAway(object)) {
             awayUntil = Guardianship.availability.parseEndTime(object.endTime);
             if (!awayUntil || awayUntil <= Date.now()) return { status: 400, error: 'away_needs_an_end' };
-            // A ward we host ourselves never receives its own delivery
-            // (private ranges, loopback): apply locally, the way the
-            // handshake commit does.
-            const meUri = selfActorId(site.slug);
-            for (const uri of recipients) {
-              const wslug = uri.startsWith(`${base}/`) ? slugFromActorUrl(uri) : null;
-              if (wslug && Guardianship.listGuardians(wslug).some((g) => g.other_uri === meUri)) {
-                Guardianship.availability.declareAway(wslug, meUri, awayUntil);
-              }
-            }
+            // No local shortcut here: the note below reaches a ward on this
+            // instance through the loopback, and its inbox handler applies the
+            // absence like it does for a ward anywhere else. One path.
           }
           const r = await deliverDirectNote(site, { recipients, text: plain, language: object.language || null, inReplyTo: typeof object.inReplyTo === 'string' ? object.inReplyTo : null, attachments: atts, helpRequest: help, awayUntil });
           if (!r || !r.id) return { status: 502, error: 'direct_failed' };
@@ -3806,6 +3810,25 @@ export async function deliverToActor(site, actorUri, activity) {
   const me = selfActorId(site.slug);
   const keys = getOrCreateKeys(site.slug);
   const payload = { '@context': AP_CONTEXT, ...activity };
+  // Co-location is a TRANSPORT detail, never a decision path (Robins regel,
+  // 29-7). An inbox on this machine is not reachable over HTTP from this
+  // machine, and should not be, so a local recipient is handed the activity
+  // straight into the same inbox handler the wire would reach. Everything
+  // above this line therefore behaves as if every Klonkt were remote: one code
+  // path, exercised by every deployment, including the checks. Two bugs in one
+  // day came from having a second, local-only path that hid a broken remote
+  // one.
+  const localSlug = localSlugOf(actorUri);
+  if (localSlug && db.prepare('SELECT 1 FROM sites WHERE slug = ?').get(localSlug)) {
+    const host = (() => { try { return new URL(selfActorId(site.slug)).host; } catch { return ''; } })();
+    const req = { body: payload, ip: 'loopback', protocol: 'https', get: () => host, headers: {} };
+    // The signer is us, and we say so: the actor-versus-signer check runs
+    // exactly as it does over the wire, so a mismatch fails here too.
+    const status = await handleInbox(req, localSlug, { id: me }).catch(() => 500);
+    const ok = status >= 200 && status < 300;
+    console.log('[AP]', activity.type, ok ? 'delivered (loopback) →' : `got ${status} (loopback) from`, actorUri);
+    return { delivered: ok, inbox: `${actorUri}/inbox`, loopback: true, status };
+  }
   const a = await fetchActor(actorUri).catch(() => null);
   const inbox = a && (a.inbox || (a.endpoints && a.endpoints.sharedInbox));
   if (!inbox) {
@@ -3821,10 +3844,27 @@ export async function deliverToActor(site, actorUri, activity) {
   return { delivered: true, inbox };   // queued: the retry worker gets it there
 }
 Guardianship.wireDelivery({
-  actorId, fetchActor, deriveHandle, escHtml, linkUrls, linkHashtags,
+  actorId, fetchActor, localActor, deliverTo: deliverToActor, deriveHandle, escHtml, linkUrls, linkHashtags,
   getOutboxRow: (id) => iStmts().getO.get(id),
   buildReplyNote, AP_CONTEXT, getOrCreateKeys, deliver, enqueueDelivery,
 });
+/**
+ * The actor document of a site WE host, read straight from the database.
+ * Same shape fetchActor returns for anyone else, plus `local: true` so the
+ * caller can take the loopback instead of a POST to our own hostname.
+ * Null for an actor we do not host: that one really is fetched.
+ */
+function localActor(actorUri) {
+  const slug = localSlugOf(actorUri);
+  if (!slug) return null;
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(slug);
+  if (!site) return null;
+  // primary_slug is what buildActor uses to pick '/' over '/user/<slug>'; the
+  // actor route sets it the same way before building.
+  const p = db.prepare('SELECT slug FROM sites WHERE is_primary = 1').get();
+  try { return { ...buildActor(base, { ...site, primary_slug: p && p.slug }), local: true }; } catch { return null; }
+}
 // Which local site (if any) hosts this actor URI — used by the handshake to
 // apply the local side of a commit and to derive a ward's existing guardians.
 function localSlugOf(actorUri) {
