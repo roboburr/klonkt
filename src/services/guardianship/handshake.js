@@ -82,6 +82,26 @@ async function fanout(site, recipients, activity) {
   return anyDelivered;
 }
 
+/**
+ * §5.6, the closing of the loop: a settled gated decision answers the Offer
+ * that opened it. Accept when it settled on the proposed value, Reject when on
+ * the opposite. Without this the proposer's screen can only ever say
+ * "waiting", forever, whatever actually happened: the tally lives on the
+ * ward's server and nobody else may read it, so the ward's server must speak.
+ */
+function answerGatedProposer(site, offerId, r) {
+  const o = gated.recallGatedOffer(offerId);
+  if (!o || !o.proposer) return;
+  const me = deps.selfId(site.slug);
+  if (o.proposer === me) return;   // the ward proposed to itself: nothing to write home
+  const agreed = r.value === !!o.value;
+  deps.deliverTo(site, o.proposer, {
+    id: `${me}#gatedanswer-${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`,
+    type: agreed ? 'Accept' : 'Reject',
+    actor: me, to: [o.proposer], object: offerId,
+  }).catch(() => { /* the delivery queue retries */ });
+}
+
 /** Apply the local side of a commit: the ward writes its guardian, the
  *  candidate writes its ward. Each instance writes only what it hosts.
  *  other_handle is the human @handle for display (from the offer); the FEP
@@ -300,7 +320,7 @@ export async function handleInbox(site, activity) {
       const offerId = idOf(activity);
       // ── I am the WARD: record, tally, and forward to the other guardians.
       if (gs.ward === me) {
-        gated.rememberGatedOffer(offerId, site.slug, gs.feature, gs.value);
+        gated.rememberGatedOffer(offerId, site.slug, gs.feature, gs.value, actor);
         // The proposer's Offer carries its own agreement (§3.1's one-step clause).
         const r = gated.recordGatedVote(site.slug, gs.feature, actor, gs.value);
         // The forward is the leg that was missing. A proposal addressed to the
@@ -325,6 +345,7 @@ export async function handleInbox(site, activity) {
           }
         } else {
           gated.clearGatedReviews(offerId);   // settled at once: nothing left to ask
+          answerGatedProposer(site, offerId, r);
         }
         notify(site.slug, { kind: 'gated_setting', feature: gs.feature, value: gs.value, state: r.state });
         return true;
@@ -384,6 +405,18 @@ export async function handleInbox(site, activity) {
 
   // Accept / Reject of an offer we (also) track.
   const offerId = idOf(activity.object);
+  // §5.6, the answer coming HOME: the ward's server settled a decision we
+  // proposed and answers our Offer. Accept = it settled on what we proposed,
+  // Reject = on the opposite. Only the ward may say so: the answer must come
+  // from the ward the proposal was about, or anyone could close our books.
+  const sent = gated.recallSent(offerId);
+  if (sent && sent.guardian_slug === site.slug) {
+    if (actor !== sent.ward_uri) return false;   // not the ward's voice: not an outcome
+    const outcome = type === 'Accept' ? 'accepted' : 'rejected';
+    gated.settleSent(offerId, outcome);
+    notify(site.slug, { kind: 'gated_outcome', feature: sent.feature, value: !!sent.value, outcome, ward: sent.ward_uri });
+    return true;
+  }
   // §5.6: a fellow guardian answering a gated-setting proposal. The Accept only
   // references the offer, so the value comes from the proposal we stored. A
   // Reject is a vote for the opposite, not a shrug: it is still an answer.
@@ -391,6 +424,7 @@ export async function handleInbox(site, activity) {
   if (gsOffer && gsOffer.slug === site.slug) {
     const value = type === 'Accept' ? !!gsOffer.value : !gsOffer.value;
     const r = gated.recordGatedVote(site.slug, gsOffer.feature, actor, value);
+    if (r.state === 'settled') answerGatedProposer(site, offerId, r);
     notify(site.slug, { kind: 'gated_setting', feature: gsOffer.feature, value, state: r.state });
     return true;
   }

@@ -360,12 +360,27 @@
     var setRow = el('div', 'row');
     setRow.appendChild(gateButton(w, 'shaer:externalEmbeds', w.embeds, T.embeds_propose, T.embeds_on, T.embeds_off));
     // The heavier sibling (5.6): seeing that a video exists is one decision,
-    // letting a third party's player run inside the app is another. Only
-    // offered once previews are on: you cannot play what you may not see.
-    if (w.embeds === true) {
+    // letting a third party's player run inside the app is another. Hidden
+    // only when previews are known-OFF: for a ward on another server the
+    // value is unknown, and unknown is not off. Hiding it there meant a
+    // guardian elsewhere could never even propose playback, which is how a
+    // whole proposal round went into the wrong gate. The ward's server
+    // enforces play-needs-previews at serve time regardless.
+    if (w.embeds !== false) {
       setRow.appendChild(gateButton(w, 'shaer:externalPlayback', w.playback, T.play_propose, T.play_on, T.play_off));
     }
     set.appendChild(setRow);
+    // What this guardian proposed and how it stands (5.6). This used to be a
+    // button caption that vanished on refresh, so a running decision was
+    // invisible: you could not tell "waiting", "done" and "expired" apart.
+    (w.proposals || []).forEach(function (p) {
+      var what = p.feature === 'shaer:externalPlayback' ? (T.prop_play || 'playback') : (T.prop_embeds || 'link previews');
+      var line = (T.prop_line || 'Proposal {what} {value}: {status}')
+        .replace('{what}', what)
+        .replace('{value}', p.value ? (T.prop_on || 'on') : (T.prop_off || 'off'))
+        .replace('{status}', T['prop_st_' + p.status] || p.status);
+      set.appendChild(el('p', 'small g-prop g-prop-' + p.status, line));
+    });
     panel.appendChild(set);
 
     // The fellow guardians of this child, with availability (3.6). For a
@@ -376,7 +391,27 @@
     if (w.guardians && w.guardians.length) {
       w.guardians.forEach(function (g) { gsec.appendChild(availRow(g, uri)); });
     } else {
-      gsec.appendChild(el('p', 'g-empty small', T.panel_guards_remote || ''));
+      // A ward on another server: WHO guards it is public on its actor
+      // (shaer:guardians, 2.1), so list the seats; availability is the ward
+      // server's private ledger (3.6.1) and is not shown, only named.
+      var placeholder = el('p', 'g-empty small', '…');
+      gsec.appendChild(placeholder);
+      fetch('/guardian/wards/guardians?site=' + encodeURIComponent(S.site) + '&uri=' + encodeURIComponent(uri))
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (!j || !j.guardians || !j.guardians.length) {
+            placeholder.textContent = T.panel_guards_remote || '';
+            return;
+          }
+          placeholder.remove();
+          j.guardians.forEach(function (g) {
+            var row = el('div', 'row g-guard');
+            row.appendChild(el('span', 'who grow', handleOf(g.uri, g.handle)));
+            gsec.appendChild(row);
+          });
+          gsec.appendChild(el('p', 'g-empty small', T.panel_guards_far || ''));
+        })
+        .catch(function () { placeholder.textContent = T.panel_guards_remote || ''; });
     }
     panel.appendChild(gsec);
 

@@ -181,10 +181,10 @@ export function removeGatedReview(guardianSlug, id) { rstmts().del.run(guardianS
 /** Drop every guardian's copy once the decision has settled or lapsed. */
 export function clearGatedReviews(id) { rstmts().delAll.run(id); }
 
-export function rememberGatedOffer(offerId, slug, feature, value) {
+export function rememberGatedOffer(offerId, slug, feature, value, proposer) {
   try {
-    db.prepare('INSERT OR REPLACE INTO ap_gated_offers (offer_id, slug, feature, value) VALUES (?,?,?,?)')
-      .run(offerId, slug, feature, value ? 1 : 0);
+    db.prepare('INSERT OR REPLACE INTO ap_gated_offers (offer_id, slug, feature, value, proposer) VALUES (?,?,?,?,?)')
+      .run(offerId, slug, feature, value ? 1 : 0, proposer || null);
   } catch { /* non-fatal */ }
 }
 
@@ -193,8 +193,53 @@ export function recallGatedOffer(offerId) {
   catch { return null; }
 }
 
+// ── The proposer's own record (5.6) ───────────────────────────────
+// "Where did my proposal go?" had no answer: the status was a button caption
+// that did not survive a refresh. The ward's server tallies elsewhere, so the
+// proposer keeps its own row and the ward's server ANSWERS the Offer when the
+// decision settles: Accept when it settled on the proposed value, Reject when
+// it settled on the opposite. An open row past the window renders as expired,
+// because an expired decision settles on nothing and nobody writes home.
+
+export function recordSent(offerId, guardianSlug, wardUri, feature, value) {
+  try {
+    db.prepare(`INSERT OR REPLACE INTO ap_gated_sent (offer_id, guardian_slug, ward_uri, feature, value)
+                VALUES (?,?,?,?,?)`).run(offerId, guardianSlug, wardUri, feature, value ? 1 : 0);
+  } catch { /* non-fatal */ }
+}
+
+export function recallSent(offerId) {
+  try { return db.prepare('SELECT * FROM ap_gated_sent WHERE offer_id = ?').get(offerId) || null; }
+  catch { return null; }
+}
+
+export function settleSent(offerId, outcome) {
+  try { db.prepare('UPDATE ap_gated_sent SET status = ? WHERE offer_id = ?').run(outcome, offerId); } catch { /* non-fatal */ }
+}
+
+/** The latest proposal per feature this guardian sent to this ward. */
+export function listSent(guardianSlug, wardUri) {
+  try {
+    return db.prepare(`SELECT * FROM ap_gated_sent WHERE guardian_slug = ? AND ward_uri = ?
+                       GROUP BY feature HAVING MAX(created_at) ORDER BY created_at DESC`).all(guardianSlug, wardUri);
+  } catch { return []; }
+}
+
+/**
+ * What a sent row means on a screen. Pure, so the rule is testable: an answer
+ * wins, and silence past the window is not "still running", it is over.
+ */
+export function sentStatus(row, now) {
+  if (!row) return null;
+  if (row.status === 'accepted' || row.status === 'rejected') return row.status;
+  const opened = new Date(String(row.created_at).includes('T') ? row.created_at : `${row.created_at}Z`.replace(' ', 'T')).getTime();
+  if (Number.isFinite(opened) && now - opened >= GATED_WINDOW_MS) return 'expired';
+  return 'open';
+}
+
 export default {
   tallyGatedSetting, thresholdFor, featureColumn, recordGatedVote, gatedProgress, GATED_WINDOW_MS,
   parseGatedSetting, buildGatedOffer, rememberGatedOffer, recallGatedOffer,
   recordGatedReview, getGatedReview, listGatedReviews, removeGatedReview, clearGatedReviews,
+  recordSent, recallSent, settleSent, listSent, sentStatus,
 };

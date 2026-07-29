@@ -155,6 +155,11 @@ button.danger { background: var(--danger); color: #fff; border-color: var(--dang
 .g-avdot.is-dormant { background: #8a93a3; }
 .g-avlabel { color: var(--sub); font-size: .8rem; white-space: nowrap; }
 .row.g-guard { gap: 8px; margin-top: 6px; }
+/* The status of a proposal this guardian sent (5.6): one quiet line per
+   feature. The colour says the state before the words do. */
+.g-prop { margin: 6px 0 0; color: var(--sub); }
+.g-prop-accepted { color: var(--ok); }
+.g-prop-rejected, .g-prop-expired { color: var(--danger); }
 .g-away-row { display: flex; gap: 8px; }
 .g-card.lapse { border-left: 3px solid #8a93a3; }
 .g-card.lapse .row { margin-top: 8px; gap: 8px; }

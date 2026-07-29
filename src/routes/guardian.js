@@ -54,7 +54,11 @@ function uiStrings(L) {
     'away_title', 'away_sub', 'away_week', 'away_month', 'away_done',
     // A gated-setting proposal from a fellow guardian (5.6).
     'gated_title', 'gated_line_on', 'gated_line_off', 'gated_agree', 'gated_disagree',
-    'play_propose', 'play_on', 'play_off'];
+    'play_propose', 'play_on', 'play_off',
+    // The status of a proposal this guardian sent (5.6).
+    'prop_line', 'prop_embeds', 'prop_play', 'prop_on', 'prop_off',
+    'prop_st_open', 'prop_st_accepted', 'prop_st_rejected', 'prop_st_expired',
+    'panel_guards_far'];
   const s = Object.fromEntries(keys.map((k) => [k, i18nT(L, `guardian.${k}`)]));
   s.wave = i18nT(L, 'guardian.wave');
   s.waved = i18nT(L, 'guardian.waved');
@@ -92,6 +96,14 @@ function dashboardState(site, L) {
       embeds: wardEmbedSetting(w.other_uri),
       playback: wardPlaybackSetting(w.other_uri),
       guardians: wardGuardianStatuses(w.other_uri),
+      // What THIS guardian proposed for this ward and how it stands (5.6):
+      // open, accepted, rejected, or expired when the window ran out and the
+      // ward's server had nothing to write home. The answer is a real
+      // Accept/Reject from the ward's server, not a guess from here.
+      proposals: Guardianship.gated.listSent(site.slug, w.other_uri).map((p) => ({
+        feature: p.feature, value: !!p.value, created: p.created_at,
+        status: Guardianship.gated.sentStatus(p, Date.now()),
+      })),
     })),
     offers: Guardianship.offersCollection(`${me}/queues/offers`, site.slug, me).orderedItems,
     // Running lapses (3.6.3) this guardian or its local wards are party to.
@@ -442,6 +454,36 @@ router.get('/wards/release-check', requireAuth, async (req, res) => {
   });
 });
 
+// ── The fellow guardians of a ward, wherever it lives ─────────────────────
+// A guardian looking at a ward's panel should see who else holds a seat: that
+// is the child's safety net, and "dit kind woont op een andere server" is not
+// an answer. For a local ward the availability rides along (we do that
+// bookkeeping). For a remote ward we read the PUBLIC membership from its
+// actor document (shaer:guardians, §2.1) and nothing more: availability is
+// the ward's server's private ledger (§3.6.1) and stays there. Fetched on
+// panel-open rather than into the dashboard, so one slow remote server does
+// not hold the whole screen hostage.
+router.get('/wards/guardians', requireAuth, async (req, res) => {
+  const site = siteForUser(req);
+  if (!site) return res.status(404).json({ error: 'no_site' });
+  const uri = String(req.query.uri || '').trim();
+  if (!Guardianship.listWards(site.slug).some((w) => w.other_uri === uri)) {
+    return res.status(403).json({ error: 'not_my_ward' });
+  }
+  const local = wardGuardianStatuses(uri);
+  if (local) return res.json({ local: true, guardians: local });
+  const doc = await AP.fetchActor(uri).catch(() => null);
+  let g = doc && doc['shaer:guardians'];
+  if (g && Array.isArray(g.items)) g = g.items;             // a Collection
+  const guardians = (Array.isArray(g) ? g : (typeof g === 'string' ? [g] : []))
+    .filter((x) => typeof x === 'string')
+    .map((u) => {
+      try { const p = new URL(u); return { uri: u, handle: `@${p.pathname.replace(/\/+$/, '').split('/').pop()}@${p.host}` }; }
+      catch { return { uri: u, handle: u }; }
+    });
+  res.json({ local: false, guardians });
+});
+
 router.post('/wards/remove', requireAuth, express.json({ limit: '4kb' }), async (req, res) => {
   const site = siteForUser(req);
   if (!site) return res.status(404).json({ error: 'no_site' });
@@ -506,6 +548,10 @@ function proposeGated(req, res) {
   // into the same inbox handler, so co-location changes the transport and
   // nothing else. The old shortcut recorded the vote here directly, which is
   // how the remote path stayed broken for a month without anyone noticing.
+  // Our own record of what we sent (5.6): the ward's server answers this Offer
+  // once the decision settles, and that answer needs a row to land in. It is
+  // also the only way the proposer's screen can say more than a button caption.
+  Guardianship.gated.recordSent(offerId, site.slug, uri, feature, allow);
   AP.deliverToActor(site, uri, offer).catch(() => { /* queued, best-effort */ });
   const localSlug = (base && uri.startsWith(`${base}/`)) ? uri.replace(/\/+$/, '').split('/').pop() : null;
   const progress = localSlug ? Guardianship.gated.gatedProgress(localSlug, feature) : null;

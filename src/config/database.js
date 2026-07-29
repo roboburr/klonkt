@@ -535,6 +535,22 @@ export function initializeDatabase() {
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (guardian_slug, id)
     );
+    -- The PROPOSER's own record of a gated proposal it sent (5.6). Without it
+    -- a guardian clicks "propose", the ward's server tallies somewhere else,
+    -- and the proposer has nowhere to even see that something is running: the
+    -- status was a button caption that did not survive a page refresh. The
+    -- ward's server answers the Offer once the decision settles (Accept when
+    -- it settled on the proposed value, Reject otherwise); that answer lands
+    -- in status. An open row past the decision window renders as expired.
+    CREATE TABLE IF NOT EXISTS ap_gated_sent (
+      offer_id TEXT PRIMARY KEY,   -- as minted by us, the proposer
+      guardian_slug TEXT NOT NULL, -- us
+      ward_uri TEXT NOT NULL,
+      feature TEXT NOT NULL,
+      value INTEGER NOT NULL,      -- what we proposed
+      status TEXT NOT NULL DEFAULT 'open',  -- 'open' | 'accepted' | 'rejected'
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
     CREATE TABLE IF NOT EXISTS ap_gated_votes (
       slug TEXT NOT NULL,          -- the WARD, on this server
       feature TEXT NOT NULL,       -- e.g. 'shaer:externalEmbeds'
@@ -677,6 +693,7 @@ export function initializeDatabase() {
   ensureColumn('ap_mentions', 'help_request', 'INTEGER'); // inbound ward call-for-help (Guardian PWA message centre)
   ensureColumn('ap_outbox', 'wave', 'INTEGER');    // FEP-633c shaer:wave (guardian -> ward nudge)
   ensureColumn('ap_outbox', 'away_until', 'INTEGER'); // FEP-633c 3.6.1 shaer:away + endTime (epoch ms)
+  ensureColumn('ap_gated_offers', 'proposer', 'TEXT'); // who proposed (5.6): the settle-answer goes back to them
   ensureColumn('ap_mentions', 'wave', 'INTEGER');  // inbound guardian wave
   // FEP-633c §2.2: object hint that the author is a ward. Register-only for now;
   // used later at reddings-boei / escalation routing.

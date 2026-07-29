@@ -146,6 +146,53 @@ test('the ward forwards a proposal to the other guardians, or nobody can answer'
   assert.equal(await G.handleGuardianshipInbox(site, { type: 'Accept', actor: B, object: 'https://a.test/gated/1' }), true);
   assert.equal(database.prepare('SELECT external_embeds FROM sites WHERE slug = ?').get('kid9').external_embeds, 1,
     'two of three agreed, so the ward may see link previews');
+
+  // And the loop CLOSES: the ward's server answers the Offer that opened the
+  // decision, back to the proposer. Without this the proposer's screen can
+  // only ever say "waiting", forever, whatever actually happened: the tally is
+  // the ward server's private ledger and nobody else may read it.
+  const answer = sent.find((x) => x.to === A && (x.act.type === 'Accept' || x.act.type === 'Reject'));
+  assert.ok(answer, 'the proposer is told the outcome');
+  assert.equal(answer.act.type, 'Accept', 'it settled on what A proposed');
+  assert.equal(answer.act.actor, WARD, 'and only the ward may say so');
+  assert.equal(answer.act.object, 'https://a.test/gated/1', 'referencing the offer it answers');
+});
+
+test("the proposer's own book: sent, answered, or honestly expired", async () => {
+  const dbMod3 = await import('../src/config/database.js');
+  const database = dbMod3.default;
+  const G = await import('../src/services/guardianship/index.js');
+  const WARD = 'https://kids.example/ap/users/maan';
+  const ME = 'https://test.example/ap/users/oma1';
+  database.prepare('INSERT OR IGNORE INTO users (id, username, email, password_hash, role) VALUES (?,?,?,?,?)').run('u11', 'u11', 'u11@t', 'x', 'god');
+  database.prepare('INSERT OR IGNORE INTO sites (id, slug, title, owner_id, is_primary) VALUES (?,?,?,?,0)').run('s11', 'oma1', 'oma1', 'u11');
+  database.prepare("INSERT OR IGNORE INTO ap_guardianships (slug, role, other_uri, status, offer_id) VALUES ('oma1','guardian',?, 'accepted','o')").run(WARD);
+  const site = database.prepare('SELECT * FROM sites WHERE slug = ?').get('oma1');
+
+  // The route records what it sent; here we do what the route does.
+  G.gated.recordSent(`${ME}/gated/p1`, 'oma1', WARD, 'shaer:externalPlayback', true);
+  assert.equal(G.gated.sentStatus(G.gated.recallSent(`${ME}/gated/p1`), Date.now()), 'open');
+
+  // A stranger claiming an outcome is not one: only the ward's voice counts.
+  assert.equal(await G.handleGuardianshipInbox(site, { type: 'Accept', actor: 'https://evil.test/u/x', object: `${ME}/gated/p1` }), false);
+  assert.equal(G.gated.recallSent(`${ME}/gated/p1`).status, 'open', 'still open: a stranger cannot close our books');
+
+  // The ward's server answers: the row settles.
+  assert.equal(await G.handleGuardianshipInbox(site, { type: 'Accept', actor: WARD, object: `${ME}/gated/p1` }), true);
+  assert.equal(G.gated.recallSent(`${ME}/gated/p1`).status, 'accepted');
+  assert.equal(G.gated.sentStatus(G.gated.recallSent(`${ME}/gated/p1`), Date.now()), 'accepted');
+
+  // A Reject is an answer too, and lands as one.
+  G.gated.recordSent(`${ME}/gated/p2`, 'oma1', WARD, 'shaer:externalEmbeds', false);
+  assert.equal(await G.handleGuardianshipInbox(site, { type: 'Reject', actor: WARD, object: `${ME}/gated/p2` }), true);
+  assert.equal(G.gated.sentStatus(G.gated.recallSent(`${ME}/gated/p2`), Date.now()), 'rejected');
+
+  // Silence past the window is not "still running": it is over, and the
+  // screen must say so instead of promising forever.
+  G.gated.recordSent(`${ME}/gated/p3`, 'oma1', WARD, 'shaer:externalEmbeds', true);
+  const row = G.gated.recallSent(`${ME}/gated/p3`);
+  assert.equal(G.gated.sentStatus(row, Date.now()), 'open');
+  assert.equal(G.gated.sentStatus(row, Date.now() + 25 * 60 * 60 * 1000), 'expired');
 });
 
 // Playback is the heavier sibling of the preview (5.6): seeing that a video
