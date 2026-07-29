@@ -115,16 +115,30 @@ test('the ward forwards a proposal to the other guardians, or nobody can answer'
   assert.equal(database.prepare('SELECT external_embeds FROM sites WHERE slug = ?').get('kid9').external_embeds, null, 'one voice is not a majority');
 
   // The forward: B and C are told, A is not asked twice.
-  const told = sent.filter((x) => x.act.object && x.act.object['shaer:feature']).map((x) => x.to).sort();
-  assert.deepEqual(told, [B, C].sort(), 'both other guardians must receive the proposal');
+  const fwd = sent.filter((x) => x.act.object && x.act.object['shaer:feature']);
+  assert.deepEqual(fwd.map((x) => x.to).sort(), [B, C].sort(), 'both other guardians must receive the proposal');
+  // And it must go out AS THE WARD, because the ward's key signs it. Sending
+  // it with the proposer still in `actor` is a signer mismatch: every receiver
+  // answers 401 and the proposal silently never arrives. Live proof, from
+  // beta's log: "guardianship Offer got 401 from boiert.eu/.../inbox". The
+  // first version of this test checked THAT a forward happened and not on
+  // whose behalf, so it passed while nothing worked.
+  for (const x of fwd) {
+    assert.equal(x.act.actor, WARD, 'the forward is signed by the ward, so it must say the ward');
+    assert.equal(x.act['shaer:proposer'], A, 'and it carries who actually proposed it');
+  }
 
   // B receives its copy on its own server and can answer it.
   database.prepare('INSERT OR IGNORE INTO sites (id, slug, title, owner_id, is_primary) VALUES (?,?,?,?,0)').run('s10', 'gb', 'gb', 'u9');
   database.prepare("INSERT OR IGNORE INTO ap_guardianships (slug, role, other_uri, status, offer_id) VALUES ('gb','guardian',?, 'accepted','o')").run(WARD);
   const gbSite = database.prepare('SELECT * FROM sites WHERE slug = ?').get('gb');
-  assert.equal(await G.handleGuardianshipInbox(gbSite, { ...offer, actor: A, to: ['https://test.example/ap/users/gb'] }), true);
+  // Exactly the shape the ward sends: actor = the ward, proposer alongside.
+  assert.equal(await G.handleGuardianshipInbox(gbSite, {
+    ...offer, actor: WARD, 'shaer:proposer': A, to: ['https://test.example/ap/users/gb'],
+  }), true);
   const review = G.gated.listGatedReviews('gb')[0];
   assert.ok(review, 'the guardian stores a copy it can answer');
+  assert.equal(review.proposer, A, 'the screen names who proposed it, not the ward that relayed it');
   assert.equal(review.feature, 'shaer:externalEmbeds');
   assert.equal(review.ward_uri, WARD);
 

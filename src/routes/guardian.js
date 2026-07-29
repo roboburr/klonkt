@@ -515,9 +515,16 @@ function proposeGated(req, res) {
     // Same forward as the S2S path: without it the other guardians never learn
     // the proposal exists and a threshold of two can never be met.
     if (r.state === 'open') {
+      const wardActor = AP.actorId(base, localWard.slug);
       for (const g of Guardianship.listGuardians(localWard.slug).map((x) => x.other_uri)) {
         if (g === me) continue;
-        AP.deliverToActor(site, g, { ...offer, to: [g] }).catch(() => { /* queued */ });
+        // Signed by the ward, so the body must say the ward: anything else is
+        // a signer mismatch and the receiver answers 401 (as it should).
+        AP.deliverToActor(
+          db.prepare('SELECT * FROM sites WHERE slug = ?').get(localWard.slug),
+          g,
+          { ...offer, actor: wardActor, to: [g], 'shaer:proposer': me },
+        ).catch(() => { /* queued */ });
       }
     }
     return res.json({ ok: true, allow, state: r.state, need: r.need, of: r.of });

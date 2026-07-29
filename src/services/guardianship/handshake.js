@@ -316,8 +316,15 @@ export async function handleInbox(site, activity) {
         if (r.state === 'open') {
           for (const g of relations.listGuardians(site.slug).map((x) => x.other_uri)) {
             if (g === actor) continue;   // the proposer already answered
+            // The forward goes out AS THE WARD, because the ward's key signs
+            // it. Keeping the proposer in `actor` made every receiver answer
+            // 401 signer mismatch, and rightly so: the body claimed one author
+            // and the signature proved another. §5.3 forwards a gated follow
+            // the same way. Who proposed it rides along separately, for the
+            // guardian's screen.
             deps.deliverTo(site, g, {
-              id: offerId, type: 'Offer', actor, to: [g], object: activity.object,
+              id: offerId, type: 'Offer', actor: me, to: [g], object: activity.object,
+              'shaer:proposer': actor,
             }).catch(() => { /* the delivery queue retries */ });
           }
         } else {
@@ -332,7 +339,10 @@ export async function handleInbox(site, activity) {
         const wardDoc = await deps.fetchActor(gs.ward).catch(() => null);
         gated.recordGatedReview(site.slug, {
           id: offerId, wardUri: gs.ward, wardInbox: wardDoc && wardDoc.inbox,
-          proposer: actor, feature: gs.feature, value: gs.value,
+          // A forward is signed by the ward, so `actor` is the ward; the
+          // guardian who opened it travels in shaer:proposer.
+          proposer: (typeof activity['shaer:proposer'] === 'string' ? activity['shaer:proposer'] : actor),
+          feature: gs.feature, value: gs.value,
         });
         notify(site.slug, { kind: 'gated_review', feature: gs.feature, value: gs.value, ward: gs.ward });
         return true;
