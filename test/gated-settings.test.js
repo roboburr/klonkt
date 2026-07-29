@@ -161,6 +161,10 @@ test('a player URL rides only when the playback gate is open', async () => {
   const shut = AP2.timelineEmbed(yt);
   assert.ok(shut && shut.url, 'the card itself still travels');
   assert.equal(shut['shaer:playerUrl'], undefined, 'no player without the gate');
+  // But the card says there IS something behind the gate, so the app can
+  // explain the silence instead of ignoring a tap. Robin tapped a video that
+  // could not answer and nothing happened, which reads as broken, not as shut.
+  assert.equal(shut['shaer:playable'], true, 'a shut gate still admits that a player exists');
 
   const open = AP2.timelineEmbed(yt, { playback: true });
   assert.match(open['shaer:playerUrl'], /^https:\/\/www\.youtube-nocookie\.com\/embed\/HetoL4XpHwY/,
@@ -172,6 +176,9 @@ test('a page we will not frame simply stays a thumbnail', async () => {
   const AP2 = (await import('../src/services/ActivityPubService.js')).default;
   const page = JSON.stringify({ url: 'https://yougubrands.com/about', title: 'About', media: [] });
   assert.equal(AP2.timelineEmbed(page, { playback: true })['shaer:playerUrl'], undefined);
+  // And no promise of one either: a news article is not a shut gate, it is
+  // simply not a video, and the app must not offer to ask for it.
+  assert.equal(AP2.timelineEmbed(page)['shaer:playable'], undefined);
   assert.equal(AP2.playerUrlFor('https://nos.nl/artikel/1'), null);
   // PeerTube is decentralised, so it is matched by shape, not by a host list.
   assert.equal(AP2.playerUrlFor('https://tilvids.com/w/abc123def'), 'https://tilvids.com/videos/embed/abc123def');

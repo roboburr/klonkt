@@ -3098,7 +3098,12 @@ export function timelineEmbed(embedJson, { playback = false } = {}) {
     // Privacy-enhanced variants only: nocookie for YouTube, the instance's own
     // player for PeerTube. Without one the card stays a thumbnail.
     const player = playback ? playerUrlFor(e.url) : null;
-    return player ? { ...e, 'shaer:playerUrl': player } : e;
+    if (player) return { ...e, 'shaer:playerUrl': player };
+    // The gate is shut and there IS something behind it. Saying so costs
+    // nothing (the card already shows a video thumbnail) and saves the child
+    // from tapping a card that will never answer: the app can explain instead
+    // of doing nothing. It stays a statement of fact, never a way in.
+    return playerUrlFor(e.url) ? { ...e, 'shaer:playable': true } : e;
   } catch { return undefined; }
 }
 
