@@ -316,12 +316,16 @@ router.post('/ap/users/:slug/uploadMedia', (req, res) => {
     // machine without ffmpeg nothing happens and nothing breaks; the clients
     // fall back to extracting a frame natively.
     if (mime.startsWith('video/')) {
-      import('child_process').then(({ execFile }) => {
+      // The bundled static build (ffmpeg-static) does the work, exactly like
+      // VideoCoverService and AudioTranscoder already do: Klonkt SHIPS its
+      // ffmpeg (Robins opmerking, 30-7), so nothing needs installing on any
+      // machine. Soft dependency + best-effort: absent stays silent, and
+      // FFMPEG_PATH can still override for an operator who wants a newer one.
+      Promise.all([import('child_process'), import('ffmpeg-static')]).then(([{ execFile }, ff]) => {
+        const bin = process.env.FFMPEG_PATH || ff.default;
+        if (!bin) return;
         const poster = req.file.path + '.poster.jpg';
-        // FFMPEG_PATH lets a static build in ~/bin do the work without a
-        // system install; unset means "whatever is on PATH", and neither is
-        // an error when absent.
-        execFile(process.env.FFMPEG_PATH || 'ffmpeg', ['-y', '-ss', '1', '-i', req.file.path, '-frames:v', '1', '-vf', "scale='min(640,iw)':-2", poster],
+        execFile(bin, ['-hide_banner', '-loglevel', 'error', '-y', '-ss', '1', '-i', req.file.path, '-frames:v', '1', '-vf', "scale='min(640,iw)':-2", poster],
           { timeout: 30000 }, (e) => { if (e && e.code !== 'ENOENT') console.warn('[media] poster failed:', e.message); });
       }).catch(() => { /* never blocks the upload */ });
     }
