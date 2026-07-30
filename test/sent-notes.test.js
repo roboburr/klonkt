@@ -43,6 +43,23 @@ test('a sent reply comes back as a threadable AS2 Note', async () => {
   assert.match(String(note.published), /T.*Z$/, 'published is ISO, so the merged feed sorts');
 });
 
+test("an inbound reply on your post reaches the app's message stream", () => {
+  // The other half of "komt niet binnen bij de ander": inbound replies live
+  // in ap_interactions (web comments), never in ap_mentions, so the C2S read
+  // never served them. getReplyMessages is the leg that does.
+  db.prepare(`INSERT INTO posts (id, site_id, author_id, slug, title, content, status, published_at, created_at, updated_at)
+              VALUES ('p9','s1','u1','n-p9','', '<p>x</p>','published',datetime('now'),datetime('now'),datetime('now'))`).run();
+  db.prepare(`INSERT INTO ap_interactions (kind, post_id, object_uri, actor_uri, actor_name, actor_handle, content, published, parent_uri, visibility, media_json, created_at)
+              VALUES ('reply','p9','https://unresolvable.invalid/notes/77','https://unresolvable.invalid/u/ness','Ness','@ness@unresolvable.invalid','<p>hoi terug</p>','2026-07-30T12:00:00Z','https://klonkt.test/ap/notes/p9','followers','[{"url":"https://unresolvable.invalid/m/f.jpg","type":"image/jpeg"}]',CURRENT_TIMESTAMP)`).run();
+  const rows = AP.getReplyMessages('me', 60);
+  const r = rows.find((x) => x.object_uri === 'https://unresolvable.invalid/notes/77');
+  assert.ok(r, 'the reply is served for the post owner');
+  assert.equal(r.parent_uri, 'https://klonkt.test/ap/notes/p9', 'threads under the post');
+  assert.equal(r.actor_handle, '@ness@unresolvable.invalid');
+  assert.ok(r.media_json.includes('f.jpg'), 'its media rides along');
+  assert.equal(AP.getReplyMessages('bestaat-niet', 60).length, 0, 'and only for the post owner');
+});
+
 test('a duplicate reply is idempotent success with the SAME id, not a 502', async () => {
   const first = await AP.deliverReply(site, { postId: '', postSlug: null, parent, text: 'nogmaals', visibility: 'friends' });
   assert.ok(first && first.id);

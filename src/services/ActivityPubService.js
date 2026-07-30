@@ -2899,6 +2899,26 @@ export function getTimeline(slug, limit, offset) { return tlStmts().list.all(slu
  * A public mention from someone you follow is stored in both tables; those are
  * skipped here and stay a post.
  */
+// Inbound replies on YOUR posts, for the app's message stream. They live in
+// ap_interactions (the web's comment machinery) and deliberately NOT in
+// ap_mentions (the mention store returns early for replies-to-us), so the
+// C2S read missed them entirely: a reply arrived at the other side
+// everywhere EXCEPT in the other's app (Robins melding, 30-7: "komt niet
+// binnen bij de ander").
+export function getReplyMessages(slug, limit) {
+  try {
+    return db.prepare(`
+      SELECT i.object_uri, i.actor_uri, i.actor_name, i.actor_handle, i.actor_icon, i.actor_url,
+             i.content, i.published, i.created_at, i.parent_uri, i.post_id,
+             i.emoji_json, i.actor_emoji_json, i.media_json, i.quote_json, i.embed_json
+      FROM ap_interactions i
+      JOIN posts p ON p.id = i.post_id
+      JOIN sites s ON s.id = p.site_id
+      WHERE s.slug = ? AND i.kind = 'reply'
+      ORDER BY COALESCE(i.published, i.created_at) DESC LIMIT ?`).all(slug, limit || 60);
+  } catch { return []; }
+}
+
 export function getDirectMessages(slug, limit) {
   try {
     return db.prepare(`
@@ -4199,5 +4219,5 @@ export default {
   getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
   linkifyBody, bakePostContent, bakePostContentWithMentions, listFollowers, removeFollower, listConnections,
   noteVisibility, belongsInTimeline, playerUrlFor, isRejectedObject, rejectInteraction, interactionReportTarget,
-  getMessages, notificationsSeenAt, ingestOutboxActivity, c2sVisibility, actorDisplay, buildActorRef, prefersEnriched, selfAuthor,
+  getMessages, notificationsSeenAt, ingestOutboxActivity, c2sVisibility, actorDisplay, buildActorRef, prefersEnriched, selfAuthor, getReplyMessages,
 };

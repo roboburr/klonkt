@@ -279,6 +279,34 @@ router.get('/ap/users/:slug/inbox', (req, res) => {
       'shaer:embed': embedsAllowed ? AP.timelineEmbed(m.embed_json, { playback: playbackAllowed }) : undefined,
     },
   }));
+  // Inbound REPLIES on your own posts: stored as interactions (the web's
+  // comment machinery), never as mentions, so this read missed them and a
+  // friend's reply arrived everywhere except in your app (Robins melding,
+  // 30-7). Same shape as the other legs; media/quotes ride the stored JSON.
+  const replies = AP.getReplyMessages(auth.site.slug, 60).map((m) => ({
+    id: `${m.object_uri}#create`,
+    type: 'Create',
+    actor: m.actor_uri,
+    published: AP.isoStamp(m.published || m.created_at),
+    object: {
+      id: m.object_uri,
+      type: 'Note',
+      attributedTo: m.actor_uri,
+      content: AP.stripLeadingMentions(m.content),
+      inReplyTo: m.parent_uri || `${base}/ap/notes/${m.post_id}`,
+      published: AP.isoStamp(m.published || m.created_at),
+      to: [me],
+      tag: [{ type: 'Mention', href: me, name: myHandle }, ...(AP.timelineEmojis(m.emoji_json) || [])],
+      attachment: AP.timelineAttachments(m.media_json),
+      'shaer:quote': AP.timelineQuote(m.quote_json),
+      'shaer:author': (m.actor_name || m.actor_handle || m.actor_icon) ? {
+        name: m.actor_name || undefined, handle: m.actor_handle || undefined,
+        icon: m.actor_icon || undefined, url: m.actor_url || undefined,
+        emojis: (() => { try { return m.actor_emoji_json ? JSON.parse(m.actor_emoji_json) : undefined; } catch { return undefined; } })(),
+      } : undefined,
+      'shaer:embed': embedsAllowed ? AP.timelineEmbed(m.embed_json, { playback: playbackAllowed }) : undefined,
+    },
+  }));
   // Your OWN sent notes (replies and direct messages, ap_outbox): without
   // them a reply existed everywhere except in your own app, Messages showed
   // half a conversation, and a retry ran into the duplicate guard (Robins
@@ -294,7 +322,7 @@ router.get('/ap/users/:slug/inbox', (req, res) => {
     object: { ...n, content: AP.stripLeadingMentions(n.content), 'shaer:author': mine },
   }));
   // Newest first over all legs, so the app can keep treating this as one feed.
-  const items = [...posts, ...messages, ...sent].sort((a, b) => String(b.published || '').localeCompare(String(a.published || '')));
+  const items = [...posts, ...messages, ...replies, ...sent].sort((a, b) => String(b.published || '').localeCompare(String(a.published || '')));
   AP.sendAP(res, {
     '@context': AP.AP_CONTEXT,
     id: `${base}/ap/users/${auth.site.slug}/inbox`,
