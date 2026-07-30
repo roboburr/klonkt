@@ -2320,10 +2320,26 @@ export async function ingestOutboxActivity(site, user, activity) {
         if (object.inReplyTo) {
           const parent = await resolveRemoteNote(c2sIdOf(object.inReplyTo)).catch(() => null);
           if (!parent) return { status: 502, error: 'cannot_resolve_inReplyTo' };
+          // The attachments ride along (Robins melding, 30-7: "502
+          // reply_failed" op een reply met een foto): deliverReply validates
+          // them itself (own /media only, image|audio|video, max 4) and a
+          // media-only reply is a valid reply there. Dropping them here made
+          // a photo reply arrive naked, and a photo-ONLY reply fail outright.
+          const atts = (Array.isArray(object.attachment) ? object.attachment : [])
+            .map((a) => a && typeof a === 'object' ? {
+              url: String(a.url || '').replace(new RegExp('^' + base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), ''),
+              mediaType: String(a.mediaType || ''),
+              name: String(a.name || '').slice(0, 120),
+            } : null)
+            .filter(Boolean);
           // Honour the client's visibility for the reply: 'friends' (followers-
           // only, the Shaer detail-view Reply) drops Public; anything else stays
           // quiet-public. 'direct' was already handled above.
-          const r = await deliverReply(site, { postId: parent.localPostId || '', postSlug: null, parent, text: plain, visibility: c2sVisibility(object) });
+          const r = await deliverReply(site, {
+            postId: parent.localPostId || '', postSlug: null, parent, text: plain,
+            html: object.content || null, attachments: atts,
+            language: object.language || null, visibility: c2sVisibility(object),
+          });
           if (!r || !r.id) return { status: 502, error: 'reply_failed' };
           return { status: 201, id: r.id, url: `${base}/ap/notes/${r.id}` };
         }
