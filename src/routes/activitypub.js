@@ -279,8 +279,22 @@ router.get('/ap/users/:slug/inbox', (req, res) => {
       'shaer:embed': embedsAllowed ? AP.timelineEmbed(m.embed_json, { playback: playbackAllowed }) : undefined,
     },
   }));
-  // Newest first over both, so the app can keep treating this as one feed.
-  const items = [...posts, ...messages].sort((a, b) => String(b.published || '').localeCompare(String(a.published || '')));
+  // Your OWN sent notes (replies and direct messages, ap_outbox): without
+  // them a reply existed everywhere except in your own app, Messages showed
+  // half a conversation, and a retry ran into the duplicate guard (Robins
+  // melding, 30-7). Served like the other legs: same shape, one parser.
+  const mine = AP.selfAuthor(base, auth.site);
+  const sent = AP.getSentNotes(base, auth.site, 60).map((n) => ({
+    id: `${n.id}#create`,
+    type: 'Create',
+    actor: me,
+    published: n.published,
+    // The leading mention anchor is addressing, not prose (the DM leg strips
+    // it the same way); the Mention tags built from the full content stay.
+    object: { ...n, content: AP.stripLeadingMentions(n.content), 'shaer:author': mine },
+  }));
+  // Newest first over all legs, so the app can keep treating this as one feed.
+  const items = [...posts, ...messages, ...sent].sort((a, b) => String(b.published || '').localeCompare(String(a.published || '')));
   AP.sendAP(res, {
     '@context': AP.AP_CONTEXT,
     id: `${base}/ap/users/${auth.site.slug}/inbox`,

@@ -2237,6 +2237,18 @@ export function buildReplyNote(base, site, row) {
   return buildNote(base, site, row, { isReply: true });
 }
 
+// The account's own outbound notes (replies and direct messages) as AS2
+// Notes, newest first. The C2S inbox read serves these alongside the
+// timeline: without them your own reply existed everywhere EXCEPT in your
+// own app (Robins melding, 30-7: "replyen werkt nog niet"; het antwoord
+// stond op de server maar de app kreeg het nooit terug, dus je probeerde
+// het opnieuw en liep in de duplicate-guard).
+export function getSentNotes(base, site, limit = 60) {
+  return db.prepare('SELECT * FROM ap_outbox WHERE site_slug = ? ORDER BY created_at DESC LIMIT ?')
+    .all(site.slug, limit)
+    .map((row) => buildReplyNote(base, site, row));
+}
+
 // Resolve one of our outbound reply Notes by id (for /ap/notes/:id fallback).
 export function getOutboxNote(base, id) {
   const row = iStmts().getO.get(id);
@@ -2318,7 +2330,7 @@ export async function ingestOutboxActivity(site, user, activity) {
           return { status: 201, id: r.id, url: `${base}/ap/notes/${r.id}` };
         }
         if (object.inReplyTo) {
-          const parent = await resolveRemoteNote(c2sIdOf(object.inReplyTo)).catch(() => null);
+          const parent = await resolveRemoteNote(c2sIdOf(object.inReplyTo), { asSlug: site.slug }).catch(() => null);
           if (!parent) return { status: 502, error: 'cannot_resolve_inReplyTo' };
           // The attachments ride along (Robins melding, 30-7: "502
           // reply_failed" op een reply met een foto): deliverReply validates
@@ -2358,7 +2370,7 @@ export async function ingestOutboxActivity(site, user, activity) {
             return { status: 403, error: 'not_public' };
           }
         }
-        const note = await resolveRemoteNote(targetUri).catch(() => null);
+        const note = await resolveRemoteNote(targetUri, { asSlug: site.slug }).catch(() => null);
         const objUri = (note && note.object_uri) || targetUri;
         const authorUri = note && note.actor_uri;
         const kind = type === 'Announce' ? 'boost' : 'like';
@@ -2396,7 +2408,7 @@ export async function ingestOutboxActivity(site, user, activity) {
         }
         if (innerType === 'Like' || innerType === 'Announce') {
           const kind = innerType === 'Announce' ? 'unboost' : 'unlike';
-          const note = await resolveRemoteNote(innerTarget).catch(() => null);
+          const note = await resolveRemoteNote(innerTarget, { asSlug: site.slug }).catch(() => null);
           const objUri = (note && note.object_uri) || innerTarget;
           await sendInteraction(site, kind, objUri, note && note.actor_uri);
           setMyReaction(site.slug, innerTarget, innerType === 'Announce' ? 'boost' : 'like', false);
@@ -2585,9 +2597,13 @@ export async function deliverReply(site, { postId, postSlug, parent, text, html,
   // Dedup: skip if the exact same reply was already sent (double-submit guard).
   // Attachments count toward "the same": two media-only replies share content.
   const mediaJson = media.length ? JSON.stringify(media) : null;
-  const dup = db.prepare('SELECT 1 FROM ap_outbox WHERE site_slug = ? AND IFNULL(in_reply_to, \'\') = ? AND content = ? AND IFNULL(attachments, \'\') = IFNULL(?, \'\') LIMIT 1')
+  // A duplicate is idempotent success, not an error: it answers with the
+  // EXISTING id. Returning without one made the C2S ingest say 502
+  // reply_failed on a double-submit (Robins schermafdruk, 30-7), so a retry
+  // of a reply the app never showed looked like the reply itself failing.
+  const dup = db.prepare('SELECT id FROM ap_outbox WHERE site_slug = ? AND IFNULL(in_reply_to, \'\') = ? AND content = ? AND IFNULL(attachments, \'\') = IFNULL(?, \'\') LIMIT 1')
     .get(site.slug, parent.object_uri || '', content, mediaJson);
-  if (dup) { console.log('[AP] outreply skipped (duplicate)'); return { duplicate: true, delivered: 0 }; }
+  if (dup) { console.log('[AP] outreply skipped (duplicate)'); return { duplicate: true, id: dup.id, delivered: 0 }; }
   const id = crypto.randomUUID();
   iStmts().insO.run(id, site.slug, postId, postSlug || null, parent.object_uri || null, toActorUri, toHandle, content, replyLang, mediaJson);
   // Followers-only reply (shaer detail-view): mark the row so buildNote drops
@@ -2642,14 +2658,20 @@ function actorUriOf(att) {
 
 // Resolve a remote post URL (any fediverse/Klonkt post) into a reply target.
 // Returns a parent-shaped object usable by deliverReply(), or null.
-export async function resolveRemoteNote(url) {
+export async function resolveRemoteNote(url, opts = {}) {
   if (!/^https?:\/\//i.test(String(url || ''))) return null;
-  const note = await fetchActor(url).catch(() => null); // AP GET (content-negotiates)
+  // With `asSlug` the fetches are SIGNED as that local actor. An anonymous
+  // GET can only read public notes; a friends-only note (Shaer's default!)
+  // rightly refuses it, which made every reply to a friend's post fail while
+  // a reply to your own public post worked (Robins melding, 30-7). Signed,
+  // the other server sees WHO asks and serves what the friendship earns.
+  const get = (u) => (opts.asSlug ? signedGetJson(opts.asSlug, u) : fetchActor(u).catch(() => null));
+  const note = await get(url); // AP GET (content-negotiates)
   if (!note || !note.id) return null;
   const att = note.attributedTo;
   const actorUri = actorUriOf(att);
   if (!actorUri) return null;
-  const actor = await fetchActor(actorUri).catch(() => null);
+  const actor = await get(actorUri);
   const ai = actorInfo(actor, actorUri);
   // Is what we're replying to a post (or a comment) on one of OUR posts? If so,
   // link our reply to that local post so it shows nested in the post thread.
@@ -2663,11 +2685,11 @@ export async function resolveRemoteNote(url) {
   while (cursor && guard++ < 6) {
     const url = typeof cursor === 'string' ? cursor : (cursor && cursor.id);
     if (!url) break;
-    const pn = await fetchActor(url).catch(() => null);
+    const pn = await get(url);
     if (!pn) break;
     const pa = actorUriOf(pn.attributedTo);
     if (pa && pa !== actorUri) {
-      const paDoc = await fetchActor(pa).catch(() => null);
+      const paDoc = await get(pa);
       const inbox = paDoc && ((paDoc.endpoints && paDoc.endpoints.sharedInbox) || paDoc.inbox);
       if (inbox && !seenInbox.has(inbox)) { seenInbox.add(inbox); threadInboxes.push(inbox); }
     }
@@ -4166,7 +4188,7 @@ export default {
   AP_CONTEXT, getOrCreateKeys, apWants, sendAP, actorId, noteId, stripLeadingMentions,
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers, buildFollowing, buildFeatured,
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
-  getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, setMyReaction, getMyReactions, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
+  getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, setMyReaction, getMyReactions, buildReplyNote, getOutboxNote, getSentNotes, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate, deliverDirectNote,
   webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, getDirectMessages, isoStamp, timelineAttachments, timelineEmojis, timelineObjectLinks, timelineQuote, timelineEmbed, applyQuoteProps, deliverToActor, sendInteraction, voteOnPoll, voteOnRemotePoll,
   acceptGatedFollow, rejectGatedFollow, isWardGuardian, outboxAudience, sendFollowDecision,
