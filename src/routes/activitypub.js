@@ -356,13 +356,21 @@ router.post('/ap/users/:slug/uploadMedia', (req, res) => {
     // Audio gets the same courtesy (Robins vraag, 30-7: vrolijk de kale
     // audio-tegel op): ffmpeg draws the waveform into <name>.poster.png.
     // White on transparent, so the tile's own gradient stays the backdrop
-    // and every audio post keeps its own hue.
+    // and every audio post keeps its own hue. The shape is bars, not the
+    // raw hairy wave (Robins tweede vraag): peak and average sampled into
+    // 57 columns (soft tip over bright core), blown up nearest-neighbor to
+    // 14px bars, and drawgrid ERASES 5px gaps (c=black@0 + replace=1 writes
+    // transparent pixels; h=2*ih keeps horizontal grid lines out of frame).
     if (mime.startsWith('audio/')) {
       Promise.all([import('child_process'), import('ffmpeg-static')]).then(([{ execFile }, ff]) => {
         const bin = process.env.FFMPEG_PATH || ff.default;
         if (!bin) return;
         const poster = req.file.path + '.poster.png';
-        execFile(bin, ['-hide_banner', '-loglevel', 'error', '-y', '-i', req.file.path, '-filter_complex', 'showwavespic=s=800x256:colors=white', '-frames:v', '1', poster],
+        const graph = '[0:a]aformat=channel_layouts=mono,asplit[a][b];'
+          + '[a]showwavespic=s=57x256:colors=white@0.5:filter=peak:scale=sqrt:draw=full[pk];'
+          + '[b]showwavespic=s=57x256:colors=white:filter=average:scale=sqrt:draw=full[av];'
+          + '[pk][av]overlay=format=auto,scale=798:256:flags=neighbor,drawgrid=w=14:h=2*ih:t=5:c=black@0:replace=1';
+        execFile(bin, ['-hide_banner', '-loglevel', 'error', '-y', '-i', req.file.path, '-filter_complex', graph, '-frames:v', '1', poster],
           { timeout: 30000 }, (e) => { if (e && e.code !== 'ENOENT') console.warn('[media] waveform failed:', e.message); });
       }).catch(() => { /* never blocks the upload */ });
     }

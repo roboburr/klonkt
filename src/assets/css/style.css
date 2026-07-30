@@ -2422,14 +2422,20 @@ body.on-cirkel[data-feed-view="grid"]  .feed-grid { display: block; }
 .grid-tile-img.is-loading { opacity: 0; }
 /* Audio tile (Shaer, Robins vraag 30-7): the waveform PNG is white on
    transparent and floats OVER the tile's own hue gradient, so every audio
-   post keeps its color and gets its shape. Contain + padding leaves the
-   centered title readable. */
+   post keeps its color and gets its shape. Wave and title each get their
+   own band (wave upper, title lower): centering both stacked them right
+   through each other (Robins schermafdruk). */
 .grid-tile-img.grid-tile-wave {
     background-color: transparent;
     object-fit: contain;
-    padding: 26% 10%;
+    /* explicit box, not auto: an absolutely positioned img falls back to its
+       intrinsic size when width/height are auto, collapsing the band */
+    top: 8%; left: 8%; right: auto; bottom: auto;
+    width: 84%; height: 46%;
     opacity: .85;
 }
+.grid-tile-audio .grid-tile-title { position: absolute; left: 10%; right: 10%; top: 60%; }
+.grid-tile-audio .grid-tile-gradient-src { position: absolute; left: 10%; right: 10%; top: 76%; }
 /* Cover videos are decorative, not players: let clicks + right-click pass through to the
    tile link so you get the normal link menu (not the browser's <video> menu/controls).
    Autoplay is independent of pointer-events, so the video still plays. */
