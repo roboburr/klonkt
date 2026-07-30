@@ -2382,7 +2382,10 @@ export async function ingestOutboxActivity(site, user, activity) {
       case 'Follow': {
         const actorUri = c2sIdOf(object);
         if (!actorUri) return { status: 400, error: 'missing_object' };
-        await followActor(site, actorUri);
+        // The error REACHES the app (Robins melding, 31-7): swallowing it
+        // made a failed follow look exactly like a successful one.
+        const r = await followActor(site, actorUri);
+        if (r && r.error) return { status: 502, error: 'follow_failed', detail: r.error };
         return { status: 202, url: actorUri };
       }
       // Shaer "in Orbit" = a real Block (FEP-c648 client side): lands in
@@ -3644,7 +3647,10 @@ export async function followActor(site, handle, autoBoost = false) {
   else if (/^[a-z0-9.-]+\.[a-z]{2,}/i.test(s)) actorUrl = await resolveApActor('https://' + s.replace(/^\/+|\/+$/g, ''));
   else actorUrl = null;
   if (!actorUrl) return { error: 'not_found' };
-  const actor = await fetchActor(actorUrl).catch(() => null);
+  // SIGNED, as this actor: an authorized-fetch instance refuses an anonymous
+  // GET of the actor doc, which made following from a boost silently fail
+  // (Robins melding, 31-7). Signed, the other side sees who asks.
+  const actor = await signedGetJson(site.slug, actorUrl);
   if (!actor || !actor.id || !actor.inbox) return { error: 'unreachable' };
   const ai = actorInfo(actor, actor.id);
   const me = actorId(base, site.slug);
@@ -3659,6 +3665,30 @@ export async function followActor(site, handle, autoBoost = false) {
   console.log('[AP] follow', site.slug, '→', actor.id);
   // Follow + feature in one step → backfill their recent posts into the Cirkel right away.
   if (autoBoost) backfillFromOutbox(site.slug, actor.id).catch(() => {});
+  // A ward's guardians are TOLD about a new follow (Robins verzoek, 31-7):
+  // a follow brings new content into the child's feed, and the village
+  // should know the door opened. A direct note per guardian, best-effort;
+  // FEP-633c 5.3 gates inbound follows, the outbound notice is Shaer policy
+  // for now (bead: spec-vraag).
+  try {
+    const guardians = Guardianship.listGuardians(site.slug);
+    if (guardians.length) {
+      const meRef = actorId(base, site.slug);
+      const esc = (t) => String(t).replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+      const label = esc(ai.name || ai.handle || actor.id);
+      for (const g of guardians) {
+        const note = {
+          id: `${meRef}/follow-notice/${Date.now().toString(36)}${rid()}`,
+          type: 'Note', attributedTo: meRef, to: [g.other_uri],
+          tag: [{ type: 'Mention', href: g.other_uri }],
+          content: `<p>👀 ${esc(site.title || site.slug)} is now following ${label}.</p>`,
+        };
+        deliverToActor(site, g.other_uri, { id: `${note.id}#create`, type: 'Create', actor: meRef, to: [g.other_uri], object: note })
+          .catch(() => { /* retried by the queue */ });
+      }
+      console.log('[AP] follow notice →', guardians.length, 'guardian(s) of', site.slug);
+    }
+  } catch { /* geen guardians is geen fout */ }
   return { ok: true, name: ai.name, handle: ai.handle, actor: actor.id };
 }
 

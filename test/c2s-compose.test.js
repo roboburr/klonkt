@@ -207,6 +207,17 @@ test('C2S Delete takes an own post back, and only an own post', async () => {
   assert.equal(db.prepare('SELECT COUNT(*) c FROM posts WHERE id = ?').get('p-ander').c, 1, 'and it stays');
 });
 
+test('a failed follow REACHES the app as an error, not a fake 202', async () => {
+  // Following from a boost silently failed (Robins melding, 31-7): the C2S
+  // ingest swallowed followActor's error. An unreachable actor must say so.
+  const r = await AP.ingestOutboxActivity(site, user, {
+    type: 'Follow', object: 'https://unresolvable.invalid/u/niemand',
+  });
+  assert.equal(r.status, 502);
+  assert.equal(r.error, 'follow_failed');
+  assert.equal(r.detail, 'unreachable');
+});
+
 test('selfAuthor: the byline for your own outbox notes', () => {
   // The owner's app reads its own posts from the outbox, which carried no
   // author info: every card but your own had a header (Robins melding, 30-7).

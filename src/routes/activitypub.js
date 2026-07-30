@@ -122,6 +122,27 @@ router.get('/ap/users/:slug/outbox', async (req, res) => {
   AP.sendAP(res, ob, audience === 'friend' ? 'private, no-store' : undefined);
 });
 
+// ── Follow-QR (Robins verzoek, 31-7) ──────────────────────────────
+// A PNG QR of share:social/follow/AP/@slug@host: the ward shows it in
+// Account, a friend scans the SCREEN with the ordinary camera app and their
+// Shaer opens with the follow question. Public on purpose: it encodes only
+// the public handle, and the app's plain image loaders carry no bearer.
+router.get('/ap/users/:slug/follow-qr.png', async (req, res) => {
+  const site = db.prepare('SELECT slug FROM sites WHERE slug = ?').get(req.params.slug);
+  if (!site) return res.status(404).end();
+  try {
+    const host = new URL(baseUrl(req)).host;
+    const { default: QRCode } = await import('qrcode');
+    const png = await QRCode.toBuffer(`share:social/follow/AP/@${site.slug}@${host}`, { width: 600, margin: 1 });
+    res.set('Content-Type', 'image/png');
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.send(png);
+  } catch (e) {
+    console.warn('[AP] follow-qr failed:', e && e.message);
+    res.status(500).end();
+  }
+});
+
 // ── Blocked collection (owner only, AP §5.6) ──────────────────────
 // The server blocklist is the source of truth for Shaer's "in Orbit":
 // clients read it here instead of keeping their own state. Actor-kind
