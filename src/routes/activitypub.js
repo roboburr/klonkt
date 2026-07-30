@@ -123,17 +123,19 @@ router.get('/ap/users/:slug/outbox', async (req, res) => {
 });
 
 // ── Follow-QR (Robins verzoek, 31-7) ──────────────────────────────
-// A PNG QR of share:social/follow/AP/@slug@host: the ward shows it in
-// Account, a friend scans the SCREEN with the ordinary camera app and their
-// Shaer opens with the follow question. Public on purpose: it encodes only
-// the public handle, and the app's plain image loaders carry no bearer.
+// The QR carries an HTTPS url, not the share: scheme: camera apps (Google
+// Lens voorop) treat unknown schemes as plain text and only offer to OPEN
+// https links (Robins melding, 31-7). The url lands on the interstitial
+// below, whose one big button fires the share: scheme — from a browser the
+// custom scheme DOES work (BROWSABLE intent-filter; Safari prompts).
+// Public on purpose: it encodes only the public handle, and the app's plain
+// image loaders carry no bearer.
 router.get('/ap/users/:slug/follow-qr.png', async (req, res) => {
   const site = db.prepare('SELECT slug FROM sites WHERE slug = ?').get(req.params.slug);
   if (!site) return res.status(404).end();
   try {
-    const host = new URL(baseUrl(req)).host;
     const { default: QRCode } = await import('qrcode');
-    const png = await QRCode.toBuffer(`share:social/follow/AP/@${site.slug}@${host}`, { width: 600, margin: 1 });
+    const png = await QRCode.toBuffer(`${baseUrl(req)}/ap/users/${encodeURIComponent(site.slug)}/follow`, { width: 600, margin: 1 });
     res.set('Content-Type', 'image/png');
     res.set('Cache-Control', 'public, max-age=86400');
     res.send(png);
@@ -141,6 +143,36 @@ router.get('/ap/users/:slug/follow-qr.png', async (req, res) => {
     console.warn('[AP] follow-qr failed:', e && e.message);
     res.status(500).end();
   }
+});
+
+// The interstitial the QR opens: one big button into Shaer, and the handle
+// in plain sight for whoever has no Shaer (yet).
+router.get('/ap/users/:slug/follow', (req, res) => {
+  const site = db.prepare('SELECT slug, title FROM sites WHERE slug = ?').get(req.params.slug);
+  if (!site) return res.status(404).end();
+  const host = new URL(baseUrl(req)).host;
+  const esc = (t) => String(t).replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+  const handle = `@${site.slug}@${host}`;
+  const name = esc(site.title || site.slug);
+  res.set('Cache-Control', 'public, max-age=3600');
+  res.send(`<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Follow ${name}</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+         background: linear-gradient(160deg, #5A32E6, #2a1a5e); color: #fff; text-align: center; }
+  main { padding: 32px; max-width: 420px; }
+  h1 { font-size: 1.5rem; margin: 0 0 .4rem; }
+  .handle { opacity: .85; font-family: ui-monospace, monospace; word-break: break-all; }
+  a.go { display: block; margin: 28px auto 14px; padding: 16px 28px; border-radius: 999px; background: #fff; color: #2a1a5e;
+         font-weight: 700; font-size: 1.15rem; text-decoration: none; }
+  p.small { font-size: .85rem; opacity: .75; line-height: 1.5; }
+</style></head><body><main>
+  <h1>Follow ${name}</h1>
+  <div class="handle">${esc(handle)}</div>
+  <a class="go" href="share:social/follow/AP/${esc(handle)}">Open in Shaer</a>
+  <p class="small">No Shaer? Any fediverse app can follow ${esc(handle)}.</p>
+</main></body></html>`);
 });
 
 // ── Blocked collection (owner only, AP §5.6) ──────────────────────
