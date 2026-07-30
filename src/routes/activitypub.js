@@ -311,6 +311,17 @@ router.post('/ap/users/:slug/uploadMedia', (req, res) => {
       try { fs.unlinkSync(req.file.path); } catch { /* best effort */ }
       return res.status(400).json({ error: 'Media must be an image, audio or video file' });
     }
+    // A video gets a poster frame next to it (shaer-zowq), best-effort and
+    // out of band: ffmpeg pulls one frame at 1s into <name>.poster.jpg. On a
+    // machine without ffmpeg nothing happens and nothing breaks; the clients
+    // fall back to extracting a frame natively.
+    if (mime.startsWith('video/')) {
+      import('child_process').then(({ execFile }) => {
+        const poster = req.file.path + '.poster.jpg';
+        execFile('ffmpeg', ['-y', '-ss', '1', '-i', req.file.path, '-frames:v', '1', '-vf', "scale='min(640,iw)':-2", poster],
+          { timeout: 30000 }, (e) => { if (e && e.code !== 'ENOENT') console.warn('[media] poster failed:', e.message); });
+      }).catch(() => { /* never blocks the upload */ });
+    }
     res.status(201).json({
       url: '/media/reply-media/' + req.file.filename,
       mediaType: mime,

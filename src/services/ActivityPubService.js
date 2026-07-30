@@ -16,6 +16,8 @@
  *   note    = <base>/ap/notes/<postId>
  */
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import dns from 'dns';
 import net from 'net';
 import db from '../config/database.js';
@@ -379,7 +381,7 @@ export function buildNote(base, site, post, opts = {}) {
   // by URL keeps them single.
   try {
     for (const a of JSON.parse(post.c2s_attachments || '[]')) {
-      if (a && a.url) urls.push({ url: abs(a.url), name: a.name || '', mt: a.mediaType });
+      if (a && a.url) urls.push({ url: abs(a.url), name: a.name || '', mt: a.mediaType, poster: a.poster ? abs(a.poster) : null });
     }
   } catch { /* malformed never blocks the Note */ }
   let body = post.content || '';
@@ -479,6 +481,7 @@ export function buildNote(base, site, post, opts = {}) {
       const ty = /^image\//i.test(mt) ? 'Image' : /^video\//i.test(mt) ? 'Video' : /^audio\//i.test(mt) ? 'Audio' : 'Document';
       const a = { type: ty, mediaType: mt, url: x.url };
       if (x.name) a.name = String(x.name).slice(0, 1500); // alt text / description (AS2 `name`)
+      if (x.poster) a.icon = { type: 'Image', url: x.poster }; // the video's still (shaer-zowq)
       return a; });
   for (const a of openAudio) attachment.push(a); // fedi_open tracks → native Audio players
 
@@ -2378,7 +2381,20 @@ async function c2sCreatePost(base, site, user, object) {
     .filter((a) => a && typeof a.url === 'string' && /^\/media\/[\w./-]+$/.test(a.url)
       && /^(image|audio|video)\//.test(String(a.mediaType || '')))
     .slice(0, 4)
-    .map((a) => ({ url: a.url, mediaType: String(a.mediaType), name: String(a.name || '').slice(0, 120) }));
+    .map((a) => {
+      const entry = { url: a.url, mediaType: String(a.mediaType), name: String(a.name || '').slice(0, 120) };
+      // A video's poster frame, when the upload leg made one (shaer-zowq):
+      // rides along so the tag, the federated attachment and the apps all
+      // show a still instead of a black box.
+      if (entry.mediaType.startsWith('video/')) {
+        try {
+          const mediaRoot = path.resolve(process.env.MEDIA_PATH || './storage/media');
+          const rel = entry.url.replace(/^\/media\//, '');
+          if (fs.existsSync(path.join(mediaRoot, rel + '.poster.jpg'))) entry.poster = entry.url + '.poster.jpg';
+        } catch { /* no poster is fine */ }
+      }
+      return entry;
+    });
   if (!html.trim() && !media.length) return { status: 400, error: 'empty_note' };
   // The web reads the post's content, so the media goes IN it (we build these
   // tags ourselves from validated paths, after the sanitizer). buildNote
@@ -2388,7 +2404,8 @@ async function c2sCreatePost(base, site, user, object) {
   const mediaHtml = media.map((a) => {
     if (a.mediaType.startsWith('image/')) return `<p><img src="${a.url}" alt="${esc(a.name)}"></p>`;
     if (a.mediaType.startsWith('audio/')) return `<p><audio controls preload="metadata" src="${a.url}"></audio></p>`;
-    return `<p><video controls playsinline preload="metadata" src="${a.url}"></video></p>`;
+    const poster = a.poster ? ` poster="${a.poster}"` : '';
+    return `<p><video controls playsinline preload="metadata"${poster} src="${a.url}"></video></p>`;
   }).join('');
   const postId = crypto.randomUUID();
   const slug = 'n-' + postId.slice(0, 8);
@@ -2817,7 +2834,11 @@ export function timelineAttachments(mediaJson) {
     const list = mediaJson ? JSON.parse(mediaJson) : [];
     const rows = (Array.isArray(list) ? list : [])
       .filter((m) => m && m.url)
-      .map((m) => ({ type: 'Document', mediaType: m.type || undefined, url: m.url }));
+      .map((m) => {
+        const a = { type: 'Document', mediaType: m.type || undefined, url: m.url };
+        if (m.poster) a.icon = { type: 'Image', url: m.poster }; // the video's still (shaer-zowq)
+        return a;
+      });
     return rows.length ? rows : undefined;
   } catch { return undefined; }
 }
@@ -3026,7 +3047,13 @@ async function fetchNoteAP(url) {
   return null;
 }
 function mediaFromNote(note) {
-  const atts = (Array.isArray(note.attachment) ? note.attachment : []).map((a) => ({ url: safeUrl(a && a.url), type: (a && a.mediaType) || '' })).filter((m) => m.url);
+  const atts = (Array.isArray(note.attachment) ? note.attachment : []).map((a) => {
+    const m = { url: safeUrl(a && a.url), type: (a && a.mediaType) || '' };
+    // A federated video may carry its poster as an AS2 icon (shaer-zowq).
+    const iconUrl = a && a.icon && safeUrl(typeof a.icon === 'string' ? a.icon : a.icon.url);
+    if (iconUrl && /^video\//i.test(m.type)) m.poster = iconUrl;
+    return m;
+  }).filter((m) => m.url);
   if (!atts.some((m) => !m.type || /image/i.test(m.type)) && note.image) {
     const im = Array.isArray(note.image) ? note.image[0] : note.image;
     const iu = safeUrl(typeof im === 'string' ? im : (im && im.url));

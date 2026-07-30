@@ -54,6 +54,56 @@ test('a C2S post carries its media: into the web content and out as AS2 attachme
   assert.equal(att.filter((a) => a.url.endsWith('foto.jpg')).length, 1, 'inline img + stored row dedupe to one');
 });
 
+test("a video's poster frame rides the tag, the store and the federated attachment", async () => {
+  // The upload leg writes <name>.poster.jpg next to a video when ffmpeg is
+  // around (shaer-zowq). From there it must reach three places: the poster=
+  // on the folded tag (web), the stored entry, and the AS2 icon on the
+  // federated attachment (apps and other servers).
+  const os = await import('os');
+  const fsm = await import('fs');
+  const pathm = await import('path');
+  const root = fsm.mkdtempSync(pathm.join(os.tmpdir(), 'klonkt-media-'));
+  fsm.mkdirSync(pathm.join(root, 'reply-media'), { recursive: true });
+  fsm.writeFileSync(pathm.join(root, 'reply-media', 'film.mp4.poster.jpg'), 'x');
+  const prev = process.env.MEDIA_PATH;
+  process.env.MEDIA_PATH = root;
+  try {
+    const r = await AP.ingestOutboxActivity(site, user, {
+      type: 'Create',
+      object: {
+        type: 'Note', content: '<p>filmpje</p>',
+        to: ['https://test.example/ap/users/kid/followers'],
+        attachment: [{ type: 'Video', url: '/media/reply-media/film.mp4', mediaType: 'video/mp4' }],
+      },
+    });
+    assert.equal(r.status, 201);
+    const post = db.prepare('SELECT * FROM posts WHERE id = ?').get(r.id);
+    assert.match(post.content, /poster="\/media\/reply-media\/film\.mp4\.poster\.jpg"/, 'the web tag shows the still');
+    const note = AP.buildNote('https://test.example', site, post);
+    const vid = (note.attachment || []).find((a) => a.url.endsWith('film.mp4'));
+    assert.ok(vid && vid.type === 'Video');
+    assert.equal(vid.icon && vid.icon.url, 'https://test.example/media/reply-media/film.mp4.poster.jpg',
+      'the poster federates as the attachment icon');
+  } finally {
+    if (prev === undefined) delete process.env.MEDIA_PATH; else process.env.MEDIA_PATH = prev;
+  }
+});
+
+test('a video without a poster simply has none: no guessed icon', async () => {
+  const r = await AP.ingestOutboxActivity(site, user, {
+    type: 'Create',
+    object: {
+      type: 'Note', content: '<p>kaal</p>',
+      to: ['https://test.example/ap/users/kid/followers'],
+      attachment: [{ type: 'Video', url: '/media/reply-media/zonder.mp4', mediaType: 'video/mp4' }],
+    },
+  });
+  const post = db.prepare('SELECT * FROM posts WHERE id = ?').get(r.id);
+  assert.ok(!post.content.includes('poster='), 'no poster attr without a poster file');
+  const vid = (AP.buildNote('https://test.example', site, post).attachment || []).find((a) => a.url.endsWith('zonder.mp4'));
+  assert.equal(vid.icon, undefined);
+});
+
 test('a media-only post is a post, not an empty-note error', async () => {
   const r = await AP.ingestOutboxActivity(site, user, {
     type: 'Create',
