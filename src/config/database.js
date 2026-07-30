@@ -695,6 +695,13 @@ export function initializeDatabase() {
   ensureColumn('ap_outbox', 'away_until', 'INTEGER'); // FEP-633c 3.6.1 shaer:away + endTime (epoch ms)
   ensureColumn('ap_gated_offers', 'proposer', 'TEXT'); // who proposed (5.6): the settle-answer goes back to them
   ensureColumn('posts', 'c2s_attachments', 'TEXT'); // media a C2S Note carried (JSON [{url,mediaType,name}]); buildNote federates them
+  // 30-7: C2S posts briefly got their content media copied onto the cover,
+  // which showed the same video twice on the post page. Clear the covers that
+  // duplicate their own content; idempotent, only ever touches those.
+  try {
+    db.prepare("UPDATE posts SET cover_video_url = NULL WHERE cover_video_url LIKE '/media/reply-media/%' AND instr(content, cover_video_url) > 0").run();
+    db.prepare("UPDATE posts SET cover_image_url = NULL WHERE cover_image_url LIKE '/media/reply-media/%' AND instr(content, cover_image_url) > 0").run();
+  } catch { /* posts table absent on fresh init */ }
   ensureColumn('ap_mentions', 'wave', 'INTEGER');  // inbound guardian wave
   // FEP-633c §2.2: object hint that the author is a ward. Register-only for now;
   // used later at reddings-boei / escalation routing.

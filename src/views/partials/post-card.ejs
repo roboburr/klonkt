@@ -15,7 +15,16 @@ const _external  = post.external_url || null;
 const _href      = _external || (_base + '/' + post.slug);
 const _ext       = !!_external;
 const _src       = post.source_name || '';
-const _hasCover  = !!post.cover_image_url || !!post.cover_video_url;
+const _realCover = !!post.cover_image_url || !!post.cover_video_url;
+// Content-derived fallback (see post-tile.ejs): a C2S post's media lives in
+// its content, and the card fronts it from there.
+let _cVideo = null, _cPoster = null, _cImg = null;
+if (!_realCover && post.content) {
+  const vm = String(post.content).match(/<video[^>]*\ssrc="([^"]+)"[^>]*>/i);
+  if (vm) { _cVideo = vm[1]; const pm = vm[0].match(/poster="([^"]+)"/i); if (pm) _cPoster = pm[1]; }
+  else { const im = String(post.content).match(/<img[^>]*\ssrc="([^"]+)"/i); if (im) _cImg = im[1]; }
+}
+const _hasCover  = _realCover || !!_cVideo || !!_cImg;
 const _typeLabel = (post.type && post.type !== 'overig' && post.type !== 'post') ? post.type : '';
 const _isPinned  = !!post.pinned;
 const _isBoost   = !!post.isBoost;
@@ -52,7 +61,7 @@ if (post.tags) {
            srcset="<%= thumb(post.cover_image_url, 320) %> 320w, <%= thumb(post.cover_image_url, 640) %> 640w, <%= thumb(post.cover_image_url, 1280) %> 1280w"
            sizes="(min-width: 768px) 120px, 100vw"
            alt="" loading="lazy" decoding="async"<% if (post.cover_video_url) { %> data-ios-mp4="<%= post.cover_video_url %>"<% } %>>
-      <% } else if (post.cover_video_url) { %><video src="<%= post.cover_video_url %>" poster="<%= thumb(post.cover_video_url, 480) %>" autoplay loop muted playsinline></video><% } %>
+      <% } else if (post.cover_video_url) { %><video src="<%= post.cover_video_url %>" poster="<%= thumb(post.cover_video_url, 480) %>" autoplay loop muted playsinline></video><% } else if (_cVideo) { %><video src="<%= _cVideo %>"<% if (_cPoster) { %> poster="<%= _cPoster %>"<% } %> autoplay loop muted playsinline preload="metadata"></video><% } else if (_cImg) { %><img src="<%= _cImg %>" alt="" loading="lazy" decoding="async"><% } %>
       <% if (post.nsfw) { %><span class="nsfw-veil"><%- include('nsfw-veil', { cw: post.content_warning }) %></span><% } %>
     </a>
   <% } else if (post.nsfw) { %>
