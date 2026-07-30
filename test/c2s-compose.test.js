@@ -101,6 +101,41 @@ test("a video's poster frame rides the tag, the store and the federated attachme
   }
 });
 
+test("an audio note's waveform rides the tag, the store and the federated attachment", async () => {
+  // Same courtesy as the video poster (Robins vraag, 30-7: de kale
+  // audio-tegel): the upload leg draws <name>.poster.png (showwavespic).
+  // From there it must reach the data-poster on the folded tag (the tiles
+  // read it), the stored entry, and the AS2 icon on the federated Audio.
+  const os = await import('os');
+  const fsm = await import('fs');
+  const pathm = await import('path');
+  const root = fsm.mkdtempSync(pathm.join(os.tmpdir(), 'klonkt-media-'));
+  fsm.mkdirSync(pathm.join(root, 'reply-media'), { recursive: true });
+  fsm.writeFileSync(pathm.join(root, 'reply-media', 'lied.m4a.poster.png'), 'x');
+  const prev = process.env.MEDIA_PATH;
+  process.env.MEDIA_PATH = root;
+  try {
+    const r = await AP.ingestOutboxActivity(site, user, {
+      type: 'Create',
+      object: {
+        type: 'Note', content: '',
+        to: ['https://test.example/ap/users/kid/followers'],
+        attachment: [{ type: 'Audio', url: '/media/reply-media/lied.m4a', mediaType: 'audio/mp4' }],
+      },
+    });
+    assert.equal(r.status, 201);
+    const post = db.prepare('SELECT * FROM posts WHERE id = ?').get(r.id);
+    assert.match(post.content, /data-poster="\/media\/reply-media\/lied\.m4a\.poster\.png"/, 'the tag carries the waveform for the tiles');
+    const note = AP.buildNote('https://test.example', site, post);
+    const aud = (note.attachment || []).find((a) => a.url.endsWith('lied.m4a'));
+    assert.ok(aud && aud.type === 'Audio');
+    assert.equal(aud.icon && aud.icon.url, 'https://test.example/media/reply-media/lied.m4a.poster.png',
+      'the waveform federates as the attachment icon');
+  } finally {
+    if (prev === undefined) delete process.env.MEDIA_PATH; else process.env.MEDIA_PATH = prev;
+  }
+});
+
 test('a video without a poster simply has none: no guessed icon', async () => {
   const r = await AP.ingestOutboxActivity(site, user, {
     type: 'Create',

@@ -10,13 +10,31 @@ const _hasCover = !!post.cover_image_url || !!post.cover_video_url;
 // video twice on the post page). The tile derives its picture from the
 // content instead, like the Cirkel card: first <video> (with its poster) or
 // first <img>.
-let _cVideo = null, _cPoster = null, _cImg = null;
+let _cVideo = null, _cPoster = null, _cImg = null, _cAudio = false, _cWave = null;
 if (!_hasCover && post.content) {
   const vm = String(post.content).match(/<video[^>]*\ssrc="([^"]+)"[^>]*>/i);
   if (vm) { _cVideo = vm[1]; const pm = vm[0].match(/poster="([^"]+)"/i); if (pm) _cPoster = pm[1]; }
-  else { const im = String(post.content).match(/<img[^>]*\ssrc="([^"]+)"/i); if (im) _cImg = im[1]; }
+  else {
+    const im = String(post.content).match(/<img[^>]*\ssrc="([^"]+)"/i);
+    if (im) _cImg = im[1];
+    else {
+      // An audio post (Robins vraag, 30-7): the waveform the upload leg drew
+      // (data-poster) goes OVER the gradient, so the tile keeps its own hue.
+      const am = String(post.content).match(/<audio[^>]*>/i);
+      if (am) { _cAudio = true; const wm = am[0].match(/data-poster="([^"]+)"/i); if (wm) _cWave = wm[1]; }
+    }
+  }
 }
-const _showCover = _hasCover || !!_cVideo || !!_cImg;
+const _showCover = _hasCover || !!_cVideo || !!_cImg;   // the wave keeps the gradient
+// A C2S post has no title: fall back to the post's own words, and for a
+// media-only post to a friendly type label instead of "(untitled)". A tile
+// that already shows its picture needs no forced label at all.
+let _title = post.title || '';
+if (!_title && post.content) {
+  const _txt = String(post.content).replace(/<[^>]*>/g, ' ').replace(/&[a-zA-Z#0-9]+;/g, ' ').replace(/\s+/g, ' ').trim();
+  if (_txt) _title = _txt.length > 64 ? _txt.slice(0, 63).replace(/\s+\S*$/, '') + '…' : _txt;
+}
+if (!_title) _title = _cAudio ? '♪ audio' : (_cVideo || _cImg) ? '' : '(untitled)';
 const _typeLabel = (post.type && post.type !== 'post') ? post.type : '';
 const _src = post.source_name || '';   // bron-site (cirkel-feed: van welke site komt deze post)
 const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '';
@@ -29,7 +47,7 @@ const _ext = !!_external;
    style="--tile-hue: <%= _tileHue %>;"
    <% if (_ext) { %>target="_blank" rel="noopener"<% } else { %>hx-get="<%= _href %>?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="<%= _href %>" hx-indicator="#pcms-loading"<% } %>>
 
-  <% if (post.cover_image_url) { %><img class="grid-tile-img" src="<%= thumb(post.cover_image_url, 480) %>" alt="" loading="lazy" decoding="async"<% if (post.cover_video_url) { %> data-ios-mp4="<%= post.cover_video_url %>"<% } %>><% } else if (post.cover_video_url) { %><video class="grid-tile-img" src="<%= post.cover_video_url %>" poster="<%= thumb(post.cover_video_url, 480) %>" autoplay loop muted playsinline></video><% } else if (_cVideo) { %><video class="grid-tile-img" src="<%= _cVideo %>"<% if (_cPoster) { %> poster="<%= _cPoster %>"<% } %> autoplay loop muted playsinline preload="metadata"></video><% } else if (_cImg) { %><img class="grid-tile-img" src="<%= _cImg %>" alt="" loading="lazy" decoding="async"><% } %>
+  <% if (post.cover_image_url) { %><img class="grid-tile-img" src="<%= thumb(post.cover_image_url, 480) %>" alt="" loading="lazy" decoding="async"<% if (post.cover_video_url) { %> data-ios-mp4="<%= post.cover_video_url %>"<% } %>><% } else if (post.cover_video_url) { %><video class="grid-tile-img" src="<%= post.cover_video_url %>" poster="<%= thumb(post.cover_video_url, 480) %>" autoplay loop muted playsinline></video><% } else if (_cVideo) { %><video class="grid-tile-img" src="<%= _cVideo %>"<% if (_cPoster) { %> poster="<%= _cPoster %>"<% } %> autoplay loop muted playsinline preload="metadata"></video><% } else if (_cImg) { %><img class="grid-tile-img" src="<%= _cImg %>" alt="" loading="lazy" decoding="async"><% } else if (_cWave) { %><img class="grid-tile-img grid-tile-wave" src="<%= _cWave %>" alt="" loading="lazy" decoding="async"><% } %>
 
   <% if (_typeLabel) { %>
     <span class="grid-tile-type"><%= _typeLabel %></span>
@@ -42,11 +60,11 @@ const _ext = !!_external;
 
   <% if (_hasCover) { %>
     <div class="grid-tile-overlay">
-      <strong><%= post.title || '(untitled)' %></strong>
+      <strong><%= _title %></strong>
       <% if (_src) { %><span class="grid-tile-overlay-src">van <%= _src %></span><% } %>
     </div>
   <% } else { %>
-    <span class="grid-tile-title"><%= post.title || '(untitled)' %></span>
+    <span class="grid-tile-title"><%= _title %></span>
     <% if (_src) { %><span class="grid-tile-gradient-src">van <%= _src %></span><% } %>
   <% } %>
   <% if (post.nsfw) { %><div class="nsfw-veil"><%- include('nsfw-veil', { cw: post.content_warning }) %></div><% } %>

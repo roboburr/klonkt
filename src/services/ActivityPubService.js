@@ -2440,14 +2440,17 @@ async function c2sCreatePost(base, site, user, object) {
     .slice(0, 4)
     .map((a) => {
       const entry = { url: a.url, mediaType: String(a.mediaType), name: String(a.name || '').slice(0, 120) };
-      // A video's poster frame, when the upload leg made one (shaer-zowq):
-      // rides along so the tag, the federated attachment and the apps all
-      // show a still instead of a black box.
-      if (entry.mediaType.startsWith('video/')) {
+      // The poster the upload leg made, when it did: a video's still frame
+      // (shaer-zowq, .poster.jpg) or an audio's waveform (Robins vraag 30-7,
+      // .poster.png). Rides along so the tag, the federated attachment and
+      // the apps all have something to show instead of a bare box.
+      const posterExt = entry.mediaType.startsWith('video/') ? '.poster.jpg'
+        : entry.mediaType.startsWith('audio/') ? '.poster.png' : null;
+      if (posterExt) {
         try {
           const mediaRoot = path.resolve(process.env.MEDIA_PATH || './storage/media');
           const rel = entry.url.replace(/^\/media\//, '');
-          if (fs.existsSync(path.join(mediaRoot, rel + '.poster.jpg'))) entry.poster = entry.url + '.poster.jpg';
+          if (fs.existsSync(path.join(mediaRoot, rel + posterExt))) entry.poster = entry.url + posterExt;
         } catch { /* no poster is fine */ }
       }
       return entry;
@@ -2460,7 +2463,9 @@ async function c2sCreatePost(base, site, user, object) {
   const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
   const mediaHtml = media.map((a) => {
     if (a.mediaType.startsWith('image/')) return `<p><img src="${a.url}" alt="${esc(a.name)}"></p>`;
-    if (a.mediaType.startsWith('audio/')) return `<p><audio controls preload="metadata" src="${a.url}"></audio></p>`;
+    // data-poster: <audio> has no poster attribute, but the tile derivation
+    // reads this one to show the waveform (post-tile/post-card).
+    if (a.mediaType.startsWith('audio/')) return `<p><audio controls preload="metadata"${a.poster ? ` data-poster="${a.poster}"` : ''} src="${a.url}"></audio></p>`;
     const poster = a.poster ? ` poster="${a.poster}"` : '';
     return `<p><video controls playsinline preload="metadata"${poster} src="${a.url}"></video></p>`;
   }).join('');

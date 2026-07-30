@@ -353,6 +353,19 @@ router.post('/ap/users/:slug/uploadMedia', (req, res) => {
           { timeout: 30000 }, (e) => { if (e && e.code !== 'ENOENT') console.warn('[media] poster failed:', e.message); });
       }).catch(() => { /* never blocks the upload */ });
     }
+    // Audio gets the same courtesy (Robins vraag, 30-7: vrolijk de kale
+    // audio-tegel op): ffmpeg draws the waveform into <name>.poster.png.
+    // White on transparent, so the tile's own gradient stays the backdrop
+    // and every audio post keeps its own hue.
+    if (mime.startsWith('audio/')) {
+      Promise.all([import('child_process'), import('ffmpeg-static')]).then(([{ execFile }, ff]) => {
+        const bin = process.env.FFMPEG_PATH || ff.default;
+        if (!bin) return;
+        const poster = req.file.path + '.poster.png';
+        execFile(bin, ['-hide_banner', '-loglevel', 'error', '-y', '-i', req.file.path, '-filter_complex', 'showwavespic=s=800x256:colors=white', '-frames:v', '1', poster],
+          { timeout: 30000 }, (e) => { if (e && e.code !== 'ENOENT') console.warn('[media] waveform failed:', e.message); });
+      }).catch(() => { /* never blocks the upload */ });
+    }
     res.status(201).json({
       url: '/media/reply-media/' + req.file.filename,
       mediaType: mime,
