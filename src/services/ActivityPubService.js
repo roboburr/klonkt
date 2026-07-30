@@ -373,6 +373,15 @@ export function buildNote(base, site, post, opts = {}) {
   // Each entry carries the media URL + its alt text (federated as the AS2 attachment `name`, for a11y).
   if (post.cover_video_url && !noImages) urls.push({ url: abs(post.cover_video_url), name: post.cover_alt || '' });
   else if (post.cover_image_url && !noImages) urls.push({ url: abs(post.cover_image_url), name: post.cover_alt || '' });
+  // Media a C2S composer attached (shaer-j3uh): federate with their REAL
+  // mediaType, because the extension map below knows no audio and would call
+  // an m4a an Image. Images also live inline in the content, so the dedupe
+  // by URL keeps them single.
+  try {
+    for (const a of JSON.parse(post.c2s_attachments || '[]')) {
+      if (a && a.url) urls.push({ url: abs(a.url), name: a.name || '', mt: a.mediaType });
+    }
+  } catch { /* malformed never blocks the Note */ }
   let body = post.content || '';
   // Only federate inline images we can actually serve: absolute http(s) URLs, or our own
   // /media/ uploads. A relative path we don't host (e.g. a stale /images/... ref) would 404
@@ -466,7 +475,7 @@ export function buildNote(base, site, post, opts = {}) {
   const seen = new Set();
   const attachment = urls.filter((x) => x && x.url)
     .filter((x) => { if (seen.has(x.url)) return false; seen.add(x.url); return true; })
-    .map((x) => { const mt = mediaType(x.url); // specific AS2 subtype (Image/Audio/Video) over generic Document
+    .map((x) => { const mt = x.mt || mediaType(x.url); // the stored type wins; the extension map is the fallback
       const ty = /^image\//i.test(mt) ? 'Image' : /^video\//i.test(mt) ? 'Video' : /^audio\//i.test(mt) ? 'Audio' : 'Document';
       const a = { type: ty, mediaType: mt, url: x.url };
       if (x.name) a.name = String(x.name).slice(0, 1500); // alt text / description (AS2 `name`)
@@ -2236,7 +2245,11 @@ export async function ingestOutboxActivity(site, user, activity) {
         // Client sends `source` (plain/markdown) + `content` (HTML). deliverReply
         // re-escapes, so it needs plain text; a top-level post keeps sanitized HTML.
         const plain = (object.source && object.source.content) || HtmlSanitizerService.toPlainText(object.content || '');
-        if (!plain.trim() && !object.content) return { status: 400, error: 'empty_note' };
+        // A picture (or a recording) can be the whole message: media-only
+        // notes pass here; c2sCreatePost validates the attachments themselves.
+        if (!plain.trim() && !object.content && !(Array.isArray(object.attachment) && object.attachment.length)) {
+          return { status: 400, error: 'empty_note' };
+        }
         // Direct (private mention, shaer-tqc): NOT a post. Delivered over the
         // outbox machinery to the addressed inboxes only; shows under Messages.
         if (c2sVisibility(object) === 'direct') {
@@ -2358,7 +2371,25 @@ export async function ingestOutboxActivity(site, user, activity) {
 // sibling of the /posts/create route: sanitized HTML content, no title/cover.
 async function c2sCreatePost(base, site, user, object) {
   const html = HtmlSanitizerService.sanitize(object.content || (object.source && object.source.content) || '');
-  if (!html.trim()) return { status: 400, error: 'empty_note' };
+  // Media on a top-level post (shaer-j3uh/-oqxk/-df3i): same rules as
+  // deliverReply — only our OWN uploads, image/audio/video, max 4. They used
+  // to be silently dropped here, so a photo post from the app arrived naked.
+  const media = (Array.isArray(object.attachment) ? object.attachment : [])
+    .filter((a) => a && typeof a.url === 'string' && /^\/media\/[\w./-]+$/.test(a.url)
+      && /^(image|audio|video)\//.test(String(a.mediaType || '')))
+    .slice(0, 4)
+    .map((a) => ({ url: a.url, mediaType: String(a.mediaType), name: String(a.name || '').slice(0, 120) }));
+  if (!html.trim() && !media.length) return { status: 400, error: 'empty_note' };
+  // The web reads the post's content, so the media goes IN it (we build these
+  // tags ourselves from validated paths, after the sanitizer). buildNote
+  // strips <img> back out into AS2 attachments; audio/video tags stay for the
+  // web player and federate via c2s_attachments below.
+  const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  const mediaHtml = media.map((a) => {
+    if (a.mediaType.startsWith('image/')) return `<p><img src="${a.url}" alt="${esc(a.name)}"></p>`;
+    if (a.mediaType.startsWith('audio/')) return `<p><audio controls preload="metadata" src="${a.url}"></audio></p>`;
+    return `<p><video controls playsinline src="${a.url}"></video></p>`;
+  }).join('');
   const postId = crypto.randomUUID();
   const slug = 'n-' + postId.slice(0, 8);
   const now = new Date().toISOString();
@@ -2371,12 +2402,13 @@ async function c2sCreatePost(base, site, user, object) {
   const fanOnly = (vis === 'friends' || vis === 'direct') ? 1 : 0;
   db.prepare(`INSERT INTO posts (id, site_id, slug, author_id, title, content, excerpt, status, type, language, fan_only, ap_visibility, created_at, updated_at, published_at)
               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-    .run(postId, site.id, slug, user.id, '', html, '', 'published', 'post', object.language || 'nl', fanOnly, vis, now, now, now);
-  try { db.prepare('UPDATE posts SET content_rendered = ? WHERE id = ?').run(bakePostContent(html), postId); } catch { /* render fallback covers it */ }
-  bakePostContentWithMentions(html).then((h) => { try { db.prepare('UPDATE posts SET content_rendered = ? WHERE id = ?').run(h, postId); } catch { /* keep sync bake */ } }).catch(() => {});
+    .run(postId, site.id, slug, user.id, '', html + mediaHtml, '', 'published', 'post', object.language || 'nl', fanOnly, vis, now, now, now);
+  if (media.length) { try { db.prepare('UPDATE posts SET c2s_attachments = ? WHERE id = ?').run(JSON.stringify(media), postId); } catch { /* column exists via ensureColumn */ } }
+  try { db.prepare('UPDATE posts SET content_rendered = ? WHERE id = ?').run(bakePostContent(html + mediaHtml), postId); } catch { /* render fallback covers it */ }
+  bakePostContentWithMentions(html + mediaHtml).then((h) => { try { db.prepare('UPDATE posts SET content_rendered = ? WHERE id = ?').run(h, postId); } catch { /* keep sync bake */ } }).catch(() => {});
   try { db.prepare('INSERT INTO posts_fts(content, title, author, post_id) VALUES (?,?,?,?)').run(HtmlSanitizerService.toPlainText(html), '', user.username || '', postId); } catch { /* FTS non-fatal */ }
   if (vis !== 'direct') {
-    deliverCreate(site, { id: postId, slug, title: '', content: html, published_at: now, created_at: now, fan_only: fanOnly, ap_visibility: vis }).catch(() => { /* best-effort */ });
+    deliverCreate(site, { id: postId, slug, title: '', content: html + mediaHtml, published_at: now, created_at: now, fan_only: fanOnly, ap_visibility: vis, c2s_attachments: media.length ? JSON.stringify(media) : null }).catch(() => { /* best-effort */ });
   }
   return { status: 201, id: postId, url: `${base}/ap/notes/${postId}` };
 }

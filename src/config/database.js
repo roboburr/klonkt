@@ -694,6 +694,7 @@ export function initializeDatabase() {
   ensureColumn('ap_outbox', 'wave', 'INTEGER');    // FEP-633c shaer:wave (guardian -> ward nudge)
   ensureColumn('ap_outbox', 'away_until', 'INTEGER'); // FEP-633c 3.6.1 shaer:away + endTime (epoch ms)
   ensureColumn('ap_gated_offers', 'proposer', 'TEXT'); // who proposed (5.6): the settle-answer goes back to them
+  ensureColumn('posts', 'c2s_attachments', 'TEXT'); // media a C2S Note carried (JSON [{url,mediaType,name}]); buildNote federates them
   ensureColumn('ap_mentions', 'wave', 'INTEGER');  // inbound guardian wave
   // FEP-633c §2.2: object hint that the author is a ward. Register-only for now;
   // used later at reddings-boei / escalation routing.
