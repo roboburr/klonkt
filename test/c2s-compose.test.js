@@ -84,6 +84,13 @@ test("a video's poster frame rides the tag, the store and the federated attachme
     assert.ok(vid && vid.type === 'Video');
     assert.equal(vid.icon && vid.icon.url, 'https://test.example/media/reply-media/film.mp4.poster.jpg',
       'the poster federates as the attachment icon');
+    // The web tile plays the video as its own thumbnail (Robins aanwijzing):
+    // the first video becomes the cover video, with NO cover image beside it,
+    // because the tile's image branch would win and freeze the tile.
+    assert.equal(post.cover_video_url, '/media/reply-media/film.mp4');
+    assert.equal(post.cover_image_url, null);
+    assert.equal((note.attachment || []).filter((a) => a.url.endsWith('film.mp4')).length, 1,
+      'cover video + attachment dedupe to the one entry that knows its poster');
   } finally {
     if (prev === undefined) delete process.env.MEDIA_PATH; else process.env.MEDIA_PATH = prev;
   }
@@ -114,4 +121,7 @@ test('a media-only post is a post, not an empty-note error', async () => {
     },
   });
   assert.equal(r.status, 201, 'a picture can be the whole message');
+  const post = db.prepare('SELECT * FROM posts WHERE id = ?').get(r.id);
+  assert.equal(post.cover_image_url, '/media/reply-media/alleen.jpg',
+    'a photo post fronts its photo instead of the (untitled) gradient');
 });

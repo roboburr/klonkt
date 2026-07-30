@@ -373,17 +373,19 @@ export function buildNote(base, site, post, opts = {}) {
   // An animated cover federates as the muted loop MP4 (→ a Video attachment): animated WebP is
   // unreliable on Mastodon and its iOS apps; the MP4 plays everywhere. Else the still cover image.
   // Each entry carries the media URL + its alt text (federated as the AS2 attachment `name`, for a11y).
-  if (post.cover_video_url && !noImages) urls.push({ url: abs(post.cover_video_url), name: post.cover_alt || '' });
-  else if (post.cover_image_url && !noImages) urls.push({ url: abs(post.cover_image_url), name: post.cover_alt || '' });
   // Media a C2S composer attached (shaer-j3uh): federate with their REAL
   // mediaType, because the extension map below knows no audio and would call
-  // an m4a an Image. Images also live inline in the content, so the dedupe
-  // by URL keeps them single.
+  // an m4a an Image. Pushed BEFORE the covers: a C2S video doubles as the
+  // cover video, and the URL-dedupe keeps the FIRST entry, which must be the
+  // one that knows its type and poster. Images also live inline in the
+  // content, so the dedupe keeps those single too.
   try {
     for (const a of JSON.parse(post.c2s_attachments || '[]')) {
       if (a && a.url) urls.push({ url: abs(a.url), name: a.name || '', mt: a.mediaType, poster: a.poster ? abs(a.poster) : null });
     }
   } catch { /* malformed never blocks the Note */ }
+  if (post.cover_video_url && !noImages) urls.push({ url: abs(post.cover_video_url), name: post.cover_alt || '' });
+  else if (post.cover_image_url && !noImages) urls.push({ url: abs(post.cover_image_url), name: post.cover_alt || '' });
   let body = post.content || '';
   // Only federate inline images we can actually serve: absolute http(s) URLs, or our own
   // /media/ uploads. A relative path we don't host (e.g. a stale /images/... ref) would 404
@@ -2407,6 +2409,14 @@ async function c2sCreatePost(base, site, user, object) {
     const poster = a.poster ? ` poster="${a.poster}"` : '';
     return `<p><video controls playsinline preload="metadata"${poster} src="${a.url}"></video></p>`;
   }).join('');
+  // The web tile (Robins aanwijzing, 30-7): a video post's first video
+  // becomes the cover video, so the grid plays it muted-looping as its own
+  // thumbnail, exactly like an animated cover. Deliberately NO cover image
+  // next to it: the tile's image branch would win and freeze the tile. A
+  // photo post gets its first image as cover, instead of the (untitled)
+  // gradient.
+  const coverVid = media.find((a) => a.mediaType.startsWith('video/'));
+  const coverImg = media.find((a) => a.mediaType.startsWith('image/'));
   const postId = crypto.randomUUID();
   const slug = 'n-' + postId.slice(0, 8);
   const now = new Date().toISOString();
@@ -2417,15 +2427,16 @@ async function c2sCreatePost(base, site, user, object) {
   // lands; still followers-gated on the web).
   const vis = c2sVisibility(object);
   const fanOnly = (vis === 'friends' || vis === 'direct') ? 1 : 0;
-  db.prepare(`INSERT INTO posts (id, site_id, slug, author_id, title, content, excerpt, status, type, language, fan_only, ap_visibility, created_at, updated_at, published_at)
-              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-    .run(postId, site.id, slug, user.id, '', html + mediaHtml, '', 'published', 'post', object.language || 'nl', fanOnly, vis, now, now, now);
+  db.prepare(`INSERT INTO posts (id, site_id, slug, author_id, title, content, excerpt, status, type, language, fan_only, ap_visibility, cover_image_url, cover_video_url, created_at, updated_at, published_at)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+    .run(postId, site.id, slug, user.id, '', html + mediaHtml, '', 'published', 'post', object.language || 'nl', fanOnly, vis,
+      coverVid ? null : (coverImg ? coverImg.url : null), coverVid ? coverVid.url : null, now, now, now);
   if (media.length) { try { db.prepare('UPDATE posts SET c2s_attachments = ? WHERE id = ?').run(JSON.stringify(media), postId); } catch { /* column exists via ensureColumn */ } }
   try { db.prepare('UPDATE posts SET content_rendered = ? WHERE id = ?').run(bakePostContent(html + mediaHtml), postId); } catch { /* render fallback covers it */ }
   bakePostContentWithMentions(html + mediaHtml).then((h) => { try { db.prepare('UPDATE posts SET content_rendered = ? WHERE id = ?').run(h, postId); } catch { /* keep sync bake */ } }).catch(() => {});
   try { db.prepare('INSERT INTO posts_fts(content, title, author, post_id) VALUES (?,?,?,?)').run(HtmlSanitizerService.toPlainText(html), '', user.username || '', postId); } catch { /* FTS non-fatal */ }
   if (vis !== 'direct') {
-    deliverCreate(site, { id: postId, slug, title: '', content: html + mediaHtml, published_at: now, created_at: now, fan_only: fanOnly, ap_visibility: vis, c2s_attachments: media.length ? JSON.stringify(media) : null }).catch(() => { /* best-effort */ });
+    deliverCreate(site, { id: postId, slug, title: '', content: html + mediaHtml, published_at: now, created_at: now, fan_only: fanOnly, ap_visibility: vis, cover_image_url: coverVid ? null : (coverImg ? coverImg.url : null), cover_video_url: coverVid ? coverVid.url : null, c2s_attachments: media.length ? JSON.stringify(media) : null }).catch(() => { /* best-effort */ });
   }
   return { status: 201, id: postId, url: `${base}/ap/notes/${postId}` };
 }
