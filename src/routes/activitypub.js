@@ -175,6 +175,26 @@ router.get('/ap/users/:slug/follow', (req, res) => {
 </main></body></html>`);
 });
 
+// ── Long-poll (owner only, Robins verzoek 31-7) ───────────────────
+// Hold the request until something push-worthy lands for this account, then
+// answer 200 (news: re-read your feed) or 204 after ~25s (nothing: re-arm).
+// The thread in the app stays live without interval polling.
+router.get('/ap/users/:slug/inbox/wait', (req, res) => {
+  const auth = OAuth.verifyBearer(req.headers.authorization);
+  if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
+  let settled = false;
+  const done = (code) => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    off();
+    if (!res.headersSent) res.status(code).end();
+  };
+  const off = AP.onNews(auth.site.slug, () => done(200));
+  const timer = setTimeout(() => done(204), 25_000);
+  req.on('close', () => done(204));
+});
+
 // ── Blocked collection (owner only, AP §5.6) ──────────────────────
 // The server blocklist is the source of truth for Shaer's "in Orbit":
 // clients read it here instead of keeping their own state. Actor-kind

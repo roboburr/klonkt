@@ -1362,6 +1362,28 @@ export async function deliverPollUpdate(postId) {
 // Fire-and-forget: a notification must never block or break inbox processing.
 function pushEvent(slug, event) {
   try { Push.notifySite(slug, event).catch(() => {}); } catch { /* never throw */ }
+  wakeNews(slug);   // long-poll waiters (Robins verzoek, 31-7): same moments as push
+}
+
+// ── Long-poll on news (Robins verzoek, 31-7) ─────────────────────
+// The app holds GET /ap/users/:slug/inbox/wait open; the moment anything
+// push-worthy lands for that account (a message, a reply, a wave, a help
+// request) every waiter is woken and the app re-reads its feed. In-process
+// on purpose: one Klonkt is one process, and a waiter is one callback.
+const _newsWaiters = new Map();   // slug -> Set<cb>
+export function onNews(slug, cb) {
+  let set = _newsWaiters.get(slug);
+  if (!set) { set = new Set(); _newsWaiters.set(slug, set); }
+  set.add(cb);
+  return () => { set.delete(cb); if (!set.size) _newsWaiters.delete(slug); };
+}
+export function wakeNews(slug) {
+  const set = _newsWaiters.get(slug);
+  if (!set || !set.size) return;
+  const cbs = [...set];
+  set.clear();
+  _newsWaiters.delete(slug);
+  for (const cb of cbs) { try { cb(); } catch { /* a waiter must never break the rest */ } }
 }
 // Hub-aware path prefix for a site's pages ('' in solo).
 function pushPrefix(slug) {
@@ -4249,5 +4271,5 @@ export default {
   getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
   linkifyBody, bakePostContent, bakePostContentWithMentions, listFollowers, removeFollower, listConnections,
   noteVisibility, belongsInTimeline, playerUrlFor, isRejectedObject, rejectInteraction, interactionReportTarget,
-  getMessages, notificationsSeenAt, ingestOutboxActivity, c2sVisibility, actorDisplay, buildActorRef, prefersEnriched, selfAuthor, getReplyMessages,
+  getMessages, notificationsSeenAt, ingestOutboxActivity, c2sVisibility, actorDisplay, buildActorRef, prefersEnriched, selfAuthor, getReplyMessages, onNews, wakeNews,
 };
