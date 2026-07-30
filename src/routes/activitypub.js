@@ -109,7 +109,17 @@ router.get('/ap/users/:slug/outbox', async (req, res) => {
      FROM posts WHERE site_id = ? AND status = 'published' ${fanClause}
      ORDER BY COALESCE(published_at, created_at) DESC LIMIT 20`
   ).all(site.id);
-  AP.sendAP(res, AP.buildOutbox(baseUrl(req), site, posts), audience === 'friend' ? 'private, no-store' : undefined);
+  const ob = AP.buildOutbox(baseUrl(req), site, posts);
+  if (audience === 'friend') {
+    // The owner's app builds its feed from this leg, and every note here is
+    // by the site itself: give it the same `shaer:author` byline the timeline
+    // entries carry, so your own cards get a header too (avatar + name).
+    const me = AP.selfAuthor(baseUrl(req), site);
+    for (const it of ob.orderedItems) {
+      if (it && it.object && typeof it.object === 'object') it.object['shaer:author'] = me;
+    }
+  }
+  AP.sendAP(res, ob, audience === 'friend' ? 'private, no-store' : undefined);
 });
 
 // ── Blocked collection (owner only, AP §5.6) ──────────────────────

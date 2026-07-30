@@ -762,6 +762,22 @@ export function buildActorRef(slug, uri) {
   return out;
 }
 
+// The site's OWN display info in the same shape as `shaer:author` on timeline
+// entries. The owner's app reads its own posts from the outbox, which carried
+// no author info, so every card but your own had a byline (Robins melding,
+// 30-7: geen header van self op eigen posts).
+export function selfAuthor(base, site) {
+  const out = {
+    name: site.title || site.slug,
+    handle: `@${site.slug}@${String(base).replace(/^https?:\/\//, '')}`,
+    url: `${base}/${site.slug === site.primary_slug ? '' : 'user/' + encodeURIComponent(site.slug)}`,
+  };
+  if (site.profile_photo) {
+    out.icon = /^https?:/.test(site.profile_photo) ? site.profile_photo : `${base}${site.profile_photo.startsWith('/') ? '' : '/'}${site.profile_photo}`;
+  }
+  return out;
+}
+
 // Merge who-you-follow (ap_following, rich display) with who-follows-you (ap_followers,
 // delivery health) into ONE connections list, keyed by actor_uri. Each entry gets a
 // direction (following →, follower ←, mutual ↔) and, for accounts we deliver to, an
@@ -2373,7 +2389,34 @@ export async function ingestOutboxActivity(site, user, activity) {
         }
         return { status: 400, error: 'unsupported_undo' };
       }
-      // Delete/Update of arbitrary objects need the post-edit pipeline; tracked
+      // Delete your OWN note (Robins verzoek, 30-7: long-press delete in de
+      // app). Scope stays narrow: this account's posts and outbound replies,
+      // nothing else. The web delete route is the model: Tombstone to the
+      // followers first, then the cascade, so nobody keeps a live copy of a
+      // post the child took back.
+      case 'Delete': {
+        const targetUri = c2sIdOf(object);
+        if (!targetUri) return { status: 400, error: 'missing_object' };
+        const pid = postIdFromNoteUrl(targetUri, base);
+        if (pid) {
+          const post = db.prepare('SELECT * FROM posts WHERE id = ?').get(pid);
+          if (post) {
+            if (post.site_id !== site.id) return { status: 403, error: 'not_your_note' };
+            if (post.status === 'published') deliverDelete(site, post).catch(() => { /* best-effort */ });
+            db.transaction(() => {
+              db.prepare('DELETE FROM comments WHERE post_id = ?').run(post.id);
+              try { db.prepare('DELETE FROM posts_fts WHERE post_id = ?').run(post.id); } catch { /* FTS optional */ }
+              db.prepare('DELETE FROM posts WHERE id = ?').run(post.id);
+            })();
+            return { status: 202, url: targetUri };
+          }
+          // Same /ap/notes/ namespace: one of our outbound replies/messages.
+          // deliverOutboxDelete checks the site itself and tombstones too.
+          if (await deliverOutboxDelete(site, pid)) return { status: 202, url: targetUri };
+        }
+        return { status: 404, error: 'not_your_note' };
+      }
+      // Update of arbitrary objects needs the post-edit pipeline; tracked
       // separately (klonkt-demo-c2s-del). Reject clearly rather than half-doing it.
       default:
         return { status: 400, error: 'unsupported_type', detail: String(type || 'none') };
@@ -4113,5 +4156,5 @@ export default {
   getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
   linkifyBody, bakePostContent, bakePostContentWithMentions, listFollowers, removeFollower, listConnections,
   noteVisibility, belongsInTimeline, playerUrlFor, isRejectedObject, rejectInteraction, interactionReportTarget,
-  getMessages, notificationsSeenAt, ingestOutboxActivity, c2sVisibility, actorDisplay, buildActorRef, prefersEnriched,
+  getMessages, notificationsSeenAt, ingestOutboxActivity, c2sVisibility, actorDisplay, buildActorRef, prefersEnriched, selfAuthor,
 };

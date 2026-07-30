@@ -143,6 +143,43 @@ test('the OUTBOX serves the attachment too, not only the delivered Create', asyn
   assert.ok(!/<video\b/i.test(note.content), 'and the content stays clean');
 });
 
+test('C2S Delete takes an own post back, and only an own post', async () => {
+  // Long-press delete in the app (Robins verzoek, 30-7): the child changes
+  // their mind, the post goes, followers get the Tombstone.
+  const r = await AP.ingestOutboxActivity(site, user, {
+    type: 'Create',
+    object: {
+      type: 'Note', content: '<p>weg hiermee</p>',
+      to: ['https://test.example/ap/users/kid/followers'],
+      cc: ['https://www.w3.org/ns/activitystreams#Public'],
+    },
+  });
+  assert.equal(r.status, 201);
+  const del = await AP.ingestOutboxActivity(site, user, { type: 'Delete', object: r.url });
+  assert.equal(del.status, 202, 'an own note deletes');
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM posts WHERE id = ?').get(r.id).c, 0, 'and the row is gone');
+
+  const unknown = await AP.ingestOutboxActivity(site, user, { type: 'Delete', object: 'https://test.example/ap/notes/bestaat-niet' });
+  assert.equal(unknown.status, 404, 'an unknown note is a clear no');
+
+  // Another account's post on this server: refused, row untouched.
+  db.prepare('INSERT INTO users (id, username, email, password_hash, role) VALUES (?,?,?,?,?)').run('u2', 'ander', 'u2@t', 'x', 'user');
+  db.prepare('INSERT INTO sites (id, slug, title, owner_id, is_primary) VALUES (?,?,?,?,0)').run('s2', 'ander', 'ander', 'u2');
+  db.prepare(`INSERT INTO posts (id, site_id, author_id, slug, title, content, status, published_at, created_at, updated_at)
+              VALUES ('p-ander', 's2', 'u2', 'n-ander', '', '<p>van een ander</p>', 'published', datetime('now'), datetime('now'), datetime('now'))`).run();
+  const foreign = await AP.ingestOutboxActivity(site, user, { type: 'Delete', object: 'https://test.example/ap/notes/p-ander' });
+  assert.equal(foreign.status, 403, "someone else's post is not yours to take back");
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM posts WHERE id = ?').get('p-ander').c, 1, 'and it stays');
+});
+
+test('selfAuthor: the byline for your own outbox notes', () => {
+  // The owner's app reads its own posts from the outbox, which carried no
+  // author info: every card but your own had a header (Robins melding, 30-7).
+  const me = AP.selfAuthor('https://test.example', site);
+  assert.equal(me.name, 'kid');
+  assert.equal(me.handle, '@kid@test.example');
+});
+
 test('a media-only post is a post, not an empty-note error', async () => {
   const r = await AP.ingestOutboxActivity(site, user, {
     type: 'Create',
