@@ -2388,7 +2388,7 @@ async function c2sCreatePost(base, site, user, object) {
   const mediaHtml = media.map((a) => {
     if (a.mediaType.startsWith('image/')) return `<p><img src="${a.url}" alt="${esc(a.name)}"></p>`;
     if (a.mediaType.startsWith('audio/')) return `<p><audio controls preload="metadata" src="${a.url}"></audio></p>`;
-    return `<p><video controls playsinline src="${a.url}"></video></p>`;
+    return `<p><video controls playsinline preload="metadata" src="${a.url}"></video></p>`;
   }).join('');
   const postId = crypto.randomUUID();
   const slug = 'n-' + postId.slice(0, 8);

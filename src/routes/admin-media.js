@@ -23,6 +23,12 @@ const POST_IMAGES_DIR = path.resolve(
 const router = express.Router();
 
 const IMG_EXT = /\.(jpe?g|png|webp|gif|avif)$/i;
+const VIDEO_EXT = /\.(mp4|webm|m4v|mov)$/i;
+// C2S uploads (Shaer's composer and the help buoy) land here; the videos among
+// them are what the Video tab shows.
+const REPLY_MEDIA_DIR = path.resolve(
+  process.env.REPLY_MEDIA_PATH || path.join(__dirname, '..', '..', 'storage', 'media', 'reply-media')
+);
 const isSibling = (f) => /-v\.(mp4|jpg)$/i.test(f); // an animated cover's video/poster sibling
 
 // Basename of a /media/post-images/<file> URL (or null).
@@ -89,6 +95,59 @@ router.get('/', requireGod, (req, res) => {
 });
 
 // Delete one image + its loop-MP4 / poster siblings. Basename-only + within-dir → no traversal.
+// ── The Video tab (Robins opdracht, 30-7) ─────────────────────────────────
+// Videos live in reply-media (C2S uploads: Shaer's composer, the help buoy).
+// Usage is a content/attachment reference from a post, exactly like images.
+
+function videoEntries(siteId) {
+  const posts = db.prepare('SELECT id, content, c2s_attachments FROM posts WHERE site_id = ?').all(siteId);
+  const used = new Map();
+  const add = (fn, id) => { if (!fn) return; if (!used.has(fn)) used.set(fn, new Set()); used.get(fn).add(id); };
+  for (const p of posts) {
+    for (const m of String(p.content || '').matchAll(/\/media\/reply-media\/([^/?#"'\s)]+)/g)) add(m[1], p.id);
+    try { for (const a of JSON.parse(p.c2s_attachments || '[]')) { const m = String(a.url || '').match(/\/media\/reply-media\/([^/?#"'\s)]+)/); if (m) add(m[1], p.id); } } catch { /* malformed never blocks the list */ }
+  }
+  let all = [];
+  try { all = fs.readdirSync(REPLY_MEDIA_DIR).filter(f => !f.startsWith('.')); } catch { /* dir may not exist yet */ }
+  const vstat = (name, key) => { try { const st = fs.statSync(path.join(REPLY_MEDIA_DIR, name)); return key === 'size' ? st.size : st.mtimeMs; } catch { return 0; } };
+  return all
+    .filter(f => VIDEO_EXT.test(f))
+    .map(f => ({
+      file: f,
+      url: `/media/reply-media/${f}`,
+      kb: Math.round(vstat(f, 'size') / 1024),
+      usedCount: (used.get(f) || new Set()).size,
+      _mtime: vstat(f, 'mtime'),
+    }))
+    .sort((a, b) => b._mtime - a._mtime);
+}
+
+router.get('/videos', requireGod, (req, res) => {
+  const site = res.locals.site;
+  if (!site) return res.status(404).send('Site required');
+  renderPage(req, res, 'pages/admin-videos', {
+    pageTitleKey: 'admin.t_media',
+    bodyClass: 'on-admin',
+    items: videoEntries(site.id),
+    audioOn: audioEnabled(),
+    success: req.query.success || null,
+  });
+});
+
+// Delete one video. Basename-only + within-dir, and only when no post uses it:
+// the same guardrails the image delete has.
+router.post('/videos/delete', requireGod, (req, res) => {
+  const site = res.locals.site;
+  if (!site) return res.status(404).json({ error: 'site' });
+  const file = path.basename(String(req.body?.file || ''));
+  if (!file || !VIDEO_EXT.test(file)) return res.status(400).json({ error: 'bad_file' });
+  const entry = videoEntries(site.id).find(e => e.file === file);
+  if (!entry) return res.status(404).json({ error: 'not_found' });
+  if (entry.usedCount) return res.status(409).json({ error: 'in_use' });
+  try { fs.unlinkSync(path.join(REPLY_MEDIA_DIR, file)); } catch { /* already gone is gone */ }
+  res.json({ ok: true });
+});
+
 router.post('/delete', requireGod, (req, res) => {
   if (!res.locals.site) return res.status(404).json({ ok: false, error: 'Site required' });
   const f = String(req.body.file || '');

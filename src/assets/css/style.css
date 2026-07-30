@@ -773,6 +773,24 @@ a.pagination-item.is-pinned:hover {
     margin: 1.4em auto;
 }
 
+/* Video in de post-tekst (C2S-uploads uit Shaer): dezelfde maatvoering als
+   afbeeldingen, plus een plafond. Zonder deze regel rendert een <video> op
+   zijn natuurlijke maat en duwt een portret-video de hele kolom vol; met
+   object-fit blijft het beeld heel binnen het kader. Geldt ook voor de
+   Krant/Berichten (tl-content), waar dezelfde content langskomt. */
+.post-content video, .tl-content video {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    max-height: min(70vh, 540px);
+    height: auto;
+    object-fit: contain;
+    background: #000;
+    border-radius: 6px;
+    margin: 1.4em auto;
+}
+.post-content audio, .tl-content audio { width: 100%; display: block; margin: 1em auto; }
+
 /* Mini-player + bottom-tab clearance: applied to .pcms-main so the footer
    is NOT pushed below the viewport bottom. The bars are position:fixed so
    they overlap whatever they sit on top of; the padding ensures the last

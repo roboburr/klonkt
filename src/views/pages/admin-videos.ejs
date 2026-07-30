@@ -1,0 +1,65 @@
+<%# Beheer → Media → Video's (Robins opdracht, 30-7): the videos C2S uploads
+    brought in (Shaer's composer, the help buoy), with usage and cleanup.
+    Same shape as the image page; the preview is the video itself with
+    preload="metadata", so the browser shows the first frame as its
+    thumbnail until real poster generation lands (bead: ffmpeg ontbreekt). %>
+<div class="admin-wrap" style="max-width:980px;margin:0 auto;padding:1.5rem 1rem;">
+  <a href="/admin" class="btn" style="margin-bottom:1rem;display:inline-block;">← <%= t('nav.admin') %></a>
+  <h1 style="font-family:var(--display,serif);margin:.2rem 0 1rem;"><%= t('admin.t_media') %></h1>
+
+  <%- include('../partials/media-tabs', { active: 'videos', audioOn: audioOn }) %>
+
+  <% if (success) { %><p style="background:rgba(60,160,90,.15);border:1px solid rgba(60,160,90,.4);padding:.5rem .8rem;border-radius:8px;"><%= success %></p><% } %>
+
+  <p style="margin:0 0 1rem;opacity:.75;"><%= items.length %> <%= t('admin.videos_count') %></p>
+
+  <% if (!items.length) { %>
+    <p style="opacity:.7;"><%= t('admin.videos_empty') %></p>
+  <% } else { %>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:1rem;">
+    <% items.forEach(function(it){ %>
+      <div class="media-card" data-file="<%= it.file %>" style="border:1px solid var(--rule,rgba(128,128,128,.25));border-radius:10px;overflow:hidden;background:var(--paper-2,rgba(128,128,128,.06));">
+        <div style="position:relative;aspect-ratio:16/10;background:#000;">
+          <video src="<%= it.url %>" preload="metadata" controls playsinline style="width:100%;height:100%;object-fit:contain;display:block;"></video>
+          <% if (!it.usedCount) { %><span style="position:absolute;top:6px;left:6px;background:#b4452e;color:#fff;border-radius:6px;padding:1px 6px;font-size:11px;z-index:1;"><%= t('admin.media_unused') %></span><% } %>
+        </div>
+        <div style="padding:.5rem .6rem;font-size:13px;">
+          <div style="opacity:.7;word-break:break-all;"><%= it.file %></div>
+          <div style="opacity:.7;"><%= it.kb %> KB · <%= it.usedCount %>×</div>
+          <div style="display:flex;gap:.4rem;margin-top:.45rem;">
+            <button type="button" class="btn" style="padding:3px 8px;font-size:12px;" data-copy="<%= it.url %>"><%= t('admin.media_copy') %></button>
+            <% if (!it.usedCount) { %>
+            <button type="button" class="btn" style="padding:3px 8px;font-size:12px;background:transparent;border-color:#b4452e;color:#b4452e;" data-del="<%= it.file %>">🗑</button>
+            <% } %>
+          </div>
+        </div>
+      </div>
+    <% }) %>
+  </div>
+  <% } %>
+</div>
+
+<script>
+(function () {
+  if (window.__videosWired) return; window.__videosWired = true;
+  var T = <%- JSON.stringify({ copy: t('admin.media_copy'), delC: t('admin.videos_del_confirm') }) %>;
+  document.addEventListener('click', function (e) {
+    var c = e.target.closest('[data-copy]');
+    if (c) {
+      var u = location.origin + c.getAttribute('data-copy');
+      var done = function () { var o = c.textContent; c.textContent = '✓'; setTimeout(function () { c.textContent = o === '✓' ? T.copy : o; }, 1200); };
+      if (navigator.clipboard) navigator.clipboard.writeText(u).then(done).catch(function () { window.prompt('URL', u); });
+      else window.prompt('URL', u);
+      return;
+    }
+    var d = e.target.closest('[data-del]');
+    if (d) {
+      if (!window.confirm(T.delC)) return;
+      fetch('/admin/media/videos/delete', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ file: d.getAttribute('data-del') }) })
+        .then(function (r) { return r.json(); })
+        .then(function (j) { if (j && j.ok) { var card = d.closest('.media-card'); if (card) card.remove(); } })
+        .catch(function () {});
+    }
+  });
+})();
+</script>
