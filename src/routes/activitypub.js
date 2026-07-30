@@ -318,7 +318,10 @@ router.post('/ap/users/:slug/uploadMedia', (req, res) => {
     if (mime.startsWith('video/')) {
       import('child_process').then(({ execFile }) => {
         const poster = req.file.path + '.poster.jpg';
-        execFile('ffmpeg', ['-y', '-ss', '1', '-i', req.file.path, '-frames:v', '1', '-vf', "scale='min(640,iw)':-2", poster],
+        // FFMPEG_PATH lets a static build in ~/bin do the work without a
+        // system install; unset means "whatever is on PATH", and neither is
+        // an error when absent.
+        execFile(process.env.FFMPEG_PATH || 'ffmpeg', ['-y', '-ss', '1', '-i', req.file.path, '-frames:v', '1', '-vf', "scale='min(640,iw)':-2", poster],
           { timeout: 30000 }, (e) => { if (e && e.code !== 'ENOENT') console.warn('[media] poster failed:', e.message); });
       }).catch(() => { /* never blocks the upload */ });
     }
