@@ -81,21 +81,35 @@ router.get('/ap/users/:slug', (req, res) => {
 router.get('/ap/users/:slug/outbox', async (req, res) => {
   const site = publicSite(req.params.slug);
   if (!site) return res.status(404).end();
-  // Authorized fetch (FEP-633c §5.3 note): a committed guardian doing a SIGNED
-  // GET may read the ward's fan-only history too, without appearing as a
-  // follower. Unsigned / non-guardian callers get the public collection only.
-  let asGuardian = false;
-  if (req.headers['signature']) {
+  // Authorized fetch (30-7): who is asking decides what they see.
+  //  - the owner's own app (bearer) and a verified accepted follower or
+  //    guardian get the friends-only history too, so a NEW friend's backfill
+  //    brings the past along (Robins besluit: vrienden krijgen de
+  //    geschiedenis mee);
+  //  - a verified caller this instance BLOCKS gets an EMPTY collection, not
+  //    even the public set: a block is a closed door, and a signed fetch is
+  //    the caller knocking with their name on it;
+  //  - everyone else gets the public collection, exactly as before.
+  const bearer = OAuth.verifyBearer(req.headers.authorization);
+  let verifiedActor = null;
+  if (!bearer && req.headers['signature']) {
     const verified = await AP.verifyRequest(req).catch(() => null);
-    asGuardian = !!(verified && AP.isWardGuardian(req.params.slug, verified.id));
+    verifiedActor = verified && verified.id;
   }
-  const fanClause = asGuardian ? '' : "AND (fan_only IS NULL OR fan_only = 0)";
+  const audience = AP.outboxAudience(req.params.slug, {
+    bearerSlug: bearer ? bearer.site.slug : null,
+    verifiedActor,
+  });
+  if (audience === 'blocked') {
+    return AP.sendAP(res, AP.buildOutbox(baseUrl(req), site, []), 'private, no-store');
+  }
+  const fanClause = audience === 'friend' ? '' : "AND (fan_only IS NULL OR fan_only = 0)";
   const posts = db.prepare(
     `SELECT id, slug, title, content, cover_image_url, cover_video_url, nsfw, content_warning, published_at, created_at
      FROM posts WHERE site_id = ? AND status = 'published' ${fanClause}
      ORDER BY COALESCE(published_at, created_at) DESC LIMIT 20`
   ).all(site.id);
-  AP.sendAP(res, AP.buildOutbox(baseUrl(req), site, posts), asGuardian ? 'private, no-store' : undefined);
+  AP.sendAP(res, AP.buildOutbox(baseUrl(req), site, posts), audience === 'friend' ? 'private, no-store' : undefined);
 });
 
 // ── Blocked collection (owner only, AP §5.6) ──────────────────────

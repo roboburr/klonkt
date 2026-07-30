@@ -1853,6 +1853,11 @@ export async function handleInbox(req, slugParam, preVerified = null) {
     const fid = typeof act.object === 'string' ? act.object : (act.object && act.object.id);
     if (fid) { try { fwStmts().acc.run(fid); } catch { /* ignore */ } }
     console.log('[AP] follow accepted', actorUri);
+    // The moment a friendship exists is the moment the history comes along
+    // (Robins besluit, 30-7): delivery cannot reach into the past, so the
+    // fresh follower pulls the outbox, signed, and the other side now serves
+    // the friends-only posts too.
+    if (slugParam && actorUri) backfillFromOutbox(slugParam, actorUri).catch(() => { /* best-effort */ });
     return 202;
   }
   if (type === 'Reject' && act.object) {
@@ -3237,6 +3242,32 @@ async function resolveCard(o) {
 }
 
 // A generic SSRF-safe AP GET (collections / pages).
+/**
+ * A signed GET as one of our local actors (friends-history, 30-7): the remote
+ * server can then recognise the caller and serve what THAT caller may see,
+ * exactly like the guardian's authorized fetch. The signature covers
+ * (request-target) host date, the set verifyRequest checks.
+ */
+async function signedGetJson(slug, url) {
+  try {
+    const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+    if (!base || !slug) return apGetJson(url);
+    const me = actorId(base, slug);
+    const keys = getOrCreateKeys(slug);
+    const u = new URL(url);
+    const date = new Date().toUTCString();
+    const target = `${u.pathname}${u.search || ''}`;
+    const signingString = `(request-target): get ${target}\nhost: ${u.host}\ndate: ${date}`;
+    const signature = crypto.sign('sha256', Buffer.from(signingString), keys.private_pem).toString('base64');
+    const sig = `keyId="${me}#main-key",algorithm="rsa-sha256",headers="(request-target) host date",signature="${signature}"`;
+    const r = await safeFetch(url, { headers: { Accept: 'application/activity+json', Date: date, Signature: sig } });
+    if (!r.ok) return null;
+    const len = Number(r.headers.get('content-length') || 0);
+    if (len > 3_000_000) return null;
+    return await r.json();
+  } catch { return null; }
+}
+
 async function apGetJson(url) {
   try {
     const r = await safeFetch(url, { headers: { Accept: 'application/activity+json' } });
@@ -3255,10 +3286,14 @@ export async function backfillFromOutbox(slug, actorUri, limit = 20) {
     if (!slug || !actorUri) return 0;
     const actor = await fetchActor(actorUri);
     if (!actor || !actor.outbox) return 0;
-    let page = await apGetJson(typeof actor.outbox === 'string' ? actor.outbox : actor.outbox.id);
+    // Signed as the follower (30-7): the serving side recognises an accepted
+    // friend and hands the friends-only history along; an anonymous GET only
+    // ever sees the public set. A server that ignores the signature behaves
+    // exactly as before.
+    let page = await signedGetJson(slug, typeof actor.outbox === 'string' ? actor.outbox : actor.outbox.id);
     let items = (page && (page.orderedItems || page.items)) || [];
     if (!items.length && page && page.first) {
-      page = await apGetJson(typeof page.first === 'string' ? page.first : page.first.id);
+      page = await signedGetJson(slug, typeof page.first === 'string' ? page.first : page.first.id);
       items = (page && (page.orderedItems || page.items)) || [];
     }
     if (!Array.isArray(items) || !items.length) return 0;
@@ -3547,6 +3582,26 @@ export async function unfollowActor(site, actorUri) {
 }
 
 // FEP-633c §5.3 note (authorized fetch): true when `actorUri` is a committed
+/**
+ * Who is reading this outbox, and what may they see (30-7)?
+ *  - 'blocked': a verified caller this instance blocks. They get an EMPTY
+ *    collection, not even the public set (Robins eis): a block is a closed
+ *    door, and a signed fetch is the caller knocking with their name on it.
+ *  - 'friend': the owner (bearer) or a verified accepted follower or
+ *    guardian: the fan-only history rides along.
+ *  - 'public': everyone else: the public set.
+ */
+export function outboxAudience(slug, { bearerSlug = null, verifiedActor = null } = {}) {
+  if (bearerSlug && bearerSlug === slug) return 'friend';
+  if (!verifiedActor) return 'public';
+  if (isBlockedAny(verifiedActor)) return 'blocked';
+  try {
+    if (db.prepare('SELECT 1 FROM ap_followers WHERE slug = ? AND actor_uri = ?').get(slug, verifiedActor)) return 'friend';
+  } catch { /* table absent on fresh init */ }
+  if (isWardGuardian(slug, verifiedActor)) return 'friend';
+  return 'public';
+}
+
 // guardian of the local ward `wardSlug` — so a signed GET from it may read the
 // ward's non-public history without the guardian appearing as a follower.
 export function isWardGuardian(wardSlug, actorUri) {
@@ -4043,7 +4098,7 @@ export default {
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, setMyReaction, getMyReactions, buildReplyNote, getOutboxNote, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate, deliverDirectNote,
   webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, getDirectMessages, isoStamp, timelineAttachments, timelineEmojis, timelineObjectLinks, timelineQuote, timelineEmbed, applyQuoteProps, deliverToActor, sendInteraction, voteOnPoll, voteOnRemotePoll,
-  acceptGatedFollow, rejectGatedFollow, isWardGuardian, sendFollowDecision,
+  acceptGatedFollow, rejectGatedFollow, isWardGuardian, outboxAudience, sendFollowDecision,
   parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread, sendReport, localMentionSlugs,
   autoBoostCount, boostedCount, markBoosted, unmarkBoosted, markLiked, unmarkLiked, getTimelineReaction, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
