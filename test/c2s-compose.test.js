@@ -116,6 +116,33 @@ test('a video without a poster simply has none: no guessed icon', async () => {
   assert.equal(vid.icon, undefined);
 });
 
+test('the OUTBOX serves the attachment too, not only the delivered Create', async () => {
+  // Root of the broken iPhone player (Robins schermafdrukken, 30-7): the
+  // outbox SELECT did not include c2s_attachments, so a note pulled via the
+  // outbox (backfill, boiert.eu) had NO Video attachment and readers fell
+  // back to the content tag with its relative, dead src. The delivered copy
+  // was fine, which is why one device worked and the other did not. This
+  // locks the outbox contract: the same narrow SELECT, through buildNote,
+  // must carry the attachment.
+  const r = await AP.ingestOutboxActivity(site, user, {
+    type: 'Create',
+    object: {
+      type: 'Note', content: '<p>buiten</p>',
+      to: ['https://test.example/ap/users/kid/followers'],
+      cc: ['https://www.w3.org/ns/activitystreams#Public'],
+      attachment: [{ type: 'Video', url: '/media/reply-media/buiten.mp4', mediaType: 'video/mp4' }],
+    },
+  });
+  const row = db.prepare(
+    `SELECT id, slug, title, content, cover_image_url, cover_video_url, nsfw, content_warning, c2s_attachments, published_at, created_at
+     FROM posts WHERE id = ?`).get(r.id);
+  const note = AP.buildNote('https://test.example', site, row);
+  const vid = (note.attachment || []).find((a) => a.url.endsWith('buiten.mp4'));
+  assert.ok(vid, 'the outbox-shaped row still yields the Video attachment');
+  assert.equal(vid.type, 'Video');
+  assert.ok(!/<video\b/i.test(note.content), 'and the content stays clean');
+});
+
 test('a media-only post is a post, not an empty-note error', async () => {
   const r = await AP.ingestOutboxActivity(site, user, {
     type: 'Create',

@@ -1920,7 +1920,7 @@ async function backfillNewFollower(base, slug, inbox) {
   const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(slug);
   if (!site) return;
   const recent = db.prepare(
-    `SELECT id, slug, title, content, cover_image_url, cover_video_url, nsfw, content_warning, published_at, created_at
+    `SELECT id, slug, title, content, cover_image_url, cover_video_url, nsfw, content_warning, c2s_attachments, published_at, created_at
      FROM posts WHERE site_id = ? AND status = 'published' AND (fan_only IS NULL OR fan_only = 0)
      ORDER BY COALESCE(published_at, created_at) DESC LIMIT 20`
   ).all(site.id).reverse();
