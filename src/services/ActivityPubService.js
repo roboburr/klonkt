@@ -399,6 +399,13 @@ export function buildNote(base, site, post, opts = {}) {
     urls.push({ url: abs(src), name: alt });
   }
   body = body.replace(/<img\b[^>]*>/gi, '');
+  // Video and audio tags leave the federated content the same way (30-7):
+  // they ride as AS2 attachments (c2s_attachments), and the tag itself
+  // carries a RELATIVE /media src that is dead everywhere but our own web.
+  // Leaving it in showed every remote reader a broken player above the
+  // working one. The web keeps its tags: this strip is federation-only.
+  body = body.replace(/<video\b[^>]*>[\s\S]*?<\/video>/gi, '').replace(/<video\b[^>]*\/?>/gi, '');
+  body = body.replace(/<audio\b[^>]*>[\s\S]*?<\/audio>/gi, '').replace(/<audio\b[^>]*\/?>/gi, '');
   // Audio shortcodes: do NOT federate the raw audio file — Klonkt deliberately
   // gates audio (the /audio/stream URL has friction), and shipping it as an AP
   // audio attachment would hand Mastodon a plain, downloadable mp3 URL. Instead,

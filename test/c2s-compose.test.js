@@ -43,6 +43,11 @@ test('a C2S post carries its media: into the web content and out as AS2 attachme
   assert.ok(!post.content.includes('evil.test'), 'the stranger stays out');
 
   const note = AP.buildNote('https://test.example', site, post);
+  // The FEDERATED content carries no media tags: they ride as attachments,
+  // and the tags' relative /media srcs are dead everywhere but our own web.
+  // Leaving them in showed every remote reader a broken player above the
+  // working one (Robins schermafdruk, 30-7).
+  assert.ok(!/<(video|audio|img)\b/i.test(note.content), 'the note content is clean of media tags');
   const att = note.attachment || [];
   const img = att.find((a) => a.url.endsWith('/media/reply-media/foto.jpg'));
   const aud = att.find((a) => a.url.endsWith('/media/reply-media/opname.m4a'));
