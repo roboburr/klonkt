@@ -269,6 +269,23 @@
 
     <button type="submit" class="btn btn-primary"><%= isNew ? t('asite.submit_create') : t('asite.submit_save') %></button>
   </form>
+
+<% if (!isNew) { %>
+  <form method="post" action="/admin/sites/<%= site.slug %>/move" class="admin-form"
+        onsubmit="return confirm('<%= t('asite.move_confirm') %>');">
+    <fieldset>
+      <legend><%= t('asite.move') %></legend>
+      <p class="form-hint"><%= t('asite.move_hint') %></p>
+      <% if (typeof site.moved_to === 'string' && site.moved_to) { %>
+        <p class="form-hint"><strong><%= t('asite.moved_to') %>:</strong> <%= site.moved_to %></p>
+      <% } %>
+      <label>
+        <input type="text" name="move_target" placeholder="@nieuw@andere-server.example" required>
+      </label>
+      <button type="submit" class="btn btn-danger"><%= t('asite.move_btn') %></button>
+    </fieldset>
+  </form>
+<% } %>
 </div>
 
 <script>

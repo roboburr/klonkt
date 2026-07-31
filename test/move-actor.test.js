@@ -123,3 +123,50 @@ test('no aliases set, no alsoKnownAs on the actor', () => {
   const site = db.prepare("SELECT * FROM sites WHERE slug = 'radio'").get();
   assert.equal('alsoKnownAs' in buildActor('https://test.example', site), false);
 });
+
+// ── Slice 2: the OUTGOING half ─────────────────────────────────────
+// This Klonkt as the old home. A guarded account refuses (shaer-tge), a
+// target without the alsoKnownAs back-reference refuses, and the happy path
+// records moved_to and delivers ONE Move to every follower inbox.
+const { moveAccount } = await import('../src/services/ActivityPubService.js');
+const ME_RADIO = 'https://test.example/ap/users/radio';
+const radioSite = () => db.prepare("SELECT * FROM sites WHERE slug = 'radio'").get();
+
+test('a guarded account refuses to move (shaer-tge)', async () => {
+  db.prepare(`INSERT OR IGNORE INTO ap_guardianships (slug, role, other_uri, status, offer_id)
+              VALUES ('blog', 'ward', 'https://oma.example/u/oma', 'accepted', 'o9')`).run();
+  const blogSite = db.prepare("SELECT * FROM sites WHERE slug = 'blog'").get();
+  const r = await moveAccount(blogSite, 'https://elders.example/users/nieuw', {
+    fetchActorFn: async () => ({ id: 'https://elders.example/users/nieuw', inbox: 'https://elders.example/inbox', alsoKnownAs: ['https://test.example/ap/users/blog'] }),
+  });
+  assert.equal(r.error, 'guarded_account');
+  assert.equal(db.prepare("SELECT moved_to FROM sites WHERE slug = 'blog'").get().moved_to, null, 'nothing recorded');
+});
+
+test('without the back-reference the move refuses', async () => {
+  const r = await moveAccount(radioSite(), 'https://elders.example/users/nieuw', {
+    fetchActorFn: async () => ({ id: 'https://elders.example/users/nieuw', inbox: 'https://elders.example/inbox', alsoKnownAs: ['https://iemand-anders.example/x'] }),
+  });
+  assert.equal(r.error, 'no_backreference');
+  assert.equal(db.prepare("SELECT moved_to FROM sites WHERE slug = 'radio'").get().moved_to, null);
+});
+
+test('the happy path: moved_to recorded, one Move to every follower inbox', async () => {
+  db.prepare("INSERT INTO ap_followers (slug, actor_uri, inbox) VALUES ('radio', 'https://a.example/u/a', 'https://a.example/inbox')").run();
+  db.prepare("INSERT INTO ap_followers (slug, actor_uri, inbox, shared_inbox) VALUES ('radio', 'https://b.example/u/b', 'https://b.example/inbox', 'https://b.example/shared')").run();
+  const delivered = [];
+  const r = await moveAccount(radioSite(), 'https://elders.example/users/nieuw', {
+    fetchActorFn: async () => ({ id: 'https://elders.example/users/nieuw', inbox: 'https://elders.example/inbox', alsoKnownAs: [ME_RADIO] }),
+    deliverFn: async (slug, inbox, activity) => { delivered.push({ inbox, activity }); },
+  });
+  assert.equal(r.ok, true);
+  assert.equal(r.target, 'https://elders.example/users/nieuw');
+  assert.equal(db.prepare("SELECT moved_to FROM sites WHERE slug = 'radio'").get().moved_to, 'https://elders.example/users/nieuw');
+  assert.equal(delivered.length, 2, 'both follower inboxes');
+  for (const d of delivered) {
+    assert.equal(d.activity.type, 'Move');
+    assert.equal(d.activity.object, ME_RADIO);
+    assert.equal(d.activity.target, 'https://elders.example/users/nieuw');
+  }
+  assert.ok(delivered.some((d) => d.inbox === 'https://b.example/shared'), 'shared inbox preferred');
+});

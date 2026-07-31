@@ -146,6 +146,7 @@ export function initializeDatabase() {
   // Publishing them as alsoKnownAs is what lets the OLD server approve a Move
   // of its followers to this account — the claim must be visible on OUR side.
   ensureColumn('sites', 'ap_aliases', 'TEXT');
+  ensureColumn('sites', 'moved_to', 'TEXT');   // FEP-7628 slice 2: waarheen dit account vertrok
 
   // Per-post noindex + type
   ensureColumn('posts', 'noindex', 'INTEGER DEFAULT 0');

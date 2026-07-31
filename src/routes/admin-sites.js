@@ -297,6 +297,27 @@ router.get('/:slug/edit', requireSiteManagerBySlug, (req, res) => {
   });
 });
 
+// ==================== MOVE (FEP-7628, slice 2) ====================
+// The explicit departure: announce to every follower that this account now
+// lives elsewhere. Deliberately its own POST with its own button, never a
+// side effect of Save: a Move is a door you close behind you.
+router.post('/:slug/move', requireSiteManagerBySlug, async (req, res) => {
+  const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(req.params.slug);
+  if (!site) return res.redirect('/admin/sites?error=Not+found');
+  const r = await AP.moveAccount(site, req.body.move_target || '');
+  if (r && r.ok) {
+    return res.redirect(`/admin/sites/${req.params.slug}/edit?success=` + encodeURIComponent(`Verhuizing aangekondigd naar ${r.target} (${r.inboxes} inboxen).`));
+  }
+  const msg = {
+    guarded_account: 'Dit account heeft guardians; verhuizen kan pas als de guardianship mee kan (shaer-tge).',
+    no_backreference: 'Het nieuwe profiel claimt dit account niet in zijn aliassen. Zet daar eerst dit adres als alias.',
+    not_found: 'Nieuw adres niet gevonden. Gebruik @naam@server of een actor-URL.',
+    unreachable: 'Het nieuwe profiel is niet bereikbaar.',
+    self: 'Dat is dit account zelf.',
+  }[r && r.error] || 'Verhuizen mislukte; probeer het opnieuw.';
+  res.redirect(`/admin/sites/${req.params.slug}/edit?error=` + encodeURIComponent(msg));
+});
+
 // ==================== SAVE ====================
 router.post('/:slug/save', requireSiteManagerBySlug, async (req, res) => {
   const site = db.prepare('SELECT id, ap_aliases FROM sites WHERE slug = ?').get(req.params.slug);

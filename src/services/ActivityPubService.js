@@ -3842,6 +3842,63 @@ export async function handleMoveInbox(act, { verifiedActor = null, fetchActorFn 
   return 202;
 }
 
+/**
+ * Slice 2 van shaer-0j2 (FEP-7628, DRAFT): de UITGAANDE helft — deze Klonkt
+ * is het oude huis en kondigt het vertrek aan. Twee eisen voordat er iets
+ * de deur uit gaat:
+ *  1. Geen guardians: een warded account verhuizen zonder de guardianship
+ *     te hertargeten zou het vangnet van het kind stil breken; dat is
+ *     shaer-tge's gated beslissing, dus tot die er is weigert een bewaakt
+ *     account de verhuizing.
+ *  2. De NIEUWE actor claimt ons in alsoKnownAs — dezelfde back-reference
+ *     die elke ontvangende server (onze eigen slice 1 incluis) eist. Zonder
+ *     die claim is de Move overal dood bij aankomst.
+ * De Move gaat duurzaam naar elke volger-inbox; hun servers doen de
+ * re-follow. `moved_to` wordt hier vastgelegd; het SERVEREN ervan op de
+ * actor (en het beleid van de oude site) is slice 3.
+ * Deps injecteerbaar voor tests (geen netwerk in node:test).
+ */
+export async function moveAccount(site, targetRaw, { fetchActorFn = null, deliverFn = null } = {}) {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  if (!base || !site || !site.slug) return { error: 'config' };
+  try {
+    const guardians = Guardianship.listGuardians(site.slug);
+    if (guardians.length) {
+      console.warn('[AP] move refused: guarded account (shaer-tge):', site.slug, '→', String(targetRaw || ''));
+      return { error: 'guarded_account' };
+    }
+  } catch { /* geen guardianship-tabellen = geen guardians */ }
+  const s = String(targetRaw || '').trim();
+  let targetUri = null;
+  if (/^https?:\/\//i.test(s)) targetUri = safeUrl(s);
+  else if (s.includes('@')) targetUri = await webfingerResolve(s);
+  if (!targetUri) return { error: 'not_found' };
+  const me = actorId(base, site.slug);
+  if (targetUri === me) return { error: 'self' };
+  const target = await (fetchActorFn ? fetchActorFn(targetUri) : signedGetJson(site.slug, targetUri));
+  if (!target || !target.id || !target.inbox) return { error: 'unreachable' };
+  const aka = [].concat(target.alsoKnownAs || [])
+    .map((a) => (typeof a === 'string' ? a : (a && a.id))).filter(Boolean);
+  if (!aka.includes(me)) return { error: 'no_backreference' };
+  db.prepare('UPDATE sites SET moved_to = ? WHERE slug = ?').run(target.id, site.slug);
+  const keys = getOrCreateKeys(site.slug);
+  const move = {
+    '@context': AP_CONTEXT,
+    id: `${me}#move-${Date.now()}-${rid()}`,
+    type: 'Move',
+    actor: me,
+    object: me,
+    target: target.id,
+    to: [`${me}/followers`],
+  };
+  const inboxes = [...new Set(fStmts().list.all(site.slug).map((f) => f.shared_inbox || f.inbox).filter(Boolean))];
+  for (const inbox of inboxes) {
+    await (deliverFn || deliverWithRetry)(site.slug, inbox, move, `${me}#main-key`, keys.private_pem);
+  }
+  console.log('[AP] MOVE announced:', site.slug, '→', target.id, 'naar', inboxes.length, 'inbox(en)');
+  return { ok: true, target: target.id, inboxes: inboxes.length };
+}
+
 // FEP-633c §5.3 note (authorized fetch): true when `actorUri` is a committed
 /**
  * Who is reading this outbox, and what may they see (30-7)?
@@ -4358,7 +4415,7 @@ export default {
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, setMyReaction, getMyReactions, buildReplyNote, getOutboxNote, getSentNotes, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate, deliverDirectNote,
-  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, handleMoveInbox, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, getDirectMessages, isoStamp, timelineAttachments, timelineEmojis, timelineObjectLinks, timelineQuote, timelineEmbed, applyQuoteProps, deliverToActor, sendInteraction, voteOnPoll, voteOnRemotePoll,
+  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, handleMoveInbox, moveAccount, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, getDirectMessages, isoStamp, timelineAttachments, timelineEmojis, timelineObjectLinks, timelineQuote, timelineEmbed, applyQuoteProps, deliverToActor, sendInteraction, voteOnPoll, voteOnRemotePoll,
   acceptGatedFollow, rejectGatedFollow, isWardGuardian, outboxAudience, sendFollowDecision,
   parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread, sendReport, localMentionSlugs,
   autoBoostCount, boostedCount, markBoosted, unmarkBoosted, markLiked, unmarkLiked, getTimelineReaction, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
