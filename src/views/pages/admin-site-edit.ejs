@@ -216,7 +216,10 @@
       <legend><%= t('asite.aliases') %></legend>
       <p class="form-hint"><%= t('asite.aliases_hint') %></p>
       <label>
-        <textarea name="ap_aliases" rows="3" placeholder="@oud@mastodon.social&#10;https://andere-klonkt.example/ap/users/naam"><%= apAliases %></textarea>
+<%# typeof-guard on purpose: during a deploy an old route can render this new
+    template for one request (view cache fills on first hit). A missing local
+    must degrade to an empty field, not take the whole page down with a 500. %>
+        <textarea name="ap_aliases" rows="3" placeholder="@oud@mastodon.social&#10;https://andere-klonkt.example/ap/users/naam"><%= typeof apAliases !== 'undefined' ? apAliases : '' %></textarea>
       </label>
     </fieldset>
 

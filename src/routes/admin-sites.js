@@ -210,6 +210,7 @@ router.get('/new', requireGod, (req, res) => {
     accents: ThemeService.listAccents(),
     platforms: listPlatforms(),
     parsedLinks: [],
+    apAliases: '',
     error: null,
   });
 });

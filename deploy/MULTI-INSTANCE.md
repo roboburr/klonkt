@@ -132,6 +132,18 @@ The three data paths are the only ones you need. Media subdirectories such as
 sudo klonkt-update
 ```
 
+**Migrated before August 2026?** Then your `klonkt-update` still restarts the
+retired `klonkt.service`: the code updates but the running process never
+follows, and after the next update the site can 500 on pages whose template
+and route no longer match. Repair it once:
+
+```bash
+sudo systemctl restart klonkt@<slug>                        # load the current code now
+sudo bash /opt/klonkt/scripts/klonkt-refresh-updater.sh     # fix the updater for good
+```
+
+The migration script does this by itself nowadays.
+
 That pulls the code once into `/opt/klonkt`, reinstalls dependencies only when
 `package-lock.json` changed, and restarts every instance it finds under
 `/var/lib/klonkt`. There is one copy of the code, so no instance can lag behind.

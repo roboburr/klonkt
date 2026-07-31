@@ -134,6 +134,19 @@ if systemctl is-enabled --quiet "$OLD_UNIT" 2>/dev/null; then
 fi
 run "systemctl enable --now 'klonkt@$SLUG'"
 
+step "Rewriting klonkt-update for the new layout"
+# The installer generated an updater that restarts klonkt.service — which we
+# just retired. Left alone it would keep updating the code while never
+# restarting the real process: half old, half new, and a 500 with no obvious
+# cause. Rewrite it so it restarts every klonkt@<slug> instead.
+if [ -f "$KLONKT_DIR/scripts/klonkt-refresh-updater.sh" ]; then
+  run "KLONKT_DIR='$KLONKT_DIR' KLONKT_USER='$KLONKT_USER' KLONKT_DATA_ROOT='$DATA_ROOT' bash '$KLONKT_DIR/scripts/klonkt-refresh-updater.sh'"
+else
+  say "WARNING: scripts/klonkt-refresh-updater.sh missing in this checkout."
+  say "         Update the code and run it once by hand, or every klonkt-update"
+  say "         from now on will update code WITHOUT restarting the process."
+fi
+
 step "Verifying"
 if [ "$DRY" = 1 ]; then
   say "dry run: skipping verification"
