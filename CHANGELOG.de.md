@@ -5,6 +5,8 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 
 ## [Unreleased]
 
+## [1.6.0] · 2026-07-31
+
 ### Hinzugefügt
 - **Guardians (FEP-633c).** Ein Konto kann jetzt von einer oder mehreren
   Guardians behütet werden, so wie ein Kind Eltern hat. Eine Guardian bietet an,

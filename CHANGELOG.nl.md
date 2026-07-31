@@ -5,6 +5,8 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 
 ## [Unreleased]
 
+## [1.6.0] · 2026-07-31
+
 ### Toegevoegd
 - **Guardians (FEP-633c).** Een account kan nu onder de hoede staan van een of
   meer guardians, zoals een kind ouders heeft. Een guardian biedt aan om over

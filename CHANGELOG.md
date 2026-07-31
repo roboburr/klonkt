@@ -5,6 +5,8 @@ Versions follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.6.0] · 2026-07-31
+
 ### Added
 - **Guardians (FEP-633c).** An account can now be watched over by one or more
   guardians, the way a child has parents. A guardian offers to look after
