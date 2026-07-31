@@ -45,6 +45,9 @@ const AP_CONTEXT = [
     Hashtag: 'as:Hashtag',
     manuallyApprovesFollowers: 'as:manuallyApprovesFollowers',
     discoverable: 'toot:discoverable',
+    // FEP-7628 (account moves): same term declaration Mastodon ships.
+    alsoKnownAs: { '@id': 'as:alsoKnownAs', '@type': '@id' },
+    movedTo: { '@id': 'as:movedTo', '@type': '@id' },
     featured: { '@id': 'toot:featured', '@type': '@id' },
     PropertyValue: 'schema:PropertyValue',
     value: 'schema:value',
@@ -220,6 +223,16 @@ export function buildActor(base, site) {
   }
   // Account creation date — shown by Mastodon + read by indexers (additive, standard AS2).
   if (site.created_at) { try { actor.published = new Date(site.created_at).toISOString(); } catch { /* skip bad date */ } }
+  // FEP-7628: former identities this account claims. The OLD server checks for
+  // exactly this back-reference before it will move followers here, so the
+  // list must be on the public actor, not tucked away in settings.
+  try {
+    const aka = JSON.parse(site.ap_aliases || '[]');
+    if (Array.isArray(aka)) {
+      const clean = aka.filter((u) => typeof u === 'string' && /^https?:\/\//i.test(u) && u !== id);
+      if (clean.length) actor.alsoKnownAs = clean;
+    }
+  } catch { /* skip malformed ap_aliases */ }
   // Profile links → PropertyValue rows: Mastodon/PeerTube/WordPress-ActivityPub render these as
   // profile metadata (rel=me enables link-back verification). Additive; ignored by simpler receivers.
   try {
@@ -1436,7 +1449,7 @@ export async function handleInbox(req, slugParam, preVerified = null) {
   const claimedActor = typeof act.actor === 'string' ? act.actor : (act.actor && act.actor.id);
   // Blocked actor/domain → silently drop (202, don't reveal the block).
   if (claimedActor && isBlockedAny(claimedActor)) { console.log('[AP] inbox dropped (blocked)', claimedActor, 'from', ip); return 202; }
-  const GATED = ['Create', 'Like', 'Announce', 'Follow', 'Delete', 'Undo', 'Accept', 'Reject', 'Add', 'Remove', 'Update', 'Flag', 'Offer'];
+  const GATED = ['Create', 'Like', 'Announce', 'Follow', 'Delete', 'Undo', 'Accept', 'Reject', 'Add', 'Remove', 'Update', 'Flag', 'Offer', 'Move'];
   if (GATED.includes(type)) {
     if (!verified || !claimedActor || verified.id !== claimedActor) {
       console.warn('[AP] inbox REJECTED (signature)', type, claimedActor || '?', 'from', ip, verified ? '(signer mismatch)' : '(unsigned/invalid)');
@@ -1512,6 +1525,13 @@ export async function handleInbox(req, slugParam, preVerified = null) {
       console.log('[AP] report received for', targetSlug, 'from', claimedActor);
     } catch { /* ignore */ }
     return 202;
+  }
+
+  // FEP-7628 (DRAFT): an account moved house. Handled before Follow on purpose:
+  // a Move often arrives seconds before the new actor's re-Follow wave, and the
+  // swap below must not race our own outgoing Follow of the target.
+  if (type === 'Move') {
+    return handleMoveInbox(act, { verifiedActor: claimedActor });
   }
 
   if (type === 'Follow') {
@@ -3759,6 +3779,69 @@ export async function unfollowActor(site, actorUri) {
   return { ok: true };
 }
 
+/**
+ * FEP-7628 (DRAFT status — the shape is Mastodon's since 2019, but the FEP can
+ * still change): an account our sites follow says it moved to a new home.
+ *
+ * Validity has two independent legs, and both must hold:
+ *  1. The SIGNER is a party to the move: the old actor announcing its own move
+ *     (push mode) or the new actor doing it (pull mode). A third party
+ *     narrating someone else's move is refused — without this, any signed
+ *     stranger could re-point our follows.
+ *  2. The NEW actor claims the old identity in its `alsoKnownAs`. That is the
+ *     cross-side proof: the mover controls both ends. Without it, whoever
+ *     holds ONE end could hijack the other end's followers.
+ *
+ * Effect: every local site following the old actor unfollows it and follows
+ * the new one, keeping its auto-boost choice. Deliberately NOT retargeted:
+ * guardianship relations (FEP-633c) — a guardian is a security anchor, not a
+ * feed subscription, and moving one is shaer-tge's gated decision, not a
+ * side effect of an inbox event. We only log when a move touches one.
+ *
+ * Deps are injectable for tests (no network in node:test).
+ */
+export async function handleMoveInbox(act, { verifiedActor = null, fetchActorFn = null, followFn = null, unfollowFn = null } = {}) {
+  const oldUri = typeof act.object === 'string' ? act.object : (act.object && act.object.id);
+  const newUri = typeof act.target === 'string' ? act.target : (act.target && act.target.id);
+  if (!oldUri || !newUri || oldUri === newUri) return 400;
+  if (!verifiedActor || (verifiedActor !== oldUri && verifiedActor !== newUri)) {
+    console.warn('[AP] Move refused: signer is not a party to the move', verifiedActor || '(unsigned)', oldUri, '→', newUri);
+    return 401;
+  }
+  // Nobody here follows the old actor → nothing to move. This also makes
+  // redelivery idempotent: after the first swap the rows are gone.
+  let rows = [];
+  try { rows = db.prepare('SELECT * FROM ap_following WHERE actor_uri = ?').all(oldUri); } catch { /* fresh init */ }
+  if (!rows.length) return 202;
+  // A blocked destination is declined outright: the old follow stays (it goes
+  // stale on its own), and we will not open a door to a blocked house.
+  if (isBlockedAny(newUri)) { console.log('[AP] Move dropped: target is blocked', newUri); return 202; }
+  const target = await (fetchActorFn || fetchActor)(newUri);
+  const aka = [].concat((target && target.alsoKnownAs) || [])
+    .map((a) => (typeof a === 'string' ? a : (a && a.id))).filter(Boolean);
+  if (!target || !target.id || !aka.includes(oldUri)) {
+    console.warn('[AP] Move refused: target does not claim the old actor in alsoKnownAs', oldUri, '→', newUri);
+    return 202; // decline to act; no 4xx, the sender may be a well-meaning retrying server
+  }
+  for (const row of rows) {
+    const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(row.slug);
+    if (!site) continue;
+    try {
+      await (unfollowFn || unfollowActor)(site, oldUri);
+      const already = fwStmts().one.get(row.slug, newUri);
+      if (!already) await (followFn || followActor)(site, newUri, !!row.auto_boost);
+      console.log('[AP] follow moved', row.slug, ':', oldUri, '→', newUri);
+    } catch (e) {
+      console.warn('[AP] move re-follow failed for', row.slug, e && e.message);
+    }
+  }
+  try {
+    const g = db.prepare('SELECT slug, role FROM ap_guardianships WHERE other_uri = ? AND status = ?').all(oldUri, 'accepted');
+    if (g.length) console.warn('[AP] Move touches a guardianship party — left untouched (shaer-tge):', oldUri, '→', g.map((r) => `${r.role}:${r.slug}`).join(', '));
+  } catch { /* table absent on fresh init */ }
+  return 202;
+}
+
 // FEP-633c §5.3 note (authorized fetch): true when `actorUri` is a committed
 /**
  * Who is reading this outbox, and what may they see (30-7)?
@@ -4275,7 +4358,7 @@ export default {
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, setMyReaction, getMyReactions, buildReplyNote, getOutboxNote, getSentNotes, deliverReply, resolveRemoteNote,
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate, deliverDirectNote,
-  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, getDirectMessages, isoStamp, timelineAttachments, timelineEmojis, timelineObjectLinks, timelineQuote, timelineEmbed, applyQuoteProps, deliverToActor, sendInteraction, voteOnPoll, voteOnRemotePoll,
+  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, handleMoveInbox, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, getDirectMessages, isoStamp, timelineAttachments, timelineEmojis, timelineObjectLinks, timelineQuote, timelineEmbed, applyQuoteProps, deliverToActor, sendInteraction, voteOnPoll, voteOnRemotePoll,
   acceptGatedFollow, rejectGatedFollow, isWardGuardian, outboxAudience, sendFollowDecision,
   parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread, sendReport, localMentionSlugs,
   autoBoostCount, boostedCount, markBoosted, unmarkBoosted, markLiked, unmarkLiked, getTimelineReaction, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,

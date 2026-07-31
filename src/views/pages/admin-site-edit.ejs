@@ -213,6 +213,14 @@
     </fieldset>
 
     <fieldset>
+      <legend><%= t('asite.aliases') %></legend>
+      <p class="form-hint"><%= t('asite.aliases_hint') %></p>
+      <label>
+        <textarea name="ap_aliases" rows="3" placeholder="@oud@mastodon.social&#10;https://andere-klonkt.example/ap/users/naam"><%= apAliases %></textarea>
+      </label>
+    </fieldset>
+
+    <fieldset>
       <legend><%= t('asite.feed_view') %></legend>
       <label>
         <span><%= t('asite.feed_default') %></span>

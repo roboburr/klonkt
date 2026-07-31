@@ -25,6 +25,7 @@ import ThemeService from '../services/ThemeService.js';
 import { listPlatforms, PLATFORMS } from '../services/PlatformIcons.js';
 import { toWebp } from '../services/ImageWebpService.js';
 import { mediaDir } from '../config/paths.js';
+import AP from '../services/ActivityPubService.js';
 
 
 // Profile photos share the avatar directory with user avatars — same physical
@@ -70,6 +71,27 @@ function buildProfileLinks(body) {
     arr.push({ platform: p, url: u });
   }
   return arr.length ? JSON.stringify(arr) : null;
+}
+
+/**
+ * FEP-7628 aliases (alsoKnownAs): one former identity per line, as an actor
+ * URL or an @user@host handle. Handles resolve via WebFinger AT SAVE TIME on
+ * purpose — a typo'd alias that silently lands on the actor would make a later
+ * Move fail at the old server with no hint why. Throws the offending line.
+ */
+async function parseApAliases(raw, ownActorUri) {
+  const lines = String(raw || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  if (lines.length > 5) throw new Error(lines[5] + ' (max 5)');
+  const out = [];
+  for (const line of lines) {
+    let uri = null;
+    if (/^https?:\/\//i.test(line)) uri = line;
+    else if (line.includes('@')) uri = await AP.webfingerResolve(line).catch(() => null);
+    if (!uri) throw new Error(line);
+    if (uri === ownActorUri) continue; // claiming yourself adds nothing
+    if (!out.includes(uri)) out.push(uri);
+  }
+  return out;
 }
 
 const router = express.Router();
@@ -255,6 +277,9 @@ router.get('/:slug/edit', requireSiteManagerBySlug, (req, res) => {
     try { parsedLinks = JSON.parse(site.profile_links) || []; } catch {}
   }
 
+  let apAliases = '';
+  try { apAliases = (JSON.parse(site.ap_aliases || '[]') || []).join('\n'); } catch { /* show empty on malformed */ }
+
   renderPage(req, res, 'pages/admin-site-edit', {
     pageTitleKey: 'admin.t_editsite', pageTitleVars: { title: site.title },
     bodyClass: 'on-admin',
@@ -265,19 +290,30 @@ router.get('/:slug/edit', requireSiteManagerBySlug, (req, res) => {
     accents: ThemeService.listAccents(),
     platforms: listPlatforms(),
     parsedLinks,
+    apAliases,
     success: req.query.success || null,
     error: req.query.error || null,
   });
 });
 
 // ==================== SAVE ====================
-router.post('/:slug/save', requireSiteManagerBySlug, (req, res) => {
-  const site = db.prepare('SELECT id FROM sites WHERE slug = ?').get(req.params.slug);
+router.post('/:slug/save', requireSiteManagerBySlug, async (req, res) => {
+  const site = db.prepare('SELECT id, ap_aliases FROM sites WHERE slug = ?').get(req.params.slug);
   if (!site) return res.redirect('/admin/sites?error=Not+found');
 
   const f = req.body;
   const feedViewDef = f.feed_view_default === 'grid' ? 'grid' : 'timeline';
   const profileLinksJson = buildProfileLinks(f);
+
+  // FEP-7628 aliases — validated/resolved before anything is written.
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  let apAliasesJson = null;
+  try {
+    const arr = await parseApAliases(f.ap_aliases, AP.actorId(base, req.params.slug));
+    apAliasesJson = arr.length ? JSON.stringify(arr) : null;
+  } catch (e) {
+    return res.redirect(`/admin/sites/${req.params.slug}/edit?error=` + encodeURIComponent(`Alias niet herkend of niet vindbaar: ${e.message}`));
+  }
 
   // theme_override: only accept the three legal values. Empty string means
   // "Auto" — defer to user's prefers-color-scheme on first paint.
@@ -293,6 +329,7 @@ router.post('/:slug/save', requireSiteManagerBySlug, (req, res) => {
       palette = ?, accent = ?, theme_override = ?, profile_photo = ?,
       profile_enabled = ?,
       profile_links = ?,
+      ap_aliases = ?,
       is_public = ?, robots_index = ?, require_login_to_comment = ?,
       enable_audio_player = ?,
       feed_view_default = ?, feed_view_switch = ?,
@@ -311,6 +348,7 @@ router.post('/:slug/save', requireSiteManagerBySlug, (req, res) => {
     f.profile_photo || null,
     f.profile_enabled ? 1 : 0,
     profileLinksJson,
+    apAliasesJson,
     f.is_public ? 1 : 0,
     f.robots_index ? 1 : 0,
     f.require_login_to_comment ? 1 : 0,
@@ -333,6 +371,16 @@ router.post('/:slug/save', requireSiteManagerBySlug, (req, res) => {
       db.prepare('UPDATE sites SET owner_id = ? WHERE id = ?').run(newOwner, site.id);
       grantSiteAdmin(site.id, newOwner);
     }
+  }
+
+  // Alias change → broadcast an actor Update so remote caches refresh. The old
+  // server re-fetches the actor live during a Move anyway; this is freshness,
+  // not correctness, hence best-effort.
+  if ((site.ap_aliases || null) !== apAliasesJson) {
+    try {
+      const fresh = db.prepare('SELECT * FROM sites WHERE id = ?').get(site.id);
+      AP.deliverActorUpdate(fresh).catch(() => {});
+    } catch { /* never blocks the save */ }
   }
 
   res.redirect(`/admin/sites/${req.params.slug}/edit?success=` + encodeURIComponent('Opgeslagen'));

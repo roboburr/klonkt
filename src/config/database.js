@@ -142,6 +142,10 @@ export function initializeDatabase() {
   // allow the one without the other. NULL = auto, which means off for a ward.
   ensureColumn('sites', 'external_playback', 'INTEGER');
   ensureColumn('sites', 'og_theme', 'TEXT');             // OG share-card variant: NULL=auto (follow site theme) | 'light' | 'dark'
+  // FEP-7628: former identities this actor claims (JSON array of actor URIs).
+  // Publishing them as alsoKnownAs is what lets the OLD server approve a Move
+  // of its followers to this account — the claim must be visible on OUR side.
+  ensureColumn('sites', 'ap_aliases', 'TEXT');
 
   // Per-post noindex + type
   ensureColumn('posts', 'noindex', 'INTEGER DEFAULT 0');
