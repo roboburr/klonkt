@@ -2,7 +2,6 @@
 import { v4 as uuid } from 'uuid';
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
 import multer from 'multer';
 import ejs from 'ejs';
 import db from '../config/database.js';
@@ -24,12 +23,9 @@ import { premiumUnlocked } from '../services/PatreonService.js';
 import { defaultMinCents as paidDefaultMinCents, patreonUrl as paidPatronUrl } from '../services/PaidPatreonService.js';
 import { verifyBlob } from '../services/CryptoBox.js';
 import MusicMeta from '../services/MusicMeta.js';
+import { mediaDir } from '../config/paths.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const POST_IMAGES_DIR = path.resolve(
-  process.env.POST_IMAGES_PATH ||
-  path.join(__dirname, '..', '..', 'storage', 'media', 'post-images')
-);
+const POST_IMAGES_DIR = mediaDir('POST_IMAGES_PATH', 'post-images');
 fs.mkdirSync(POST_IMAGES_DIR, { recursive: true });
 
 const ALLOWED_IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif']);
@@ -37,10 +33,7 @@ const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 // Rich replies: media dropped/pasted into the reply editor. Images, audio and
 // video, stored as-is (no transcode; a reply attachment is not a track).
-const REPLY_MEDIA_DIR = path.resolve(
-  process.env.REPLY_MEDIA_PATH ||
-  path.join(__dirname, '..', '..', 'storage', 'media', 'reply-media')
-);
+const REPLY_MEDIA_DIR = mediaDir('REPLY_MEDIA_PATH', 'reply-media');
 fs.mkdirSync(REPLY_MEDIA_DIR, { recursive: true });
 const ALLOWED_REPLY_MEDIA_EXT = new Set([
   '.jpg', '.jpeg', '.png', '.webp', '.gif',

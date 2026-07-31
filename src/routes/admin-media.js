@@ -9,16 +9,13 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
 import db from '../config/database.js';
 import { renderPage } from '../middleware/render.js';
 import { requireGod } from '../middleware/auth.js';
 import { audioEnabled } from '../config/features.js';
+import { mediaDir } from '../config/paths.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const POST_IMAGES_DIR = path.resolve(
-  process.env.POST_IMAGES_PATH || path.join(__dirname, '..', '..', 'storage', 'media', 'post-images')
-);
+const POST_IMAGES_DIR = mediaDir('POST_IMAGES_PATH', 'post-images');
 
 const router = express.Router();
 
@@ -26,9 +23,7 @@ const IMG_EXT = /\.(jpe?g|png|webp|gif|avif)$/i;
 const VIDEO_EXT = /\.(mp4|webm|m4v|mov)$/i;
 // C2S uploads (Shaer's composer and the help buoy) land here; the videos among
 // them are what the Video tab shows.
-const REPLY_MEDIA_DIR = path.resolve(
-  process.env.REPLY_MEDIA_PATH || path.join(__dirname, '..', '..', 'storage', 'media', 'reply-media')
-);
+const REPLY_MEDIA_DIR = mediaDir('REPLY_MEDIA_PATH', 'reply-media');
 const isSibling = (f) => /-v\.(mp4|jpg)$/i.test(f); // an animated cover's video/poster sibling
 
 // Basename of a /media/post-images/<file> URL (or null).

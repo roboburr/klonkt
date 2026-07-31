@@ -22,8 +22,8 @@ import * as Guardianship from '../services/guardianship/index.js';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
 import { randomUUID } from 'crypto';
+import { mediaDir } from '../config/paths.js';
 
 const router = express.Router();
 // The whole fediverse layer can be turned off (solo "no federation" mode):
@@ -421,10 +421,7 @@ router.get('/ap/users/:slug/inbox', (req, res) => {
 // scoped to this site uploads one image/audio/video (multipart field "file",
 // AP convention) into the same store the reply editor uses, and gets back
 // { url, mediaType, name } to attach on a note (e.g. the help-buoy capture).
-const AP_MEDIA_DIR = path.resolve(
-  process.env.REPLY_MEDIA_PATH ||
-  path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'storage', 'media', 'reply-media')
-);
+const AP_MEDIA_DIR = mediaDir('REPLY_MEDIA_PATH', 'reply-media');
 fs.mkdirSync(AP_MEDIA_DIR, { recursive: true });
 const AP_MEDIA_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.mp3', '.m4a', '.ogg', '.opus', '.flac', '.wav', '.mp4', '.webm', '.mov']);
 const apMediaUpload = multer({

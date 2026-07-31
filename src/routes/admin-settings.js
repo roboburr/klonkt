@@ -15,7 +15,6 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
 import multer from 'multer';
 import { v4 as uuid } from 'uuid';
 import { renderPage } from '../middleware/render.js';
@@ -25,6 +24,7 @@ import { SUPPORTED } from '../services/i18n.js';
 import { mailerStatus, sendMail } from '../config/mailer.js';
 import { entitlementStatus, premiumUnlocked } from '../services/PatreonService.js';
 import { toWebp } from '../services/ImageWebpService.js';
+import { mediaDir } from '../config/paths.js';
 
 const router = express.Router();
 
@@ -35,12 +35,9 @@ function clampOverlay(raw) {
   return Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 45;
 }
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Hero uploads land in storage/media/hero → accessible as /media/hero/<file>
 // (the /media static handler serves storage/media). Same model as avatars.
-const HERO_DIR = path.resolve(
-  process.env.HERO_PATH || path.join(__dirname, '..', '..', 'storage', 'media', 'hero')
-);
+const HERO_DIR = mediaDir('HERO_PATH', 'hero');
 fs.mkdirSync(HERO_DIR, { recursive: true });
 
 // Only raster formats for upload. SVG is intentionally NOT allowed via upload

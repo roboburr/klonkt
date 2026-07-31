@@ -21,6 +21,7 @@ import { toWebp } from '../services/ImageWebpService.js';
 import { requireGod } from '../middleware/auth.js';
 import { transcodeToMp3, retagMp3 } from '../services/AudioTranscoder.js';
 import { audioUrl } from '../services/AudioStreamService.js';
+import { mediaDir } from '../config/paths.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Audio files live OUTSIDE storage/media so the public /media static
@@ -29,9 +30,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const AUDIO_DIR = path.resolve(
   process.env.AUDIO_PATH || path.join(__dirname, '..', '..', 'storage', 'audio')
 );
-const COVER_DIR = path.resolve(
-  process.env.COVER_PATH || path.join(__dirname, '..', '..', 'storage', 'media', 'audio-covers')
-);
+const COVER_DIR = mediaDir('COVER_PATH', 'audio-covers');
 fs.mkdirSync(AUDIO_DIR, { recursive: true });
 fs.mkdirSync(COVER_DIR, { recursive: true });
 

@@ -16,7 +16,6 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
 import multer from 'multer';
 import { v4 as uuid } from 'uuid';
 import db from '../config/database.js';
@@ -25,15 +24,13 @@ import { requireGod, requireAuth, requireSiteManagerBySlug } from '../middleware
 import ThemeService from '../services/ThemeService.js';
 import { listPlatforms, PLATFORMS } from '../services/PlatformIcons.js';
 import { toWebp } from '../services/ImageWebpService.js';
+import { mediaDir } from '../config/paths.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Profile photos share the avatar directory with user avatars — same physical
 // folder, same URL prefix. Filenames are uuid-prefixed so site photos and
 // user avatars never collide.
-const PHOTO_DIR = path.resolve(
-  process.env.AVATAR_PATH || path.join(__dirname, '..', '..', 'storage', 'media', 'avatars')
-);
+const PHOTO_DIR = mediaDir('AVATAR_PATH', 'avatars');
 fs.mkdirSync(PHOTO_DIR, { recursive: true });
 
 const ALLOWED_PHOTO_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif']);
