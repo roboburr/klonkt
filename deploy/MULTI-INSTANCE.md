@@ -83,9 +83,13 @@ systemd template, and switches from `klonkt.service` to `klonkt@<slug>`.
 Your web server config does not change. The instance keeps the same port,
 because the port comes from the same `.env`.
 
-**Rolling back.** The old `klonkt.service` is disabled but not deleted. To go
-back, move the data into `/opt/klonkt/storage`, restore the relative paths in
-`.env`, and run `systemctl enable --now klonkt`.
+**Rolling back.** The old `klonkt.service` is disabled and masked, not deleted.
+Masked because `disable` alone does not stop `systemctl restart klonkt` from
+starting it again, and a resurrected unit no longer finds its `.env` (that moved
+with the data): it would fall back to the defaults and write a fresh empty
+database into the checkout. To go back, move the data into `/opt/klonkt/storage`,
+restore the relative paths in `.env`, then `systemctl unmask klonkt` and
+`systemctl enable --now klonkt`.
 
 ## Adding an instance
 

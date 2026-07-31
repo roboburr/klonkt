@@ -128,9 +128,16 @@ fi
 run "systemctl daemon-reload"
 
 step "Switching to klonkt@$SLUG"
-if systemctl is-enabled --quiet "$OLD_UNIT" 2>/dev/null; then
+if systemctl list-unit-files "$OLD_UNIT" >/dev/null 2>&1; then
   run "systemctl disable --now $OLD_UNIT"
-  say "disabled $OLD_UNIT (file kept, so you can roll back)"
+  # Disable only removes the autostart link: `systemctl restart klonkt` would
+  # still START it. That is not theoretical — an updater generated before the
+  # split does exactly that, and the resurrected unit finds no .env (it moved
+  # with the data), falls back to the built-in defaults and creates a FRESH
+  # EMPTY database in the checkout. Masking makes any such call fail loudly.
+  # Reversible: systemctl unmask klonkt.
+  run "systemctl mask $OLD_UNIT"
+  say "disabled and masked $OLD_UNIT (unmask to roll back)"
 fi
 run "systemctl enable --now 'klonkt@$SLUG'"
 

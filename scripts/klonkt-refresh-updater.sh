@@ -57,3 +57,30 @@ fi
 EOF
 chmod +x /usr/local/bin/klonkt-update
 echo "klonkt-update rewritten: branch ${BRANCH}, code ${KLONKT_DIR}, instances under ${DATA_ROOT}"
+
+# On a split install the old single unit must not be startable. `disable` alone
+# does not stop `systemctl restart klonkt` from starting it, and a resurrected
+# klonkt.service has no .env (it moved with the data): it falls back to the
+# defaults and writes a fresh empty database into the checkout.
+SPLIT=0
+for d in "${DATA_ROOT}"/*/; do [ -f "$d/.env" ] && SPLIT=1 && break; done
+if [ "$SPLIT" = 1 ] && systemctl list-unit-files klonkt.service >/dev/null 2>&1; then
+  if ! systemctl is-enabled klonkt.service 2>/dev/null | grep -q masked; then
+    systemctl stop klonkt.service 2>/dev/null || true
+    systemctl disable klonkt.service 2>/dev/null || true
+    systemctl mask klonkt.service
+    echo "retired klonkt.service: stopped, disabled and masked (unmask to roll back)"
+  fi
+fi
+
+# A leftover storage/ in the checkout means something ran without the instance
+# config. Report it; never delete it unattended — only its owner can tell
+# whether it holds anything.
+if [ "$SPLIT" = 1 ] && [ -e "${KLONKT_DIR}/storage" ]; then
+  echo
+  echo "WARNING: ${KLONKT_DIR}/storage exists while instance data lives in ${DATA_ROOT}."
+  echo "         Something ran without the instance .env and wrote here. Check with:"
+  echo "             sqlite3 ${KLONKT_DIR}/storage/database.sqlite 'select count(*) from posts;'"
+  echo "         If it is empty, it is a stray from a resurrected klonkt.service and"
+  echo "         can be removed. If it is NOT empty, do not delete it: ask first."
+fi
