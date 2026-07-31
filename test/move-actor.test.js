@@ -162,11 +162,43 @@ test('the happy path: moved_to recorded, one Move to every follower inbox', asyn
   assert.equal(r.ok, true);
   assert.equal(r.target, 'https://elders.example/users/nieuw');
   assert.equal(db.prepare("SELECT moved_to FROM sites WHERE slug = 'radio'").get().moved_to, 'https://elders.example/users/nieuw');
-  assert.equal(delivered.length, 2, 'both follower inboxes');
-  for (const d of delivered) {
-    assert.equal(d.activity.type, 'Move');
+  // Slice 3 added the Update(actor) alongside it, so count the Moves.
+  const moves = delivered.filter((d) => d.activity.type === 'Move');
+  assert.equal(moves.length, 2, 'one Move per follower inbox');
+  for (const d of moves) {
     assert.equal(d.activity.object, ME_RADIO);
     assert.equal(d.activity.target, 'https://elders.example/users/nieuw');
   }
-  assert.ok(delivered.some((d) => d.inbox === 'https://b.example/shared'), 'shared inbox preferred');
+  assert.ok(moves.some((d) => d.inbox === 'https://b.example/shared'), 'shared inbox preferred');
+});
+
+// ── Slice 3: the signpost ──────────────────────────────────────────
+// The old actor stays online and SAYS where it went (FEP-7628 movedTo), and
+// the followers are told with an Update alongside the Move.
+
+test('a moved account carries movedTo on its actor; an unmoved one does not', () => {
+  const fresh = db.prepare("SELECT * FROM sites WHERE slug = 'blog'").get();
+  assert.equal('movedTo' in buildActor('https://test.example', fresh), false, 'no move, no signpost');
+  const moved = { ...fresh, moved_to: 'https://elders.example/users/nieuw' };
+  assert.equal(buildActor('https://test.example', moved).movedTo, 'https://elders.example/users/nieuw');
+  // Junk in the column never reaches the wire.
+  assert.equal('movedTo' in buildActor('https://test.example', { ...fresh, moved_to: 'niet-een-url' }), false);
+});
+
+test('the move tells the followers twice: an Update carrying movedTo, and the Move', async () => {
+  db.prepare("DELETE FROM ap_followers WHERE slug = 'radio'").run();
+  db.prepare("UPDATE sites SET moved_to = NULL WHERE slug = 'radio'").run();
+  db.prepare("INSERT INTO ap_followers (slug, actor_uri, inbox) VALUES ('radio', 'https://c.example/u/c', 'https://c.example/inbox')").run();
+  const sent = [];
+  const r = await moveAccount(radioSite(), 'https://elders.example/users/nieuw', {
+    fetchActorFn: async () => ({ id: 'https://elders.example/users/nieuw', inbox: 'https://elders.example/inbox', alsoKnownAs: [ME_RADIO] }),
+    deliverFn: async (slug, inbox, activity) => { sent.push(activity); },
+  });
+  assert.equal(r.ok, true);
+  const update = sent.find((a) => a.type === 'Update');
+  const move = sent.find((a) => a.type === 'Move');
+  assert.ok(update, 'an Update is sent');
+  assert.ok(move, 'the Move is still sent');
+  assert.equal(update.object.movedTo, 'https://elders.example/users/nieuw', 'the Update carries the signpost');
+  assert.equal(update.object.id, ME_RADIO, 'and it is OUR actor being updated');
 });

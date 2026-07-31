@@ -233,6 +233,12 @@ export function buildActor(base, site) {
       if (clean.length) actor.alsoKnownAs = clean;
     }
   } catch { /* skip malformed ap_aliases */ }
+  // FEP-7628 slice 3: this account moved. The old actor stays online AS A
+  // SIGNPOST — that is the whole point of keeping it: whoever missed the Move
+  // activity (offline server, later visitor) still learns where we went by
+  // fetching us. Per the FEP the moved actor "should be considered inactive",
+  // and publishers should stop delivering here.
+  if (site.moved_to && /^https?:\/\//i.test(String(site.moved_to))) actor.movedTo = String(site.moved_to);
   // Profile links → PropertyValue rows: Mastodon/PeerTube/WordPress-ActivityPub render these as
   // profile metadata (rel=me enables link-back verification). Additive; ignored by simpler receivers.
   try {
@@ -3891,9 +3897,22 @@ export async function moveAccount(site, targetRaw, { fetchActorFn = null, delive
     target: target.id,
     to: [`${me}/followers`],
   };
+  // FEP-7628: after setting movedTo, notify the followers with an Update of
+  // the actor, so their servers hold the signpost even if the Move itself is
+  // lost. Built from the FRESH row: `site` still carries the pre-move values.
+  const movedSite = db.prepare('SELECT * FROM sites WHERE slug = ?').get(site.slug) || { ...site, moved_to: target.id };
+  const update = {
+    '@context': AP_CONTEXT,
+    id: `${me}#update-${Date.now()}-${rid()}`,
+    type: 'Update', actor: me, to: [PUBLIC], cc: [`${me}/followers`],
+    object: buildActor(base, movedSite),
+    published: new Date().toISOString(),
+  };
   const inboxes = [...new Set(fStmts().list.all(site.slug).map((f) => f.shared_inbox || f.inbox).filter(Boolean))];
+  const send = deliverFn || deliverWithRetry;
   for (const inbox of inboxes) {
-    await (deliverFn || deliverWithRetry)(site.slug, inbox, move, `${me}#main-key`, keys.private_pem);
+    await send(site.slug, inbox, update, `${me}#main-key`, keys.private_pem);
+    await send(site.slug, inbox, move, `${me}#main-key`, keys.private_pem);
   }
   console.log('[AP] MOVE announced:', site.slug, '→', target.id, 'naar', inboxes.length, 'inbox(en)');
   return { ok: true, target: target.id, inboxes: inboxes.length };

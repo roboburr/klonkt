@@ -558,6 +558,26 @@ page-container figcaption { font-family: var(--font-ui); font-size: .85rem; colo
 page-container[contenteditable="true"] { outline: 2px dashed var(--accent); outline-offset: .5rem; border-radius: var(--radius); }
 
 .empty { text-align: center; padding: 4rem 1rem; }
+/* Moved account (FEP-7628 slice 3): the signpost above the feed. Loud on
+   purpose — a visitor must not read a stale timeline thinking it is current. */
+.moved-banner {
+    text-align: center;
+    margin: 1.5rem 0 2rem;
+    padding: 1.75rem 1.25rem;
+    border: 2px solid var(--accent, #e8b04b);
+    border-radius: var(--radius, 10px);
+    background: color-mix(in srgb, var(--accent, #e8b04b) 10%, var(--paper-2, var(--paper)));
+}
+.moved-banner-lead { margin: 0 0 .5rem; font-size: 1rem; opacity: .85; }
+.moved-banner-link {
+    display: inline-block;
+    font-family: var(--font-display);
+    font-size: clamp(1.5rem, 5vw, 2.4rem);
+    font-weight: 700;
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+}
+.moved-banner-hint { margin: .75rem 0 0; font-size: .85rem; color: var(--ink-soft); }
 .empty h1 { font-size: 2rem; }
 .empty p { color: var(--ink-muted); }
 

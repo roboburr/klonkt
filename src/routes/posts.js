@@ -231,10 +231,15 @@ router.get('/', (req, res) => {
 
   recordPageview(site.id, req);
 
+  // FEP-7628 slice 3: this account moved. A visitor who lands here deserves
+  // the same signpost the fediverse gets — one big link to the new address.
+  const movedTo = site.moved_to && /^https?:\/\//i.test(String(site.moved_to)) ? String(site.moved_to) : null;
   renderPage(req, res, 'pages/home', {
     pinnedPosts,
     posts,
     hasMore, nextOffset: offset + FEED_PAGE, moreBase,
+    movedTo,
+    movedToLabel: movedTo ? (ActivityPubService.actorDisplay(site.slug, movedTo).handle || movedTo) : null,
     pageTitle: site.title,
     socialDescr: site.description || site.tagline || '',
     bodyClass: 'on-home',

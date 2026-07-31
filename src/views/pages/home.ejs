@@ -17,6 +17,20 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
     #pcms-main) so it survives HTMX swaps and is visible on every
     non-admin page. %>
 
+<%# FEP-7628 slice 3: this account moved. The signpost comes FIRST, before
+    any post: a visitor should not scroll a dead feed to find out we left.
+    typeof-guard because an old route may render this template for one
+    request right after a deploy (view cache fills on first hit). %>
+<% if (typeof movedTo !== 'undefined' && movedTo) { %>
+  <div class="container">
+    <aside class="moved-banner">
+      <p class="moved-banner-lead"><%= t('phome.moved_lead') %></p>
+      <a class="moved-banner-link" href="<%= movedTo %>" rel="me noopener"><%= movedToLabel || movedTo %></a>
+      <p class="moved-banner-hint"><%= t('phome.moved_hint') %></p>
+    </aside>
+  </div>
+<% } %>
+
 <!-- ========== TIMELINE ========== -->
 <div class="container feed-timeline">
 
