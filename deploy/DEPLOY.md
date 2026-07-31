@@ -198,6 +198,31 @@ After your first user/site is created (auto on first registration), use
 (`/sites/<slug>/`) and its own PWA scope, so installing the PWA from one
 site won't navigate into another.
 
+These sites live inside one Klonkt, sharing one database and one process. For
+separate domains with separate databases, see the next section instead.
+
+---
+
+## 9b. Several independent Klonkts on one server
+
+A different question from the one above: not several sites inside one Klonkt,
+but several Klonkts side by side, each with its own domain, database and
+uploads, all sharing a single copy of the code.
+
+That layout keeps user data out of the checkout:
+
+```
+/opt/klonkt/                 the code, shared by every instance
+/var/lib/klonkt/<slug>/      one instance: .env, database, uploads
+```
+
+Adding a site is then a directory plus an `.env`, and `klonkt-update` moves all
+of them to the new code in one step. Existing single site installs can be
+converted with `scripts/klonkt-migrate-data.sh`.
+
+See **[MULTI-INSTANCE.md](MULTI-INSTANCE.md)** for the layout, the migration,
+the file ownership and the backup routine.
+
 ---
 
 ## 10. Troubleshooting
