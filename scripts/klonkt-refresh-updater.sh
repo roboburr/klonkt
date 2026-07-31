@@ -58,18 +58,25 @@ EOF
 chmod +x /usr/local/bin/klonkt-update
 echo "klonkt-update rewritten: branch ${BRANCH}, code ${KLONKT_DIR}, instances under ${DATA_ROOT}"
 
-# On a split install the old single unit must not be startable. `disable` alone
-# does not stop `systemctl restart klonkt` from starting it, and a resurrected
-# klonkt.service has no .env (it moved with the data): it falls back to the
-# defaults and writes a fresh empty database into the checkout.
+# On a split install the old single unit must not be startable at all.
+# `disable` is not enough (restart starts a disabled unit anyway) and `mask`
+# refuses while the real file sits in /etc/systemd/system, the highest-priority
+# directory. Moving the file aside is what actually works: systemd stops
+# knowing the unit, so any restart fails loudly instead of quietly starting a
+# second process that writes an empty database into the checkout.
 SPLIT=0
 for d in "${DATA_ROOT}"/*/; do [ -f "$d/.env" ] && SPLIT=1 && break; done
-if [ "$SPLIT" = 1 ] && systemctl list-unit-files klonkt.service >/dev/null 2>&1; then
-  if ! systemctl is-enabled klonkt.service 2>/dev/null | grep -q masked; then
-    systemctl stop klonkt.service 2>/dev/null || true
-    systemctl disable klonkt.service 2>/dev/null || true
-    systemctl mask klonkt.service
-    echo "retired klonkt.service: stopped, disabled and masked (unmask to roll back)"
+if [ "$SPLIT" = 1 ] && [ -f /etc/systemd/system/klonkt.service ]; then
+  systemctl stop klonkt.service 2>/dev/null || true
+  systemctl disable klonkt.service 2>/dev/null || true
+  RETIRED="/etc/systemd/system/klonkt.service.retired-$(date +%Y%m%d%H%M%S)"
+  if mv /etc/systemd/system/klonkt.service "$RETIRED"; then
+    systemctl daemon-reload
+    echo "retired klonkt.service → $RETIRED (move it back + daemon-reload to roll back)"
+  else
+    echo "WARNING: could not move /etc/systemd/system/klonkt.service aside."
+    echo "         Until you do, any 'systemctl restart klonkt' starts a second"
+    echo "         process that writes an empty database into ${KLONKT_DIR}."
   fi
 fi
 

@@ -127,18 +127,33 @@ else
 fi
 run "systemctl daemon-reload"
 
-step "Switching to klonkt@$SLUG"
-if systemctl list-unit-files "$OLD_UNIT" >/dev/null 2>&1; then
-  run "systemctl disable --now $OLD_UNIT"
-  # Disable only removes the autostart link: `systemctl restart klonkt` would
-  # still START it. That is not theoretical — an updater generated before the
-  # split does exactly that, and the resurrected unit finds no .env (it moved
-  # with the data), falls back to the built-in defaults and creates a FRESH
-  # EMPTY database in the checkout. Masking makes any such call fail loudly.
-  # Reversible: systemctl unmask klonkt.
-  run "systemctl mask $OLD_UNIT"
-  say "disabled and masked $OLD_UNIT (unmask to roll back)"
+step "Retiring $OLD_UNIT"
+# Stopping and disabling is NOT enough: `systemctl restart klonkt` starts a
+# disabled unit anyway, and that is exactly what an updater generated before
+# the split does. A resurrected klonkt.service no longer finds its .env (that
+# moved with the data), falls back to the built-in defaults, and writes a
+# FRESH EMPTY database into the checkout.
+#
+# Masking does not help either: the unit file lives in /etc/systemd/system,
+# the highest-priority directory, and `systemctl mask` refuses when a real
+# file is already there ("File ... already exists"). Verified, not assumed.
+#
+# So the file is moved aside. systemd then no longer knows the unit at all and
+# any restart fails loudly with "Unit klonkt.service not found". The file is
+# kept next to its old place, timestamped, so a rollback is a move back.
+if [ -f "/etc/systemd/system/$OLD_UNIT" ]; then
+  run "systemctl stop $OLD_UNIT 2>/dev/null || true"
+  run "systemctl disable $OLD_UNIT 2>/dev/null || true"
+  RETIRED="/etc/systemd/system/${OLD_UNIT}.retired-$(date +%Y%m%d%H%M%S)"
+  run "mv '/etc/systemd/system/$OLD_UNIT' '$RETIRED'"
+  run "systemctl daemon-reload"
+  say "stopped, disabled and moved aside → $RETIRED"
+  say "roll back by moving that file back and running: systemctl daemon-reload"
+else
+  say "no $OLD_UNIT unit file to retire"
 fi
+
+step "Switching to klonkt@$SLUG"
 run "systemctl enable --now 'klonkt@$SLUG'"
 
 step "Rewriting klonkt-update for the new layout"
