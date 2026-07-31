@@ -37,16 +37,9 @@ export function initializeDatabase() {
   // Additive column migrations — safe to run every boot.
   // SQLite throws if the column already exists; we swallow that.
   ensureColumn('sites', 'enable_audio_player', 'INTEGER DEFAULT 1');
-  // Guardian 2: losse guardians. Een guardian-only account is user + minimale
-  // site (alleen de actor telt); de vlag houdt CMS/listings erbuiten.
-  ensureColumn('sites', 'guardian_only', 'INTEGER DEFAULT 0');
-  db.exec(`CREATE TABLE IF NOT EXISTS ap_guardian_invites (
-    token TEXT PRIMARY KEY,
-    created_by TEXT NOT NULL,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    used_by TEXT,
-    used_at TEXT
-  )`);
+  // (Verwijderd 31-7-2026: sites.guardian_only en ap_guardian_invites hoorden
+  // bij de guardian-lite accounts. Bestaande installaties houden kolom en tabel
+  // ongebruikt; nieuwe krijgen ze niet meer.)
   // FEP-633c §5.3: follows targeting a ward are held pending until its
   // guardians approve (Guardian 2). Gating applies only to ward-actors.
   db.exec(`CREATE TABLE IF NOT EXISTS ap_pending_follows (

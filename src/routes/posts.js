@@ -762,25 +762,17 @@ function paidTeaser(post, max = 280) {
   return text.length > max ? text.slice(0, max).replace(/\s+\S*$/, '') + '…' : text;
 }
 
-function postNeighbors(site, post, isHub) {
-  const urlBaseFor = (p) => (isHub && p && p.site_slug) ? `/user/${p.site_slug}` : '';
-  const ordered = isHub
-    ? db.prepare(`
-        SELECT p.id, p.slug, p.title, p.pinned, s.slug AS site_slug
-        FROM posts p JOIN sites s ON s.id = p.site_id
-        WHERE p.status = 'published'
-        ORDER BY p.published_at DESC
-      `).all()
-    : db.prepare(`
-        SELECT id, slug, title, pinned FROM posts
-        WHERE site_id = ? AND status = 'published'
-        ORDER BY (pinned = 0) ASC, pinned ASC, published_at DESC
-      `).all(site.id);
+function postNeighbors(site, post) {
+  const ordered = db.prepare(`
+    SELECT id, slug, title, pinned FROM posts
+    WHERE site_id = ? AND status = 'published'
+    ORDER BY (pinned = 0) ASC, pinned ASC, published_at DESC
+  `).all(site.id);
   const idx = ordered.findIndex((p) => p.id === post.id);
   const newerPost = idx > 0 ? ordered[idx - 1] : null;
   const olderPost = (idx >= 0 && idx < ordered.length - 1) ? ordered[idx + 1] : null;
-  if (newerPost) newerPost._urlBase = urlBaseFor(newerPost);
-  if (olderPost) olderPost._urlBase = urlBaseFor(olderPost);
+  if (newerPost) newerPost._urlBase = '';
+  if (olderPost) olderPost._urlBase = '';
   return { newerPost, olderPost };
 }
 
@@ -1343,7 +1335,7 @@ router.get('/:slug', (req, res, next) => {
   const _u = req.query.u ? verifyBlob(String(req.query.u)) : null;
   const _unlocked = _u && _u.purpose === 'unlocked' && _u.siteId === site.id && String(_u.post) === String(post.slug);
   if (post.paid && !canEditThis && !_unlocked) {
-    const { newerPost, olderPost } = postNeighbors(site, post, res.locals.tenancy === 'hub');
+    const { newerPost, olderPost } = postNeighbors(site, post);
     return renderPage(req, res, 'pages/paid-gate', {
       pageTitle: post.title || 'Voor supporters',
       bodyClass: 'on-special',
@@ -1363,7 +1355,7 @@ router.get('/:slug', (req, res, next) => {
   if (post.fan_only && !(req.session && req.session.user)) {
     // Same Newer/Older navigation as on a normal post, so the visitor doesn't get
     // stuck on the fan gate but can keep browsing.
-    const { newerPost, olderPost } = postNeighbors(site, post, res.locals.tenancy === 'hub');
+    const { newerPost, olderPost } = postNeighbors(site, post);
     return renderPage(req, res, 'pages/fan-gate', {
       pageTitle: post.title || 'Alleen voor fans',
       bodyClass: 'on-special',
@@ -1395,31 +1387,20 @@ router.get('/:slug', (req, res, next) => {
 
   // Prev / next chronological (kept for back-compat — "post-nav" feature
   // below the article still uses these as a simple linear navigation).
-  // Hub mode: Related posts + Newer/Older pull from ALL users (all sites),
-  // newest first. Solo mode: within the current site (old behaviour).
-  const isHub = res.locals.tenancy === 'hub';
-  // Per-post URL base: in hub a link points to /user/<site-slug>/<post-slug>.
-  const urlBaseFor = (p) => (isHub && p && p.site_slug) ? `/user/${p.site_slug}` : '';
+  const urlBaseFor = () => '';
 
   // Newer/Older across ALL posts (shared helper — also used by the fan gate).
-  const { newerPost, olderPost } = postNeighbors(site, post, isHub);
+  const { newerPost, olderPost } = postNeighbors(site, post);
 
   // ── Related posts: same-tag matching with recency fallback ─────
   // Fetch ~50 candidates, score by tag overlap, take top 3.
   // Excluding self via `id != ?`.
-  const candidates = isHub
-    ? db.prepare(`
-        SELECT p.id, p.slug, p.title, p.cover_image_url, p.cover_video_url, p.published_at, p.tags, p.nsfw, p.content_warning, s.slug AS site_slug
-        FROM posts p JOIN sites s ON s.id = p.site_id
-        WHERE p.status = 'published' AND p.id != ?
-        ORDER BY p.published_at DESC LIMIT 50
-      `).all(post.id)
-    : db.prepare(`
-        SELECT id, slug, title, cover_image_url, cover_video_url, published_at, tags, nsfw, content_warning
-        FROM posts
-        WHERE site_id = ? AND status = 'published' AND id != ?
-        ORDER BY published_at DESC LIMIT 50
-      `).all(site.id, post.id);
+  const candidates = db.prepare(`
+    SELECT id, slug, title, cover_image_url, cover_video_url, published_at, tags, nsfw, content_warning
+    FROM posts
+    WHERE site_id = ? AND status = 'published' AND id != ?
+    ORDER BY published_at DESC LIMIT 50
+  `).all(site.id, post.id);
 
   // Parse tags JSON safely; missing/malformed → empty array.
   const parseTags = (raw) => {

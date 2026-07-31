@@ -199,8 +199,8 @@ export async function renderPage(req, res, viewName, data = {}) {
     canSeeBeheer,
     canManageFedi,
     apEnabled: apEnabled(),
-    // Cirkel = the artists you feature (auto-boost). Shown when AP is on and you
-    // auto-boost ≥1 account, or (legacy) on a circle-tenancy site.
+    // Cirkel = the artists you feature (auto-boost): shown when AP is on and
+    // you auto-boost at least one account.
     hasCirkel: !!(_site && apEnabled() && (ActivityPubService.autoBoostCount(_site.slug) > 0 || ActivityPubService.boostedCount(_site.slug) > 0)),
     isViewer: _isViewer,
     canMutate: !_isViewer,
@@ -212,8 +212,6 @@ export async function renderPage(req, res, viewName, data = {}) {
     audioEnabled: audioFeatureEnabled(),
     audioTracks: data.audioTracks || res.locals.audioTracks || [],
     siteUrlBase: res.locals.siteUrlBase || '',
-    tenancy: res.locals.tenancy || 'solo',
-    hubTitle: getSetting('hub_title') || '',
     footerNewsletter: getSetting('footer_newsletter') === '1', // newsletter sign-up in footer (premium)
     agendaEnabled: getSetting('agenda_enabled') === '1', // show agenda/events in the pill (premium, opt-in)
     platforms_catalog: PLATFORMS_CATALOG,

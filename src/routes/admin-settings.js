@@ -1,6 +1,5 @@
 /**
  * Admin: global settings.
- *  - tenancy mode (Solo/Hub)
  *  - hub branding (name/tagline/intro/hero of the generic hub home page)
  *
  * GET  /admin/settings   -> show current settings
@@ -19,7 +18,7 @@ import multer from 'multer';
 import { v4 as uuid } from 'uuid';
 import { renderPage } from '../middleware/render.js';
 import { requireGod } from '../middleware/auth.js';
-import { getTenancy, setTenancy, getSetting, setSetting } from '../services/SettingsService.js';
+import { getSetting, setSetting } from '../services/SettingsService.js';
 import { SUPPORTED } from '../services/i18n.js';
 import { mailerStatus, sendMail } from '../config/mailer.js';
 import { entitlementStatus, premiumUnlocked } from '../services/PatreonService.js';
@@ -68,8 +67,6 @@ router.get('/', requireGod, (req, res) => {
   renderPage(req, res, 'pages/admin-settings', {
     pageTitleKey: 'admin.t_settings',
     bodyClass: 'on-admin',
-    tenancy: getTenancy(),
-    hubTitle: getSetting('hub_title') || '',
     hubTagline: getSetting('hub_tagline') || '',
     hubIntro: getSetting('hub_intro') || '',
     hubHeroImage: getSetting('hub_hero_image') || '',
@@ -86,16 +83,12 @@ router.get('/', requireGod, (req, res) => {
 
 router.post('/', requireGod, (req, res) => {
   // multer.single processes multipart (hub branding form). For a plain
-  // urlencoded POST (tenancy form) multer does nothing and req.body stays intact.
+  // urlencoded POST: multer does nothing and req.body stays intact.
   heroUpload.single('hub_hero_file')(req, res, (err) => {
     if (err) {
       return res.redirect('/admin/settings?error=' + encodeURIComponent(err.message));
     }
 
-    if (typeof req.body.tenancy !== 'undefined') {
-      // Hub mode is removed → setTenancy only accepts solo | circle (coerces the rest).
-      setTenancy(req.body.tenancy);
-    }
     if (typeof req.body.default_lang !== 'undefined') {
       // Default language for visitors (empty = follow env/browser). Validated against NL/EN/DE.
       const dl = (req.body.default_lang || '').toString().toLowerCase();
@@ -108,9 +101,6 @@ router.post('/', requireGod, (req, res) => {
       let valid = '';
       if (tz) { try { Intl.DateTimeFormat('en-US', { timeZone: tz }); valid = tz; } catch { valid = ''; } }
       setSetting('timezone', valid);
-    }
-    if (typeof req.body.hub_title !== 'undefined') {
-      setSetting('hub_title', (req.body.hub_title || '').toString().slice(0, 80).trim());
     }
     if (typeof req.body.hub_tagline !== 'undefined') {
       setSetting('hub_tagline', (req.body.hub_tagline || '').toString().slice(0, 120).trim());

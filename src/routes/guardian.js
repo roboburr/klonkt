@@ -9,8 +9,6 @@
  * Views carry no inline scripts (CSP): logic lives in /assets/js/guardian.js.
  */
 import express from 'express';
-import crypto from 'crypto';
-import bcrypt from 'bcryptjs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import db from '../config/database.js';
@@ -594,66 +592,11 @@ router.get('/icon.svg', (req, res) => {
   res.send(svg);
 });
 
-// ── Losse guardians (Guardian 2): uitnodigen en aansluiten ───────────────
-// De familie nodigt oma uit; zij kiest naam + wachtwoord en heeft daarmee een
-// guardian-only account: user + minimale site (guardian_only=1). Alles wat al
-// per slug werkt (actor, inbox, offers, push, deze PWA) werkt dan meteen.
-
-router.post('/invite', requireAuth, (req, res) => {
-  const token = crypto.randomBytes(16).toString('base64url');
-  db.prepare('INSERT INTO ap_guardian_invites (token, created_by) VALUES (?,?)')
-    .run(token, req.session.user.id);
-  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
-  const url = `${base}/guardian/join/${token}`;
-  res.send(`<!doctype html><meta charset="utf-8"><body style="font-family:sans-serif;max-width:480px;margin:40px auto">
-    <h2>Invite a guardian</h2>
-    <p>Share this link. It lets one person create a guardian account here:</p>
-    <p><a href="${url}">${url}</a></p>
-    <p><a href="/guardian">Back</a></p></body>`);
-});
-
-function joinForm(token, error) {
-  return `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <body style="font-family:sans-serif;max-width:420px;margin:40px auto">
-  <h2>Become a guardian</h2>
-  <p>Watch over someone you care about. Pick a name and a password; that is all.</p>
-  ${error ? `<p style="color:#b00">${error}</p>` : ''}
-  <form method="post" action="/guardian/join/${token}">
-    <p><input name="name" placeholder="your name (grandma)" required pattern="[a-z0-9_-]{1,32}"
-       style="width:100%;padding:10px" autocapitalize="none"></p>
-    <p><input name="password" type="password" placeholder="password" required minlength="8"
-       style="width:100%;padding:10px"></p>
-    <p><button style="width:100%;padding:12px">Create my guardian account</button></p>
-  </form></body>`;
-}
-
-router.get('/join/:token', (req, res) => {
-  const inv = db.prepare('SELECT * FROM ap_guardian_invites WHERE token = ? AND used_at IS NULL')
-    .get(req.params.token);
-  if (!inv) return res.status(404).send('This invite is no longer valid.');
-  res.send(joinForm(req.params.token));
-});
-
-router.post('/join/:token', express.urlencoded({ extended: false }), (req, res) => {
-  const inv = db.prepare('SELECT * FROM ap_guardian_invites WHERE token = ? AND used_at IS NULL')
-    .get(req.params.token);
-  if (!inv) return res.status(404).send('This invite is no longer valid.');
-  const name = String(req.body.name || '').trim().toLowerCase();
-  const password = String(req.body.password || '');
-  if (!/^[a-z0-9_-]{1,32}$/.test(name)) return res.status(400).send(joinForm(req.params.token, 'Only lowercase letters, digits, - and _.'));
-  if (password.length < 8) return res.status(400).send(joinForm(req.params.token, 'Password: at least 8 characters.'));
-  if (db.prepare('SELECT 1 FROM sites WHERE slug = ?').get(name) || db.prepare('SELECT 1 FROM users WHERE username = ?').get(name)) {
-    return res.status(409).send(joinForm(req.params.token, 'That name is taken, pick another.'));
-  }
-  const userId = crypto.randomUUID();
-  db.prepare('INSERT INTO users (id, username, email, password_hash, role) VALUES (?,?,?,?,?)')
-    .run(userId, name, `${name}@guardian.invalid`, bcrypt.hashSync(password, 10), 'member');
-  db.prepare('INSERT INTO sites (id, slug, title, owner_id, is_primary, guardian_only) VALUES (?,?,?,?,0,1)')
-    .run(crypto.randomUUID(), name, name, userId);
-  db.prepare('UPDATE ap_guardian_invites SET used_by = ?, used_at = CURRENT_TIMESTAMP WHERE token = ?')
-    .run(userId, req.params.token);
-  req.session.user = { id: userId, username: name, role: 'member' };
-  res.redirect('/guardian');
-});
+// Losse guardian-accounts (guardian-lite: /invite + /join, user + site met
+// guardian_only=1) zijn verwijderd op 31-7-2026. Een instance is een eigenaar;
+// zo'n account was de laatste multi-user-rest en zette bovendien andermans
+// wachtwoordhash, sessie en PRIVATE actor-sleutel in jouw database, wat een
+// verhuizing (shaer-qw6q) onmogelijk netjes maakte. Een guardian hoort een
+// eigen Klonkt te hebben; de adoptie loopt dan gewoon over de federatie.
 
 export default router;

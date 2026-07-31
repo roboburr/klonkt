@@ -25,7 +25,6 @@ import HtmlSanitizerService from './HtmlSanitizerService.js';
 import AudioEmbedService from './AudioEmbedService.js';
 import EmbedResolver from './EmbedResolver.js';
 import Push from './PushService.js';
-import { getTenancy } from './SettingsService.js';
 import { t as i18nT } from './i18n.js';
 import Blocklist from './BlocklistService.js';
 import * as Guardianship from './guardianship/index.js';
@@ -1417,10 +1416,10 @@ export function wakeNews(slug) {
   _newsWaiters.delete(slug);
   for (const cb of cbs) { try { cb(); } catch { /* a waiter must never break the rest */ } }
 }
-// Hub-aware path prefix for a site's pages ('' in solo).
-function pushPrefix(slug) {
-  try { return getTenancy() === 'hub' ? `/user/${slug}` : ''; } catch { return ''; }
-}
+// Path prefix for a site's pages. One instance is one owner, so the site
+// lives at the root; kept as a function because the push URLs read like
+// `${pushPrefix(slug)}/messages` all over this file.
+function pushPrefix() { return ''; }
 // Notification language: the site's content language (fallback: instance default).
 function pushLang(slug) {
   try { const r = db.prepare('SELECT language FROM sites WHERE slug = ?').get(slug); return (r && r.language) || process.env.KLONKT_DEFAULT_LANG || 'nl'; } catch { return 'nl'; }

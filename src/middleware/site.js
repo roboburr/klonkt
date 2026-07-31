@@ -9,7 +9,6 @@
  */
 
 import db from '../config/database.js';
-import { getTenancy } from '../services/SettingsService.js';
 import { audioUrl } from '../services/AudioStreamService.js';
 import { audioEnabled } from '../config/features.js';
 
@@ -26,34 +25,9 @@ export function getPrimarySite() {
 }
 
 export function resolveSite(req, res, next) {
-  const tenancy = getTenancy();
-  res.locals.tenancy = tenancy; // also available in views
-
-  // In HUB mode /user/:slug maps to a specific site. In SOLO mode there is only
-  // one site: we skip that routing and pin to the primary site.
-  if (tenancy === 'hub') {
-    // A Klonkt site is canonically reachable via /user/:slug. /sites/:slug is a
-    // legacy alias → 301 to the canonical form so one URL scheme remains
-    // (preserves path + query string; does NOT touch /admin/sites, which starts with /admin/).
-    const m = req.path.match(/^\/(sites|user)\/([a-zA-Z0-9_-]+)(\/.*)?$/);
-    if (m) {
-      if (m[1] === 'sites') {
-        return res.redirect(301, req.originalUrl.replace(/^\/sites\//, '/user/'));
-      }
-      const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(m[2]);
-      if (site) {
-        res.locals.site = site;
-        req.url = (m[3] || '/'); // strip /user/:slug zodat downstream de rest ziet
-        res.locals.siteUrlBase = `/user/${m[2]}`;
-        return next();
-      }
-    }
-    // (Removed: a dead "slug == hostname" subdomain hack. Slugs may not contain
-    // dots, so it could never match. Real subdomain routing would match the
-    // subdomain LABEL against the slug — a separate feature, not this.)
-  }
-
-  // Solo (or hub without a match): pin to the primary/main site.
+  // One instance is one owner (Robins besluit, 31-7): there is one site tree,
+  // pinned to the primary site. The /user/:slug routing that hub mode needed
+  // is gone with it.
   const defaultSite = getPrimarySite();
   if (defaultSite) {
     res.locals.site = defaultSite;

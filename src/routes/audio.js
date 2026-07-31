@@ -155,7 +155,6 @@ router.get('/stream/:filename', (req, res) => {
 router.get('/track/:id/post', (req, res) => {
   const id = String(req.params.id || '');
   if (!/^[A-Za-z0-9_-]+$/.test(id)) return res.status(400).json({ error: 'bad id' });
-  const isHub = res.locals.tenancy === 'hub';
   const row = db.prepare(`
     SELECT p.slug, s.slug AS site_slug
     FROM posts p JOIN sites s ON s.id = p.site_id
@@ -163,7 +162,7 @@ router.get('/track/:id/post', (req, res) => {
     ORDER BY p.published_at DESC LIMIT 1
   `).get('%[[track:' + id + ']]%');
   if (!row) return res.status(404).json({ error: 'not found' });
-  const url = isHub ? `/user/${row.site_slug}/${row.slug}` : `/${row.slug}`;
+  const url = `/${row.slug}`;
   res.json({ url });
 });
 

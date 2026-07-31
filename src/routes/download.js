@@ -33,7 +33,7 @@ function downloadsPostNav(req, res) {
     "SELECT id, slug, pinned FROM posts WHERE site_id = ? AND slug = 'downloads' AND status = 'published'"
   ).get(site.id);
   if (!post) return {};
-  try { return postNeighbors(site, post, res.locals.tenancy === 'hub'); } catch (e) { return {}; }
+  try { return postNeighbors(site, post); } catch (e) { return {}; }
 }
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const AUDIO_DIR = path.resolve(process.env.AUDIO_PATH || path.join(__dirname, '..', '..', 'storage', 'audio'));

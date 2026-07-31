@@ -13,7 +13,7 @@
         <span><%= t('asite.slug') %> <% if (!isNew) { %><em><%= t('asite.slug_fixed') %></em><% } %></span>
         <span class="slug-url">
           <span class="slug-url-host" id="slug-host"
-                data-prefix="<%= (typeof tenancy !== 'undefined' && tenancy === 'hub') ? '/user/' : '/' %>">website.com/</span><input
+                data-prefix="/">website.com/</span><input
                 type="text" name="slug" id="slug-input" class="slug-url-input" value="<%= site.slug %>" required <% if (!isNew) { %>readonly<% } %>
                 pattern="[a-z0-9_-]{2,40}" placeholder="<%= t('asite.slug_placeholder') %>"
                 autocapitalize="none" autocorrect="off" spellcheck="false">
@@ -23,20 +23,6 @@
         <span><%= t('asite.field_title') %> <small class="form-hint-inline"><%= t('asite.field_title_hint') %></small></span>
         <input type="text" name="title" value="<%= site.title || '' %>" required maxlength="200">
       </label>
-      <%# Assign (or reassign) owner — ONLY god AND only in hub mode. In hub this
-          gives each user their own self-managed Klonkt. In solo (one site,
-          one owner) this is pointless/confusing, so it's hidden. %>
-      <% if (user && user.role === 'god' && (typeof tenancy !== 'undefined' && tenancy === 'hub')) { %>
-      <label>
-        <span><%= t('asite.owner') %> <small class="form-hint-inline"><%= t('asite.owner_hint') %></small></span>
-        <% var _godSuffix = t('asite.owner_god_suffix'); %>
-        <select name="owner_id">
-          <% (typeof users !== 'undefined' ? users : []).forEach(function(u){ %>
-            <option value="<%= u.id %>" <%= (site.owner_id === u.id) ? 'selected' : '' %>><%= u.username %><%= u.role === 'god' ? _godSuffix : '' %></option>
-          <% }); %>
-        </select>
-      </label>
-      <% } %>
       <label>
         <span><%= t('asite.tagline') %> <small class="form-hint-inline"><%= t('asite.tagline_hint') %></small></span>
         <input type="text" name="tagline" value="<%= site.tagline || '' %>" maxlength="200">
