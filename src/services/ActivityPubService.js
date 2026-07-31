@@ -95,13 +95,26 @@ async function assertPublicHost(hostname) {
   const addrs = await dns.promises.lookup(hostname, { all: true });
   if (!addrs.length || addrs.some((a) => isBlockedIp(a.address))) throw new Error('ssrf-blocked-host');
 }
+// One honest name on ALL outbound federation traffic (Robins vraag, 31-7):
+// safeFetch went out with the bare Node default before, and polite fediverse
+// citizens say who they are (some instances even refuse anonymous UAs). A
+// caller-provided User-Agent (the EmbedResolver) still wins.
+let _uaVer = '1.0';
+try { _uaVer = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url))).version || _uaVer; } catch { /* keep default */ }
+const KLONKT_UA = `Klonkt/${_uaVer} (+https://klonkt.com)`;
+
 export async function safeFetch(url, opts = {}, maxRedirects = 3) {
   let target = url;
   for (let hop = 0; ; hop++) {
     const u = new URL(target); // throws on malformed → caller's catch
     if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new Error('ssrf-bad-scheme');
     await assertPublicHost(u.hostname);
-    const r = await fetch(target, { ...opts, redirect: 'manual', signal: AbortSignal.timeout(8000) });
+    const r = await fetch(target, {
+      ...opts,
+      headers: { 'User-Agent': KLONKT_UA, ...(opts.headers || {}) },
+      redirect: 'manual',
+      signal: AbortSignal.timeout(8000),
+    });
     const loc = (r.status >= 300 && r.status < 400) ? r.headers.get('location') : null;
     if (loc && hop < maxRedirects) { target = new URL(loc, target).toString(); continue; }
     return r;

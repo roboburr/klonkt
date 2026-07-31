@@ -46,7 +46,7 @@ function isOperator(req) {
 
 // Skip known bots/crawlers + link-preview fetchers + scripts so they don't inflate
 // view/visitor-day counts. Empty UA = almost always automated.
-const BOT_RE = /bot|crawl|spider|slurp|mediapartners|bingpreview|facebookexternalhit|whatsapp|telegram|discord|twitter|linkedin|embedly|pinterest|redditbot|applebot|petalbot|yandex|baidu|duckduckbot|semrush|ahrefs|mj12|dotbot|uptimerobot|pingdom|statuscake|headless|lighthouse|gptbot|claude|ccbot|perplexity|bytespider|amazonbot|googleother|google-read-aloud|python-requests|scrapy|curl|wget|axios|node-fetch|go-http|java\/|okhttp|libwww|httpclient|mastodon|pleroma|akkoma|misskey|calckey|firefish|friendica|hubzilla|lemmy|pixelfed|peertube|gotosocial|honk|http\.rb|activitypub/i;
+const BOT_RE = /bot|crawl|spider|slurp|mediapartners|bingpreview|facebookexternalhit|whatsapp|telegram|discord|twitter|linkedin|embedly|pinterest|redditbot|applebot|petalbot|yandex|baidu|duckduckbot|semrush|ahrefs|mj12|dotbot|uptimerobot|pingdom|statuscake|headless|lighthouse|gptbot|claude|ccbot|perplexity|bytespider|amazonbot|googleother|google-read-aloud|python-requests|scrapy|curl|wget|axios|node-fetch|go-http|java\/|okhttp|libwww|httpclient|mastodon|pleroma|akkoma|misskey|calckey|firefish|friendica|hubzilla|lemmy|pixelfed|peertube|gotosocial|honk|http\.rb|activitypub|klonkt/i;
 function isBot(req) {
   const ua = (req && req.headers && req.headers['user-agent']) || '';
   if (!ua) return true;          // empty UA = script/bot

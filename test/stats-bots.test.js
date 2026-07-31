@@ -34,6 +34,12 @@ test('a fediverse preview fetcher does not count', () => {
   assert.equal(pv(), before, 'server fetches are not readers');
 });
 
+test("a Klonkt's own embed-fetcher does not count on another Klonkt", () => {
+  const before = pv();
+  Stats.recordPageview('s1', fakeReq({ 'user-agent': 'Mozilla/5.0 (compatible; Klonkt/1.0; +https://klonkt.com)' }));
+  assert.equal(pv(), before);
+});
+
 test('a SIGNED request never counts, whatever the UA claims', () => {
   const before = pv();
   Stats.recordPageview('s1', fakeReq({ 'user-agent': 'Mozilla/5.0 totally-a-browser', signature: 'keyId="x",signature="y"' }));
