@@ -1,17 +1,23 @@
 # Uitgaande follows van een ward — ontwerp
 
+Bijbehorende beads: **shaer-p729** (bouwen) en **shaer-yeo5** (de spec-vraag:
+informeren of gaten?). Dit document beantwoordt yeo5 en beschrijft wat p729
+inhoudt.
+
 FEP-633c §5.3 houdt follows *naar* een ward tegen tot de guardians beslissen.
-Follows *van* een ward gaan ongehinderd de deur uit. `ingestOutboxActivity`
-roept bij `case 'Follow'` meteen `followActor()` aan: geen ward-check, geen
-guardian, geen wachtrij. `mee` heeft een vastgelegde guardian en kan vandaag
-iedereen op de fediverse volgen zonder dat iemand het ziet.
+Follows *van* een ward gaan ongehinderd de deur uit: `ingestOutboxActivity`
+roept bij `case 'Follow'` meteen `followActor()` aan, zonder ward-check en
+zonder wachtrij.
+
+De guardians blijven niet in het duister. Sinds 1a2f206 krijgt elke guardian een
+directe note zodra zijn ward iemand gaat volgen. Maar dat is Robins constatering
+van 31-7 in één zin: **dat is informeren, geen gate.** De deur is al open op het
+moment dat het bericht aankomt, en een guardian die te laat kijkt kan alleen nog
+achteraf iets vinden van iets dat al gebeurd is.
 
 De asymmetrie is half te verdedigen. `Block` (Shaers "Orbit") is uitgaand ook
 ongated, en dat is de veilige richting: een kind dat zijn eigen wereld kleiner
 maakt heeft geen toestemming nodig. Volgen is de richting die hem opent.
-
-Er staat hierover niets in de docs of de FEP-notities. Dit is dus een gat in het
-ontwerp, niet een ongeschreven stuk implementatie.
 
 ## De regel
 
@@ -103,6 +109,32 @@ eerste open vraag.
 
 5. **Emancipatie.** Wat gebeurt er met openstaande verzoeken als de
    guardianship eindigt? Automatisch goedkeuren of laten vervallen.
+
+## Raakvlakken met andere beads
+
+- **shaer-3kp** (gated features, guardian-overeengekomen instellingen) noemt
+  "following approve" al met zoveel woorden. Dat is de plek waar het beleid
+  hoort te wonen: één instellingen-object op de ward met de server als bron van
+  waarheid. Dit ontwerp moet daar een veld in zijn, geen eigen mechaniek ernaast.
+- **shaer-h6u** (lokale guardian via de lijn i.p.v. de gedeelde database) raakt
+  de bezorgweg die hier ook gebruikt wordt.
+- **shaer-zjt** bouwt het guardian-dashboard mét quorumteller; de nieuwe
+  wachtrij moet daar meteen in passen.
+
+### De quorum-kolom is nooit aangesloten
+
+Los van dit ontwerp, en niet in een bead gevonden: `ap_pending_follows.quorum`
+wordt door de aanroep in `ActivityPubService.js` nooit meegegeven, dus alles
+valt terug op de default `'any'`. `'all'` bestaat alleen in de vergelijking in
+`decide()` en wordt nergens geschreven; `'none'` heeft helemaal geen tak en zou
+zich als `'any'` gedragen in plaats van als "open". shaer-hxg is gesloten met
+"quorum any/all" als opgeleverd, en `test/follow-gating.test.js` slaagt omdat de
+test de waarde zelf meegeeft — precies het pad dat productie nooit neemt.
+
+Gevolg: een ward met drie guardians gaat vandaag open op één goedkeuring, ook
+als iemand dacht `all` te hebben ingesteld. Verdient een eigen bead, en de
+oplossing hangt samen met shaer-3kp: als het beleid daar komt te wonen, is dat
+meteen de plek waar de inkomende kant zijn quorum vandaan haalt.
 
 ## Daemon-pariteit
 
