@@ -27,8 +27,12 @@ db.prepare('INSERT INTO users (id, username, email, password_hash, role) VALUES 
   .run('u1', 'u1', 'u1@t', 'x', 'god');
 // `kid` is the primary site; `oma` is a second public site that must NOT be
 // what a bare host resolves to.
-db.prepare('INSERT INTO sites (id, slug, title, owner_id, is_primary) VALUES (?,?,?,?,1)').run('s1', 'kid', 'kid', 'u1');
-db.prepare('INSERT INTO sites (id, slug, title, owner_id, is_primary) VALUES (?,?,?,?,0)').run('s2', 'oma', 'oma', 'u1');
+// Explicit created_at: getPrimarySite() falls back to the OLDEST site, and two
+// rows inserted in the same second would make that order a coin flip.
+db.prepare('INSERT INTO sites (id, slug, title, owner_id, is_primary, created_at) VALUES (?,?,?,?,1,?)')
+  .run('s1', 'kid', 'kid', 'u1', '2026-01-01 00:00:00');
+db.prepare('INSERT INTO sites (id, slug, title, owner_id, is_primary, created_at) VALUES (?,?,?,?,0,?)')
+  .run('s2', 'oma', 'oma', 'u1', '2026-06-01 00:00:00');
 
 const app = express();
 app.use(routes);
@@ -83,6 +87,22 @@ test('unicode and punycode spellings of one host find one Ward', async () => {
 
   assert.equal(typed.body.subject, 'acct:kid@xn--zz9h.is.wildenvrij.nl',
     'the subject we answer with is the canonical one, never the alias that was asked for');
+});
+
+test('a bare host resolves even when no site carries the primary flag', async () => {
+  // This is the state a fresh instance is actually in: is_primary defaults to 0
+  // and the backfill only runs when the column is first added, so a site created
+  // afterwards leaves the instance with no primary at all. The HTML side coped
+  // (getPrimarySite falls back to the oldest) while this route kept its own
+  // is_primary-only lookup — so / served the site and WebFinger said 404.
+  db.prepare('UPDATE sites SET is_primary = 0').run();
+  try {
+    const { status, body } = await finger('acct:test.example@test.example');
+    assert.equal(status, 200, 'an unflagged instance is still discoverable');
+    assert.equal(actorOf(body), 'https://test.example/ap/users/kid', 'falls back to the oldest site');
+  } finally {
+    db.prepare('UPDATE sites SET is_primary = 1 WHERE id = ?').run('s1');
+  }
 });
 
 test('an unknown user is still a 404', async () => {

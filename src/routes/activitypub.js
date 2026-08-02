@@ -19,6 +19,7 @@ import { apReadLimiter, apInboxLimiter } from '../middleware/rate-limit.js';
 import { apEnabled } from '../services/SettingsService.js';
 import OAuth from '../services/OAuthService.js';
 import * as Guardianship from '../services/guardianship/index.js';
+import { getPrimarySite } from '../middleware/site.js';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -42,7 +43,12 @@ try { _ver = JSON.parse(readFileSync(new URL('../../package.json', import.meta.u
 const baseUrl = (req) => (process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
 const hostOf = (req) => { try { return new URL(baseUrl(req)).host; } catch { return req.get('host'); } };
 const publicSite = (slug) => db.prepare('SELECT * FROM sites WHERE slug = ? AND (is_public IS NULL OR is_public = 1)').get(slug);
-const primarySlug = () => { const r = db.prepare('SELECT slug FROM sites WHERE is_primary = 1').get(); return r && r.slug; };
+// The primary site, via the one source of truth in middleware/site.js — which
+// falls back to the oldest site when nothing carries the is_primary flag. This
+// route used to keep its own is_primary-only copy, so a fresh instance whose
+// site was never flagged served its HTML at / (that resolver falls back) while
+// WebFinger and the actor route insisted it had no primary at all.
+const primarySlug = () => { const s = getPrimarySite(); return s && s.slug; };
 // A hostname as a human types it and as DNS stores it are the same host:
 // `🩵.is.wildenvrij.nl` IS `xn--zz9h.is.wildenvrij.nl`. WHATWG URL does the IDNA,
 // so compare the ASCII form and never the bytes the client happened to send.
