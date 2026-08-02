@@ -946,9 +946,24 @@ export function getMyReactions(slug, uri) {
 
 const localPostExists = (id) => { try { return !!db.prepare('SELECT 1 FROM posts WHERE id = ?').get(id); } catch { return false; } };
 // Extract our local post id from a note URL, but only if it's ours (base match).
+// One host, two spellings (Barts WebFinger-les, 2-8): a URL the client hands
+// back may carry the punycoded host (every URL parser silently punycodes)
+// while PUBLIC_BASE_URL carries the typed one. WHATWG URL does the IDNA, so
+// compare origins in ASCII and never the bytes the client happened to send.
+function asciiOrigin(u) {
+  try { const x = new URL(String(u)); return `${x.protocol}//${x.host}`.toLowerCase(); } catch { return null; }
+}
+function isOwnUrl(u) {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  if (!base) return false;
+  const a = asciiOrigin(u);
+  return !!a && a === asciiOrigin(base);
+}
 function postIdFromNoteUrl(url, base) {
   const s = String(url || '');
-  if (base && !s.startsWith(base)) return null;
+  // ASCII origins, not startsWith: xn--zz9h.example IS 🩵.example, and a
+  // byte comparison read our own note as a stranger's.
+  if (base) { const a = asciiOrigin(s); if (!a || a !== asciiOrigin(base)) return null; }
   const m = s.match(/\/ap\/notes\/([^/?#]+)/);
   return m ? decodeURIComponent(m[1]) : null;
 }
@@ -1261,6 +1276,35 @@ export async function verifyRequest(req) {
     }
   }
   return ok ? actor : null;
+}
+
+// ── Authorized fetch for a single Note (2-8) ─────────────────────
+// Who may read this post's Note over AP GET? 'public' needs nobody;
+// friends-only (fan_only, Shaer's DEFAULT) needs a verified follower;
+// 'direct' is addressed to people and is never served over a GET at all.
+export function noteAudience(post) {
+  if (!post) return 'direct';
+  if (post.ap_visibility === 'direct') return 'direct';
+  if (post.fan_only || post.ap_visibility === 'friends') return 'followers';
+  return 'public';
+}
+// A follower earns the friends-only Note; a blocked actor gets the same
+// nothing as a stranger (the standing rule: a blocked actor's signed fetch
+// earns the empty set, gated server-side at serialisation).
+export function mayReadNote(site, post, actorUri) {
+  const aud = noteAudience(post);
+  if (aud === 'public') return true;
+  if (aud === 'direct' || !site || !actorUri) return false;
+  try {
+    const blocked = db.prepare("SELECT 1 FROM ap_blocks WHERE slug = ? AND kind = 'actor' AND target = ?").get(site.slug, actorUri);
+    if (blocked) return false;
+    let host = null; try { host = new URL(actorUri).host; } catch { /* geen host, geen domein-block */ }
+    if (host) {
+      const dom = db.prepare("SELECT 1 FROM ap_blocks WHERE slug = ? AND kind = 'domain' AND target = ?").get(site.slug, host);
+      if (dom) return false;
+    }
+    return !!db.prepare('SELECT 1 FROM ap_followers WHERE slug = ? AND actor_uri = ?').get(site.slug, actorUri);
+  } catch { return false; }
 }
 
 // Parse a fediverse poll (an ActivityStreams `Question` — the Mastodon-standard poll form)
@@ -2721,6 +2765,38 @@ function actorUriOf(att) {
 
 // Resolve a remote post URL (any fediverse/Klonkt post) into a reply target.
 // Returns a parent-shaped object usable by deliverReply(), or null.
+// The server's own note, built straight from the DB. resolveRemoteNote used
+// to fetch EVERYTHING over HTTPS, including notes living right here: a
+// hairpin fetch fails on home setups (a Klonkt on a Mac behind a tunnel), the
+// /ap/notes route rightly hides friends-only posts, and a punycode-spelled
+// own URL read as remote on a byte comparison. For the authenticated C2S
+// caller none of those walls apply; the DB is one prepare() away.
+// `forSlug` is that caller: only the post's own site gets its non-public
+// notes on this shortcut (public ones anyone, same as the route serves).
+function localNoteObject(url, forSlug) {
+  if (!isOwnUrl(url)) return null;
+  const m = String(url).match(/\/ap\/notes\/([^/?#]+)/);
+  if (!m) return null;
+  const id = decodeURIComponent(m[1]);
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  const post = db.prepare("SELECT * FROM posts WHERE id = ? AND status = 'published'").get(id);
+  if (post) {
+    const site = db.prepare('SELECT * FROM sites WHERE id = ?').get(post.site_id);
+    if (!site) return null;
+    const nonPublic = post.fan_only || post.ap_visibility === 'friends' || post.ap_visibility === 'direct';
+    if (nonPublic && (!forSlug || forSlug !== site.slug)) return null;
+    return buildNote(base, site, post);
+  }
+  return getOutboxNote(base, id);   // our own outbound replies
+}
+// The own actor document, same shortcut, same reason.
+function localActorObject(uri) {
+  if (!isOwnUrl(uri)) return null;
+  const m = String(uri).match(/\/ap\/users\/([^/?#]+)/);
+  const site = m ? db.prepare('SELECT * FROM sites WHERE slug = ?').get(decodeURIComponent(m[1])) : null;
+  return site ? buildActor((process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, ''), site) : null;
+}
+
 export async function resolveRemoteNote(url, opts = {}) {
   if (!/^https?:\/\//i.test(String(url || ''))) return null;
   // With `asSlug` the fetches are SIGNED as that local actor. An anonymous
@@ -2729,12 +2805,12 @@ export async function resolveRemoteNote(url, opts = {}) {
   // a reply to your own public post worked (Robins melding, 30-7). Signed,
   // the other server sees WHO asks and serves what the friendship earns.
   const get = (u) => (opts.asSlug ? signedGetJson(opts.asSlug, u) : fetchActor(u).catch(() => null));
-  const note = await get(url); // AP GET (content-negotiates)
+  const note = localNoteObject(url, opts.asSlug) || await get(url); // own DB first, then AP GET
   if (!note || !note.id) return null;
   const att = note.attributedTo;
   const actorUri = actorUriOf(att);
   if (!actorUri) return null;
-  const actor = await get(actorUri);
+  const actor = localActorObject(actorUri) || await get(actorUri);
   const ai = actorInfo(actor, actorUri);
   // Is what we're replying to a post (or a comment) on one of OUR posts? If so,
   // link our reply to that local post so it shows nested in the post thread.
@@ -2748,7 +2824,7 @@ export async function resolveRemoteNote(url, opts = {}) {
   while (cursor && guard++ < 6) {
     const url = typeof cursor === 'string' ? cursor : (cursor && cursor.id);
     if (!url) break;
-    const pn = await get(url);
+    const pn = localNoteObject(url, opts.asSlug) || await get(url);
     if (!pn) break;
     const pa = actorUriOf(pn.attributedTo);
     if (pa && pa !== actorUri) {
@@ -4431,7 +4507,7 @@ export default {
   AP_CONTEXT, getOrCreateKeys, apWants, sendAP, actorId, noteId, stripLeadingMentions,
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers, buildFollowing, buildFeatured,
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
-  getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, setMyReaction, getMyReactions, buildReplyNote, getOutboxNote, getSentNotes, deliverReply, resolveRemoteNote,
+  getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, setMyReaction, getMyReactions, buildReplyNote, getOutboxNote, getSentNotes, deliverReply, resolveRemoteNote, noteAudience, mayReadNote,
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate, deliverDirectNote,
   webfingerResolve, followActor, resolveRemoteActor, unfollowActor, handleMoveInbox, moveAccount, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, getDirectMessages, isoStamp, timelineAttachments, timelineEmojis, timelineObjectLinks, timelineQuote, timelineEmbed, applyQuoteProps, deliverToActor, sendInteraction, voteOnPoll, voteOnRemotePoll,
   acceptGatedFollow, rejectGatedFollow, isWardGuardian, outboxAudience, sendFollowDecision,

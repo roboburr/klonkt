@@ -584,10 +584,30 @@ router.get('/ap/users/:slug/featured', (req, res) => {
 });
 
 // ── Note ──────────────────────────────────────────────────────────
-router.get('/ap/notes/:id', (req, res) => {
+router.get('/ap/notes/:id', async (req, res) => {
+  // No fan_only filter in the SELECT anymore: a friends-only post is not
+  // absent, it is GATED. The old route hid it from EVERYONE, also from the
+  // follower whose friendship earns it — so the signed resolution the reply
+  // path performs knocked on a door that could never open, and every reply
+  // to a friends-only post (Shaer's default!) died in
+  // cannot_resolve_inReplyTo. Strangers still get the exact same 404, so a
+  // note's existence stays as private as before.
   const post = db.prepare(
-    "SELECT * FROM posts WHERE id = ? AND status = 'published' AND (fan_only IS NULL OR fan_only = 0)"
+    "SELECT * FROM posts WHERE id = ? AND status = 'published'"
   ).get(req.params.id);
+  if (post && AP.noteAudience(post) !== 'public') {
+    // The whole gate in a try: this is the only async route in this file,
+    // and Express 4 does not catch an async rejection — the request would
+    // hang forever instead of failing (which is exactly how the missing
+    // default-export entry manifested while building this). Any error here
+    // reads as "not authorized", never as silence.
+    try {
+      if (AP.noteAudience(post) === 'direct') return res.status(404).end();
+      const gsite = db.prepare('SELECT * FROM sites WHERE id = ?').get(post.site_id);
+      const actor = await AP.verifyRequest(req).catch(() => null);
+      if (!actor || !AP.mayReadNote(gsite, post, actor.id)) return res.status(404).end();
+    } catch { return res.status(404).end(); }
+  }
   if (!post) {
     // Could be one of OUR outbound replies (ap_outbox), not a post.
     const note = AP.getOutboxNote(baseUrl(req), req.params.id);
