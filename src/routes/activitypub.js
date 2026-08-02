@@ -43,12 +43,29 @@ const baseUrl = (req) => (process.env.PUBLIC_BASE_URL || `${req.protocol}://${re
 const hostOf = (req) => { try { return new URL(baseUrl(req)).host; } catch { return req.get('host'); } };
 const publicSite = (slug) => db.prepare('SELECT * FROM sites WHERE slug = ? AND (is_public IS NULL OR is_public = 1)').get(slug);
 const primarySlug = () => { const r = db.prepare('SELECT slug FROM sites WHERE is_primary = 1').get(); return r && r.slug; };
+// A hostname as a human types it and as DNS stores it are the same host:
+// `🩵.is.wildenvrij.nl` IS `xn--zz9h.is.wildenvrij.nl`. WHATWG URL does the IDNA,
+// so compare the ASCII form and never the bytes the client happened to send.
+const asciiHost = (h) => {
+  try { return new URL(`https://${h}`).host.toLowerCase(); } catch { return String(h).trim().toLowerCase(); }
+};
 
 // ── WebFinger ─────────────────────────────────────────────────────
 router.get('/.well-known/webfinger', (req, res) => {
   const m = String(req.query.resource || '').match(/^acct:([^@]+)@(.+)$/i);
   if (!m) return res.status(400).type('text/plain').send('bad resource');
-  const site = publicSite(m[1]);
+  const user = m[1];
+  let site = publicSite(user);
+  // `acct:<host>@<host>` asks for this server's primary actor — the convention
+  // Shaer's Handle relies on so a Ward is reachable without knowing anyone's
+  // slug. Typing `🩵.is.wildenvrij.nl`, pasting `https://🩵.is.wildenvrij.nl`
+  // (which the client's URL parser silently punycodes) and sending the xn--
+  // form by hand are three spellings of one address; all arrive here with the
+  // host sitting in the user position, and all must find the same actor.
+  if (!site && asciiHost(user) === asciiHost(hostOf(req))) {
+    const slug = primarySlug();
+    if (slug) site = publicSite(slug);
+  }
   if (!site) return res.status(404).end();
   res.type('application/jrd+json; charset=utf-8');
   res.set('Cache-Control', 'public, max-age=300');
