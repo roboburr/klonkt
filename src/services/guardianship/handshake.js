@@ -167,7 +167,7 @@ async function maybeCommit(slug, offerId) {
       kind: 'offer_rejected', offer: offerId,
       reason: 'not_a_teapot', candidate: offer.candidate_uri,
     });
-    return { done: null, refused: 'not_a_teapot' };
+    return { done: null, refused: 'not_a_teapot', offer };
   }
 
   // Could not read the candidate: neither commit nor void. Refusing outright
@@ -351,16 +351,29 @@ export async function handleOutbox(site, activity) {
   // this copy if the tally is now complete (order-independent, §3.1.3).
   offers.recordAccept(site.slug, offerId, me);
   await fanout(site, others, { id: `${me}/answers/${Date.now().toString(36)}`, type: 'Accept', actor: me, to: others, object: offerId });
-  const { done, refused } = await maybeCommit(site.slug, offerId);
+  const { done, refused, offer: voided } = await maybeCommit(site.slug, offerId);
   if (refused) {
-    // §4.2: the refusal travels as a `Reject` of the Offer, from whoever was
-    // about to commit — the same voice that just sent the Accept. A `Reject`
-    // is what §3 already understands, so a server that has never heard of §4
-    // still voids its copy correctly; the marker only adds the reason.
-    await fanout(site, others, {
+    // §4.2: the refusal travels as a `Reject` of the Offer (§3.2), which an
+    // implementation unaware of §4 still handles correctly. Who is told WHY is
+    // not uniform, and deliberately so.
+    const answer = (to, withReason) => ({
       id: `${me}/answers/${Date.now().toString(36)}`,
-      type: 'Reject', actor: me, to: others, object: offerId, 'shaer:notATeapot': true,
+      type: 'Reject', actor: me, to, object: offerId,
+      ...(withReason ? { 'shaer:notATeapot': true } : {}),
     });
+    const candidate = voided && voided.candidate_uri;
+    // The ward and its existing guardians MUST learn the reason: they are
+    // parties, the condition is public data (§2.1), and a bare void would
+    // leave a ward believing an adoption completed that did not.
+    const family = others.filter((u) => u !== candidate);
+    if (family.length) await fanout(site, family, answer(family, true));
+    // The candidate gets a BARE Reject. Commit is the last step of §3.1, so a
+    // refusal that names itself technical also discloses that every human
+    // party already accepted and only the protocol objected — which, where a
+    // guardianship is contested, is not theirs to learn. The kind path for an
+    // merely misconfigured candidate is the check on the Offer, before anyone
+    // has consented to anything.
+    if (candidate && others.includes(candidate)) await fanout(site, [candidate], answer([candidate], false));
     return { status: 202, id: offerId, url: offerId, committed: false, refused };
   }
   return { status: 202, id: offerId, url: offerId, committed: !!done, readyToCommit: offers.readyToCommit(offers.getOffer(site.slug, offerId)) };
@@ -459,6 +472,19 @@ export async function handleInbox(site, activity) {
     const recipients = arr(activity.to);
     const existing = recipients.filter((u) => u !== rel.ward);
     if (rel.ward !== me && !existing.includes(me)) return false;
+    // §4.2: check the candidate here too, and refuse before anyone accepts.
+    // At this point no party has consented, so saying why discloses nothing
+    // about anyone's position, and a candidate that is merely misconfigured
+    // can find that out and fix it. The commit-time check stays REQUIRED as
+    // the backstop for a candidate whose state changes in between.
+    if (await candidateFitness(rel.candidate) === 'malformed') {
+      notify(site.slug, { kind: 'offer_refused', offer: idOf(activity), reason: 'not_a_teapot', candidate: rel.candidate });
+      await fanout(site, [rel.candidate], {
+        id: `${me}/answers/${Date.now().toString(36)}`,
+        type: 'Reject', actor: me, to: [rel.candidate], object: idOf(activity), 'shaer:notATeapot': true,
+      });
+      return true;
+    }
     offers.start(site.slug, {
       offerId: idOf(activity), ward: rel.ward, candidate: rel.candidate, existingGuardians: existing,
       wardHandle: deps.deriveHandle(rel.ward), candidateHandle: deps.deriveHandle(rel.candidate),

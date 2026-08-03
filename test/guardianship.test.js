@@ -161,6 +161,33 @@ test('a candidate adopted between Offer and Accept is refused at commit (§4.2)'
   assert.deepEqual(stillPending, [], 'the handshake is void, not left hanging');
 });
 
+test('an Offer from a candidate that is already a ward is refused on arrival (§4.2)', async () => {
+  // The kind path. Nobody has accepted anything yet, so refusing here
+  // discloses nothing about anyone's position, and a candidate who is merely
+  // misconfigured gets told what is wrong while that is still all it means.
+  const viv = site('s13', 'viv');   // adopted first, then tries to guard
+  const zed = site('s14', 'zed');   // the would-be ward
+  const bo = site('s15', 'bo');     // adopts Viv
+  const [VIV, ZED, BO] = [A('viv'), A('zed'), A('bo')];
+
+  const adopt = await G.handleGuardianshipOutbox(bo, {
+    type: 'Offer', object: { type: 'Relationship', subject: VIV, relationship: 'shaer:Guardian', object: BO },
+  });
+  await G.handleGuardianshipOutbox(viv, { type: 'Accept', object: adopt.id });
+  assert.equal(G.listGuardians('viv').length, 1, 'Viv is a ward');
+
+  const handled = await G.handleGuardianshipInbox(zed, {
+    id: `${VIV}/offers/x1`, type: 'Offer', actor: VIV, to: [ZED],
+    object: { type: 'Relationship', subject: ZED, relationship: 'shaer:Guardian', object: VIV },
+  });
+  assert.equal(handled, true, 'the activity is handled — and handling it means refusing it');
+  assert.deepEqual(
+    G.offersCollection(`${ZED}/queues/offers`, 'zed', ZED).orderedItems, [],
+    'never stored, so it never sits in Zed\'s queue looking like a decision to make',
+  );
+  assert.deepEqual(G.listGuardians('zed'), []);
+});
+
 test('only the candidate may offer (§3.1 fixed initiator)', async () => {
   const r = await G.handleGuardianshipOutbox(parent, {
     type: 'Offer', object: { type: 'Relationship', subject: A('newkid'), relationship: 'shaer:Guardian', object: GRAN },
