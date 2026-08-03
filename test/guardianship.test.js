@@ -188,6 +188,56 @@ test('an Offer from a candidate that is already a ward is refused on arrival (§
   assert.deepEqual(G.listGuardians('zed'), []);
 });
 
+test('an unreadable candidate defers the commit, and the window names that failure (§4.2)', async () => {
+  const offers = await import('../src/services/guardianship/offers.js');
+  const noor = site('s16', 'noor');
+  const NOOR = A('noor');
+  const MARA = 'https://elders.example/users/mara';   // remote; fetchActor returns null here
+  const offerId = `${MARA}/offers/m1`;
+
+  // The Offer arrives and is STORED: unreachable is not malformed, and
+  // refusing on a failed fetch would let any outage block an adoption.
+  const taken = await G.handleGuardianshipInbox(noor, {
+    id: offerId, type: 'Offer', actor: MARA, to: [NOOR],
+    object: { type: 'Relationship', subject: NOOR, relationship: 'shaer:Guardian', object: MARA },
+  });
+  assert.equal(taken, true);
+
+  // Noor accepts. Free ward + candidate's own offer = the tally is complete,
+  // so this WOULD commit — except the candidate cannot be read.
+  const done = await G.handleGuardianshipOutbox(noor, { type: 'Accept', object: offerId });
+  assert.equal(done.committed, false, 'not committed: nobody verified the candidate');
+  assert.ok(!done.refused, 'and not refused either — that would blame a candidate nobody could look at');
+  assert.deepEqual(G.listGuardians('noor'), []);
+  assert.equal(offers.getOffer('noor', offerId).status, 'pending', 'deferred, not decided');
+
+  // A week later the §3.5 window closes and it fails closed — under its own
+  // name. Not 'void': the parties must not be told the candidate was refused.
+  const later = Date.now() + offers.OFFER_WINDOW_MS + 1000;
+  offers.expireIfDue('noor', offerId, later);
+  assert.equal(offers.getOffer('noor', offerId).status, 'unverified');
+
+  const q = G.offersCollection(`${NOOR}/queues/offers`, 'noor', NOOR).orderedItems;
+  assert.deepEqual(q.filter((o) => o.id === offerId), [], 'and it stops looking like a live choice');
+});
+
+test('a handshake nobody finished expires under a different name (§3.5)', async () => {
+  const offers = await import('../src/services/guardianship/offers.js');
+  const finn = site('s17', 'finn');
+  const iris = site('s18', 'iris');
+  const [FINN, IRIS] = [A('finn'), A('iris')];
+
+  const off = await G.handleGuardianshipOutbox(finn, {
+    type: 'Offer', object: { type: 'Relationship', subject: IRIS, relationship: 'shaer:Guardian', object: FINN },
+  });
+  // Iris never answers. Reading the queue after the window settles it.
+  G.offersCollection(`${IRIS}/queues/offers`, 'iris', IRIS);          // still open now
+  assert.equal(offers.getOffer('iris', off.id).status, 'pending');
+  offers.listForParty('iris', IRIS, Date.now() + offers.OFFER_WINDOW_MS + 1000);
+  assert.equal(offers.getOffer('iris', off.id).status, 'expired',
+    'nobody answered — that says nothing about the candidate, so it is not "unverified"');
+});
+
 test('only the candidate may offer (§3.1 fixed initiator)', async () => {
   const r = await G.handleGuardianshipOutbox(parent, {
     type: 'Offer', object: { type: 'Relationship', subject: A('newkid'), relationship: 'shaer:Guardian', object: GRAN },

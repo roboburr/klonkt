@@ -78,9 +78,60 @@ export function commit(slug, offerId, handle) {
   return stmts().getOffer.get(slug, offerId);
 }
 
-/** Pending offers where `me` is a party — the offers queue (daemon shape). */
-export function listForParty(slug, me) {
-  return stmts().listBySlug.get ? stmts().listBySlug.all(slug).filter((o) => isParty(o, me)) : [];
+/**
+ * How long a guardianship handshake stays open (§3.5). Adding a guardian is a
+ * reversible decision, but not a quick one: the ward, the candidate and every
+ * existing guardian have to answer, and they are people, sometimes on holiday.
+ * A week is long enough that nobody is rushed and short enough that a forgotten
+ * offer does not sit in a child's queue for a month looking like a live choice.
+ */
+export const OFFER_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** SQLite writes CURRENT_TIMESTAMP as UTC 'YYYY-MM-DD HH:MM:SS', which
+ *  Date.parse reads as LOCAL time — hours out, and enough to expire an offer
+ *  early or late. Same correction as ActivityPubService.isoStamp. */
+const stampMs = (v) => {
+  const s = String(v || '');
+  return Date.parse(/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}$/.test(s) ? `${s.replace(' ', 'T')}Z` : s);
+};
+
+export const closesAt = (o) => stampMs(o.created_at) + OFFER_WINDOW_MS;
+
+/**
+ * §3.5 fails closed: once the window has run, a handshake that never completed
+ * is over. WHICH failure it was matters (§4.2), so the two get different
+ * terminal states and neither of them is `void`:
+ *
+ *   'expired'     — the parties never all answered. Nothing to say about anyone.
+ *   'unverified'  — everyone answered; the candidate could never be read, so
+ *                   the check never got to run. The parties MUST be told this
+ *                   and MUST NOT be told the candidate was refused. It was not:
+ *                   nobody ever managed to look.
+ */
+export function expireIfDue(slug, offerId, now = Date.now()) {
+  const o = stmts().getOffer.get(slug, offerId);
+  if (!o || o.status !== 'pending') return null;
+  const due = closesAt(o);
+  if (!Number.isFinite(due) || due > now) return null;
+  const status = readyToCommit(o) ? 'unverified' : 'expired';
+  stmts().setStatus.run(status, null, slug, offerId);
+  return { ...o, status };
+}
+
+/** Pending offers where `me` is a party — the offers queue (daemon shape).
+ *  Reads are where lazy completion happens, as with the lapses (§3.6.3): a
+ *  closed window is settled here rather than by a sweeper nobody runs. */
+export function listForParty(slug, me, now = Date.now()) {
+  if (!stmts().listBySlug.get) return [];
+  for (const o of stmts().listBySlug.all(slug)) expireIfDue(slug, o.offer_id, now);
+  return stmts().listBySlug.all(slug).filter((o) => isParty(o, me));
+}
+
+/** Handshakes whose tally is complete but which are not committed: the §4.2
+ *  deferred set, waiting on a candidate nobody could dereference. */
+export function listDeferred(slug) {
+  if (!stmts().listBySlug.get) return [];
+  return stmts().listBySlug.all(slug).filter((o) => readyToCommit(o));
 }
 
 /** One offer as the offers-queue item the Shaer clients parse. */
@@ -108,4 +159,5 @@ export { parties, isParty, acceptsOf };
 export default {
   start, getOffer, findOfferAnywhere, recordAccept, recordReject, commit,
   readyToCommit, listForParty, queueItem, parties, isParty, acceptsOf,
+  OFFER_WINDOW_MS, closesAt, expireIfDue, listDeferred,
 };

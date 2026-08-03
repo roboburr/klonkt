@@ -544,8 +544,28 @@ export async function handleInbox(site, activity) {
   return true;
 }
 
+/**
+ * §4.2 SHOULD: retry the dereference for handshakes left deferred because the
+ * candidate could not be read.
+ *
+ * Waiting for a further activity from a party is not enough: the commit is
+ * triggered by the LAST `Accept`, so if that one has already arrived nothing
+ * will ever poke it again and the handshake would sit until its window closed.
+ * The ward's dashboard polling its own offers queue is this instance's
+ * schedule, exactly as a read settles a lapse (§3.6.3).
+ *
+ * Deliberately not awaited by the read: a poll should render what is true now,
+ * not block on someone else's slow server. A retry that succeeds shows up in
+ * the next poll, which is the same second or two later.
+ */
+export async function retryDeferred(slug) {
+  for (const o of offers.listDeferred(slug)) {
+    await maybeCommit(slug, o.offer_id).catch(() => { /* next poll tries again */ });
+  }
+}
+
 function notify(slug, ev) {
   try { if (deps && typeof deps.onEvent === 'function') deps.onEvent(slug, ev); } catch { /* best-effort */ }
 }
 
-export default { wireHandshake, handleOutbox, handleInbox, parseRelationship, parseUndoRelationship, endGuardianship };
+export default { wireHandshake, handleOutbox, handleInbox, parseRelationship, parseUndoRelationship, endGuardianship, retryDeferred };
