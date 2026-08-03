@@ -113,16 +113,72 @@ function applyCommitLocally(offer) {
   if (candSlug) relations.commitWardForGuardian(candSlug, offer.ward_uri, { handle: offer.ward_handle, offerId: offer.offer_id });
 }
 
+/**
+ * FEP-633c §4.2 — is this candidate fit to be a guardian at all?
+ *
+ * A guardian MUST be free of guardians (§1). Checked here and not at the Offer,
+ * because guardianship state can change in between: a candidate that was free
+ * when it offered may have been adopted before the ward accepted. So the check
+ * runs against a freshly dereferenced actor document, at the moment the
+ * relationship would become real.
+ *
+ * Three answers, and the third is not a failure of this check but a failure to
+ * perform it:
+ *   'ok'          — free of guardians, may serve
+ *   'malformed'   — carries shaer:guardians; a teapot (§4)
+ *   'unverified'  — the actor could not be read at all
+ */
+async function candidateFitness(candidateUri) {
+  // A candidate on this instance needs no dereference: our own tables are the
+  // document, and fresher than anything we could fetch from ourselves. This is
+  // also the co-located case (ward and guardian on one Klonkt), where there is
+  // no network to be unreachable on.
+  const local = deps.localSlug(candidateUri);
+  if (local) return relations.listGuardians(local).length > 0 ? 'malformed' : 'ok';
+
+  const doc = await deps.fetchActor(candidateUri).catch(() => null);
+  if (!doc) return 'unverified';
+  const g = doc['shaer:guardians'];
+  const has = Array.isArray(g) ? g.length > 0
+    : typeof g === 'string' ? g.length > 0
+      : (g && typeof g === 'object') ? (Array.isArray(g.items) ? g.items.length > 0 : true)
+        : false;
+  return has ? 'malformed' : 'ok';
+}
+
 /** Commit this local copy of the offer when the tally is complete (ward +
  *  candidate + ≥1 existing guardian, §3.1.2). The handle is the candidate's
  *  inbox (§6 minimum); the commit is order-independent, so whichever accept
  *  lands last triggers it on every copy. */
-function maybeCommit(slug, offerId) {
+async function maybeCommit(slug, offerId) {
   const offer = offers.getOffer(slug, offerId);
-  if (!offer || !offers.readyToCommit(offer)) return null;
+  if (!offer || !offers.readyToCommit(offer)) return { done: null, refused: null };
+
+  const fitness = await candidateFitness(offer.candidate_uri);
+
+  // §4.2: unlike the soft skip at delivery (§4.1), this refusal is loud. A
+  // handshake concerns exactly one candidate, so there is no remaining
+  // well-formed target to continue to; committing anyway would leave the ward
+  // counting a guardian whose escalations get dropped. Voiding is all this
+  // function does; saying so on the wire belongs to whoever was acting.
+  if (fitness === 'malformed') {
+    offers.recordReject(slug, offerId, offer.ward_uri);   // voids this copy (§3.2)
+    notify(slug, {
+      kind: 'offer_rejected', offer: offerId,
+      reason: 'not_a_teapot', candidate: offer.candidate_uri,
+    });
+    return { done: null, refused: 'not_a_teapot' };
+  }
+
+  // Could not read the candidate: neither commit nor void. Refusing outright
+  // would let a momentary outage destroy a multi-party adoption; committing
+  // would record a guardian nobody checked. The offer stays pending and the
+  // next accept retries.
+  if (fitness === 'unverified') return { done: null, refused: null };
+
   const done = offers.commit(slug, offerId, `${offer.candidate_uri}/inbox`);
   if (done) { applyCommitLocally(done); notify(slug, { kind: 'committed', ward: done.ward_uri, guardian: done.candidate_uri }); }
-  return done;
+  return { done, refused: null };
 }
 
 /**
@@ -295,7 +351,18 @@ export async function handleOutbox(site, activity) {
   // this copy if the tally is now complete (order-independent, §3.1.3).
   offers.recordAccept(site.slug, offerId, me);
   await fanout(site, others, { id: `${me}/answers/${Date.now().toString(36)}`, type: 'Accept', actor: me, to: others, object: offerId });
-  const done = maybeCommit(site.slug, offerId);
+  const { done, refused } = await maybeCommit(site.slug, offerId);
+  if (refused) {
+    // §4.2: the refusal travels as a `Reject` of the Offer, from whoever was
+    // about to commit — the same voice that just sent the Accept. A `Reject`
+    // is what §3 already understands, so a server that has never heard of §4
+    // still voids its copy correctly; the marker only adds the reason.
+    await fanout(site, others, {
+      id: `${me}/answers/${Date.now().toString(36)}`,
+      type: 'Reject', actor: me, to: others, object: offerId, 'shaer:notATeapot': true,
+    });
+    return { status: 202, id: offerId, url: offerId, committed: false, refused };
+  }
   return { status: 202, id: offerId, url: offerId, committed: !!done, readyToCommit: offers.readyToCommit(offers.getOffer(site.slug, offerId)) };
 }
 
@@ -447,7 +514,7 @@ export async function handleInbox(site, activity) {
   }
 
   offers.recordAccept(site.slug, offerId, actor);
-  maybeCommit(site.slug, offerId);   // commits this copy once the tally is complete
+  await maybeCommit(site.slug, offerId);   // commits this copy once the tally is complete (§4.2 may refuse)
   return true;
 }
 

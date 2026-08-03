@@ -213,6 +213,7 @@ test('no guardianship decision takes a shortcut for a local party', () => {
   // local branch in a decision path, that is the bug, not this list.
   const allowed = {
     existingGuardiansOf: 'reads our own guardian list instead of fetching our own actor doc',
+    candidateFitness: '§4.2: same question, same source — is this candidate a ward? Our table, not a self-fetch',
     applyCommitLocally: '§3.1.4: each instance writes the side of the commit it hosts',
     endGuardianship: '§3.2: same, for the ward side of the Undo, after the fanout',
     proposeGated: 'reads the tally back for the screen, after delivering',

@@ -120,6 +120,47 @@ test('a ward cannot become a guardian (§1)', async () => {
   assert.equal(r.error, 'a_ward_cannot_guard');
 });
 
+test('a candidate adopted between Offer and Accept is refused at commit (§4.2)', async () => {
+  // The case the §1 check above structurally cannot catch. Tess is free when
+  // she offers, so the Offer is legitimate and accepted. Only afterwards does
+  // she become a ward herself. An implementation that checks the candidate
+  // only when the Offer arrives would commit her anyway, and Sam would be left
+  // counting a guardian whose escalations get dropped (§4.1).
+  // Fresh actors throughout: the suite shares one database, so adopting Tess
+  // with an existing guardian would hand that guardian an extra ward and
+  // quietly change the arithmetic of the emancipation tests further down.
+  const tess = site('s10', 'tess');
+  const sam = site('s11', 'sam');
+  const ada = site('s12', 'ada');
+  const [TESS, SAM, ADA] = [A('tess'), A('sam'), A('ada')];
+
+  // 1. Tess offers to guard Sam while she is still free of guardians.
+  const off = await G.handleGuardianshipOutbox(tess, {
+    type: 'Offer', object: { type: 'Relationship', subject: SAM, relationship: 'shaer:Guardian', object: TESS },
+  });
+  assert.equal(off.status, 202, 'a free candidate may offer');
+  const id = off.id;
+  assert.deepEqual(G.listGuardians('sam'), [], 'nothing committed until Sam accepts');
+
+  // 2. Before Sam answers, Tess is adopted: she is now a ward herself.
+  const adopt = await G.handleGuardianshipOutbox(ada, {
+    type: 'Offer', object: { type: 'Relationship', subject: TESS, relationship: 'shaer:Guardian', object: ADA },
+  });
+  await G.handleGuardianshipOutbox(tess, { type: 'Accept', object: adopt.id });
+  assert.equal(G.listGuardians('tess').length, 1, 'Tess is a ward now');
+
+  // 3. Sam accepts. The tally is complete, so this WOULD commit.
+  const done = await G.handleGuardianshipOutbox(sam, { type: 'Accept', object: id });
+  assert.equal(done.committed, false, 'but a ward cannot serve as a guardian (§1)');
+  assert.equal(done.refused, 'not_a_teapot');
+
+  // The refusal is loud, not a silent skip: nothing recorded, offer voided.
+  assert.deepEqual(G.listGuardians('sam'), [], 'Sam gains no guardian');
+  assert.deepEqual(G.listWards('tess').map((w) => w.other_uri), [], 'and Tess gains no ward');
+  const stillPending = G.offersCollection(`${SAM}/queues/offers`, 'sam', SAM).orderedItems.filter((o) => o.id === id);
+  assert.deepEqual(stillPending, [], 'the handshake is void, not left hanging');
+});
+
 test('only the candidate may offer (§3.1 fixed initiator)', async () => {
   const r = await G.handleGuardianshipOutbox(parent, {
     type: 'Offer', object: { type: 'Relationship', subject: A('newkid'), relationship: 'shaer:Guardian', object: GRAN },
