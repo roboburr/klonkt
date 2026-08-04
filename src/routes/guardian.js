@@ -277,6 +277,33 @@ router.post('/api/follow/:id', requireAuth, express.json({ limit: '4kb' }), asyn
   res.json({ ok: true, outcome: r.outcome });
 });
 
+// ── §5.3, the other direction (shaer-p729): the ward wants to follow SOMEONE,
+//    and the guardians decide. Same quorum arithmetic and the same availability
+//    rules as the inbound gate above; only the question is turned around, which
+//    is why it gets its own endpoint rather than a flag on that one.
+router.post('/api/outgoing-follow/:id', requireAuth, express.json({ limit: '4kb' }), async (req, res) => {
+  const site = siteForUser(req);
+  if (!site) return res.status(404).json({ error: 'no_site' });
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  const me = AP.actorId(base, site.slug);
+  const decision = req.body?.decision === 'reject' ? 'reject' : 'approve';
+
+  const pending = Guardianship.outgoing.getPending(req.params.id);
+  if (!pending) return res.status(404).json({ error: 'gone' });
+  const allGuardians = Guardianship.listGuardians(pending.ward_slug).map((g) => g.other_uri);
+  if (!allGuardians.includes(me)) return res.status(403).json({ error: 'not_a_guardian' });
+  Guardianship.availability.oneAnswer(me, Date.now());
+  const guardians = Guardianship.availability.availableSet(pending.ward_slug, allGuardians, Date.now());
+  const r = Guardianship.outgoing.decide(pending.id, me, decision, guardians);
+  try {
+    // Only on approval does anything leave the building. A refusal is a local
+    // fact: the follow was never sent, so there is nothing out there to undo
+    // and nobody to inform that a child asked about them.
+    if (r.outcome === 'approved') await AP.performApprovedFollow(r.follow);
+  } catch { return res.status(502).json({ error: 'delivery', outcome: r.outcome }); }
+  res.json({ ok: true, outcome: r.outcome });
+});
+
 // ── Wave (FEP-633c §5, shaer:wave): a gentle "thinking of you" from a
 //    guardian to a ward. A private direct note, never a feed post. Warmth
 //    without publishing (Robins besluit).

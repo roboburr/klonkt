@@ -88,27 +88,44 @@ eerste open vraag.
   (`{ ok: true, status: 'awaiting_guardian', id }`), zodat Shaer "wacht op
   toestemming" kan laten zien in plaats van een tegel die er al volgend uitziet.
 
+## Status
+
+Gebouwd op 3-8-2026: `ap_pending_outgoing_follows` + `outgoing.js`, de poort in
+`ingestOutboxActivity` (`case 'Follow'`), de `outgoingFollows`-wachtrij, en het
+antwoord van de guardian op `POST /api/outgoing-follow/:id`. Negen tests in
+`test/outgoing-follow-gate.test.js`.
+
 ## Open vragen
 
-1. **Wat doen we met followers van vóór de adoptie?** Was de ward eerst een vrije
-   actor, dan zijn zijn bestaande followers nooit door een guardian gezien. Bij de
-   regel hierboven worden dat stuk voor stuk automatisch goed te keuren doelen.
-   Ofwel we accepteren dat, ofwel `ap_followers` krijgt een markering "door de
-   poort gekomen" en alleen die telt mee. Dit is de belangrijkste vraag van dit
-   document.
+1. **Beantwoord (Bart, 3-8): bestaande followers worden gegrandfatherd.**
+   `ap_followers` heeft nu `gate_approved`, gezet zodra de inkomende poort
+   iemand toelaat. Iedereen die al volgde op het moment dat de kolom erbij kwam,
+   krijgt de markering eenmalig mee: de regel is exact vanaf dat moment, in
+   plaats van met terugwerkende kracht wantrouwig tegen relaties die er al
+   waren. Wie daarna binnenkomt zonder poort — de followers van een vrije actor
+   die later ward wordt — telt niet mee voor de wederkerigheid.
 
-2. **Mag de ward zijn eigen verzoek intrekken** zolang het in de wacht staat? Lijkt
-   vanzelfsprekend ja, maar het is een Undo op iets dat nooit verstuurd is.
+2. **Nog open. Mag de ward zijn eigen verzoek intrekken** zolang het in de wacht
+   staat? `outgoing.withdraw()` bestaat al, maar er is nog geen route en geen
+   knop. Lijkt vanzelfsprekend ja, maar het is een Undo op iets dat nooit
+   verstuurd is.
 
-3. **De guardian zelf als doel.** Een ward die zijn eigen guardian volgt, hoort
-   niet te hoeven wachten. Dat is dezelfde uitzondering als inkomend, waar de
-   Follow van een vastgelegde guardian de poort overslaat.
+3. **Beantwoord: de guardian zelf als doel wacht niet.** Dezelfde uitzondering
+   als inkomend, waar de Follow van een vastgelegde guardian de poort overslaat.
+   Gebouwd en getest.
 
-4. **Interactie met Block/Orbit.** Blokkeert de ward iemand terwijl er nog een
-   verzoek voor die persoon open staat, dan moet dat verzoek verdwijnen.
+4. **Nog open. Interactie met Block/Orbit.** Blokkeert de ward iemand terwijl er
+   nog een verzoek voor die persoon open staat, dan moet dat verzoek verdwijnen.
+   `withdraw()` is er klaar voor; het wordt alleen nog nergens aangeroepen.
 
-5. **Emancipatie.** Wat gebeurt er met openstaande verzoeken als de
+5. **Nog open. Emancipatie.** Wat gebeurt er met openstaande verzoeken als de
    guardianship eindigt? Automatisch goedkeuren of laten vervallen.
+
+6. **Nieuw, uit het bouwen. Er zit geen venster op een verzoek.** Een uitgaande
+   follow die niemand beantwoordt blijft staan tot iemand hem beantwoordt —
+   dezelfde omissie die de handshake had voordat er een week op kwam (§3.5). Een
+   kind dat vraagt of het iemand mag volgen en nooit antwoord krijgt, verdient
+   een afloop.
 
 ## Raakvlakken met andere beads
 

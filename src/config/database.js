@@ -63,6 +63,31 @@ export function initializeDatabase() {
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (follow_id, guardian_uri)
   )`);
+  // FEP-633c §5.3, the OTHER direction (shaer-p729): a ward's own follow is
+  // held until its guardians approve. Deliberately not ap_pending_follows —
+  // that table is keyed with the ward as the TARGET ("who wants to follow me"),
+  // and adding a direction column would make every existing query ambiguous.
+  db.exec(`CREATE TABLE IF NOT EXISTS ap_pending_outgoing_follows (
+    id TEXT PRIMARY KEY,
+    ward_slug TEXT NOT NULL,
+    target_uri TEXT NOT NULL,
+    target_inbox TEXT,
+    target_name TEXT,
+    target_handle TEXT,
+    target_icon TEXT,
+    quorum TEXT DEFAULT 'any',
+    status TEXT DEFAULT 'pending',
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )`);
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_ap_outgoing_follows_target
+           ON ap_pending_outgoing_follows(ward_slug, target_uri)`);
+  db.exec(`CREATE TABLE IF NOT EXISTS ap_outgoing_follow_approvals (
+    follow_id TEXT NOT NULL,
+    guardian_uri TEXT NOT NULL,
+    decision TEXT NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (follow_id, guardian_uri)
+  )`);
   // Cross-instance follow-approval (modelled on the guardian offer): the
   // guardian-side COPY of a gated follow on a REMOTE ward, forwarded here by
   // the ward's server as an Offer(Follow). The decision is sent back to the
@@ -692,6 +717,20 @@ export function initializeDatabase() {
   ensureColumn('ap_outbox', 'wave', 'INTEGER');    // FEP-633c shaer:wave (guardian -> ward nudge)
   ensureColumn('ap_outbox', 'away_until', 'INTEGER'); // FEP-633c 3.6.1 shaer:away + endTime (epoch ms)
   ensureColumn('ap_gated_offers', 'proposer', 'TEXT'); // who proposed (5.6): the settle-answer goes back to them
+  // Did a guardian actually say yes to this follower? That is what makes the
+  // mutual shortcut sound: a ward may follow back anyone its guardians already
+  // admitted, without asking the same question twice. Only follows that came
+  // through the §5.3 gate carry the mark; a free actor's followers never faced
+  // one. Everyone already following when this column arrives is grandfathered
+  // in (Barts besluit, 3-8): the rule is exact from that moment forward rather
+  // than retroactively suspicious of relationships that already exist.
+  {
+    const had = db.prepare("SELECT COUNT(*) AS n FROM pragma_table_info('ap_followers') WHERE name = 'gate_approved'").get();
+    ensureColumn('ap_followers', 'gate_approved', 'INTEGER DEFAULT 0');
+    if (!had || !had.n) {
+      try { db.prepare('UPDATE ap_followers SET gate_approved = 1').run(); } catch { /* table still empty on a fresh init */ }
+    }
+  }
   ensureColumn('posts', 'c2s_attachments', 'TEXT'); // media a C2S Note carried (JSON [{url,mediaType,name}]); buildNote federates them
   // 30-7: C2S posts briefly got their content media copied onto the cover,
   // which showed the same video twice on the post page. Clear the covers that

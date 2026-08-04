@@ -11,6 +11,7 @@
 import * as offers from './offers.js';
 import * as relations from './relations.js';
 import * as availability from './availability.js';
+import * as outgoing from './outgoing.js';
 import * as handshake from './handshake.js';
 
 const collection = (id, items) => ({
@@ -38,6 +39,11 @@ export function followsCollection(id) {
   return collection(id, []);
 }
 
+/** §5.3 outbound: this ward's own follow requests, waiting for its guardians. */
+export function outgoingFollowsCollection(id, slug, me) {
+  return collection(id, outgoing.listForWard(slug).map((o) => outgoing.queueItem(o, me)));
+}
+
 /** The guardian's committed wards, with cached handle for display. */
 export function wardsCollection(id, slug) {
   const items = relations.listWards(slug)
@@ -52,4 +58,4 @@ export function guardiansCollection(id, slug) {
   return collection(id, availability.statusesFor(slug, uris, Date.now()));
 }
 
-export default { offersCollection, followsCollection, wardsCollection, guardiansCollection };
+export default { offersCollection, followsCollection, outgoingFollowsCollection, wardsCollection, guardiansCollection };

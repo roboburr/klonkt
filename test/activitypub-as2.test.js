@@ -34,7 +34,9 @@ const AS2 = new Set([
   // FEP-633c (Guardians): the owner-only dashboard queues on the actor; the
   // sub-keys are the daemon-contract collection names the Shaer clients read.
   // `guardians` is the availability queue (3.6.1: never public, owner-only).
-  'shaer:queues', 'offers', 'follows', 'wards', 'guardians',
+  // `outgoingFollows` is §5.3 turned around: the ward's own follow requests,
+  // waiting for the guardians (shaer-p729).
+  'shaer:queues', 'offers', 'follows', 'outgoingFollows', 'wards', 'guardians',
   // ActivityPub §4.1 `endpoints` vocabulary (same category as sharedInbox), used for C2S.
   'oauthAuthorizationEndpoint', 'oauthTokenEndpoint', 'uploadMedia',
   'publicKey', 'owner', 'publicKeyPem',

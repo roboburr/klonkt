@@ -2486,6 +2486,17 @@ export async function ingestOutboxActivity(site, user, activity) {
       case 'Follow': {
         const actorUri = c2sIdOf(object);
         if (!actorUri) return { status: 400, error: 'missing_object' };
+        // FEP-633c §5.3 outbound (shaer-p729): a ward asks its guardians first.
+        // A held request is a THIRD outcome — not sent, not failed — and it
+        // travels to the app as one, so Shaer can show "waiting" instead of a
+        // tile that already looks followed.
+        const held = await gateOutgoingFollow(site, actorUri);
+        if (held) {
+          return {
+            status: 202, url: actorUri, id: held.id,
+            state: held.status === 'denied' ? 'refused_by_guardian' : 'awaiting_guardian',
+          };
+        }
         // The error REACHES the app (Robins melding, 31-7): swallowing it
         // made a failed follow look exactly like a successful one.
         const r = await followActor(site, actorUri);
@@ -4023,12 +4034,101 @@ export function isWardGuardian(wardSlug, actorUri) {
 // FEP-633c §5.3: the guardians approved a gated follow of their ward. Send the
 // Accept to the follower and record them, so delivery (incl. followers-only)
 // begins. `pending` is a row from ap_pending_follows.
+/**
+ * FEP-633c §5.3, the direction that was never gated (bead shaer-p729).
+ *
+ * A ward's OWN follow waited for nobody: it went straight out and the guardians
+ * got a note afterwards (1a2f206). That is informing, not gating — the door is
+ * already open when the message lands. Now it waits, with two exceptions that
+ * are not favours but the same decision already taken:
+ *
+ *   - the target is one of the ward's own guardians. Following the adult who
+ *     watches over you is not a question anyone needs to answer.
+ *   - the target already follows the ward THROUGH THE GATE. A guardian
+ *     approved that person by name; asking again about the same person only
+ *     teaches everyone to stop reading the question.
+ *
+ * Returns the held request, or null when the follow may go out now.
+ * Deliberately not a boolean: a held follow must be distinguishable from a sent
+ * one all the way up to the app, which is the lesson the error path already
+ * learned (Robins melding, 31-7).
+ */
+export async function gateOutgoingFollow(site, targetUri) {
+  const slug = site && site.slug;
+  if (!slug || !targetUri) return null;
+  const guardians = Guardianship.listGuardians(slug).map((g) => g.other_uri);
+  if (!guardians.length) return null;                                   // not a ward: nothing to gate
+  if (guardians.includes(targetUri)) return null;                       // your own guardian
+  if (Guardianship.outgoing.isMutual(slug, targetUri)) return null;     // already vetted by name
+
+  const seen = Guardianship.outgoing.findFor(slug, targetUri);
+  if (seen && seen.status === 'approved') return null;                  // the guardians said yes already
+  if (seen && (seen.status === 'pending' || seen.status === 'denied')) return seen;
+
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  const wardActor = actorId(base, slug);
+  const target = await fetchActor(targetUri).catch(() => null);
+  const ti = actorInfo(target, targetUri);
+  const id = `${wardActor}#outfollow-${Date.now()}-${rid()}`;
+  const held = Guardianship.outgoing.recordPending(slug, {
+    id, target: targetUri,
+    inbox: target && ((target.endpoints && target.endpoints.sharedInbox) || target.inbox),
+    name: ti.name, handle: ti.handle, icon: ti.icon,
+  });
+
+  // Same routing as the inbound gate: a guardian on this instance gets a push
+  // and reads /guardian; one elsewhere gets an Offer delivered so its own
+  // server holds a copy to answer from.
+  const wardKeys = getOrCreateKeys(slug);
+  const followObj = { id, type: 'Follow', actor: wardActor, object: targetUri };
+  for (const g of guardians) {
+    try { Guardianship.availability.recordRequest(slug, g, id, Date.now()); } catch { /* never load-bearing */ }
+  }
+  for (const g of guardians) {
+    const gslug = g.startsWith(`${base}/`) ? slugFromActorUrl(g) : null;
+    const isLocal = gslug && db.prepare('SELECT 1 FROM sites WHERE slug = ?').get(gslug);
+    if (isLocal) {
+      const L = pushLang(gslug);
+      pushEvent(gslug, { type: 'guardian', title: i18nT(L, 'push.n_guard_cog_t'), body: i18nT(L, 'push.n_guard_cog_b', { who: ti.name || ti.handle || i18nT(L, 'notif.someone') }), url: `${pushPrefix(gslug)}/guardian` });
+    } else {
+      fetchActor(g).then((ga) => {
+        const inbox = ga && ((ga.endpoints && ga.endpoints.sharedInbox) || ga.inbox);
+        if (!inbox) return;
+        const offer = { '@context': AP_CONTEXT, id: `${wardActor}#outfollowoffer-${Date.now()}-${rid()}`, type: 'Offer', actor: wardActor, to: [g], object: followObj, 'shaer:followApproval': true, 'shaer:direction': 'outgoing' };
+        deliverWithRetry(slug, inbox, offer, `${wardActor}#main-key`, wardKeys.private_pem).catch(() => {});
+      }).catch(() => {});
+    }
+  }
+  console.log('[AP] outgoing Follow', slug, '→', targetUri, '(gated, awaiting guardians)');
+  return held || { id, ward_slug: slug, target_uri: targetUri, status: 'pending' };
+}
+
+/**
+ * The guardians said yes: send the ward's Follow for real (§5.3, shaer-p729).
+ *
+ * The row stays behind as `approved` rather than being deleted. It is the
+ * record that these guardians vetted this target, so an unfollow-and-refollow
+ * later does not put the same question in front of them again.
+ */
+export async function performApprovedFollow(pending) {
+  const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(pending.ward_slug);
+  if (!site) return { error: 'no_such_ward' };
+  const r = await followActor(site, pending.target_uri);
+  if (r && r.error) return { error: r.error };
+  console.log('[AP] outgoing Follow approved', pending.ward_slug, '→', pending.target_uri);
+  return { ok: true };
+}
+
 export async function acceptGatedFollow(pending) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   const slug = pending.ward_slug;
   const me = actorId(base, slug);
   const keys = getOrCreateKeys(slug);
   fStmts().ins.run(slug, pending.follower_uri, pending.follower_inbox, pending.follower_shared_inbox, pending.follower_name, pending.follower_handle, pending.follower_icon);
+  // This follower came through the §5.3 gate: a guardian said yes to this
+  // person by name. That is precisely what lets the ward follow them back later
+  // without asking the same guardians the same question twice (shaer-p729).
+  db.prepare('UPDATE ap_followers SET gate_approved = 1 WHERE slug = ? AND actor_uri = ?').run(slug, pending.follower_uri);
   const original = pending.activity_json ? JSON.parse(pending.activity_json) : { type: 'Follow', actor: pending.follower_uri, object: me };
   const accept = { '@context': AP_CONTEXT, id: `${me}#accept-${Date.now()}-${rid()}`, type: 'Accept', actor: me, object: original };
   await deliverWithRetry(slug, pending.follower_inbox, accept, `${me}#main-key`, keys.private_pem);
@@ -4511,6 +4611,7 @@ export default {
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate, deliverDirectNote,
   webfingerResolve, followActor, resolveRemoteActor, unfollowActor, handleMoveInbox, moveAccount, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, getDirectMessages, isoStamp, timelineAttachments, timelineEmojis, timelineObjectLinks, timelineQuote, timelineEmbed, applyQuoteProps, deliverToActor, sendInteraction, voteOnPoll, voteOnRemotePoll,
   acceptGatedFollow, rejectGatedFollow, isWardGuardian, outboxAudience, sendFollowDecision,
+  gateOutgoingFollow, performApprovedFollow,
   parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread, sendReport, localMentionSlugs,
   autoBoostCount, boostedCount, markBoosted, unmarkBoosted, markLiked, unmarkLiked, getTimelineReaction, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,

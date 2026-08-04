@@ -253,6 +253,10 @@ function queueRoute(name, build) {
 }
 queueRoute('offers', (id, slug, me) => Guardianship.offersCollection(id, slug, me));
 queueRoute('follows', (id) => Guardianship.followsCollection(id));
+// §5.3 turned around (shaer-p729): what this ward has asked to follow, still
+// waiting on its guardians. Owner-only like the rest — who a child wants to
+// follow is nobody else's business.
+queueRoute('outgoing-follows', (id, slug, me) => Guardianship.outgoingFollowsCollection(id, slug, me));
 queueRoute('wards', (id, slug) => Guardianship.wardsCollection(id, slug));
 // Availability (FEP-633c 3.6.1) is never public: the ward reads its
 // guardians' real states here and nowhere else.
@@ -695,7 +699,9 @@ router.post('/ap/users/:slug/outbox', apInboxLimiter, apJson, async (req, res) =
   if (out.error) return res.status(out.status || 400).json({ error: out.error, detail: out.detail });
   // 201 Created → Location header (AP spec); 202 Accepted for side-effect verbs.
   if (out.status === 201 && out.url) res.set('Location', out.url);
-  return res.status(out.status || 202).json({ ok: true, id: out.id, url: out.url });
+  // `state` carries a third outcome the app must be able to tell apart from a
+  // plain success: a ward's follow held for its guardians (§5.3, shaer-p729).
+  return res.status(out.status || 202).json({ ok: true, id: out.id, url: out.url, ...(out.state ? { state: out.state } : {}) });
 });
 
 export default router;
