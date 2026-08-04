@@ -12,6 +12,7 @@
  */
 import crypto from 'crypto';
 import db from '../../config/database.js';
+import { carriesGuardians } from './context.js';
 
 const PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
 
@@ -48,6 +49,7 @@ export async function deliverDirectNote(site, { recipients, text, language, inRe
   const me = actorId(base, site.slug);
   // Resolve every recipient for a mention anchor + a delivery inbox.
   const resolved = [];
+  const teapots = [];
   for (const uri of list) {
     // An actor we host is read from our own database, not fetched from our own
     // hostname: that request has to leave the machine and come back, and when
@@ -55,9 +57,27 @@ export async function deliverDirectNote(site, { recipients, text, language, inRe
     // that decides anything still runs below, for local and remote alike.
     const a = (localActor && localActor(uri)) || await fetchActor(uri).catch(() => null);
     if (!a || !(a.inbox || (a.endpoints && a.endpoints.sharedInbox))) continue;
+    // FEP-633c §4.1: an escalation addressed to a "guardian" that carries
+    // guardians of its own goes nowhere. There is no grand-guardian, so we
+    // MUST NOT recurse to that actor's guardians — and we fail SOFTLY: drop
+    // this one target and keep delivering to the rest, because a malformed
+    // guardian must never cost a child the guardians who are fine.
+    //
+    // Only for a call for help. An ordinary direct note is not an escalation,
+    // and a ward is perfectly entitled to message another ward.
+    if (helpRequest && carriesGuardians(a)) { teapots.push(uri); continue; }
     resolved.push({ uri, inbox: (a.endpoints && a.endpoints.sharedInbox) || a.inbox, local: !!a.local, handle: deriveHandle(uri), url: a.url || uri });
   }
-  if (!resolved.length) return null;
+  if (teapots.length) console.warn('[AP] not a teapot: escalation dropped for malformed guardian(s)', teapots.join(', '));
+  if (!resolved.length) {
+    // Every guardian was malformed. §4 does not say what to do here because
+    // §4.1 assumes there are others to continue to — but a ward whose whole
+    // safety net is broken has just called for help into nothing, which is the
+    // one outcome this FEP exists to prevent. Say so loudly; the caller can
+    // tell "nobody was reachable" from "nobody was valid".
+    if (teapots.length) console.error('[AP] EVERY guardian of', site.slug, 'is malformed: the call for help reached no one');
+    return null;
+  }
   const mention = resolved.map((r) => {
     const disp = r.handle && r.handle[0] === '@' ? r.handle : '@' + (r.handle || '');
     return `<a href="${escHtml(r.url)}" class="u-url mention" data-actor="${escHtml(r.uri)}">${escHtml(disp)}</a> `;
@@ -103,7 +123,7 @@ export async function deliverDirectNote(site, { recipients, text, language, inRe
     else enqueueDelivery(site.slug, inbox, create);
   }
   console.log('[AP] direct note', site.slug, '→', resolved.length, 'recipient(s), delivered', delivered);
-  return { id, content, delivered };
+  return { id, content, delivered, teapots };
 }
 
 export default { wireDelivery, c2sVisibility, deliverDirectNote };

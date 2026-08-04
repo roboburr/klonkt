@@ -15,7 +15,7 @@
  * daemon); this module wires it onto Klonkt's C2S/S2S plumbing. AP helpers
  * arrive once via wireHandshake(deps); nothing here imports ActivityPubService.
  */
-import { isGuardianRelationship, GUARDIAN_RELATIONSHIP_COMPACT } from './context.js';
+import { isGuardianRelationship, GUARDIAN_RELATIONSHIP_COMPACT, carriesGuardians } from './context.js';
 import * as offers from './offers.js';
 import * as relations from './relations.js';
 import * as gated from './gated.js';
@@ -138,12 +138,7 @@ async function candidateFitness(candidateUri) {
 
   const doc = await deps.fetchActor(candidateUri).catch(() => null);
   if (!doc) return 'unverified';
-  const g = doc['shaer:guardians'];
-  const has = Array.isArray(g) ? g.length > 0
-    : typeof g === 'string' ? g.length > 0
-      : (g && typeof g === 'object') ? (Array.isArray(g.items) ? g.items.length > 0 : true)
-        : false;
-  return has ? 'malformed' : 'ok';
+  return carriesGuardians(doc) ? 'malformed' : 'ok';
 }
 
 /** Commit this local copy of the offer when the tally is complete (ward +

@@ -23,4 +23,21 @@ export function isGuardianRelationship(value) {
   return value === GUARDIAN_RELATIONSHIP || value === GUARDIAN_RELATIONSHIP_COMPACT;
 }
 
-export default { SHAER_CONTEXT, GUARDIAN_RELATIONSHIP, GUARDIAN_RELATIONSHIP_COMPACT, isGuardianRelationship };
+/**
+ * True when an actor document carries `shaer:guardians` — i.e. it is a ward,
+ * and therefore not a valid guardian (§1). The one question §4 asks, in both
+ * places it asks it: before committing a guardianship (§4.2) and before
+ * delivering an escalation to one (§4.1).
+ *
+ * §2.1 allows the list as an array of URIs, a single URI, or a Collection, so
+ * all three are read here rather than in each caller.
+ */
+export function carriesGuardians(doc) {
+  const g = doc && doc['shaer:guardians'];
+  if (Array.isArray(g)) return g.length > 0;
+  if (typeof g === 'string') return g.length > 0;
+  if (g && typeof g === 'object') return Array.isArray(g.items) ? g.items.length > 0 : true;
+  return false;
+}
+
+export default { SHAER_CONTEXT, GUARDIAN_RELATIONSHIP, GUARDIAN_RELATIONSHIP_COMPACT, isGuardianRelationship, carriesGuardians };
