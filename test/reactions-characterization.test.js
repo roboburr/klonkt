@@ -253,3 +253,22 @@ test('getReactionsFor: lege of rommelige invoer geeft een lege map', () => {
   assert.equal(AP.getReactionsFor('me', null).size, 0);
   assert.equal(AP.getReactionsFor('', [uri('g3')]).size, 0);
 });
+
+// ── Fase 3: het publieke oppervlak is versmald ───────────────────────────
+
+test('de primitieven zijn niet meer bereikbaar via het service-object', async () => {
+  // Routes doen `import ActivityPubService from ...` en werken dus met het
+  // default-object. Zolang markLiked daar in staat, kan een aanroeper de helft
+  // schrijven -- en dat is niet hypothetisch: precies zo bleef shaer:liked
+  // maandenlang false. De named exports blijven bestaan voor intern gebruik en
+  // voor deze tests.
+  const svc = (await import('../src/services/ActivityPubService.js')).default;
+  for (const naam of ['markLiked', 'unmarkLiked', 'markBoosted', 'unmarkBoosted',
+                      'setMyReaction', 'getMyReactions', 'getTimelineReaction']) {
+    assert.equal(svc[naam], undefined, `${naam} hoort niet op het publieke oppervlak te staan`);
+  }
+  // Wat er WEL hoort te staan: het ene schrijfpad en het ene leespad.
+  for (const naam of ['setReaction', 'getReaction', 'getReactionsFor']) {
+    assert.equal(typeof svc[naam], 'function', `${naam} hoort er wel te zijn`);
+  }
+});

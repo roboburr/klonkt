@@ -3395,7 +3395,16 @@ export function getCirkelPosts(slug, limit, offset) {
 export function getCirkelMembers(slug) {
   try { if (!_cirkelMembers) _cirkelMembers = db.prepare('SELECT name, url, icon FROM ap_following WHERE slug = ? AND auto_boost = 1 ORDER BY name'); return _cirkelMembers.all(slug); } catch { return []; }
 }
-// Mark a timeline post as boosted so it shows in the Cirkel (mixed by date).
+// AFGELEIDE, GEEN BRON (shaer-9e9). De waarheid over "heb ik hierop gereageerd"
+// staat in ap_my_reactions; deze vlaggen worden daaruit bijgehouden door
+// setReaction en door niets anders. Roep ze niet los aan -- dan schrijf je de
+// helft, en dat is precies hoe shaer:liked maandenlang false bleef (04aca12).
+//
+// ap_timeline.boosted verdient zijn bestaan wel: hij staat in de WHERE van de
+// Cirkel-feed (getCirkelPosts) en in boostedCount, dus hij is een index en geen
+// kopie. ap_timeline.liked wordt nergens als verzameling bevraagd en kan weg
+// zodra fase 2 lang genoeg goed staat; hij is nu nog het vangnet waarmee
+// terugdraaien een code-revert blijft in plaats van dataherstel.
 let _markBoost, _unmarkBoost, _boostedCount;
 export function markBoosted(slug, noteId) {
   try { if (!_markBoost) _markBoost = db.prepare('UPDATE ap_timeline SET boosted = 1 WHERE slug = ? AND id = ?'); _markBoost.run(slug, noteId); } catch { /* ignore */ }
@@ -4840,13 +4849,13 @@ export default {
   AP_CONTEXT, getOrCreateKeys, apWants, sendAP, actorId, noteId, stripLeadingMentions,
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers, buildFollowing, buildFeatured,
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
-  getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, setMyReaction, getMyReactions, buildReplyNote, getOutboxNote, getSentNotes, deliverReply, resolveRemoteNote, noteAudience, mayReadNote,
+  getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, buildReplyNote, getOutboxNote, getSentNotes, deliverReply, resolveRemoteNote, noteAudience, mayReadNote,
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate, deliverDirectNote,
   webfingerResolve, followActor, resolveRemoteActor, unfollowActor, handleMoveInbox, moveAccount, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, getDirectMessages, isoStamp, timelineAttachments, timelineEmojis, timelineObjectLinks, timelineQuote, timelineEmbed, applyQuoteProps, deliverToActor, sendInteraction, voteOnPoll, voteOnRemotePoll,
   acceptGatedFollow, rejectGatedFollow, isWardGuardian, outboxAudience, sendFollowDecision,
   gateOutgoingFollow, performApprovedFollow,
   parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread, sendReport, localMentionSlugs,
-  autoBoostCount, boostedCount, markBoosted, unmarkBoosted, markLiked, unmarkLiked, setReaction, getReaction, getReactionsFor, getTimelineReaction, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
+  autoBoostCount, boostedCount, setReaction, getReaction, getReactionsFor, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
   getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,

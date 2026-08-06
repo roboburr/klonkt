@@ -868,8 +868,11 @@ router.post('/authorize_interaction/boost', requireSiteManager, (req, res) => {
           .then(() => ActivityPubService.setReaction(site.slug, uri, 'boost', on, { flagUri: id, note: on ? note : null }));
       })
       .catch((e) => console.warn('[AP] remote boost failed:', e.message));
-    // De tussentabel meteen, zodat de knop klopt voordat de resolve terug is.
-    ActivityPubService.setMyReaction(site.slug, uri, 'boost', on);
+    // Meteen zetten, zodat de knop klopt voordat de resolve terug is. Via
+    // setReaction en niet via setMyReaction: ook dit korte moment mag geen
+    // halve schrijfactie zijn. De resolve hierboven werkt hem daarna bij met de
+    // note, zodat de post ook in je tijdlijn belandt.
+    ActivityPubService.setReaction(site.slug, uri, 'boost', on);
   }
   if (req.get('X-Requested-With') === 'fetch') return res.json({ ok: true, on });
   res.redirect('/authorize_interaction?uri=' + encodeURIComponent(uri));
