@@ -29,6 +29,13 @@ Versions follow [SemVer](https://semver.org/).
   button next to it: a wave is a nudge, not an answer.
 
 ### Fixed
+- **People on privacy-strict servers can follow you again.** Some servers only
+  hand out an account's public key to a signed request. Klonkt asked without
+  signing, got turned away, and could therefore not check the follow request that
+  had just arrived — so it was refused, and the other server kept retrying for
+  days. Klonkt now signs that lookup, and those follows go through. This also
+  affected everything else fetched from such a server: profiles, posts and
+  replies.
 - **Replies from other people now arrive in threads.** When someone replied to a
   post in a conversation you were part of, their server forwarded that reply to
   you — and it was turned away, because the forwarding server signs with its own

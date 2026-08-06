@@ -31,6 +31,13 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
   blijft een aparte knop ernaast: een zwaai is een seintje, geen antwoord.
 
 ### Opgelost
+- **Mensen op privacy-strenge servers kunnen je weer volgen.** Sommige servers
+  geven de publieke sleutel van een account alleen aan een ondertekend verzoek.
+  Klonkt vroeg zonder handtekening, werd geweigerd, en kon daardoor het
+  volgverzoek dat net binnenkwam niet controleren — dus werd dat afgewezen, en
+  bleef de andere server het dagenlang opnieuw proberen. Klonkt ondertekent die
+  navraag nu, en die volgers komen erdoor. Dit raakte ook al het andere dat bij
+  zo'n server werd opgehaald: profielen, posts en reacties.
 - **Reacties van anderen komen nu in de draad aan.** Reageerde iemand op een
   post in een gesprek waar jij bij zat, dan stuurde hun server die reactie naar
   je door — en werd hij geweigerd, omdat een doorsturende server met zijn eigen

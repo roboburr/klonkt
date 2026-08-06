@@ -33,6 +33,13 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
   keine Antwort.
 
 ### Behoben
+- **Menschen auf datenschutzstrengen Servern können dir wieder folgen.** Manche
+  Server geben den öffentlichen Schlüssel eines Kontos nur an eine signierte
+  Anfrage heraus. Klonkt fragte ohne Signatur, wurde abgewiesen und konnte die
+  gerade eingegangene Folge-Anfrage deshalb nicht prüfen — sie wurde abgelehnt,
+  und der andere Server versuchte es tagelang erneut. Klonkt signiert diese
+  Abfrage jetzt, und solche Follows kommen durch. Das betraf auch alles andere,
+  was von so einem Server geholt wurde: Profile, Beiträge und Antworten.
 - **Antworten anderer kommen jetzt im Verlauf an.** Antwortete jemand auf einen
   Beitrag in einem Gespräch, an dem du beteiligt warst, leitete dessen Server die
   Antwort an dich weiter — und sie wurde abgewiesen, weil ein weiterleitender
