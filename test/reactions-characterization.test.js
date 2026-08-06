@@ -192,16 +192,17 @@ test('setReaction: een boost met note trekt de post je tijdlijn in EN vult beide
   assert.equal(AP.getCirkelPosts('me', 60, 0).some((p) => p.id === u), false);
 });
 
-test('setReaction: gescheiden sleutels blijven werken zolang ze bestaan', () => {
-  // De tussentabel wordt gesleuteld op wat de client stuurde, de vlag op de
-  // opgeloste object-URI. Meestal gelijk, niet gegarandeerd. flagUri houdt dat
-  // uit elkaar tot fase 2 ze samentrekt.
+test('setReaction: flagUri bepaalt de sleutel voor BEIDE bronnen', () => {
+  // Vroeger kreeg de tussentabel de URI die de client stuurde en de vlag de
+  // opgeloste. Nu is het er één, anders is dezelfde like onvindbaar vanaf een
+  // pagina die de andere URI kent.
   const gestuurd = 'https://r.test/@anna/123';
   const opgelost = uri('sr3');
   seedTimeline(opgelost);
   AP.setReaction('me', gestuurd, 'like', true, { flagUri: opgelost });
-  assert.equal(AP.getMyReactions('me', gestuurd).liked, true, 'op de gestuurde uri');
-  assert.equal(AP.getTimelineReaction('me', opgelost).liked, true, 'op de opgeloste uri');
+  assert.equal(AP.getReaction('me', opgelost).liked, true, 'onder de opgeloste uri');
+  assert.equal(AP.getTimelineReaction('me', opgelost).liked, true, 'en de vlag ook');
+  assert.equal(AP.getMyReactions('me', gestuurd).liked, false, 'niet meer onder de gestuurde');
 });
 
 test('setReaction: rommelige invoer doet niets in plaats van iets halfs', () => {
@@ -271,4 +272,43 @@ test('de primitieven zijn niet meer bereikbaar via het service-object', async ()
   for (const naam of ['setReaction', 'getReaction', 'getReactionsFor']) {
     assert.equal(typeof svc[naam], 'function', `${naam} hoort er wel te zijn`);
   }
+});
+
+// ── De permalink en de object-URI zijn dezelfde post ─────────────────────
+
+test('een like uit de Krant is zichtbaar op de interact-pagina (Robins melding)', () => {
+  // De Krant kent een post als AP-object-URI, de interact-pagina als permalink.
+  // Zochten die twee in verschillende sleutelruimtes, dan toonde een geboost en
+  // geliket bericht daar geen enkele highlight -- terwijl de reactie bestond.
+  const obj = uri('perm1');
+  const permalink = 'https://sound-fabrics.com/effortlesseffect';
+  db.prepare(`INSERT OR IGNORE INTO ap_timeline (id, slug, author_uri, author_name, content, url, created_at)
+              VALUES (?,?,?,?,?,?,?)`)
+    .run(obj, 'me', 'https://r.test/users/anna', 'Anna', '<p>x</p>', permalink, '2026-08-06 09:00:00');
+
+  AP.setReaction('me', obj, 'like', true);      // zoals de Krant het doet
+  AP.setReaction('me', obj, 'boost', true);
+  // en de interact-pagina vraagt het met de permalink:
+  assert.deepEqual(AP.getReaction('me', permalink), { liked: true, boosted: true });
+});
+
+test('andersom net zo: reageren via de permalink landt op de object-URI', () => {
+  const obj = uri('perm2');
+  const permalink = 'https://sound-fabrics.com/tweede';
+  db.prepare(`INSERT OR IGNORE INTO ap_timeline (id, slug, author_uri, author_name, content, url, created_at)
+              VALUES (?,?,?,?,?,?,?)`)
+    .run(obj, 'me', 'https://r.test/users/bo', 'Bo', '<p>y</p>', permalink, '2026-08-06 09:00:00');
+
+  AP.setReaction('me', permalink, 'like', true);   // zoals de interact-pagina het doet
+  assert.equal(AP.getReaction('me', obj).liked, true, 'onder de object-uri opgeslagen');
+  assert.equal(AP.getTimelineReaction('me', obj).liked, true, 'dus de vlag landt ook goed');
+  assert.equal(AP.getReaction('me', permalink).liked, true, 'en blijft vindbaar via de permalink');
+});
+
+test('een reactie op iets buiten je tijdlijn blijft gewoon werken', () => {
+  // Kennen we de post niet, dan is er niets te canoniseren en blijft de invoer
+  // de sleutel. Een like op een vreemde post mag daar niet op stuklopen.
+  const onbekend = 'https://elders.test/notes/xyz';
+  AP.setReaction('me', onbekend, 'like', true);
+  assert.equal(AP.getReaction('me', onbekend).liked, true);
 });

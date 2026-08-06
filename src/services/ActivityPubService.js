@@ -3438,14 +3438,41 @@ export function unmarkLiked(slug, noteId) {
  * werk voor fase 2, mét datamigratie.
  */
 /**
+ * Van wat de client stuurde naar de canonieke sleutel voor een reactie.
+ *
+ * Een post heeft twee URI's: zijn AP-object-id (.../ap/notes/<uuid>) en zijn
+ * leesbare permalink (.../effortlesseffect). De Krant en het C2S-pad spreken de
+ * eerste, de interact-pagina de tweede. Werden reacties onder allebei opgeslagen,
+ * dan bestond dezelfde like twee keer -- en erger: een like uit de Krant was op
+ * de interact-pagina onzichtbaar, want daar werd op de permalink gezocht.
+ *
+ * Dit was de naad die fase 1 bewust open liet ("samentrekken is werk voor fase
+ * 2"). Robin liep er meteen tegenaan: een geboost en geliket bericht toonde geen
+ * highlight. Vandaar hier, en niet later.
+ *
+ * De object-URI wint, want dat is waar ap_timeline op sleutelt en waar de
+ * backfill op is gebaseerd. Kennen we de post niet, dan blijft de invoer staan:
+ * een reactie op iets buiten je tijdlijn moet gewoon werken.
+ */
+export function canonicalReactionUri(slug, uri) {
+  if (!slug || !uri) return uri;
+  try {
+    if (db.prepare('SELECT 1 FROM ap_timeline WHERE slug = ? AND id = ?').get(slug, uri)) return uri;
+    const row = db.prepare('SELECT id FROM ap_timeline WHERE slug = ? AND url = ? LIMIT 1').get(slug, uri);
+    return (row && row.id) || uri;
+  } catch { return uri; }
+}
+
+/**
  * Wat heb IK met dit object gedaan? Leest de tussentabel, de bron van waarheid
  * sinds shaer-9e9 fase 2. Vervangt getMyReactions en getTimelineReaction, die
  * dezelfde vraag beantwoordden uit twee verschillende bronnen.
  */
 export function getReaction(slug, uri) {
   try {
-    const rows = (slug && uri)
-      ? db.prepare('SELECT kind FROM ap_my_reactions WHERE site_slug = ? AND target_uri = ?').all(slug, uri)
+    const key = canonicalReactionUri(slug, uri);
+    const rows = (slug && key)
+      ? db.prepare('SELECT kind FROM ap_my_reactions WHERE site_slug = ? AND target_uri = ?').all(slug, key)
       : [];
     return { liked: rows.some((r) => r.kind === 'like'), boosted: rows.some((r) => r.kind === 'boost') };
   } catch { return { liked: false, boosted: false }; }
@@ -3477,8 +3504,13 @@ export function getReactionsFor(slug, uris) {
 
 export function setReaction(slug, uri, kind, on, opts = {}) {
   if (!slug || !uri || (kind !== 'like' && kind !== 'boost')) return;
-  setMyReaction(slug, uri, kind, !!on);
-  const flagUri = opts.flagUri || uri;
+  // EEN sleutel voor beide bronnen. opts.flagUri is de opgeloste object-URI van
+  // de aanroeper (het C2S-pad kent die uit resolveRemoteNote en dat is
+  // betrouwbaarder dan onze cache); anders leiden we hem af. Vroeger kreeg de
+  // tussentabel de URI die de client stuurde en de vlag de opgeloste -- dat
+  // maakte dezelfde like onvindbaar vanaf de andere pagina.
+  const flagUri = opts.flagUri || canonicalReactionUri(slug, uri);
+  setMyReaction(slug, flagUri, kind, !!on);
   if (kind === 'boost') {
     if (!on) unmarkBoosted(slug, flagUri);
     else if (opts.note) upsertBoostedNote(slug, opts.note);
@@ -4855,7 +4887,7 @@ export default {
   acceptGatedFollow, rejectGatedFollow, isWardGuardian, outboxAudience, sendFollowDecision,
   gateOutgoingFollow, performApprovedFollow,
   parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread, sendReport, localMentionSlugs,
-  autoBoostCount, boostedCount, setReaction, getReaction, getReactionsFor, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
+  autoBoostCount, boostedCount, setReaction, getReaction, getReactionsFor, canonicalReactionUri, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
   getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
