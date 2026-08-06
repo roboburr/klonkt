@@ -1736,7 +1736,7 @@ export async function handleInbox(req, slugParam, preVerified = null) {
       forwarded = await dereferenceForwarded(act, claimedActor, type, slugParam).catch(() => null);
       if (forwarded) {
         act.object = forwarded;   // de OPGEHAALDE inhoud, niet de bezorgde
-        console.log('[AP] inbox forwarded, geverifieerd bij de bron:', type, claimedActor, 'via', verified.id);
+        console.log('[AP] inbox forwarded, verified at the source:', type, claimedActor, 'via', verified.id);
       }
     }
     if (!forwarded && (!verified || !claimedActor || verified.id !== claimedActor)) {
@@ -3637,7 +3637,7 @@ export function migrateReactions(opts = {}) {
       }
     })();
     if (uit.hersleuteld || uit.aangevuld) {
-      console.log(`[AP] reactie-migratie v${REACTIONS_MIGRATION_VERSION}: ${uit.hersleuteld} hersleuteld, ${uit.aangevuld} aangevuld`);
+      console.log(`[AP] reaction migration v${REACTIONS_MIGRATION_VERSION}: ${uit.hersleuteld} re-keyed, ${uit.aangevuld} backfilled`);
     }
     if (!opts.force) {
       db.prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)')
@@ -3646,7 +3646,7 @@ export function migrateReactions(opts = {}) {
   } catch (e) {
     // Niet fataal: de kolommen staan er nog, dus de oude waarheid is niet weg.
     // Een volgende boot probeert het opnieuw, want de versie is niet gezet.
-    console.warn('[AP] reactie-migratie mislukt:', e.message);
+    console.warn('[AP] reaction migration failed:', e.message);
   }
   return uit;
 }
