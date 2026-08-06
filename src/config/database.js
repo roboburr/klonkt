@@ -468,6 +468,18 @@ export function initializeDatabase() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(slug, actor_uri)
     );
+    -- Antwoorden van accounts die we volgen komen gewoon binnen, ondertekend
+    -- door de schrijver, maar horen niet in de Krant (belongsInTimeline) en
+    -- werden daarna nergens bewaard. Kwam er later een doorgestuurd antwoord OP
+    -- zo'n bericht, dan kenden we de ouder niet en wezen we het af (shaer-e9g).
+    -- Alleen de URI, geen inhoud: dit voedt uitsluitend de vraag "kennen wij dit
+    -- bericht?". Wordt na 30 dagen gesnoeid; doorsturen gebeurt kort na het
+    -- antwoord, dus langer bewaren levert niets op.
+    CREATE TABLE IF NOT EXISTS ap_seen_notes (
+      uri TEXT PRIMARY KEY,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_ap_seen_notes_age ON ap_seen_notes(created_at);
     CREATE TABLE IF NOT EXISTS ap_timeline (
       id TEXT NOT NULL,              -- the remote note's AP id
       slug TEXT NOT NULL,            -- whose home timeline (our site)

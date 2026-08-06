@@ -1714,9 +1714,44 @@ function knownNoteUri(uri) {
     }
     if (db.prepare('SELECT 1 FROM ap_timeline WHERE id = ? LIMIT 1').get(uri)) return true;
     if (db.prepare('SELECT 1 FROM ap_interactions WHERE object_uri = ? LIMIT 1').get(uri)) return true;
+    // Een antwoord dat we al bezorgd kregen van iemand die we volgen (shaer-e9g).
+    if (db.prepare('SELECT 1 FROM ap_seen_notes WHERE uri = ? LIMIT 1').get(uri)) return true;
   } catch { /* bij twijfel niet ophalen */ }
   return false;
 }
+
+/**
+ * Onthoud dat we dit bericht al eens bezorgd kregen.
+ *
+ * Alleen de URI. Geen inhoud, niets op het scherm, geen tweede weergave -- dit
+ * beantwoordt uitsluitend de vraag "kennen wij dit bericht?" die knownNoteUri
+ * stelt voordat er iets bij de bron wordt opgehaald.
+ *
+ * De beller bepaalt WIE er onthouden wordt, en dat is de hele veiligheidsvraag:
+ * onthouden we zomaar alles wat iemand aflevert, dan kan een vreemde eerst een
+ * bericht neerleggen en daarna met een doorgestuurd antwoord dáárop ons naar een
+ * adres van zijn keuze sturen. Vandaar dat handleInbox dit alleen doet voor
+ * schrijvers die je zelf volgt.
+ */
+const SEEN_NOTES_DAYS = 30;
+let _seenSinceSnoei = 0;
+function rememberNoteUri(uri) {
+  if (!uri || typeof uri !== 'string') return;
+  try {
+    db.prepare('INSERT OR IGNORE INTO ap_seen_notes (uri) VALUES (?)').run(uri);
+    // Af en toe opruimen, niet bij het opstarten: een server die weken doorloopt
+    // zou anders nooit snoeien. Doorsturen gebeurt kort na het antwoord, dus wat
+    // ouder is dan een maand beantwoordt geen enkele vraag meer.
+    if (++_seenSinceSnoei >= 500) {
+      _seenSinceSnoei = 0;
+      const r = db.prepare(`DELETE FROM ap_seen_notes WHERE created_at < datetime('now', '-${SEEN_NOTES_DAYS} days')`).run();
+      if (r.changes) console.log(`[AP] seen notes: ${r.changes} pruned`);
+    }
+  } catch { /* niet fataal */ }
+}
+const isFollowedActor = (uri) => {
+  try { return !!db.prepare('SELECT 1 FROM ap_following WHERE actor_uri = ? LIMIT 1').get(uri); } catch { return false; }
+};
 
 // Mislukte dereferences kort onthouden. Mastodon herhaalt een bezorging
 // dagenlang; zonder dit doet elke herhaling de fetch opnieuw, ook als die de
@@ -2123,6 +2158,16 @@ export async function handleInbox(req, slugParam, preVerified = null) {
         }
         console.log('[AP] timeline +', actorUri, 'x' + subs.length);
       }
+    }
+    // Een ANTWOORD van iemand die we volgen: bewaar de URI (shaer-e9g). Zo'n
+    // bericht komt hier gewoon binnen, ondertekend door de schrijver zelf, maar
+    // belongsInTimeline houdt het uit de Krant en daarna raakten we het kwijt.
+    // Kwam er later een doorgestuurd antwoord OP dat bericht, dan kenden we de
+    // ouder niet en wezen we het af -- terwijl we hem wel degelijk hadden gehad.
+    // Er verandert niets aan wat we tonen of van vreemden aannemen: de schrijver
+    // moet iemand zijn die je zelf bent gaan volgen.
+    if (actorUri && !isLocalActor && o.id && o.inReplyTo && noteVisibility(o) !== 'direct' && isFollowedActor(actorUri)) {
+      rememberNoteUri(o.id);
     }
     // Mentioned in a post that is NOT a reply to our content (a reply to us already returned
     // above): store a mention notification for each of our actors named in the Mention tags.
