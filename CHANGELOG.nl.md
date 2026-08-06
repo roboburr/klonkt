@@ -5,6 +5,37 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 
 ## [Unreleased]
 
+### Toegevoegd
+- **Berichten is één gesprekkenweergave.** Berichten, Gesprekken en Verzonden
+  waren drie losse filters, waardoor één uitwisseling uit elkaar viel: wat jij
+  stuurde stond onder Verzonden, wat terugkwam onder een van de andere twee, en
+  om een draad te volgen moest je heen en weer klikken. Het is nu één
+  Gesprekken-weergave waarin verzonden en ontvangen in dezelfde draad staan,
+  oudste bovenaan, met jouw eigen bijdragen gemarkeerd. Er blijven vier filters
+  over: Alles, Gesprekken, Activiteit en Moderatie.
+- **Een gesprek vertelt waar het over gaat.** Hangt een draad aan een van je
+  posts, dan staat er een link naar die post in de kop. Zonder die context is
+  een antwoord in een lijst niet te plaatsen. Draden die niet over een post gaan
+  lopen per persoon.
+- **Posts in Berichten zien eruit als posts.** Opmaak, afbeeldingen, geluid,
+  video, quote-kaarten en linkvoorbeelden worden nu net zo getoond als in de
+  Krant, ook bij de berichten die je zelf stuurde — een foto die jij meestuurde
+  kwam op je eigen scherm als kale tekst binnen terwijl de ander wel een plaatje
+  zag.
+- **De Guardian-app toont posts van je ward compleet.** Hetzelfde gat zat in de
+  guardian-weergave: een post van je ward kwam binnen zonder media, quote-kaart
+  of emoji, terwijl dat juist de post is die je als guardian wilt kunnen
+  beoordelen. Een content warning blijft daar zoals eerder dichtgeklapt.
+- **Antwoorden vanuit een gesprek.** Onder een draad staat een eigen
+  antwoordvenster, de rijke editor met opmaak, media en een taalkeuze. Zwaaien
+  blijft een aparte knop ernaast: een zwaai is een seintje, geen antwoord.
+
+### Opgelost
+- **Een like vanuit een app blijft nu staan.** Een like die je in Shaer gaf werd
+  wel opgeslagen, maar de app kreeg dat nooit terug, dus het hartje sprong bij de
+  eerste herlaadbeurt weer uit — en omdat de app de like nooit zag, kon hij hem
+  alleen opnieuw geven en nooit intrekken. Un-liken vanuit een app werkt nu.
+
 ## [1.6.0] · 2026-07-31
 
 ### Toegevoegd

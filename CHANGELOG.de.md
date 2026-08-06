@@ -5,6 +5,40 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 
 ## [Unreleased]
 
+### Hinzugefügt
+- **Nachrichten ist eine einzige Gesprächsansicht.** Nachrichten, Gespräche und
+  Gesendet waren drei getrennte Filter, wodurch ein Austausch auseinanderfiel:
+  was du gesendet hast, stand unter Gesendet, was zurückkam unter einem der
+  beiden anderen, und um einem Verlauf zu folgen, musstest du hin und her
+  wechseln. Es ist jetzt eine Gesprächsansicht, in der Gesendetes und
+  Empfangenes im selben Verlauf stehen, das Älteste oben, mit deinen eigenen
+  Beiträgen markiert. Vier Filter bleiben: Alle, Gespräche, Aktivität und
+  Moderation.
+- **Ein Gespräch sagt, worum es geht.** Hängt ein Verlauf an einem deiner
+  Beiträge, verlinkt die Kopfzeile darauf. Ohne diesen Zusammenhang lässt sich
+  eine Antwort in einer Liste nicht einordnen. Verläufe ohne Beitrag laufen
+  stattdessen pro Person.
+- **Beiträge in Nachrichten sehen aus wie Beiträge.** Formatierung, Bilder,
+  Audio, Video, Zitatkarten und Link-Vorschauen werden jetzt genauso dargestellt
+  wie in den Nachrichten der Zeitung — auch bei dem, was du selbst gesendet hast:
+  ein von dir angehängtes Foto kam auf dem eigenen Bildschirm als nackter Text
+  an, während alle anderen das Bild sahen.
+- **Die Guardian-App zeigt Beiträge deines Wards vollständig.** Dieselbe Lücke
+  steckte in der Guardian-Ansicht: ein Beitrag deines Wards kam ohne Medien,
+  Zitatkarte oder Emoji an — genau der Beitrag, den ein Guardian beurteilen
+  können muss. Eine Inhaltswarnung bleibt dort wie bisher eingeklappt.
+- **Aus einem Gespräch heraus antworten.** Unter einem Verlauf steht ein eigenes
+  Antwortfeld, der reichhaltige Editor mit Formatierung, Medien und Sprachwahl.
+  Winken bleibt eine eigene Schaltfläche daneben: ein Winken ist ein Zeichen,
+  keine Antwort.
+
+### Behoben
+- **Ein Like aus einer App bleibt jetzt bestehen.** Ein Like aus Shaer wurde
+  zwar gespeichert, aber die App bekam das nie zurück, sodass das Herz beim
+  nächsten Laden wieder aussprang — und weil die App das Like nie sah, konnte sie
+  es nur erneut senden und nie zurücknehmen. Das Zurücknehmen aus einer App
+  funktioniert jetzt.
+
 ## [1.6.0] · 2026-07-31
 
 ### Hinzugefügt

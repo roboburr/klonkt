@@ -5,6 +5,35 @@ Versions follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Messages is one conversation view.** Messages, Conversations and Sent were
+  three separate filters, so a single exchange fell apart: what you sent sat
+  under Sent, what came back under one of the other two, and you had to switch
+  filters to follow a thread. They are now one Conversations view in which sent
+  and received sit in the same thread, oldest at the top, with your own
+  contributions marked. Four filters remain: All, Conversations, Activity and
+  Moderation.
+- **A conversation says what it is about.** When a thread hangs off one of your
+  posts, its header links to that post. Without it a reply in a list is
+  impossible to place. Threads that are not about a post run per person instead.
+- **Posts in Messages look like posts.** Formatting, images, audio, video, quote
+  cards and link previews now render the same way they do in News, including on
+  the messages you sent yourself — a photo you attached used to arrive as bare
+  text on your own screen while everyone else saw the picture.
+- **The Guardian app shows a ward's posts in full.** The same gap sat in the
+  guardian view: a post from your ward arrived without its media, quote card or
+  emoji, which is exactly the post a guardian needs to be able to judge. A
+  content warning still stays collapsed there, as before.
+- **Reply from inside a conversation.** A thread has its own reply editor, the
+  rich one with formatting, media and a language picker. Waving stays a separate
+  button next to it: a wave is a nudge, not an answer.
+
+### Fixed
+- **A like from an app now sticks.** Liking a post from Shaer was stored, but
+  the app never got that back, so the heart popped off again on the next reload
+  — and because the app never saw the like, it could only offer "like" again and
+  never undo it. Un-liking from an app now works.
+
 ## [1.6.0] · 2026-07-31
 
 ### Added
