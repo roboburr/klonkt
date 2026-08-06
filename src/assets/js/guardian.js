@@ -552,13 +552,19 @@
     if (p.published) head.appendChild(el('span', 'g-when', when(p, p.published)));
     card.appendChild(head);
     var body = el('div', 'feed-body');
+    // body_html is de gedeelde note-body-partial, serverside gerenderd: opmaak,
+    // media, quote-kaart en embed, precies als in de Krant en in Berichten.
+    // Valt terug op de kale content voor een client uit de cache.
+    var html = p.body_html || p.content || '';
     if (p.cw) {
+      // De content warning blijft van de PWA zelf: note-body versluiert alleen
+      // bij nsfw, en een ward-post met alleen een cw hoort hier dicht te staan.
       var d = document.createElement('details');
       var sum = document.createElement('summary'); sum.textContent = p.cw; d.appendChild(sum);
-      var inner = el('div'); inner.innerHTML = p.content || ''; d.appendChild(inner);
+      var inner = el('div'); inner.innerHTML = html; d.appendChild(inner);
       body.appendChild(d);
     } else {
-      body.innerHTML = p.content || '';   // server-sanitized HTML (same as Berichten)
+      body.innerHTML = html;   // server-sanitized HTML (same as Berichten)
     }
     card.appendChild(body);
     return card;

@@ -191,6 +191,7 @@ function ensureWardConnections(site) {
 router.get('/api/feed', requireAuth, (req, res) => {
   const site = siteForUser(req);
   if (!site) return res.status(404).json({ error: 'no_site' });
+  const L = resolveLang(req);
   ensureWardConnections(site);
   const wardUris = new Set(Guardianship.listWards(site.slug).map((w) => w.other_uri));
   // Only show the wards you actually guard (the timeline can hold more).
@@ -208,6 +209,12 @@ router.get('/api/feed', requireAuth, (req, res) => {
       when_text: formatDateTime(p.published || p.created_at),
       cw: p.cw || null,
       media: p.media_json ? JSON.parse(p.media_json) : [],
+      // Een post van je ward hoort er hetzelfde uit te zien als in de Krant en
+      // in Berichten: dezelfde partial, dus opmaak, media, quote-kaart en
+      // embed. Tot nu toe kreeg de PWA alleen kale content -- een guardian zag
+      // een lege regel waar een foto stond. `content` blijft ernaast staan voor
+      // een client die nog uit de cache draait.
+      body_html: renderNoteBody(p, L),
     }));
   res.json({ items, following: wardUris.size });
 });
