@@ -108,15 +108,30 @@ function mediaRefsOf(post, origin) {
   return uit;
 }
 
-/** De audio-metadata die alleen in de database staat en nergens anders uit te halen is. */
-function audioOf(post) {
+/**
+ * De audio-metadata die alleen in de database staat en nergens anders uit te
+ * halen is: titel, artiest, credit, licentie, externe links.
+ *
+ * `shaer:media` koppelt de track aan zijn bestand in het archief. Zonder die
+ * verwijzing weet een importer wel dát er een track was en hoe hij heette, maar
+ * niet wélk van de bijlagen erbij hoort -- en dan valt [[track:]] bij een
+ * herstel op niets terug.
+ */
+function audioOf(post, attachments) {
   const uit = [];
   for (const m of String(post.content || '').matchAll(/\[\[track:([A-Za-z0-9_-]+)\]\]/g)) {
     try {
-      const t = db.prepare('SELECT * FROM audio_tracks WHERE id = ?').get(m[1]);
+      const t = db.prepare('SELECT t.*, md.storage_path FROM audio_tracks t LEFT JOIN media md ON md.id = t.media_id WHERE t.id = ?').get(m[1]);
       if (!t) continue;
+      let bestand;
+      if (t.storage_path) {
+        const rel = `/media/${path.relative(path.resolve(MEDIA_ROOT), path.resolve(t.storage_path))}`;
+        const bij = attachments.find((a) => String(a['shaer:originalUrl'] || '').endsWith(rel));
+        bestand = bij ? bij.url : undefined;
+      }
       uit.push({
         'shaer:ref': `[[track:${t.id}]]`,
+        'shaer:media': bestand,
         name: t.title, artist: t.artist || undefined, album: t.album || undefined,
         duration: t.duration || undefined, credit: t.credit || undefined, license: t.license || undefined,
         url: [t.link_spotify, t.link_youtube, t.link_soundcloud].filter(Boolean),
@@ -136,7 +151,7 @@ function postObject(post, site, origin, attachments) {
       const d = JSON.parse(post.poll_json || 'null');
       if (!d || !Array.isArray(d.options) || d.options.length < 2) return null;
       const opties = d.options.map((o) => ({ type: 'Note', name: String(o && o.name != null ? o.name : o) }));
-      return { multiple: !!d.multiple, opties, endTime: d.endTime || null };
+      return { multiple: !!d.multiple, opties, endTime: d.endTime || null, closed: !!d.closed };
     } catch { return null; }
   })();
   const tags = [];
@@ -163,6 +178,9 @@ function postObject(post, site, origin, attachments) {
     tag: tags.length ? tags : undefined,
     ...(poll ? (poll.multiple ? { anyOf: poll.opties } : { oneOf: poll.opties }) : {}),
     endTime: poll ? (poll.endTime || undefined) : undefined,
+    // AS2 kent `closed` op een Question. Zonder dit staat een poll die vroegtijdig
+    // is gesloten na een herstel weer open -- gevonden op echte beta-data.
+    closed: (poll && poll.closed) ? true : undefined,
     quoteUrl: post.quote_uri || undefined,
     'shaer:quoteActor': post.quote_actor || undefined,
     'shaer:slug': post.slug,
@@ -178,7 +196,7 @@ function postObject(post, site, origin, attachments) {
     'shaer:publishAt': toISO(post.publish_at) || undefined,
     'shaer:coverAlt': post.cover_alt || undefined,
     'shaer:viewCount': post.view_count || undefined,
-    'shaer:audio': audioOf(post),
+    'shaer:audio': audioOf(post, attachments),
   };
 }
 

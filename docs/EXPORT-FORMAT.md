@@ -115,7 +115,7 @@ archive carries the authoring truth instead, and the differences are:
 | `shaer:publishAt` | `posts.publish_at` | a scheduled post keeps its schedule |
 | `shaer:coverAlt` | `posts.cover_alt` | |
 | `shaer:viewCount` | `posts.view_count` | optional; a restore without it loses history |
-| `shaer:audio` | `audio_tracks` rows referenced from the content | title, artist, duration, credit, license, links, and a `media` reference |
+| `shaer:audio` | `audio_tracks` rows referenced from the content | title, artist, duration, credit, license, external links, `shaer:ref` (the `[[track:id]]` it belongs to) and `shaer:media` (which attachment holds its file) |
 
 **Deliberately not exported:** `yjs_binary` (collaborative editor state — large,
 regenerable, and meaningless elsewhere), `content_rendered` (derived from
