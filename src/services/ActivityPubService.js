@@ -1283,7 +1283,23 @@ export async function deliver(inboxUrl, bodyObj, keyId, privatePem) {
   return r.status;
 }
 
-export async function fetchActor(url) {
+export async function fetchActor(url, opts = {}) {
+  // Authorized fetch (Mastodons secure mode): zo'n instance serveert zijn
+  // actor-document -- en dus zijn publieke sleutel -- alleen aan een ONDERTEKEND
+  // verzoek en antwoordt anders met 401. Zonder sleutel kunnen we een correct
+  // ondertekende Follow van die instance niet verifiëren en wijzen we hem af,
+  // waarna Mastodon het dagenlang blijft proberen. Gemeten op boiert.eu: vier
+  // accounts eindeloos geweigerd, en precies die vier geven 401 op een
+  // onbetekende GET (shaer-afq).
+  //
+  // Geen kip-ei: om ONZE handtekening te controleren haalt de andere kant ons
+  // actor-document op, en dat serveert Klonkt publiek.
+  if (opts.asSlug) {
+    const signed = await signedGetJson(opts.asSlug, url).catch(() => null);
+    if (signed && signed.id) return signed;
+    // Geen terugkeer bij mislukking: een instance zonder secure mode moet
+    // blijven werken, en niet elke 401 komt van authorized fetch.
+  }
   try {
     const r = await safeFetch(url, { headers: { Accept: 'application/activity+json' } });
     if (!r.ok) return null;
@@ -1367,17 +1383,31 @@ export function startDeliveryWorker() {
   if (_delivTimer.unref) _delivTimer.unref();
 }
 
+/** Een lokale site om GETs mee te ondertekenen wanneer er geen specifieke is
+ *  (de gedeelde inbox). Gecached: dit draait per binnenkomend verzoek. */
+let _signSlug;
+function anySigningSlug() {
+  if (_signSlug !== undefined) return _signSlug;
+  try { const r = db.prepare('SELECT slug FROM sites ORDER BY rowid LIMIT 1').get(); _signSlug = (r && r.slug) || null; }
+  catch { _signSlug = null; }
+  return _signSlug;
+}
+
 // Best-effort verification of an incoming signed request. Returns the sender's
 // actor doc if the signature checks out, else null. (Not gating yet — MVP.)
 // Max clock skew for the signed Date header (replay window). Generous default to tolerate
 // federating servers with drifting clocks; an operator can widen it via env.
 const SIG_MAX_SKEW_MS = (Number(process.env.AP_SIG_MAX_SKEW_MIN) || 60) * 60 * 1000;
-export async function verifyRequest(req) {
+export async function verifyRequest(req, asSlug = null) {
   const sigH = req.headers['signature'];
   if (!sigH) return null;
   const p = Object.fromEntries([...sigH.matchAll(/([a-zA-Z]+)="([^"]*)"/g)].map((m) => [m[1], m[2]]));
   if (!p.keyId || !p.signature) return null;
-  const actor = await fetchActor(p.keyId.split('#')[0]);
+  // Onderteken de sleutel-ophaal, anders faalt elke instance met authorized
+  // fetch (shaer-afq). Zonder aangewezen site -- de gedeelde inbox -- tekenen we
+  // als een willekeurige lokale actor: elke Klonkt-actor is een geldige
+  // ondertekenaar, het gaat de andere kant er alleen om DAT er ondertekend is.
+  const actor = await fetchActor(p.keyId.split('#')[0], { asSlug: asSlug || anySigningSlug() });
   const pem = actor && actor.publicKey && actor.publicKey.publicKeyPem;
   if (!pem) return null;
   const hs = (p.headers || '(request-target) host date').split(/\s+/);
@@ -1677,7 +1707,7 @@ export async function handleInbox(req, slugParam, preVerified = null) {
   // check — but we do know who signed, because we signed it. Handing that in
   // keeps everything below identical, including the actor-versus-signer check,
   // which is exactly the check that must not be skipped for being local.
-  const verified = preVerified || await verifyRequest(req).catch(() => null);
+  const verified = preVerified || await verifyRequest(req, slugParam).catch(() => null);
 
   // ENFORCE HTTP signatures: a data-affecting activity must be signed by the very
   // actor it claims to be. No valid signature, or signer ≠ actor → reject (no
