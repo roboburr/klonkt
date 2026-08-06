@@ -150,10 +150,19 @@
      bij elkaar horen -- dat was precies wat ontbrak toen verzonden en ontvangen
      in aparte chips zaten. */
   .msg-thread { display: block; }
-  .msg-thread-head { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; margin-bottom: .5rem; }
-  .msg-thread-who { font-weight: 600; }
-  .msg-thread-count { font-size: .78em; padding: .05rem .4rem; border-radius: 999px;
-    background: color-mix(in srgb, var(--ink, #000) 10%, transparent); }
+  .msg-thread-head { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; margin-bottom: .35rem; }
+  /* De tegenpartij is een labeltje bij het gesprek, geen kop erboven: een
+     kleine verzonken uitsparing, zodat de bubbels eronder de ruimte krijgen.
+     Het aantal zit in dezelfde uitsparing in plaats van ernaast. */
+  .msg-thread-who { display: inline-flex; align-items: center; gap: .3rem;
+    font-size: .78em; line-height: 1.5; font-weight: 500;
+    padding: .05rem .5rem; border-radius: 999px;
+    color: color-mix(in srgb, var(--ink, #000) 62%, transparent);
+    background: color-mix(in srgb, var(--ink, #000) 5%, transparent);
+    box-shadow: inset 0 1px 2px color-mix(in srgb, var(--ink, #000) 9%, transparent);
+    max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .msg-thread-count { font-variant-numeric: tabular-nums; opacity: .75;
+    padding-inline-start: .3rem; border-inline-start: 1px solid color-mix(in srgb, var(--ink, #000) 14%, transparent); }
   .msg-thread-post { display: inline-flex; align-items: center; gap: .3rem; font-size: .85em;
     margin-inline-start: auto; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .msg-thread-post svg { width: 13px; height: 13px; flex: none; }

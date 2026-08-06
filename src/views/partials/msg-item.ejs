@@ -13,8 +13,9 @@
       %>
         <li class="msg-item msg-thread<%= _tnew ? ' is-new' : '' %>" data-kind="conv" data-who="<%= (_tpeople.join(' ') + ' ' + (_tto || '')).toLowerCase() %>">
           <div class="msg-thread-head">
-            <span class="msg-thread-who"><%= _tlabel %></span>
-            <% if (n.count > 1) { %><span class="msg-thread-count"><%= n.count %></span><% } %>
+            <%# Tegenpartij en aantal in EEN uitsparing: het is een label bij het
+                gesprek, geen kop erboven. Zo houdt de inhoud de ruimte. %>
+            <span class="msg-thread-who"><%= _tlabel %><% if (n.count > 1) { %><span class="msg-thread-count"><%= n.count %></span><% } %></span>
             <% if (_tnew) { %><span class="msg-new" title="<%= t('msg.new') %>"></span><% } %>
             <%# De context bij de draad: waar gaat dit gesprek over? Zonder deze
                 link is een antwoord in een lijst niet te plaatsen. %>
