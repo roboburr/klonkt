@@ -105,6 +105,19 @@ function padVanOrigineel(u) {
 }
 
 /**
+ * Waar deze bijlage komt te staan, als site-relatief pad.
+ *
+ * Meestal zijn oorspronkelijke plek en bestemming gelijk. Maar een bestand dat
+ * ELDERS werd geserveerd -- gehoste audio ging via /audio/stream/ -- heeft geen
+ * plek onder /media. Zonder een bestemming zou het bestand wel worden
+ * weggeschreven en toch uit de kolommen verdwijnen. Nu krijgt het een eigen hoek,
+ * en verwijzen de kolommen daarheen.
+ */
+function bestemming(a) {
+  return padVanOrigineel(a && a['shaer:originalUrl']) || `/media/archief/${path.basename(String((a && a.url) || ''))}`;
+}
+
+/**
  * Zet een archief terug in een site.
  *
  * @param {Map<string,Buffer>} files  het ingelezen archief
@@ -188,8 +201,7 @@ export function importArchive(files, opts = {}) {
         rapport.waarschuwingen.push(`${a.url}: checksum klopt niet, overgeslagen`);
         continue;
       }
-      const doel = veiligMediaPad(padVanOrigineel(a['shaer:originalUrl']))
-        || veiligMediaPad(`/media/archief/${path.basename(a.url)}`);
+      const doel = veiligMediaPad(bestemming(a));
       if (!doel) { rapport.waarschuwingen.push(`${a.url}: onbruikbaar doelpad, overgeslagen`); continue; }
       schrijf.push({ soort: 'media', doel, bytes });
       rapport.media += 1;
@@ -248,7 +260,7 @@ export function importArchive(files, opts = {}) {
       // bestand er wel, maar komt de post zonder cover en zonder speler terug --
       // en dat zie je pas als je alle kolommen vergelijkt.
       const bijlagen = Array.isArray(o.attachment) ? o.attachment : [];
-      const padVan = (a) => (a ? padVanOrigineel(a['shaer:originalUrl']) : null);
+      const padVan = (a) => (a && a['shaer:availability'] !== 'missing' ? bestemming(a) : (a ? padVanOrigineel(a['shaer:originalUrl']) : null));
       const metRol = (r) => bijlagen.find((a) => a['shaer:role'] === r);
       const c2s = bijlagen.filter((a) => a['shaer:role'] === 'c2s').map((a) => {
         const poster = bijlagen.find((x) => x['shaer:role'] === 'poster' && x['shaer:posterFor'] === padVan(a));
@@ -283,7 +295,7 @@ export function importArchive(files, opts = {}) {
         if (!trackId) continue;
         let mediaId = null;
         const bij = (o.attachment || []).find((a) => a.url === t['shaer:media']);
-        const doel = bij && veiligMediaPad(padVanOrigineel(bij['shaer:originalUrl']));
+        const doel = bij && veiligMediaPad(bestemming(bij));
         if (doel) {
           mediaId = randomUUID();
           try {

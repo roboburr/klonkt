@@ -23,7 +23,7 @@ import { MEDIA_ROOT } from '../config/paths.js';
 export const FORMAT_VERSION = 1;
 
 /** JSON met gesorteerde sleutels: zonder vaste volgorde is byte-gelijkheid toeval. */
-function stableJson(value) {
+export function stableJson(value) {
   const sorteer = (v) => {
     if (Array.isArray(v)) return v.map(sorteer);
     if (v && typeof v === 'object') {
