@@ -65,21 +65,41 @@ test('een gewone instance blijft werken, ondertekend of niet', async () => {
   assert.ok(await AP.fetchActor(OPEN_ACTOR, { asSlug: 'me' }), 'ondertekend');
 });
 
-test('mislukt ondertekend ophalen, dan volgt de onbetekende poging alsnog', async () => {
-  // Niet elke 401 komt van secure mode, en een instance die geen handtekening
-  // verwacht mag er niet door stukgaan. OPEN_ACTOR antwoordt op allebei, dus we
-  // meten dat er ECHT twee pogingen zijn wanneer de eerste niets oplevert.
+test('een OPEN instance wordt NIET ondertekend opgehaald', () => {
+  // De veiligheidskant van shaer-afq: verifyRequest haalt de keyId-URL op
+  // voordat er iets geverifieerd is, en die URL komt uit een header die iedereen
+  // mag sturen. Tekenden we standaard, dan kan een vreemde ons een ondertekend
+  // verzoek naar een adres van zijn keuze laten sturen, met onze identiteit
+  // eronder. Onbetekend eerst dus, en alleen tekenen als het anders niet lukt.
   verzoeken = [];
+  return AP.fetchActor(OPEN_ACTOR, { asSlug: 'me' }).then((actor) => {
+    assert.ok(actor);
+    assert.equal(verzoeken.length, 1, 'één poging, geen tweede');
+    assert.equal(verzoeken[0].ondertekend, false, 'en die was onbetekend');
+  });
+});
+
+test('een document zonder sleutel telt als mislukt en leidt tot een ondertekende poging', async () => {
+  // Sommige instances serveren onbetekend wel iets, maar zonder publicKey. Voor
+  // een verificatie hebben we daar niets aan.
+  const KAAL = 'https://203.0.113.50/users/kaal';
   const stubOrig = globalThis.fetch;
-  let eerste = true;
   globalThis.fetch = async (url, opts = {}) => {
     const ondertekend = !!(opts.headers && (opts.headers.Signature || opts.headers.signature));
-    if (String(url) === OPEN_ACTOR && ondertekend && eerste) { eerste = false; return new Response('nee', { status: 500 }); }
+    if (String(url) === KAAL) {
+      verzoeken.push({ url: String(url), ondertekend });
+      const body = ondertekend
+        ? { id: KAAL, type: 'Person', publicKey: { id: `${KAAL}#k`, owner: KAAL, publicKeyPem: 'x' } }
+        : { id: KAAL, type: 'Person' };   // kaal: geen sleutel
+      return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/activity+json' } });
+    }
     return stubOrig(url, opts);
   };
-  const actor = await AP.fetchActor(OPEN_ACTOR, { asSlug: 'me' });
+  verzoeken = [];
+  const actor = await AP.fetchActor(KAAL, { asSlug: 'me' });
   globalThis.fetch = stubOrig;
-  assert.ok(actor, 'de terugval hoort hem alsnog op te halen');
+  assert.ok(actor.publicKey && actor.publicKey.publicKeyPem, 'de ondertekende poging levert de sleutel');
+  assert.deepEqual(verzoeken.map((v) => v.ondertekend), [false, true], 'eerst onbetekend, daarna pas ondertekend');
 });
 
 test('een onbekende actor blijft null, ondertekend of niet', async () => {

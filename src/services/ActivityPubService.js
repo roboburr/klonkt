@@ -1294,19 +1294,30 @@ export async function fetchActor(url, opts = {}) {
   //
   // Geen kip-ei: om ONZE handtekening te controleren haalt de andere kant ons
   // actor-document op, en dat serveert Klonkt publiek.
-  if (opts.asSlug) {
-    const signed = await signedGetJson(opts.asSlug, url).catch(() => null);
-    if (signed && signed.id) return signed;
-    // Geen terugkeer bij mislukking: een instance zonder secure mode moet
-    // blijven werken, en niet elke 401 komt van authorized fetch.
-  }
+  //
+  // ONBETEKEND EERST, en dat is een veiligheidskeuze en geen optimalisatie.
+  // verifyRequest haalt de keyId-URL op VOORDAT er iets geverifieerd is, en die
+  // URL komt uit een header die iedereen mag sturen. Tekenden we dat verzoek
+  // standaard, dan kan een volslagen onbekende ons een ONDERTEKEND verzoek laten
+  // sturen naar een adres van zijn keuze -- met onze identiteit eronder. Dat is
+  // precies hoe een instance op een blocklist belandt. Ondertekenen doen we dus
+  // pas als het onbetekend niet lukt, en dan alleen voor deze ene URL.
+  let doc = null;
   try {
     const r = await safeFetch(url, { headers: { Accept: 'application/activity+json' } });
-    if (!r.ok) return null;
-    const len = Number(r.headers.get('content-length') || 0);
-    if (len > 2_000_000) return null; // refuse oversized actor docs
-    return await r.json();
-  } catch { return null; }
+    if (r.ok) {
+      const len = Number(r.headers.get('content-length') || 0);
+      if (len > 2_000_000) return null; // refuse oversized actor docs
+      doc = await r.json();
+    }
+  } catch { /* val door naar de ondertekende poging */ }
+  // Genoeg? Dan klaar. Sommige instances serveren onbetekend wel een document
+  // maar zonder sleutel; voor een verificatie hebben we daar niets aan, dus die
+  // telt als mislukt.
+  if (doc && (!opts.asSlug || (doc.publicKey && doc.publicKey.publicKeyPem))) return doc;
+  if (!opts.asSlug) return doc;
+  const signed = await signedGetJson(opts.asSlug, url).catch(() => null);
+  return (signed && signed.id) ? signed : doc;
 }
 
 // ── Delivery queue with retries ───────────────────────────────────
