@@ -101,7 +101,7 @@ archive carries the authoring truth instead, and the differences are:
 | `published` | `posts.published_at` ?? `created_at` | ISO 8601, UTC |
 | `updated` | `posts.updated_at` | omitted when equal to `published` |
 | `url` | `<origin>/<slug>` | the human permalink |
-| `attachment` | cover, inline images, `c2s_attachments` | see [Media](#media) |
+| `attachment` | cover, inline `<img>`, `c2s_attachments` **and their `poster`**, hosted audio tracks | see [Media](#media) |
 | `tag` | `posts.tags`, mentions, custom emoji | `Hashtag`, `Mention`, `toot:Emoji` |
 | `oneOf` / `anyOf` / `endTime` | `posts.poll_json` | a poll exports as a `Question` |
 | `quoteUrl`, `shaer:quoteActor` | `posts.quote_uri`, `quote_actor` | FEP-044f |
@@ -257,8 +257,11 @@ overwrite, or refuse and report); it never guesses per post.
 
 ## Reproducibility
 
-Two exports of unchanged content must be **byte-identical**. That is what makes
-an archive verifiable and a diff meaningful.
+Two exports of unchanged content must be **byte-identical except for
+`manifest.exportedAt`**, which is by definition the moment of export. Everything
+else — every post file, every media file, and the `files` checksum map — must
+match. That is what makes an archive verifiable and a diff meaningful: if the
+checksum map is equal, nothing changed.
 
 - JSON: keys sorted, two-space indent, LF, trailing newline.
 - Posts ordered by `published`, then by `id` for ties.
