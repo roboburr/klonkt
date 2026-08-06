@@ -3437,6 +3437,90 @@ export function unmarkLiked(slug, noteId) {
  * naad houdt fase 1 gedragsbehoudend; het samentrekken van die twee sleutels is
  * werk voor fase 2, mét datamigratie.
  */
+// Reactie-migratie (shaer-9e9). Draait bij boot, EEN keer per bump, net als
+// selfHealTimeline. Bewust automatisch: klonkt-update tilt een hele vloot in een
+// stap naar nieuwe code, en een handmatig script per instance wordt vergeten --
+// terwijl het falen stil is (een reactie die niemand meer ziet geeft geen fout).
+const REACTIONS_MIGRATION_VERSION = 1;
+
+/**
+ * Brengt alle reacties naar de tussentabel, onder de canonieke object-URI.
+ *
+ * Twee stappen, en ze zijn allebei nodig:
+ *
+ *  1. HERSLEUTELEN. De oude interact-route bewaarde de URI waarmee je binnenkwam
+ *     en de bookmarklet geeft window.location.href door, dus de permalink. Sinds
+ *     canonicalReactionUri wordt er op de object-URI gezocht, waardoor die rijen
+ *     wees zouden zijn. De created_at reist mee: bij hersleutelen weten we
+ *     wanneer je reageerde, bij aanvullen niet.
+ *  2. AANVULLEN vanuit de afgeleide kolommen. Alles wat op oude code via de
+ *     Krant is gegeven staat alleen daar; zonder deze stap toont het als
+ *     niet-gereageerd en klikt een gebruiker opnieuw -- met een tweede Like de
+ *     fediverse in als gevolg.
+ *
+ * Idempotent. Geeft terug wat er gebeurd is, zodat het script het kan tonen.
+ */
+export function migrateReactions(opts = {}) {
+  const uit = { hersleuteld: 0, aangevuld: 0, overgeslagen: false };
+  try {
+    if (!opts.force) {
+      const r = db.prepare('SELECT value FROM app_settings WHERE key = ?').get('reactions_migration_version');
+      const cur = r ? (parseInt(r.value, 10) || 0) : 0;
+      if (cur >= REACTIONS_MIGRATION_VERSION) { uit.overgeslagen = true; return uit; }
+    }
+  } catch { return uit; }   // geen app_settings → deze database is te oud om aan te raken
+
+  // Een rij die NIET op een tijdlijn-id staat maar wel op een tijdlijn-url.
+  const wees = `
+    FROM ap_my_reactions r JOIN ap_timeline t ON t.slug = r.site_slug AND t.url = r.target_uri
+     WHERE NOT EXISTS (SELECT 1 FROM ap_timeline t2 WHERE t2.slug = r.site_slug AND t2.id = r.target_uri)`;
+  const scheef = (kind, kolom) => `
+    FROM ap_timeline t
+     WHERE t.${kolom} = 1
+       AND NOT EXISTS (SELECT 1 FROM ap_my_reactions r
+                        WHERE r.site_slug = t.slug AND r.target_uri = t.id AND r.kind = '${kind}')`;
+
+  if (opts.dryRun) {
+    try {
+      uit.hersleuteld = db.prepare(`SELECT COUNT(*) AS n ${wees}`).get().n;
+      uit.aangevuld = db.prepare(`SELECT COUNT(*) AS n ${scheef('like', 'liked')}`).get().n
+                    + db.prepare(`SELECT COUNT(*) AS n ${scheef('boost', 'boosted')}`).get().n;
+    } catch { /* laat de nullen staan */ }
+    return uit;
+  }
+
+  try {
+    db.transaction(() => {
+      // 1. Hersleutelen: eerst de canonieke variant erbij, dan de permalink weg.
+      //    In die volgorde, zodat een onderbreking hooguit een dubbele rij
+      //    oplevert en nooit een verdwenen reactie.
+      uit.hersleuteld = db.prepare(`
+        INSERT OR IGNORE INTO ap_my_reactions (site_slug, target_uri, kind, created_at)
+        SELECT r.site_slug, t.id, r.kind, r.created_at ${wees}`).run().changes;
+      db.prepare(`DELETE FROM ap_my_reactions WHERE rowid IN (SELECT r.rowid ${wees})`).run();
+
+      // 2. Aanvullen vanuit de kolommen.
+      for (const [kind, kolom] of [['like', 'liked'], ['boost', 'boosted']]) {
+        uit.aangevuld += db.prepare(`
+          INSERT OR IGNORE INTO ap_my_reactions (site_slug, target_uri, kind)
+          SELECT t.slug, t.id, '${kind}' ${scheef(kind, kolom)}`).run().changes;
+      }
+    })();
+    if (uit.hersleuteld || uit.aangevuld) {
+      console.log(`[AP] reactie-migratie v${REACTIONS_MIGRATION_VERSION}: ${uit.hersleuteld} hersleuteld, ${uit.aangevuld} aangevuld`);
+    }
+    if (!opts.force) {
+      db.prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)')
+        .run('reactions_migration_version', String(REACTIONS_MIGRATION_VERSION));
+    }
+  } catch (e) {
+    // Niet fataal: de kolommen staan er nog, dus de oude waarheid is niet weg.
+    // Een volgende boot probeert het opnieuw, want de versie is niet gezet.
+    console.warn('[AP] reactie-migratie mislukt:', e.message);
+  }
+  return uit;
+}
+
 /**
  * Van wat de client stuurde naar de canonieke sleutel voor een reactie.
  *
@@ -4887,7 +4971,7 @@ export default {
   acceptGatedFollow, rejectGatedFollow, isWardGuardian, outboxAudience, sendFollowDecision,
   gateOutgoingFollow, performApprovedFollow,
   parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread, sendReport, localMentionSlugs,
-  autoBoostCount, boostedCount, setReaction, getReaction, getReactionsFor, canonicalReactionUri, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
+  autoBoostCount, boostedCount, setReaction, getReaction, getReactionsFor, canonicalReactionUri, migrateReactions, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
   getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,

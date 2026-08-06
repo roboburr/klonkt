@@ -64,7 +64,7 @@ import changelogRoutes from './routes/changelog.js';
 import ogRoutes from './routes/og.js';
 import apRoutes from './routes/activitypub.js';
 import oauthRoutes from './routes/oauth.js';
-import { apWants, startDeliveryWorker, selfHealTimeline } from './services/ActivityPubService.js';
+import { apWants, startDeliveryWorker, selfHealTimeline, migrateReactions } from './services/ActivityPubService.js';
 
 // SESSION_SECRET: use the env var if set. Otherwise auto-generate a strong one
 // and persist it next to the database, so it stays stable across restarts and
@@ -196,6 +196,10 @@ app.use((req, res, next) => {
 initializeDatabase();
 startScheduler(); // release planning: publish scheduled posts when publish_at is reached
 startDeliveryWorker(); // retry failed fediverse deliveries with backoff
+// Once per REACTIONS_MIGRATION_VERSION bump: reacties naar de tussentabel, onder
+// de canonieke object-URI. Moet VOOR het serveren, want vanaf nu leest de code
+// die tabel -- draait hij niet, dan tonen oude likes als niet-gegeven.
+migrateReactions();
 selfHealTimeline(); // once per SELFHEAL_VERSION bump: re-sync the fediverse cache (covers/edits) after a drastic update
 
 // Safety net: guarantee that there is always a primary site (solo/hub/circle).

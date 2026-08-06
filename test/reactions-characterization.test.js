@@ -312,3 +312,53 @@ test('een reactie op iets buiten je tijdlijn blijft gewoon werken', () => {
   AP.setReaction('me', onbekend, 'like', true);
   assert.equal(AP.getReaction('me', onbekend).liked, true);
 });
+
+// ── De migratie bij boot ─────────────────────────────────────────────────
+
+test('migrateReactions hersleutelt een permalink-rij naar de object-URI', () => {
+  // De oude interact-route bewaarde de URI waarmee je binnenkwam, en de
+  // bookmarklet geeft de permalink door. Zonder hersleutelen zijn die rijen
+  // wees zodra er op de object-URI gezocht wordt.
+  const obj = uri('mig1');
+  const permalink = 'https://sound-fabrics.com/oud-artikel';
+  db.prepare(`INSERT OR IGNORE INTO ap_timeline (id, slug, author_uri, author_name, content, url, created_at)
+              VALUES (?,?,?,?,?,?,?)`)
+    .run(obj, 'me', 'https://r.test/users/anna', 'Anna', '<p>x</p>', permalink, '2026-08-06 09:00:00');
+  db.prepare("INSERT OR IGNORE INTO ap_my_reactions (site_slug, target_uri, kind, created_at) VALUES (?,?,?,?)")
+    .run('me', permalink, 'like', '2026-07-01 12:00:00');
+
+  const uitkomst = AP.migrateReactions({ force: true });
+  assert.ok(uitkomst.hersleuteld >= 1);
+  assert.equal(AP.getReaction('me', obj).liked, true, 'nu vindbaar op de object-uri');
+  const rij = db.prepare('SELECT created_at FROM ap_my_reactions WHERE site_slug=? AND target_uri=? AND kind=?').get('me', obj, 'like');
+  assert.equal(rij.created_at, '2026-07-01 12:00:00', 'bij hersleutelen blijft de oorspronkelijke datum staan');
+  const oud = db.prepare('SELECT COUNT(*) AS n FROM ap_my_reactions WHERE target_uri=?').get(permalink).n;
+  assert.equal(oud, 0, 'de permalink-rij is opgeruimd');
+});
+
+test('migrateReactions vult een kale kolomvlag aan', () => {
+  const u = uri('mig2'); seedTimeline(u);
+  AP.markLiked('me', u);                                  // zoals de oude Krant-route
+  assert.equal(AP.getReaction('me', u).liked, false, 'vooraf onzichtbaar');
+  AP.migrateReactions({ force: true });
+  assert.equal(AP.getReaction('me', u).liked, true, 'daarna zichtbaar');
+});
+
+test('migrateReactions is idempotent en respecteert de versievlag', () => {
+  const eerste = AP.migrateReactions({ force: true });
+  const tweede = AP.migrateReactions({ force: true });
+  assert.equal(tweede.hersleuteld, 0, 'niets meer te hersleutelen');
+  assert.equal(tweede.aangevuld, 0, 'niets meer aan te vullen');
+  assert.ok(eerste.hersleuteld >= 0);
+  // Zonder force draait hij niet nog eens zodra de vlag staat.
+  db.prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?,?)').run('reactions_migration_version', '1');
+  assert.equal(AP.migrateReactions().overgeslagen, true);
+});
+
+test('migrateReactions --dry-run schrijft niets', () => {
+  const u = uri('mig3'); seedTimeline(u);
+  AP.markLiked('me', u);
+  const telling = AP.migrateReactions({ force: true, dryRun: true });
+  assert.ok(telling.aangevuld >= 1, 'hij ziet wel wat er te doen is');
+  assert.equal(AP.getReaction('me', u).liked, false, 'maar heeft niets geschreven');
+});

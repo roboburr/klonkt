@@ -1,86 +1,88 @@
 #!/usr/bin/env node
 //
-// Backfill: reacties uit de afgeleide kolommen naar de tussentabel (shaer-9e9).
+// Reactie-migratie handmatig draaien (shaer-9e9).
 //
-// "Heb ik hierop gereageerd" stond in Klonkt op twee plekken die door
-// verschillende routes werden gevuld: ap_timeline.liked/boosted (web-tijdlijn)
-// en ap_my_reactions (interact-pagina). Sinds fase 1 schrijft setReaction ze
-// allebei, maar alles van VOOR die wijziging staat nog maar in een van de twee.
-//
-// Dit script vult de tussentabel aan met wat alleen in de kolommen staat. Het
-// moet draaien VOORDAT de lezers naar de tussentabel wijzen (fase 2), anders
-// verdwijnen die reacties uit beeld -- stil, want een ontbrekende rij is geen
-// fout.
+// Normaal hoef je dit NIET: migrateReactions() draait bij boot, één keer per
+// REACTIONS_MIGRATION_VERSION-bump, net als de self-heal. Dit script is er om
+// vooraf te kijken wat er zou gebeuren, of om het gericht op één instance te
+// forceren.
 //
 //     node scripts/backfill-reactions.mjs --dry-run
-//     node scripts/backfill-reactions.mjs
+//     node scripts/backfill-reactions.mjs            # respecteert de versievlag
+//     node scripts/backfill-reactions.mjs --force    # ook als de vlag al staat
 //
-// Veilig om opnieuw te draaien: INSERT OR IGNORE plus de UNIQUE op
-// (site_slug, target_uri, kind) maakt het idempotent.
+// Bewust een schil om dezelfde functie die bij boot draait: twee implementaties
+// van een migratie lopen uiteen, en dan repareert de ene wat de andere niet ziet.
 //
-// Wat het NIET kan: de oorspronkelijke reactiedatum herstellen. Wanneer je
-// reageerde is nergens vastgelegd, dus de backfill-rijen krijgen de datum van
-// nu. Dat is geen verlies dat te repareren valt, wel iets om te weten als je
-// ooit op created_at gaat sorteren.
+// Wat het doet, en waarom allebei nodig is:
+//
+//   HERSLEUTELEN  De oude interact-route bewaarde de URI waarmee je binnenkwam,
+//                 en de bookmarklet geeft de permalink door. Sinds de reacties
+//                 op de canonieke object-URI gezocht worden, zouden die rijen
+//                 wees zijn. De created_at reist mee.
+//   AANVULLEN     Alles wat op oude code via de Krant is gegeven staat alleen in
+//                 ap_timeline.liked/boosted. Zonder deze stap toont het als
+//                 niet-gereageerd -- en klikt iemand opnieuw, met een tweede
+//                 Like de fediverse in als gevolg.
+//
+// Wat het NIET kan: bij AANVULLEN de oorspronkelijke reactiedatum herstellen.
+// Wanneer je reageerde is nergens vastgelegd, dus die rijen krijgen de datum van
+// nu. Bij hersleutelen blijft de datum wel behouden.
 
 import db from '../src/config/database.js';
+import { migrateReactions } from '../src/services/ActivityPubService.js';
 
 const dryRun = process.argv.includes('--dry-run');
+const force = process.argv.includes('--force');
 
-const scheef = (kind, kolom) => db.prepare(`
-  SELECT t.slug, t.id FROM ap_timeline t
-   WHERE t.${kolom} = 1
-     AND NOT EXISTS (SELECT 1 FROM ap_my_reactions r
-                      WHERE r.site_slug = t.slug AND r.target_uri = t.id AND r.kind = ?)
-`).all(kind);
-
-const voor = {
+const meet = () => ({
   tussentabel: db.prepare('SELECT COUNT(*) AS n FROM ap_my_reactions').get().n,
   liked: db.prepare('SELECT COUNT(*) AS n FROM ap_timeline WHERE liked = 1').get().n,
   boosted: db.prepare('SELECT COUNT(*) AS n FROM ap_timeline WHERE boosted = 1').get().n,
-};
-const teDoen = { like: scheef('like', 'liked'), boost: scheef('boost', 'boosted') };
-
-console.log('vooraf :', JSON.stringify(voor));
-console.log('aan te vullen: like =', teDoen.like.length, ', boost =', teDoen.boost.length);
-
-if (dryRun) {
-  for (const [kind, rijen] of Object.entries(teDoen)) {
-    for (const r of rijen.slice(0, 10)) console.log(`  [dry-run] ${kind}  ${r.slug}  ${r.id}`);
-    if (rijen.length > 10) console.log(`  ... en nog ${rijen.length - 10}`);
-  }
-  console.log('\n--dry-run: niets geschreven.');
-  process.exit(0);
-}
-
-const ins = db.prepare('INSERT OR IGNORE INTO ap_my_reactions (site_slug, target_uri, kind) VALUES (?,?,?)');
-let toegevoegd = 0;
-db.transaction(() => {
-  for (const [kind, rijen] of Object.entries(teDoen)) {
-    for (const r of rijen) toegevoegd += ins.run(r.slug, r.id, kind).changes;
-  }
-})();
-
-const na = {
-  tussentabel: db.prepare('SELECT COUNT(*) AS n FROM ap_my_reactions').get().n,
   scheef: db.prepare(`
     SELECT COUNT(*) AS n FROM ap_timeline t
      WHERE (t.liked = 1 OR t.boosted = 1)
        AND NOT EXISTS (SELECT 1 FROM ap_my_reactions r
                         WHERE r.site_slug = t.slug AND r.target_uri = t.id)`).get().n,
-};
+  wees: db.prepare(`
+    SELECT COUNT(*) AS n FROM ap_my_reactions r
+     WHERE NOT EXISTS (SELECT 1 FROM ap_timeline t
+                        WHERE t.slug = r.site_slug AND t.id = r.target_uri)`).get().n,
+});
 
-console.log('toegevoegd:', toegevoegd);
-console.log('achteraf  :', JSON.stringify(na));
+const voor = meet();
+console.log('vooraf :', JSON.stringify(voor));
 
-// De controle die telt: is er nog een vlag zonder tegenhanger? Zo ja, dan is de
-// tussentabel nog niet veilig als bron en mag fase 2 niet.
+const uit = migrateReactions({ dryRun, force: force || dryRun });
+if (uit.overgeslagen) {
+  console.log('\novergeslagen: de versievlag staat al. Gebruik --force om toch te draaien.');
+  process.exit(0);
+}
+if (dryRun) {
+  console.log(`\n--dry-run: zou ${uit.hersleuteld} rij(en) hersleutelen en ${uit.aangevuld} aanvullen. Niets geschreven.`);
+  process.exit(0);
+}
+
+const na = meet();
+console.log('hersleuteld:', uit.hersleuteld, ' aangevuld:', uit.aangevuld);
+console.log('achteraf   :', JSON.stringify(na));
+
+// De twee controles die tellen. Blijft er een vlag zonder tegenhanger, dan is de
+// tussentabel niet compleet en tonen reacties als niet-gegeven. Blijft er een
+// tussentabel-rij zonder tijdlijnrij, dan is die op iets buiten je tijdlijn
+// gericht (legitiem) OF nog op een permalink (niet legitiem) -- vandaar de
+// waarschuwing in plaats van een fout.
 if (na.scheef !== 0) {
-  console.error(`\nLET OP: nog ${na.scheef} rij(en) met een vlag zonder tegenhanger. Fase 2 mag NIET.`);
+  console.error(`\nFOUT: nog ${na.scheef} rij(en) met een vlag zonder tegenhanger.`);
   process.exit(1);
 }
-if (toegevoegd !== teDoen.like.length + teDoen.boost.length) {
-  console.error('\nLET OP: het aantal toegevoegde rijen wijkt af van de meting vooraf.');
+if (na.wees > voor.wees) {
+  console.error('\nFOUT: er zijn tussentabel-rijen bijgekomen die nergens op slaan.');
   process.exit(1);
 }
-console.log('\nOK: elke vlag heeft nu een tegenhanger in de tussentabel.');
+if (na.wees) {
+  console.warn(`\nLET OP: ${na.wees} tussentabel-rij(en) zonder tijdlijnrij. Dat mag (een reactie op iets\n`
+    + 'buiten je tijdlijn), maar controleer of er geen permalinks tussen zitten van een post die je\n'
+    + 'wel kent -- die zouden hersleuteld moeten zijn.');
+}
+console.log('\nOK: elke vlag heeft een tegenhanger in de tussentabel.');
