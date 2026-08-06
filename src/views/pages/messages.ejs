@@ -1,8 +1,8 @@
 <div class="msg-wrap">
   <%- include('../partials/fedi-tabs', { active: 'berichten' }) %>
   <h1 class="msg-title"><%= t('msg.title') %></h1>
-  <% if (typeof success !== 'undefined' && success) { %><div class="alert alert-success"><%= success === 'guardian_accepted' ? t('msg.guard_accepted') : (success === 'guardian_rejected' ? t('msg.guard_rejected') : (success === 'wave_sent' ? t('msg.wave_sent') : success)) %></div><% } %>
-  <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error === 'guardianship' ? t('msg.guard_failed') : error %></div><% } %>
+  <% if (typeof success !== 'undefined' && success) { %><div class="alert alert-success"><%= success === 'guardian_accepted' ? t('msg.guard_accepted') : (success === 'guardian_rejected' ? t('msg.guard_rejected') : (success === 'wave_sent' ? t('msg.wave_sent') : (success === 'reply_sent' ? t('msg.reply_sent') : success))) %></div><% } %>
+  <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error === 'guardianship' ? t('msg.guard_failed') : (error === 'reply_empty' ? t('msg.reply_empty') : ((error === 'reply_failed' || error === 'reply_target') ? t('msg.reply_failed') : error)) %></div><% } %>
 
   <%# FEP-633c: a pending guardianship offer is a special message: the kid
       answers here (accept/reject travels the same C2S pipeline as the apps). %>
@@ -189,6 +189,16 @@
     background: color-mix(in srgb, var(--accent, #06c) 5%, transparent); }
   /* Een lange naam of tijd mag de bubbel niet uit de kaart duwen. */
   .msg-sub .msg-line { flex-wrap: wrap; }
+
+  /* De voet van een gesprek: antwoorden en zwaaien naast elkaar, ingeklapt.
+     Een open editor onder elk gesprek maakt de lijst weer onleesbaar -- precies
+     wat deze weergave moest oplossen. */
+  .msg-thread-foot { display: flex; align-items: flex-start; gap: .5rem; margin-top: .5rem; flex-wrap: wrap; }
+  .msg-reply { flex: 1 1 12rem; min-width: 0; }
+  .msg-reply > summary { cursor: pointer; font-size: .82rem; color: var(--ink-soft, #888); }
+  .msg-reply[open] > summary { margin-bottom: .4rem; }
+  .msg-reply-form { min-width: 0; }
+  .msg-wave button { line-height: 1.2; }
 
   @media (max-width: 560px) {
     /* Op een telefoon is 40px avatar per bubbel puur verlies: de naam staat er

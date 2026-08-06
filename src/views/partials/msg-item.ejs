@@ -29,6 +29,40 @@
           <ul class="msg-thread-msgs">
             <% (n.messages || []).forEach(function (m) { %><%- include('msg-item', { n: m, seen: _tseen, inThread: true }) %><% }); %>
           </ul>
+          <%# Antwoorden vanuit de draad zelf. Ingeklapt, want een open editor
+              onder elk gesprek maakt de lijst onleesbaar -- juist het probleem
+              dat deze weergave moest oplossen. De route kiest het pad: een
+              draad aan een post krijgt een reply, een draad aan een persoon een
+              direct bericht. %>
+          <% var _rt = n.replyTo || {}; var _kan = canMutate && ((_rt.interactionId && _rt.postSlug) || _rt.actorUri); %>
+          <% if (_kan) { %>
+            <div class="msg-thread-foot">
+              <details class="msg-reply">
+                <summary><%= t('fedi.reply') %></summary>
+                <div class="msg-reply-form">
+                  <%- include('../partials/reply-editor', {
+                    action: (typeof siteUrlBase !== 'undefined' ? siteUrlBase : '') + '/messages/reply',
+                    hiddenFields: [
+                      { name: 'interaction_id', value: _rt.interactionId || '' },
+                      { name: 'post_slug', value: _rt.postSlug || '' },
+                      { name: 'to', value: _rt.actorUri || '' },
+                    ],
+                    placeholder: t('fedi.reply_ph'),
+                    submitLabel: t('fedi.reply'),
+                    rows: 2,
+                  }) %>
+                </div>
+              </details>
+              <%# De zwaai blijft een eigen knop: het is geen antwoord maar een
+                  seintje (FEP-633c), en die twee horen niet op een hoop. %>
+              <% if (_rt.actorUri) { %>
+                <form method="post" action="<%= (typeof siteUrlBase !== 'undefined' ? siteUrlBase : '') %>/messages/quick-reply" class="msg-wave">
+                  <input type="hidden" name="to" value="<%= _rt.actorUri %>">
+                  <button class="btn small" name="text" value="&#128075;" title="<%= t('msg.wave_back') %>">&#128075;</button>
+                </form>
+              <% } %>
+            </div>
+          <% } %>
         </li>
 <% } else { %>
 <%

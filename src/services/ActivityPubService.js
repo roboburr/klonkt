@@ -652,7 +652,7 @@ export function getMessages(slug, limit, offset) {
   try {
     for (const m of listOutbox(slug).slice(0, need)) {
       items.push({
-        type: 'sent', outboxId: m.id, to_handle: m.to_handle, to_actors: m.to_actors,
+        type: 'sent', outboxId: m.id, to_handle: m.to_handle, to_actor: m.to_actor, to_actors: m.to_actors,
         in_reply_to: m.in_reply_to, post_slug: m.post_slug, content: m.content,
         editable: m.editable, language: m.language, created_at: m.created_at,
         // Je eigen bericht hoort er hetzelfde uit te zien als dat van een ander:
@@ -784,6 +784,19 @@ export function groupConversations(items) {
     // Heb JIJ in deze draad iets gezegd? Bepaalt of hij als uitwisseling of als
     // onbeantwoord bericht leest.
     t.mine = t.messages.some((m) => m.type === 'sent');
+    // Waar gaat een antwoord uit deze draad heen? Twee paden, en ze sluiten
+    // elkaar uit: hangt de draad aan een post, dan antwoord je op het NIEUWSTE
+    // ontvangen bericht erin (dat is de parent van de thread) -- anders is het
+    // een direct bericht aan de tegenpartij.
+    const inkomend = t.messages.filter((m) => m.type !== 'sent');
+    const laatste = inkomend[inkomend.length - 1];
+    t.replyTo = {
+      interactionId: (laatste && laatste.interactionId) || null,
+      postSlug: (t.post && t.post.slug) || null,
+      actorUri: (laatste && (laatste.actorUri || laatste.url))
+        || (t.messages.find((m) => m.to_actor) || {}).to_actor
+        || (() => { try { return JSON.parse((t.messages.find((m) => m.to_actors) || {}).to_actors || '[]')[0] || null; } catch { return null; } })(),
+    };
   }
   return out;
 }
@@ -4428,7 +4441,7 @@ export function getNotifications(slug, limit) {
   } catch { /* ignore */ }
   try {
     const rows = db.prepare(`
-      SELECT i.kind, i.actor_name, i.actor_handle, i.actor_url, i.actor_icon, i.content, i.created_at, i.published, i.visibility,
+      SELECT i.id AS interaction_id, i.kind, i.actor_uri, i.actor_name, i.actor_handle, i.actor_url, i.actor_icon, i.content, i.created_at, i.published, i.visibility,
              i.emoji_json, i.actor_emoji_json, i.media_json, i.quote_json, i.embed_json,
              p.slug AS post_slug, p.title AS post_title
       FROM ap_interactions i LEFT JOIN posts p ON p.id = i.post_id
@@ -4437,6 +4450,9 @@ export function getNotifications(slug, limit) {
     `).all(slug, L);
     for (const r of rows) out.push({
       type: r.kind, name: r.actor_name, handle: r.actor_handle, url: r.actor_url, icon: r.actor_icon,
+      // Waar een antwoord uit de draad heen moet: het id is de parent voor
+      // deliverReply, de uri het adres voor een direct bericht.
+      interactionId: r.interaction_id, actorUri: r.actor_uri,
       content: stripLeadingMentions(r.content), post_slug: r.post_slug, post_title: r.post_title, created_at: r.created_at,
       // When the post was written, for display. created_at (when it reached us)
       // stays the sort key and the unread watermark: a note that federated late
@@ -4670,6 +4686,10 @@ Guardianship.wireDelivery({
   actorId, fetchActor, localActor, deliverTo: deliverToActor, deriveHandle, escHtml, linkUrls, linkHashtags,
   getOutboxRow: (id) => iStmts().getO.get(id),
   buildReplyNote, AP_CONTEXT, getOrCreateKeys, deliver, enqueueDelivery,
+  // Rijke directe berichten: dezelfde sanitizer als deliverReply gebruikt, zodat
+  // een antwoord uit Berichten door precies één poort gaat.
+  sanitizeHtml: (h) => HtmlSanitizerService.sanitize(h),
+  htmlToPlainText: (h) => HtmlSanitizerService.toPlainText(h),
 });
 /**
  * The actor document of a site WE host, read straight from the database.

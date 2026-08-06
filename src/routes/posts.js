@@ -966,6 +966,54 @@ router.post('/messages/quick-reply', requireSiteManager, express.urlencoded({ ex
   res.redirect(back + '?error=quickreply');
 });
 
+// Antwoorden vanuit een gesprek in Berichten. Twee paden, en welke het wordt
+// bepaalt de draad zelf (zie groupConversations → replyTo):
+//   - hangt de draad aan een post van jou, dan is dit een gewone reply op het
+//     nieuwste ontvangen bericht erin: deliverReply, publiek zoals de thread;
+//   - hangt hij aan een persoon, dan is het een direct bericht terug.
+// Rijk in beide gevallen: `content` is de HTML uit de reply-editor, `text` de
+// platte versie die de editor er altijd bij levert (en die het no-JS-formulier
+// als enige stuurt).
+router.post('/messages/reply', requireSiteManager, async (req, res) => {
+  const site = res.locals.site;
+  const back = `${res.locals.siteUrlBase || ''}/messages`;
+  if (!site) return res.status(404).send('Site required');
+  const text = String(req.body.text || '');
+  const html = String(req.body.content || '');
+  let attachments = [];
+  try { attachments = JSON.parse(req.body.attachments || '[]'); } catch { /* geen media */ }
+  let mentions;
+  try { if (req.body.mentions !== undefined) mentions = JSON.parse(req.body.mentions || '[]'); } catch { mentions = undefined; }
+  const language = String(req.body.language || '');
+  // Leeg is leeg: een bericht zonder tekst EN zonder media is geen bericht.
+  if (!text.trim() && !html.trim() && !attachments.length) return res.redirect(back + '?error=reply_empty');
+
+  const interactionId = parseInt(req.body.interaction_id, 10) || 0;
+  const postSlug = String(req.body.post_slug || '');
+  const toActor = String(req.body.to || '');
+  try {
+    if (interactionId && postSlug) {
+      const post = db.prepare('SELECT id, slug FROM posts WHERE site_id = ? AND slug = ?').get(site.id, postSlug);
+      const parent = ActivityPubService.getInteractionById(interactionId);
+      // De parent MOET bij deze post horen: anders zou een gemanipuleerd
+      // formulier een antwoord onder andermans draad kunnen hangen.
+      if (!post || !parent || parent.post_id !== post.id) return res.redirect(back + '?error=reply_target');
+      await ActivityPubService.deliverReply(site, {
+        postId: post.id, postSlug: post.slug, parent, text, html, attachments, mentions, language,
+      });
+    } else if (/^https?:\/\//i.test(toActor)) {
+      const r = await Guardianship.deliverDirectNote(site, { recipients: [toActor], text, html, language, attachments });
+      if (!r) return res.redirect(back + '?error=reply_failed');
+    } else {
+      return res.redirect(back + '?error=reply_target');
+    }
+  } catch (e) {
+    console.warn('[AP] reply from Berichten failed:', e.message);
+    return res.redirect(back + '?error=reply_failed');
+  }
+  res.redirect(back + '?success=reply_sent');
+});
+
 router.get('/fediverse', requireSiteManager, (req, res) => res.redirect(`${res.locals.siteUrlBase || ''}/messages`));
 
 router.post('/fediverse/:id/delete', requireSiteManager, async (req, res) => {
