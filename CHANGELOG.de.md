@@ -33,6 +33,21 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
   keine Antwort.
 
 ### Behoben
+- **Antworten anderer kommen jetzt im Verlauf an.** Antwortete jemand auf einen
+  Beitrag in einem Gespräch, an dem du beteiligt warst, leitete dessen Server die
+  Antwort an dich weiter — und sie wurde abgewiesen, weil ein weiterleitender
+  Server mit seinem eigenen Schlüssel signiert und nicht mit dem des Autors.
+  Verläufe waren auf deiner Seite dadurch stillschweigend unvollständig. Eine
+  solche Antwort wird jetzt an der Quelle geprüft statt abgewiesen: der Beitrag
+  wird bei dem Server geholt, der ihn beherbergt, und nur das von dort wird
+  gespeichert. Eine weitergeleitete Löschung wird weiterhin abgewiesen, denn ein
+  gelöschter Beitrag lässt sich nicht prüfen.
+- **Ein Like oder Boost sieht überall gleich aus.** Derselbe Beitrag konnte in
+  der Zeitung als geliked und auf der Interact-Seite als nicht geliked
+  erscheinen, weil beide eine eigene Buchführung hatten. Es gibt jetzt nur noch
+  eine, also stimmen die Schaltflächen überein — auch für alles, worauf du vor
+  dieser Version schon reagiert hast; das wird beim Aktualisieren der Seite
+  automatisch übernommen.
 - **Ein Like aus einer App bleibt jetzt bestehen.** Ein Like aus Shaer wurde
   zwar gespeichert, aber die App bekam das nie zurück, sodass das Herz beim
   nächsten Laden wieder aussprang — und weil die App das Like nie sah, konnte sie

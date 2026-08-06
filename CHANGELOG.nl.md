@@ -31,6 +31,20 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
   blijft een aparte knop ernaast: een zwaai is een seintje, geen antwoord.
 
 ### Opgelost
+- **Reacties van anderen komen nu in de draad aan.** Reageerde iemand op een
+  post in een gesprek waar jij bij zat, dan stuurde hun server die reactie naar
+  je door — en werd hij geweigerd, omdat een doorsturende server met zijn eigen
+  sleutel ondertekent en niet met die van de schrijver. Threads waren daardoor
+  aan jouw kant stilletjes onvolledig. Zo'n reactie wordt nu bij de bron
+  gecontroleerd in plaats van afgewezen: de post wordt opgehaald bij de server
+  die hem herbergt, en alleen wat daarvandaan komt wordt bewaard. Een
+  doorgestuurde verwijdering wordt nog steeds geweigerd, want een verwijderde
+  post valt niet te controleren.
+- **Een like of boost ziet er overal hetzelfde uit.** Dezelfde post kon in de
+  Krant als geliket verschijnen en op de interact-pagina als niet-geliket, omdat
+  allebei een eigen administratie bijhielden. Er is er nu één, dus de knoppen
+  zijn het eens — ook voor alles wat je vóór deze versie al had gereageerd; dat
+  wordt bij het bijwerken van de site automatisch meegenomen.
 - **Een like vanuit een app blijft nu staan.** Een like die je in Shaer gaf werd
   wel opgeslagen, maar de app kreeg dat nooit terug, dus het hartje sprong bij de
   eerste herlaadbeurt weer uit — en omdat de app de like nooit zag, kon hij hem

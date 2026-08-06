@@ -29,6 +29,19 @@ Versions follow [SemVer](https://semver.org/).
   button next to it: a wave is a nudge, not an answer.
 
 ### Fixed
+- **Replies from other people now arrive in threads.** When someone replied to a
+  post in a conversation you were part of, their server forwarded that reply to
+  you — and it was turned away, because the forwarding server signs with its own
+  key rather than the author's. Threads were quietly incomplete on your side.
+  Such a reply is now checked at the source instead of being refused: the post is
+  fetched from the server that hosts it, and only what comes back from there is
+  stored. A forwarded delete is still refused, because a deleted post cannot be
+  checked.
+- **A like or boost looks the same everywhere.** The same post could show as
+  liked in News and as not liked on the interact page, because both kept their
+  own record. There is one record now, so the buttons agree — including for
+  everything you reacted to before this release, which is carried over
+  automatically when the site updates.
 - **A like from an app now sticks.** Liking a post from Shaer was stored, but
   the app never got that back, so the heart popped off again on the next reload
   — and because the app never saw the like, it could only offer "like" again and
