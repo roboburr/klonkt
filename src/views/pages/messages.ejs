@@ -24,12 +24,13 @@
   <% } %>
 
   <div class="msg-filters" role="tablist" aria-label="<%= t('msg.title') %>">
+    <%# Vier chips, geen zes: Berichten, Gesprekken en Verzonden gingen op in
+        een enkele Gesprekken-view, waarin verzonden en ontvangen in dezelfde
+        draad staan. Activiteit en Moderatie blijven wat ze waren. %>
     <button type="button" class="msg-chip is-on" data-show="all"><%= t('msg.filter_all') %></button>
-    <button type="button" class="msg-chip" data-show="msgs"><%= t('msg.filter_msgs') %></button>
     <button type="button" class="msg-chip" data-show="conv"><%= t('msg.filter_conv') %></button>
     <button type="button" class="msg-chip" data-show="act"><%= t('msg.filter_act') %></button>
     <button type="button" class="msg-chip" data-show="mod"><%= t('msg.filter_mod') %></button>
-    <button type="button" class="msg-chip" data-show="sent"><%= t('msg.filter_sent') %></button>
   </div>
   <div class="msg-search">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -70,6 +71,12 @@
   var kind = 'all';
   var items = [];
   function indexItem(li) {
+    // Een draad indexeren op zijn eerste bubbel zou de rest onvindbaar maken,
+    // dus daar nemen we de hele tekst; losse regels blijven gericht geindexeerd.
+    if (li.classList.contains('msg-thread')) {
+      li._search = ((li.getAttribute('data-who') || '') + ' ' + li.textContent).toLowerCase();
+      return;
+    }
     // Index once: sender + message body + linked post title + poll text.
     var body = li.querySelector('.msg-content');
     var post = li.querySelector('.msg-post');
@@ -81,7 +88,7 @@
   // Re-collect + index; called on load and after each "Load more" append so new
   // items join the filter/search (and inherit the active chip via apply()).
   function reindex() {
-    items = list ? Array.prototype.slice.call(list.querySelectorAll('.msg-item')) : [];
+    items = list ? Array.prototype.slice.call(list.querySelectorAll(':scope > .msg-item')) : [];
     items.forEach(function (li) { if (!li._search) indexItem(li); });
   }
   reindex();
@@ -137,6 +144,26 @@
   .msg-nomatch { color: var(--ink-soft, #888); text-align: center; padding: 1.2rem 0; }
 
   .msg-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .55rem; }
+
+  /* Een draad is geen regel maar een blok: kop met de context, daaronder de
+     bubbels van oud naar nieuw. De verticale lijn links maakt zichtbaar dat ze
+     bij elkaar horen -- dat was precies wat ontbrak toen verzonden en ontvangen
+     in aparte chips zaten. */
+  .msg-thread { display: block; }
+  .msg-thread-head { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; margin-bottom: .5rem; }
+  .msg-thread-who { font-weight: 600; }
+  .msg-thread-count { font-size: .78em; padding: .05rem .4rem; border-radius: 999px;
+    background: color-mix(in srgb, var(--ink, #000) 10%, transparent); }
+  .msg-thread-post { display: inline-flex; align-items: center; gap: .3rem; font-size: .85em;
+    margin-inline-start: auto; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .msg-thread-post svg { width: 13px; height: 13px; flex: none; }
+  .msg-thread-msgs { list-style: none; margin: 0; padding: 0 0 0 .85rem; display: flex; flex-direction: column; gap: .45rem;
+    border-inline-start: 2px solid color-mix(in srgb, var(--ink, #000) 10%, transparent); }
+  .msg-sub { display: flex; gap: .8rem; align-items: flex-start; }
+  /* Jouw eigen bijdrage staat aan de andere kant van de lijn, zodat je de
+     beurten ziet zonder namen te lezen. */
+  .msg-sub.msg-sent { flex-direction: row-reverse; text-align: end; }
+  .msg-sub.msg-sent .msg-line { justify-content: flex-end; }
 
   .msg-item { display: flex; gap: .8rem; padding: .85rem .95rem; border-radius: 14px; align-items: flex-start;
     background: color-mix(in srgb, var(--ink, #000) 3.5%, transparent);

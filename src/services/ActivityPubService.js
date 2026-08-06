@@ -638,10 +638,25 @@ export function getMessages(slug, limit, offset) {
     for (const m of listOutbox(slug).slice(0, need)) {
       items.push({
         type: 'sent', outboxId: m.id, to_handle: m.to_handle, in_reply_to: m.in_reply_to,
-        content: m.content, editable: m.editable, language: m.language, created_at: m.created_at,
+        post_slug: m.post_slug, content: m.content, editable: m.editable,
+        language: m.language, created_at: m.created_at,
       });
     }
   } catch { /* ignore */ }
+  // Een verzonden antwoord kent zijn post_slug maar niet de titel (ap_outbox
+  // bewaart die niet). Zonder titel toont een draad waarin JIJ als enige iets
+  // zei alleen een slug, dus vullen we ze in één query aan.
+  try {
+    const missing = [...new Set(items.filter((i) => i.post_slug && !i.post_title).map((i) => i.post_slug))];
+    if (missing.length) {
+      const rows = db.prepare(
+        `SELECT slug, title FROM posts WHERE slug IN (${missing.map(() => '?').join(',')})
+           AND site_id = (SELECT id FROM sites WHERE slug = ?)`,
+      ).all(...missing, slug);
+      const byslug = new Map(rows.map((r) => [r.slug, r.title]));
+      for (const i of items) if (i.post_slug && !i.post_title) i.post_title = byslug.get(i.post_slug) || null;
+    }
+  } catch { /* zonder titel valt de draad terug op de slug */ }
   items.sort((a, b) => _msgTs(b) - _msgTs(a)); // NaN-safe (zie getNotifications)
   const out = [];
   for (const it of items) {
@@ -655,7 +670,91 @@ export function getMessages(slug, limit, offset) {
     }
     out.push(it);
   }
-  return out.slice(off, off + lim);
+  // Antwoorden, mentions en je eigen verzonden berichten vouwen samen tot
+  // draden; likes/boosts/follows/reports blijven losse regels. Na deze stap
+  // telt een draad als één item voor de paginering, wat klopt: je scrolt door
+  // gesprekken, niet door losse zinnen.
+  return groupConversations(out).slice(off, off + lim);
+}
+
+// De drie soorten die samen een gesprek vormen. Vroeger zaten ze in drie
+// aparte chips: 'reply' en 'mention' onder Berichten/Gesprekken (afhankelijk van
+// de zichtbaarheid) en 'sent' onder Verzonden. Wie een uitwisseling wilde volgen
+// moest dus tussen chips heen en weer, terwijl het één draad is.
+const CONV_TYPES = new Set(['reply', 'mention', 'sent']);
+
+/** Waar hangt dit bericht aan? Twee soorten draden, en de volgorde telt:
+ *
+ *  1. Aan een post van jou. Een ontvangen antwoord kent zijn post via de join
+ *     op `posts`, een verzonden antwoord via ap_outbox.post_slug. Dat is
+ *     dezelfde sleutel, en daarom staan ze nu in dezelfde draad.
+ *  2. Aan een persoon. Een mention hangt aan niets van jou (het is iemands
+ *     eigen post waarin je genoemd wordt) en heeft geen post_slug; die draad
+ *     loopt per tegenpartij.
+ *
+ *  De post wint van de persoon: twee mensen die onder dezelfde post reageren
+ *  voeren één gesprek, geen twee. Geeft null terug voor alles wat geen gesprek
+ *  is (likes, boosts, follows, reports, poll-uitslagen); die stromen ongemoeid
+ *  door.
+ */
+export function threadKey(it) {
+  if (!it || !CONV_TYPES.has(it.type)) return null;
+  if (it.post_slug) return `post:${it.post_slug}`;
+  const who = it.handle || it.to_handle || '';
+  const norm = String(who).trim().toLowerCase().replace(/^@/, '');
+  return norm ? `actor:${norm}` : null;
+}
+
+/** Vouw losse berichten samen tot draden, met alles wat geen gesprek is
+ *  ongemoeid ertussen. Verwacht [items] al gesorteerd op created_at aflopend
+ *  (zoals getMessages ze aanlevert); de draad komt daardoor op de plek van zijn
+ *  nieuwste bericht te staan en `created_at` van de draad IS dat bericht. Binnen
+ *  de draad draait het om: een gesprek leest naar beneden, oud naar nieuw.
+ */
+export function groupConversations(items) {
+  const threads = new Map();
+  const out = [];
+  for (const it of items || []) {
+    const key = threadKey(it);
+    if (!key) { out.push(it); continue; }
+    let t = threads.get(key);
+    if (!t) {
+      // Eerste keer dat we deze draad zien = het nieuwste bericht erin, want de
+      // invoer is aflopend gesorteerd. Vandaar created_at hier en niet later.
+      t = { type: 'thread', key, post: null, people: [], messages: [], created_at: it.created_at };
+      threads.set(key, t);
+      out.push(t);
+    }
+    t.messages.push(it);
+    // De context bij de draad: gaat het over een post, dan hoort de link
+    // erbij, anders is een los antwoord in een lijst niet te plaatsen.
+    // De titel blijft LEEG zolang hij onbekend is, in plaats van terug te
+    // vallen op de slug: het nieuwste bericht in een draad is vaak je eigen
+    // verzonden antwoord, en dat kent alleen de slug. Zou die de titel worden,
+    // dan kan het ontvangen antwoord eronder de echte titel niet meer
+    // invullen. De terugval op de slug hoort in de weergave, niet in de data.
+    if (it.post_slug) {
+      if (!t.post) t.post = { slug: it.post_slug, title: it.post_title || null };
+      else if (!t.post.title && it.post_title) t.post.title = it.post_title;
+    }
+  }
+  for (const t of threads.values()) {
+    t.messages.sort((a, b) => _msgTs(a) - _msgTs(b));
+    t.count = t.messages.length;
+    // Wie zit er in dit gesprek, jij niet meegerekend: 'sent' ben jij.
+    const seen = new Set();
+    for (const m of t.messages) {
+      if (m.type === 'sent') continue;
+      const h = m.handle || m.name;
+      if (!h || seen.has(h)) continue;
+      seen.add(h);
+      t.people.push({ name: m.name, handle: m.handle, icon: m.icon, url: m.url });
+    }
+    // Heb JIJ in deze draad iets gezegd? Bepaalt of hij als uitwisseling of als
+    // onbeantwoord bericht leest.
+    t.mine = t.messages.some((m) => m.type === 'sent');
+  }
+  return out;
 }
 
 export function buildCreate(base, site, post) {
@@ -2906,7 +3005,11 @@ function outboxEditableText(content) {
     .trim();
 }
 export function listOutbox(siteSlug) {
-  return db.prepare('SELECT id, content, to_handle, in_reply_to, language, created_at FROM ap_outbox WHERE site_slug = ? ORDER BY created_at DESC')
+  // post_slug reist mee sinds Berichten gesprekken toont: het is de sleutel
+  // waarop een verzonden antwoord bij de ontvangen antwoorden op dezelfde post
+  // gaat staan (zie threadKey). Zonder die kolom viel een uitwisseling uit
+  // elkaar in "Verzonden" en "Gesprekken".
+  return db.prepare('SELECT id, content, to_handle, to_actor, post_slug, in_reply_to, language, created_at FROM ap_outbox WHERE site_slug = ? ORDER BY created_at DESC')
     .all(siteSlug).map((r) => { const c = stripLeadingMentions(r.content); return { ...r, content: c, editable: outboxEditableText(c) }; });
 }
 

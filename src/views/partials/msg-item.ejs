@@ -1,3 +1,35 @@
+<% if (n.type === 'thread') { %>
+<%
+           var _tseen = (typeof seen !== 'undefined' && seen) ? seen : 0;
+           // Een draad is nieuw zodra EEN bericht erin nieuw is.
+           var _tnew = !!_tseen && (n.messages || []).some(function (m) {
+             return m.created_at && Date.parse(m.created_at) > _tseen;
+           });
+           var _tpeople = (n.people || []).map(function (p) { return p.name || p.handle || '?'; });
+           // Alleen jij aan het woord: dan is de tegenpartij het adres waaraan
+           // je schreef, niet een lege naam.
+           var _tto = ((n.messages || []).find(function (m) { return m.to_handle; }) || {}).to_handle;
+           var _tlabel = _tpeople.length ? _tpeople.join(', ') : (_tto || t('msg.you'));
+      %>
+        <li class="msg-item msg-thread<%= _tnew ? ' is-new' : '' %>" data-kind="conv" data-who="<%= (_tpeople.join(' ') + ' ' + (_tto || '')).toLowerCase() %>">
+          <div class="msg-thread-head">
+            <span class="msg-thread-who"><%= _tlabel %></span>
+            <% if (n.count > 1) { %><span class="msg-thread-count"><%= n.count %></span><% } %>
+            <% if (_tnew) { %><span class="msg-new" title="<%= t('msg.new') %>"></span><% } %>
+            <%# De context bij de draad: waar gaat dit gesprek over? Zonder deze
+                link is een antwoord in een lijst niet te plaatsen. %>
+            <% if (n.post) { %>
+              <a class="msg-thread-post" href="/<%= n.post.slug %>">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <%= n.post.title || n.post.slug %>
+              </a>
+            <% } %>
+          </div>
+          <ul class="msg-thread-msgs">
+            <% (n.messages || []).forEach(function (m) { %><%- include('msg-item', { n: m, seen: _tseen, inThread: true }) %><% }); %>
+          </ul>
+        </li>
+<% } else { %>
 <%
            var _seen = (typeof seen !== 'undefined' && seen) ? seen : 0;
            var _t = n.type === 'announce' ? 'boost' : n.type; // reply|mention|report|like|boost|follow|sent
@@ -12,10 +44,13 @@
              : _t === 'report' ? 'mod'
              : (_t === 'mention' || _priv0) ? 'msgs'
              : 'conv';
+           // Binnen een draad is dit geen zelfstandige regel: de chip filtert op
+           // de draad, niet op de losse zinnen erin.
+           var _sub = (typeof inThread !== 'undefined' && inThread);
            var _init = String(_who || '?').replace(/^@/, '').charAt(0).toUpperCase();
            var _priv = (n.visibility === 'followers' || n.visibility === 'direct');
       %>
-        <li class="msg-item msg-<%= _t %><%= _new ? ' is-new' : '' %>" data-kind="<%= _kind %>" data-who="<%= String(_who).toLowerCase() %>">
+        <li class="<%= _sub ? 'msg-sub' : 'msg-item' %> msg-<%= _t %><%= _new ? ' is-new' : '' %>"<% if (!_sub) { %> data-kind="<%= _kind %>"<% } %> data-who="<%= String(_who).toLowerCase() %>">
           <span class="msg-av<%= _t === 'sent' ? ' msg-av-sent' : '' %>" aria-hidden="true">
             <% if (_t === 'sent') { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
             <% } else if (_t === 'poll_done') { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
@@ -64,7 +99,7 @@
               <% } else if (_t === 'poll_done') { %><strong><%= t('msg.poll_done') %></strong>
               <% } else { %><%= t('notif.replied') %><% } %>
               <% if (_priv) { %><span class="msg-priv" title="<%= t('msg.private_hint') %>">🔒 <%= t('msg.private') %></span><% } %>
-              <% if (n.post_slug) { %><a class="msg-post" href="/<%= n.post_slug %>"><%= n.post_title || n.post_slug %></a><% } %>
+              <% if (n.post_slug && !_sub) { %><a class="msg-post" href="/<%= n.post_slug %>"><%= n.post_title || n.post_slug %></a><% } %>
               <% if (_t === 'mention' && n.note_url) { %><a class="msg-post" href="<%= n.note_url %>" target="_blank" rel="nofollow noopener"><%= t('tl.view_original') %></a><% } %>
               <% if (_t === 'sent' && n.in_reply_to) { %><a class="msg-post" href="<%= n.in_reply_to %>" target="_blank" rel="nofollow noopener"><%= t('tl.view_original') %></a><% } %>
             </div>
@@ -115,3 +150,4 @@
             <% } %>
           </div>
         </li>
+<% } %>
