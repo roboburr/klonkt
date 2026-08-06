@@ -2481,6 +2481,16 @@ export async function ingestOutboxActivity(site, user, activity) {
         await sendInteraction(site, kind, objUri, authorUri);
         setMyReaction(site.slug, targetUri, kind, true);
         if (type === 'Announce' && note) { try { upsertBoostedNote(site.slug, note); } catch { /* non-fatal */ } }
+        // Een Like uit een app moet ook in ap_timeline.liked landen, want dat
+        // is wat de C2S-tijdlijn als shaer:liked teruggeeft. Zonder dit werd
+        // de reactie wel opgeslagen (setMyReaction, de webroute leest die),
+        // maar kreeg de app altijd liked:false terug: het hartje sprong bij de
+        // eerste herlaadbeurt uit, en un-liken kon niet meer -- de app bood
+        // alleen nog "Like" aan en stuurde bij elke tik een nieuwe Like.
+        // Anders dan bij een boost geen upsert: een like hoort een post niet
+        // in je tijdlijn te trekken, dus staat de post er niet in, dan is dit
+        // terecht een no-op.
+        if (type === 'Like') { try { markLiked(site.slug, objUri); } catch { /* non-fatal */ } }
         return { status: 202, url: objUri };
       }
       case 'Follow': {
@@ -2531,6 +2541,7 @@ export async function ingestOutboxActivity(site, user, activity) {
           await sendInteraction(site, kind, objUri, note && note.actor_uri);
           setMyReaction(site.slug, innerTarget, innerType === 'Announce' ? 'boost' : 'like', false);
           if (innerType === 'Announce') { try { unmarkBoosted(site.slug, objUri); } catch { /* non-fatal */ } }
+          if (innerType === 'Like') { try { unmarkLiked(site.slug, objUri); } catch { /* non-fatal */ } }
           return { status: 202, url: objUri };
         }
         return { status: 400, error: 'unsupported_undo' };
