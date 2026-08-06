@@ -1725,13 +1725,21 @@ function noteDerefFailure(uri) {
 }
 
 async function dereferenceForwarded(act, claimedActor, type, slugParam) {
-  if (type !== 'Create' && type !== 'Update') return null;
+  // Every exit states its reason. Five of the six used to return silently, so a
+  // rejection count could not be told apart from a narrowing that closed too far
+  // — and that is exactly the measurement shaer-drf is waiting for. Bounded by
+  // the signer-mismatch rate (tens per hour), so this is not a noisy log.
+  const skipped = (reason, detail) => {
+    console.log(`[AP] inbox forwarded, skipped (${reason}):`, claimedActor, detail || '');
+    return null;
+  };
+  if (type !== 'Create' && type !== 'Update') return skipped('not Create/Update', type);
   const o = act && act.object;
   const objId = typeof o === 'string' ? o : (o && o.id);
-  if (!objId || typeof objId !== 'string' || !/^https:\/\//i.test(objId)) return null;
+  if (!objId || typeof objId !== 'string' || !/^https:\/\//i.test(objId)) return skipped('no https object id', objId || '(none)');
   try {
-    if (new URL(objId).host !== new URL(claimedActor).host) return null;   // ankereis
-  } catch { return null; }
+    if (new URL(objId).host !== new URL(claimedActor).host) return skipped('host anchor', objId);   // ankereis
+  } catch { return skipped('unparsable id', objId); }
   // Alleen dereferencen als het object beweert een antwoord te zijn op iets van
   // ONS (shaer-drf). Zonder die eis zijn claimedActor en object.id allebei door
   // de aanvaller gekozen en eist het host-anker alleen dat ze aan elkaar gelijk
@@ -1741,24 +1749,32 @@ async function dereferenceForwarded(act, claimedActor, type, slugParam) {
   const parent = typeof o === 'object' && o
     ? (typeof o.inReplyTo === 'string' ? o.inReplyTo : (o.inReplyTo && o.inReplyTo.id))
     : null;
-  if (!knownNoteUri(parent)) {
-    console.log('[AP] inbox forwarded, skipped (unknown inReplyTo):', claimedActor, parent || '(none)');
-    return null;
-  }
-  if (derefRecentlyFailed(objId)) return null;
+  if (!knownNoteUri(parent)) return skipped('unknown inReplyTo', parent || '(none)');
+  if (derefRecentlyFailed(objId)) return skipped('recent failure', objId);
   // Onbetekend eerst; tekenen alleen als terugval. Anders kan een ander ons een
   // ONDERTEKEND verzoek naar een adres van zijn keuze laten sturen -- dezelfde
   // reden als bij fetchActor sinds efe5633.
   let fetched = await apGetJson(objId).catch(() => null);
-  if ((!fetched || fetched.id !== objId) && slugParam) {
-    fetched = await signedGetJson(slugParam, objId).catch(() => null);
+  if (!fetched || fetched.id !== objId) {
+    // The signer used to be slugParam, which is null on the shared inbox — and
+    // that is where forwarded traffic lands, because we advertise a sharedInbox.
+    // signedGetJson falls back to an unsigned GET for a null slug, so a source in
+    // secure mode could never be dereferenced at all. Same fix verifyRequest got
+    // in shaer-afq: any local actor is a valid signer.
+    const asSlug = slugParam || anySigningSlug();
+    if (asSlug) fetched = await signedGetJson(asSlug, objId).catch(() => null);
   }
   const attributed = fetched && (typeof fetched.attributedTo === 'string'
     ? fetched.attributedTo
     : (fetched.attributedTo && fetched.attributedTo.id));
-  if (!fetched || fetched.id !== objId || attributed !== claimedActor) {
+  if (!fetched || fetched.id !== objId) {
     noteDerefFailure(objId);
-    return null;
+    return skipped('fetch failed', objId);
+  }
+  if (attributed !== claimedActor) {
+    // Not a transport hiccup: the source itself says someone else wrote this.
+    noteDerefFailure(objId);
+    return skipped('attributedTo mismatch', `${objId} claims ${attributed || '(none)'}`);
   }
   return fetched;
 }

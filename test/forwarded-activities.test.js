@@ -198,4 +198,31 @@ test('een mislukte poging wordt onthouden, zodat een retry hem niet herhaalt', a
   assert.equal(opgehaald.filter((v) => v.url === MIS).length, 0, 'de tweede niet meer');
 });
 
+test('op de GEDEELDE inbox wordt de bron ook ondertekend opgehaald', async () => {
+  // Doorstuurverkeer landt op /ap/inbox, want we adverteren een sharedInbox --
+  // en daar is slugParam null. signedGetJson valt bij een lege slug terug op een
+  // ONBETEKENDE GET, dus een bron in secure mode was langs deze weg helemaal niet
+  // te dereferencen. Elke lokale actor is een geldige ondertekenaar, net als in
+  // verifyRequest sinds shaer-afq.
+  const GESLOTEN = 'https://203.0.113.10/notes/secure-mode';   // eigen id: buiten de negatieve cache
+  const note = {
+    id: GESLOTEN, type: 'Note', attributedTo: AUTEUR, inReplyTo: ONZE_NOTE,
+    content: '<p>uit secure mode</p>', to: ['https://www.w3.org/ns/activitystreams#Public'],
+  };
+  const stub = globalThis.fetch;
+  const pogingen = [];
+  globalThis.fetch = async (url, opts = {}) => {
+    if (String(url) !== GESLOTEN) return stub(url, opts);
+    const ondertekend = !!(opts.headers && (opts.headers.Signature || opts.headers.signature));
+    pogingen.push(ondertekend);
+    return ondertekend
+      ? new Response(JSON.stringify(note), { status: 200, headers: { 'content-type': 'application/activity+json' } })
+      : new Response('unauthorized', { status: 401 });
+  };
+  const status = await AP.handleInbox(req(doorgestuurd(note)), null, alsDoorstuurder);
+  globalThis.fetch = stub;
+  assert.equal(status, 202, 'de doorgestuurde Create hoort geaccepteerd te worden');
+  assert.deepEqual(pogingen, [false, true], 'eerst onbetekend, daarna pas ondertekend');
+});
+
 test.after(() => { globalThis.fetch = echteFetch; });
