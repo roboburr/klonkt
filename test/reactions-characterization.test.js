@@ -8,9 +8,15 @@
 // dus slagen, groen testen en tóch state kwijtraken -- tenzij het huidige gedrag
 // eerst is vastgeschreven.
 //
-// LET OP bij het opruimen: de tests onder "de twee bronnen lopen uiteen" horen
-// te GAAN FALEN zodra fase 1 (één setReaction) klaar is. Dat is geen regressie
-// maar het doel; werk ze dan bewust bij in plaats van ze te laten verdwijnen.
+// LET OP: de tests onder "de twee bronnen lopen uiteen" roepen de PRIMITIEVEN
+// aan (markLiked, setMyReaction). Die blijven bewust gescheiden -- het
+// samenvoegen zit in setReaction, dus in de aanroepers, niet in de primitieven.
+// Deze tests blijven daarom groen na fase 1 en beschrijven dan nog steeds iets
+// waars: wie markLiked los aanroept, raakt de tussentabel niet. Dat is precies
+// waarom setReaction bestaat en waarom die primitieven op termijn intern moeten
+// worden.
+//
+// De invariant die fase 1 wél bewaakt staat onderaan, bij setReaction.
 //
 // Wat hier NIET in kan: de routes zelf (die vragen HTTP + sessie) en het
 // C2S-pad voor Like/Announce (dat doet netwerk; zie de kop van
@@ -114,15 +120,17 @@ test('upsertBoostedNote trekt een post die je NIET volgt je tijdlijn in', () => 
 });
 
 // ── De twee bronnen lopen uiteen ─────────────────────────────────────────
-// DEZE TESTS HOREN TE FALEN NA FASE 1. Ze leggen de huidige splitsing vast,
-// zodat het samenvoegen een zichtbare gebeurtenis is en geen stille.
+// De primitieven raken elkaar niet, en dat blijft na fase 1 zo: het
+// samenvoegen zit in setReaction. Deze drie leggen vast waarom die functie
+// moet bestaan, en waarom markLiked en broers uiteindelijk intern horen te
+// worden -- zolang ze los aanroepbaar zijn, kan een aanroeper de helft doen.
 
 test('HUIDIG GEDRAG: de tijdlijn-route vult de tussentabel niet', () => {
   const u = uri('d1'); seedTimeline(u);
   AP.markLiked('me', u);
   assert.equal(AP.getTimelineReaction('me', u).liked, true, 'de kolom staat aan');
   assert.equal(AP.getMyReactions('me', u).liked, false,
-    'NA FASE 1 hoort dit true te zijn: pas deze test dan bewust aan');
+    'de primitief raakt de tussentabel niet -- daarvoor is setReaction');
 });
 
 test('HUIDIG GEDRAG: de interact-route vult de kolom niet', () => {
@@ -130,7 +138,7 @@ test('HUIDIG GEDRAG: de interact-route vult de kolom niet', () => {
   AP.setMyReaction('me', u, 'like', true);
   assert.equal(AP.getMyReactions('me', u).liked, true, 'de tussentabel staat aan');
   assert.equal(AP.getTimelineReaction('me', u).liked, false,
-    'NA FASE 1 hoort dit true te zijn: pas deze test dan bewust aan');
+    'de primitief raakt de kolom niet -- daarvoor is setReaction');
 });
 
 test('HUIDIG GEDRAG: alleen het C2S-pad schrijft allebei', () => {
@@ -144,7 +152,7 @@ test('HUIDIG GEDRAG: alleen het C2S-pad schrijft allebei', () => {
   assert.equal(AP.getTimelineReaction('me', u).liked, true);
 });
 
-// ── Wat de invariant-test van fase 1 straks moet bewaken ─────────────────
+// ── De scheefheid, meetbaar (fase 0 uit shaer-9e9 als test) ─────────────
 
 test('meetbaar: hoeveel rijen hebben een vlag zonder tegenhanger', () => {
   // Dezelfde query als fase 0 in shaer-9e9, hier als test zodat de refactor
@@ -155,4 +163,51 @@ test('meetbaar: hoeveel rijen hebben een vlag zonder tegenhanger', () => {
        AND NOT EXISTS (SELECT 1 FROM ap_my_reactions r
                         WHERE r.site_slug = t.slug AND r.target_uri = t.id)`).get().n;
   assert.ok(scheef > 0, 'vandaag lopen ze uiteen; na fase 1 hoort deze assert omgedraaid te worden naar === 0');
+});
+
+// ── De invariant van fase 1: setReaction houdt de bronnen gelijk ─────────
+
+test('setReaction: een like landt in BEIDE bronnen', () => {
+  const u = uri('sr1'); seedTimeline(u);
+  AP.setReaction('me', u, 'like', true);
+  assert.equal(AP.getMyReactions('me', u).liked, true, 'tussentabel');
+  assert.equal(AP.getTimelineReaction('me', u).liked, true, 'afgeleide vlag');
+  AP.setReaction('me', u, 'like', false);
+  assert.equal(AP.getMyReactions('me', u).liked, false);
+  assert.equal(AP.getTimelineReaction('me', u).liked, false);
+});
+
+test('setReaction: een boost met note trekt de post je tijdlijn in EN vult beide', () => {
+  // De valkuil uit het plan: zonder de note bestaat de rij niet en landt de
+  // vlag nergens, dus zou de boost onvindbaar zijn.
+  const u = uri('sr2');
+  AP.setReaction('me', u, 'boost', true, {
+    note: { object_uri: u, actor_uri: 'https://r.test/users/bo', actor_name: 'Bo', content: '<p>x</p>', media: '[]' },
+  });
+  assert.equal(AP.getMyReactions('me', u).boosted, true, 'tussentabel');
+  assert.equal(AP.getTimelineReaction('me', u).boosted, true, 'afgeleide vlag');
+  assert.ok(AP.getCirkelPosts('me', 60, 0).some((p) => p.id === u), 'en zichtbaar in de Cirkel');
+  AP.setReaction('me', u, 'boost', false);
+  assert.equal(AP.getMyReactions('me', u).boosted, false);
+  assert.equal(AP.getCirkelPosts('me', 60, 0).some((p) => p.id === u), false);
+});
+
+test('setReaction: gescheiden sleutels blijven werken zolang ze bestaan', () => {
+  // De tussentabel wordt gesleuteld op wat de client stuurde, de vlag op de
+  // opgeloste object-URI. Meestal gelijk, niet gegarandeerd. flagUri houdt dat
+  // uit elkaar tot fase 2 ze samentrekt.
+  const gestuurd = 'https://r.test/@anna/123';
+  const opgelost = uri('sr3');
+  seedTimeline(opgelost);
+  AP.setReaction('me', gestuurd, 'like', true, { flagUri: opgelost });
+  assert.equal(AP.getMyReactions('me', gestuurd).liked, true, 'op de gestuurde uri');
+  assert.equal(AP.getTimelineReaction('me', opgelost).liked, true, 'op de opgeloste uri');
+});
+
+test('setReaction: rommelige invoer doet niets in plaats van iets halfs', () => {
+  AP.setReaction('me', uri('sr4'), 'sterretje', true);
+  assert.equal(AP.getMyReactions('me', uri('sr4')).liked, false);
+  AP.setReaction('', uri('sr5'), 'like', true);
+  AP.setReaction('me', '', 'like', true);
+  assert.equal(AP.getMyReactions('me', uri('sr5')).liked, false);
 });

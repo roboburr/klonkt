@@ -842,7 +842,8 @@ router.post('/authorize_interaction/like', requireSiteManager, (req, res) => {
     ActivityPubService.resolveRemoteNote(uri)
       .then((note) => note && ActivityPubService.sendInteraction(site, on ? 'like' : 'unlike', note.object_uri || uri, note.actor_uri))
       .catch((e) => console.warn('[AP] remote like failed:', e.message));
-    ActivityPubService.setMyReaction(site.slug, uri, 'like', on);
+    // Eén schrijfpad (shaer-9e9): tussentabel + afgeleide vlag.
+    ActivityPubService.setReaction(site.slug, uri, 'like', on);
   }
   if (req.get('X-Requested-With') === 'fetch') return res.json({ ok: true, on });
   res.redirect('/authorize_interaction?uri=' + encodeURIComponent(uri));
@@ -861,11 +862,13 @@ router.post('/authorize_interaction/boost', requireSiteManager, (req, res) => {
         if (!note) return;
         const id = note.object_uri || uri;
         return Promise.resolve(ActivityPubService.sendInteraction(site, on ? 'boost' : 'unboost', id, note.actor_uri))
-          // Boost → store the post in the timeline (even if you don't follow the author) so it
-          // surfaces in the Cirkel; unboost → just clear the flag.
-          .then(() => on ? ActivityPubService.upsertBoostedNote(site.slug, note) : ActivityPubService.unmarkBoosted(site.slug, id));
+          // De note gaat mee: een boost zet niet alleen een vlag maar trekt de
+          // post je tijdlijn in, ook als je de auteur niet volgt, zodat hij in
+          // de Cirkel verschijnt.
+          .then(() => ActivityPubService.setReaction(site.slug, uri, 'boost', on, { flagUri: id, note: on ? note : null }));
       })
       .catch((e) => console.warn('[AP] remote boost failed:', e.message));
+    // De tussentabel meteen, zodat de knop klopt voordat de resolve terug is.
     ActivityPubService.setMyReaction(site.slug, uri, 'boost', on);
   }
   if (req.get('X-Requested-With') === 'fetch') return res.json({ ok: true, on });
@@ -1278,7 +1281,7 @@ router.post('/news/like', requireSiteManager, async (req, res) => {
   if (site && note) {
     on = !ActivityPubService.getTimelineReaction(site.slug, note).liked;
     try { await ActivityPubService.sendInteraction(site, on ? 'like' : 'unlike', note, (req.body.author || '').toString()); } catch (e) { /* ignore */ }
-    if (on) ActivityPubService.markLiked(site.slug, note); else ActivityPubService.unmarkLiked(site.slug, note);
+    ActivityPubService.setReaction(site.slug, note, 'like', on);
   }
   if (req.get('X-Requested-With') === 'fetch') return res.json({ ok: true, on });
   res.redirect('/news');
@@ -1292,16 +1295,14 @@ router.post('/news/boost', requireSiteManager, async (req, res) => {
   if (site && note) {
     on = !ActivityPubService.getTimelineReaction(site.slug, note).boosted;
     try { await ActivityPubService.sendInteraction(site, on ? 'boost' : 'unboost', note, (req.body.author || '').toString()); } catch (e) { /* ignore */ }
+    ActivityPubService.setReaction(site.slug, note, 'boost', on); // instant UI state
     if (on) {
-      ActivityPubService.markBoosted(site.slug, note); // instant UI state
       // Fire-and-forget: re-resolve the note so the cached row is refreshed
       // (cover/content) — boosting again heals a stale copy from EVERY boost
       // path, not just the interact page.
       ActivityPubService.resolveRemoteNote(note)
-        .then((n) => { if (n) ActivityPubService.upsertBoostedNote(site.slug, n); })
+        .then((n) => { if (n) ActivityPubService.setReaction(site.slug, note, 'boost', true, { note: n }); })
         .catch(() => { /* best-effort */ });
-    } else {
-      ActivityPubService.unmarkBoosted(site.slug, note);
     }
   }
   if (req.get('X-Requested-With') === 'fetch') return res.json({ ok: true, on });

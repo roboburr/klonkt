@@ -2622,8 +2622,10 @@ export async function ingestOutboxActivity(site, user, activity) {
         const authorUri = note && note.actor_uri;
         const kind = type === 'Announce' ? 'boost' : 'like';
         await sendInteraction(site, kind, objUri, authorUri);
-        setMyReaction(site.slug, targetUri, kind, true);
-        if (type === 'Announce' && note) { try { upsertBoostedNote(site.slug, note); } catch { /* non-fatal */ } }
+        // Eén schrijfpad (shaer-9e9): tussentabel + afgeleide vlag in één keer.
+        // De note gaat mee zodat een boost de post je tijdlijn in trekt.
+        try { setReaction(site.slug, targetUri, kind, true, { flagUri: objUri, note: type === 'Announce' ? note : null }); }
+        catch { /* non-fatal: een reactie mag nooit de bezorging blokkeren */ }
         // Een Like uit een app moet ook in ap_timeline.liked landen, want dat
         // is wat de C2S-tijdlijn als shaer:liked teruggeeft. Zonder dit werd
         // de reactie wel opgeslagen (setMyReaction, de webroute leest die),
@@ -2633,7 +2635,6 @@ export async function ingestOutboxActivity(site, user, activity) {
         // Anders dan bij een boost geen upsert: een like hoort een post niet
         // in je tijdlijn te trekken, dus staat de post er niet in, dan is dit
         // terecht een no-op.
-        if (type === 'Like') { try { markLiked(site.slug, objUri); } catch { /* non-fatal */ } }
         return { status: 202, url: objUri };
       }
       case 'Follow': {
@@ -2682,9 +2683,8 @@ export async function ingestOutboxActivity(site, user, activity) {
           const note = await resolveRemoteNote(innerTarget, { asSlug: site.slug }).catch(() => null);
           const objUri = (note && note.object_uri) || innerTarget;
           await sendInteraction(site, kind, objUri, note && note.actor_uri);
-          setMyReaction(site.slug, innerTarget, innerType === 'Announce' ? 'boost' : 'like', false);
-          if (innerType === 'Announce') { try { unmarkBoosted(site.slug, objUri); } catch { /* non-fatal */ } }
-          if (innerType === 'Like') { try { unmarkLiked(site.slug, objUri); } catch { /* non-fatal */ } }
+          try { setReaction(site.slug, innerTarget, innerType === 'Announce' ? 'boost' : 'like', false, { flagUri: objUri }); }
+          catch { /* non-fatal */ }
           return { status: 202, url: objUri };
         }
         return { status: 400, error: 'unsupported_undo' };
@@ -3410,6 +3410,36 @@ export function markLiked(slug, noteId) {
 export function unmarkLiked(slug, noteId) {
   try { if (!_unmarkLike) _unmarkLike = db.prepare('UPDATE ap_timeline SET liked = 0 WHERE slug = ? AND id = ?'); _unmarkLike.run(slug, noteId); } catch { /* ignore */ }
 }
+/**
+ * Zet een reactie van JOU op een object. Dit hoort het enige schrijfpad te zijn
+ * (shaer-9e9): de tussentabel ap_my_reactions is de waarheid, de vlaggen op
+ * ap_timeline zijn de afgeleide. Zolang markLiked en broers los aanroepbaar
+ * blijven kan een aanroeper ze vergeten, en dat is niet hypothetisch -- precies
+ * dat leverde de shaer:liked-bug op (04aca12).
+ *
+ * `opts.note` is de opgeloste remote note bij een boost. Die is niet optioneel
+ * uit netheid: een boost moet de post je tijdlijn IN trekken als je de auteur
+ * niet volgt, anders heeft de vlag geen rij om op te landen en verschijnt de
+ * boost nergens -- ook niet in de Cirkel.
+ *
+ * `opts.flagUri` bestaat omdat de twee bronnen vandaag verschillend gesleuteld
+ * worden: de tussentabel op de URI die de client stuurde, de vlag op de
+ * opgeloste object-URI. Meestal zijn die gelijk, maar niet gegarandeerd. Deze
+ * naad houdt fase 1 gedragsbehoudend; het samentrekken van die twee sleutels is
+ * werk voor fase 2, mét datamigratie.
+ */
+export function setReaction(slug, uri, kind, on, opts = {}) {
+  if (!slug || !uri || (kind !== 'like' && kind !== 'boost')) return;
+  setMyReaction(slug, uri, kind, !!on);
+  const flagUri = opts.flagUri || uri;
+  if (kind === 'boost') {
+    if (!on) unmarkBoosted(slug, flagUri);
+    else if (opts.note) upsertBoostedNote(slug, opts.note);
+    else markBoosted(slug, flagUri);
+  } else if (on) markLiked(slug, flagUri);
+  else unmarkLiked(slug, flagUri);
+}
+
 export function getTimelineReaction(slug, noteId) {
   try { const r = db.prepare('SELECT liked, boosted FROM ap_timeline WHERE slug = ? AND id = ?').get(slug, noteId); return { liked: !!(r && r.liked), boosted: !!(r && r.boosted) }; } catch { return { liked: false, boosted: false }; }
 }
@@ -4778,7 +4808,7 @@ export default {
   acceptGatedFollow, rejectGatedFollow, isWardGuardian, outboxAudience, sendFollowDecision,
   gateOutgoingFollow, performApprovedFollow,
   parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread, sendReport, localMentionSlugs,
-  autoBoostCount, boostedCount, markBoosted, unmarkBoosted, markLiked, unmarkLiked, getTimelineReaction, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
+  autoBoostCount, boostedCount, markBoosted, unmarkBoosted, markLiked, unmarkLiked, setReaction, getTimelineReaction, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
   getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
