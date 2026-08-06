@@ -1686,6 +1686,44 @@ function pushPostCtx(postId) {
  *  4. Mislukt het ophalen, of wijst het object zichzelf niet toe aan de
  *     geclaimde actor, dan blijft het een weigering. Geen twijfelgeval opslaan.
  */
+/** Kennen we deze note? Een eigen post, een eigen outbox-antwoord, een
+ *  gecachete post in de tijdlijn, of een reactie die al in een thread van ons
+ *  staat. Alle vier zijn een geldige reden dat iemand ons een antwoord daarop
+ *  doorstuurt; iets anders is dat niet. */
+function knownNoteUri(uri) {
+  if (!uri || typeof uri !== 'string') return false;
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  try {
+    if (base && uri.startsWith(`${base}/ap/notes/`)) {
+      const seg = decodeURIComponent(uri.slice(`${base}/ap/notes/`.length).split(/[?#]/)[0]);
+      if (db.prepare('SELECT 1 FROM ap_outbox WHERE id = ?').get(seg)) return true;
+      if (db.prepare('SELECT 1 FROM posts WHERE id = ?').get(seg)) return true;
+    }
+    if (db.prepare('SELECT 1 FROM ap_timeline WHERE id = ? LIMIT 1').get(uri)) return true;
+    if (db.prepare('SELECT 1 FROM ap_interactions WHERE object_uri = ? LIMIT 1').get(uri)) return true;
+  } catch { /* bij twijfel niet ophalen */ }
+  return false;
+}
+
+// Mislukte dereferences kort onthouden. Mastodon herhaalt een bezorging
+// dagenlang; zonder dit doet elke herhaling de fetch opnieuw, ook als die de
+// vorige twintig keer niets opleverde. Dempt meteen de scherpte van misbruik.
+const _derefMiss = new Map();
+const DEREF_MISS_MS = 30 * 60 * 1000;
+function derefRecentlyFailed(uri) {
+  const t = _derefMiss.get(uri);
+  if (t === undefined) return false;
+  if (Date.now() - t > DEREF_MISS_MS) { _derefMiss.delete(uri); return false; }
+  return true;
+}
+function noteDerefFailure(uri) {
+  if (_derefMiss.size > 500) {   // simpele begrenzing: oudste helft eruit
+    const oud = [..._derefMiss.entries()].sort((a, b) => a[1] - b[1]).slice(0, 250);
+    for (const [k] of oud) _derefMiss.delete(k);
+  }
+  _derefMiss.set(uri, Date.now());
+}
+
 async function dereferenceForwarded(act, claimedActor, type, slugParam) {
   if (type !== 'Create' && type !== 'Update') return null;
   const o = act && act.object;
@@ -1694,14 +1732,34 @@ async function dereferenceForwarded(act, claimedActor, type, slugParam) {
   try {
     if (new URL(objId).host !== new URL(claimedActor).host) return null;   // ankereis
   } catch { return null; }
-  // Ondertekend als de ontvangende site wanneer we die kennen; anders anoniem,
-  // wat voor een publieke note volstaat. Beide gaan door safeFetch.
-  const fetched = await signedGetJson(slugParam, objId).catch(() => null);
-  if (!fetched || fetched.id !== objId) return null;   // ook: geen omleiding naar iets anders
-  const attributed = typeof fetched.attributedTo === 'string'
+  // Alleen dereferencen als het object beweert een antwoord te zijn op iets van
+  // ONS (shaer-drf). Zonder die eis zijn claimedActor en object.id allebei door
+  // de aanvaller gekozen en eist het host-anker alleen dat ze aan elkaar gelijk
+  // zijn -- dan kan iedereen met een werkende actor ons naar elke URL sturen.
+  // Doorsturen bestaat juist omdát wij in de thread zitten, dus deze eis kost
+  // niets aan legitiem verkeer waarvan we de ouder kennen.
+  const parent = typeof o === 'object' && o
+    ? (typeof o.inReplyTo === 'string' ? o.inReplyTo : (o.inReplyTo && o.inReplyTo.id))
+    : null;
+  if (!knownNoteUri(parent)) {
+    console.log('[AP] inbox forwarded, skipped (unknown inReplyTo):', claimedActor, parent || '(none)');
+    return null;
+  }
+  if (derefRecentlyFailed(objId)) return null;
+  // Onbetekend eerst; tekenen alleen als terugval. Anders kan een ander ons een
+  // ONDERTEKEND verzoek naar een adres van zijn keuze laten sturen -- dezelfde
+  // reden als bij fetchActor sinds efe5633.
+  let fetched = await apGetJson(objId).catch(() => null);
+  if ((!fetched || fetched.id !== objId) && slugParam) {
+    fetched = await signedGetJson(slugParam, objId).catch(() => null);
+  }
+  const attributed = fetched && (typeof fetched.attributedTo === 'string'
     ? fetched.attributedTo
-    : (fetched.attributedTo && fetched.attributedTo.id);
-  if (attributed !== claimedActor) return null;
+    : (fetched.attributedTo && fetched.attributedTo.id));
+  if (!fetched || fetched.id !== objId || attributed !== claimedActor) {
+    noteDerefFailure(objId);
+    return null;
+  }
   return fetched;
 }
 
