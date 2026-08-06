@@ -1556,19 +1556,21 @@ router.post('/posts/:slug/fedi-react', requireSiteManager, async (req, res) => {
   const parent = ActivityPubService.getInteractionById(req.body.interaction_id);
   const kind = req.body.kind === 'boost' ? 'boost' : 'like';
   if (parent && parent.post_id === post.id && parent.object_uri) {
-    if (kind === 'boost') {
-      // Toggle: boost an unboosted comment, or retract it (Undo Announce) if already boosted.
-      const on = !parent.acted_boost;
-      ActivityPubService.sendInteraction(site, on ? 'boost' : 'unboost', parent.object_uri, parent.actor_uri)
-        .catch((e) => console.warn('[AP] reaction failed:', e.message));
-      ActivityPubService.setInteractionBoosted(parent.id, on);
-    } else {
-      // Toggle: like an unliked comment, or un-favourite (Undo Like) if already liked.
-      const on = !parent.acted_like;
-      ActivityPubService.sendInteraction(site, on ? 'like' : 'unlike', parent.object_uri, parent.actor_uri)
-        .catch((e) => console.warn('[AP] reaction failed:', e.message));
-      ActivityPubService.setInteractionLiked(parent.id, on);
-    }
+    // Toggle: react, or retract it (Undo Announce / Undo Like) if already on.
+    // De stand komt uit dezelfde bron als de knop die je zag; leest de toggle uit
+    // de kolom en de knop uit de tussentabel, dan draait een divergentie de
+    // richting om en stuur je een Undo voor iets dat nooit is verstuurd.
+    const ik = ActivityPubService.getReaction(site.slug, parent.object_uri);
+    const on = kind === 'boost' ? !ik.boosted : !ik.liked;
+    ActivityPubService.sendInteraction(site, on ? kind : `un${kind}`, parent.object_uri, parent.actor_uri)
+      .catch((e) => console.warn('[AP] reaction failed:', e.message));
+    // De tussentabel is de waarheid (shaer-ipb), gesleuteld op object_uri -- net
+    // als de Like die hierboven de fediverse in gaat. acted_* blijft voorlopig
+    // als afgeleide meelopen, hetzelfde vangnet dat ap_timeline.liked na
+    // shaer-9e9 is: pas weghalen als deze migratie een release heeft ingelopen.
+    ActivityPubService.setReaction(site.slug, parent.object_uri, kind, on);
+    if (kind === 'boost') ActivityPubService.setInteractionBoosted(parent.id, on);
+    else ActivityPubService.setInteractionLiked(parent.id, on);
   }
   res.redirect(`${res.locals.siteUrlBase || ''}/${post.slug}#fediverse`);
 });

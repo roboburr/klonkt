@@ -1185,16 +1185,29 @@ export function getInteractions(postId, base, site) {
   const siteUrl = baseClean ? `${baseClean}/` : '';
   const siteIcon = (site && site.profile_photo) || null;
 
+  // Wat JIJ met deze reacties deed komt uit de tussentabel, niet meer uit
+  // acted_* (shaer-ipb). Eén batch-lookup, want een drukke thread zou anders een
+  // N+1 worden. De sleutel loopt door canonicalReactionUri, precies zoals aan de
+  // schrijfkant -- staat dezelfde note toevallig ook in je tijdlijn, dan is het
+  // één feit en niet twee knoppen die los van elkaar aan kunnen staan.
+  const mijnSleutel = new Map();
+  for (const r of rows) {
+    if (r.kind === 'reply' && r.object_uri) mijnSleutel.set(r.object_uri, canonicalReactionUri(site && site.slug, r.object_uri));
+  }
+  const mijn = getReactionsFor(site && site.slug, [...mijnSleutel.values()]);
+  const mijnReactie = (uri) => mijn.get(mijnSleutel.get(uri)) || { liked: false, boosted: false };
+
   const nodes = [];
   for (const r of rows) {
     if (r.kind !== 'reply') continue;
+    const ik = mijnReactie(r.object_uri);
     nodes.push({
       noteId: r.object_uri, parent: r.parent_uri || null, mine: false, id: r.id,
       actor_uri: r.actor_uri,
       actor_name: r.actor_name, actor_handle: r.actor_handle, actor_url: r.actor_url,
       actor_icon: r.actor_icon, content: stripLeadingMentions(r.content), created_at: r.published || r.created_at,
       emoji_json: r.emoji_json, actor_emoji_json: r.actor_emoji_json,   // FEP-9098 (thread render)
-      acted_boost: !!r.acted_boost, acted_like: !!r.acted_like,
+      acted_boost: ik.boosted, acted_like: ik.liked,
       children: [],
     });
   }
@@ -3645,7 +3658,9 @@ export function unmarkLiked(slug, noteId) {
 // selfHealTimeline. Bewust automatisch: klonkt-update tilt een hele vloot in een
 // stap naar nieuwe code, en een handmatig script per instance wordt vergeten --
 // terwijl het falen stil is (een reactie die niemand meer ziet geeft geen fout).
-const REACTIONS_MIGRATION_VERSION = 1;
+// v2 haalt de derde bron erbij: ap_interactions.acted_* (shaer-ipb). Een bump
+// laat alle stappen opnieuw lopen, en dat mag -- ze zijn alle drie idempotent.
+const REACTIONS_MIGRATION_VERSION = 2;
 
 /**
  * Brengt alle reacties naar de tussentabel, onder de canonieke object-URI.
@@ -3665,7 +3680,7 @@ const REACTIONS_MIGRATION_VERSION = 1;
  * Idempotent. Geeft terug wat er gebeurd is, zodat het script het kan tonen.
  */
 export function migrateReactions(opts = {}) {
-  const uit = { hersleuteld: 0, aangevuld: 0, overgeslagen: false };
+  const uit = { hersleuteld: 0, aangevuld: 0, reacties: 0, overgeslagen: false };
   try {
     if (!opts.force) {
       const r = db.prepare('SELECT value FROM app_settings WHERE key = ?').get('reactions_migration_version');
@@ -3683,13 +3698,23 @@ export function migrateReactions(opts = {}) {
      WHERE t.${kolom} = 1
        AND NOT EXISTS (SELECT 1 FROM ap_my_reactions r
                         WHERE r.site_slug = t.slug AND r.target_uri = t.id AND r.kind = '${kind}')`;
+  // 3. De derde bron: wat JIJ deed met een reactie onder je eigen post. De slug
+  //    hangt hier niet aan de rij maar aan de post; vandaar de twee joins. Een
+  //    rij zonder object_uri kan nooit een reactie dragen (fedi-react eist hem),
+  //    dus die uitsluiting verliest per constructie niets.
+  const acted = (kind, kolom) => `
+    FROM ap_interactions i
+     JOIN posts p ON p.id = i.post_id
+     JOIN sites s ON s.id = p.site_id
+     WHERE i.${kolom} = 1 AND IFNULL(i.object_uri, '') <> ''
+       AND NOT EXISTS (SELECT 1 FROM ap_my_reactions r
+                        WHERE r.site_slug = s.slug AND r.target_uri = i.object_uri AND r.kind = '${kind}')`;
 
   if (opts.dryRun) {
-    try {
-      uit.hersleuteld = db.prepare(`SELECT COUNT(*) AS n ${wees}`).get().n;
-      uit.aangevuld = db.prepare(`SELECT COUNT(*) AS n ${scheef('like', 'liked')}`).get().n
-                    + db.prepare(`SELECT COUNT(*) AS n ${scheef('boost', 'boosted')}`).get().n;
-    } catch { /* laat de nullen staan */ }
+    const tel = (sql) => { try { return db.prepare(`SELECT COUNT(*) AS n ${sql}`).get().n; } catch { return 0; } };
+    uit.hersleuteld = tel(wees);
+    uit.aangevuld = tel(scheef('like', 'liked')) + tel(scheef('boost', 'boosted'));
+    uit.reacties = tel(acted('like', 'acted_like')) + tel(acted('boost', 'acted_boost'));
     return uit;
   }
 
@@ -3709,9 +3734,16 @@ export function migrateReactions(opts = {}) {
           INSERT OR IGNORE INTO ap_my_reactions (site_slug, target_uri, kind)
           SELECT t.slug, t.id, '${kind}' ${scheef(kind, kolom)}`).run().changes;
       }
+
+      // 3. En vanuit acted_* op de reacties onder je eigen posts.
+      for (const [kind, kolom] of [['like', 'acted_like'], ['boost', 'acted_boost']]) {
+        uit.reacties += db.prepare(`
+          INSERT OR IGNORE INTO ap_my_reactions (site_slug, target_uri, kind)
+          SELECT s.slug, i.object_uri, '${kind}' ${acted(kind, kolom)}`).run().changes;
+      }
     })();
-    if (uit.hersleuteld || uit.aangevuld) {
-      console.log(`[AP] reaction migration v${REACTIONS_MIGRATION_VERSION}: ${uit.hersleuteld} re-keyed, ${uit.aangevuld} backfilled`);
+    if (uit.hersleuteld || uit.aangevuld || uit.reacties) {
+      console.log(`[AP] reaction migration v${REACTIONS_MIGRATION_VERSION}: ${uit.hersleuteld} re-keyed, ${uit.aangevuld} backfilled, ${uit.reacties} from comments`);
     }
     if (!opts.force) {
       db.prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)')

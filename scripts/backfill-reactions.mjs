@@ -24,6 +24,9 @@
 //                 ap_timeline.liked/boosted. Zonder deze stap toont het als
 //                 niet-gereageerd -- en klikt iemand opnieuw, met een tweede
 //                 Like de fediverse in als gevolg.
+//   UIT REACTIES  De derde bron (shaer-ipb): ap_interactions.acted_like/_boost,
+//                 wat jij deed met een reactie ONDER je eigen post. Zelfde
+//                 gevolg als hierboven, alleen op een ander oppervlak.
 //
 // Wat het NIET kan: bij AANVULLEN de oorspronkelijke reactiedatum herstellen.
 // Wanneer je reageerde is nergens vastgelegd, dus die rijen krijgen de datum van
@@ -44,10 +47,21 @@ const meet = () => ({
      WHERE (t.liked = 1 OR t.boosted = 1)
        AND NOT EXISTS (SELECT 1 FROM ap_my_reactions r
                         WHERE r.site_slug = t.slug AND r.target_uri = t.id)`).get().n,
+  // Een reactie op een COMMENT hoort geen tijdlijnrij te hebben, dus die telt
+  // hier niet als wees -- anders slaat de controle hieronder alarm op precies
+  // wat stap 3 net goed heeft gezet.
   wees: db.prepare(`
     SELECT COUNT(*) AS n FROM ap_my_reactions r
      WHERE NOT EXISTS (SELECT 1 FROM ap_timeline t
-                        WHERE t.slug = r.site_slug AND t.id = r.target_uri)`).get().n,
+                        WHERE t.slug = r.site_slug AND t.id = r.target_uri)
+       AND NOT EXISTS (SELECT 1 FROM ap_interactions i WHERE i.object_uri = r.target_uri)`).get().n,
+  scheefActed: db.prepare(`
+    SELECT COUNT(*) AS n FROM ap_interactions i
+     JOIN posts p ON p.id = i.post_id
+     JOIN sites s ON s.id = p.site_id
+     WHERE (i.acted_like = 1 OR i.acted_boost = 1) AND IFNULL(i.object_uri, '') <> ''
+       AND NOT EXISTS (SELECT 1 FROM ap_my_reactions r
+                        WHERE r.site_slug = s.slug AND r.target_uri = i.object_uri)`).get().n,
 });
 
 const voor = meet();
@@ -59,12 +73,13 @@ if (uit.overgeslagen) {
   process.exit(0);
 }
 if (dryRun) {
-  console.log(`\n--dry-run: zou ${uit.hersleuteld} rij(en) hersleutelen en ${uit.aangevuld} aanvullen. Niets geschreven.`);
+  console.log(`\n--dry-run: zou ${uit.hersleuteld} rij(en) hersleutelen, ${uit.aangevuld} aanvullen`
+    + ` en ${uit.reacties} uit reacties overnemen. Niets geschreven.`);
   process.exit(0);
 }
 
 const na = meet();
-console.log('hersleuteld:', uit.hersleuteld, ' aangevuld:', uit.aangevuld);
+console.log('hersleuteld:', uit.hersleuteld, ' aangevuld:', uit.aangevuld, ' uit reacties:', uit.reacties);
 console.log('achteraf   :', JSON.stringify(na));
 
 // De twee controles die tellen. Blijft er een vlag zonder tegenhanger, dan is de
@@ -74,6 +89,10 @@ console.log('achteraf   :', JSON.stringify(na));
 // waarschuwing in plaats van een fout.
 if (na.scheef !== 0) {
   console.error(`\nFOUT: nog ${na.scheef} rij(en) met een vlag zonder tegenhanger.`);
+  process.exit(1);
+}
+if (na.scheefActed !== 0) {
+  console.error(`\nFOUT: nog ${na.scheefActed} reactie(s) onder je eigen posts met acted_* zonder tegenhanger.`);
   process.exit(1);
 }
 if (na.wees > voor.wees) {

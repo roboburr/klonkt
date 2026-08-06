@@ -361,9 +361,15 @@ test('migrateReactions is idempotent en respecteert de versievlag', () => {
   assert.equal(tweede.hersleuteld, 0, 'niets meer te hersleutelen');
   assert.equal(tweede.aangevuld, 0, 'niets meer aan te vullen');
   assert.ok(eerste.hersleuteld >= 0);
-  // Zonder force draait hij niet nog eens zodra de vlag staat.
-  db.prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?,?)').run('reactions_migration_version', '1');
-  assert.equal(AP.migrateReactions().overgeslagen, true);
+  // De vlag is VERSIEgebonden, en niet aan één vast getal: een oudere vlag laat
+  // de migratie opnieuw lopen -- zo doet een bump als v2 zijn werk -- en een
+  // gelijke of hogere slaat hem over. Een hardgecodeerd versienummer hier zou bij
+  // elke bump omvallen zonder dat er iets stuk is.
+  const vlag = (v) => db.prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?,?)').run('reactions_migration_version', v);
+  vlag('1');
+  assert.equal(AP.migrateReactions().overgeslagen, false, 'een oudere vlag laat hem opnieuw lopen');
+  vlag('999');
+  assert.equal(AP.migrateReactions().overgeslagen, true, 'een gelijke of hogere vlag slaat over');
 });
 
 test('migrateReactions --dry-run schrijft niets', () => {
