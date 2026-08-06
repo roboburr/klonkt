@@ -145,34 +145,6 @@
 
   .msg-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .55rem; }
 
-  /* Een draad is geen regel maar een blok: kop met de context, daaronder de
-     bubbels van oud naar nieuw. De verticale lijn links maakt zichtbaar dat ze
-     bij elkaar horen -- dat was precies wat ontbrak toen verzonden en ontvangen
-     in aparte chips zaten. */
-  .msg-thread { display: block; }
-  .msg-thread-head { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; margin-bottom: .35rem; }
-  /* De tegenpartij is een labeltje bij het gesprek, geen kop erboven: een
-     kleine verzonken uitsparing, zodat de bubbels eronder de ruimte krijgen.
-     Het aantal zit in dezelfde uitsparing in plaats van ernaast. */
-  .msg-thread-who { display: inline-flex; align-items: center; gap: .3rem;
-    font-size: .78em; line-height: 1.5; font-weight: 500;
-    padding: .05rem .5rem; border-radius: 999px;
-    color: color-mix(in srgb, var(--ink, #000) 62%, transparent);
-    background: color-mix(in srgb, var(--ink, #000) 5%, transparent);
-    box-shadow: inset 0 1px 2px color-mix(in srgb, var(--ink, #000) 9%, transparent);
-    max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .msg-thread-count { font-variant-numeric: tabular-nums; opacity: .75;
-    padding-inline-start: .3rem; border-inline-start: 1px solid color-mix(in srgb, var(--ink, #000) 14%, transparent); }
-  .msg-thread-post { display: inline-flex; align-items: center; gap: .3rem; font-size: .85em;
-    margin-inline-start: auto; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .msg-thread-post svg { width: 13px; height: 13px; flex: none; }
-  .msg-thread-msgs { list-style: none; margin: 0; padding: 0 0 0 .85rem; display: flex; flex-direction: column; gap: .45rem;
-    border-inline-start: 2px solid color-mix(in srgb, var(--ink, #000) 10%, transparent); }
-  .msg-sub { display: flex; gap: .8rem; align-items: flex-start; }
-  /* Jouw eigen bijdrage staat aan de andere kant van de lijn, zodat je de
-     beurten ziet zonder namen te lezen. */
-  .msg-sub.msg-sent { flex-direction: row-reverse; text-align: end; }
-  .msg-sub.msg-sent .msg-line { justify-content: flex-end; }
 
   .msg-item { display: flex; gap: .8rem; padding: .85rem .95rem; border-radius: 14px; align-items: flex-start;
     background: color-mix(in srgb, var(--ink, #000) 3.5%, transparent);
@@ -183,6 +155,49 @@
   .msg-item.is-new { border-color: color-mix(in srgb, var(--accent, #06c) 45%, transparent);
     background: color-mix(in srgb, var(--accent, #06c) 4%, transparent); }
   .msg-sent { border-left: 3px solid color-mix(in srgb, var(--accent, #06c) 55%, transparent); }
+
+  /* ── Gesprekken ──────────────────────────────────────────────────────
+     NA .msg-item, en dat is geen smaak: .msg-item zet display:flex, en bij
+     gelijke specificiteit wint de laatste regel. Stond dit ervoor, dan kwam de
+     draadkop NAAST de bubbels te staan in plaats van erboven. */
+  .msg-thread { display: block; }
+  .msg-thread-head { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; margin-bottom: .4rem; }
+  /* De tegenpartij is een labeltje bij het gesprek, geen kop erboven: een
+     kleine verzonken uitsparing, zodat de bubbels eronder de ruimte krijgen.
+     Het aantal zit in dezelfde uitsparing in plaats van ernaast. */
+  .msg-thread-who { display: inline-flex; align-items: center; gap: .3rem; min-width: 0;
+    font-size: .78em; line-height: 1.5; font-weight: 500;
+    padding: .05rem .5rem; border-radius: 999px;
+    color: color-mix(in srgb, var(--ink, #000) 62%, transparent);
+    background: color-mix(in srgb, var(--ink, #000) 5%, transparent);
+    box-shadow: inset 0 1px 2px color-mix(in srgb, var(--ink, #000) 9%, transparent);
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .msg-thread-count { font-variant-numeric: tabular-nums; opacity: .75; flex: 0 0 auto;
+    padding-inline-start: .3rem; border-inline-start: 1px solid color-mix(in srgb, var(--ink, #000) 14%, transparent); }
+  .msg-thread-post { display: inline-flex; align-items: center; gap: .3rem; font-size: .85em;
+    margin-inline-start: auto; min-width: 0; max-width: 100%;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .msg-thread-post svg { width: 13px; height: 13px; flex: none; }
+  .msg-thread-msgs { list-style: none; margin: 0; padding: 0 0 0 .7rem; display: flex; flex-direction: column; gap: .5rem;
+    border-inline-start: 2px solid color-mix(in srgb, var(--ink, #000) 10%, transparent); }
+  .msg-sub { display: flex; gap: .6rem; align-items: flex-start; min-width: 0; }
+  .msg-sub > .msg-body { min-width: 0; }
+  /* Jouw eigen bijdrage onderscheidt zich met een tint en de accentlijn die
+     .msg-sent al had -- niet met row-reverse: dat duwde de avatar buiten de
+     kaart zodra de regel smaller werd dan zijn inhoud. */
+  .msg-sub.msg-sent { border-radius: 10px; padding: .3rem .45rem;
+    background: color-mix(in srgb, var(--accent, #06c) 5%, transparent); }
+  /* Een lange naam of tijd mag de bubbel niet uit de kaart duwen. */
+  .msg-sub .msg-line { flex-wrap: wrap; }
+
+  @media (max-width: 560px) {
+    /* Op een telefoon is 40px avatar per bubbel puur verlies: de naam staat er
+       al naast, en de inhoud heeft de breedte harder nodig. */
+    .msg-sub > .msg-av { display: none; }
+    .msg-thread-msgs { padding-inline-start: .55rem; }
+    .msg-thread-post { margin-inline-start: 0; }
+    .msg-item { padding: .7rem .6rem; gap: .6rem; }
+  }
 
   .msg-av { position: relative; flex: 0 0 40px; width: 40px; height: 40px; border-radius: 50%;
     display: inline-flex; align-items: center; justify-content: center; font-weight: 700;
