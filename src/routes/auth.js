@@ -204,7 +204,7 @@ router.post('/reset-request', registerLimiter, async (req, res) => {
         devResetUrl = url;
       } else {
         // Production without SMTP: NEVER log the token. Refer to the CLI break-glass.
-        console.log(`[password-reset] aangevraagd voor ${user.email} (geen SMTP — gebruik 'npm run reset-admin')`);
+        console.log(`[password-reset] requested for ${user.email} (no SMTP — use 'npm run reset-admin')`);
       }
     }
   }

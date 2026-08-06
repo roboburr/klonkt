@@ -4488,7 +4488,7 @@ export async function moveAccount(site, targetRaw, { fetchActorFn = null, delive
     await send(site.slug, inbox, update, `${me}#main-key`, keys.private_pem);
     await send(site.slug, inbox, move, `${me}#main-key`, keys.private_pem);
   }
-  console.log('[AP] MOVE announced:', site.slug, '→', target.id, 'naar', inboxes.length, 'inbox(en)');
+  console.log('[AP] MOVE announced:', site.slug, '→', target.id, 'to', inboxes.length, 'inbox(es)');
   return { ok: true, target: target.id, inboxes: inboxes.length };
 }
 
