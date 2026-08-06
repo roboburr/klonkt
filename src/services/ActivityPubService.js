@@ -626,6 +626,21 @@ export function notificationsSeenAt(slug) {
 // every notification PLUS your own outbound replies ('sent', with edit/delete via their
 // outboxId), sorted as one stream. Consecutive likes/boosts on the same post collapse into
 // one grouped item (actors list + count) so activity doesn't drown out conversations.
+/** ap_outbox.attachments ([{url, mediaType, name}]) naar de vorm die note-body
+ *  leest (media_json: [{url, type, name}]). Geeft null bij niets of rommel,
+ *  zodat een kapotte kolom hooguit media kost en niet de hele regel. */
+function outboxMediaJson(attachments) {
+  if (!attachments) return null;
+  try {
+    const list = JSON.parse(attachments);
+    if (!Array.isArray(list) || !list.length) return null;
+    const media = list
+      .filter((a) => a && a.url)
+      .map((a) => ({ url: a.url, type: a.mediaType || a.type || '', name: a.name || undefined }));
+    return media.length ? JSON.stringify(media) : null;
+  } catch { return null; }
+}
+
 export function getMessages(slug, limit, offset) {
   const off = Math.max(0, offset || 0);
   const lim = limit || 60;
@@ -640,6 +655,12 @@ export function getMessages(slug, limit, offset) {
         type: 'sent', outboxId: m.id, to_handle: m.to_handle, to_actors: m.to_actors,
         in_reply_to: m.in_reply_to, post_slug: m.post_slug, content: m.content,
         editable: m.editable, language: m.language, created_at: m.created_at,
+        // Je eigen bericht hoort er hetzelfde uit te zien als dat van een ander:
+        // note-body rendert Berichten, de Krant en de Guardian-PWA, maar leest
+        // media uit media_json met een `type`, terwijl ap_outbox ze als
+        // `attachments` met een `mediaType` bewaart. Zonder deze vertaling kwam
+        // een foto die JIJ meestuurde als kale tekst binnen.
+        media_json: outboxMediaJson(m.attachments),
       });
     }
   } catch { /* ignore */ }
@@ -3019,7 +3040,7 @@ export function listOutbox(siteSlug) {
   // waarop een verzonden antwoord bij de ontvangen antwoorden op dezelfde post
   // gaat staan (zie threadKey). Zonder die kolom viel een uitwisseling uit
   // elkaar in "Verzonden" en "Gesprekken".
-  return db.prepare('SELECT id, content, to_handle, to_actor, to_actors, post_slug, in_reply_to, language, created_at FROM ap_outbox WHERE site_slug = ? ORDER BY created_at DESC')
+  return db.prepare('SELECT id, content, to_handle, to_actor, to_actors, post_slug, in_reply_to, attachments, language, created_at FROM ap_outbox WHERE site_slug = ? ORDER BY created_at DESC')
     .all(siteSlug).map((r) => { const c = stripLeadingMentions(r.content); return { ...r, content: c, editable: outboxEditableText(c) }; });
 }
 

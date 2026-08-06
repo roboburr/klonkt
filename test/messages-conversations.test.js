@@ -131,3 +131,32 @@ test('to_handle wint van to_actors, zodat een draad niet splitst', () => {
   const b = threadKey({ type: 'sent', to_handle: '@anna@a.test', to_actors: JSON.stringify(['https://b.test/users/bo']) });
   assert.equal(a, b, 'dezelfde tegenpartij hoort dezelfde sleutel te geven');
 });
+
+test('een eigen bericht met media rendert als een post, niet als kale tekst', async () => {
+  // note-body (gedeeld met de Krant) leest media_json met een `type`; ap_outbox
+  // bewaart attachments met een `mediaType`. Zonder vertaling viel een foto die
+  // JIJ meestuurde weg.
+  const db = (await import('../src/config/database.js')).default;
+  db.prepare('INSERT INTO users (id, username, email, password_hash, role) VALUES (?,?,?,?,?)')
+    .run('mu', 'mu', 'mu@test', 'x', 'god');
+  db.prepare('INSERT INTO sites (id, slug, title, owner_id) VALUES (?,?,?,?)').run('ms', 'media', 'Media', 'mu');
+  db.prepare(`INSERT INTO ap_outbox (id, site_slug, post_id, post_slug, to_handle, content, attachments, created_at)
+    VALUES ('om1','media','pm1','een-post','@anna@a.test','<p>kijk</p>',?,'2026-08-06 09:00:00')`)
+    .run(JSON.stringify([{ url: '/media/foto.png', mediaType: 'image/png', name: 'foto' }]));
+
+  const t = AP.getMessages('media', 50, 0).find((i) => i.type === 'thread');
+  const sent = t.messages.find((m) => m.type === 'sent');
+  assert.deepEqual(JSON.parse(sent.media_json), [{ url: '/media/foto.png', type: 'image/png', name: 'foto' }]);
+});
+
+test('een eigen bericht zonder of met kapotte media houdt gewoon zijn tekst', async () => {
+  const db = (await import('../src/config/database.js')).default;
+  db.prepare('INSERT INTO sites (id, slug, title, owner_id) VALUES (?,?,?,?)').run('ms2', 'media2', 'M2', 'mu');
+  db.prepare(`INSERT INTO ap_outbox (id, site_slug, post_id, post_slug, to_handle, content, attachments, created_at)
+    VALUES ('om2','media2','pm2','p','@anna@a.test','<p>a</p>','geen json','2026-08-06 09:00:00'),
+           ('om3','media2','pm3','p','@bo@b.test','<p>b</p>',NULL,'2026-08-06 09:01:00')`).run();
+  const threads = AP.getMessages('media2', 50, 0).filter((i) => i.type === 'thread');
+  const alle = threads.flatMap((t) => t.messages);
+  assert.equal(alle.length, 2, 'geen bericht mag verdwijnen door kapotte media');
+  for (const m of alle) assert.equal(m.media_json, null);
+});
