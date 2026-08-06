@@ -1620,6 +1620,50 @@ function pushPostCtx(postId) {
   } catch { return null; }
 }
 
+/**
+ * Een DOORGESTUURDE activiteit alsnog verifiëren (shaer-s8k).
+ *
+ * Reageert iemand in een thread, dan stuurt de server van de oorspronkelijke
+ * poster die reactie door naar de deelnemers -- en ondertekent met zijn EIGEN
+ * sleutel. De handtekening klopt dan, maar de ondertekenaar is niet de auteur,
+ * dus de gate hieronder wees hem af. Gevolg: reacties van derden kwamen niet
+ * binnen, zonder dat iemand een fout zag.
+ *
+ * Mastodon lost dit op met een LD-Signature over de payload. Dat vraagt
+ * JSON-LD-canonicalisatie; wij doen het lichter en strenger: we geloven de
+ * bezorgde inhoud NIET en halen het object op bij de bron.
+ *
+ * Vier voorwaarden, en geen ervan is optioneel:
+ *
+ *  1. Alleen Create en Update. Een doorgestuurde Delete is per definitie niet te
+ *     dereferencen -- het object is weg -- dus die blijft geweigerd.
+ *  2. De host van de object-id MOET die van de geclaimde actor zijn. Zonder dit
+ *     anker wijst een doorsturer je naar een host die hij zelf beheert, waar
+ *     attributedTo alles kan beweren.
+ *  3. Het OPGEHAALDE object wordt gebruikt, niet de bezorgde payload. Anders
+ *     levert een doorsturer een echt id met verdraaide inhoud.
+ *  4. Mislukt het ophalen, of wijst het object zichzelf niet toe aan de
+ *     geclaimde actor, dan blijft het een weigering. Geen twijfelgeval opslaan.
+ */
+async function dereferenceForwarded(act, claimedActor, type, slugParam) {
+  if (type !== 'Create' && type !== 'Update') return null;
+  const o = act && act.object;
+  const objId = typeof o === 'string' ? o : (o && o.id);
+  if (!objId || typeof objId !== 'string' || !/^https:\/\//i.test(objId)) return null;
+  try {
+    if (new URL(objId).host !== new URL(claimedActor).host) return null;   // ankereis
+  } catch { return null; }
+  // Ondertekend als de ontvangende site wanneer we die kennen; anders anoniem,
+  // wat voor een publieke note volstaat. Beide gaan door safeFetch.
+  const fetched = await signedGetJson(slugParam, objId).catch(() => null);
+  if (!fetched || fetched.id !== objId) return null;   // ook: geen omleiding naar iets anders
+  const attributed = typeof fetched.attributedTo === 'string'
+    ? fetched.attributedTo
+    : (fetched.attributedTo && fetched.attributedTo.id);
+  if (attributed !== claimedActor) return null;
+  return fetched;
+}
+
 // Handle an incoming inbox POST. slugParam = null for the shared /ap/inbox.
 export async function handleInbox(req, slugParam, preVerified = null) {
   const act = req.body || {};
@@ -1643,8 +1687,26 @@ export async function handleInbox(req, slugParam, preVerified = null) {
   if (claimedActor && isBlockedAny(claimedActor)) { console.log('[AP] inbox dropped (blocked)', claimedActor, 'from', ip); return 202; }
   const GATED = ['Create', 'Like', 'Announce', 'Follow', 'Delete', 'Undo', 'Accept', 'Reject', 'Add', 'Remove', 'Update', 'Flag', 'Offer', 'Move'];
   if (GATED.includes(type)) {
-    if (!verified || !claimedActor || verified.id !== claimedActor) {
-      console.warn('[AP] inbox REJECTED (signature)', type, claimedActor || '?', 'from', ip, verified ? '(signer mismatch)' : '(unsigned/invalid)');
+    // Een geldige handtekening van iemand anders dan de auteur is doorsturen,
+    // geen vervalsing. Haal het object dan bij de bron op in plaats van het af
+    // te wijzen; lukt dat niet, dan valt het door naar de weigering hieronder.
+    let forwarded = null;
+    if (verified && claimedActor && verified.id !== claimedActor) {
+      forwarded = await dereferenceForwarded(act, claimedActor, type, slugParam).catch(() => null);
+      if (forwarded) {
+        act.object = forwarded;   // de OPGEHAALDE inhoud, niet de bezorgde
+        console.log('[AP] inbox forwarded, geverifieerd bij de bron:', type, claimedActor, 'via', verified.id);
+      }
+    }
+    if (!forwarded && (!verified || !claimedActor || verified.id !== claimedActor)) {
+      // Drie verschillende oorzaken, die eerder allemaal "unsigned/invalid"
+      // heetten: geen handtekening meegestuurd, wel een handtekening maar niet
+      // te verifiëren (meestal een opgeheven account waarvan de sleutel weg is),
+      // of geldig ondertekend door iemand anders.
+      const reden = verified ? '(signer mismatch)'
+        : (req.headers && req.headers.signature) ? '(signature present, unverifiable)'
+        : '(no signature)';
+      console.warn('[AP] inbox REJECTED (signature)', type, claimedActor || '?', 'from', ip, reden);
       return 401;
     }
     // One answer restores everything (FEP-633c 3.6): any VERIFIED activity
