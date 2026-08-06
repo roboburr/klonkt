@@ -80,29 +80,34 @@ function localMediaPath(url, origin) {
 function mediaRefsOf(post, origin) {
   const uit = [];
   const zie = new Set();
-  const voegToe = (url, name) => {
+  const voegToe = (url, name, rol, extra = {}) => {
     const u = String(url || '').trim();
     if (!u || zie.has(u)) return;
     zie.add(u);
-    uit.push({ url: u, name: name || null });
+    uit.push({ url: u, name: name || null, rol, ...extra });
   };
-  voegToe(post.cover_image_url, post.cover_alt);
-  voegToe(post.cover_video_url, post.cover_alt);
-  for (const m of String(post.content || '').matchAll(/<img[^>]+src=["']([^"']+)["'][^>]*>/gi)) voegToe(m[1]);
+  // De ROL is niet decoratief. Zonder rol staat er in het archief wel een
+  // bestand, maar niet dat het de cover was of bij de speler hoorde -- en dan
+  // komt de post na een herstel zonder cover en zonder speler terug. Gevonden
+  // door bij de oefenherstel ALLE kolommen te vergelijken in plaats van een
+  // handjevol.
+  voegToe(post.cover_image_url, post.cover_alt, 'cover');
+  voegToe(post.cover_video_url, post.cover_alt, 'coverVideo');
+  for (const m of String(post.content || '').matchAll(/<img[^>]+src=["']([^"']+)["'][^>]*>/gi)) voegToe(m[1], null, 'inline');
   try {
     for (const a of JSON.parse(post.c2s_attachments || '[]')) {
-      voegToe(a && a.url, a && a.name);
+      voegToe(a && a.url, a && a.name, 'c2s');
       // Een audio-bijlage draagt een poster (de omslag die de speler toont). Die
       // staat in een eigen veld en zou anders stil wegvallen -- op beta viel dat
       // pas op bij de export van echte data.
-      voegToe(a && a.poster, a && a.name ? `${a.name} (poster)` : null);
+      voegToe(a && a.poster, a && a.name ? `${a.name} (poster)` : null, 'poster', { posterFor: a && a.url });
     }
   } catch { /* kapotte kolom blokkeert de export niet */ }
   // Gehoste audio: [[track:id]] verwijst naar een audio_tracks-rij met een media-rij eronder.
   for (const m of String(post.content || '').matchAll(/\[\[track:([A-Za-z0-9_-]+)\]\]/g)) {
     try {
       const t = db.prepare('SELECT t.title, m.storage_path FROM audio_tracks t LEFT JOIN media m ON m.id = t.media_id WHERE t.id = ?').get(m[1]);
-      if (t && t.storage_path) voegToe(`/media/${path.relative(path.resolve(MEDIA_ROOT), path.resolve(t.storage_path))}`, t.title);
+      if (t && t.storage_path) voegToe(`/media/${path.relative(path.resolve(MEDIA_ROOT), path.resolve(t.storage_path))}`, t.title, 'track');
     } catch { /* geen audio-tabellen: niets te doen */ }
   }
   return uit;
@@ -250,6 +255,8 @@ export function buildArchive(slug, opts = {}) {
           url: naam, 'shaer:availability': 'included',
           'shaer:originalUrl': /^https?:/i.test(ref.url) ? ref.url : `${origin}${ref.url}`,
           'shaer:sha256': hash,
+          'shaer:role': ref.rol,
+          'shaer:posterFor': ref.posterFor || undefined,
         });
       } else {
         // De derde staat uit het formaat: we weten DAT het bestond en waar het
@@ -260,6 +267,8 @@ export function buildArchive(slug, opts = {}) {
         attachments.push({
           type: as2TypeOf(mime), mediaType: mime, name: ref.name || undefined,
           url: orig, 'shaer:availability': 'missing', 'shaer:originalUrl': orig,
+          'shaer:role': ref.rol,
+          'shaer:posterFor': ref.posterFor || undefined,
         });
       }
     }

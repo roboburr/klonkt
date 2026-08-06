@@ -291,6 +291,50 @@ test('een vroegtijdig gesloten poll blijft gesloten', () => {
   assert.equal(d.endTime, '2030-01-01T00:00:00Z');
 });
 
+test('de cover en de speler komen terug, niet alleen hun bestanden', () => {
+  // Gevonden bij het oefenherstel, door ALLE kolommen te vergelijken in plaats
+  // van een handjevol: de bytes zaten in het archief, maar nergens stond dat ze
+  // de cover waren. De post kwam zonder cover en zonder speler terug.
+  leeg();
+  fs.mkdirSync(path.join(MEDIA, 'c'), { recursive: true });
+  for (const [n, b] of [['cov.jpg', 'cover'], ['op.m4a', 'audio'], ['op.png', 'poster']]) {
+    fs.writeFileSync(path.join(MEDIA, 'c', n), Buffer.from(b));
+  }
+  db.prepare(`INSERT INTO posts (id, site_id, slug, author_id, title, content, status, published_at, cover_image_url, cover_alt, c2s_attachments)
+              VALUES ('rijk','s1','rijke-post','u1','Rijk','<p>x</p>','published','2026-08-05 10:00:00',
+              '/media/c/cov.jpg','de cover', ?)`)
+    .run(JSON.stringify([{ url: '/media/c/op.m4a', mediaType: 'audio/mp4', name: 'opname.m4a', poster: '/media/c/op.png' }]));
+
+  const arch = AX.buildArchive('me', { exportedAt: 'X' });
+  const rollen = JSON.parse(arch.files.get('posts/rijk.json').toString()).attachment.map((a) => a['shaer:role']);
+  assert.deepEqual(rollen.sort(), ['c2s', 'cover', 'poster'], 'elke bijlage zegt waar hij voor was');
+
+  db.prepare('DELETE FROM posts').run();
+  fs.rmSync(path.join(MEDIA, 'c'), { recursive: true, force: true });
+  AI.importArchive(arch.files, { slug: 'me' });
+
+  const p = db.prepare("SELECT * FROM posts WHERE id = 'rijk'").get();
+  assert.equal(p.cover_image_url, '/media/c/cov.jpg', 'zonder dit staat de post zonder cover terug');
+  assert.equal(p.cover_alt, 'de cover');
+  const c2s = JSON.parse(p.c2s_attachments);
+  assert.equal(c2s[0].url, '/media/c/op.m4a');
+  assert.equal(c2s[0].poster, '/media/c/op.png', 'de poster hoort weer bij zijn opname');
+  assert.ok(fs.existsSync(path.join(MEDIA, 'c', 'cov.jpg')));
+});
+
+test('het MOMENT van een tijdstempel overleeft, ook uit SQL-notatie', () => {
+  // Klonkt schrijft in twee spellingen. Het archief normaliseert naar ISO; het
+  // moment blijft, de spelling niet. Dat is gedocumenteerd gedrag, geen verlies.
+  leeg();
+  db.prepare(`INSERT INTO posts (id, site_id, slug, author_id, title, content, status, published_at)
+              VALUES ('tijd','s1','tijd','u1','T','<p>x</p>','published','2026-07-01 12:56:10')`).run();
+  const arch = AX.buildArchive('me', { exportedAt: 'X' });
+  db.prepare('DELETE FROM posts').run();
+  AI.importArchive(arch.files, { slug: 'me' });
+  const p = db.prepare("SELECT published_at FROM posts WHERE id = 'tijd'").get();
+  assert.equal(Date.parse(p.published_at), Date.parse('2026-07-01T12:56:10Z'));
+});
+
 test('zonder manifest is het geen archief', () => {
   const files = new Map(ARCHIEF.files);
   files.delete('manifest.json');

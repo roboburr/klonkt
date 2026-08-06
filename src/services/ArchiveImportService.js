@@ -27,7 +27,10 @@ import { MEDIA_ROOT } from '../config/paths.js';
 import { FORMAT_VERSION } from './ArchiveExportService.js';
 
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
-const sqlTijd = (iso) => { const t = Date.parse(iso); return isNaN(t) ? null : new Date(t).toISOString().replace('T', ' ').replace(/\.\d+Z$/, ''); };
+// De tijdstempel gaat er ONGEWIJZIGD in. Omzetten naar SQL-notatie kostte de
+// sub-seconde, en twee posts in dezelfde seconde staan dan in willekeurige
+// volgorde. Klonkt schrijft zelf ook ISO in deze kolommen.
+const tijd = (iso) => (iso && !isNaN(Date.parse(iso)) ? String(iso) : null);
 
 // ── Inlezen ───────────────────────────────────────────────────────
 
@@ -219,10 +222,10 @@ export function importArchive(files, opts = {}) {
   const insPost = db.prepare(`INSERT OR REPLACE INTO posts
     (id, site_id, slug, author_id, title, content, excerpt, status, cover_image_url, cover_alt, cover_video_url,
      pinned, type, tags, published_at, created_at, updated_at, noindex, publish_at, fan_only, nsfw, language,
-     content_warning, poll_json, quote_uri, quote_actor, ap_visibility, paid, paid_min_cents, view_count, origin_server)
+     content_warning, poll_json, quote_uri, quote_actor, ap_visibility, paid, paid_min_cents, view_count, c2s_attachments, origin_server)
     VALUES (@id, @site_id, @slug, @author_id, @title, @content, @excerpt, @status, @cover_image_url, @cover_alt, @cover_video_url,
      @pinned, @type, @tags, @published_at, @created_at, @updated_at, @noindex, @publish_at, @fan_only, @nsfw, @language,
-     @content_warning, @poll_json, @quote_uri, @quote_actor, @ap_visibility, @paid, @paid_min_cents, @view_count, 'import')`);
+     @content_warning, @poll_json, @quote_uri, @quote_actor, @ap_visibility, @paid, @paid_min_cents, @view_count, @c2s_attachments, 'import')`);
   const insReply = db.prepare(`INSERT OR IGNORE INTO ap_interactions
     (kind, post_id, object_uri, actor_uri, actor_name, actor_handle, content, published, parent_uri, created_at)
     VALUES ('reply', ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`);
@@ -241,15 +244,30 @@ export function importArchive(files, opts = {}) {
       }
       const o = s.obj;
       const opties = (Array.isArray(o.oneOf) ? o.oneOf : (Array.isArray(o.anyOf) ? o.anyOf : null));
+      // De rollen uit het archief terug naar de kolommen. Zonder dit staat het
+      // bestand er wel, maar komt de post zonder cover en zonder speler terug --
+      // en dat zie je pas als je alle kolommen vergelijkt.
+      const bijlagen = Array.isArray(o.attachment) ? o.attachment : [];
+      const padVan = (a) => (a ? padVanOrigineel(a['shaer:originalUrl']) : null);
+      const metRol = (r) => bijlagen.find((a) => a['shaer:role'] === r);
+      const c2s = bijlagen.filter((a) => a['shaer:role'] === 'c2s').map((a) => {
+        const poster = bijlagen.find((x) => x['shaer:role'] === 'poster' && x['shaer:posterFor'] === padVan(a));
+        return {
+          url: padVan(a), mediaType: a.mediaType, name: a.name || undefined,
+          poster: poster ? padVan(poster) : undefined,
+        };
+      }).filter((a) => a.url);
       insPost.run({
         id: s.id, site_id: site.id, slug: o['shaer:slug'] || s.id, author_id: site.owner_id,
         title: o.name || null, content: o.content || '', excerpt: o['shaer:excerpt'] || null,
         status: o['shaer:status'] || 'draft',
-        cover_image_url: null, cover_alt: o['shaer:coverAlt'] || null, cover_video_url: null,
+        cover_image_url: padVan(metRol('cover')), cover_alt: o['shaer:coverAlt'] || null,
+        cover_video_url: padVan(metRol('coverVideo')),
+        c2s_attachments: c2s.length ? JSON.stringify(c2s) : null,
         pinned: o['shaer:pinned'] ? 1 : 0, type: o['shaer:type'] || 'post',
         tags: Array.isArray(o.tag) ? o.tag.filter((t) => t && t.type === 'Hashtag').map((t) => String(t.name).replace(/^#/, '')).join(', ') : null,
-        published_at: sqlTijd(o.published), created_at: sqlTijd(o.published), updated_at: sqlTijd(o.updated || o.published),
-        noindex: o['shaer:noindex'] ? 1 : 0, publish_at: sqlTijd(o['shaer:publishAt']),
+        published_at: tijd(o.published), created_at: tijd(o.published), updated_at: tijd(o.updated || o.published),
+        noindex: o['shaer:noindex'] ? 1 : 0, publish_at: tijd(o['shaer:publishAt']),
         fan_only: o['shaer:fanOnly'] ? 1 : 0, nsfw: o.sensitive ? 1 : 0,
         language: (o.contentMap && Object.keys(o.contentMap)[0]) || null,
         content_warning: o.summary || null,

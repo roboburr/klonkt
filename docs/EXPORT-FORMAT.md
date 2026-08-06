@@ -98,10 +98,10 @@ archive carries the authoring truth instead, and the differences are:
 | `contentMap` | `posts.language` | omitted when the post has no language |
 | `summary` | `posts.content_warning` | AS2 summary is the content warning |
 | `sensitive` | `posts.nsfw` | |
-| `published` | `posts.published_at` ?? `created_at` | ISO 8601, UTC |
+| `published` | `posts.published_at` ?? `created_at` | ISO 8601, UTC. Klonkt stores timestamps in two spellings (`YYYY-MM-DD HH:MM:SS` and full ISO); the archive normalises to ISO. The **instant** survives a round trip, the spelling does not. |
 | `updated` | `posts.updated_at` | omitted when equal to `published` |
 | `url` | `<origin>/<slug>` | the human permalink |
-| `attachment` | cover, inline `<img>`, `c2s_attachments` **and their `poster`**, hosted audio tracks | see [Media](#media) |
+| `attachment` | cover, inline `<img>`, `c2s_attachments` **and their `poster`**, hosted audio tracks | see [Media](#media); each carries a `shaer:role` |
 | `tag` | `posts.tags`, mentions, custom emoji | `Hashtag`, `Mention`, `toot:Emoji` |
 | `oneOf` / `anyOf` / `endTime` | `posts.poll_json` | a poll exports as a `Question` |
 | `quoteUrl`, `shaer:quoteActor` | `posts.quote_uri`, `quote_actor` | FEP-044f |
@@ -168,6 +168,20 @@ would be a lie, and a reference to a missing file would be a broken archive.
 |---|---|---|
 | `included` | the bytes are in `media/` | container-relative path |
 | `missing` | it existed, we know where, we do not have it | the original absolute URL |
+
+Every attachment also carries **`shaer:role`**, saying what it was for:
+
+| role | restored to |
+|---|---|
+| `cover` / `coverVideo` | `posts.cover_image_url` / `cover_video_url` |
+| `inline` | already referenced from `content` |
+| `c2s` | an entry in `posts.c2s_attachments` |
+| `poster` | the `poster` of the `c2s` entry named in `shaer:posterFor` |
+| `track` | the file behind a `[[track:id]]`, linked from `shaer:audio` |
+
+The role is not decoration. Without it the archive holds the bytes but not the
+fact that they *were the cover*, and the post comes back without one — which is
+invisible until you compare every column, not a handful.
 
 `url` for an included attachment is a **container-relative path**, not a URL. An
 importer must rewrite it. This is the one place where the archive deviates from
