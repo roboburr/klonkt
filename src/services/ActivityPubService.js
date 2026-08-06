@@ -3428,6 +3428,44 @@ export function unmarkLiked(slug, noteId) {
  * naad houdt fase 1 gedragsbehoudend; het samentrekken van die twee sleutels is
  * werk voor fase 2, mét datamigratie.
  */
+/**
+ * Wat heb IK met dit object gedaan? Leest de tussentabel, de bron van waarheid
+ * sinds shaer-9e9 fase 2. Vervangt getMyReactions en getTimelineReaction, die
+ * dezelfde vraag beantwoordden uit twee verschillende bronnen.
+ */
+export function getReaction(slug, uri) {
+  try {
+    const rows = (slug && uri)
+      ? db.prepare('SELECT kind FROM ap_my_reactions WHERE site_slug = ? AND target_uri = ?').all(slug, uri)
+      : [];
+    return { liked: rows.some((r) => r.kind === 'like'), boosted: rows.some((r) => r.kind === 'boost') };
+  } catch { return { liked: false, boosted: false }; }
+}
+
+/**
+ * Dezelfde vraag voor een hele pagina in EEN query. De C2S-tijdlijn zet
+ * shaer:liked op elke post; per rij vragen zou dat een N+1 maken, en dan had je
+ * een consistentiebug geruild voor een traagheidsbug.
+ */
+export function getReactionsFor(slug, uris) {
+  const out = new Map();
+  const list = [...new Set((uris || []).filter(Boolean))].slice(0, 500);
+  if (!slug || !list.length) return out;
+  try {
+    const rows = db.prepare(
+      `SELECT target_uri, kind FROM ap_my_reactions
+        WHERE site_slug = ? AND target_uri IN (${list.map(() => '?').join(',')})`,
+    ).all(slug, ...list);
+    for (const r of rows) {
+      const cur = out.get(r.target_uri) || { liked: false, boosted: false };
+      if (r.kind === 'like') cur.liked = true;
+      if (r.kind === 'boost') cur.boosted = true;
+      out.set(r.target_uri, cur);
+    }
+  } catch { /* leeg = niets gereageerd, en dat is een veilige uitkomst */ }
+  return out;
+}
+
 export function setReaction(slug, uri, kind, on, opts = {}) {
   if (!slug || !uri || (kind !== 'like' && kind !== 'boost')) return;
   setMyReaction(slug, uri, kind, !!on);
@@ -4808,7 +4846,7 @@ export default {
   acceptGatedFollow, rejectGatedFollow, isWardGuardian, outboxAudience, sendFollowDecision,
   gateOutgoingFollow, performApprovedFollow,
   parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread, sendReport, localMentionSlugs,
-  autoBoostCount, boostedCount, markBoosted, unmarkBoosted, markLiked, unmarkLiked, setReaction, getTimelineReaction, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
+  autoBoostCount, boostedCount, markBoosted, unmarkBoosted, markLiked, unmarkLiked, setReaction, getReaction, getReactionsFor, getTimelineReaction, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
   getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,

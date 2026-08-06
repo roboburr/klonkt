@@ -284,7 +284,12 @@ router.get('/ap/users/:slug/inbox', (req, res) => {
   // the app knows what it may offer instead of guessing.
   const playbackAllowed = embedsAllowed
     && Guardianship.externalPlaybackAllowed(auth.site.external_playback, isWard);
-  const posts = AP.getTimeline(auth.site.slug, 60).map((t) => ({
+  const rows = AP.getTimeline(auth.site.slug, 60);
+  // Eén query voor de hele pagina (shaer-9e9 fase 2): shaer:liked komt uit de
+  // tussentabel, de bron van waarheid, en niet meer uit de afgeleide kolom op
+  // ap_timeline. Per rij vragen zou hier een N+1 opleveren.
+  const reacties = AP.getReactionsFor(auth.site.slug, rows.map((t) => t.id));
+  const posts = rows.map((t) => ({
     id: `${t.id}#create`,
     type: 'Create',
     actor: t.author_uri,
@@ -332,8 +337,8 @@ router.get('/ap/users/:slug/inbox', (req, res) => {
       } : undefined,
       // Whether THIS account already liked/boosted the note, so the app's
       // detail-view buttons show the current state (and can toggle/undo).
-      'shaer:liked': !!t.liked,
-      'shaer:boosted': !!t.boosted,
+      'shaer:liked': !!(reacties.get(t.id) || {}).liked,
+      'shaer:boosted': !!(reacties.get(t.id) || {}).boosted,
       // An external (non-fediverse) embed, thumbnail-only and never an iframe.
       // Omitted entirely when the gate is closed (see above).
       // Carries shaer:playerUrl only when the playback gate is open too.

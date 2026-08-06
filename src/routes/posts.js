@@ -805,7 +805,7 @@ router.get('/authorize_interaction', requireSiteManager, async (req, res) => {
     reported: !!req.query.reported,
     liked: !!req.query.liked,
     boosted: !!req.query.boosted,
-    reacted: (site && uri) ? ActivityPubService.getMyReactions(site.slug, uri) : { liked: false, boosted: false },
+    reacted: (site && uri) ? ActivityPubService.getReaction(site.slug, uri) : { liked: false, boosted: false },
     siteTitle: site ? site.title : '',
   });
 });
@@ -838,7 +838,7 @@ router.post('/authorize_interaction/like', requireSiteManager, (req, res) => {
   const uri = (req.body.uri || '').toString();
   let on = false;
   if (site && uri) {
-    on = !ActivityPubService.getMyReactions(site.slug, uri).liked;
+    on = !ActivityPubService.getReaction(site.slug, uri).liked;
     ActivityPubService.resolveRemoteNote(uri)
       .then((note) => note && ActivityPubService.sendInteraction(site, on ? 'like' : 'unlike', note.object_uri || uri, note.actor_uri))
       .catch((e) => console.warn('[AP] remote like failed:', e.message));
@@ -856,7 +856,7 @@ router.post('/authorize_interaction/boost', requireSiteManager, (req, res) => {
   const uri = (req.body.uri || '').toString();
   let on = false;
   if (site && uri) {
-    on = !ActivityPubService.getMyReactions(site.slug, uri).boosted;
+    on = !ActivityPubService.getReaction(site.slug, uri).boosted;
     ActivityPubService.resolveRemoteNote(uri)
       .then((note) => {
         if (!note) return;
@@ -1279,7 +1279,7 @@ router.post('/news/like', requireSiteManager, async (req, res) => {
   const note = (req.body.note || '').toString();
   let on = false;
   if (site && note) {
-    on = !ActivityPubService.getTimelineReaction(site.slug, note).liked;
+    on = !ActivityPubService.getReaction(site.slug, note).liked;
     try { await ActivityPubService.sendInteraction(site, on ? 'like' : 'unlike', note, (req.body.author || '').toString()); } catch (e) { /* ignore */ }
     ActivityPubService.setReaction(site.slug, note, 'like', on);
   }
@@ -1293,7 +1293,7 @@ router.post('/news/boost', requireSiteManager, async (req, res) => {
   const note = (req.body.note || '').toString();
   let on = false;
   if (site && note) {
-    on = !ActivityPubService.getTimelineReaction(site.slug, note).boosted;
+    on = !ActivityPubService.getReaction(site.slug, note).boosted;
     try { await ActivityPubService.sendInteraction(site, on ? 'boost' : 'unboost', note, (req.body.author || '').toString()); } catch (e) { /* ignore */ }
     ActivityPubService.setReaction(site.slug, note, 'boost', on); // instant UI state
     if (on) {

@@ -211,3 +211,45 @@ test('setReaction: rommelige invoer doet niets in plaats van iets halfs', () => 
   AP.setReaction('me', '', 'like', true);
   assert.equal(AP.getMyReactions('me', uri('sr5')).liked, false);
 });
+
+// ── Fase 2: lezen komt uit de tussentabel ────────────────────────────────
+
+test('getReaction leest de tussentabel, niet de kolom', () => {
+  const u = uri('g1'); seedTimeline(u);
+  AP.setReaction('me', u, 'like', true);
+  assert.deepEqual(AP.getReaction('me', u), { liked: true, boosted: false });
+  AP.setReaction('me', u, 'boost', true);
+  assert.deepEqual(AP.getReaction('me', u), { liked: true, boosted: true });
+});
+
+test('WAAROM DE BACKFILL EERST MOET: een kale kolomvlag is onzichtbaar voor getReaction', () => {
+  // Dit is de reden dat scripts/backfill-reactions.mjs tussen fase 1 en 2 hoort.
+  // Een reactie van vóór fase 1 staat alleen in de kolom; zodra de lezers de
+  // tussentabel volgen is die stil verdwenen -- geen fout, geen spoor.
+  const u = uri('g2'); seedTimeline(u);
+  AP.markLiked('me', u);                                  // zoals de oude tijdlijn-route
+  assert.equal(AP.getTimelineReaction('me', u).liked, true, 'de kolom staat aan');
+  assert.equal(AP.getReaction('me', u).liked, false, 'maar het nieuwe leespad ziet hem niet');
+  // Wat de backfill doet:
+  AP.setMyReaction('me', u, 'like', true);
+  assert.equal(AP.getReaction('me', u).liked, true, 'na aanvullen wel');
+});
+
+test('getReactionsFor haalt een hele pagina in één keer op', () => {
+  const a = uri('g3'), b = uri('g4'), c = uri('g5');
+  seedTimeline(a); seedTimeline(b);
+  AP.setReaction('me', a, 'like', true);
+  AP.setReaction('me', b, 'boost', true);
+  const m = AP.getReactionsFor('me', [a, b, c]);
+  assert.equal(m.get(a).liked, true);
+  assert.equal(m.get(b).boosted, true);
+  assert.equal(m.get(c), undefined, 'wie niets heeft komt niet in de map; de aanroeper valt terug op false');
+  // Dezelfde uitkomst als per stuk vragen, zodat de batch geen eigen waarheid wordt.
+  for (const u of [a, b]) assert.deepEqual(m.get(u), AP.getReaction('me', u));
+});
+
+test('getReactionsFor: lege of rommelige invoer geeft een lege map', () => {
+  assert.equal(AP.getReactionsFor('me', []).size, 0);
+  assert.equal(AP.getReactionsFor('me', null).size, 0);
+  assert.equal(AP.getReactionsFor('', [uri('g3')]).size, 0);
+});
