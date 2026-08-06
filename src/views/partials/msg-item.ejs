@@ -36,13 +36,16 @@
            var _new = _seen && n.created_at ? (Date.parse(n.created_at) > _seen) : false;
            var _who = n.name || n.handle || '';
            var _priv0 = (n.visibility === 'followers' || n.visibility === 'direct');
-           // Buckets (klonkt-demo-3jf): Messages = @mentions + private (DM) replies;
-           // Activity = likes/boosts/follows; Moderation = reports; Sent = your
-           // replies; Conversations = every other (public) reply.
-           var _kind = _t === 'sent' ? 'sent'
-             : (_t === 'like' || _t === 'boost' || _t === 'follow' || _t === 'poll_done') ? 'act'
+           // Emmers: Activiteit = likes/boosts/follows/polls, Moderatie =
+           // reports, en al het overige is gesprek. De oude emmers 'msgs' en
+           // 'sent' bestaan niet meer sinds Berichten, Gesprekken en Verzonden
+           // samenvielen -- en dat is geen cosmetische hernoeming: een
+           // gespreksregel die om wat voor reden dan ook geen draad werd (geen
+           // post, geen herkenbare tegenpartij) hield anders een data-kind
+           // waarvoor geen chip meer bestond, en was daarmee onder ELKE chip
+           // behalve Alles onzichtbaar.
+           var _kind = (_t === 'like' || _t === 'boost' || _t === 'follow' || _t === 'poll_done') ? 'act'
              : _t === 'report' ? 'mod'
-             : (_t === 'mention' || _priv0) ? 'msgs'
              : 'conv';
            // Binnen een draad is dit geen zelfstandige regel: de chip filtert op
            // de draad, niet op de losse zinnen erin.

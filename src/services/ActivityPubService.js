@@ -637,9 +637,9 @@ export function getMessages(slug, limit, offset) {
   try {
     for (const m of listOutbox(slug).slice(0, need)) {
       items.push({
-        type: 'sent', outboxId: m.id, to_handle: m.to_handle, in_reply_to: m.in_reply_to,
-        post_slug: m.post_slug, content: m.content, editable: m.editable,
-        language: m.language, created_at: m.created_at,
+        type: 'sent', outboxId: m.id, to_handle: m.to_handle, to_actors: m.to_actors,
+        in_reply_to: m.in_reply_to, post_slug: m.post_slug, content: m.content,
+        editable: m.editable, language: m.language, created_at: m.created_at,
       });
     }
   } catch { /* ignore */ }
@@ -700,8 +700,18 @@ const CONV_TYPES = new Set(['reply', 'mention', 'sent']);
 export function threadKey(it) {
   if (!it || !CONV_TYPES.has(it.type)) return null;
   if (it.post_slug) return `post:${it.post_slug}`;
-  const who = it.handle || it.to_handle || '';
-  const norm = String(who).trim().toLowerCase().replace(/^@/, '');
+  let who = it.handle || it.to_handle || '';
+  // Een direct bericht kan zonder to_handle in de tabel staan (de handle van de
+  // ontvanger was niet af te leiden). De eerste uit to_actors is dan alsnog de
+  // tegenpartij, en zonder deze terugval kreeg een gesprek dat JIJ begon geen
+  // draad -- precies het geval waarin het meest onlogisch is dat het los blijft.
+  if (!who && it.to_actors) {
+    try {
+      const first = JSON.parse(it.to_actors)[0];
+      if (first) who = deriveHandle(first);
+    } catch { /* geen bruikbare lijst → geen sleutel, het blijft een losse regel */ }
+  }
+  const norm = String(who || '').trim().toLowerCase().replace(/^@/, '');
   return norm ? `actor:${norm}` : null;
 }
 
@@ -3009,7 +3019,7 @@ export function listOutbox(siteSlug) {
   // waarop een verzonden antwoord bij de ontvangen antwoorden op dezelfde post
   // gaat staan (zie threadKey). Zonder die kolom viel een uitwisseling uit
   // elkaar in "Verzonden" en "Gesprekken".
-  return db.prepare('SELECT id, content, to_handle, to_actor, post_slug, in_reply_to, language, created_at FROM ap_outbox WHERE site_slug = ? ORDER BY created_at DESC')
+  return db.prepare('SELECT id, content, to_handle, to_actor, to_actors, post_slug, in_reply_to, language, created_at FROM ap_outbox WHERE site_slug = ? ORDER BY created_at DESC')
     .all(siteSlug).map((r) => { const c = stripLeadingMentions(r.content); return { ...r, content: c, editable: outboxEditableText(c) }; });
 }
 

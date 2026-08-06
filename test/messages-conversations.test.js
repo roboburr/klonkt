@@ -111,3 +111,23 @@ test('lege en rommelige invoer levert geen kapotte draden op', () => {
   assert.equal(out.length, 1);
   assert.equal(out[0].type, 'sent');
 });
+
+test('een direct bericht zonder to_handle valt terug op to_actors', () => {
+  // Precies het geval waarin het het onlogischst is dat er geen draad ontstaat:
+  // een gesprek dat JIJ begon. Zonder deze terugval bleef het een losse regel.
+  const key = threadKey({
+    type: 'sent',
+    to_actors: JSON.stringify(['https://a.test/users/anna', 'https://b.test/users/bo']),
+    created_at: ts(1),
+  });
+  assert.equal(key, 'actor:anna@a.test');
+  // Rommel in de kolom mag niets omgooien.
+  assert.equal(threadKey({ type: 'sent', to_actors: 'geen json' }), null);
+  assert.equal(threadKey({ type: 'sent', to_actors: '[]' }), null);
+});
+
+test('to_handle wint van to_actors, zodat een draad niet splitst', () => {
+  const a = threadKey({ type: 'sent', to_handle: '@anna@a.test' });
+  const b = threadKey({ type: 'sent', to_handle: '@anna@a.test', to_actors: JSON.stringify(['https://b.test/users/bo']) });
+  assert.equal(a, b, 'dezelfde tegenpartij hoort dezelfde sleutel te geven');
+});
