@@ -60,15 +60,20 @@ test('tijdlijn-route: markLiked zet de kolom en getTimelineReaction leest hem', 
   assert.equal(AP.getTimelineReaction('me', u).liked, false);
 });
 
-test('tijdlijn-route: markBoosted zet de kolom en de post verschijnt in de Cirkel', () => {
+test('tijdlijn-route: markBoosted zet de kolom, maar de Cirkel volgt de tussentabel', () => {
+  // BIJGEWERKT toen de weergave werd gelijkgetrokken. Vroeger trok een kale
+  // kolomvlag de post de Cirkel in; nu selecteert de Cirkel op de tussentabel,
+  // dus de primitief alleen is niet meer genoeg. Dat is het doel: tekenen en
+  // beslissen leunen op dezelfde bron.
   const u = uri('t2'); seedTimeline(u);
-  assert.equal(AP.boostedCount('me'), 0);
   AP.markBoosted('me', u);
-  assert.equal(AP.getTimelineReaction('me', u).boosted, true);
-  assert.equal(AP.boostedCount('me'), 1);
-  // De Cirkel is wat een gebruiker ziet: geboost = zichtbaar daar.
-  assert.ok(AP.getCirkelPosts('me', 60, 0).some((p) => p.id === u), 'geboost hoort in de Cirkel te staan');
-  AP.unmarkBoosted('me', u);
+  assert.equal(AP.getTimelineReaction('me', u).boosted, true, 'de kolom staat aan');
+  assert.equal(AP.getCirkelPosts('me', 60, 0).some((p) => p.id === u), false,
+    'maar dat brengt hem niet in de Cirkel');
+  // Via het echte schrijfpad wel.
+  AP.setReaction('me', u, 'boost', true);
+  assert.ok(AP.getCirkelPosts('me', 60, 0).some((p) => p.id === u), 'via setReaction wel');
+  AP.setReaction('me', u, 'boost', false);
   assert.equal(AP.getCirkelPosts('me', 60, 0).some((p) => p.id === u), false);
 });
 
@@ -116,7 +121,13 @@ test('upsertBoostedNote trekt een post die je NIET volgt je tijdlijn in', () => 
   });
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM ap_timeline WHERE id=?').get(u).n, 1, 'de rij hoort aangemaakt te worden');
   assert.equal(AP.getTimelineReaction('me', u).boosted, true, 'en meteen als geboost gemarkeerd');
-  assert.ok(AP.getCirkelPosts('me', 60, 0).some((p) => p.id === u), 'en dus zichtbaar in de Cirkel');
+  // BIJGEWERKT: de Cirkel volgt sinds het gelijktrekken van de weergave de
+  // tussentabel, en die vult alleen setReaction. upsertBoostedNote blijft
+  // verantwoordelijk voor de RIJ -- zonder die insert heeft de reactie nergens
+  // een post om bij te horen.
+  assert.equal(AP.getCirkelPosts('me', 60, 0).some((p) => p.id === u), false, 'de rij alleen is niet genoeg');
+  AP.setMyReaction('me', u, 'boost', true);
+  assert.ok(AP.getCirkelPosts('me', 60, 0).some((p) => p.id === u), 'met de tussentabel erbij wel');
 });
 
 // ── De twee bronnen lopen uiteen ─────────────────────────────────────────
@@ -361,4 +372,43 @@ test('migrateReactions --dry-run schrijft niets', () => {
   const telling = AP.migrateReactions({ force: true, dryRun: true });
   assert.ok(telling.aangevuld >= 1, 'hij ziet wel wat er te doen is');
   assert.equal(AP.getReaction('me', u).liked, false, 'maar heeft niets geschreven');
+});
+
+// ── De weergave leest dezelfde bron als de knop ──────────────────────────
+
+test('getTimeline tekent liked/boosted uit de tussentabel, niet uit de kolom', () => {
+  // De Krant tekende zijn knoppen op ap_timeline.liked/boosted terwijl de
+  // toggle al uit getReaction besliste. Tekenen en beslissen leunden dus op
+  // verschillende bronnen -- ze waren het alleen eens zolang iets ze gelijk
+  // hield. Hier wordt de kolom expres tegengesteld gezet.
+  const u = uri('tl1'); seedTimeline(u);
+  AP.setReaction('me', u, 'like', true);
+  db.prepare('UPDATE ap_timeline SET liked = 0, boosted = 1 WHERE slug = ? AND id = ?').run('me', u);
+
+  const rij = AP.getTimeline('me', 50, 0).find((r) => r.id === u);
+  assert.equal(rij.liked, true, 'de tussentabel zegt geliket, dus de knop hoort aan');
+  assert.equal(rij.boosted, false, 'en de kolom die iets anders beweert telt niet');
+});
+
+test('de Cirkel selecteert op de tussentabel', () => {
+  const u = uri('tl2'); seedTimeline(u);
+  // Kolom aan, tussentabel leeg: hoort NIET in de Cirkel te staan.
+  db.prepare('UPDATE ap_timeline SET boosted = 1 WHERE slug = ? AND id = ?').run('me', u);
+  assert.equal(AP.getCirkelPosts('me', 60, 0).some((p) => p.id === u), false,
+    'een kale kolomvlag trekt niets meer de Cirkel in');
+  // En andersom: tussentabel aan, kolom uit.
+  db.prepare('UPDATE ap_timeline SET boosted = 0 WHERE slug = ? AND id = ?').run('me', u);
+  AP.setMyReaction('me', u, 'boost', true);
+  const post = AP.getCirkelPosts('me', 60, 0).find((p) => p.id === u);
+  assert.ok(post, 'de tussentabel bepaalt wat er in de Cirkel staat');
+  assert.ok(post.boosted, 'en het veld dat de view tekent komt daar ook vandaan');
+});
+
+test('boostedCount telt de tussentabel, en alleen wat in je tijdlijn staat', () => {
+  const inTl = uri('tl3'), buiten = 'https://elders.test/notes/qqq';
+  seedTimeline(inTl);
+  const voor = AP.boostedCount('me');
+  AP.setMyReaction('me', inTl, 'boost', true);
+  AP.setMyReaction('me', buiten, 'boost', true);
+  assert.equal(AP.boostedCount('me'), voor + 1, 'alleen de post die in je tijdlijn staat telt mee');
 });

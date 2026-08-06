@@ -3191,7 +3191,29 @@ function tlStmts() {
   }
   return { ins: _insTl, list: _listTl, del: _delTl };
 }
-export function getTimeline(slug, limit, offset) { return tlStmts().list.all(slug, limit || 50, offset || 0); }
+/**
+ * De tijdlijn, met liked/boosted uit de TUSSENTABEL (shaer-9e9).
+ *
+ * De rijen komen met SELECT *, dus ap_timeline.liked en .boosted liften mee --
+ * en die zijn sinds fase 1 nog maar een afgeleide. De Krant tekende zijn
+ * knoppen daar wel op, terwijl de toggle al uit getReaction besliste: tekenen en
+ * beslissen leunden dus op verschillende bronnen. Ze waren het eens zolang de
+ * migratie ze gelijk hield, maar dat was synchronisatie en geen ontwerp.
+ *
+ * Bewust in JS en niet als join: met SELECT * zouden twee kolommen `liked`
+ * heten en hangt het van de driver af welke wint. Eén extra query per pagina
+ * (dezelfde batch die de C2S-tijdlijn gebruikt) is dat niet waard.
+ */
+export function getTimeline(slug, limit, offset) {
+  const rows = tlStmts().list.all(slug, limit || 50, offset || 0);
+  const reacties = getReactionsFor(slug, rows.map((r) => r.id));
+  for (const r of rows) {
+    const x = reacties.get(r.id);
+    r.liked = !!(x && x.liked);
+    r.boosted = !!(x && x.boosted);
+  }
+  return rows;
+}
 
 /**
  * The direct notes addressed to this account: a plain DM, a guardian's wave
@@ -3383,10 +3405,15 @@ export function getCirkelPosts(slug, limit, offset) {
     // (t.boosted), mixed by date. One row per note in ap_timeline → no duplicates.
     if (!_cirkelPosts) _cirkelPosts = db.prepare(`
       SELECT t.id, t.author_uri, t.author_name, t.author_handle, t.author_icon, t.author_url,
-             t.content, t.url, t.published, t.media_json, t.boosted, t.nsfw, t.cw
+             t.content, t.url, t.published, t.media_json, t.nsfw, t.cw,
+             (rb.target_uri IS NOT NULL) AS boosted
       FROM ap_timeline t
       LEFT JOIN ap_following f ON f.slug = t.slug AND f.actor_uri = t.author_uri
-      WHERE t.slug = ? AND (f.auto_boost = 1 OR t.boosted = 1)
+      -- Uit de tussentabel, niet uit t.boosted: die kolom is een afgeleide. De
+      -- UNIQUE(site_slug, target_uri, kind) garandeert hoogstens één match, dus
+      -- deze join kan geen rijen verdubbelen.
+      LEFT JOIN ap_my_reactions rb ON rb.site_slug = t.slug AND rb.target_uri = t.id AND rb.kind = 'boost'
+      WHERE t.slug = ? AND (f.auto_boost = 1 OR rb.target_uri IS NOT NULL)
       ORDER BY COALESCE(t.published, t.created_at) DESC, t.rowid DESC
       LIMIT ? OFFSET ?`);
     return _cirkelPosts.all(slug, limit || 60, offset || 0);
@@ -3636,7 +3663,14 @@ export function upsertBoostedNote(slug, note) {
   markBoosted(slug, id);
 }
 export function boostedCount(slug) {
-  try { if (!_boostedCount) _boostedCount = db.prepare('SELECT COUNT(*) AS n FROM ap_timeline WHERE slug = ? AND boosted = 1'); return _boostedCount.get(slug).n; } catch { return 0; }
+  // Geboost EN in je tijdlijn, zoals voorheen: de tussentabel kan ook een boost
+  // bevatten van iets dat er (nog) niet in staat.
+  try {
+    if (!_boostedCount) _boostedCount = db.prepare(`SELECT COUNT(*) AS n FROM ap_my_reactions r
+      JOIN ap_timeline t ON t.slug = r.site_slug AND t.id = r.target_uri
+      WHERE r.site_slug = ? AND r.kind = 'boost'`);
+    return _boostedCount.get(slug).n;
+  } catch { return 0; }
 }
 
 // Resolve a Klonkt/AP actor URL from a site root: a Klonkt site's root 302s to
