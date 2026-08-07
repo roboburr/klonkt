@@ -116,3 +116,31 @@ test('omkeerbaarheid staat per gate genoteerd', () => {
   // niet, en dan moet het paneel dat kunnen zeggen zonder verbouwing.
   for (const r of gated.gateRows({})) assert.equal(typeof r.reversible, 'boolean');
 });
+
+// ── De waarschuwing bij een voorstel (shaer-nf9) ────────────────────────
+
+test('een gewone gate waarschuwt omkeerbaar, niet onomkeerbaar', () => {
+  // Barts zin "een geopende poort gaat niet meer dicht" klopt niet over de
+  // INSTELLING -- die gaat wel weer dicht. Zo'n aantoonbaar onware waarschuwing
+  // neemt de rest van het scherm mee in zijn val zodra iemand het merkt.
+  assert.equal(gated.gateConsequence('shaer:externalEmbeds'), 'reversible');
+});
+
+test('independence waarschuwt WEL onomkeerbaar', () => {
+  // De enige die gezag overdraagt (shaer-90v). Daar is Barts zin wel waar.
+  assert.equal(gated.gateConsequence('shaer:independence'), 'irreversible');
+});
+
+test('een gate die we NIET kennen krijgt de zwaarste tekst', () => {
+  // Een mede-guardian elders kan iets voorstellen dat onze catalogus niet kent.
+  // Bij twijfel waarschuwen we zwaarder, niet lichter: de faalstand die hier pijn
+  // doet is een guardian die iets doorlaat omdat het scherm er licht over deed.
+  assert.equal(gated.gateConsequence('shaer:ietsNieuws'), 'unknown');
+});
+
+test('elke gate uit de catalogus levert een gevolg op', () => {
+  // Anders valt er stilletjes een rij zonder waarschuwing door.
+  for (const g of gated.GATE_CATALOGUE) {
+    assert.ok(['reversible', 'irreversible'].includes(gated.gateConsequence(g.feature)), g.feature);
+  }
+});

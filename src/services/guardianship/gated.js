@@ -206,6 +206,32 @@ export function recordGatedVote(slug, feature, guardianUri, value) {
   return { ...result, need: thresholdFor(guardians.length), of: guardians.length };
 }
 
+/**
+ * Wat er blijft hangen als deze gate opengaat (shaer-nf9).
+ *
+ * BARTS ZIN KLOPT NIET LETTERLIJK, en dat is precies waarom dit hier staat. "Een
+ * geopende poort gaat niet meer dicht" is onwaar over de INSTELLING -- shaer-ahy
+ * eist het tegendeel en de code doet het: een voorstel draagt true of false. Maar
+ * het GEVOLG is wel onomkeerbaar. De poort gaat later weer dicht; wat er in de
+ * tussentijd doorheen kwam komt niet terug. Een kind dat iets gezien heeft, heeft
+ * het gezien.
+ *
+ * Dat verschil moet in de tekst, om twee redenen. Een waarschuwing die aantoonbaar
+ * onwaar is neemt de rest van het scherm mee in zijn val zodra iemand het merkt.
+ * En de ware versie is ZWAARDER: "je kunt dit terugdraaien maar niet ongedaan
+ * maken" zet je harder stil dan een verbod dat niet blijkt te kloppen.
+ *
+ * ONBEKEND KRIJGT DE ZWAARSTE TEKST. Een mede-guardian elders kan een feature
+ * voorstellen die onze catalogus niet kent, en dan weten wij niet wat het doet.
+ * Bij twijfel waarschuwen we zwaarder, niet lichter -- de faalstand die hier pijn
+ * doet is een guardian die iets doorlaat omdat het scherm er licht over deed.
+ */
+export function gateConsequence(feature) {
+  const g = GATE_CATALOGUE.find((x) => x.feature === feature);
+  if (!g) return 'unknown';
+  return g.reversible === false ? 'irreversible' : 'reversible';
+}
+
 /** The open decision for a feature, for showing progress ("1 of 2"). */
 export function gatedProgress(slug, feature) {
   const votes = db.prepare('SELECT guardian_uri, value FROM ap_gated_votes WHERE slug = ? AND feature = ?')
@@ -370,7 +396,7 @@ export function sentStatus(row, now) {
 
 export default {
   GATE_CATALOGUE, gateRows, knownSetting,
-  tallyGatedSetting, thresholdFor, featureColumn, recordGatedVote, gatedProgress, GATED_WINDOW_MS,
+  tallyGatedSetting, thresholdFor, featureColumn, recordGatedVote, gatedProgress, gateConsequence, GATED_WINDOW_MS,
   parseGatedSetting, buildGatedOffer, rememberGatedOffer, recallGatedOffer,
   recordGatedReview, getGatedReview, listGatedReviews, removeGatedReview, clearGatedReviews,
   recordSent, recallSent, settleSent, listSent, sentStatus,

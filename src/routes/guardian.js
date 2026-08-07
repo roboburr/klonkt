@@ -66,6 +66,7 @@ function uiStrings(L) {
     // Oppikken en afhandelen van een hulpvraag (shaer-lgo).
     'help_pick', 'help_close', 'help_picked_by', 'help_handled_by', 'help_handled_note',
     'help_close_ask', 'help_close_yes', 'help_just_now', 'help_hours', 'help_days', 'help_former_ward',
+  'warn_reversible', 'warn_irreversible', 'warn_unknown', 'warn_tally_elsewhere', 'warn_go', 'warn_back',
     'help_archive', 'help_archive_hide', 'panel_history',
     'gate_propose_open', 'gate_propose_close', 'gate_default_off',
     'gate_images', 'gate_messages', 'gate_compose', 'gate_music', 'gate_quoteCards',
@@ -143,6 +144,10 @@ function dashboardState(site, L) {
     // threshold is never met and the proposal simply expires.
     gatedReviews: Guardianship.gated.listGatedReviews(site.slug).map((r) => ({
       id: r.id, ward: r.ward_uri, proposer: r.proposer, feature: r.feature, value: !!r.value,
+      // Wat er blijft hangen als dit doorgaat (shaer-nf9). Alleen bij OPENZETTEN:
+      // dichtzetten laat niets nieuws door en hoeft dus niet gewaarschuwd te
+      // worden -- een waarschuwing die overal staat wordt nergens gelezen.
+      consequence: r.value ? Guardianship.gated.gateConsequence(r.feature) : null,
     })),
     help: helpItems,
     strings: uiStrings(L),

@@ -284,6 +284,23 @@
     card.appendChild(el('div', 'who', line
       .replace('{who}', handleOf(g.proposer || ''))
       .replace('{ward}', handleOf(g.ward))));
+    // Wat het betekent als dit doorgaat, VOOR de knoppen (shaer-nf9). Alleen bij
+    // openzetten -- dichtzetten laat niets nieuws door.
+    //
+    // En eerlijk over wat wij niet zien: de stemmen worden geteld op de server
+    // van het kind, niet hier. Er zijn geen lokale wards, dus gatedProgress komt
+    // voor deze kaart altijd op null uit. Een verzonnen "1 van 2" zou hier het
+    // gevaarlijkste getal op het scherm zijn -- het leest als "er kan nog iemand
+    // na mij". Wat we wel weten en wat de waarschuwing draagt: jouw ja kan de
+    // doorslag geven, want de telling settelt op het moment dat de drempel
+    // gehaald is.
+    if (g.consequence) {
+      var warn = el('div', 'g-warn');
+      warn.appendChild(el('p', 'small', warnText(g.consequence)));
+      warn.appendChild(el('p', 'small g-dim', T.warn_tally_elsewhere || ''));
+      card.appendChild(warn);
+    }
+
     var row = el('div', 'row');
     var yes = el('button', 'small', T.gated_agree || 'Agree');
     var no = el('button', 'quiet small', T.gated_disagree || 'Disagree');
@@ -340,14 +357,33 @@
     return h;
   }
 
-  function gateButton(w, feature, current, proposeLabel, onLabel, offLabel) {
+  function gateButton(w, feature, current, proposeLabel, onLabel, offLabel, consequence) {
     var known = current === true || current === false;
     var btn = el('button', 'quiet small', (known ? (current ? onLabel : offLabel) : proposeLabel) || feature);
+    var allow = known ? !current : true;
+
+    // ALLEEN BIJ OPENZETTEN waarschuwen (shaer-nf9). Dichtzetten laat niets
+    // nieuws door, en een waarschuwing die overal staat wordt nergens gelezen.
+    // Geen window.confirm: dat verstopt de uitleg achter een OK die mensen
+    // wegklikken. Zelfde vorm als het loslaten van een ward.
     btn.addEventListener('click', function () {
+      if (!allow) return doPropose();
+      btn.hidden = true;
+      var ask = el('div', 'g-confirm');
+      ask.appendChild(el('p', 'small', warnText(consequence)));
+      var ja = el('button', 'small', T.warn_go || 'Yes, propose this');
+      ja.addEventListener('click', function () { ask.remove(); btn.hidden = false; doPropose(); });
+      var nee = el('button', 'quiet small', T.warn_back || 'No, go back');
+      nee.addEventListener('click', function () { ask.remove(); btn.hidden = false; });
+      ask.appendChild(ja); ask.appendChild(nee);
+      btn.parentNode.appendChild(ask);
+    });
+
+    function doPropose() {
       btn.disabled = true;
       fetch('/guardian/wards/embeds', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uri: w.other_uri, feature: feature, allow: known ? !current : true }),
+        body: JSON.stringify({ uri: w.other_uri, feature: feature, allow: allow }),
       }).then(function (r) { return r.json(); })
         .then(function (j) {
           if (j && j.state === 'open') {
@@ -358,8 +394,16 @@
           refresh();
         })
         .catch(function () { btn.disabled = false; });
-    });
+    }
     return btn;
+  }
+
+  /** De juiste waarschuwing bij een gevolg. Onbekend krijgt de zwaarste: een
+   *  gate die wij niet kennen kunnen we ook niet geruststellend beschrijven. */
+  function warnText(consequence) {
+    if (consequence === 'irreversible') return T.warn_irreversible || '';
+    if (consequence === 'unknown') return T.warn_unknown || '';
+    return T.warn_reversible || '';
   }
 
   function embedsButton(w) {
@@ -552,7 +596,8 @@
       // richting die eerder ontbrak toen de stand altijd onbekend was.
       var openzetten = T.gate_propose_open || T.gate_propose || 'Propose';
       var dichtzetten = T.gate_propose_close || T.gate_propose || 'Propose';
-      row.appendChild(gateButton(w, g.feature, g.value, openzetten, dichtzetten, openzetten));
+      row.appendChild(gateButton(w, g.feature, g.value, openzetten, dichtzetten, openzetten,
+        g.reversible === false ? 'irreversible' : 'reversible'));
     }
     return row;
   }

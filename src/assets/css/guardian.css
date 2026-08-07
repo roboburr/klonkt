@@ -215,3 +215,10 @@ button.danger { background: var(--danger); color: #fff; border-color: var(--dang
 .g-gates .g-gate-head { gap: .4rem; }
 /* Een poort die nog niet bestaat is een lege plek, geen dichte deur. */
 .g-gate-chip-planned { opacity: .45; border-style: dotted; }
+
+/* De waarschuwing bij een gate-voorstel (shaer-nf9). Geen rode paniekbalk: dit
+   moet gelezen worden, niet weggeklikt. Een rand links, zoals een citaat. */
+.g-warn { margin: .5rem 0; padding: .4rem 0 .4rem .7rem; border-left: 3px solid var(--g-warn, #b8860b); }
+.g-warn p { margin: 0 0 .25rem; }
+.g-warn p:last-child { margin-bottom: 0; }
+.g-confirm .g-warn { border-left: 0; padding-left: 0; }
