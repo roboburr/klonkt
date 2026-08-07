@@ -446,6 +446,9 @@ router.get('/posts/:slug/edit', requireAuth, (req, res) => {
   try { pollLocked = !!(post.poll_json && db.prepare('SELECT 1 FROM poll_votes WHERE post_id = ? LIMIT 1').get(post.id)); } catch { /* ignore */ }
 
   renderPage(req, res, 'pages/post-edit', {
+    // Zelfde modules als de nieuw-route hierboven: zonder deze regel laadt de
+    // editor niet, en dan wist een opslag de post (shaer-5s1, de beet van 7-8).
+    pageJs: 'post-edit playlist-editor',
     post,
     isNew: false,
     pollLocked,

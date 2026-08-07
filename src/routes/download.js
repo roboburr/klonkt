@@ -84,7 +84,6 @@ router.get('/download/:id', (req, res, next) => {
   if (!track) return next();
   const fan = req.session && req.session.user;
   renderPage(req, res, 'pages/download', {
-    pageJs: 'download',
     pageTitle: track.title + ' — download',
     bodyClass: 'on-download',
     dlState: 'form',
@@ -113,6 +112,10 @@ router.post('/download/:id', (req, res, next) => {
   if (!req.session.dl) req.session.dl = {};
   req.session.dl[track.id] = Date.now();
   renderPage(req, res, 'pages/download', {
+    // De auto-start hoort ALLEEN bij ready: op het formulier zou hij de
+    // e-mailvraag omzeilen. Het script stond v66r shaer-bqr dan ook binnen
+    // de ready-tak van de template.
+    pageJs: 'download',
     pageTitle: track.title + ' — download', bodyClass: 'on-download',
     dlState: 'ready', dlTrack: track,
   });

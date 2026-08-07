@@ -12,5 +12,5 @@ export function init() { run(); }
 
 function run() {
         // Auto-start de download (zelfde-origin attachment-link).
-        setTimeout(function(){ try { window.location.href = (pageData().fileUrl || ''); } catch(e){} }, 600);
+        setTimeout(function(){ try { var u = pageData().fileUrl; if (u) window.location.href = u; } catch(e){} }, 600);
 }

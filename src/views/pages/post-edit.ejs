@@ -207,7 +207,9 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
 
         <%# Hidden field is what actually submits to the server. The visible
             contenteditable's serialized HTML is copied here on submit. %>
-        <input type="hidden" name="content" id="content-hidden" value="">
+        <%# value = de BESTAANDE inhoud: laadt de module niet (oude cache, js uit),
+    dan slaat het formulier de post ongewijzigd op in plaats van hem te wissen. %>
+        <input type="hidden" name="content" id="content-hidden" value="<%= post.content || '' %>">
 
         <%# Initial content is injected as a JSON string in a script tag so we
             can set innerHTML safely from JS. EJS-escaping HTML directly into
