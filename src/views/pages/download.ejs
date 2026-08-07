@@ -25,10 +25,7 @@
       <h1 class="dl-h1"><%= _ready_h1 %></h1>
       <p class="dl-sub"><%= _ready_sub %></p>
       <p><a class="dl-go" href="<%= fileUrl %>"><%= _manual %></a></p>
-      <script>
-        // Auto-start de download (zelfde-origin attachment-link).
-        setTimeout(function(){ try { window.location.href = <%- JSON.stringify(fileUrl) %>; } catch(e){} }, 600);
-      </script>
+      <%# Het script staat in assets/js/mod/download.js; de servergegevens gaan via partials/page-data.ejs (shaer-bqr). %>
     <% } else { %>
       <h1 class="dl-h1"><%= _download_btn %> <%= tr.title %></h1>
       <p class="dl-sub"><%= _capture_sub %></p>
@@ -56,3 +53,4 @@
   .dl-form input { flex: 1 1 200px; padding: 12px 14px; border-radius: 10px; border: 1px solid rgba(128,128,128,.4); background: transparent; color: inherit; font-size: 15px; }
   .dl-go { padding: 12px 20px; border-radius: 10px; border: none; background: var(--accent,#6b8f71); color: #fff; font-weight: 600; font-size: 15px; cursor: pointer; text-decoration: none; display: inline-block; }
 </style>
+<%- include('../partials/page-data', { pageData: { fileUrl: fileUrl } }) %>

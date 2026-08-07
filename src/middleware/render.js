@@ -248,6 +248,11 @@ export async function renderPage(req, res, viewName, data = {}) {
       || (data.site && data.site.title) || 'Klonkt',
     appVersion: APP_VERSION,
     bodyClass: data.bodyClass || 'on-home',
+    // Welke module(s) deze pagina nodig heeft (shaer-bqr). De shell zet ze op
+    // body[data-js]; de bootstrap daar importeert ze uit /assets/js/mod/.
+    // Alleen kleine letters, cijfers, streepjes en spaties -- de naam wordt een
+    // pad.
+    pageJs: /^[a-z0-9 -]*$/.test(String(data.pageJs || '')) ? (data.pageJs || '') : '',
     socialDescr: data.socialDescr || '',
     socialImage: data.socialImage || '',
     cspNonce: () => '',
@@ -285,8 +290,12 @@ export async function renderPage(req, res, viewName, data = {}) {
       const _navAccent = (_site && _site.accent && /^#[0-9a-fA-F]{6}$/.test(_site.accent))
         ? _site.accent : '#e8b04b';
       const _navPalette = (_site && _site.palette) ? _site.palette : 'klonkt';
+      // Welke modules de nieuwe pagina wil (shaer-bqr). De bootstrap in de shell
+      // zet dit op de body en haalt op wat er nieuw bij staat; 'chrome' hoort er
+      // altijd bij, want die komt bij elke navigatie opnieuw binnen.
+      const _navJs = ('chrome ' + (locals.pageJs || '')).trim();
       const triggerJson = JSON.stringify({
-        pcmsNav: { bodyClass: locals.bodyClass, accent: _navAccent, palette: _navPalette },
+        pcmsNav: { bodyClass: locals.bodyClass, accent: _navAccent, palette: _navPalette, js: _navJs },
         pcmsPostSwap: data.post ? {
           title: data.post.title,
           slug: data.post.slug,

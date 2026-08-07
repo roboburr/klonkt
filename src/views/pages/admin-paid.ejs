@@ -71,17 +71,4 @@
   <p style="margin-top:1.5rem"><a href="/admin">&larr; <%= t('admin.back') %></a></p>
 </div>
 
-<script>
-(function () {
-  var field = document.getElementById('pd-redirect');
-  var btn = document.getElementById('pd-copy');
-  if (!field || !btn) return;
-  field.addEventListener('focus', function () { field.select(); });
-  btn.addEventListener('click', function () {
-    field.select();
-    var done = function () { var t = btn.textContent; btn.textContent = document.getElementById('pd-copy').getAttribute('data-copied'); setTimeout(function () { btn.textContent = t; }, 1400); };
-    if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(field.value).then(done, function () { try { document.execCommand('copy'); done(); } catch (e) {} }); }
-    else { try { document.execCommand('copy'); done(); } catch (e) {} }
-  });
-})();
-</script>
+<%# Het script van deze pagina staat in assets/js/mod/admin-paid.js (shaer-bqr). %>

@@ -2,6 +2,10 @@
 // in één stroom, groepeert opeenvolgende likes/boosts op dezelfde post, en geeft
 // visibility door (voor de privé-badge). Besluit Robin+Bart 2026-07-16.
 //
+// Sinds Berichten gesprekken toont vouwen antwoorden, mentions en je eigen
+// verzonden berichten samen tot draden (zie messages-conversations.test.js voor
+// de groepeerlogica zelf); likes, boosts en follows blijven losse regels.
+//
 // Run: npm test   (= node --test)
 
 import { test } from 'node:test';
@@ -41,12 +45,18 @@ db.prepare(`INSERT INTO ap_outbox (id, site_slug, post_id, post_slug, in_reply_t
 
 const msgs = AP.getMessages('me', 50);
 
-test('eigen outbound reply zit als "sent" in de stroom (nieuwste eerst)', () => {
-  const sent = msgs.find((m) => m.type === 'sent');
+test('eigen outbound reply en het ontvangen antwoord staan in EEN draad', () => {
+  const thread = msgs.find((m) => m.type === 'thread');
+  assert.ok(thread, 'draad ontbreekt');
+  assert.equal(msgs[0], thread, 'de draad met het nieuwste bericht hoort bovenaan');
+  const sent = thread.messages.find((m) => m.type === 'sent');
   assert.ok(sent, 'sent-item ontbreekt');
   assert.equal(sent.outboxId, 'out1');
   assert.equal(sent.to_handle, '@dana@r.test');
-  assert.equal(msgs[0].type, 'sent', 'nieuwste item hoort bovenaan');
+  // Hier gaat het om: Dana's antwoord en het jouwe zaten in aparte chips
+  // (Gesprekken en Verzonden) en staan nu op volgorde in dezelfde draad.
+  assert.deepEqual(thread.messages.map((m) => m.type), ['reply', 'sent']);
+  assert.equal(thread.post.slug, 'mijn-post');
 });
 
 test('opeenvolgende likes op dezelfde post groeperen tot één item met count', () => {
@@ -57,10 +67,13 @@ test('opeenvolgende likes op dezelfde post groeperen tot één item met count', 
 });
 
 test('privé-reply draagt visibility voor de badge en heeft post-context', () => {
-  const reply = msgs.find((m) => m.type === 'reply');
+  const thread = msgs.find((m) => m.type === 'thread');
+  const reply = thread.messages.find((m) => m.type === 'reply');
   assert.equal(reply.visibility, 'direct');
   assert.equal(reply.post_slug, 'mijn-post');
   assert.equal(reply.post_title, 'Mijn post');
+  // De context hangt ook aan de draad zelf: die voedt de link in de kop.
+  assert.deepEqual(thread.post, { slug: 'mijn-post', title: 'Mijn post' });
 });
 
 test('notificationsSeenAt: 0 zonder watermark, daarna > 0', () => {

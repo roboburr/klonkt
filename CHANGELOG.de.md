@@ -5,6 +5,78 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 
 ## [Unreleased]
 
+## [1.7.0] · 2026-08-07
+
+### Hinzugefügt
+- **Nachrichten ist eine einzige Gesprächsansicht.** Nachrichten, Gespräche und
+  Gesendet waren drei getrennte Filter, wodurch ein Austausch auseinanderfiel:
+  was du gesendet hast, stand unter Gesendet, was zurückkam unter einem der
+  beiden anderen, und um einem Verlauf zu folgen, musstest du hin und her
+  wechseln. Es ist jetzt eine Gesprächsansicht, in der Gesendetes und
+  Empfangenes im selben Verlauf stehen, das Älteste oben, mit deinen eigenen
+  Beiträgen markiert. Vier Filter bleiben: Alle, Gespräche, Aktivität und
+  Moderation.
+- **Ein Gespräch sagt, worum es geht.** Hängt ein Verlauf an einem deiner
+  Beiträge, verlinkt die Kopfzeile darauf. Ohne diesen Zusammenhang lässt sich
+  eine Antwort in einer Liste nicht einordnen. Verläufe ohne Beitrag laufen
+  stattdessen pro Person.
+- **Beiträge in Nachrichten sehen aus wie Beiträge.** Formatierung, Bilder,
+  Audio, Video, Zitatkarten und Link-Vorschauen werden jetzt genauso dargestellt
+  wie in den Nachrichten der Zeitung — auch bei dem, was du selbst gesendet hast:
+  ein von dir angehängtes Foto kam auf dem eigenen Bildschirm als nackter Text
+  an, während alle anderen das Bild sahen.
+- **Die Guardian-App zeigt Beiträge deines Wards vollständig.** Dieselbe Lücke
+  steckte in der Guardian-Ansicht: ein Beitrag deines Wards kam ohne Medien,
+  Zitatkarte oder Emoji an — genau der Beitrag, den ein Guardian beurteilen
+  können muss. Eine Inhaltswarnung bleibt dort wie bisher eingeklappt.
+- **Aus einem Gespräch heraus antworten.** Unter einem Verlauf steht ein eigenes
+  Antwortfeld, der reichhaltige Editor mit Formatierung, Medien und Sprachwahl.
+  Winken bleibt eine eigene Schaltfläche daneben: ein Winken ist ein Zeichen,
+  keine Antwort.
+
+### Behoben
+- **Menschen auf datenschutzstrengen Servern können dir wieder folgen.** Manche
+  Server geben den öffentlichen Schlüssel eines Kontos nur an eine signierte
+  Anfrage heraus. Klonkt fragte ohne Signatur, wurde abgewiesen und konnte die
+  gerade eingegangene Folge-Anfrage deshalb nicht prüfen — sie wurde abgelehnt,
+  und der andere Server versuchte es tagelang erneut. Klonkt signiert diese
+  Abfrage jetzt, und solche Follows kommen durch. Das betraf auch alles andere,
+  was von so einem Server geholt wurde: Profile, Beiträge und Antworten.
+- **Antworten anderer kommen jetzt im Verlauf an.** Antwortete jemand auf einen
+  Beitrag in einem Gespräch, an dem du beteiligt warst, leitete dessen Server die
+  Antwort an dich weiter — und sie wurde abgewiesen, weil ein weiterleitender
+  Server mit seinem eigenen Schlüssel signiert und nicht mit dem des Autors.
+  Verläufe waren auf deiner Seite dadurch stillschweigend unvollständig. Eine
+  solche Antwort wird jetzt an der Quelle geprüft statt abgewiesen: der Beitrag
+  wird bei dem Server geholt, der ihn beherbergt, und nur das von dort wird
+  gespeichert. Eine weitergeleitete Löschung wird weiterhin abgewiesen, denn ein
+  gelöschter Beitrag lässt sich nicht prüfen.
+- **Ein Like oder Boost sieht überall gleich aus.** Derselbe Beitrag konnte in
+  der Zeitung als geliked und auf der Interact-Seite als nicht geliked
+  erscheinen, weil beide eine eigene Buchführung hatten. Es gibt jetzt nur noch
+  eine, also stimmen die Schaltflächen überein — auch für alles, worauf du vor
+  dieser Version schon reagiert hast; das wird beim Aktualisieren der Seite
+  automatisch übernommen.
+- **Ein Like aus einer App bleibt jetzt bestehen.** Ein Like aus Shaer wurde
+  zwar gespeichert, aber die App bekam das nie zurück, sodass das Herz beim
+  nächsten Laden wieder aussprang — und weil die App das Like nie sah, konnte sie
+  es nur erneut senden und nie zurücknehmen. Das Zurücknehmen aus einer App
+  funktioniert jetzt.
+
+### Sicherheit
+
+- **Aktualisierte Komponenten schließen sieben Sicherheitshinweise.** Der
+  schwerwiegendste steckte in der Bibliothek, die von außen eintreffende
+  Beiträge säubert: ein sorgfältig gebauter Beitrag konnte ein Skript daran
+  vorbeischmuggeln, und ein Skript, das auf deiner Seite läuft, kann in deinem
+  Namen handeln. Gleichzeitig ging der Mailversand drei Hauptversionen weiter
+  und schloss damit eine Reihe von Lücken — darunter eine, bei der ein
+  präparierter Name Befehle in das Gespräch mit dem Mailserver einschleusen
+  konnte, und eine, bei der eine Nachricht bei einer anderen Domain landen
+  konnte als der adressierten. An Aussehen und Verhalten von Klonkt ändert das
+  nichts. Ein Hinweis bleibt bewusst offen: er betrifft eine Art, Bezeichner zu
+  erzeugen, die Klonkt nicht verwendet.
+
 ## [1.6.0] · 2026-07-31
 
 ### Hinzugefügt

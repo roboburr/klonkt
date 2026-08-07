@@ -255,6 +255,8 @@ router.get('/posts/new', requireAuth, (req, res) => {
   }
 
   renderPage(req, res, 'pages/post-edit', {
+    // post-edit neemt de playlist-editor op.
+    pageJs: 'post-edit playlist-editor',
     post: {
       id: uuid(),
       title: '', slug: '', content: '', excerpt: '',
@@ -794,6 +796,7 @@ router.get('/authorize_interaction', requireSiteManager, async (req, res) => {
     if (!target) { try { followTarget = await ActivityPubService.resolveRemoteActor(uri); } catch { /* ignore */ } }
   }
   renderPage(req, res, 'pages/authorize-interaction', {
+    pageJs: 'authorize-interaction',
     pageTitleKey: 'fedi.remote_interact', // i18n: was hardcoded Dutch on non-NL sites
     bodyClass: 'on-special',
     uri,
@@ -805,7 +808,7 @@ router.get('/authorize_interaction', requireSiteManager, async (req, res) => {
     reported: !!req.query.reported,
     liked: !!req.query.liked,
     boosted: !!req.query.boosted,
-    reacted: (site && uri) ? ActivityPubService.getMyReactions(site.slug, uri) : { liked: false, boosted: false },
+    reacted: (site && uri) ? ActivityPubService.getReaction(site.slug, uri) : { liked: false, boosted: false },
     siteTitle: site ? site.title : '',
   });
 });
@@ -838,11 +841,12 @@ router.post('/authorize_interaction/like', requireSiteManager, (req, res) => {
   const uri = (req.body.uri || '').toString();
   let on = false;
   if (site && uri) {
-    on = !ActivityPubService.getMyReactions(site.slug, uri).liked;
+    on = !ActivityPubService.getReaction(site.slug, uri).liked;
     ActivityPubService.resolveRemoteNote(uri)
       .then((note) => note && ActivityPubService.sendInteraction(site, on ? 'like' : 'unlike', note.object_uri || uri, note.actor_uri))
       .catch((e) => console.warn('[AP] remote like failed:', e.message));
-    ActivityPubService.setMyReaction(site.slug, uri, 'like', on);
+    // Eén schrijfpad (shaer-9e9): tussentabel + afgeleide vlag.
+    ActivityPubService.setReaction(site.slug, uri, 'like', on);
   }
   if (req.get('X-Requested-With') === 'fetch') return res.json({ ok: true, on });
   res.redirect('/authorize_interaction?uri=' + encodeURIComponent(uri));
@@ -855,18 +859,23 @@ router.post('/authorize_interaction/boost', requireSiteManager, (req, res) => {
   const uri = (req.body.uri || '').toString();
   let on = false;
   if (site && uri) {
-    on = !ActivityPubService.getMyReactions(site.slug, uri).boosted;
+    on = !ActivityPubService.getReaction(site.slug, uri).boosted;
     ActivityPubService.resolveRemoteNote(uri)
       .then((note) => {
         if (!note) return;
         const id = note.object_uri || uri;
         return Promise.resolve(ActivityPubService.sendInteraction(site, on ? 'boost' : 'unboost', id, note.actor_uri))
-          // Boost → store the post in the timeline (even if you don't follow the author) so it
-          // surfaces in the Cirkel; unboost → just clear the flag.
-          .then(() => on ? ActivityPubService.upsertBoostedNote(site.slug, note) : ActivityPubService.unmarkBoosted(site.slug, id));
+          // De note gaat mee: een boost zet niet alleen een vlag maar trekt de
+          // post je tijdlijn in, ook als je de auteur niet volgt, zodat hij in
+          // de Cirkel verschijnt.
+          .then(() => ActivityPubService.setReaction(site.slug, uri, 'boost', on, { flagUri: id, note: on ? note : null }));
       })
       .catch((e) => console.warn('[AP] remote boost failed:', e.message));
-    ActivityPubService.setMyReaction(site.slug, uri, 'boost', on);
+    // Meteen zetten, zodat de knop klopt voordat de resolve terug is. Via
+    // setReaction en niet via setMyReaction: ook dit korte moment mag geen
+    // halve schrijfactie zijn. De resolve hierboven werkt hem daarna bij met de
+    // note, zodat de post ook in je tijdlijn belandt.
+    ActivityPubService.setReaction(site.slug, uri, 'boost', on);
   }
   if (req.get('X-Requested-With') === 'fetch') return res.json({ ok: true, on });
   res.redirect('/authorize_interaction?uri=' + encodeURIComponent(uri));
@@ -929,7 +938,7 @@ router.get('/messages', requireSiteManager, (req, res) => {
     ? Guardianship.offersCollection(`${gMe}/queues/offers`, site.slug, gMe).orderedItems
     : []).filter((o) => o['shaer:ward'] === gMe && o['shaer:needsMyAccept']);
   renderPage(req, res, 'pages/messages', {
-    pageTitleKey: 'msg.title', bodyClass: 'on-special', items, seenAt,
+    pageTitleKey: 'msg.title', bodyClass: 'on-special', pageJs: 'messages', items, seenAt,
     hasMore, nextOffset: offset + FEED_PAGE, moreBase, guardianOffers,
     success: req.query.success || null, error: req.query.error || null,
   });
@@ -964,6 +973,54 @@ router.post('/messages/quick-reply', requireSiteManager, express.urlencoded({ ex
     if (r) return res.redirect(back + '?success=wave_sent');
   } catch { /* fall through */ }
   res.redirect(back + '?error=quickreply');
+});
+
+// Antwoorden vanuit een gesprek in Berichten. Twee paden, en welke het wordt
+// bepaalt de draad zelf (zie groupConversations → replyTo):
+//   - hangt de draad aan een post van jou, dan is dit een gewone reply op het
+//     nieuwste ontvangen bericht erin: deliverReply, publiek zoals de thread;
+//   - hangt hij aan een persoon, dan is het een direct bericht terug.
+// Rijk in beide gevallen: `content` is de HTML uit de reply-editor, `text` de
+// platte versie die de editor er altijd bij levert (en die het no-JS-formulier
+// als enige stuurt).
+router.post('/messages/reply', requireSiteManager, async (req, res) => {
+  const site = res.locals.site;
+  const back = `${res.locals.siteUrlBase || ''}/messages`;
+  if (!site) return res.status(404).send('Site required');
+  const text = String(req.body.text || '');
+  const html = String(req.body.content || '');
+  let attachments = [];
+  try { attachments = JSON.parse(req.body.attachments || '[]'); } catch { /* geen media */ }
+  let mentions;
+  try { if (req.body.mentions !== undefined) mentions = JSON.parse(req.body.mentions || '[]'); } catch { mentions = undefined; }
+  const language = String(req.body.language || '');
+  // Leeg is leeg: een bericht zonder tekst EN zonder media is geen bericht.
+  if (!text.trim() && !html.trim() && !attachments.length) return res.redirect(back + '?error=reply_empty');
+
+  const interactionId = parseInt(req.body.interaction_id, 10) || 0;
+  const postSlug = String(req.body.post_slug || '');
+  const toActor = String(req.body.to || '');
+  try {
+    if (interactionId && postSlug) {
+      const post = db.prepare('SELECT id, slug FROM posts WHERE site_id = ? AND slug = ?').get(site.id, postSlug);
+      const parent = ActivityPubService.getInteractionById(interactionId);
+      // De parent MOET bij deze post horen: anders zou een gemanipuleerd
+      // formulier een antwoord onder andermans draad kunnen hangen.
+      if (!post || !parent || parent.post_id !== post.id) return res.redirect(back + '?error=reply_target');
+      await ActivityPubService.deliverReply(site, {
+        postId: post.id, postSlug: post.slug, parent, text, html, attachments, mentions, language,
+      });
+    } else if (/^https?:\/\//i.test(toActor)) {
+      const r = await Guardianship.deliverDirectNote(site, { recipients: [toActor], text, html, language, attachments });
+      if (!r) return res.redirect(back + '?error=reply_failed');
+    } else {
+      return res.redirect(back + '?error=reply_target');
+    }
+  } catch (e) {
+    console.warn('[AP] reply from Berichten failed:', e.message);
+    return res.redirect(back + '?error=reply_failed');
+  }
+  res.redirect(back + '?success=reply_sent');
 });
 
 router.get('/fediverse', requireSiteManager, (req, res) => res.redirect(`${res.locals.siteUrlBase || ''}/messages`));
@@ -1138,6 +1195,7 @@ router.get('/news', requireSiteManager, (req, res) => {
     return renderPage(req, res, 'partials/news-append', { timeline, hasMore, nextOffset: offset + FEED_PAGE, moreBase });
   }
   renderPage(req, res, 'pages/news', {
+    pageJs: 'news',
     pageTitle: 'News', bodyClass: 'on-special',
     timeline, hasMore, nextOffset: offset + FEED_PAGE, moreBase,
     success: req.query.success || null, error: req.query.error || null,
@@ -1228,9 +1286,9 @@ router.post('/news/like', requireSiteManager, async (req, res) => {
   const note = (req.body.note || '').toString();
   let on = false;
   if (site && note) {
-    on = !ActivityPubService.getTimelineReaction(site.slug, note).liked;
+    on = !ActivityPubService.getReaction(site.slug, note).liked;
     try { await ActivityPubService.sendInteraction(site, on ? 'like' : 'unlike', note, (req.body.author || '').toString()); } catch (e) { /* ignore */ }
-    if (on) ActivityPubService.markLiked(site.slug, note); else ActivityPubService.unmarkLiked(site.slug, note);
+    ActivityPubService.setReaction(site.slug, note, 'like', on);
   }
   if (req.get('X-Requested-With') === 'fetch') return res.json({ ok: true, on });
   res.redirect('/news');
@@ -1242,18 +1300,16 @@ router.post('/news/boost', requireSiteManager, async (req, res) => {
   const note = (req.body.note || '').toString();
   let on = false;
   if (site && note) {
-    on = !ActivityPubService.getTimelineReaction(site.slug, note).boosted;
+    on = !ActivityPubService.getReaction(site.slug, note).boosted;
     try { await ActivityPubService.sendInteraction(site, on ? 'boost' : 'unboost', note, (req.body.author || '').toString()); } catch (e) { /* ignore */ }
+    ActivityPubService.setReaction(site.slug, note, 'boost', on); // instant UI state
     if (on) {
-      ActivityPubService.markBoosted(site.slug, note); // instant UI state
       // Fire-and-forget: re-resolve the note so the cached row is refreshed
       // (cover/content) — boosting again heals a stale copy from EVERY boost
       // path, not just the interact page.
       ActivityPubService.resolveRemoteNote(note)
-        .then((n) => { if (n) ActivityPubService.upsertBoostedNote(site.slug, n); })
+        .then((n) => { if (n) ActivityPubService.setReaction(site.slug, note, 'boost', true, { note: n }); })
         .catch(() => { /* best-effort */ });
-    } else {
-      ActivityPubService.unmarkBoosted(site.slug, note);
     }
   }
   if (req.get('X-Requested-With') === 'fetch') return res.json({ ok: true, on });
@@ -1337,6 +1393,7 @@ router.get('/:slug', (req, res, next) => {
   if (post.paid && !canEditThis && !_unlocked) {
     const { newerPost, olderPost } = postNeighbors(site, post);
     return renderPage(req, res, 'pages/paid-gate', {
+    pageJs: 'paid-gate',
       pageTitle: post.title || 'Voor supporters',
       bodyClass: 'on-special',
       pgTitle: post.title || '',
@@ -1453,6 +1510,7 @@ router.get('/:slug', (req, res, next) => {
   const siteAvatar = (site && site.profile_photo) ? site.profile_photo : null;
 
   renderPage(req, res, 'pages/post', {
+    pageJs: 'post',
     post,
     poll: ActivityPubService.ownPollView(post),
     newerPost,
@@ -1504,19 +1562,21 @@ router.post('/posts/:slug/fedi-react', requireSiteManager, async (req, res) => {
   const parent = ActivityPubService.getInteractionById(req.body.interaction_id);
   const kind = req.body.kind === 'boost' ? 'boost' : 'like';
   if (parent && parent.post_id === post.id && parent.object_uri) {
-    if (kind === 'boost') {
-      // Toggle: boost an unboosted comment, or retract it (Undo Announce) if already boosted.
-      const on = !parent.acted_boost;
-      ActivityPubService.sendInteraction(site, on ? 'boost' : 'unboost', parent.object_uri, parent.actor_uri)
-        .catch((e) => console.warn('[AP] reaction failed:', e.message));
-      ActivityPubService.setInteractionBoosted(parent.id, on);
-    } else {
-      // Toggle: like an unliked comment, or un-favourite (Undo Like) if already liked.
-      const on = !parent.acted_like;
-      ActivityPubService.sendInteraction(site, on ? 'like' : 'unlike', parent.object_uri, parent.actor_uri)
-        .catch((e) => console.warn('[AP] reaction failed:', e.message));
-      ActivityPubService.setInteractionLiked(parent.id, on);
-    }
+    // Toggle: react, or retract it (Undo Announce / Undo Like) if already on.
+    // De stand komt uit dezelfde bron als de knop die je zag; leest de toggle uit
+    // de kolom en de knop uit de tussentabel, dan draait een divergentie de
+    // richting om en stuur je een Undo voor iets dat nooit is verstuurd.
+    const ik = ActivityPubService.getReaction(site.slug, parent.object_uri);
+    const on = kind === 'boost' ? !ik.boosted : !ik.liked;
+    ActivityPubService.sendInteraction(site, on ? kind : `un${kind}`, parent.object_uri, parent.actor_uri)
+      .catch((e) => console.warn('[AP] reaction failed:', e.message));
+    // De tussentabel is de waarheid (shaer-ipb), gesleuteld op object_uri -- net
+    // als de Like die hierboven de fediverse in gaat. acted_* blijft voorlopig
+    // als afgeleide meelopen, hetzelfde vangnet dat ap_timeline.liked na
+    // shaer-9e9 is: pas weghalen als deze migratie een release heeft ingelopen.
+    ActivityPubService.setReaction(site.slug, parent.object_uri, kind, on);
+    if (kind === 'boost') ActivityPubService.setInteractionBoosted(parent.id, on);
+    else ActivityPubService.setInteractionLiked(parent.id, on);
   }
   res.redirect(`${res.locals.siteUrlBase || ''}/${post.slug}#fediverse`);
 });

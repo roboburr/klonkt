@@ -49,6 +49,20 @@
   // child's panel.
   var HELP_TOP = 5;
 
+  /**
+   * Wacht deze hulpvraag nog op iemand?
+   *
+   * EEN plek, met opzet. Dit werd eerst op twee plekken los beslist -- de lijst
+   * en de teller op de wardregel -- en toen de lijst gefilterd werd bleef die
+   * teller een afgehandelde vraag meetellen. Een derde plek komt er vast, en dan
+   * hoort hij hier langs te komen.
+   *
+   * Bij TWIJFEL open: alles wat geen expliciete afsluiting draagt telt als
+   * wachtend. De omgekeerde fout -- iets als afgehandeld tonen dat het niet is --
+   * is hier de gevaarlijke.
+   */
+  function helpOpen(h) { return !h || !h.state || h.state.open; }
+
   function helpCard(h) {
     var card = el('div', 'g-card help');
     var row = el('div', 'row');
@@ -71,20 +85,123 @@
       a.href = h.note_url; a.target = '_blank'; a.rel = 'noopener';
       card.appendChild(a);
     }
+    card.appendChild(helpState(h));
     return card;
+  }
+
+  /** Hoe lang geleden, grof. Een oppik vervalt niet maar hoort wel te verouderen. */
+  function ago(ms) {
+    var u = Math.floor(ms / 3600000);
+    if (u < 1) return T.help_just_now || 'just now';
+    if (u < 24) return (T.help_hours || '{n}h ago').replace('{n}', u);
+    return (T.help_days || '{n}d ago').replace('{n}', Math.floor(u / 24));
+  }
+
+  /**
+   * De gedeelde staat van een hulpvraag (shaer-lgo): wie er al op af is, of het
+   * is afgesloten, en de twee knoppen.
+   *
+   * De faalstand hier is NIET veilig: 'iedereen denkt dat het geregeld is' is
+   * gevaarlijker dan geen markering. Dus bij twijfel toont dit OPEN, en een oude
+   * oppik verkleurt in plaats van te verdwijnen -- anders ziet een hulpvraag er
+   * onaangeroerd uit terwijl er iemand mee bezig is.
+   */
+  function helpState(h) {
+    var st = h.state || { open: true, pickedUpBy: [], handled: null, ageMs: null };
+    var box = el('div', 'g-help-state');
+
+    if (st.handled) {
+      var wie = st.handled.handle || handleOf(st.handled.uri);
+      box.appendChild(el('div', 'g-help-done', (T.help_handled_by || 'Handled by {who}').replace('{who}', wie)));
+      // Geen terugdraaiknop: leeft de vraag nog, dan wordt hij opnieuw gesteld.
+      box.appendChild(el('p', 'small g-empty', T.help_handled_note || ''));
+      return box;
+    }
+
+    (st.pickedUpBy || []).forEach(function (p) {
+      var line = (T.help_picked_by || '{who} is looking into this').replace('{who}', p.handle || handleOf(p.uri));
+      box.appendChild(el('div', 'g-help-pick', line));
+    });
+    // Oud, maar niet weg. Dit is het verschil tussen 'er is iemand mee bezig' en
+    // 'er was ooit iemand mee bezig'.
+    if (st.ageMs != null && st.ageMs > 3600000) {
+      box.appendChild(el('div', 'g-help-age small', ago(st.ageMs)));
+    }
+
+    var row = el('div', 'row');
+    var mij = (st.pickedUpBy || []).some(function (p) { return p.uri === S.me; });
+    if (!mij) {
+      var pick = el('button', 'small', T.help_pick || 'I am on it');
+      pick.addEventListener('click', function () { markHelp(h, 'pickup', pick); });
+      row.appendChild(pick);
+    }
+    var done = el('button', 'quiet small', T.help_close || 'Mark handled');
+    // Een stevige bevestiging, en nooit een window.confirm: dat verstopt een
+    // uitleg achter een OK die mensen wegklikken. Zelfde lijn als het loslaten
+    // van een ward.
+    done.addEventListener('click', function () {
+      done.hidden = true;
+      var ask = el('div', 'g-confirm');
+      ask.appendChild(el('p', 'small', T.help_close_ask || ''));
+      var ja = el('button', 'small', T.help_close_yes || 'Yes, handled');
+      ja.addEventListener('click', function () { markHelp(h, 'handled', ja); });
+      var nee = el('button', 'quiet small', T.release_no || 'No');
+      nee.addEventListener('click', function () { ask.remove(); done.hidden = false; });
+      ask.appendChild(ja); ask.appendChild(nee);
+      box.appendChild(ask);
+    });
+    row.appendChild(done);
+    box.appendChild(row);
+    return box;
+  }
+
+  function markHelp(h, kind, btn) {
+    if (btn) btn.disabled = true;
+    fetch('/guardian/api/help/' + kind, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note: h.object_uri, ward: h.actor_uri, site: S.site }),
+    }).then(refresh).catch(function () { if (btn) btn.disabled = false; });
   }
 
   function renderHelp() {
     var list = document.getElementById('help-list');
     list.textContent = '';
-    var help = S.help || [];
-    help.slice(0, HELP_TOP).forEach(function (h) { list.appendChild(helpCard(h)); });
-    if (help.length > HELP_TOP) {
-      list.appendChild(el('p', 'g-sec-sub', '+ ' + (help.length - HELP_TOP) + ' — ' + (T.panel_help || '')));
+    var alle = S.help || [];
+    // Afgehandeld hoort niet meer in de lijst die om aandacht vraagt, en niet
+    // meer in de teller: anders blijft het cijfer alarm slaan voor iets dat af
+    // is, en neemt een gesloten vraag de ruimte in van een open vraag.
+    var open = alle.filter(helpOpen);
+    var klaar = alle.filter(function (h) { return !helpOpen(h); });
+
+    open.slice(0, HELP_TOP).forEach(function (h) { list.appendChild(helpCard(h)); });
+    if (open.length > HELP_TOP) {
+      list.appendChild(el('p', 'g-sec-sub', '+ ' + (open.length - HELP_TOP) + ' — ' + (T.panel_help || '')));
     }
+
+    // WEG is niet hetzelfde als AF. Een afgehandelde hulpvraag blijft bestaan --
+    // er wordt in dit systeem niets herschreven -- maar hij hoort achter een
+    // klik, niet voor je neus. De volledige geschiedenis per kind staat sowieso
+    // in het paneel van dat kind.
+    if (klaar.length) {
+      var doos = el('div', 'g-help-archive');
+      doos.hidden = true;
+      klaar.forEach(function (h) { doos.appendChild(helpCard(h)); });
+      var knop = el('button', 'quiet small', (T.help_archive || '{n} handled').replace('{n}', klaar.length));
+      knop.addEventListener('click', function () {
+        doos.hidden = !doos.hidden;
+        knop.textContent = doos.hidden
+          ? (T.help_archive || '{n} handled').replace('{n}', klaar.length)
+          : (T.help_archive_hide || 'hide');
+      });
+      list.appendChild(knop);
+      list.appendChild(doos);
+    }
+
     var badge = document.getElementById('help-count');
-    badge.textContent = help.length; badge.hidden = help.length === 0;
-    show('help-empty', help.length === 0);
+    badge.textContent = open.length; badge.hidden = open.length === 0;
+    // "Geen hulpverzoeken. Mooi zo." mag ook staan als er wel een archief is:
+    // er wacht dan immers niets.
+    show('help-empty', open.length === 0);
   }
 
   // ── 3. Offers I am a party to (sent, or a co-guardianship to co-approve) ─
@@ -350,6 +467,66 @@
     return row;
   }
 
+  /** Het woord dat we voor een gate gebruiken; onbekend valt terug op de naam. */
+  function gateLabel(feature) {
+    return T['gate_' + feature.replace('shaer:', '')] || feature.replace('shaer:', '');
+  }
+
+  /**
+   * Een rij in het gate-paneel. Toont WAT er geldt, van welk SOORT het is, welke
+   * drempel er hoort en wat er loopt -- en pas daarna een knop, als er iets te
+   * verzetten valt.
+   *
+   * Het soort staat erbij omdat de gates niet hetzelfde werken: een stand is aan
+   * of uit, volgverzoeken zijn een stroom beslissingen, en een overdracht is
+   * onomkeerbaar zodra het kind hem gebruikt. Vier rijen met dezelfde schakelaar
+   * zouden dat verschil wegpoetsen.
+   */
+  function gateRow(w, g) {
+    var row = el('div', 'g-gate');
+    var head = el('div', 'g-gate-head');
+    head.appendChild(el('span', 'g-gate-name', gateLabel(g.feature)));
+    head.appendChild(el('span', 'g-gate-kind', T['gate_kind_' + g.kind] || g.kind));
+    row.appendChild(head);
+
+    // De stand. NULL is onbekend en dat is iets anders dan uit: bij een ward op
+    // een andere server wordt die kolom daar bijgehouden.
+    var stand = g.value === null || g.value === undefined
+      ? (T.gate_unknown || 'unknown')
+      : (g.value ? (T.prop_on || 'on') : (T.prop_off || 'off'));
+    var meta = el('div', 'g-gate-meta small');
+    meta.appendChild(el('span', null, stand));
+    if (g.threshold) {
+      meta.appendChild(el('span', null, (T.gate_threshold || '{need} of {of} guardians')
+        .replace('{need}', g.threshold.need).replace('{of}', g.threshold.of)));
+    } else {
+      // Geen drempel verzinnen die we niet kennen.
+      meta.appendChild(el('span', 'g-dim', T.gate_threshold_unknown || ''));
+    }
+    if (!g.reversible) meta.appendChild(el('span', 'g-gate-warn', T.gate_irreversible || ''));
+    if (g.waiting) {
+      meta.appendChild(el('span', 'g-gate-wait', (T.gate_waiting || '{n} waiting').replace('{n}', g.waiting)));
+    }
+    row.appendChild(meta);
+
+    if (g.proposal) {
+      row.appendChild(el('p', 'small g-prop g-prop-' + g.proposal.status,
+        (T.prop_line || 'Proposal {what} {value}: {status}')
+          .replace('{what}', gateLabel(g.feature))
+          .replace('{value}', g.proposal.value ? (T.prop_on || 'on') : (T.prop_off || 'off'))
+          .replace('{status}', T['prop_st_' + g.proposal.status] || g.proposal.status)));
+    }
+    if (g.blockedBy) {
+      row.appendChild(el('p', 'small g-empty', (T.gate_blocked || 'needs {what} first')
+        .replace('{what}', gateLabel(g.blockedBy))));
+    }
+    if (g.adjustable) {
+      row.appendChild(gateButton(w, g.feature, g.value, T.gate_propose || T.embeds_propose,
+        T.prop_on || 'on', T.prop_off || 'off'));
+    }
+    return row;
+  }
+
   function wardPanel(w) {
     var uri = w.other_uri;
     var panel = el('div', 'g-panel');
@@ -357,30 +534,27 @@
 
     var set = el('div', 'g-panel-sec');
     set.appendChild(el('h3', null, T.settings_title || 'Settings'));
-    var setRow = el('div', 'row');
-    setRow.appendChild(gateButton(w, 'shaer:externalEmbeds', w.embeds, T.embeds_propose, T.embeds_on, T.embeds_off));
-    // The heavier sibling (5.6): seeing that a video exists is one decision,
-    // letting a third party's player run inside the app is another. Hidden
-    // only when previews are known-OFF: for a ward on another server the
-    // value is unknown, and unknown is not off. Hiding it there meant a
-    // guardian elsewhere could never even propose playback, which is how a
-    // whole proposal round went into the wrong gate. The ward's server
-    // enforces play-needs-previews at serve time regardless.
-    if (w.embeds !== false) {
-      setRow.appendChild(gateButton(w, 'shaer:externalPlayback', w.playback, T.play_propose, T.play_on, T.play_off));
+    // Een rij per gate, uit de catalogus van de server (shaer-ahy.1). Losse
+    // knoppen lieten een guardian zelf uitzoeken wat er allemaal geldt, en wat
+    // niet verstelbaar is stond nergens -- terwijl dat de helft van het antwoord
+    // is op "wat mag dit kind".
+    (w.gates || []).forEach(function (g) { set.appendChild(gateRow(w, g)); });
+    // Terugval voor een server die de catalogus nog niet stuurt: dan de twee
+    // knoppen zoals ze waren, zodat een oudere Klonkt niet met een leeg vak zit.
+    if (!(w.gates || []).length) {
+      var setRow = el('div', 'row');
+      setRow.appendChild(gateButton(w, 'shaer:externalEmbeds', w.embeds, T.embeds_propose, T.embeds_on, T.embeds_off));
+      if (w.embeds !== false) {
+        setRow.appendChild(gateButton(w, 'shaer:externalPlayback', w.playback, T.play_propose, T.play_on, T.play_off));
+      }
+      set.appendChild(setRow);
+      (w.proposals || []).forEach(function (p) {
+        var what = p.feature === 'shaer:externalPlayback' ? (T.prop_play || 'playback') : (T.prop_embeds || 'link previews');
+        set.appendChild(el('p', 'small g-prop g-prop-' + p.status, (T.prop_line || 'Proposal {what} {value}: {status}')
+          .replace('{what}', what).replace('{value}', p.value ? (T.prop_on || 'on') : (T.prop_off || 'off'))
+          .replace('{status}', T['prop_st_' + p.status] || p.status)));
+      });
     }
-    set.appendChild(setRow);
-    // What this guardian proposed and how it stands (5.6). This used to be a
-    // button caption that vanished on refresh, so a running decision was
-    // invisible: you could not tell "waiting", "done" and "expired" apart.
-    (w.proposals || []).forEach(function (p) {
-      var what = p.feature === 'shaer:externalPlayback' ? (T.prop_play || 'playback') : (T.prop_embeds || 'link previews');
-      var line = (T.prop_line || 'Proposal {what} {value}: {status}')
-        .replace('{what}', what)
-        .replace('{value}', p.value ? (T.prop_on || 'on') : (T.prop_off || 'off'))
-        .replace('{status}', T['prop_st_' + p.status] || p.status);
-      set.appendChild(el('p', 'small g-prop g-prop-' + p.status, line));
-    });
     panel.appendChild(set);
 
     // The fellow guardians of this child, with availability (3.6). For a
@@ -419,8 +593,12 @@
       FOLLOWS.filter(function (f) { return f.wardUri === uri; }),
       T.panel_follow_empty || '', followCard);
 
+    // Hier juist de VOLLEDIGE geschiedenis van dit kind -- dat is waar dit
+    // paneel voor is. Wel wat nog wacht bovenaan, want dat is waar je naar zoekt
+    // als je het opent.
     sectionInto(panel, T.panel_help || 'Calls for help',
-      (S.help || []).filter(function (h) { return h.actor_uri === uri; }),
+      (S.help || []).filter(function (h) { return h.actor_uri === uri; })
+        .sort(function (a, b) { return (helpOpen(b) ? 1 : 0) - (helpOpen(a) ? 1 : 0); }),
       T.panel_help_empty || '', helpCard);
 
     sectionInto(panel, T.panel_posts || 'Recent posts',
@@ -452,7 +630,11 @@
     });
     actRow.appendChild(rel);
     act.appendChild(actRow);
-    panel.appendChild(act);
+    // Bovenaan, niet onderaan: zwaaien en loslaten zijn de dingen die je DOET.
+    // De rest van het paneel is lezen -- instellingen, wie er nog meer op let,
+    // wat er binnenkwam. Wie het paneel opent om iets te doen hoorde eerst langs
+    // vijf secties te scrollen.
+    panel.insertBefore(act, panel.firstChild);
     return panel;
   }
 
@@ -466,7 +648,9 @@
       var row = el('div', 'row');
       row.appendChild(el('span', 'who grow', handleOf(uri, w.other_handle)));
       // Counts on the row: whatever is waiting must be visible with the panel shut.
-      var nHelp = (S.help || []).filter(function (h) { return h.actor_uri === uri; }).length;
+      // Alleen wat nog WACHT, zoals het commentaar hierboven al zei: een
+      // afgehandelde vraag hoorde de boei niet te laten staan.
+      var nHelp = (S.help || []).filter(function (h) { return h.actor_uri === uri && helpOpen(h); }).length;
       var nFollow = FOLLOWS.filter(function (f) { return f.wardUri === uri; }).length;
       if (nHelp) row.appendChild(el('span', 'tag help', '🛟 ' + nHelp));
       if (nFollow) row.appendChild(el('span', 'tag co', nFollow + ' ' + (nFollow === 1 ? (T.badge_follow_one || '') : (T.badge_follow || ''))));
@@ -552,13 +736,19 @@
     if (p.published) head.appendChild(el('span', 'g-when', when(p, p.published)));
     card.appendChild(head);
     var body = el('div', 'feed-body');
+    // body_html is de gedeelde note-body-partial, serverside gerenderd: opmaak,
+    // media, quote-kaart en embed, precies als in de Krant en in Berichten.
+    // Valt terug op de kale content voor een client uit de cache.
+    var html = p.body_html || p.content || '';
     if (p.cw) {
+      // De content warning blijft van de PWA zelf: note-body versluiert alleen
+      // bij nsfw, en een ward-post met alleen een cw hoort hier dicht te staan.
       var d = document.createElement('details');
       var sum = document.createElement('summary'); sum.textContent = p.cw; d.appendChild(sum);
-      var inner = el('div'); inner.innerHTML = p.content || ''; d.appendChild(inner);
+      var inner = el('div'); inner.innerHTML = html; d.appendChild(inner);
       body.appendChild(d);
     } else {
-      body.innerHTML = p.content || '';   // server-sanitized HTML (same as Berichten)
+      body.innerHTML = html;   // server-sanitized HTML (same as Berichten)
     }
     card.appendChild(body);
     return card;
@@ -699,7 +889,21 @@
   });
 
   renderAll(); pushState(); loadFeed(); loadFollowReqs();
-  setInterval(refresh, 45000);   // live-ish while open
+
+  // De push die de melding brengt is meteen het teken dat de staat veranderd is.
+  // Daarmee hoeft er geen tweede, open verbinding bij: hetzelfde kanaal doet het
+  // werk, en het werkt ook als de app dicht is.
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', function (e) {
+      if (e.data && e.data.klonkt === 'push') refresh();
+    });
+  }
+  // Het tikje blijft als vangnet -- niet elke verandering geeft een melding, en
+  // niet iedereen heeft meldingen aanstaan. Maar niet tikken terwijl niemand
+  // kijkt: dat waren verzoeken voor een tabblad op de achtergrond. Bij terugkomen
+  // meteen een keer, want dan is de kans op nieuws het grootst.
+  setInterval(function () { if (!document.hidden) refresh(); }, 45000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(); });
   } catch (e) {
     fatal((e && e.message) || String(e));
   }

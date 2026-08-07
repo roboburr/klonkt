@@ -39,27 +39,5 @@
   <% } %>
 </div>
 
-<script>
-(function () {
-  if (window.__videosWired) return; window.__videosWired = true;
-  var T = <%- JSON.stringify({ copy: t('admin.media_copy'), delC: t('admin.videos_del_confirm') }) %>;
-  document.addEventListener('click', function (e) {
-    var c = e.target.closest('[data-copy]');
-    if (c) {
-      var u = location.origin + c.getAttribute('data-copy');
-      var done = function () { var o = c.textContent; c.textContent = '✓'; setTimeout(function () { c.textContent = o === '✓' ? T.copy : o; }, 1200); };
-      if (navigator.clipboard) navigator.clipboard.writeText(u).then(done).catch(function () { window.prompt('URL', u); });
-      else window.prompt('URL', u);
-      return;
-    }
-    var d = e.target.closest('[data-del]');
-    if (d) {
-      if (!window.confirm(T.delC)) return;
-      fetch('/admin/media/videos/delete', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ file: d.getAttribute('data-del') }) })
-        .then(function (r) { return r.json(); })
-        .then(function (j) { if (j && j.ok) { var card = d.closest('.media-card'); if (card) card.remove(); } })
-        .catch(function () {});
-    }
-  });
-})();
-</script>
+<%# Het script staat in assets/js/mod/admin-videos.js; de gegevens via partials/page-data.ejs (shaer-bqr). %>
+<%- include('../partials/page-data', { pageData: { copy: t('admin.media_copy'), delC: t('admin.videos_del_confirm') } }) %>

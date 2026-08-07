@@ -56,7 +56,17 @@ function uiStrings(L) {
     // The status of a proposal this guardian sent (5.6).
     'prop_line', 'prop_embeds', 'prop_play', 'prop_on', 'prop_off',
     'prop_st_open', 'prop_st_accepted', 'prop_st_rejected', 'prop_st_expired',
-    'panel_guards_far'];
+    'panel_guards_far',
+    // Het gate-paneel per ward (shaer-ahy.1): een rij per gate, met het soort en
+    // de drempel erbij. De namen volgen de catalogus in gated.js.
+    'gate_externalEmbeds', 'gate_externalPlayback', 'gate_follows',
+    'gate_kind_setting', 'gate_kind_perRequest', 'gate_kind_handover',
+    'gate_unknown', 'gate_threshold', 'gate_threshold_unknown',
+    'gate_irreversible', 'gate_waiting', 'gate_blocked', 'gate_propose',
+    // Oppikken en afhandelen van een hulpvraag (shaer-lgo).
+    'help_pick', 'help_close', 'help_picked_by', 'help_handled_by', 'help_handled_note',
+    'help_close_ask', 'help_close_yes', 'help_just_now', 'help_hours', 'help_days',
+    'help_archive', 'help_archive_hide'];
   const s = Object.fromEntries(keys.map((k) => [k, i18nT(L, `guardian.${k}`)]));
   s.wave = i18nT(L, 'guardian.wave');
   s.waved = i18nT(L, 'guardian.waved');
@@ -70,8 +80,16 @@ function dashboardState(site, L) {
     `SELECT object_uri, note_url, actor_uri, actor_name, actor_handle, actor_icon, content, published, created_at,
             emoji_json, actor_emoji_json, media_json, quote_json, embed_json
      FROM ap_mentions WHERE slug = ? AND help_request = 1 ORDER BY created_at DESC LIMIT 50`
-  ).all(site.slug).map((h) => ({
+  ).all(site.slug);
+  // De gedeelde staat in EEN query (shaer-lgo): wie er al op af is en of het is
+  // afgesloten. Per kaart vragen zou hier een N+1 opleveren, en dit is precies
+  // het scherm dat een guardian in een haast openslaat.
+  const helpStaat = Guardianship.help.statusFor(help.map((h) => h.object_uri));
+  const helpItems = help.map((h) => ({
     ...h,
+    // Bij twijfel OPEN. Een hulpvraag die er afgehandeld uitziet terwijl hij dat
+    // niet is, is de gevaarlijke fout -- niet andersom.
+    state: helpStaat.get(h.object_uri) || { open: true, pickedUpBy: [], handled: null, ageMs: null },
     // The dashboard is built in the browser, so it gets the body finished: the
     // same partial de Krant and Berichten use. A 🛟 often carries a screenshot
     // and a link to the post it is about; both belong in the card.
@@ -102,6 +120,10 @@ function dashboardState(site, L) {
         feature: p.feature, value: !!p.value, created: p.created_at,
         status: Guardianship.gated.sentStatus(p, Date.now()),
       })),
+      // Alles wat voor dit kind gated is op EEN plek, met per gate het soort en
+      // de drempel (shaer-ahy.1). Losse knoppen lieten een guardian zelf
+      // uitzoeken wat er allemaal geldt; wat niet verstelbaar is stond nergens.
+      gates: wardGates(site.slug, w.other_uri),
     })),
     offers: Guardianship.offersCollection(`${me}/queues/offers`, site.slug, me).orderedItems,
     // Running lapses (3.6.3) this guardian or its local wards are party to.
@@ -112,7 +134,7 @@ function dashboardState(site, L) {
     gatedReviews: Guardianship.gated.listGatedReviews(site.slug).map((r) => ({
       id: r.id, ward: r.ward_uri, proposer: r.proposer, feature: r.feature, value: !!r.value,
     })),
-    help,
+    help: helpItems,
     strings: uiStrings(L),
   };
 }
@@ -191,6 +213,7 @@ function ensureWardConnections(site) {
 router.get('/api/feed', requireAuth, (req, res) => {
   const site = siteForUser(req);
   if (!site) return res.status(404).json({ error: 'no_site' });
+  const L = resolveLang(req);
   ensureWardConnections(site);
   const wardUris = new Set(Guardianship.listWards(site.slug).map((w) => w.other_uri));
   // Only show the wards you actually guard (the timeline can hold more).
@@ -208,6 +231,12 @@ router.get('/api/feed', requireAuth, (req, res) => {
       when_text: formatDateTime(p.published || p.created_at),
       cw: p.cw || null,
       media: p.media_json ? JSON.parse(p.media_json) : [],
+      // Een post van je ward hoort er hetzelfde uit te zien als in de Krant en
+      // in Berichten: dezelfde partial, dus opmaak, media, quote-kaart en
+      // embed. Tot nu toe kreeg de PWA alleen kale content -- een guardian zag
+      // een lege regel waar een foto stond. `content` blijft ernaast staan voor
+      // een client die nog uit de cache draait.
+      body_html: renderNoteBody(p, L),
     }));
   res.json({ items, following: wardUris.size });
 });
@@ -318,6 +347,44 @@ router.post('/api/wave', requireAuth, express.json({ limit: '2kb' }), async (req
   const r = await AP.deliverDirectNote(site, { recipients: [wardUri], text, wave: true }).catch(() => null);
   if (!r) return res.status(502).json({ error: 'delivery' });
   res.json({ ok: true, delivered: r.delivered });
+});
+
+// ── Een hulpvraag oppikken of afsluiten (shaer-lgo) ───────────────
+// Gaat naar de WARD en naar de MEDE-GUARDIANS. De ward hoort te weten dat er
+// iemand komt -- dat is de helft van de gerustheid -- en de anderen dat het
+// loopt, zodat niemand denkt dat de ander het al doet.
+//
+// OPPIKKEN mag stapelen: twee mensen die tegelijk reageren is geen probleem.
+// AFSLUITEN kent geen terugdraai; leeft de vraag nog, dan wordt hij opnieuw
+// gesteld. De stevige bevestiging zit in de client, net als bij het loslaten van
+// een ward: nooit een window.confirm.
+router.post('/api/help/:kind', requireAuth, express.json({ limit: '2kb' }), async (req, res) => {
+  const site = siteForUser(req);
+  if (!site) return res.status(404).json({ error: 'no_site' });
+  const kind = req.params.kind === 'handled' ? 'handled' : 'pickup';
+  const noteUri = String(req.body?.note || '').trim();
+  const wardUri = String(req.body?.ward || '').trim();
+  if (!noteUri || !/^https?:\/\//i.test(noteUri)) return res.status(400).json({ error: 'no_note' });
+  // Alleen over een hulpvraag van een kind dat je echt bewaakt.
+  const isWard = Guardianship.listWards(site.slug).some((w) => w.other_uri === wardUri);
+  if (!isWard) return res.status(403).json({ error: 'not_your_ward' });
+
+  const me = AP.actorId((process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, ''), site.slug);
+  // Onze eigen kopie meteen, zonder op bezorging te wachten: het scherm van
+  // degene die klikt hoort niet te liegen omdat een andere server traag is.
+  Guardianship.help.record(noteUri, me, kind, null);
+
+  const anderen = Guardianship.listGuardians(wardUri.replace(/.*\/ap\/users\//, '')) || [];
+  const ontvangers = [wardUri, ...anderen.map((g) => g.other_uri)].filter((u) => u && u !== me);
+  const r = await AP.deliverDirectNote(site, {
+    recipients: ontvangers,
+    text: kind === 'handled' ? 'Deze hulpvraag is afgehandeld.' : 'Ik kijk hiernaar.',
+    helpMark: { kind, noteUri },
+  }).catch(() => null);
+  // Bezorging kan mislukken; de eigen staat staat er dan toch. Dat melden we,
+  // want "verstuurd" zeggen terwijl het niet aankwam is hier het ergste soort
+  // stilte.
+  res.json({ ok: true, delivered: r ? r.delivered : 0, recipients: ontvangers.length });
 });
 
 // ── Adopt a ward: handle → resolve → C2S Offer through the same pipeline
@@ -530,6 +597,31 @@ router.post('/wards/remove', requireAuth, express.json({ limit: '4kb' }), async 
 function wardEmbedSetting(uri) { return wardGateSetting(uri, 'external_embeds'); }
 /** The playback gate of a ward we host (5.6): the heavier sibling. */
 function wardPlaybackSetting(uri) { return wardGateSetting(uri, 'external_playback'); }
+/**
+ * De gate-rijen van een ward voor het paneel.
+ *
+ * De standen komen uit onze eigen kolommen als we het kind hosten; bij een ward
+ * elders weten we ze niet en blijft het NULL -- onbekend, niet uit. Het aantal
+ * guardians idem: dat wordt op de server van die ward bijgehouden, en zonder dat
+ * getal wordt er geen drempel verzonnen.
+ */
+function wardGates(mySlug, wardUri) {
+  const statuses = wardGuardianStatuses(wardUri);
+  const wachtend = Guardianship.follows.listReviewsByDirection(mySlug, 'incoming')
+    .filter((r) => r.ward_uri === wardUri).length;
+  return Guardianship.gated.gateRows({
+    settings: {
+      'shaer:externalEmbeds': wardEmbedSetting(wardUri),
+      'shaer:externalPlayback': wardPlaybackSetting(wardUri),
+    },
+    guardianCount: statuses ? statuses.length : null,
+    proposals: Guardianship.gated.listSent(mySlug, wardUri).map((p) => ({
+      feature: p.feature, value: !!p.value, status: Guardianship.gated.sentStatus(p, Date.now()),
+    })),
+    waiting: { 'shaer:follows': wachtend || undefined },
+  });
+}
+
 function wardGateSetting(uri, column) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   if (!base || !String(uri || '').startsWith(`${base}/`)) return null;

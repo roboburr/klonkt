@@ -1,21 +1,107 @@
+<% if (n.type === 'thread') { %>
+<%
+           var _tseen = (typeof seen !== 'undefined' && seen) ? seen : 0;
+           // Een draad is nieuw zodra EEN bericht erin nieuw is.
+           var _tnew = !!_tseen && (n.messages || []).some(function (m) {
+             return m.created_at && Date.parse(m.created_at) > _tseen;
+           });
+           var _tpeople = (n.people || []).map(function (p) { return p.name || p.handle || '?'; });
+           // Alleen jij aan het woord: dan is de tegenpartij het adres waaraan
+           // je schreef, niet een lege naam.
+           var _tto = ((n.messages || []).find(function (m) { return m.to_handle; }) || {}).to_handle;
+           var _tlabel = _tpeople.length ? _tpeople.join(', ') : (_tto || t('msg.you'));
+      %>
+        <li class="msg-item msg-thread<%= _tnew ? ' is-new' : '' %>" data-kind="conv" data-who="<%= (_tpeople.join(' ') + ' ' + (_tto || '')).toLowerCase() %>">
+          <div class="msg-thread-head">
+            <%# Tegenpartij en aantal in EEN uitsparing: het is een label bij het
+                gesprek, geen kop erboven. Zo houdt de inhoud de ruimte.
+
+                Deze uitsparing is ook de knop die het gesprek in- en uitklapt
+                (Barts aanwijzing): tikken op de tegenpartij is waar je van
+                nature naar wijst als je "dit gesprek" bedoelt. Een BUTTON en
+                geen span met een klikhandler, want dan werkt hij ook met het
+                toetsenbord en leest een schermlezer de stand voor.
+
+                Zonder JavaScript doet hij niets, en dan staat het gesprek
+                gewoon open -- dat is ook de stand waar we mee beginnen. %>
+            <button type="button" class="msg-thread-who" aria-expanded="true">
+              <span class="msg-thread-name"><%= _tlabel %></span>
+              <% if (n.count > 1) { %><span class="msg-thread-count"><%= n.count %></span><% } %>
+              <svg class="msg-thread-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <% if (_tnew) { %><span class="msg-new" title="<%= t('msg.new') %>"></span><% } %>
+            <%# De context bij de draad: waar gaat dit gesprek over? Zonder deze
+                link is een antwoord in een lijst niet te plaatsen. %>
+            <% if (n.post) { %>
+              <a class="msg-thread-post" href="/<%= n.post.slug %>">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <%= n.post.title || n.post.slug %>
+              </a>
+            <% } %>
+          </div>
+          <ul class="msg-thread-msgs">
+            <% (n.messages || []).forEach(function (m) { %><%- include('msg-item', { n: m, seen: _tseen, inThread: true }) %><% }); %>
+          </ul>
+          <%# Antwoorden vanuit de draad zelf. Ingeklapt, want een open editor
+              onder elk gesprek maakt de lijst onleesbaar -- juist het probleem
+              dat deze weergave moest oplossen. De route kiest het pad: een
+              draad aan een post krijgt een reply, een draad aan een persoon een
+              direct bericht. %>
+          <% var _rt = n.replyTo || {}; var _kan = canMutate && ((_rt.interactionId && _rt.postSlug) || _rt.actorUri); %>
+          <% if (_kan) { %>
+            <div class="msg-thread-foot">
+              <details class="msg-reply">
+                <summary><%= t('fedi.reply') %></summary>
+                <div class="msg-reply-form">
+                  <%- include('../partials/reply-editor', {
+                    action: (typeof siteUrlBase !== 'undefined' ? siteUrlBase : '') + '/messages/reply',
+                    hiddenFields: [
+                      { name: 'interaction_id', value: _rt.interactionId || '' },
+                      { name: 'post_slug', value: _rt.postSlug || '' },
+                      { name: 'to', value: _rt.actorUri || '' },
+                    ],
+                    placeholder: t('fedi.reply_ph'),
+                    submitLabel: t('fedi.reply'),
+                    rows: 2,
+                  }) %>
+                </div>
+              </details>
+              <%# De zwaai blijft een eigen knop: het is geen antwoord maar een
+                  seintje (FEP-633c), en die twee horen niet op een hoop. %>
+              <% if (_rt.actorUri) { %>
+                <form method="post" action="<%= (typeof siteUrlBase !== 'undefined' ? siteUrlBase : '') %>/messages/quick-reply" class="msg-wave">
+                  <input type="hidden" name="to" value="<%= _rt.actorUri %>">
+                  <button class="btn small" name="text" value="&#128075;" title="<%= t('msg.wave_back') %>">&#128075;</button>
+                </form>
+              <% } %>
+            </div>
+          <% } %>
+        </li>
+<% } else { %>
 <%
            var _seen = (typeof seen !== 'undefined' && seen) ? seen : 0;
            var _t = n.type === 'announce' ? 'boost' : n.type; // reply|mention|report|like|boost|follow|sent
            var _new = _seen && n.created_at ? (Date.parse(n.created_at) > _seen) : false;
            var _who = n.name || n.handle || '';
            var _priv0 = (n.visibility === 'followers' || n.visibility === 'direct');
-           // Buckets (klonkt-demo-3jf): Messages = @mentions + private (DM) replies;
-           // Activity = likes/boosts/follows; Moderation = reports; Sent = your
-           // replies; Conversations = every other (public) reply.
-           var _kind = _t === 'sent' ? 'sent'
-             : (_t === 'like' || _t === 'boost' || _t === 'follow' || _t === 'poll_done') ? 'act'
+           // Emmers: Activiteit = likes/boosts/follows/polls, Moderatie =
+           // reports, en al het overige is gesprek. De oude emmers 'msgs' en
+           // 'sent' bestaan niet meer sinds Berichten, Gesprekken en Verzonden
+           // samenvielen -- en dat is geen cosmetische hernoeming: een
+           // gespreksregel die om wat voor reden dan ook geen draad werd (geen
+           // post, geen herkenbare tegenpartij) hield anders een data-kind
+           // waarvoor geen chip meer bestond, en was daarmee onder ELKE chip
+           // behalve Alles onzichtbaar.
+           var _kind = (_t === 'like' || _t === 'boost' || _t === 'follow' || _t === 'poll_done') ? 'act'
              : _t === 'report' ? 'mod'
-             : (_t === 'mention' || _priv0) ? 'msgs'
              : 'conv';
+           // Binnen een draad is dit geen zelfstandige regel: de chip filtert op
+           // de draad, niet op de losse zinnen erin.
+           var _sub = (typeof inThread !== 'undefined' && inThread);
            var _init = String(_who || '?').replace(/^@/, '').charAt(0).toUpperCase();
            var _priv = (n.visibility === 'followers' || n.visibility === 'direct');
       %>
-        <li class="msg-item msg-<%= _t %><%= _new ? ' is-new' : '' %>" data-kind="<%= _kind %>" data-who="<%= String(_who).toLowerCase() %>">
+        <li class="<%= _sub ? 'msg-sub' : 'msg-item' %> msg-<%= _t %><%= _new ? ' is-new' : '' %>"<% if (!_sub) { %> data-kind="<%= _kind %>"<% } %> data-who="<%= String(_who).toLowerCase() %>">
           <span class="msg-av<%= _t === 'sent' ? ' msg-av-sent' : '' %>" aria-hidden="true">
             <% if (_t === 'sent') { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
             <% } else if (_t === 'poll_done') { %><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
@@ -37,10 +123,12 @@
             <div class="msg-line">
               <% if (_t === 'sent') { %>
                 <span class="msg-who"><%= t('msg.you') %></span>
-                <% if (n.to_handle) { %><span class="msg-handle">→ <%= n.to_handle %></span><% } %>
+                <% if (n.to_handle && !_sub) { %><span class="msg-handle">→ <%= n.to_handle %></span><% } %>
               <% } else { %>
                 <a class="msg-who" href="<%= n.url %>" target="_blank" rel="nofollow noopener"><%- emojiName(_who, n.actor_emoji_json) %></a>
-                <% if (n.handle && n.name) { %><span class="msg-handle"><%= n.handle %></span><% } %>
+                <% /* De naam blijft: binnen een draad moet je zien WIE wat zei.
+                      De handle erachter niet -- die staat in de kop. */ %>
+                <% if (n.handle && n.name && !_sub) { %><span class="msg-handle"><%= n.handle %></span><% } %>
               <% } %>
               <% if (_new) { %><span class="msg-new" title="<%= t('msg.new') %>"></span><% } %>
               <% /* When the post was written, like de Krant and de Guardian PWA
@@ -49,6 +137,10 @@
               <% if (n.published || n.created_at) { %><span class="msg-time"><%= formatDateTime(n.published || n.created_at) %></span><% } %>
             </div>
 
+            <% var _hasWhat = !_sub || _priv
+                 || (_t === 'mention' && (n.help_request || n.wave || n.note_url))
+                 || (_t === 'sent' && n.in_reply_to); %>
+            <% if (_hasWhat) { %>
             <div class="msg-what">
               <% if (n.count && n.count > 1) { %>
                 <strong><%= t('msg.and_more', { n: n.count - 1 }) %></strong>
@@ -59,15 +151,17 @@
               <% } else if (_t === 'report') { %><%= t('notif.reported') %>
               <% } else if (_t === 'mention' && n.help_request) { %>🛟 <%= t('msg.help_request') %>
               <% } else if (_t === 'mention' && n.wave) { %>👋 <%= t('msg.waved_at_you') %>
+              <% } else if (_sub) { %><%# binnen een draad zegt de kop al dat dit een gesprek is %>
               <% } else if (_t === 'mention') { %><%= t('notif.mentioned') %>
               <% } else if (_t === 'sent') { %><%= t('msg.sent_reply') %>
               <% } else if (_t === 'poll_done') { %><strong><%= t('msg.poll_done') %></strong>
               <% } else { %><%= t('notif.replied') %><% } %>
               <% if (_priv) { %><span class="msg-priv" title="<%= t('msg.private_hint') %>">🔒 <%= t('msg.private') %></span><% } %>
-              <% if (n.post_slug) { %><a class="msg-post" href="/<%= n.post_slug %>"><%= n.post_title || n.post_slug %></a><% } %>
+              <% if (n.post_slug && !_sub) { %><a class="msg-post" href="/<%= n.post_slug %>"><%= n.post_title || n.post_slug %></a><% } %>
               <% if (_t === 'mention' && n.note_url) { %><a class="msg-post" href="<%= n.note_url %>" target="_blank" rel="nofollow noopener"><%= t('tl.view_original') %></a><% } %>
               <% if (_t === 'sent' && n.in_reply_to) { %><a class="msg-post" href="<%= n.in_reply_to %>" target="_blank" rel="nofollow noopener"><%= t('tl.view_original') %></a><% } %>
             </div>
+            <% } %>
 
             <% if (_t === 'report' && n.content) { %><div class="msg-content"><%= n.content %></div>
             <% } else if ((_t === 'reply' || _t === 'mention' || _t === 'sent') && n.content) { %><div class="msg-content msg-note"><%- include('../partials/note-body', { nb: n }) %></div>
@@ -115,3 +209,4 @@
             <% } %>
           </div>
         </li>
+<% } %>

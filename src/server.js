@@ -64,7 +64,7 @@ import changelogRoutes from './routes/changelog.js';
 import ogRoutes from './routes/og.js';
 import apRoutes from './routes/activitypub.js';
 import oauthRoutes from './routes/oauth.js';
-import { apWants, startDeliveryWorker, selfHealTimeline } from './services/ActivityPubService.js';
+import { apWants, startDeliveryWorker, selfHealTimeline, migrateReactions } from './services/ActivityPubService.js';
 
 // SESSION_SECRET: use the env var if set. Otherwise auto-generate a strong one
 // and persist it next to the database, so it stays stable across restarts and
@@ -196,6 +196,10 @@ app.use((req, res, next) => {
 initializeDatabase();
 startScheduler(); // release planning: publish scheduled posts when publish_at is reached
 startDeliveryWorker(); // retry failed fediverse deliveries with backoff
+// Once per REACTIONS_MIGRATION_VERSION bump: reacties naar de tussentabel, onder
+// de canonieke object-URI. Moet VOOR het serveren, want vanaf nu leest de code
+// die tabel -- draait hij niet, dan tonen oude likes als niet-gegeven.
+migrateReactions();
 selfHealTimeline(); // once per SELFHEAL_VERSION bump: re-sync the fediverse cache (covers/edits) after a drastic update
 
 // Safety net: guarantee that there is always a primary site (solo/hub/circle).
@@ -541,13 +545,22 @@ self.addEventListener('push', e => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (err) { /* non-JSON push */ }
   const title = d.title || 'Klonkt';
-  e.waitUntil(self.registration.showNotification(title, {
-    body: d.body || '',
-    icon: '/favicon.svg',
-    badge: '/favicon.svg',
-    tag: d.type ? ('klonkt-' + d.type) : undefined,   // collapse same-type bursts
-    data: { url: d.url || '/' },
-  }));
+  e.waitUntil(Promise.all([
+    self.registration.showNotification(title, {
+      body: d.body || '',
+      icon: '/favicon.svg',
+      badge: '/favicon.svg',
+      tag: d.type ? ('klonkt-' + d.type) : undefined,   // collapse same-type bursts
+      data: { url: d.url || '/' },
+    }),
+    // Wek ook een pagina die al openstaat. De push IS het teken dat er iets
+    // veranderd is, dus een aparte live-verbinding ernaast zou hetzelfde nog
+    // eens doen -- en die tweede zou alleen werken zolang de app open is,
+    // terwijl dit kanaal er ook is als hij dicht is. Een kanaal, twee doelen.
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then(list => { for (const c of list) c.postMessage({ klonkt: 'push', type: d.type || null }); })
+      .catch(() => { /* geen open venster: niets te wekken */ }),
+  ]));
 });
 self.addEventListener('notificationclick', e => {
   e.notification.close();

@@ -338,7 +338,7 @@ const _embedUrl = _postAudio
 <% } %>
 </head>
 
-<body class="<%= bodyClass || 'on-home' %> has-bottom-tab" data-feed-view="<%- _e(safeSite.feed_view_default || 'timeline') %>" data-grid-cols="3" data-site-base="<%- _e((typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '') %>">
+<body class="<%= bodyClass || 'on-home' %> has-bottom-tab" data-js="chrome<%= (typeof pageJs !== 'undefined' && pageJs) ? ' ' + pageJs : '' %>" data-feed-view="<%- _e(safeSite.feed_view_default || 'timeline') %>" data-grid-cols="3" data-site-base="<%- _e((typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '') %>">
 
 <% if (typeof isViewer !== 'undefined' && isViewer) { %>
   <div class="viewer-banner" role="status">
@@ -448,6 +448,12 @@ const _embedUrl = _postAudio
       document.documentElement.setAttribute('data-palette', d.palette);
     }
 
+    // Welke modules deze pagina wil (shaer-bqr). De bootstrap hieronder leest
+    // dit zodra deze handler klaar is.
+    if (typeof d.js === 'string' && /^[a-z0-9 -]*$/.test(d.js)) {
+      document.body.setAttribute('data-js', d.js);
+    }
+
     var next = d.bodyClass;
     if (!next) return;
     // De server kan meerdere page-classes sturen ("on-special on-auth"). Strip
@@ -466,6 +472,43 @@ const _embedUrl = _postAudio
   //  hieronder — die her-fetcht de partial via htmx.ajax, wat de OOB-chrome +
   //  de pcmsNav-trigger (accent/palette/bodyClass) correct toepast. De vroegere
   //  htmx:historyRestore-handler is vervallen nu htmx-history uitstaat.)
+})();
+</script>
+
+<!-- Modules laden (shaer-bqr). Inline script in gewisselde inhoud wordt door de
+     CSP geweigerd: de nonce rouleert per verzoek, dus een script dat via htmx
+     binnenkomt draagt er een die dit document niet kent (shaer-0i6). Alles wat
+     bij een pagina hoort komt daarom uit een module, en die wordt HIER geladen —
+     vanuit de shell, die alleen bij een volledige laadbeurt binnenkomt en dus
+     wél de goede nonce heeft.
+
+     Een dynamische import vanuit een vertrouwd (genonced) script is precies waar
+     'strict-dynamic' voor bedoeld is, dus de module zelf heeft geen nonce nodig. -->
+<script>
+(function () {
+  if (window.__modBoot) return;
+  window.__modBoot = true;
+
+  var loaded = {};
+  function load() {
+    var names = (document.body.getAttribute('data-js') || '').trim().split(/\s+/);
+    names.forEach(function (name) {
+      // Streng: deze waarde komt uit een template en wordt een PAD. Alleen
+      // kleine letters, cijfers en streepjes; nooit een punt of een schuine
+      // streep.
+      if (!name || loaded[name] || !/^[a-z0-9-]+$/.test(name)) return;
+      loaded[name] = 1;
+      import('/assets/js/mod/' + name + '.js').catch(function (e) {
+        console.warn('[mod] ' + name + ' laadde niet:', e && e.message);
+      });
+    });
+  }
+  load();
+  // Bij een htmx-navigatie wisselt de INHOUD, niet de body. De nav-trigger
+  // hieronder zet data-js opnieuw; daarna halen we op wat er nieuw bij staat.
+  // Een module die er al is wordt niet opnieuw geimporteerd -- vandaar dat elke
+  // module gedelegeerd moet werken en tegen een tweede aanroep moet kunnen.
+  document.body.addEventListener('pcmsNav', load);
 })();
 </script>
 

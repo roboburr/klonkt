@@ -5,6 +5,70 @@ Versions follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.7.0] · 2026-08-07
+
+### Added
+- **Messages is one conversation view.** Messages, Conversations and Sent were
+  three separate filters, so a single exchange fell apart: what you sent sat
+  under Sent, what came back under one of the other two, and you had to switch
+  filters to follow a thread. They are now one Conversations view in which sent
+  and received sit in the same thread, oldest at the top, with your own
+  contributions marked. Four filters remain: All, Conversations, Activity and
+  Moderation.
+- **A conversation says what it is about.** When a thread hangs off one of your
+  posts, its header links to that post. Without it a reply in a list is
+  impossible to place. Threads that are not about a post run per person instead.
+- **Posts in Messages look like posts.** Formatting, images, audio, video, quote
+  cards and link previews now render the same way they do in News, including on
+  the messages you sent yourself — a photo you attached used to arrive as bare
+  text on your own screen while everyone else saw the picture.
+- **The Guardian app shows a ward's posts in full.** The same gap sat in the
+  guardian view: a post from your ward arrived without its media, quote card or
+  emoji, which is exactly the post a guardian needs to be able to judge. A
+  content warning still stays collapsed there, as before.
+- **Reply from inside a conversation.** A thread has its own reply editor, the
+  rich one with formatting, media and a language picker. Waving stays a separate
+  button next to it: a wave is a nudge, not an answer.
+
+### Fixed
+- **People on privacy-strict servers can follow you again.** Some servers only
+  hand out an account's public key to a signed request. Klonkt asked without
+  signing, got turned away, and could therefore not check the follow request that
+  had just arrived — so it was refused, and the other server kept retrying for
+  days. Klonkt now signs that lookup, and those follows go through. This also
+  affected everything else fetched from such a server: profiles, posts and
+  replies.
+- **Replies from other people now arrive in threads.** When someone replied to a
+  post in a conversation you were part of, their server forwarded that reply to
+  you — and it was turned away, because the forwarding server signs with its own
+  key rather than the author's. Threads were quietly incomplete on your side.
+  Such a reply is now checked at the source instead of being refused: the post is
+  fetched from the server that hosts it, and only what comes back from there is
+  stored. A forwarded delete is still refused, because a deleted post cannot be
+  checked.
+- **A like or boost looks the same everywhere.** The same post could show as
+  liked in News and as not liked on the interact page, because both kept their
+  own record. There is one record now, so the buttons agree — including for
+  everything you reacted to before this release, which is carried over
+  automatically when the site updates.
+- **A like from an app now sticks.** Liking a post from Shaer was stored, but
+  the app never got that back, so the heart popped off again on the next reload
+  — and because the app never saw the like, it could only offer "like" again and
+  never undo it. Un-liking from an app now works.
+
+### Security
+
+- **Updated components close seven security advisories.** The heaviest one sat
+  in the library that cleans up posts arriving from elsewhere: a carefully built
+  post could slip a script past it, and a script running on your page can act as
+  if it were you. At the same time mail handling moved three major versions on,
+  closing a cluster of holes around sending — among them one where a prepared
+  name could smuggle commands into the conversation with the mail server, and
+  one where a message could end up at a different domain than the one addressed.
+  None of this changes how Klonkt looks or behaves. One advisory is knowingly
+  left open: it concerns a way of generating identifiers that Klonkt does not
+  use.
+
 ## [1.6.0] · 2026-07-31
 
 ### Added

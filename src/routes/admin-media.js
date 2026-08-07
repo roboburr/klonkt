@@ -80,6 +80,7 @@ router.get('/', requireGod, (req, res) => {
     }))
     .sort((a, b) => b._mtime - a._mtime); // newest first
   renderPage(req, res, 'pages/admin-media', {
+    pageJs: 'admin-media',
     pageTitleKey: 'admin.t_media',
     bodyClass: 'on-admin',
     items,
@@ -121,6 +122,7 @@ router.get('/videos', requireGod, (req, res) => {
   const site = res.locals.site;
   if (!site) return res.status(404).send('Site required');
   renderPage(req, res, 'pages/admin-videos', {
+    pageJs: 'admin-videos',
     pageTitleKey: 'admin.t_media',
     bodyClass: 'on-admin',
     items: videoEntries(site.id),

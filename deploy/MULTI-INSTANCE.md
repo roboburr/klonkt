@@ -194,6 +194,12 @@ sudo rm -rf /var/lib/klonkt/blog      # this deletes the site's data
 
 Then remove its block from the web server config and reload it.
 
+## Hosting for other people
+
+Everything here is about the machine. The moment an instance belongs to someone
+who is not you, there is a second set of questions — what you are holding, what
+you owe them, and how they leave. See [HOSTING.md](HOSTING.md).
+
 ## Everyday commands
 
 | | |

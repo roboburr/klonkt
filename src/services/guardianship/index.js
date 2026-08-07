@@ -31,3 +31,5 @@ export {
 
 // §5.6 gated settings (decided by the guardians, enforced by the ward's server)
 export * as gated from './gated.js';
+// 5.2.1: wie er op een hulpvraag af is en wanneer hij is afgesloten (shaer-lgo)
+export * as help from './help.js';

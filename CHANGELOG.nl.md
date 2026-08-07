@@ -5,6 +5,73 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 
 ## [Unreleased]
 
+## [1.7.0] · 2026-08-07
+
+### Toegevoegd
+- **Berichten is één gesprekkenweergave.** Berichten, Gesprekken en Verzonden
+  waren drie losse filters, waardoor één uitwisseling uit elkaar viel: wat jij
+  stuurde stond onder Verzonden, wat terugkwam onder een van de andere twee, en
+  om een draad te volgen moest je heen en weer klikken. Het is nu één
+  Gesprekken-weergave waarin verzonden en ontvangen in dezelfde draad staan,
+  oudste bovenaan, met jouw eigen bijdragen gemarkeerd. Er blijven vier filters
+  over: Alles, Gesprekken, Activiteit en Moderatie.
+- **Een gesprek vertelt waar het over gaat.** Hangt een draad aan een van je
+  posts, dan staat er een link naar die post in de kop. Zonder die context is
+  een antwoord in een lijst niet te plaatsen. Draden die niet over een post gaan
+  lopen per persoon.
+- **Posts in Berichten zien eruit als posts.** Opmaak, afbeeldingen, geluid,
+  video, quote-kaarten en linkvoorbeelden worden nu net zo getoond als in de
+  Krant, ook bij de berichten die je zelf stuurde — een foto die jij meestuurde
+  kwam op je eigen scherm als kale tekst binnen terwijl de ander wel een plaatje
+  zag.
+- **De Guardian-app toont posts van je ward compleet.** Hetzelfde gat zat in de
+  guardian-weergave: een post van je ward kwam binnen zonder media, quote-kaart
+  of emoji, terwijl dat juist de post is die je als guardian wilt kunnen
+  beoordelen. Een content warning blijft daar zoals eerder dichtgeklapt.
+- **Antwoorden vanuit een gesprek.** Onder een draad staat een eigen
+  antwoordvenster, de rijke editor met opmaak, media en een taalkeuze. Zwaaien
+  blijft een aparte knop ernaast: een zwaai is een seintje, geen antwoord.
+
+### Opgelost
+- **Mensen op privacy-strenge servers kunnen je weer volgen.** Sommige servers
+  geven de publieke sleutel van een account alleen aan een ondertekend verzoek.
+  Klonkt vroeg zonder handtekening, werd geweigerd, en kon daardoor het
+  volgverzoek dat net binnenkwam niet controleren — dus werd dat afgewezen, en
+  bleef de andere server het dagenlang opnieuw proberen. Klonkt ondertekent die
+  navraag nu, en die volgers komen erdoor. Dit raakte ook al het andere dat bij
+  zo'n server werd opgehaald: profielen, posts en reacties.
+- **Reacties van anderen komen nu in de draad aan.** Reageerde iemand op een
+  post in een gesprek waar jij bij zat, dan stuurde hun server die reactie naar
+  je door — en werd hij geweigerd, omdat een doorsturende server met zijn eigen
+  sleutel ondertekent en niet met die van de schrijver. Threads waren daardoor
+  aan jouw kant stilletjes onvolledig. Zo'n reactie wordt nu bij de bron
+  gecontroleerd in plaats van afgewezen: de post wordt opgehaald bij de server
+  die hem herbergt, en alleen wat daarvandaan komt wordt bewaard. Een
+  doorgestuurde verwijdering wordt nog steeds geweigerd, want een verwijderde
+  post valt niet te controleren.
+- **Een like of boost ziet er overal hetzelfde uit.** Dezelfde post kon in de
+  Krant als geliket verschijnen en op de interact-pagina als niet-geliket, omdat
+  allebei een eigen administratie bijhielden. Er is er nu één, dus de knoppen
+  zijn het eens — ook voor alles wat je vóór deze versie al had gereageerd; dat
+  wordt bij het bijwerken van de site automatisch meegenomen.
+- **Een like vanuit een app blijft nu staan.** Een like die je in Shaer gaf werd
+  wel opgeslagen, maar de app kreeg dat nooit terug, dus het hartje sprong bij de
+  eerste herlaadbeurt weer uit — en omdat de app de like nooit zag, kon hij hem
+  alleen opnieuw geven en nooit intrekken. Un-liken vanuit een app werkt nu.
+
+### Beveiliging
+
+- **Bijgewerkte onderdelen sluiten zeven beveiligingsadviezen.** Het zwaarste
+  zat in de bibliotheek die berichten van elders opschoont: een zorgvuldig
+  opgebouwd bericht kon daar een script langs krijgen, en een script dat op jouw
+  pagina draait kan doen alsof het jou is. Tegelijk ging de mailafhandeling drie
+  hoofdversies vooruit, wat een reeks gaten rond verzenden dichtte — waaronder
+  een waarbij een geprepareerde naam commando's het gesprek met de mailserver in
+  kon smokkelen, en een waarbij een bericht bij een ander domein kon belanden
+  dan het geadresseerde. Aan hoe Klonkt eruitziet of werkt verandert dit niets.
+  Eén advies blijft bewust staan: het gaat over een manier om identifiers te
+  maken die Klonkt niet gebruikt.
+
 ## [1.6.0] · 2026-07-31
 
 ### Toegevoegd

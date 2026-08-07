@@ -29,7 +29,16 @@ cat > /usr/local/bin/klonkt-update <<EOF
 set -euo pipefail
 D="${KLONKT_DIR}"
 B=\$(runuser -u ${KLONKT_USER} -- git -C "\$D" rev-parse HEAD 2>/dev/null || true)
-runuser -u ${KLONKT_USER} -- git -C "\$D" fetch --depth 1 origin ${BRANCH}
+# Deepen a shallow checkout ONCE. \`fetch --depth 1\` keeps only the newest commit
+# and \`checkout -f\` throws away the tree that was there, so after an update the
+# previous version existed nowhere on the machine: a bad release could not be
+# undone without the network, and only if you knew which commit to ask for.
+# One deepening buys back the history; every later fetch keeps it.
+if [ "\$(runuser -u ${KLONKT_USER} -- git -C "\$D" rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
+  echo "deepening the checkout once so updates can be rolled back..."
+  runuser -u ${KLONKT_USER} -- git -C "\$D" fetch --unshallow origin ${BRANCH} || true
+fi
+runuser -u ${KLONKT_USER} -- git -C "\$D" fetch origin ${BRANCH}
 runuser -u ${KLONKT_USER} -- git -C "\$D" checkout -qf -B ${BRANCH} FETCH_HEAD
 A=\$(runuser -u ${KLONKT_USER} -- git -C "\$D" rev-parse HEAD)
 if [ "\$B" = "\$A" ]; then
@@ -53,6 +62,15 @@ if [ "\$N" = 0 ]; then
   echo "Klonkt updated (\$A) + restarted."
 else
   echo "Klonkt updated (\$A) + restarted \$N instance(s)."
+fi
+# History alone is not a rollback; at three in the morning you also need the
+# command. Print it while the previous commit is still known.
+if [ -n "\$B" ]; then
+  echo
+  echo "Previous version: \$B"
+  echo "To go back:"
+  echo "  runuser -u ${KLONKT_USER} -- git -C \$D checkout -qf -B ${BRANCH} \$B"
+  echo "  then restart the instances (systemctl restart 'klonkt@*')"
 fi
 EOF
 chmod +x /usr/local/bin/klonkt-update

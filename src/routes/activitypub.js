@@ -252,7 +252,7 @@ function queueRoute(name, build) {
   });
 }
 queueRoute('offers', (id, slug, me) => Guardianship.offersCollection(id, slug, me));
-queueRoute('follows', (id) => Guardianship.followsCollection(id));
+queueRoute('follows', (id, slug, me) => Guardianship.followsCollection(id, slug, me));
 // §5.3 turned around (shaer-p729): what this ward has asked to follow, still
 // waiting on its guardians. Owner-only like the rest — who a child wants to
 // follow is nobody else's business.
@@ -267,10 +267,42 @@ queueRoute('guardians', (id, slug) => Guardianship.guardiansCollection(id, slug)
 // scoped to this site) reads recent inbound posts (the timeline: accounts
 // they follow) as Create(Note) items, so an app (Shaer) can build a unified
 // feed. Anyone else gets 403; the inbox stays write-only for the public.
-router.get('/ap/users/:slug/inbox', (req, res) => {
+router.get('/ap/users/:slug/inbox', async (req, res) => {
   const auth = OAuth.verifyBearer(req.headers.authorization);
   if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
   const base = baseUrl(req);
+  // Wachten is een UITBREIDING van deze lezing, geen tweede endpoint (shaer-n05).
+  // Geef `since` (de shaer:cursor van je vorige antwoord) en `wait` mee, en het
+  // antwoord blijft hangen tot er iets is of de tijd om is. Zonder die twee
+  // gedraagt de route zich exact zoals altijd.
+  //
+  // Bewust hetzelfde antwoord in plaats van een "er is nieuws"-seintje: dan
+  // hoeft er niets nieuws geparsed te worden, is er geen tweede beschrijving van
+  // de kaartvorm die uit de pas kan lopen, en scheelt het de client een tweede
+  // ronde.
+  const wachtS = Math.min(Math.max(parseInt(req.query.wait, 10) || 0, 0), 50);
+  if (req.query.since && wachtS > 0) {
+    const afbreken = new AbortController();
+    res.on('close', () => afbreken.abort());   // client hing op: niet doorgaan met wachten
+    const uit = await AP.waitForFeedChange(auth.site.slug, {
+      since: String(req.query.since), waitMs: wachtS * 1000, signal: afbreken.signal,
+    });
+    if (res.writableEnded || afbreken.signal.aborted) return undefined;
+    // Niets veranderd? Dan een LEEG antwoord (Barts punt): de hele collectie
+    // terugsturen terwijl er niets gebeurd is, is elke 25 seconden een tijdlijn
+    // over de mobiele verbinding voor niets. Met 304 kost stilte niets en kost
+    // nieuws nog steeds maar één rondje -- beter dan een apart seintje-endpoint,
+    // dat voor nieuws twee rondjes nodig heeft.
+    //
+    // De '0'-uitzondering is geen franje. Ontbreekt ap_feed_state (een instance
+    // die de migratie nog niet draaide), dan geeft feedCursor altijd '0' terug,
+    // en zou een client hier eeuwig 304 krijgen en nooit meer inhoud zien. Bij
+    // een lege merksteen sturen we dus gewoon de collectie.
+    if (!uit.changed && uit.cursor !== '0') {
+      res.set('Vary', 'Authorization');
+      return res.status(304).end();
+    }
+  }
   // Gated feature (FEP-633c): may this account see EXTERNAL embeds? A ward's
   // world outside the fediverse is the guardians' call. The gate is applied
   // here, at serialisation: a blocked embed is never sent, because an embed the
@@ -284,7 +316,12 @@ router.get('/ap/users/:slug/inbox', (req, res) => {
   // the app knows what it may offer instead of guessing.
   const playbackAllowed = embedsAllowed
     && Guardianship.externalPlaybackAllowed(auth.site.external_playback, isWard);
-  const posts = AP.getTimeline(auth.site.slug, 60).map((t) => ({
+  const rows = AP.getTimeline(auth.site.slug, 60);
+  // Eén query voor de hele pagina (shaer-9e9 fase 2): shaer:liked komt uit de
+  // tussentabel, de bron van waarheid, en niet meer uit de afgeleide kolom op
+  // ap_timeline. Per rij vragen zou hier een N+1 opleveren.
+  const reacties = AP.getReactionsFor(auth.site.slug, rows.map((t) => t.id));
+  const posts = rows.map((t) => ({
     id: `${t.id}#create`,
     type: 'Create',
     actor: t.author_uri,
@@ -332,8 +369,8 @@ router.get('/ap/users/:slug/inbox', (req, res) => {
       } : undefined,
       // Whether THIS account already liked/boosted the note, so the app's
       // detail-view buttons show the current state (and can toggle/undo).
-      'shaer:liked': !!t.liked,
-      'shaer:boosted': !!t.boosted,
+      'shaer:liked': !!(reacties.get(t.id) || {}).liked,
+      'shaer:boosted': !!(reacties.get(t.id) || {}).boosted,
       // An external (non-fediverse) embed, thumbnail-only and never an iframe.
       // Omitted entirely when the gate is closed (see above).
       // Carries shaer:playerUrl only when the playback gate is open too.
@@ -438,9 +475,14 @@ router.get('/ap/users/:slug/inbox', (req, res) => {
       // and not just the picture over it.
       'shaer:externalLinks': playbackAllowed,
     },
+    // Het merk van wat hierin zit. Geef hem terug als `since` om op het
+    // volgende te wachten. NA het samenstellen bepaald, zodat hij precies dekt
+    // wat je in handen hebt en niet iets dat er ondertussen bij kwam.
+    'shaer:cursor': AP.feedCursor(auth.site.slug),
     totalItems: items.length,
     orderedItems: items,
   });
+  return undefined;
 });
 
 // ── uploadMedia (owner only, AP C2S) ──────────────────────────────

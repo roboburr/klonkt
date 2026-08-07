@@ -626,6 +626,21 @@ export function notificationsSeenAt(slug) {
 // every notification PLUS your own outbound replies ('sent', with edit/delete via their
 // outboxId), sorted as one stream. Consecutive likes/boosts on the same post collapse into
 // one grouped item (actors list + count) so activity doesn't drown out conversations.
+/** ap_outbox.attachments ([{url, mediaType, name}]) naar de vorm die note-body
+ *  leest (media_json: [{url, type, name}]). Geeft null bij niets of rommel,
+ *  zodat een kapotte kolom hooguit media kost en niet de hele regel. */
+function outboxMediaJson(attachments) {
+  if (!attachments) return null;
+  try {
+    const list = JSON.parse(attachments);
+    if (!Array.isArray(list) || !list.length) return null;
+    const media = list
+      .filter((a) => a && a.url)
+      .map((a) => ({ url: a.url, type: a.mediaType || a.type || '', name: a.name || undefined }));
+    return media.length ? JSON.stringify(media) : null;
+  } catch { return null; }
+}
+
 export function getMessages(slug, limit, offset) {
   const off = Math.max(0, offset || 0);
   const lim = limit || 60;
@@ -637,11 +652,32 @@ export function getMessages(slug, limit, offset) {
   try {
     for (const m of listOutbox(slug).slice(0, need)) {
       items.push({
-        type: 'sent', outboxId: m.id, to_handle: m.to_handle, in_reply_to: m.in_reply_to,
-        content: m.content, editable: m.editable, language: m.language, created_at: m.created_at,
+        type: 'sent', outboxId: m.id, to_handle: m.to_handle, to_actor: m.to_actor, to_actors: m.to_actors,
+        in_reply_to: m.in_reply_to, post_slug: m.post_slug, content: m.content,
+        editable: m.editable, language: m.language, created_at: m.created_at,
+        // Je eigen bericht hoort er hetzelfde uit te zien als dat van een ander:
+        // note-body rendert Berichten, de Krant en de Guardian-PWA, maar leest
+        // media uit media_json met een `type`, terwijl ap_outbox ze als
+        // `attachments` met een `mediaType` bewaart. Zonder deze vertaling kwam
+        // een foto die JIJ meestuurde als kale tekst binnen.
+        media_json: outboxMediaJson(m.attachments),
       });
     }
   } catch { /* ignore */ }
+  // Een verzonden antwoord kent zijn post_slug maar niet de titel (ap_outbox
+  // bewaart die niet). Zonder titel toont een draad waarin JIJ als enige iets
+  // zei alleen een slug, dus vullen we ze in één query aan.
+  try {
+    const missing = [...new Set(items.filter((i) => i.post_slug && !i.post_title).map((i) => i.post_slug))];
+    if (missing.length) {
+      const rows = db.prepare(
+        `SELECT slug, title FROM posts WHERE slug IN (${missing.map(() => '?').join(',')})
+           AND site_id = (SELECT id FROM sites WHERE slug = ?)`,
+      ).all(...missing, slug);
+      const byslug = new Map(rows.map((r) => [r.slug, r.title]));
+      for (const i of items) if (i.post_slug && !i.post_title) i.post_title = byslug.get(i.post_slug) || null;
+    }
+  } catch { /* zonder titel valt de draad terug op de slug */ }
   items.sort((a, b) => _msgTs(b) - _msgTs(a)); // NaN-safe (zie getNotifications)
   const out = [];
   for (const it of items) {
@@ -655,7 +691,114 @@ export function getMessages(slug, limit, offset) {
     }
     out.push(it);
   }
-  return out.slice(off, off + lim);
+  // Antwoorden, mentions en je eigen verzonden berichten vouwen samen tot
+  // draden; likes/boosts/follows/reports blijven losse regels. Na deze stap
+  // telt een draad als één item voor de paginering, wat klopt: je scrolt door
+  // gesprekken, niet door losse zinnen.
+  return groupConversations(out).slice(off, off + lim);
+}
+
+// De drie soorten die samen een gesprek vormen. Vroeger zaten ze in drie
+// aparte chips: 'reply' en 'mention' onder Berichten/Gesprekken (afhankelijk van
+// de zichtbaarheid) en 'sent' onder Verzonden. Wie een uitwisseling wilde volgen
+// moest dus tussen chips heen en weer, terwijl het één draad is.
+const CONV_TYPES = new Set(['reply', 'mention', 'sent']);
+
+/** Waar hangt dit bericht aan? Twee soorten draden, en de volgorde telt:
+ *
+ *  1. Aan een post van jou. Een ontvangen antwoord kent zijn post via de join
+ *     op `posts`, een verzonden antwoord via ap_outbox.post_slug. Dat is
+ *     dezelfde sleutel, en daarom staan ze nu in dezelfde draad.
+ *  2. Aan een persoon. Een mention hangt aan niets van jou (het is iemands
+ *     eigen post waarin je genoemd wordt) en heeft geen post_slug; die draad
+ *     loopt per tegenpartij.
+ *
+ *  De post wint van de persoon: twee mensen die onder dezelfde post reageren
+ *  voeren één gesprek, geen twee. Geeft null terug voor alles wat geen gesprek
+ *  is (likes, boosts, follows, reports, poll-uitslagen); die stromen ongemoeid
+ *  door.
+ */
+export function threadKey(it) {
+  if (!it || !CONV_TYPES.has(it.type)) return null;
+  if (it.post_slug) return `post:${it.post_slug}`;
+  let who = it.handle || it.to_handle || '';
+  // Een direct bericht kan zonder to_handle in de tabel staan (de handle van de
+  // ontvanger was niet af te leiden). De eerste uit to_actors is dan alsnog de
+  // tegenpartij, en zonder deze terugval kreeg een gesprek dat JIJ begon geen
+  // draad -- precies het geval waarin het meest onlogisch is dat het los blijft.
+  if (!who && it.to_actors) {
+    try {
+      const first = JSON.parse(it.to_actors)[0];
+      if (first) who = deriveHandle(first);
+    } catch { /* geen bruikbare lijst → geen sleutel, het blijft een losse regel */ }
+  }
+  const norm = String(who || '').trim().toLowerCase().replace(/^@/, '');
+  return norm ? `actor:${norm}` : null;
+}
+
+/** Vouw losse berichten samen tot draden, met alles wat geen gesprek is
+ *  ongemoeid ertussen. Verwacht [items] al gesorteerd op created_at aflopend
+ *  (zoals getMessages ze aanlevert); de draad komt daardoor op de plek van zijn
+ *  nieuwste bericht te staan en `created_at` van de draad IS dat bericht. Binnen
+ *  de draad draait het om: een gesprek leest naar beneden, oud naar nieuw.
+ */
+export function groupConversations(items) {
+  const threads = new Map();
+  const out = [];
+  for (const it of items || []) {
+    const key = threadKey(it);
+    if (!key) { out.push(it); continue; }
+    let t = threads.get(key);
+    if (!t) {
+      // Eerste keer dat we deze draad zien = het nieuwste bericht erin, want de
+      // invoer is aflopend gesorteerd. Vandaar created_at hier en niet later.
+      t = { type: 'thread', key, post: null, people: [], messages: [], created_at: it.created_at };
+      threads.set(key, t);
+      out.push(t);
+    }
+    t.messages.push(it);
+    // De context bij de draad: gaat het over een post, dan hoort de link
+    // erbij, anders is een los antwoord in een lijst niet te plaatsen.
+    // De titel blijft LEEG zolang hij onbekend is, in plaats van terug te
+    // vallen op de slug: het nieuwste bericht in een draad is vaak je eigen
+    // verzonden antwoord, en dat kent alleen de slug. Zou die de titel worden,
+    // dan kan het ontvangen antwoord eronder de echte titel niet meer
+    // invullen. De terugval op de slug hoort in de weergave, niet in de data.
+    if (it.post_slug) {
+      if (!t.post) t.post = { slug: it.post_slug, title: it.post_title || null };
+      else if (!t.post.title && it.post_title) t.post.title = it.post_title;
+    }
+  }
+  for (const t of threads.values()) {
+    t.messages.sort((a, b) => _msgTs(a) - _msgTs(b));
+    t.count = t.messages.length;
+    // Wie zit er in dit gesprek, jij niet meegerekend: 'sent' ben jij.
+    const seen = new Set();
+    for (const m of t.messages) {
+      if (m.type === 'sent') continue;
+      const h = m.handle || m.name;
+      if (!h || seen.has(h)) continue;
+      seen.add(h);
+      t.people.push({ name: m.name, handle: m.handle, icon: m.icon, url: m.url });
+    }
+    // Heb JIJ in deze draad iets gezegd? Bepaalt of hij als uitwisseling of als
+    // onbeantwoord bericht leest.
+    t.mine = t.messages.some((m) => m.type === 'sent');
+    // Waar gaat een antwoord uit deze draad heen? Twee paden, en ze sluiten
+    // elkaar uit: hangt de draad aan een post, dan antwoord je op het NIEUWSTE
+    // ontvangen bericht erin (dat is de parent van de thread) -- anders is het
+    // een direct bericht aan de tegenpartij.
+    const inkomend = t.messages.filter((m) => m.type !== 'sent');
+    const laatste = inkomend[inkomend.length - 1];
+    t.replyTo = {
+      interactionId: (laatste && laatste.interactionId) || null,
+      postSlug: (t.post && t.post.slug) || null,
+      actorUri: (laatste && (laatste.actorUri || laatste.url))
+        || (t.messages.find((m) => m.to_actor) || {}).to_actor
+        || (() => { try { return JSON.parse((t.messages.find((m) => m.to_actors) || {}).to_actors || '[]')[0] || null; } catch { return null; } })(),
+    };
+  }
+  return out;
 }
 
 export function buildCreate(base, site, post) {
@@ -1042,16 +1185,29 @@ export function getInteractions(postId, base, site) {
   const siteUrl = baseClean ? `${baseClean}/` : '';
   const siteIcon = (site && site.profile_photo) || null;
 
+  // Wat JIJ met deze reacties deed komt uit de tussentabel, niet meer uit
+  // acted_* (shaer-ipb). Eén batch-lookup, want een drukke thread zou anders een
+  // N+1 worden. De sleutel loopt door canonicalReactionUri, precies zoals aan de
+  // schrijfkant -- staat dezelfde note toevallig ook in je tijdlijn, dan is het
+  // één feit en niet twee knoppen die los van elkaar aan kunnen staan.
+  const mijnSleutel = new Map();
+  for (const r of rows) {
+    if (r.kind === 'reply' && r.object_uri) mijnSleutel.set(r.object_uri, canonicalReactionUri(site && site.slug, r.object_uri));
+  }
+  const mijn = getReactionsFor(site && site.slug, [...mijnSleutel.values()]);
+  const mijnReactie = (uri) => mijn.get(mijnSleutel.get(uri)) || { liked: false, boosted: false };
+
   const nodes = [];
   for (const r of rows) {
     if (r.kind !== 'reply') continue;
+    const ik = mijnReactie(r.object_uri);
     nodes.push({
       noteId: r.object_uri, parent: r.parent_uri || null, mine: false, id: r.id,
       actor_uri: r.actor_uri,
       actor_name: r.actor_name, actor_handle: r.actor_handle, actor_url: r.actor_url,
       actor_icon: r.actor_icon, content: stripLeadingMentions(r.content), created_at: r.published || r.created_at,
       emoji_json: r.emoji_json, actor_emoji_json: r.actor_emoji_json,   // FEP-9098 (thread render)
-      acted_boost: !!r.acted_boost, acted_like: !!r.acted_like,
+      acted_boost: ik.boosted, acted_like: ik.liked,
       children: [],
     });
   }
@@ -1140,14 +1296,41 @@ export async function deliver(inboxUrl, bodyObj, keyId, privatePem) {
   return r.status;
 }
 
-export async function fetchActor(url) {
+export async function fetchActor(url, opts = {}) {
+  // Authorized fetch (Mastodons secure mode): zo'n instance serveert zijn
+  // actor-document -- en dus zijn publieke sleutel -- alleen aan een ONDERTEKEND
+  // verzoek en antwoordt anders met 401. Zonder sleutel kunnen we een correct
+  // ondertekende Follow van die instance niet verifiëren en wijzen we hem af,
+  // waarna Mastodon het dagenlang blijft proberen. Gemeten op boiert.eu: vier
+  // accounts eindeloos geweigerd, en precies die vier geven 401 op een
+  // onbetekende GET (shaer-afq).
+  //
+  // Geen kip-ei: om ONZE handtekening te controleren haalt de andere kant ons
+  // actor-document op, en dat serveert Klonkt publiek.
+  //
+  // ONBETEKEND EERST, en dat is een veiligheidskeuze en geen optimalisatie.
+  // verifyRequest haalt de keyId-URL op VOORDAT er iets geverifieerd is, en die
+  // URL komt uit een header die iedereen mag sturen. Tekenden we dat verzoek
+  // standaard, dan kan een volslagen onbekende ons een ONDERTEKEND verzoek laten
+  // sturen naar een adres van zijn keuze -- met onze identiteit eronder. Dat is
+  // precies hoe een instance op een blocklist belandt. Ondertekenen doen we dus
+  // pas als het onbetekend niet lukt, en dan alleen voor deze ene URL.
+  let doc = null;
   try {
     const r = await safeFetch(url, { headers: { Accept: 'application/activity+json' } });
-    if (!r.ok) return null;
-    const len = Number(r.headers.get('content-length') || 0);
-    if (len > 2_000_000) return null; // refuse oversized actor docs
-    return await r.json();
-  } catch { return null; }
+    if (r.ok) {
+      const len = Number(r.headers.get('content-length') || 0);
+      if (len > 2_000_000) return null; // refuse oversized actor docs
+      doc = await r.json();
+    }
+  } catch { /* val door naar de ondertekende poging */ }
+  // Genoeg? Dan klaar. Sommige instances serveren onbetekend wel een document
+  // maar zonder sleutel; voor een verificatie hebben we daar niets aan, dus die
+  // telt als mislukt.
+  if (doc && (!opts.asSlug || (doc.publicKey && doc.publicKey.publicKeyPem))) return doc;
+  if (!opts.asSlug) return doc;
+  const signed = await signedGetJson(opts.asSlug, url).catch(() => null);
+  return (signed && signed.id) ? signed : doc;
 }
 
 // ── Delivery queue with retries ───────────────────────────────────
@@ -1224,17 +1407,31 @@ export function startDeliveryWorker() {
   if (_delivTimer.unref) _delivTimer.unref();
 }
 
+/** Een lokale site om GETs mee te ondertekenen wanneer er geen specifieke is
+ *  (de gedeelde inbox). Gecached: dit draait per binnenkomend verzoek. */
+let _signSlug;
+function anySigningSlug() {
+  if (_signSlug !== undefined) return _signSlug;
+  try { const r = db.prepare('SELECT slug FROM sites ORDER BY rowid LIMIT 1').get(); _signSlug = (r && r.slug) || null; }
+  catch { _signSlug = null; }
+  return _signSlug;
+}
+
 // Best-effort verification of an incoming signed request. Returns the sender's
 // actor doc if the signature checks out, else null. (Not gating yet — MVP.)
 // Max clock skew for the signed Date header (replay window). Generous default to tolerate
 // federating servers with drifting clocks; an operator can widen it via env.
 const SIG_MAX_SKEW_MS = (Number(process.env.AP_SIG_MAX_SKEW_MIN) || 60) * 60 * 1000;
-export async function verifyRequest(req) {
+export async function verifyRequest(req, asSlug = null) {
   const sigH = req.headers['signature'];
   if (!sigH) return null;
   const p = Object.fromEntries([...sigH.matchAll(/([a-zA-Z]+)="([^"]*)"/g)].map((m) => [m[1], m[2]]));
   if (!p.keyId || !p.signature) return null;
-  const actor = await fetchActor(p.keyId.split('#')[0]);
+  // Onderteken de sleutel-ophaal, anders faalt elke instance met authorized
+  // fetch (shaer-afq). Zonder aangewezen site -- de gedeelde inbox -- tekenen we
+  // als een willekeurige lokale actor: elke Klonkt-actor is een geldige
+  // ondertekenaar, het gaat de andere kant er alleen om DAT er ondertekend is.
+  const actor = await fetchActor(p.keyId.split('#')[0], { asSlug: asSlug || anySigningSlug() });
   const pem = actor && actor.publicKey && actor.publicKey.publicKeyPem;
   if (!pem) return null;
   // Bind the key to the actor it speaks for. Without this we hand back whatever
@@ -1494,6 +1691,159 @@ function pushPostCtx(postId) {
   } catch { return null; }
 }
 
+/**
+ * Een DOORGESTUURDE activiteit alsnog verifiëren (shaer-s8k).
+ *
+ * Reageert iemand in een thread, dan stuurt de server van de oorspronkelijke
+ * poster die reactie door naar de deelnemers -- en ondertekent met zijn EIGEN
+ * sleutel. De handtekening klopt dan, maar de ondertekenaar is niet de auteur,
+ * dus de gate hieronder wees hem af. Gevolg: reacties van derden kwamen niet
+ * binnen, zonder dat iemand een fout zag.
+ *
+ * Mastodon lost dit op met een LD-Signature over de payload. Dat vraagt
+ * JSON-LD-canonicalisatie; wij doen het lichter en strenger: we geloven de
+ * bezorgde inhoud NIET en halen het object op bij de bron.
+ *
+ * Vier voorwaarden, en geen ervan is optioneel:
+ *
+ *  1. Alleen Create en Update. Een doorgestuurde Delete is per definitie niet te
+ *     dereferencen -- het object is weg -- dus die blijft geweigerd.
+ *  2. De host van de object-id MOET die van de geclaimde actor zijn. Zonder dit
+ *     anker wijst een doorsturer je naar een host die hij zelf beheert, waar
+ *     attributedTo alles kan beweren.
+ *  3. Het OPGEHAALDE object wordt gebruikt, niet de bezorgde payload. Anders
+ *     levert een doorsturer een echt id met verdraaide inhoud.
+ *  4. Mislukt het ophalen, of wijst het object zichzelf niet toe aan de
+ *     geclaimde actor, dan blijft het een weigering. Geen twijfelgeval opslaan.
+ */
+/** Kennen we deze note? Een eigen post, een eigen outbox-antwoord, een
+ *  gecachete post in de tijdlijn, of een reactie die al in een thread van ons
+ *  staat. Alle vier zijn een geldige reden dat iemand ons een antwoord daarop
+ *  doorstuurt; iets anders is dat niet. */
+function knownNoteUri(uri) {
+  if (!uri || typeof uri !== 'string') return false;
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  try {
+    if (base && uri.startsWith(`${base}/ap/notes/`)) {
+      const seg = decodeURIComponent(uri.slice(`${base}/ap/notes/`.length).split(/[?#]/)[0]);
+      if (db.prepare('SELECT 1 FROM ap_outbox WHERE id = ?').get(seg)) return true;
+      if (db.prepare('SELECT 1 FROM posts WHERE id = ?').get(seg)) return true;
+    }
+    if (db.prepare('SELECT 1 FROM ap_timeline WHERE id = ? LIMIT 1').get(uri)) return true;
+    if (db.prepare('SELECT 1 FROM ap_interactions WHERE object_uri = ? LIMIT 1').get(uri)) return true;
+    // Een antwoord dat we al bezorgd kregen van iemand die we volgen (shaer-e9g).
+    if (db.prepare('SELECT 1 FROM ap_seen_notes WHERE uri = ? LIMIT 1').get(uri)) return true;
+  } catch { /* bij twijfel niet ophalen */ }
+  return false;
+}
+
+/**
+ * Onthoud dat we dit bericht al eens bezorgd kregen.
+ *
+ * Alleen de URI. Geen inhoud, niets op het scherm, geen tweede weergave -- dit
+ * beantwoordt uitsluitend de vraag "kennen wij dit bericht?" die knownNoteUri
+ * stelt voordat er iets bij de bron wordt opgehaald.
+ *
+ * De beller bepaalt WIE er onthouden wordt, en dat is de hele veiligheidsvraag:
+ * onthouden we zomaar alles wat iemand aflevert, dan kan een vreemde eerst een
+ * bericht neerleggen en daarna met een doorgestuurd antwoord dáárop ons naar een
+ * adres van zijn keuze sturen. Vandaar dat handleInbox dit alleen doet voor
+ * schrijvers die je zelf volgt.
+ */
+const SEEN_NOTES_DAYS = 30;
+let _seenSinceSnoei = 0;
+function rememberNoteUri(uri) {
+  if (!uri || typeof uri !== 'string') return;
+  try {
+    db.prepare('INSERT OR IGNORE INTO ap_seen_notes (uri) VALUES (?)').run(uri);
+    // Af en toe opruimen, niet bij het opstarten: een server die weken doorloopt
+    // zou anders nooit snoeien. Doorsturen gebeurt kort na het antwoord, dus wat
+    // ouder is dan een maand beantwoordt geen enkele vraag meer.
+    if (++_seenSinceSnoei >= 500) {
+      _seenSinceSnoei = 0;
+      const r = db.prepare(`DELETE FROM ap_seen_notes WHERE created_at < datetime('now', '-${SEEN_NOTES_DAYS} days')`).run();
+      if (r.changes) console.log(`[AP] seen notes: ${r.changes} pruned`);
+    }
+  } catch { /* niet fataal */ }
+}
+const isFollowedActor = (uri) => {
+  try { return !!db.prepare('SELECT 1 FROM ap_following WHERE actor_uri = ? LIMIT 1').get(uri); } catch { return false; }
+};
+
+// Mislukte dereferences kort onthouden. Mastodon herhaalt een bezorging
+// dagenlang; zonder dit doet elke herhaling de fetch opnieuw, ook als die de
+// vorige twintig keer niets opleverde. Dempt meteen de scherpte van misbruik.
+const _derefMiss = new Map();
+const DEREF_MISS_MS = 30 * 60 * 1000;
+function derefRecentlyFailed(uri) {
+  const t = _derefMiss.get(uri);
+  if (t === undefined) return false;
+  if (Date.now() - t > DEREF_MISS_MS) { _derefMiss.delete(uri); return false; }
+  return true;
+}
+function noteDerefFailure(uri) {
+  if (_derefMiss.size > 500) {   // simpele begrenzing: oudste helft eruit
+    const oud = [..._derefMiss.entries()].sort((a, b) => a[1] - b[1]).slice(0, 250);
+    for (const [k] of oud) _derefMiss.delete(k);
+  }
+  _derefMiss.set(uri, Date.now());
+}
+
+async function dereferenceForwarded(act, claimedActor, type, slugParam) {
+  // Every exit states its reason. Five of the six used to return silently, so a
+  // rejection count could not be told apart from a narrowing that closed too far
+  // — and that is exactly the measurement shaer-drf is waiting for. Bounded by
+  // the signer-mismatch rate (tens per hour), so this is not a noisy log.
+  const skipped = (reason, detail) => {
+    console.log(`[AP] inbox forwarded, skipped (${reason}):`, claimedActor, detail || '');
+    return null;
+  };
+  if (type !== 'Create' && type !== 'Update') return skipped('not Create/Update', type);
+  const o = act && act.object;
+  const objId = typeof o === 'string' ? o : (o && o.id);
+  if (!objId || typeof objId !== 'string' || !/^https:\/\//i.test(objId)) return skipped('no https object id', objId || '(none)');
+  try {
+    if (new URL(objId).host !== new URL(claimedActor).host) return skipped('host anchor', objId);   // ankereis
+  } catch { return skipped('unparsable id', objId); }
+  // Alleen dereferencen als het object beweert een antwoord te zijn op iets van
+  // ONS (shaer-drf). Zonder die eis zijn claimedActor en object.id allebei door
+  // de aanvaller gekozen en eist het host-anker alleen dat ze aan elkaar gelijk
+  // zijn -- dan kan iedereen met een werkende actor ons naar elke URL sturen.
+  // Doorsturen bestaat juist omdát wij in de thread zitten, dus deze eis kost
+  // niets aan legitiem verkeer waarvan we de ouder kennen.
+  const parent = typeof o === 'object' && o
+    ? (typeof o.inReplyTo === 'string' ? o.inReplyTo : (o.inReplyTo && o.inReplyTo.id))
+    : null;
+  if (!knownNoteUri(parent)) return skipped('unknown inReplyTo', parent || '(none)');
+  if (derefRecentlyFailed(objId)) return skipped('recent failure', objId);
+  // Onbetekend eerst; tekenen alleen als terugval. Anders kan een ander ons een
+  // ONDERTEKEND verzoek naar een adres van zijn keuze laten sturen -- dezelfde
+  // reden als bij fetchActor sinds efe5633.
+  let fetched = await apGetJson(objId).catch(() => null);
+  if (!fetched || fetched.id !== objId) {
+    // The signer used to be slugParam, which is null on the shared inbox — and
+    // that is where forwarded traffic lands, because we advertise a sharedInbox.
+    // signedGetJson falls back to an unsigned GET for a null slug, so a source in
+    // secure mode could never be dereferenced at all. Same fix verifyRequest got
+    // in shaer-afq: any local actor is a valid signer.
+    const asSlug = slugParam || anySigningSlug();
+    if (asSlug) fetched = await signedGetJson(asSlug, objId).catch(() => null);
+  }
+  const attributed = fetched && (typeof fetched.attributedTo === 'string'
+    ? fetched.attributedTo
+    : (fetched.attributedTo && fetched.attributedTo.id));
+  if (!fetched || fetched.id !== objId) {
+    noteDerefFailure(objId);
+    return skipped('fetch failed', objId);
+  }
+  if (attributed !== claimedActor) {
+    // Not a transport hiccup: the source itself says someone else wrote this.
+    noteDerefFailure(objId);
+    return skipped('attributedTo mismatch', `${objId} claims ${attributed || '(none)'}`);
+  }
+  return fetched;
+}
+
 // Handle an incoming inbox POST. slugParam = null for the shared /ap/inbox.
 export async function handleInbox(req, slugParam, preVerified = null) {
   const act = req.body || {};
@@ -1507,7 +1857,7 @@ export async function handleInbox(req, slugParam, preVerified = null) {
   // check — but we do know who signed, because we signed it. Handing that in
   // keeps everything below identical, including the actor-versus-signer check,
   // which is exactly the check that must not be skipped for being local.
-  const verified = preVerified || await verifyRequest(req).catch(() => null);
+  const verified = preVerified || await verifyRequest(req, slugParam).catch(() => null);
 
   // ENFORCE HTTP signatures: a data-affecting activity must be signed by the very
   // actor it claims to be. No valid signature, or signer ≠ actor → reject (no
@@ -1517,8 +1867,26 @@ export async function handleInbox(req, slugParam, preVerified = null) {
   if (claimedActor && isBlockedAny(claimedActor)) { console.log('[AP] inbox dropped (blocked)', claimedActor, 'from', ip); return 202; }
   const GATED = ['Create', 'Like', 'Announce', 'Follow', 'Delete', 'Undo', 'Accept', 'Reject', 'Add', 'Remove', 'Update', 'Flag', 'Offer', 'Move'];
   if (GATED.includes(type)) {
-    if (!verified || !claimedActor || verified.id !== claimedActor) {
-      console.warn('[AP] inbox REJECTED (signature)', type, claimedActor || '?', 'from', ip, verified ? '(signer mismatch)' : '(unsigned/invalid)');
+    // Een geldige handtekening van iemand anders dan de auteur is doorsturen,
+    // geen vervalsing. Haal het object dan bij de bron op in plaats van het af
+    // te wijzen; lukt dat niet, dan valt het door naar de weigering hieronder.
+    let forwarded = null;
+    if (verified && claimedActor && verified.id !== claimedActor) {
+      forwarded = await dereferenceForwarded(act, claimedActor, type, slugParam).catch(() => null);
+      if (forwarded) {
+        act.object = forwarded;   // de OPGEHAALDE inhoud, niet de bezorgde
+        console.log('[AP] inbox forwarded, verified at the source:', type, claimedActor, 'via', verified.id);
+      }
+    }
+    if (!forwarded && (!verified || !claimedActor || verified.id !== claimedActor)) {
+      // Drie verschillende oorzaken, die eerder allemaal "unsigned/invalid"
+      // heetten: geen handtekening meegestuurd, wel een handtekening maar niet
+      // te verifiëren (meestal een opgeheven account waarvan de sleutel weg is),
+      // of geldig ondertekend door iemand anders.
+      const reden = verified ? '(signer mismatch)'
+        : (req.headers && req.headers.signature) ? '(signature present, unverifiable)'
+        : '(no signature)';
+      console.warn('[AP] inbox REJECTED (signature)', type, claimedActor || '?', 'from', ip, reden);
       return 401;
     }
     // One answer restores everything (FEP-633c 3.6): any VERIFIED activity
@@ -1808,10 +2176,33 @@ export async function handleInbox(req, slugParam, preVerified = null) {
         console.log('[AP] timeline +', actorUri, 'x' + subs.length);
       }
     }
+    // Een ANTWOORD van iemand die we volgen: bewaar de URI (shaer-e9g). Zo'n
+    // bericht komt hier gewoon binnen, ondertekend door de schrijver zelf, maar
+    // belongsInTimeline houdt het uit de Krant en daarna raakten we het kwijt.
+    // Kwam er later een doorgestuurd antwoord OP dat bericht, dan kenden we de
+    // ouder niet en wezen we het af -- terwijl we hem wel degelijk hadden gehad.
+    // Er verandert niets aan wat we tonen of van vreemden aannemen: de schrijver
+    // moet iemand zijn die je zelf bent gaan volgen.
+    if (actorUri && !isLocalActor && o.id && o.inReplyTo && noteVisibility(o) !== 'direct' && isFollowedActor(actorUri)) {
+      rememberNoteUri(o.id);
+    }
     // Mentioned in a post that is NOT a reply to our content (a reply to us already returned
     // above): store a mention notification for each of our actors named in the Mention tags.
     // Requires our own base prefix on the tag href — /ap/users/<slug> on a REMOTE host is
     // someone else's actor, not ours.
+    // Een markering op een hulpvraag (shaer-lgo): een mede-guardian laat weten
+    // dat hij ernaar kijkt, of dat het is afgehandeld. Gewone directe note met
+    // een shaer:-markering, net als de zwaai -- dus die komt hier langs. VOOR de
+    // mention-opslag, want dit is staat en geen bericht om te bewaren; de ward
+    // krijgt hem wel als bericht te lezen, en dat gebeurt hieronder.
+    if (actorUri && !isLocalActor) {
+      const mark = Guardianship.help.parseMarker(o);
+      if (mark) {
+        const ai = actorInfo(await resolveActor(actorUri).catch(() => null), actorUri);
+        Guardianship.help.record(mark.noteUri, actorUri, mark.kind, ai && ai.handle);
+        console.log('[AP] help', mark.kind, actorUri, '→', mark.noteUri);
+      }
+    }
     if (actorUri && !isLocalActor && o.id) {
       const slugs = localMentionSlugs(o.tag, base);
       if (slugs.length) {
@@ -2496,8 +2887,19 @@ export async function ingestOutboxActivity(site, user, activity) {
         const authorUri = note && note.actor_uri;
         const kind = type === 'Announce' ? 'boost' : 'like';
         await sendInteraction(site, kind, objUri, authorUri);
-        setMyReaction(site.slug, targetUri, kind, true);
-        if (type === 'Announce' && note) { try { upsertBoostedNote(site.slug, note); } catch { /* non-fatal */ } }
+        // Eén schrijfpad (shaer-9e9): tussentabel + afgeleide vlag in één keer.
+        // De note gaat mee zodat een boost de post je tijdlijn in trekt.
+        try { setReaction(site.slug, targetUri, kind, true, { flagUri: objUri, note: type === 'Announce' ? note : null }); }
+        catch { /* non-fatal: een reactie mag nooit de bezorging blokkeren */ }
+        // Een Like uit een app moet ook in ap_timeline.liked landen, want dat
+        // is wat de C2S-tijdlijn als shaer:liked teruggeeft. Zonder dit werd
+        // de reactie wel opgeslagen (setMyReaction, de webroute leest die),
+        // maar kreeg de app altijd liked:false terug: het hartje sprong bij de
+        // eerste herlaadbeurt uit, en un-liken kon niet meer -- de app bood
+        // alleen nog "Like" aan en stuurde bij elke tik een nieuwe Like.
+        // Anders dan bij een boost geen upsert: een like hoort een post niet
+        // in je tijdlijn te trekken, dus staat de post er niet in, dan is dit
+        // terecht een no-op.
         return { status: 202, url: objUri };
       }
       case 'Follow': {
@@ -2546,8 +2948,8 @@ export async function ingestOutboxActivity(site, user, activity) {
           const note = await resolveRemoteNote(innerTarget, { asSlug: site.slug }).catch(() => null);
           const objUri = (note && note.object_uri) || innerTarget;
           await sendInteraction(site, kind, objUri, note && note.actor_uri);
-          setMyReaction(site.slug, innerTarget, innerType === 'Announce' ? 'boost' : 'like', false);
-          if (innerType === 'Announce') { try { unmarkBoosted(site.slug, objUri); } catch { /* non-fatal */ } }
+          try { setReaction(site.slug, innerTarget, innerType === 'Announce' ? 'boost' : 'like', false, { flagUri: objUri }); }
+          catch { /* non-fatal */ }
           return { status: 202, url: objUri };
         }
         return { status: 400, error: 'unsupported_undo' };
@@ -2912,7 +3314,11 @@ function outboxEditableText(content) {
     .trim();
 }
 export function listOutbox(siteSlug) {
-  return db.prepare('SELECT id, content, to_handle, in_reply_to, language, created_at FROM ap_outbox WHERE site_slug = ? ORDER BY created_at DESC')
+  // post_slug reist mee sinds Berichten gesprekken toont: het is de sleutel
+  // waarop een verzonden antwoord bij de ontvangen antwoorden op dezelfde post
+  // gaat staan (zie threadKey). Zonder die kolom viel een uitwisseling uit
+  // elkaar in "Verzonden" en "Gesprekken".
+  return db.prepare('SELECT id, content, to_handle, to_actor, to_actors, post_slug, in_reply_to, attachments, language, created_at FROM ap_outbox WHERE site_slug = ? ORDER BY created_at DESC')
     .all(siteSlug).map((r) => { const c = stripLeadingMentions(r.content); return { ...r, content: c, editable: outboxEditableText(c) }; });
 }
 
@@ -3050,7 +3456,29 @@ function tlStmts() {
   }
   return { ins: _insTl, list: _listTl, del: _delTl };
 }
-export function getTimeline(slug, limit, offset) { return tlStmts().list.all(slug, limit || 50, offset || 0); }
+/**
+ * De tijdlijn, met liked/boosted uit de TUSSENTABEL (shaer-9e9).
+ *
+ * De rijen komen met SELECT *, dus ap_timeline.liked en .boosted liften mee --
+ * en die zijn sinds fase 1 nog maar een afgeleide. De Krant tekende zijn
+ * knoppen daar wel op, terwijl de toggle al uit getReaction besliste: tekenen en
+ * beslissen leunden dus op verschillende bronnen. Ze waren het eens zolang de
+ * migratie ze gelijk hield, maar dat was synchronisatie en geen ontwerp.
+ *
+ * Bewust in JS en niet als join: met SELECT * zouden twee kolommen `liked`
+ * heten en hangt het van de driver af welke wint. Eén extra query per pagina
+ * (dezelfde batch die de C2S-tijdlijn gebruikt) is dat niet waard.
+ */
+export function getTimeline(slug, limit, offset) {
+  const rows = tlStmts().list.all(slug, limit || 50, offset || 0);
+  const reacties = getReactionsFor(slug, rows.map((r) => r.id));
+  for (const r of rows) {
+    const x = reacties.get(r.id);
+    r.liked = !!(x && x.liked);
+    r.boosted = !!(x && x.boosted);
+  }
+  return rows;
+}
 
 /**
  * The direct notes addressed to this account: a plain DM, a guardian's wave
@@ -3084,6 +3512,88 @@ export function getReplyMessages(slug, limit) {
       WHERE s.slug = ? AND i.kind = 'reply'
       ORDER BY COALESCE(i.published, i.created_at) DESC LIMIT ?`).all(slug, limit || 60);
   } catch { return []; }
+}
+
+/**
+ * Een merk voor "is er iets veranderd aan wat de inbox-lezing zou opleveren?"
+ * (shaer-n05).
+ *
+ * Alle VIER de poten die de inbox samenvoegt tellen mee -- tijdlijn, berichten,
+ * antwoorden op je eigen posts, en wat je zelf verstuurde. Zou er een ontbreken,
+ * dan blijft een wachtende client slapen terwijl er wel degelijk iets is
+ * bijgekomen, en dat is erger dan niet wachten: het lijkt te werken.
+ *
+ * rowid en niet een tijdstempel: rowid loopt strikt op per invoeging, terwijl
+ * twee dingen in dezelfde seconde kunnen aankomen en een `published` van een
+ * andere server niet te vertrouwen is.
+ *
+ * Ondoorzichtig voor de client. Hij krijgt hem terug en geeft hem ongewijzigd
+ * mee; de vorm mag veranderen zonder dat dat iets breekt.
+ */
+export function feedCursor(slug) {
+  try {
+    const r = db.prepare('SELECT MAX(rev) AS n FROM ap_feed_state WHERE slug = ?').get(slug);
+    return String((r && r.n) || 0);
+  } catch { return '0'; }
+}
+
+/**
+ * Wat er sinds `rev` met deze tijdlijn gebeurd is: welke berichten er nieuw zijn,
+ * bewerkt, of weg.
+ *
+ * Nog niet gebruikt door een leespad -- de vorm van de aankomst is shaer-of7 en
+ * de "bewerkt"-markering is daar nog een open beslissing. Maar de gegevens
+ * ontstaan hoe dan ook bij het bijhouden van de merksteen, en dit is de enige
+ * plek waar ze samen te lezen zijn.
+ */
+export function feedChangesSince(slug, rev, limit = 200) {
+  try {
+    return db.prepare(`SELECT object_uri, kind, rev FROM ap_feed_state
+                        WHERE slug = ? AND rev > ? ORDER BY rev ASC LIMIT ?`)
+      .all(slug, parseInt(rev, 10) || 0, limit);
+  } catch { return []; }
+}
+
+// Zoveel clients mogen er tegelijk op EEN account staan wachten. Een client met
+// een kapotte herverbind-lus mag de instance niet vastzetten; de overtolligen
+// krijgen gewoon meteen antwoord in plaats van een fout.
+const FEED_WAIT_MAX = 4;
+const _wachters = new Map();
+
+/**
+ * Wacht tot de inbox-lezing iets anders zou opleveren dan bij `since`.
+ *
+ * Bewust met een interne tik en niet met een gebeurtenis-emitter. Een emitter
+ * moet op ELKE plek worden aangeroepen waar er iets bijkomt, en de plek die je
+ * vergeet is precies de melding die nooit aankomt. Twee tot vier MAX(rowid)-
+ * queries per seconde is niets, en dit kan niets missen. Prijs: hooguit een tik
+ * vertraging.
+ */
+export async function waitForFeedChange(slug, opts = {}) {
+  const tickMs = Math.max(50, opts.tickMs || 1000);
+  const waitMs = Math.max(0, opts.waitMs || 0);
+  const since = String(opts.since || '');
+  let cursor = feedCursor(slug);
+  // Geen sinds, al iets veranderd, of niet willen wachten: meteen antwoorden.
+  if (!since || since !== cursor || !waitMs) return { cursor, changed: !!since && since !== cursor, waited: false };
+
+  const bezet = _wachters.get(slug) || 0;
+  if (bezet >= FEED_WAIT_MAX) return { cursor, changed: false, waited: false, busy: true };
+  _wachters.set(slug, bezet + 1);
+  try {
+    const einde = Date.now() + waitMs;
+    while (Date.now() < einde) {
+      if (opts.signal && opts.signal.aborted) break;   // client hing op
+      const rest = Math.min(tickMs, einde - Date.now());
+      await new Promise((r) => setTimeout(r, rest));
+      cursor = feedCursor(slug);
+      if (cursor !== since) return { cursor, changed: true, waited: true };
+    }
+    return { cursor, changed: false, waited: true };
+  } finally {
+    const n = (_wachters.get(slug) || 1) - 1;
+    if (n > 0) _wachters.set(slug, n); else _wachters.delete(slug);
+  }
 }
 
 export function getDirectMessages(slug, limit) {
@@ -3242,10 +3752,15 @@ export function getCirkelPosts(slug, limit, offset) {
     // (t.boosted), mixed by date. One row per note in ap_timeline → no duplicates.
     if (!_cirkelPosts) _cirkelPosts = db.prepare(`
       SELECT t.id, t.author_uri, t.author_name, t.author_handle, t.author_icon, t.author_url,
-             t.content, t.url, t.published, t.media_json, t.boosted, t.nsfw, t.cw
+             t.content, t.url, t.published, t.media_json, t.nsfw, t.cw,
+             (rb.target_uri IS NOT NULL) AS boosted
       FROM ap_timeline t
       LEFT JOIN ap_following f ON f.slug = t.slug AND f.actor_uri = t.author_uri
-      WHERE t.slug = ? AND (f.auto_boost = 1 OR t.boosted = 1)
+      -- Uit de tussentabel, niet uit t.boosted: die kolom is een afgeleide. De
+      -- UNIQUE(site_slug, target_uri, kind) garandeert hoogstens één match, dus
+      -- deze join kan geen rijen verdubbelen.
+      LEFT JOIN ap_my_reactions rb ON rb.site_slug = t.slug AND rb.target_uri = t.id AND rb.kind = 'boost'
+      WHERE t.slug = ? AND (f.auto_boost = 1 OR rb.target_uri IS NOT NULL)
       ORDER BY COALESCE(t.published, t.created_at) DESC, t.rowid DESC
       LIMIT ? OFFSET ?`);
     return _cirkelPosts.all(slug, limit || 60, offset || 0);
@@ -3254,7 +3769,16 @@ export function getCirkelPosts(slug, limit, offset) {
 export function getCirkelMembers(slug) {
   try { if (!_cirkelMembers) _cirkelMembers = db.prepare('SELECT name, url, icon FROM ap_following WHERE slug = ? AND auto_boost = 1 ORDER BY name'); return _cirkelMembers.all(slug); } catch { return []; }
 }
-// Mark a timeline post as boosted so it shows in the Cirkel (mixed by date).
+// AFGELEIDE, GEEN BRON (shaer-9e9). De waarheid over "heb ik hierop gereageerd"
+// staat in ap_my_reactions; deze vlaggen worden daaruit bijgehouden door
+// setReaction en door niets anders. Roep ze niet los aan -- dan schrijf je de
+// helft, en dat is precies hoe shaer:liked maandenlang false bleef (04aca12).
+//
+// ap_timeline.boosted verdient zijn bestaan wel: hij staat in de WHERE van de
+// Cirkel-feed (getCirkelPosts) en in boostedCount, dus hij is een index en geen
+// kopie. ap_timeline.liked wordt nergens als verzameling bevraagd en kan weg
+// zodra fase 2 lang genoeg goed staat; hij is nu nog het vangnet waarmee
+// terugdraaien een code-revert blijft in plaats van dataherstel.
 let _markBoost, _unmarkBoost, _boostedCount;
 export function markBoosted(slug, noteId) {
   try { if (!_markBoost) _markBoost = db.prepare('UPDATE ap_timeline SET boosted = 1 WHERE slug = ? AND id = ?'); _markBoost.run(slug, noteId); } catch { /* ignore */ }
@@ -3269,6 +3793,209 @@ export function markLiked(slug, noteId) {
 export function unmarkLiked(slug, noteId) {
   try { if (!_unmarkLike) _unmarkLike = db.prepare('UPDATE ap_timeline SET liked = 0 WHERE slug = ? AND id = ?'); _unmarkLike.run(slug, noteId); } catch { /* ignore */ }
 }
+/**
+ * Zet een reactie van JOU op een object. Dit hoort het enige schrijfpad te zijn
+ * (shaer-9e9): de tussentabel ap_my_reactions is de waarheid, de vlaggen op
+ * ap_timeline zijn de afgeleide. Zolang markLiked en broers los aanroepbaar
+ * blijven kan een aanroeper ze vergeten, en dat is niet hypothetisch -- precies
+ * dat leverde de shaer:liked-bug op (04aca12).
+ *
+ * `opts.note` is de opgeloste remote note bij een boost. Die is niet optioneel
+ * uit netheid: een boost moet de post je tijdlijn IN trekken als je de auteur
+ * niet volgt, anders heeft de vlag geen rij om op te landen en verschijnt de
+ * boost nergens -- ook niet in de Cirkel.
+ *
+ * `opts.flagUri` bestaat omdat de twee bronnen vandaag verschillend gesleuteld
+ * worden: de tussentabel op de URI die de client stuurde, de vlag op de
+ * opgeloste object-URI. Meestal zijn die gelijk, maar niet gegarandeerd. Deze
+ * naad houdt fase 1 gedragsbehoudend; het samentrekken van die twee sleutels is
+ * werk voor fase 2, mét datamigratie.
+ */
+// Reactie-migratie (shaer-9e9). Draait bij boot, EEN keer per bump, net als
+// selfHealTimeline. Bewust automatisch: klonkt-update tilt een hele vloot in een
+// stap naar nieuwe code, en een handmatig script per instance wordt vergeten --
+// terwijl het falen stil is (een reactie die niemand meer ziet geeft geen fout).
+// v2 haalt de derde bron erbij: ap_interactions.acted_* (shaer-ipb). Een bump
+// laat alle stappen opnieuw lopen, en dat mag -- ze zijn alle drie idempotent.
+const REACTIONS_MIGRATION_VERSION = 2;
+
+/**
+ * Brengt alle reacties naar de tussentabel, onder de canonieke object-URI.
+ *
+ * Twee stappen, en ze zijn allebei nodig:
+ *
+ *  1. HERSLEUTELEN. De oude interact-route bewaarde de URI waarmee je binnenkwam
+ *     en de bookmarklet geeft window.location.href door, dus de permalink. Sinds
+ *     canonicalReactionUri wordt er op de object-URI gezocht, waardoor die rijen
+ *     wees zouden zijn. De created_at reist mee: bij hersleutelen weten we
+ *     wanneer je reageerde, bij aanvullen niet.
+ *  2. AANVULLEN vanuit de afgeleide kolommen. Alles wat op oude code via de
+ *     Krant is gegeven staat alleen daar; zonder deze stap toont het als
+ *     niet-gereageerd en klikt een gebruiker opnieuw -- met een tweede Like de
+ *     fediverse in als gevolg.
+ *
+ * Idempotent. Geeft terug wat er gebeurd is, zodat het script het kan tonen.
+ */
+export function migrateReactions(opts = {}) {
+  const uit = { hersleuteld: 0, aangevuld: 0, reacties: 0, overgeslagen: false };
+  try {
+    if (!opts.force) {
+      const r = db.prepare('SELECT value FROM app_settings WHERE key = ?').get('reactions_migration_version');
+      const cur = r ? (parseInt(r.value, 10) || 0) : 0;
+      if (cur >= REACTIONS_MIGRATION_VERSION) { uit.overgeslagen = true; return uit; }
+    }
+  } catch { return uit; }   // geen app_settings → deze database is te oud om aan te raken
+
+  // Een rij die NIET op een tijdlijn-id staat maar wel op een tijdlijn-url.
+  const wees = `
+    FROM ap_my_reactions r JOIN ap_timeline t ON t.slug = r.site_slug AND t.url = r.target_uri
+     WHERE NOT EXISTS (SELECT 1 FROM ap_timeline t2 WHERE t2.slug = r.site_slug AND t2.id = r.target_uri)`;
+  const scheef = (kind, kolom) => `
+    FROM ap_timeline t
+     WHERE t.${kolom} = 1
+       AND NOT EXISTS (SELECT 1 FROM ap_my_reactions r
+                        WHERE r.site_slug = t.slug AND r.target_uri = t.id AND r.kind = '${kind}')`;
+  // 3. De derde bron: wat JIJ deed met een reactie onder je eigen post. De slug
+  //    hangt hier niet aan de rij maar aan de post; vandaar de twee joins. Een
+  //    rij zonder object_uri kan nooit een reactie dragen (fedi-react eist hem),
+  //    dus die uitsluiting verliest per constructie niets.
+  const acted = (kind, kolom) => `
+    FROM ap_interactions i
+     JOIN posts p ON p.id = i.post_id
+     JOIN sites s ON s.id = p.site_id
+     WHERE i.${kolom} = 1 AND IFNULL(i.object_uri, '') <> ''
+       AND NOT EXISTS (SELECT 1 FROM ap_my_reactions r
+                        WHERE r.site_slug = s.slug AND r.target_uri = i.object_uri AND r.kind = '${kind}')`;
+
+  if (opts.dryRun) {
+    const tel = (sql) => { try { return db.prepare(`SELECT COUNT(*) AS n ${sql}`).get().n; } catch { return 0; } };
+    uit.hersleuteld = tel(wees);
+    uit.aangevuld = tel(scheef('like', 'liked')) + tel(scheef('boost', 'boosted'));
+    uit.reacties = tel(acted('like', 'acted_like')) + tel(acted('boost', 'acted_boost'));
+    return uit;
+  }
+
+  try {
+    db.transaction(() => {
+      // 1. Hersleutelen: eerst de canonieke variant erbij, dan de permalink weg.
+      //    In die volgorde, zodat een onderbreking hooguit een dubbele rij
+      //    oplevert en nooit een verdwenen reactie.
+      uit.hersleuteld = db.prepare(`
+        INSERT OR IGNORE INTO ap_my_reactions (site_slug, target_uri, kind, created_at)
+        SELECT r.site_slug, t.id, r.kind, r.created_at ${wees}`).run().changes;
+      db.prepare(`DELETE FROM ap_my_reactions WHERE rowid IN (SELECT r.rowid ${wees})`).run();
+
+      // 2. Aanvullen vanuit de kolommen.
+      for (const [kind, kolom] of [['like', 'liked'], ['boost', 'boosted']]) {
+        uit.aangevuld += db.prepare(`
+          INSERT OR IGNORE INTO ap_my_reactions (site_slug, target_uri, kind)
+          SELECT t.slug, t.id, '${kind}' ${scheef(kind, kolom)}`).run().changes;
+      }
+
+      // 3. En vanuit acted_* op de reacties onder je eigen posts.
+      for (const [kind, kolom] of [['like', 'acted_like'], ['boost', 'acted_boost']]) {
+        uit.reacties += db.prepare(`
+          INSERT OR IGNORE INTO ap_my_reactions (site_slug, target_uri, kind)
+          SELECT s.slug, i.object_uri, '${kind}' ${acted(kind, kolom)}`).run().changes;
+      }
+    })();
+    if (uit.hersleuteld || uit.aangevuld || uit.reacties) {
+      console.log(`[AP] reaction migration v${REACTIONS_MIGRATION_VERSION}: ${uit.hersleuteld} re-keyed, ${uit.aangevuld} backfilled, ${uit.reacties} from comments`);
+    }
+    if (!opts.force) {
+      db.prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)')
+        .run('reactions_migration_version', String(REACTIONS_MIGRATION_VERSION));
+    }
+  } catch (e) {
+    // Niet fataal: de kolommen staan er nog, dus de oude waarheid is niet weg.
+    // Een volgende boot probeert het opnieuw, want de versie is niet gezet.
+    console.warn('[AP] reaction migration failed:', e.message);
+  }
+  return uit;
+}
+
+/**
+ * Van wat de client stuurde naar de canonieke sleutel voor een reactie.
+ *
+ * Een post heeft twee URI's: zijn AP-object-id (.../ap/notes/<uuid>) en zijn
+ * leesbare permalink (.../effortlesseffect). De Krant en het C2S-pad spreken de
+ * eerste, de interact-pagina de tweede. Werden reacties onder allebei opgeslagen,
+ * dan bestond dezelfde like twee keer -- en erger: een like uit de Krant was op
+ * de interact-pagina onzichtbaar, want daar werd op de permalink gezocht.
+ *
+ * Dit was de naad die fase 1 bewust open liet ("samentrekken is werk voor fase
+ * 2"). Robin liep er meteen tegenaan: een geboost en geliket bericht toonde geen
+ * highlight. Vandaar hier, en niet later.
+ *
+ * De object-URI wint, want dat is waar ap_timeline op sleutelt en waar de
+ * backfill op is gebaseerd. Kennen we de post niet, dan blijft de invoer staan:
+ * een reactie op iets buiten je tijdlijn moet gewoon werken.
+ */
+export function canonicalReactionUri(slug, uri) {
+  if (!slug || !uri) return uri;
+  try {
+    if (db.prepare('SELECT 1 FROM ap_timeline WHERE slug = ? AND id = ?').get(slug, uri)) return uri;
+    const row = db.prepare('SELECT id FROM ap_timeline WHERE slug = ? AND url = ? LIMIT 1').get(slug, uri);
+    return (row && row.id) || uri;
+  } catch { return uri; }
+}
+
+/**
+ * Wat heb IK met dit object gedaan? Leest de tussentabel, de bron van waarheid
+ * sinds shaer-9e9 fase 2. Vervangt getMyReactions en getTimelineReaction, die
+ * dezelfde vraag beantwoordden uit twee verschillende bronnen.
+ */
+export function getReaction(slug, uri) {
+  try {
+    const key = canonicalReactionUri(slug, uri);
+    const rows = (slug && key)
+      ? db.prepare('SELECT kind FROM ap_my_reactions WHERE site_slug = ? AND target_uri = ?').all(slug, key)
+      : [];
+    return { liked: rows.some((r) => r.kind === 'like'), boosted: rows.some((r) => r.kind === 'boost') };
+  } catch { return { liked: false, boosted: false }; }
+}
+
+/**
+ * Dezelfde vraag voor een hele pagina in EEN query. De C2S-tijdlijn zet
+ * shaer:liked op elke post; per rij vragen zou dat een N+1 maken, en dan had je
+ * een consistentiebug geruild voor een traagheidsbug.
+ */
+export function getReactionsFor(slug, uris) {
+  const out = new Map();
+  const list = [...new Set((uris || []).filter(Boolean))].slice(0, 500);
+  if (!slug || !list.length) return out;
+  try {
+    const rows = db.prepare(
+      `SELECT target_uri, kind FROM ap_my_reactions
+        WHERE site_slug = ? AND target_uri IN (${list.map(() => '?').join(',')})`,
+    ).all(slug, ...list);
+    for (const r of rows) {
+      const cur = out.get(r.target_uri) || { liked: false, boosted: false };
+      if (r.kind === 'like') cur.liked = true;
+      if (r.kind === 'boost') cur.boosted = true;
+      out.set(r.target_uri, cur);
+    }
+  } catch { /* leeg = niets gereageerd, en dat is een veilige uitkomst */ }
+  return out;
+}
+
+export function setReaction(slug, uri, kind, on, opts = {}) {
+  if (!slug || !uri || (kind !== 'like' && kind !== 'boost')) return;
+  // EEN sleutel voor beide bronnen. opts.flagUri is de opgeloste object-URI van
+  // de aanroeper (het C2S-pad kent die uit resolveRemoteNote en dat is
+  // betrouwbaarder dan onze cache); anders leiden we hem af. Vroeger kreeg de
+  // tussentabel de URI die de client stuurde en de vlag de opgeloste -- dat
+  // maakte dezelfde like onvindbaar vanaf de andere pagina.
+  const flagUri = opts.flagUri || canonicalReactionUri(slug, uri);
+  setMyReaction(slug, flagUri, kind, !!on);
+  if (kind === 'boost') {
+    if (!on) unmarkBoosted(slug, flagUri);
+    else if (opts.note) upsertBoostedNote(slug, opts.note);
+    else markBoosted(slug, flagUri);
+  } else if (on) markLiked(slug, flagUri);
+  else unmarkLiked(slug, flagUri);
+}
+
 export function getTimelineReaction(slug, noteId) {
   try { const r = db.prepare('SELECT liked, boosted FROM ap_timeline WHERE slug = ? AND id = ?').get(slug, noteId); return { liked: !!(r && r.liked), boosted: !!(r && r.boosted) }; } catch { return { liked: false, boosted: false }; }
 }
@@ -3302,7 +4029,14 @@ export function upsertBoostedNote(slug, note) {
   markBoosted(slug, id);
 }
 export function boostedCount(slug) {
-  try { if (!_boostedCount) _boostedCount = db.prepare('SELECT COUNT(*) AS n FROM ap_timeline WHERE slug = ? AND boosted = 1'); return _boostedCount.get(slug).n; } catch { return 0; }
+  // Geboost EN in je tijdlijn, zoals voorheen: de tussentabel kan ook een boost
+  // bevatten van iets dat er (nog) niet in staat.
+  try {
+    if (!_boostedCount) _boostedCount = db.prepare(`SELECT COUNT(*) AS n FROM ap_my_reactions r
+      JOIN ap_timeline t ON t.slug = r.site_slug AND t.id = r.target_uri
+      WHERE r.site_slug = ? AND r.kind = 'boost'`);
+    return _boostedCount.get(slug).n;
+  } catch { return 0; }
 }
 
 // Resolve a Klonkt/AP actor URL from a site root: a Klonkt site's root 302s to
@@ -4017,7 +4751,7 @@ export async function moveAccount(site, targetRaw, { fetchActorFn = null, delive
     await send(site.slug, inbox, update, `${me}#main-key`, keys.private_pem);
     await send(site.slug, inbox, move, `${me}#main-key`, keys.private_pem);
   }
-  console.log('[AP] MOVE announced:', site.slug, '→', target.id, 'naar', inboxes.length, 'inbox(en)');
+  console.log('[AP] MOVE announced:', site.slug, '→', target.id, 'to', inboxes.length, 'inbox(es)');
   return { ok: true, target: target.id, inboxes: inboxes.length };
 }
 
@@ -4197,7 +4931,20 @@ async function handleFollowApprovalInbox(act, slugParam) {
       if (!Guardianship.getRelation(gslug, 'guardian', wardUri)) continue;   // must actually guard this ward
       const wardDoc = await fetchActor(wardUri).catch(() => null);
       const fai = actorInfo(await fetchActor(follower).catch(() => null), follower);
-      Guardianship.follows.recordReview(gslug, { id: followId, wardUri, wardInbox: wardDoc && wardDoc.inbox, follower, followerHandle: fai.handle, followerIcon: fai.icon, followJson: JSON.stringify(fo) });
+      // De RICHTING bewaren (shaer-jdb). shaer:direction wordt sinds de uitgaande
+      // gate meegestuurd maar werd nergens gelezen, dus een uitgaande belandde
+      // hier als "deze ward wil deze ward volgen" met het doel weggegooid.
+      // Terugval voor oudere afzenders: is de volger de ward zelf, dan is het
+      // uitgaand -- dat volgt uit de vorm en hoeft niet geloofd te worden.
+      const uitgaand = act['shaer:direction'] === 'outgoing' || follower === wardUri;
+      const doel = uitgaand ? (typeof fo.object === 'string' ? fo.object : (fo.object && fo.object.id)) : null;
+      const dai = uitgaand ? actorInfo(await fetchActor(doel).catch(() => null), doel) : null;
+      Guardianship.follows.recordReview(gslug, {
+        id: followId, wardUri, wardInbox: wardDoc && wardDoc.inbox,
+        follower, followerHandle: fai.handle, followerIcon: fai.icon, followJson: JSON.stringify(fo),
+        direction: uitgaand ? 'outgoing' : 'incoming',
+        target: doel || null, targetHandle: dai ? dai.handle : null,
+      });
       const L = pushLang(gslug);
       pushEvent(gslug, { type: 'guardian', title: i18nT(L, 'push.n_guard_cog_t'), body: i18nT(L, 'push.n_guard_cog_b', { who: fai.name || fai.handle || i18nT(L, 'notif.someone') }), url: `${pushPrefix(gslug)}/guardian` });
       stored = true;
@@ -4300,7 +5047,7 @@ export function getNotifications(slug, limit) {
   } catch { /* ignore */ }
   try {
     const rows = db.prepare(`
-      SELECT i.kind, i.actor_name, i.actor_handle, i.actor_url, i.actor_icon, i.content, i.created_at, i.published, i.visibility,
+      SELECT i.id AS interaction_id, i.kind, i.actor_uri, i.actor_name, i.actor_handle, i.actor_url, i.actor_icon, i.content, i.created_at, i.published, i.visibility,
              i.emoji_json, i.actor_emoji_json, i.media_json, i.quote_json, i.embed_json,
              p.slug AS post_slug, p.title AS post_title
       FROM ap_interactions i LEFT JOIN posts p ON p.id = i.post_id
@@ -4309,6 +5056,9 @@ export function getNotifications(slug, limit) {
     `).all(slug, L);
     for (const r of rows) out.push({
       type: r.kind, name: r.actor_name, handle: r.actor_handle, url: r.actor_url, icon: r.actor_icon,
+      // Waar een antwoord uit de draad heen moet: het id is de parent voor
+      // deliverReply, de uri het adres voor een direct bericht.
+      interactionId: r.interaction_id, actorUri: r.actor_uri,
       content: stripLeadingMentions(r.content), post_slug: r.post_slug, post_title: r.post_title, created_at: r.created_at,
       // When the post was written, for display. created_at (when it reached us)
       // stays the sort key and the unread watermark: a note that federated late
@@ -4542,6 +5292,10 @@ Guardianship.wireDelivery({
   actorId, fetchActor, localActor, deliverTo: deliverToActor, deriveHandle, escHtml, linkUrls, linkHashtags,
   getOutboxRow: (id) => iStmts().getO.get(id),
   buildReplyNote, AP_CONTEXT, getOrCreateKeys, deliver, enqueueDelivery,
+  // Rijke directe berichten: dezelfde sanitizer als deliverReply gebruikt, zodat
+  // een antwoord uit Berichten door precies één poort gaat.
+  sanitizeHtml: (h) => HtmlSanitizerService.sanitize(h),
+  htmlToPlainText: (h) => HtmlSanitizerService.toPlainText(h),
 });
 /**
  * The actor document of a site WE host, read straight from the database.
@@ -4578,23 +5332,63 @@ Guardianship.wireHandshake({
   fetchActor,
   // Guardian PWA / Berichten push. The kid answers an incoming offer in its
   // own Berichten; an existing guardian and a commit land in the PWA.
+  //
+  // De labels hangen aan dezelfde sleutels als het Guardian-paneel, zodat een
+  // melding en het scherm waar hij heen wijst hetzelfde woord gebruiken.
   onEvent: (slug, ev) => {
-    const L = pushLang(slug);
-    const texts = {
-      offer_received: ['push.n_guard_offer_t', 'push.n_guard_offer_b'],   // I am the ward
-      offer_for_ward: ['push.n_guard_cog_t', 'push.n_guard_cog_b'],       // I co-guard this ward
-      committed: ['push.n_guard_ward_t', 'push.n_guard_ward_b'],
-      // §3.2: a guardian ended the relation. The ward hears that someone who
-      // was looking after them has gone; a co-guardian hears they are one fewer.
-      guardian_left: ['push.n_guard_left_t', 'push.n_guard_left_b'],
-      coguardian_left: ['push.n_guard_cogleft_t', 'push.n_guard_cogleft_b'],
-    }[ev.kind];
-    if (!texts) return;
-    const who = deriveHandle(ev.candidate || ev.guardian || ev.ward || '') || '?';
-    const url = (ev.kind === 'offer_received' || ev.kind === 'guardian_left') ? `${pushPrefix(slug)}/messages` : '/guardian';
-    pushEvent(slug, { type: 'guardian', title: i18nT(L, texts[0]), body: i18nT(L, texts[1], { who }), url });
+    const p = guardianEventPush(slug, ev);
+    if (p) pushEvent(slug, p);
   },
 });
+
+/**
+ * Welke melding hoort bij een guardianship-gebeurtenis, of geen.
+ *
+ * Apart en puur, omdat dit een BESLISSING is en geen bezorging: de
+ * guardianship-module zendt veertien soorten uit en deze tabel bepaalt welke
+ * daarvan een mens wakker maken. Dat hoort toetsbaar te zijn zonder web-push
+ * erbij te halen.
+ */
+export function guardianEventPush(slug, ev) {
+  const L = pushLang(slug);
+  const texts = {
+    offer_received: ['push.n_guard_offer_t', 'push.n_guard_offer_b'],   // I am the ward
+    offer_for_ward: ['push.n_guard_cog_t', 'push.n_guard_cog_b'],       // I co-guard this ward
+    committed: ['push.n_guard_ward_t', 'push.n_guard_ward_b'],
+    // §3.2: a guardian ended the relation. The ward hears that someone who
+    // was looking after them has gone; a co-guardian hears they are one fewer.
+    guardian_left: ['push.n_guard_left_t', 'push.n_guard_left_b'],
+    coguardian_left: ['push.n_guard_cogleft_t', 'push.n_guard_cogleft_b'],
+    // 5.6 gated settings. Zonder deze twee is de hele tally stil: een guardian
+    // hoort niet dat er een antwoord van hem gewenst is, en dus loopt het
+    // venster leeg en verloopt het voorstel. Een drempel die niemand ziet is
+    // geen drempel.
+    gated_review: ['push.n_gate_ask_t', 'push.n_gate_ask_b'],      // jij moet antwoorden
+    gated_outcome: ['push.n_gate_done_t', 'push.n_gate_done_b'],   // er is besloten
+  }[ev.kind];
+  if (!texts) return null;
+  const who = deriveHandle(ev.candidate || ev.guardian || ev.ward || '') || '?';
+  // Een gate-melding zonder te zeggen WELKE instelling is nutteloos: er zijn er
+  // meer dan een, en ze betekenen heel verschillende dingen voor een kind.
+  const wat = i18nT(L, GATE_LABEL[ev.feature] || 'guardian.prop_embeds');
+  const stand = i18nT(L, ev.value ? 'guardian.prop_on' : 'guardian.prop_off');
+  const uitkomst = i18nT(L, GATE_OUTCOME[ev.outcome] || 'guardian.prop_st_open');
+  const url = (ev.kind === 'offer_received' || ev.kind === 'guardian_left') ? `${pushPrefix(slug)}/messages` : '/guardian';
+  return { type: 'guardian', title: i18nT(L, texts[0]), body: i18nT(L, texts[1], { who, wat, stand, uitkomst }), url };
+}
+
+// Van een gated feature naar het woord dat het Guardian-paneel er al voor
+// gebruikt. Een onbekende feature valt terug op het algemene woord in plaats van
+// de melding te laten vervallen: liever een iets vager bericht dan geen bericht.
+const GATE_LABEL = {
+  'shaer:externalEmbeds': 'guardian.prop_embeds',
+  'shaer:externalPlayback': 'guardian.prop_play',
+};
+const GATE_OUTCOME = {
+  accepted: 'guardian.prop_st_accepted',
+  rejected: 'guardian.prop_st_rejected',
+  expired: 'guardian.prop_st_expired',
+};
 
 // The notification duty of FEP-633c 3.6.2, wired once for every place a
 // dormancy promotion can happen (queue reads, fan-outs, tallies): marking a
@@ -4624,13 +5418,14 @@ export default {
   AP_CONTEXT, getOrCreateKeys, apWants, sendAP, actorId, noteId, stripLeadingMentions,
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers, buildFollowing, buildFeatured,
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
-  getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, setMyReaction, getMyReactions, buildReplyNote, getOutboxNote, getSentNotes, deliverReply, resolveRemoteNote, noteAudience, mayReadNote,
+  feedCursor, feedChangesSince, waitForFeedChange,
+  getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, buildReplyNote, getOutboxNote, getSentNotes, deliverReply, resolveRemoteNote, noteAudience, mayReadNote,
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate, deliverDirectNote,
   webfingerResolve, followActor, resolveRemoteActor, unfollowActor, handleMoveInbox, moveAccount, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, getDirectMessages, isoStamp, timelineAttachments, timelineEmojis, timelineObjectLinks, timelineQuote, timelineEmbed, applyQuoteProps, deliverToActor, sendInteraction, voteOnPoll, voteOnRemotePoll,
   acceptGatedFollow, rejectGatedFollow, isWardGuardian, outboxAudience, sendFollowDecision,
   gateOutgoingFollow, performApprovedFollow,
   parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread, sendReport, localMentionSlugs,
-  autoBoostCount, boostedCount, markBoosted, unmarkBoosted, markLiked, unmarkLiked, getTimelineReaction, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
+  autoBoostCount, boostedCount, setReaction, getReaction, getReactionsFor, canonicalReactionUri, migrateReactions, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
   getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,

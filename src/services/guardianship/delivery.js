@@ -40,7 +40,7 @@ export function c2sVisibility(object) {
 // so no boosts and no timelines. The same S2S leg a Mastodon DM takes, so a
 // guardian on any instance receives it as a private mention (the ward
 // call-for-help path).
-export async function deliverDirectNote(site, { recipients, text, language, inReplyTo, attachments, helpRequest, wave, awayUntil }) {
+export async function deliverDirectNote(site, { recipients, text, html, language, inReplyTo, attachments, helpRequest, wave, awayUntil, helpMark }) {
   const { actorId, fetchActor, localActor, deliverTo, deriveHandle, escHtml, linkUrls, linkHashtags,
           getOutboxRow, buildReplyNote, AP_CONTEXT, getOrCreateKeys, deliver, enqueueDelivery } = deps;
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
@@ -82,8 +82,18 @@ export async function deliverDirectNote(site, { recipients, text, language, inRe
     const disp = r.handle && r.handle[0] === '@' ? r.handle : '@' + (r.handle || '');
     return `<a href="${escHtml(r.url)}" class="u-url mention" data-actor="${escHtml(r.uri)}">${escHtml(disp)}</a> `;
   }).join('');
+  // Rijk antwoord: `html` is de HTML uit de reply-editor, hier gesaneerd; `text`
+  // blijft de platte versie (het `source`-veld en de no-JS-fallback). Levert de
+  // sanitizer niets bruikbaars op, dan valt hij terug op de escaped tekst --
+  // een leeggepoetste editor mag geen leeg bericht versturen.
+  const richClean = html ? deps.sanitizeHtml(String(html)) : '';
+  const rich = richClean && deps.htmlToPlainText(richClean).trim() ? richClean : '';
   const body = escHtml(String(text).trim()).replace(/\r?\n/g, '<br>');
-  const content = `<p>${mention}${linkUrls(linkHashtags(base, body))}</p>`;
+  // De mention-anker blijft een eigen alinea vooraan: de ontvanger moet in het
+  // bericht genoemd staan, ook als de rijke inhoud met een kop of lijst begint.
+  const content = rich
+    ? `<p>${mention}</p>${linkUrls(linkHashtags(base, rich))}`
+    : `<p>${mention}${linkUrls(linkHashtags(base, body))}</p>`;
   const lang = /^[a-z]{2,3}(-[A-Za-z0-9-]+)?$/.test(String(language || '')) ? language : null;
   // Attachments: same rules as deliverReply (own /media/ uploads only,
   // image/audio/video, max 4) — the help-buoy capture rides this.
@@ -98,6 +108,13 @@ export async function deliverDirectNote(site, { recipients, text, language, inRe
     .run(id, site.slug, '', null, inReplyTo || null, resolved[0].uri, resolved[0].handle, content, lang, media.length ? JSON.stringify(media) : null, 'direct', JSON.stringify(resolved.map((r) => r.uri)), helpRequest ? 1 : 0, wave ? 1 : 0, awayUntil || null);
   const row = getOutboxRow(id);
   const note = buildReplyNote(base, site, row);
+  // Markering op een hulpvraag (shaer-lgo): een gewone directe note die er een
+  // shaer:-eigenschap bij draagt, net als de zwaai. Zo reist het over dezelfde
+  // bezorging, ziet de ward het als bericht ("er komt iemand"), en houden de
+  // mede-guardians er staat aan over.
+  if (helpMark && helpMark.noteUri) {
+    note[helpMark.kind === 'handled' ? 'shaer:helpHandled' : 'shaer:helpPickup'] = helpMark.noteUri;
+  }
   const create = {
     '@context': AP_CONTEXT,
     id: note.id + '#create', type: 'Create', actor: me,
