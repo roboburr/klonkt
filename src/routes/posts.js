@@ -1193,6 +1193,7 @@ router.get('/news', requireSiteManager, (req, res) => {
     return renderPage(req, res, 'partials/news-append', { timeline, hasMore, nextOffset: offset + FEED_PAGE, moreBase });
   }
   renderPage(req, res, 'pages/news', {
+    pageJs: 'news',
     pageTitle: 'News', bodyClass: 'on-special',
     timeline, hasMore, nextOffset: offset + FEED_PAGE, moreBase,
     success: req.query.success || null, error: req.query.error || null,

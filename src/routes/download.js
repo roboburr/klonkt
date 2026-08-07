@@ -84,6 +84,7 @@ router.get('/download/:id', (req, res, next) => {
   if (!track) return next();
   const fan = req.session && req.session.user;
   renderPage(req, res, 'pages/download', {
+    pageJs: 'download',
     pageTitle: track.title + ' — download',
     bodyClass: 'on-download',
     dlState: 'form',
