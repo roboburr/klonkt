@@ -2173,6 +2173,19 @@ export async function handleInbox(req, slugParam, preVerified = null) {
     // above): store a mention notification for each of our actors named in the Mention tags.
     // Requires our own base prefix on the tag href — /ap/users/<slug> on a REMOTE host is
     // someone else's actor, not ours.
+    // Een markering op een hulpvraag (shaer-lgo): een mede-guardian laat weten
+    // dat hij ernaar kijkt, of dat het is afgehandeld. Gewone directe note met
+    // een shaer:-markering, net als de zwaai -- dus die komt hier langs. VOOR de
+    // mention-opslag, want dit is staat en geen bericht om te bewaren; de ward
+    // krijgt hem wel als bericht te lezen, en dat gebeurt hieronder.
+    if (actorUri && !isLocalActor) {
+      const mark = Guardianship.help.parseMarker(o);
+      if (mark) {
+        const ai = actorInfo(await resolveActor(actorUri).catch(() => null), actorUri);
+        Guardianship.help.record(mark.noteUri, actorUri, mark.kind, ai && ai.handle);
+        console.log('[AP] help', mark.kind, actorUri, '→', mark.noteUri);
+      }
+    }
     if (actorUri && !isLocalActor && o.id) {
       const slugs = localMentionSlugs(o.tag, base);
       if (slugs.length) {

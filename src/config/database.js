@@ -734,6 +734,28 @@ export function initializeDatabase() {
   ensureColumn('ap_outbox', 'visibility', 'TEXT');  // 'direct' = private mention, never Public (shaer-tqc)
   ensureColumn('ap_outbox', 'to_actors', 'TEXT');   // JSON array of recipient actor URIs for direct notes
   ensureColumn('ap_outbox', 'help_request', 'INTEGER'); // FEP-633c shaer:helpRequest (ward's call for help)
+  // Wie er op een hulpvraag af is, en wanneer hij is afgesloten (shaer-lgo).
+  // Los van ap_mentions, want dit is GEDEELDE staat: elke guardian van dit kind
+  // heeft er een kopie van, en die komt binnen als bericht van een ander. Een
+  // kolom op de mention zou alleen over onszelf gaan.
+  //
+  // OPGEPIKT mag stapelen: twee mensen die tegelijk reageren op een kind dat om
+  // hulp vraagt is geen probleem. Twee mensen die allebei niets doen omdat de
+  // ander het "geclaimd" had, wel.
+  //
+  // AFGEHANDELD kent geen terugdraai. Sluiten gebeurt met een stevige
+  // bevestiging, en leeft de vraag daarna nog, dan wordt hij opnieuw gesteld --
+  // een nieuwe hulpvraag. Zo blijft het verslag eerlijk: er wordt niets
+  // herschreven, er wordt toegevoegd.
+  db.exec(`CREATE TABLE IF NOT EXISTS ap_help_state (
+    note_uri TEXT NOT NULL,
+    guardian_uri TEXT NOT NULL,
+    kind TEXT NOT NULL,                 -- pickup | handled
+    guardian_handle TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (note_uri, guardian_uri, kind)
+  )`);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_ap_help_state_note ON ap_help_state(note_uri)');
   ensureColumn('ap_mentions', 'help_request', 'INTEGER'); // inbound ward call-for-help (Guardian PWA message centre)
   ensureColumn('ap_outbox', 'wave', 'INTEGER');    // FEP-633c shaer:wave (guardian -> ward nudge)
   ensureColumn('ap_outbox', 'away_until', 'INTEGER'); // FEP-633c 3.6.1 shaer:away + endTime (epoch ms)

@@ -40,7 +40,7 @@ export function c2sVisibility(object) {
 // so no boosts and no timelines. The same S2S leg a Mastodon DM takes, so a
 // guardian on any instance receives it as a private mention (the ward
 // call-for-help path).
-export async function deliverDirectNote(site, { recipients, text, html, language, inReplyTo, attachments, helpRequest, wave, awayUntil }) {
+export async function deliverDirectNote(site, { recipients, text, html, language, inReplyTo, attachments, helpRequest, wave, awayUntil, helpMark }) {
   const { actorId, fetchActor, localActor, deliverTo, deriveHandle, escHtml, linkUrls, linkHashtags,
           getOutboxRow, buildReplyNote, AP_CONTEXT, getOrCreateKeys, deliver, enqueueDelivery } = deps;
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
@@ -108,6 +108,13 @@ export async function deliverDirectNote(site, { recipients, text, html, language
     .run(id, site.slug, '', null, inReplyTo || null, resolved[0].uri, resolved[0].handle, content, lang, media.length ? JSON.stringify(media) : null, 'direct', JSON.stringify(resolved.map((r) => r.uri)), helpRequest ? 1 : 0, wave ? 1 : 0, awayUntil || null);
   const row = getOutboxRow(id);
   const note = buildReplyNote(base, site, row);
+  // Markering op een hulpvraag (shaer-lgo): een gewone directe note die er een
+  // shaer:-eigenschap bij draagt, net als de zwaai. Zo reist het over dezelfde
+  // bezorging, ziet de ward het als bericht ("er komt iemand"), en houden de
+  // mede-guardians er staat aan over.
+  if (helpMark && helpMark.noteUri) {
+    note[helpMark.kind === 'handled' ? 'shaer:helpHandled' : 'shaer:helpPickup'] = helpMark.noteUri;
+  }
   const create = {
     '@context': AP_CONTEXT,
     id: note.id + '#create', type: 'Create', actor: me,
