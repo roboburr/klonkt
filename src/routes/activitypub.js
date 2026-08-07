@@ -267,10 +267,28 @@ queueRoute('guardians', (id, slug) => Guardianship.guardiansCollection(id, slug)
 // scoped to this site) reads recent inbound posts (the timeline: accounts
 // they follow) as Create(Note) items, so an app (Shaer) can build a unified
 // feed. Anyone else gets 403; the inbox stays write-only for the public.
-router.get('/ap/users/:slug/inbox', (req, res) => {
+router.get('/ap/users/:slug/inbox', async (req, res) => {
   const auth = OAuth.verifyBearer(req.headers.authorization);
   if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
   const base = baseUrl(req);
+  // Wachten is een UITBREIDING van deze lezing, geen tweede endpoint (shaer-n05).
+  // Geef `since` (de shaer:cursor van je vorige antwoord) en `wait` mee, en het
+  // antwoord blijft hangen tot er iets is of de tijd om is. Zonder die twee
+  // gedraagt de route zich exact zoals altijd.
+  //
+  // Bewust hetzelfde antwoord in plaats van een "er is nieuws"-seintje: dan
+  // hoeft er niets nieuws geparsed te worden, is er geen tweede beschrijving van
+  // de kaartvorm die uit de pas kan lopen, en scheelt het de client een tweede
+  // ronde.
+  const wachtS = Math.min(Math.max(parseInt(req.query.wait, 10) || 0, 0), 50);
+  if (req.query.since && wachtS > 0) {
+    const afbreken = new AbortController();
+    res.on('close', () => afbreken.abort());   // client hing op: niet doorgaan met wachten
+    await AP.waitForFeedChange(auth.site.slug, {
+      since: String(req.query.since), waitMs: wachtS * 1000, signal: afbreken.signal,
+    });
+    if (res.writableEnded || afbreken.signal.aborted) return undefined;
+  }
   // Gated feature (FEP-633c): may this account see EXTERNAL embeds? A ward's
   // world outside the fediverse is the guardians' call. The gate is applied
   // here, at serialisation: a blocked embed is never sent, because an embed the
@@ -443,9 +461,14 @@ router.get('/ap/users/:slug/inbox', (req, res) => {
       // and not just the picture over it.
       'shaer:externalLinks': playbackAllowed,
     },
+    // Het merk van wat hierin zit. Geef hem terug als `since` om op het
+    // volgende te wachten. NA het samenstellen bepaald, zodat hij precies dekt
+    // wat je in handen hebt en niet iets dat er ondertussen bij kwam.
+    'shaer:cursor': AP.feedCursor(auth.site.slug),
     totalItems: items.length,
     orderedItems: items,
   });
+  return undefined;
 });
 
 // ── uploadMedia (owner only, AP C2S) ──────────────────────────────

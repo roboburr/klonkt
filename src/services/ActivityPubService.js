@@ -3484,6 +3484,76 @@ export function getReplyMessages(slug, limit) {
   } catch { return []; }
 }
 
+/**
+ * Een merk voor "is er iets veranderd aan wat de inbox-lezing zou opleveren?"
+ * (shaer-n05).
+ *
+ * Alle VIER de poten die de inbox samenvoegt tellen mee -- tijdlijn, berichten,
+ * antwoorden op je eigen posts, en wat je zelf verstuurde. Zou er een ontbreken,
+ * dan blijft een wachtende client slapen terwijl er wel degelijk iets is
+ * bijgekomen, en dat is erger dan niet wachten: het lijkt te werken.
+ *
+ * rowid en niet een tijdstempel: rowid loopt strikt op per invoeging, terwijl
+ * twee dingen in dezelfde seconde kunnen aankomen en een `published` van een
+ * andere server niet te vertrouwen is.
+ *
+ * Ondoorzichtig voor de client. Hij krijgt hem terug en geeft hem ongewijzigd
+ * mee; de vorm mag veranderen zonder dat dat iets breekt.
+ */
+export function feedCursor(slug) {
+  const max = (sql, ...args) => { try { const r = db.prepare(sql).get(...args); return (r && r.n) || 0; } catch { return 0; } };
+  const t = max('SELECT MAX(rowid) AS n FROM ap_timeline WHERE slug = ?', slug);
+  const m = max('SELECT MAX(rowid) AS n FROM ap_mentions WHERE slug = ?', slug);
+  const o = max('SELECT MAX(rowid) AS n FROM ap_outbox WHERE site_slug = ?', slug);
+  const r = max(`SELECT MAX(i.rowid) AS n FROM ap_interactions i
+                   JOIN posts p ON p.id = i.post_id
+                   JOIN sites s ON s.id = p.site_id
+                  WHERE s.slug = ? AND i.kind = 'reply'`, slug);
+  return `${t}.${m}.${o}.${r}`;
+}
+
+// Zoveel clients mogen er tegelijk op EEN account staan wachten. Een client met
+// een kapotte herverbind-lus mag de instance niet vastzetten; de overtolligen
+// krijgen gewoon meteen antwoord in plaats van een fout.
+const FEED_WAIT_MAX = 4;
+const _wachters = new Map();
+
+/**
+ * Wacht tot de inbox-lezing iets anders zou opleveren dan bij `since`.
+ *
+ * Bewust met een interne tik en niet met een gebeurtenis-emitter. Een emitter
+ * moet op ELKE plek worden aangeroepen waar er iets bijkomt, en de plek die je
+ * vergeet is precies de melding die nooit aankomt. Twee tot vier MAX(rowid)-
+ * queries per seconde is niets, en dit kan niets missen. Prijs: hooguit een tik
+ * vertraging.
+ */
+export async function waitForFeedChange(slug, opts = {}) {
+  const tickMs = Math.max(50, opts.tickMs || 1000);
+  const waitMs = Math.max(0, opts.waitMs || 0);
+  const since = String(opts.since || '');
+  let cursor = feedCursor(slug);
+  // Geen sinds, al iets veranderd, of niet willen wachten: meteen antwoorden.
+  if (!since || since !== cursor || !waitMs) return { cursor, changed: !!since && since !== cursor, waited: false };
+
+  const bezet = _wachters.get(slug) || 0;
+  if (bezet >= FEED_WAIT_MAX) return { cursor, changed: false, waited: false, busy: true };
+  _wachters.set(slug, bezet + 1);
+  try {
+    const einde = Date.now() + waitMs;
+    while (Date.now() < einde) {
+      if (opts.signal && opts.signal.aborted) break;   // client hing op
+      const rest = Math.min(tickMs, einde - Date.now());
+      await new Promise((r) => setTimeout(r, rest));
+      cursor = feedCursor(slug);
+      if (cursor !== since) return { cursor, changed: true, waited: true };
+    }
+    return { cursor, changed: false, waited: true };
+  } finally {
+    const n = (_wachters.get(slug) || 1) - 1;
+    if (n > 0) _wachters.set(slug, n); else _wachters.delete(slug);
+  }
+}
+
 export function getDirectMessages(slug, limit) {
   try {
     return db.prepare(`
@@ -5253,6 +5323,7 @@ export default {
   AP_CONTEXT, getOrCreateKeys, apWants, sendAP, actorId, noteId, stripLeadingMentions,
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers, buildFollowing, buildFeatured,
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
+  feedCursor, waitForFeedChange,
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, buildReplyNote, getOutboxNote, getSentNotes, deliverReply, resolveRemoteNote, noteAudience, mayReadNote,
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate, deliverDirectNote,
   webfingerResolve, followActor, resolveRemoteActor, unfollowActor, handleMoveInbox, moveAccount, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, getDirectMessages, isoStamp, timelineAttachments, timelineEmojis, timelineObjectLinks, timelineQuote, timelineEmbed, applyQuoteProps, deliverToActor, sendInteraction, voteOnPoll, voteOnRemotePoll,
