@@ -59,10 +59,19 @@ Before you tell anyone it is ready, do these three:
 Nothing here takes long. Skipping it is how small problems become 3am problems.
 
 ```bash
-systemctl list-units 'klonkt@*'                        # everything still running?
-df -h                                                  # disk
-journalctl --since '7 days ago' -p warning --no-pager | grep klonkt
+systemctl list-units 'klonkt@*'                                  # still running?
+df -h                                                            # disk
+journalctl -u 'klonkt@*' --since '7 days ago' -p warning --no-pager
 ```
+
+If that last one answers `Failed to add filter for units: No data available`,
+nothing matched — which is usually the good news (no warnings in the window), not
+a broken command. Widen the window before you go looking for a fault.
+
+`-u` matches against the units that actually appear in the journal, so an
+instance that logged nothing at all is simply absent. Run it as root: an
+unprivileged account sees only its own messages and will get the same empty
+answer for the wrong reason.
 
 The log line worth reading properly is anything about federation: a rejected
 signature, a delivery that keeps retrying. Those are usually the other side's
