@@ -79,6 +79,54 @@ hashed server-side; the client keeps the bearer in the platform keystore. A
 | `GET /ap/users/:slug` | the actor document (add the bearer to also read owner-only fields) |
 | `GET /ap/users/:slug/outbox` | OrderedCollection of the account's own `Create(Note)` |
 | `GET /ap/users/:slug/inbox` | OrderedCollection of recent inbound posts (accounts you follow) as `Create(Note)`. Owner only; `403` for anyone else. The unified home feed is outbox + inbox merged. |
+
+### Waiting for news on the inbox read
+
+The inbox read can hold the answer until there is something new, so a client does
+not have to poll. It is the **same call and the same response** — no separate
+endpoint and no separate "there is news" shape, because a second shape is a
+second description of a post that can drift from the first.
+
+```
+GET /ap/users/:slug/inbox?since=<cursor>&wait=25
+```
+
+- `since` is the `shaer:cursor` from your previous answer. Treat it as opaque.
+- `wait` is seconds, capped at 50 — well under what a proxy will hold.
+- Send neither and the route behaves exactly as it always did.
+
+The answer arrives as soon as anything the inbox would show has changed, or when
+`wait` runs out — whichever comes first. Either way it is the full, current
+collection with a fresh `shaer:cursor`. An empty-handed return is not an error:
+it means nothing happened, ask again.
+
+The cursor moves for **all four** sources this read merges: the timeline,
+messages, replies on your own posts, and your own sent notes.
+
+Limits worth knowing as a client author:
+
+- four waiting connections per account. A fifth gets the current state
+  immediately rather than an error, so a broken reconnect loop degrades to
+  ordinary polling instead of locking the account out.
+- hanging up ends the wait; there is no cost to abandoning a request.
+- the bearer is checked *before* any waiting, so an unauthenticated caller can
+  never hold a connection open.
+
+This works while your app is in the foreground, and only there. iOS freezes
+network activity the moment an app is backgrounded, and a held-open connection
+does not survive it.
+
+**There is no background channel to fall back on for a native app.** Klonkt's
+web push uses VAPID, which a self-hosted instance can generate and send entirely
+on its own — but only to a browser or an installed PWA. A native app receives
+push through APNs (or FCM), signed with the *application's* key, which a
+self-hosted Klonkt does not have and should not have: whoever holds it can push
+to every user of that app. Closing that gap needs a relay run by the app's
+publisher, and that is a decision about money and control, not a protocol
+detail.
+
+So for a self-hosted setup this is not a stopgap until push arrives. For now it
+is the freshness channel.
 | `GET /ap/users/:slug/followers` | see below |
 | `GET /ap/users/:slug/following` | see below |
 
