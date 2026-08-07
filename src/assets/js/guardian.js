@@ -593,17 +593,26 @@
       FOLLOWS.filter(function (f) { return f.wardUri === uri; }),
       T.panel_follow_empty || '', followCard);
 
-    // Hier juist de VOLLEDIGE geschiedenis van dit kind -- dat is waar dit
-    // paneel voor is. Wel wat nog wacht bovenaan, want dat is waar je naar zoekt
-    // als je het opent.
+    // Alleen wat nog WACHT. De afgehandelde vragen staan onderaan het paneel als
+    // eigen sectie: dooreen gezet lees je niet meer of er iets van je gevraagd
+    // wordt, en dat is de enige vraag die deze sectie hoort te beantwoorden.
     sectionInto(panel, T.panel_help || 'Calls for help',
-      (S.help || []).filter(function (h) { return h.actor_uri === uri; })
-        .sort(function (a, b) { return (helpOpen(b) ? 1 : 0) - (helpOpen(a) ? 1 : 0); }),
+      (S.help || []).filter(function (h) { return h.actor_uri === uri && helpOpen(h); }),
       T.panel_help_empty || '', helpCard);
 
     sectionInto(panel, T.panel_posts || 'Recent posts',
       FEED.filter(function (p) { return p.authorUri === uri; }),
       T.panel_posts_empty || '', feedCard);
+
+    // De geschiedenis: apart, en helemaal onderaan. Wat af is hoort niet tussen
+    // wat nog wacht -- daar wordt "moet ik iets doen" onleesbaar van. Weg gaat
+    // hij niet: er wordt in dit systeem niets herschreven, er wordt toegevoegd.
+    // Geen lege sectie als er nog niets is afgehandeld; dat is geen informatie.
+    var gedaan = (S.help || []).filter(function (h) { return h.actor_uri === uri && !helpOpen(h); });
+    if (gedaan.length) {
+      sectionInto(panel, (T.panel_history || 'Handled ({n})').replace('{n}', gedaan.length),
+        gedaan, '', helpCard).classList.add('g-panel-history');
+    }
 
     var act = el('div', 'g-panel-sec');
     act.appendChild(el('h3', null, T.panel_actions || 'Actions'));

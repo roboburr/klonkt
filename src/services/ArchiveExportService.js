@@ -37,19 +37,23 @@ export function stableJson(value) {
 }
 
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
-// SQLite's CURRENT_TIMESTAMP schrijft 'YYYY-MM-DD HH:MM:SS' in UTC, zonder marker.
-// Kale Date.parse leest dat als LOKALE tijd, dus op een server op UTC+2 ging er twee
-// uur van elke stempel af voordat hij het archief in ging. Die verschuiving wordt bij
-// het exporteren ingebakken en valt niet weg bij het importeren: exporteer je in
-// Amsterdam, dan is die post overal permanent twee uur te vroeg, en in zomer- en
-// wintertijd verschillend. Het raakte de stempels die de database zelf zet (concepten,
-// ingeplande posts, gearchiveerde antwoorden), niet die uit de editor, dus de schade
-// was stil en gedeeltelijk. EXPORT-FORMAT.md schreef altijd al "ISO 8601, UTC" voor.
-// Zelfde regel als isoStamp() in ActivityPubService en stampMs() in guardianship/offers.
-const SQL_STAMP = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d+)?$/;
+/**
+ * Naar ISO 8601 in UTC.
+ *
+ * SQLite schrijft CURRENT_TIMESTAMP als "2026-07-01 12:56:10" -- in UTC, maar
+ * ZONDER zone erbij. Date.parse leest die vorm als LOKALE tijd, en dan schuift
+ * elk tijdstempel in het archief mee met de tijdzone van de machine die de export
+ * draait. Op een server in Amsterdam is dat twee uur, en dat merk je pas als je
+ * ergens anders importeert.
+ *
+ * Gevonden doordat Bart vroeg of dit wel naar UTC normaliseert. De testmachine
+ * draait op UTC, dus geen enkele test kon het zien.
+ */
 const toISO = (d) => {
-  const s = String(d == null ? '' : d);
-  const t = Date.parse(SQL_STAMP.test(s) ? `${s.replace(' ', 'T')}Z` : s);
+  if (!d) return null;
+  const s = String(d).trim();
+  const zonderZone = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(s);
+  const t = Date.parse(zonderZone ? `${s.replace(' ', 'T')}Z` : s);
   return isNaN(t) ? null : new Date(t).toISOString();
 };
 
@@ -242,7 +246,17 @@ function readableMarkdown(post, obj) {
 export function buildArchive(slug, opts = {}) {
   const origin = (opts.origin || process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(slug);
-  if (!site) throw new Error(`onbekende site: ${slug}`);
+  if (!site) {
+    // De naam van de INSTANCE (de map, de unit) en de slug van de SITE in zijn
+    // database zijn twee dingen. Ze vallen vaak samen en soms niet, en dan zat je
+    // met een foutmelding die je liet raden. Zeg dus wat er wel in staat.
+    let bestaand = [];
+    try { bestaand = db.prepare('SELECT slug FROM sites ORDER BY rowid').all().map((r) => r.slug); } catch { /* geen sites-tabel */ }
+    const wat = slug ? `onbekende site: ${slug}` : 'geen site opgegeven';
+    throw new Error(bestaand.length
+      ? `${wat}. In deze database staat: ${bestaand.join(', ')}`
+      : `${wat}. In deze database staat geen enkele site -- wijst DATABASE_PATH naar de juiste?`);
+  }
 
   const bestanden = new Map();       // pad -> Buffer
   const tellingen = { posts: 0, replies: 0, media: 0, mediaMissing: 0 };

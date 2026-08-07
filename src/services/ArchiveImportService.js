@@ -142,7 +142,17 @@ export function importArchive(files, opts = {}) {
   }
 
   const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(opts.slug);
-  if (!site) throw new Error(`onbekende site: ${opts.slug}`);
+  if (!site) {
+    // De naam van de INSTANCE (de map, de unit) en de slug van de SITE in zijn
+    // database zijn twee dingen. Ze vallen vaak samen en soms niet, en dan zat je
+    // met een foutmelding die je liet raden. Zeg dus wat er wel in staat.
+    let bestaand = [];
+    try { bestaand = db.prepare('SELECT slug FROM sites ORDER BY rowid').all().map((r) => r.slug); } catch { /* geen sites-tabel */ }
+    const wat = opts.slug ? `onbekende site: ${opts.slug}` : 'geen site opgegeven';
+    throw new Error(bestaand.length
+      ? `${wat}. In deze database staat: ${bestaand.join(', ')}`
+      : `${wat}. In deze database staat geen enkele site -- wijst DATABASE_PATH naar de juiste?`);
+  }
   const eigenOrigin = (opts.origin || process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   rapport.origin = manifest.origin || null;
 

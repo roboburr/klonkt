@@ -16,16 +16,30 @@
 // hebben, blijft die daar staan; dat rechttrekken is een uitzending naar iedereen
 // en hoort een aparte, bewuste actie te zijn.
 
-import { readArchive, importArchive } from '../src/services/ArchiveImportService.js';
+import { kiesInstance, eisOrigin, splitsArgs } from './instance-env.mjs';
 
 const args = process.argv.slice(2);
-const vrij = args.filter((a) => !a.startsWith('-'));
+const { vrij, vlaggen } = splitsArgs(args, ['--data-root', '--env']);
 const [slug, bron] = vrij;
 
 if (!slug || !bron) {
-  console.error('gebruik: node scripts/import-archive.mjs <slug> <archief.zip|map> [--dry-run] [--overwrite]');
+  console.error('gebruik: node scripts/import-archive.mjs <slug> <archief.zip|map> [--data-root <map>] [--env <pad>] [--dry-run] [--overwrite]');
   process.exit(1);
 }
+
+// EERST de instance kiezen, DAN pas de service laden -- database.js opent de
+// database bij import. Bij een IMPORT weegt dit zwaarder dan bij een export: in
+// de verkeerde database schrijven is niet terug te draaien.
+const vlag = (naam) => vlaggen[naam] ?? null;
+let gekozen;
+try {
+  gekozen = kiesInstance(slug, { dataRoot: vlag('--data-root'), envPad: vlag('--env') });
+} catch (e) { console.error(e.message); process.exit(1); }
+eisOrigin(gekozen.bron);
+console.log(`instellingen uit: ${gekozen.bron || 'de omgeving'}`);
+console.log(`database        : ${process.env.DATABASE_PATH || '(standaard in de code-map)'}`);
+
+const { readArchive, importArchive } = await import('../src/services/ArchiveImportService.js');
 
 let files;
 try { files = readArchive(bron); }

@@ -98,7 +98,7 @@ archive carries the authoring truth instead, and the differences are:
 | `contentMap` | `posts.language` | omitted when the post has no language |
 | `summary` | `posts.content_warning` | AS2 summary is the content warning |
 | `sensitive` | `posts.nsfw` | |
-| `published` | `posts.published_at` ?? `created_at` | ISO 8601, UTC. Klonkt stores timestamps in two spellings (`YYYY-MM-DD HH:MM:SS` and full ISO); the archive normalises to ISO. The **instant** survives a round trip, the spelling does not. |
+| `published` | `posts.published_at` ?? `created_at` | ISO 8601, UTC. SQLite writes `CURRENT_TIMESTAMP` in UTC but without a zone, and `Date.parse` reads that shape as *local* time — so a timezone-less value is explicitly read as UTC before conversion. Klonkt stores timestamps in two spellings (`YYYY-MM-DD HH:MM:SS` and full ISO); the archive normalises to ISO. The **instant** survives a round trip, the spelling does not. |
 | `updated` | `posts.updated_at` | omitted when equal to `published` |
 | `url` | `<origin>/<slug>` | the human permalink |
 | `attachment` | cover, inline `<img>`, `c2s_attachments` **and their `poster`**, hosted audio tracks | see [Media](#media); each carries a `shaer:role` |
