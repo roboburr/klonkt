@@ -11,40 +11,7 @@
 </section>
 
 <script src="/assets/vendor/simplewebauthn-browser.umd.min.js"></script>
-<script>
-(function () {
-  var options = <%- optionsJson %>;
-  var blob = "<%= regBlob %>";
-  var I = { unsupported: "<%= t('ppk.unsupported') %>", follow: "<%= t('ppk.follow') %>", done: "<%= t('ppk.done') %>", failed: "<%= t('ppk.failed') %>", cancelled: "<%= t('ppk.cancelled') %>", error: "<%= t('pgate.error') %>" };
-  var postUrl = "<%= (typeof siteUrlBase !== 'undefined' && siteUrlBase ? siteUrlBase : '') %>/<%= postSlug %>";
-  var btn = document.getElementById('pk-go');
-  var status = document.getElementById('pk-status');
-  function say(msg, err) { status.hidden = false; status.textContent = msg; status.classList.toggle('is-err', !!err); }
-
-  if (!window.SimpleWebAuthnBrowser || !window.PublicKeyCredential) {
-    btn.disabled = true;
-    say(I.unsupported, true);
-    return;
-  }
-  btn.addEventListener('click', function () {
-    btn.disabled = true;
-    say(I.follow);
-    window.SimpleWebAuthnBrowser.startRegistration({ optionsJSON: options })
-      .then(function (response) {
-        return fetch('/paid/register', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ response: response, blob: blob }),
-        });
-      })
-      .then(function (r) { return r.json(); })
-      .then(function (j) {
-        if (j && j.ok) { say(I.done); setTimeout(function () { location.href = postUrl; }, 900); }
-        else { btn.disabled = false; say(I.failed.replace('{err}', (j && j.error) || '?'), true); }
-      })
-      .catch(function (e) { btn.disabled = false; say(e && e.name === 'NotAllowedError' ? I.cancelled : I.error, true); });
-  });
-})();
-</script>
+<%# Het script staat in assets/js/mod/paid-passkey.js; de gegevens via partials/page-data.ejs (shaer-bqr). %>
 
 <style>
   .pk { max-width: 480px; margin: 0 auto; padding: 56px 18px; text-align: center; }
@@ -57,3 +24,4 @@
   .pk-status { margin: 14px 0 0; opacity: .9; }
   .pk-status.is-err { color: #c0392b; }
 </style>
+<%- include('../partials/page-data', { pageData: { options: JSON.parse(optionsJson), blob: regBlob, i18n: { unsupported: t('ppk.unsupported'), follow: t('ppk.follow'), done: t('ppk.done'), failed: t('ppk.failed'), cancelled: t('ppk.cancelled'), error: t('pgate.error') }, postUrl: (typeof siteUrlBase !== 'undefined' && siteUrlBase ? siteUrlBase : '') + '/' + postSlug } }) %>

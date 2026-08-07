@@ -175,7 +175,10 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
 </header>
 
 <!-- Search overlay (shared by mobile bottom-tab + desktop top-nav) -->
-<div id="search-overlay" class="search-overlay" hidden data-suggest="<%= _siteUrlBase %>/search/suggest" data-action="<%= _siteUrlBase %>/search">
+<%# De teksten staan op het element dat ze gebruikt, niet in het script: een
+    module is een statisch bestand en kan geen vertaling interpoleren. %>
+<div id="search-overlay" class="search-overlay" hidden data-suggest="<%= _siteUrlBase %>/search/suggest" data-action="<%= _siteUrlBase %>/search"
+     data-i18n="<%= JSON.stringify({ posts: t('search.section_posts'), tracks: t('search.section_tracks'), events: t('search.section_events'), pages: t('search.section_pages'), all: t('search.suggest_all'), none: t('search.suggest_empty') }) %>">
   <div class="container">
     <form class="search-overlay-form" method="get" action="<%= _siteUrlBase %>/search">
       <input type="search" name="q" placeholder="<%= t('search.placeholder') %>" autocomplete="off">
@@ -190,87 +193,7 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
   </div>
 </div>
 
-<script>
-(function() {
-  // Wired ONCE. This chrome (topnav) is re-inserted out-of-band during htmx navigation
-  // → without this guard the script would stack EXTRA listeners on every navigation,
-  // causing the theme toggle to fire 2× (or more) = no net change ("toggle stops working").
-  // Everything below uses event delegation on body/document, so it also works for
-  // buttons that appear after this run (OOB).
-  if (window.__pcmsChromeWired) return;
-  window.__pcmsChromeWired = true;
-
-  function toggleTheme() {
-    var cur = document.documentElement.getAttribute('data-theme') || 'dark';
-    var next = cur === 'dark' ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', next);
-    try { localStorage.setItem('pcms-theme', next); } catch (e) {}
-  }
-  function overlay() { return document.getElementById('search-overlay'); }
-  function openSearch() { var o = overlay(); if (o) { o.hidden = false; var i = o.querySelector('input'); if (i) i.focus(); } }
-  function closeSearch() { var o = overlay(); if (o) { o.hidden = true; var b = document.getElementById('search-suggest'); if (b) b.innerHTML = ''; } }
-
-  document.body.addEventListener('click', function(e) {
-    if (e.target.closest('#theme-toggle, #theme-toggle-mobile, #theme-toggle-footer')) { toggleTheme(); return; }
-    if (e.target.closest('#search-toggle')) { openSearch(); return; }
-    if (e.target.closest('#search-close')) { closeSearch(); return; }
-    // Close open dropdowns (user menu + language picker) on click outside.
-    document.querySelectorAll('.user-menu[open], .lang-menu[open]').forEach(function(d) {
-      if (!d.contains(e.target)) d.removeAttribute('open');
-    });
-  });
-
-  document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') { var o = overlay(); if (o && !o.hidden) closeSearch(); }
-  });
-
-  // ── Live results while typing ───────────────────────────────────
-  var _ST = {
-    posts: '<%= t('search.section_posts') %>', tracks: '<%= t('search.section_tracks') %>',
-    events: '<%= t('search.section_events') %>', pages: '<%= t('search.section_pages') %>',
-    all: '<%= t('search.suggest_all') %>', none: '<%= t('search.suggest_empty') %>'
-  };
-  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
-  function renderSuggest(box, d, q, ov) {
-    var html = '';
-    function grp(title, items, fmt) {
-      if (!items || !items.length) return;
-      html += '<div class="ss-group"><div class="ss-title">' + esc(title) + '</div>' + items.map(fmt).join('') + '</div>';
-    }
-    grp(_ST.posts, d.posts, function(p){ return '<a class="ss-item" href="' + esc(p.url) + '">' + esc(p.title) + '</a>'; });
-    grp(_ST.tracks, d.tracks, function(tk){ var sub = tk.artist ? ' <span class="ss-sub">' + esc(tk.artist) + '</span>' : ''; return tk.url ? '<a class="ss-item" href="' + esc(tk.url) + '">' + esc(tk.title) + sub + '</a>' : '<span class="ss-item ss-noclick">' + esc(tk.title) + sub + '</span>'; });
-    grp(_ST.events, d.events, function(ev){ return '<a class="ss-item" href="' + esc(ev.url) + '">' + esc(ev.where || ev.when) + ' <span class="ss-sub">' + esc(ev.when) + '</span></a>'; });
-    grp(_ST.pages, d.pages, function(pg){ return '<a class="ss-item" href="' + esc(pg.url) + '">' + esc(pg.label) + '</a>'; });
-    var hasAny = (d.posts && d.posts.length) || (d.tracks && d.tracks.length) || (d.events && d.events.length) || (d.pages && d.pages.length);
-    if (!hasAny) { box.innerHTML = '<div class="ss-empty">' + esc(_ST.none) + '</div>'; return; }
-    var action = (ov && ov.getAttribute('data-action')) || '/search';
-    html += '<a class="ss-all" href="' + esc(action) + '?q=' + encodeURIComponent(q) + '">' + esc(_ST.all) + '</a>';
-    box.innerHTML = html;
-  }
-  var _sTimer;
-  document.addEventListener('input', function(e) {
-    var inp = e.target.closest && e.target.closest('#search-overlay input[name="q"]');
-    if (!inp) return;
-    var box = document.getElementById('search-suggest');
-    if (!box) return;
-    var q = inp.value.trim();
-    clearTimeout(_sTimer);
-    if (q.length < 2) { box.innerHTML = ''; return; }
-    _sTimer = setTimeout(function() {
-      var ov = document.getElementById('search-overlay');
-      var url = (ov && ov.getAttribute('data-suggest')) || '/search/suggest';
-      fetch(url + '?q=' + encodeURIComponent(q))
-        .then(function(r){ return r.ok ? r.json() : null; })
-        .then(function(d){ if (d) renderSuggest(box, d, q, ov); })
-        .catch(function(){});
-    }, 200);
-  });
-  // Click on a suggestion → close the overlay (the link/boost handles navigation).
-  document.addEventListener('click', function(e) {
-    if (e.target.closest && e.target.closest('#search-suggest a')) { var o = overlay(); if (o) o.hidden = true; }
-  });
-})();
-</script>
+<%# Het script van de topnav staat in assets/js/mod/chrome.js (shaer-bqr). %>
 
 <style>
 /* ============================================================

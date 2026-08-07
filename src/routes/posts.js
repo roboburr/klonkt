@@ -1391,6 +1391,7 @@ router.get('/:slug', (req, res, next) => {
   if (post.paid && !canEditThis && !_unlocked) {
     const { newerPost, olderPost } = postNeighbors(site, post);
     return renderPage(req, res, 'pages/paid-gate', {
+    pageJs: 'paid-gate',
       pageTitle: post.title || 'Voor supporters',
       bodyClass: 'on-special',
       pgTitle: post.title || '',
