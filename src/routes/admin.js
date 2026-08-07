@@ -86,6 +86,7 @@ router.get('/', requireAuth, (req, res) => {
 // who may view the admin panel (logged in); purely static help text, nothing sensitive.
 router.get('/handleiding', requireAuth, (req, res) => {
   renderPage(req, res, 'pages/admin-help', {
+    pageJs: 'admin-help',
     pageTitleKey: 'admin.t_manual',
     bodyClass: 'on-admin',
   });

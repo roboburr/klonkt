@@ -199,6 +199,7 @@ router.get('/', requireGod, (req, res) => {
 // ==================== NEW (form) ====================
 router.get('/new', requireGod, (req, res) => {
   renderPage(req, res, 'pages/admin-site-edit', {
+    pageJs: 'admin-site-edit',
     pageTitleKey: 'admin.t_newsite',
     bodyClass: 'on-admin',
     isNew: true,
@@ -282,6 +283,7 @@ router.get('/:slug/edit', requireSiteManagerBySlug, (req, res) => {
   try { apAliases = (JSON.parse(site.ap_aliases || '[]') || []).join('\n'); } catch { /* show empty on malformed */ }
 
   renderPage(req, res, 'pages/admin-site-edit', {
+    pageJs: 'admin-site-edit',
     pageTitleKey: 'admin.t_editsite', pageTitleVars: { title: site.title },
     bodyClass: 'on-admin',
     isNew: false,

@@ -144,26 +144,4 @@
   .hb-item mark { background: color-mix(in srgb, var(--accent) 35%, transparent); color: inherit; border-radius: 2px; }
   .hb-empty { color: var(--ink-muted, var(--ink-soft)); padding: 1rem; text-align: center; }
 </style>
-<script>
-(function () {
-  var q = document.getElementById('hb-q');
-  var items = [].slice.call(document.querySelectorAll('.hb-item'));
-  var empty = document.getElementById('hb-empty');
-  var count = document.getElementById('hb-count');
-  if (!q) return;
-  // Bewaar de originele tekst per item (voor highlight-reset).
-  items.forEach(function (it) { it._txt = it.textContent.toLowerCase(); });
-  function run() {
-    var term = q.value.trim().toLowerCase();
-    var shown = 0;
-    items.forEach(function (it) {
-      var hit = !term || it._txt.indexOf(term) >= 0;
-      it.classList.toggle('hb-hidden', !hit);
-      if (hit) shown++;
-    });
-    empty.hidden = shown !== 0;
-    count.textContent = term ? (shown + ' onderwerp' + (shown === 1 ? '' : 'en') + ' gevonden') : '';
-  }
-  q.addEventListener('input', run);
-})();
-</script>
+<%# Het script van deze pagina staat in assets/js/mod/admin-help.js (shaer-bqr). %>

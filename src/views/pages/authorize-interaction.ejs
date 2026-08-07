@@ -11,14 +11,7 @@
       </a>
       <p class="fedi-bm-help"><%= t('fedi.bm_help') %></p>
     </div>
-    <script>
-    (function () {
-      if (window.__fediBmWired) return; window.__fediBmWired = true;
-      var a = document.getElementById('fedi-bm-btn'); if (!a) return;
-      a.setAttribute('href', "javascript:void(window.open('" + location.origin + "/authorize_interaction?uri='+encodeURIComponent(window.location.href)))");
-      a.addEventListener('click', function (e) { e.preventDefault(); a.classList.add('nudge'); setTimeout(function(){ a.classList.remove('nudge'); }, 600); });
-    })();
-    </script>
+    <%# Het script van deze pagina staat in assets/js/mod/authorize-interaction.js (shaer-bqr). %>
     <% if (!manage.length) { %>
       <p class="auth-interact-note"><%= t('fedi.manage_empty') %></p>
     <% } else { %>
@@ -55,21 +48,7 @@
           </li>
         <% }); %>
       </ul>
-      <script>
-      (function () {
-        if (window.__fediEditWired) return; window.__fediEditWired = true;
-        document.addEventListener('click', function (e) {
-          var b = e.target.closest && e.target.closest('.fedi-edit-btn');
-          if (!b) return;
-          var li = b.closest('.fedi-manage-item'); if (!li) return;
-          var form = li.querySelector('.fedi-edit-form'); if (!form) return;
-          var open = form.classList.toggle('is-open');
-          b.classList.toggle('is-open', open);
-          b.setAttribute('aria-expanded', open ? 'true' : 'false');
-          if (open) { var ed = form.querySelector('.re-editor') || form.querySelector('textarea'); if (ed) ed.focus(); }
-        });
-      })();
-      </script>
+      
     <% } %>
     <p class="auth-interact-note"><a href="/"><%= t('fedi.remote_back') %></a></p>
   <% } else if (typeof liked !== 'undefined' && liked) { %>
@@ -330,30 +309,4 @@
   .auth-report-note { font-size: .82rem; color: var(--ink-muted, #999); margin: 0 0 .5rem; }
 </style>
 
-<script>
-/* Like/Boost toggle in place — POST via fetch, flip the button, stay on the page. */
-(function(){
-  if (window.__fediReactWired) return; window.__fediReactWired = true;
-  document.addEventListener('submit', function(e){
-    var f = e.target.closest && e.target.closest('.fedi-react-form');
-    if (!f) return;
-    e.preventDefault();
-    var btn = f.querySelector('button'); if (!btn || btn.disabled) return;
-    btn.disabled = true;
-    var body = new URLSearchParams();
-    new FormData(f).forEach(function(v, k){ body.append(k, v); });
-    fetch(f.action, { method: 'POST', body: body, headers: { 'X-Requested-With': 'fetch' }, credentials: 'same-origin' })
-      .then(function(r){ return r.ok ? r.json() : null; })
-      .then(function(j){
-        if (j) {
-          var on = !!j.on;
-          btn.classList.toggle('is-on', on);
-          var lbl = btn.querySelector('.fedi-bigact-label');
-          if (lbl) lbl.textContent = on ? (btn.getAttribute('data-on') || lbl.textContent) : (btn.getAttribute('data-off') || lbl.textContent);
-        }
-      })
-      .catch(function(){})
-      .then(function(){ btn.disabled = false; });
-  });
-})();
-</script>
+

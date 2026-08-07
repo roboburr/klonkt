@@ -65,6 +65,7 @@ const heroUpload = multer({
 
 router.get('/', requireGod, (req, res) => {
   renderPage(req, res, 'pages/admin-settings', {
+    pageJs: 'admin-settings',
     pageTitleKey: 'admin.t_settings',
     bodyClass: 'on-admin',
     hubTagline: getSetting('hub_tagline') || '',

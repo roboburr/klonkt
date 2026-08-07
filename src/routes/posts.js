@@ -794,6 +794,7 @@ router.get('/authorize_interaction', requireSiteManager, async (req, res) => {
     if (!target) { try { followTarget = await ActivityPubService.resolveRemoteActor(uri); } catch { /* ignore */ } }
   }
   renderPage(req, res, 'pages/authorize-interaction', {
+    pageJs: 'authorize-interaction',
     pageTitleKey: 'fedi.remote_interact', // i18n: was hardcoded Dutch on non-NL sites
     bodyClass: 'on-special',
     uri,
