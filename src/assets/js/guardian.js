@@ -49,6 +49,20 @@
   // child's panel.
   var HELP_TOP = 5;
 
+  /**
+   * Wacht deze hulpvraag nog op iemand?
+   *
+   * EEN plek, met opzet. Dit werd eerst op twee plekken los beslist -- de lijst
+   * en de teller op de wardregel -- en toen de lijst gefilterd werd bleef die
+   * teller een afgehandelde vraag meetellen. Een derde plek komt er vast, en dan
+   * hoort hij hier langs te komen.
+   *
+   * Bij TWIJFEL open: alles wat geen expliciete afsluiting draagt telt als
+   * wachtend. De omgekeerde fout -- iets als afgehandeld tonen dat het niet is --
+   * is hier de gevaarlijke.
+   */
+  function helpOpen(h) { return !h || !h.state || h.state.open; }
+
   function helpCard(h) {
     var card = el('div', 'g-card help');
     var row = el('div', 'row');
@@ -156,8 +170,8 @@
     // Afgehandeld hoort niet meer in de lijst die om aandacht vraagt, en niet
     // meer in de teller: anders blijft het cijfer alarm slaan voor iets dat af
     // is, en neemt een gesloten vraag de ruimte in van een open vraag.
-    var open = alle.filter(function (h) { return !h.state || h.state.open; });
-    var klaar = alle.filter(function (h) { return h.state && !h.state.open; });
+    var open = alle.filter(helpOpen);
+    var klaar = alle.filter(function (h) { return !helpOpen(h); });
 
     open.slice(0, HELP_TOP).forEach(function (h) { list.appendChild(helpCard(h)); });
     if (open.length > HELP_TOP) {
@@ -579,8 +593,12 @@
       FOLLOWS.filter(function (f) { return f.wardUri === uri; }),
       T.panel_follow_empty || '', followCard);
 
+    // Hier juist de VOLLEDIGE geschiedenis van dit kind -- dat is waar dit
+    // paneel voor is. Wel wat nog wacht bovenaan, want dat is waar je naar zoekt
+    // als je het opent.
     sectionInto(panel, T.panel_help || 'Calls for help',
-      (S.help || []).filter(function (h) { return h.actor_uri === uri; }),
+      (S.help || []).filter(function (h) { return h.actor_uri === uri; })
+        .sort(function (a, b) { return (helpOpen(b) ? 1 : 0) - (helpOpen(a) ? 1 : 0); }),
       T.panel_help_empty || '', helpCard);
 
     sectionInto(panel, T.panel_posts || 'Recent posts',
@@ -630,7 +648,9 @@
       var row = el('div', 'row');
       row.appendChild(el('span', 'who grow', handleOf(uri, w.other_handle)));
       // Counts on the row: whatever is waiting must be visible with the panel shut.
-      var nHelp = (S.help || []).filter(function (h) { return h.actor_uri === uri; }).length;
+      // Alleen wat nog WACHT, zoals het commentaar hierboven al zei: een
+      // afgehandelde vraag hoorde de boei niet te laten staan.
+      var nHelp = (S.help || []).filter(function (h) { return h.actor_uri === uri && helpOpen(h); }).length;
       var nFollow = FOLLOWS.filter(function (f) { return f.wardUri === uri; }).length;
       if (nHelp) row.appendChild(el('span', 'tag help', '🛟 ' + nHelp));
       if (nFollow) row.appendChild(el('span', 'tag co', nFollow + ' ' + (nFollow === 1 ? (T.badge_follow_one || '') : (T.badge_follow || ''))));
