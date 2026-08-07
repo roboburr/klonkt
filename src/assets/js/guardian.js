@@ -152,14 +152,42 @@
   function renderHelp() {
     var list = document.getElementById('help-list');
     list.textContent = '';
-    var help = S.help || [];
-    help.slice(0, HELP_TOP).forEach(function (h) { list.appendChild(helpCard(h)); });
-    if (help.length > HELP_TOP) {
-      list.appendChild(el('p', 'g-sec-sub', '+ ' + (help.length - HELP_TOP) + ' — ' + (T.panel_help || '')));
+    var alle = S.help || [];
+    // Afgehandeld hoort niet meer in de lijst die om aandacht vraagt, en niet
+    // meer in de teller: anders blijft het cijfer alarm slaan voor iets dat af
+    // is, en neemt een gesloten vraag de ruimte in van een open vraag.
+    var open = alle.filter(function (h) { return !h.state || h.state.open; });
+    var klaar = alle.filter(function (h) { return h.state && !h.state.open; });
+
+    open.slice(0, HELP_TOP).forEach(function (h) { list.appendChild(helpCard(h)); });
+    if (open.length > HELP_TOP) {
+      list.appendChild(el('p', 'g-sec-sub', '+ ' + (open.length - HELP_TOP) + ' — ' + (T.panel_help || '')));
     }
+
+    // WEG is niet hetzelfde als AF. Een afgehandelde hulpvraag blijft bestaan --
+    // er wordt in dit systeem niets herschreven -- maar hij hoort achter een
+    // klik, niet voor je neus. De volledige geschiedenis per kind staat sowieso
+    // in het paneel van dat kind.
+    if (klaar.length) {
+      var doos = el('div', 'g-help-archive');
+      doos.hidden = true;
+      klaar.forEach(function (h) { doos.appendChild(helpCard(h)); });
+      var knop = el('button', 'quiet small', (T.help_archive || '{n} handled').replace('{n}', klaar.length));
+      knop.addEventListener('click', function () {
+        doos.hidden = !doos.hidden;
+        knop.textContent = doos.hidden
+          ? (T.help_archive || '{n} handled').replace('{n}', klaar.length)
+          : (T.help_archive_hide || 'hide');
+      });
+      list.appendChild(knop);
+      list.appendChild(doos);
+    }
+
     var badge = document.getElementById('help-count');
-    badge.textContent = help.length; badge.hidden = help.length === 0;
-    show('help-empty', help.length === 0);
+    badge.textContent = open.length; badge.hidden = open.length === 0;
+    // "Geen hulpverzoeken. Mooi zo." mag ook staan als er wel een archief is:
+    // er wacht dan immers niets.
+    show('help-empty', open.length === 0);
   }
 
   // ── 3. Offers I am a party to (sent, or a co-guardianship to co-approve) ─

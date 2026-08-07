@@ -192,3 +192,6 @@ button.danger { background: var(--danger); color: #fff; border-color: var(--dang
 .g-help-age { opacity: .6; }        /* oud, maar niet weg */
 .g-help-done { font-weight: 600; }
 .g-confirm { margin-top: .5rem; }
+
+/* Het archief van afgehandelde hulpvragen: aanwezig, niet in de weg. */
+.g-help-archive { margin-top: .5rem; opacity: .75; }
