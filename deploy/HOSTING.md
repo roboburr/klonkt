@@ -174,6 +174,40 @@ So:
   minor, and a 🛟 help request is a distress signal. That a guardianship exists
   may be visible to you for support. What is in it is not yours to read.
 
+### If someone changes hoster
+
+An ActivityPub `Move` does **not** apply here. Move takes an actor from one id to
+another and tells the followers to re-follow. If the domain stays the same, the
+actor id stays the same, and there is nothing to move: the fediverse only ever
+sees the URI and cannot tell which machine answers it. Changing hoster with the
+same domain is a server migration. Copy the data across and the world notices
+nothing.
+
+Which leaves the key, and Move would not have helped with that either — a Move
+carries no keys; the new actor simply has its own.
+
+So the choice is: take the key along, or make a new one.
+
+Take it along and everything keeps working — **and the old hoster keeps a working
+copy, permanently.** ActivityPub has no revocation. Nothing marks a key as no
+longer valid; it is only superseded once other servers refetch the actor.
+
+Klonkt cannot rotate keys today. `getOrCreateKeys()` creates a pair when there is
+none and never replaces one. So for now, treat a change of hoster as what it is:
+the previous hoster can go on signing as that person, and the only real mitigation
+is choosing hosters you would trust after the fact.
+
+Say this out loud to anyone leaving you, and to anyone arriving.
+
+The fediverse is working on the root of this. FEP-521a (final) already lets an
+actor publish several keys at once, which is what a graceful rotation would need —
+though it deliberately stops at the representation and says nothing about when an
+old key stops counting. FEP-ef61, *Portable Objects* (draft), goes further: it
+gives objects server-independent ids and allows the signing key to live with the
+**user** instead of the server. On that model a change of hoster leaks nothing,
+because the hoster never held the key. That is where this should end up; it is not
+where it is today.
+
 ### The legal shape
 
 Under the GDPR you are a **processor**: you handle personal data on behalf of
