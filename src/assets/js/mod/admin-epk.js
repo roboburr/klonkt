@@ -7,6 +7,11 @@
 // Alles hier hoort GEDELEGEERD te luisteren (op document, niet op een element dat
 // er nu staat) en tegen een tweede aanroep te kunnen.
 
+// Element-bedrading leeft zo lang als de pagina; de bootstrap roept init()
+// aan bij elke paginawissel waarop deze module actief is (shaer-5s1).
+export function init() { run(); }
+
+function run() {
 (function () {
   var box = document.querySelector('.epk-track-pick');
   if (!box) return;
@@ -19,3 +24,4 @@
   box.addEventListener('change', sync);
   sync();
 })();
+}

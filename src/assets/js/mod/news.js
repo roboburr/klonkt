@@ -6,6 +6,14 @@
 
 import { pageData } from './lib.js';
 
+// De twee gedelegeerde blokken dragen een window-vlag en zijn bij een tweede
+// init een no-op; de twee SCANNERS (gif-video's, lees-meer) moeten juist wel
+// elke render opnieuw over de verse elementen lopen (shaer-5s1). Element-
+// vlaggen (data-gif-wired, data-rm) houden dubbel bedraden tegen.
+export function init() { run(); }
+
+function run() {
+
   (function () {
     if (window.__tlPasteWired) return; window.__tlPasteWired = true;
     function modal() { return document.getElementById('tl-paste'); }
@@ -76,17 +84,7 @@ import { pageData } from './lib.js';
 
 /* Short feed videos (gif/cover loops like an animated cover) autoplay + loop muted like a GIF;
    longer real videos keep their controls. Decided on the actual duration once metadata loads. */
-(function(){
-  document.querySelectorAll('.tl-media-video').forEach(function(v){
-    if (v.dataset.gifWired) return; v.dataset.gifWired = '1';
-    var decide = function(){
-      if (v.duration && v.duration <= 30) {
-        v.removeAttribute('controls'); v.loop = true; v.muted = true; v.play().catch(function(){});
-      }
-    };
-    if (v.readyState >= 1) decide(); else v.addEventListener('loadedmetadata', decide, { once: true });
-  });
-})();
+wireGifVideos();
 
 /* Like/Boost toggle in place — POST via fetch, flip the button, stay on the page (no reload, no banner). */
 (function(){
@@ -112,7 +110,23 @@ import { pageData } from './lib.js';
 // Collapse long post bodies to a max height with a "read more" toggle — only when the content
 // actually overflows. Runs on every /news render (full load + htmx swap); a per-element flag
 // prevents double-wiring.
-(function(){
+wireReadMore();
+}
+
+/* Short feed videos: zie de opmerking bij de aanroep in run(). */
+function wireGifVideos(){
+  document.querySelectorAll('.tl-media-video').forEach(function(v){
+    if (v.dataset.gifWired) return; v.dataset.gifWired = '1';
+    var decide = function(){
+      if (v.duration && v.duration <= 30) {
+        v.removeAttribute('controls'); v.loop = true; v.muted = true; v.play().catch(function(){});
+      }
+    };
+    if (v.readyState >= 1) decide(); else v.addEventListener('loadedmetadata', decide, { once: true });
+  });
+}
+
+function wireReadMore(){
   var _d = pageData(); var RM = _d.readMore || 'Lees meer', SL = _d.showLess || 'Toon minder';
   document.querySelectorAll('.tl-content:not(.nsfw-media):not([data-rm])').forEach(function(c){
     c.setAttribute('data-rm', '1');
@@ -126,4 +140,9 @@ import { pageData } from './lib.js';
       c.insertAdjacentElement('afterend', b);
     }
   });
-})();
+}
+
+// Paginering: items die de feed later binnenhaalt zouden de scanners missen --
+// init() draait per NAVIGATIE, en een pagineer-swap is er geen. Een keer,
+// gedelegeerd; op andere pagina's vinden de scanners niets en doen ze niets.
+document.body.addEventListener('htmx:afterSettle', function () { wireGifVideos(); wireReadMore(); });

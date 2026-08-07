@@ -7,6 +7,11 @@
 // Alles hier hoort GEDELEGEERD te luisteren (op document, niet op een element dat
 // er nu staat) en tegen een tweede aanroep te kunnen.
 
+// Element-bedrading leeft zo lang als de pagina; de bootstrap roept init()
+// aan bij elke paginawissel waarop deze module actief is (shaer-5s1).
+export function init() { run(); }
+
+function run() {
 (function () {
   var q = document.getElementById('hb-q');
   var items = [].slice.call(document.querySelectorAll('.hb-item'));
@@ -28,3 +33,4 @@
   }
   q.addEventListener('input', run);
 })();
+}
