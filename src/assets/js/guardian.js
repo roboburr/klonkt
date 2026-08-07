@@ -491,9 +491,13 @@
 
     // De stand. NULL is onbekend en dat is iets anders dan uit: bij een ward op
     // een andere server wordt die kolom daar bijgehouden.
+    // Drie standen, niet twee. "Uit" en "voor zover wij weten uit" zijn niet
+    // hetzelfde: dat tweede betekent dat niemand er ooit over besloot, en dat
+    // hoort niet te lezen als een genomen besluit.
     var stand = g.value === null || g.value === undefined
       ? (T.gate_unknown || 'unknown')
       : (g.value ? (T.prop_on || 'on') : (T.prop_off || 'off'));
+    if (!g.decided && g.value === false) stand = T.gate_default_off || stand;
     var meta = el('div', 'g-gate-meta small');
     meta.appendChild(el('span', null, stand));
     if (g.threshold) {
@@ -525,11 +529,9 @@
       // al. Staat de poort open, dan is het enige wat je kunt voorstellen hem
       // dichtzetten, en dat hoort op de knop te staan voordat je klikt.
       //
-      // Bij een ONBEKENDE stand (een ward op een andere server) kun je alleen
-      // 'openzetten' voorstellen -- gateButton stuurt dan allow: true. Dat is een
-      // gat aan de veilige kant: een guardian elders kan niet voorstellen iets
-      // DICHT te zetten. Op te lossen zodra de catalogus de huidige waarde
-      // meestuurt (shaer-b78), niet hier.
+      // De richting volgt de stand die we uit de besluiten kennen, dus ook voor
+      // een ward elders kun je nu DICHTZETTEN voorstellen. Dat was de veilige
+      // richting die eerder ontbrak toen de stand altijd onbekend was.
       var openzetten = T.gate_propose_open || T.gate_propose || 'Propose';
       var dichtzetten = T.gate_propose_close || T.gate_propose || 'Propose';
       row.appendChild(gateButton(w, g.feature, g.value, openzetten, dichtzetten, openzetten));

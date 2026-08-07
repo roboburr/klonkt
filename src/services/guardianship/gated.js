@@ -96,16 +96,26 @@ export const GATE_CATALOGUE = [
  */
 export function gateRows({ settings = {}, guardianCount = null, proposals = [], waiting = {} } = {}) {
   return GATE_CATALOGUE.map((g) => {
-    const value = Object.prototype.hasOwnProperty.call(settings, g.feature) ? settings[g.feature] : null;
+    // Een stand kan drie dingen zijn: beslist-aan, beslist-uit, of de standaard
+    // omdat er nooit iets besloten is. Dat derde als "uit" tonen zou een besluit
+    // suggereren dat niemand nam.
+    const raw = Object.prototype.hasOwnProperty.call(settings, g.feature) ? settings[g.feature] : null;
+    const beslist = raw && typeof raw === 'object' ? !!raw.decided : (raw === true || raw === false);
+    const value = raw && typeof raw === 'object' ? raw.value : raw;
     // De trap: het bovenliggende moet OPEN staan. Onbekend telt niet als dicht --
     // bij een ward elders kennen we de stand niet, en verbergen betekende daar
     // ooit dat een voorstel nooit geopend kon worden.
-    const blockedBy = g.needs && settings[g.needs] === false ? g.needs : null;
+    const bovenliggend = settings[g.needs];
+    const bovenWaarde = bovenliggend && typeof bovenliggend === 'object' ? bovenliggend.value : bovenliggend;
+    const bovenBeslist = bovenliggend && typeof bovenliggend === 'object' ? bovenliggend.decided : (bovenWaarde === true || bovenWaarde === false);
+    // Alleen dichthouden als we ZEKER weten dat het bovenliggende uit staat.
+    const blockedBy = (g.needs && bovenBeslist && bovenWaarde === false) ? g.needs : null;
     return {
       feature: g.feature,
       kind: g.kind,
       reversible: !!g.reversible,
       value,
+      decided: beslist,
       // Vast staat vast: tonen mag, verzetten niet.
       adjustable: !g.fixed && !blockedBy,
       blockedBy: blockedBy || undefined,
@@ -273,6 +283,37 @@ export function recallSent(offerId) {
   catch { return null; }
 }
 
+/**
+ * De stand van een gate zoals DEZE guardian hem kent.
+ *
+ * Er zijn geen lokale accounts: elke ward woont op een andere server, dus de
+ * kolom op onze eigen sites-tabel is voor een ward altijd leeg. Wat een guardian
+ * wel heeft is de UITSLAG van besluiten -- een geaccepteerd voorstel met waarde
+ * true betekent dat de poort openging.
+ *
+ * Geeft { value, decided }:
+ *   decided true   we hebben een aangenomen besluit gezien; value is die waarde
+ *   decided false  we hebben er geen; value is de standaard voor een ward (uit)
+ *
+ * Dat verschil hoort zichtbaar te blijven. "Uit" en "voor zover wij weten uit"
+ * zijn niet hetzelfde, en het tweede is wat we meestal hebben.
+ *
+ * BEKEND GAT: dit ziet alleen onze EIGEN voorstellen. Antwoordde je op dat van
+ * een mede-guardian, dan komt de uitslag wel binnen (gated_outcome) maar wordt
+ * hij niet bewaard -- handshake.js legt alleen vast voor sent-rijen die van ons
+ * zijn. Een gate die een ander heeft geopend leest hier dus als "uit". Dat is de
+ * onveilige kant en het hoort gerepareerd te worden.
+ */
+export function knownSetting(guardianSlug, wardUri, feature) {
+  try {
+    const r = db.prepare(`SELECT value FROM ap_gated_sent
+                           WHERE guardian_slug = ? AND ward_uri = ? AND feature = ? AND status = 'accepted'
+                           ORDER BY created_at DESC LIMIT 1`).get(guardianSlug, wardUri, feature);
+    if (r) return { value: !!r.value, decided: true };
+  } catch { /* val terug op de standaard */ }
+  return { value: false, decided: false };
+}
+
 export function settleSent(offerId, outcome) {
   try { db.prepare('UPDATE ap_gated_sent SET status = ? WHERE offer_id = ?').run(outcome, offerId); } catch { /* non-fatal */ }
 }
@@ -298,7 +339,7 @@ export function sentStatus(row, now) {
 }
 
 export default {
-  GATE_CATALOGUE, gateRows,
+  GATE_CATALOGUE, gateRows, knownSetting,
   tallyGatedSetting, thresholdFor, featureColumn, recordGatedVote, gatedProgress, GATED_WINDOW_MS,
   parseGatedSetting, buildGatedOffer, rememberGatedOffer, recallGatedOffer,
   recordGatedReview, getGatedReview, listGatedReviews, removeGatedReview, clearGatedReviews,

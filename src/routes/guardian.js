@@ -67,7 +67,7 @@ function uiStrings(L) {
     'help_pick', 'help_close', 'help_picked_by', 'help_handled_by', 'help_handled_note',
     'help_close_ask', 'help_close_yes', 'help_just_now', 'help_hours', 'help_days',
     'help_archive', 'help_archive_hide', 'panel_history',
-    'gate_propose_open', 'gate_propose_close'];
+    'gate_propose_open', 'gate_propose_close', 'gate_default_off'];
   const s = Object.fromEntries(keys.map((k) => [k, i18nT(L, `guardian.${k}`)]));
   s.wave = i18nT(L, 'guardian.wave');
   s.waved = i18nT(L, 'guardian.waved');
@@ -611,9 +611,13 @@ function wardGates(mySlug, wardUri) {
   const wachtend = Guardianship.follows.listReviewsByDirection(mySlug, 'incoming')
     .filter((r) => r.ward_uri === wardUri).length;
   return Guardianship.gated.gateRows({
+    // Uit de BESLUITEN, niet uit onze eigen kolom. Er zijn geen lokale accounts:
+    // elke ward woont elders, dus wardEmbedSetting() gaf voor iedere ward null en
+    // stond er in het paneel overal "onbekend". Wat een guardian wel heeft is de
+    // uitslag van wat hij voorstelde.
     settings: {
-      'shaer:externalEmbeds': wardEmbedSetting(wardUri),
-      'shaer:externalPlayback': wardPlaybackSetting(wardUri),
+      'shaer:externalEmbeds': Guardianship.gated.knownSetting(mySlug, wardUri, 'shaer:externalEmbeds'),
+      'shaer:externalPlayback': Guardianship.gated.knownSetting(mySlug, wardUri, 'shaer:externalPlayback'),
     },
     guardianCount: statuses ? statuses.length : null,
     proposals: Guardianship.gated.listSent(mySlug, wardUri).map((p) => ({

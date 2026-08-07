@@ -77,6 +77,40 @@ test('wat er wacht staat bij de gate waar het op wacht', () => {
   assert.equal(rij(rows, 'shaer:follows').waiting, 2);
 });
 
+test('de stand komt uit de BESLUITEN, en zegt of er wel besloten is', () => {
+  // Er zijn geen lokale accounts: elke ward woont elders, dus de kolom op onze
+  // eigen sites-tabel is voor iedere ward leeg. Wat een guardian wel heeft is de
+  // uitslag van wat hij voorstelde.
+  const aan = gated.gateRows({ settings: { 'shaer:externalEmbeds': { value: true, decided: true } } });
+  assert.equal(rij(aan, 'shaer:externalEmbeds').value, true);
+  assert.equal(rij(aan, 'shaer:externalEmbeds').decided, true);
+});
+
+test('nooit besloten is iets anders dan besloten-uit', () => {
+  // "Uit" en "voor zover wij weten uit" zijn niet hetzelfde. Dat tweede als een
+  // besluit tonen suggereert dat iemand het genomen heeft.
+  const r = rij(gated.gateRows({ settings: { 'shaer:externalEmbeds': { value: false, decided: false } } }), 'shaer:externalEmbeds');
+  assert.equal(r.value, false);
+  assert.equal(r.decided, false);
+});
+
+test('de trap blokkeert alleen op een BESLOTEN dicht', () => {
+  // Blokkeren op de standaard zou betekenen dat afspelen nooit als eerste
+  // voorgesteld kan worden -- en zo ging er ooit een hele voorstelronde de
+  // verkeerde gate in.
+  const standaard = gated.gateRows({ settings: { 'shaer:externalEmbeds': { value: false, decided: false } } });
+  assert.equal(rij(standaard, 'shaer:externalPlayback').adjustable, true);
+  const beslist = gated.gateRows({ settings: { 'shaer:externalEmbeds': { value: false, decided: true } } });
+  assert.equal(rij(beslist, 'shaer:externalPlayback').adjustable, false);
+});
+
+test('de oude vorm (kale boolean) blijft werken', () => {
+  // Backwards: een aanroeper die nog true/false doorgeeft hoort niet om te vallen.
+  const r = rij(gated.gateRows({ settings: { 'shaer:externalEmbeds': true } }), 'shaer:externalEmbeds');
+  assert.equal(r.value, true);
+  assert.equal(r.decided, true);
+});
+
 test('omkeerbaarheid staat per gate genoteerd', () => {
   // Nu is alles omkeerbaar. Zodra independence erbij komt (shaer-90v) is dat het
   // niet, en dan moet het paneel dat kunnen zeggen zonder verbouwing.
