@@ -74,6 +74,27 @@ export function helpStatus(rows, now = Date.now()) {
   };
 }
 
+/**
+ * Een hulpvraag van iemand die je NIET MEER bewaakt.
+ *
+ * Het loslaat-scherm belooft dit al letterlijk: "je krijgt geen hulpvragen meer
+ * van ze". Nieuwe komen inderdaad niet meer binnen, maar wat er al lag bleef in
+ * de open lijst staan -- en was niet af te sluiten, want de markeerroute eist
+ * dat het nog je ward is en antwoordt anders met 403. De knop stond er dus wel
+ * en deed niets.
+ *
+ * Zo'n vraag is niet AFGEHANDELD -- dat zou een claim zijn over een kind waar je
+ * niets meer over te zeggen hebt, en die claim wordt ook nog rondgestuurd. Hij is
+ * niet meer van jou. Dat is een derde uitkomst en die hoort als zodanig te lezen.
+ *
+ * Veilig omdat een guardianship nooit bij de LAATSTE guardian eindigt (3.4,
+ * emancipatie): er blijft altijd iemand over voor wie de vraag wel open staat.
+ */
+export function withWardship(status, stillWard) {
+  if (stillWard) return status;
+  return { ...status, open: false, formerWard: true };
+}
+
 /** De staat van een hulpvraag zoals die nu is opgeslagen. */
 export function statusOf(noteUri, now = Date.now()) {
   if (!noteUri) return helpStatus([], now);
@@ -122,4 +143,4 @@ export function parseMarker(object) {
   return null;
 }
 
-export default { record, helpStatus, statusOf, statusFor, markerNote, parseMarker };
+export default { record, helpStatus, withWardship, statusOf, statusFor, markerNote, parseMarker };

@@ -61,7 +61,7 @@
    * wachtend. De omgekeerde fout -- iets als afgehandeld tonen dat het niet is --
    * is hier de gevaarlijke.
    */
-  function helpOpen(h) { return !h || !h.state || h.state.open; }
+  function helpOpen(h) { return !h || !h.state || (h.state.open && !h.state.formerWard); }
 
   function helpCard(h) {
     var card = el('div', 'g-card help');
@@ -109,6 +109,14 @@
   function helpState(h) {
     var st = h.state || { open: true, pickedUpBy: [], handled: null, ageMs: null };
     var box = el('div', 'g-help-state');
+
+    // Niet meer jouw ward: geen knoppen, want de route zou ze weigeren. En geen
+    // "afgehandeld", want dat zou een claim zijn over een kind waar je niets meer
+    // over te zeggen hebt.
+    if (st.formerWard) {
+      box.appendChild(el('div', 'g-help-former', T.help_former_ward || ''));
+      return box;
+    }
 
     if (st.handled) {
       var wie = st.handled.handle || handleOf(st.handled.uri);

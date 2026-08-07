@@ -65,7 +65,7 @@ function uiStrings(L) {
     'gate_irreversible', 'gate_waiting', 'gate_blocked', 'gate_propose',
     // Oppikken en afhandelen van een hulpvraag (shaer-lgo).
     'help_pick', 'help_close', 'help_picked_by', 'help_handled_by', 'help_handled_note',
-    'help_close_ask', 'help_close_yes', 'help_just_now', 'help_hours', 'help_days',
+    'help_close_ask', 'help_close_yes', 'help_just_now', 'help_hours', 'help_days', 'help_former_ward',
     'help_archive', 'help_archive_hide', 'panel_history',
     'gate_propose_open', 'gate_propose_close', 'gate_default_off',
     'gate_images', 'gate_messages', 'gate_compose', 'gate_music', 'gate_quoteCards',
@@ -89,11 +89,17 @@ function dashboardState(site, L) {
   // afgesloten. Per kaart vragen zou hier een N+1 opleveren, en dit is precies
   // het scherm dat een guardian in een haast openslaat.
   const helpStaat = Guardianship.help.statusFor(help.map((h) => h.object_uri));
+  // Wie bewaak je NU nog? Een hulpvraag van een oud-ward is niet meer van jou en
+  // hoort niet in de lijst die om je aandacht vraagt te blijven staan.
+  const mijnWards = new Set(Guardianship.listWards(site.slug).map((w) => w.other_uri));
   const helpItems = help.map((h) => ({
     ...h,
     // Bij twijfel OPEN. Een hulpvraag die er afgehandeld uitziet terwijl hij dat
     // niet is, is de gevaarlijke fout -- niet andersom.
-    state: helpStaat.get(h.object_uri) || { open: true, pickedUpBy: [], handled: null, ageMs: null },
+    state: Guardianship.help.withWardship(
+      helpStaat.get(h.object_uri) || { open: true, pickedUpBy: [], handled: null, ageMs: null },
+      mijnWards.has(h.actor_uri),
+    ),
     // The dashboard is built in the browser, so it gets the body finished: the
     // same partial de Krant and Berichten use. A 🛟 often carries a screenshot
     // and a link to the post it is about; both belong in the card.

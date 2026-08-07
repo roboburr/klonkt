@@ -113,3 +113,35 @@ test('een lijst hulpvragen kost EEN query', () => {
   assert.equal(m.get(N2).pickedUpBy.length, 1);
   assert.equal(m.get('https://kind.test/ap/notes/leeg').open, true, 'onbekend is open');
 });
+
+test('een hulpvraag van een OUD-ward staat niet meer open', () => {
+  // Het loslaat-scherm belooft dit al: "je krijgt geen hulpvragen meer van ze".
+  // Nieuwe komen niet meer binnen, maar wat er al lag bleef staan -- en was niet
+  // af te sluiten, want de markeerroute eist dat het nog je ward is.
+  const st = help.withWardship(help.helpStatus([]), false);
+  assert.equal(st.open, false);
+  assert.equal(st.formerWard, true);
+});
+
+test('maar hij is NIET afgehandeld', () => {
+  // Dat zou een claim zijn over een kind waar je niets meer over te zeggen hebt,
+  // en die claim wordt ook nog rondgestuurd naar de andere guardians. Er is een
+  // derde uitkomst: niet meer van jou.
+  const st = help.withWardship(help.helpStatus([]), false);
+  assert.equal(st.handled, null);
+});
+
+test('een lopende oppik blijft leesbaar als je losgelaten hebt', () => {
+  // Je was erbij. Dat je nu geen guardian meer bent maakt niet dat het nooit
+  // gebeurd is -- de geschiedenis hoort te kloppen.
+  const rijen = [{ kind: 'pickup', guardian_uri: OMA, guardian_handle: '@oma', created_at: '2026-08-05T10:00:00.000Z' }];
+  const st = help.withWardship(help.helpStatus(rijen, Date.parse('2026-08-05T11:00:00.000Z')), false);
+  assert.equal(st.pickedUpBy.length, 1);
+  assert.equal(st.pickedUpBy[0].handle, '@oma');
+});
+
+test('zolang het WEL je ward is verandert er niets', () => {
+  const rijen = [{ kind: 'pickup', guardian_uri: OMA, guardian_handle: '@oma', created_at: '2026-08-05T10:00:00.000Z' }];
+  const basis = help.helpStatus(rijen, Date.parse('2026-08-05T11:00:00.000Z'));
+  assert.deepEqual(help.withWardship(basis, true), basis);
+});
