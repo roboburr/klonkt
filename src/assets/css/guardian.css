@@ -199,3 +199,11 @@ button.danger { background: var(--danger); color: #fff; border-color: var(--dang
 /* De geschiedenis onderaan een wardpaneel: aanwezig, duidelijk afgesloten, en
    visueel losgemaakt van wat nog wacht. */
 .g-panel-history { border-top: 2px solid var(--g-line, rgba(0,0,0,.12)); margin-top: 1rem; opacity: .8; }
+
+/* De stand-chip op een gate-rij. Drie standen, drie gewichten: aan valt op,
+   uit is rustig, en "nog niets besloten" is lichter nog -- dat is namelijk geen
+   besluit maar de afwezigheid ervan. */
+.g-gate-chip { font-size: .78em; padding: .1em .5em; border-radius: 999px; border: 1px solid currentColor; }
+.g-gate-chip-on { font-weight: 600; }
+.g-gate-chip-off { opacity: .8; }
+.g-gate-chip-undecided { opacity: .55; border-style: dashed; }

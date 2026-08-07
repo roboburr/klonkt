@@ -483,14 +483,6 @@
    * zouden dat verschil wegpoetsen.
    */
   function gateRow(w, g) {
-    var row = el('div', 'g-gate');
-    var head = el('div', 'g-gate-head');
-    head.appendChild(el('span', 'g-gate-name', gateLabel(g.feature)));
-    head.appendChild(el('span', 'g-gate-kind', T['gate_kind_' + g.kind] || g.kind));
-    row.appendChild(head);
-
-    // De stand. NULL is onbekend en dat is iets anders dan uit: bij een ward op
-    // een andere server wordt die kolom daar bijgehouden.
     // Drie standen, niet twee. "Uit" en "voor zover wij weten uit" zijn niet
     // hetzelfde: dat tweede betekent dat niemand er ooit over besloot, en dat
     // hoort niet te lezen als een genomen besluit.
@@ -498,8 +490,20 @@
       ? (T.gate_unknown || 'unknown')
       : (g.value ? (T.prop_on || 'on') : (T.prop_off || 'off'));
     if (!g.decided && g.value === false) stand = T.gate_default_off || stand;
+    var row = el('div', 'g-gate');
+    var head = el('div', 'g-gate-head');
+    head.appendChild(el('span', 'g-gate-name', gateLabel(g.feature)));
+    row.appendChild(head);
+
+    // De chip draagt de STAND en wisselt dus mee. Hij stond hier eerst op het
+    // SOORT -- in het Nederlands "stand" -- vlak boven de werkelijke stand, dus
+    // twee dingen die hetzelfde heetten waarvan er een nooit veranderde. Het
+    // veranderlijke hoort bovenaan; het beschrijvende gaat naar de regel eronder.
+    var chip = el('span', 'g-gate-chip g-gate-chip-' + (g.value === true ? 'on' : (g.decided ? 'off' : 'undecided')), stand);
+    head.appendChild(chip);
+
     var meta = el('div', 'g-gate-meta small');
-    meta.appendChild(el('span', null, stand));
+    meta.appendChild(el('span', 'g-gate-kind', T['gate_kind_' + g.kind] || g.kind));
     if (g.threshold) {
       meta.appendChild(el('span', null, (T.gate_threshold || '{need} of {of} guardians')
         .replace('{need}', g.threshold.need).replace('{of}', g.threshold.of)));
