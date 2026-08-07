@@ -629,6 +629,30 @@ router.get('/ap/users/:slug/featured', (req, res) => {
   AP.sendAP(res, AP.buildFeatured(baseUrl(req), site, posts));
 });
 
+// ── Playlist als dereferenceerbare AP-collectie (shaer-ayc) ───────
+// De eerste stap van het Funkwhale-spoor: een playlist heeft een id, dus een
+// stabiele URI. Alleen het fedi_open-deel staat erin (de poort is per bestand
+// en eenrichtings; zie setAudioFediOpen in routes/posts.js) — een collectie
+// zonder open tracks bestaat wel maar is leeg, want de playlist zelf is niet
+// geheim, alleen de bestanden erachter.
+// De lijst van alle playlist-collecties (shaer-ayc, stap 2). De actor wijst
+// hierheen via AS2 `streams`. Kaal standaard; verrijkte stubs op verzoek
+// (FEP-9876), dezelfde conventie als followers/following.
+router.get('/ap/users/:slug/playlists', (req, res) => {
+  const site = publicSite(req.params.slug);
+  if (!site) return res.status(404).end();
+  AP.sendAP(res, AP.listPlaylistsAP(baseUrl(req), site, wantsEnriched(req, res)));
+});
+
+router.get('/ap/users/:slug/playlists/:id', (req, res) => {
+  const site = publicSite(req.params.slug);
+  if (!site) return res.status(404).end();
+  const pl = db.prepare('SELECT id, title, artist, year, cover_url, kind FROM playlists WHERE id = ? AND site_id = ?')
+    .get(req.params.id, site.id);
+  if (!pl) return res.status(404).end();
+  AP.sendAP(res, AP.buildPlaylistCollection(baseUrl(req), site, pl, AP.playlistOpenTracks(pl.id)));
+});
+
 // ── Note ──────────────────────────────────────────────────────────
 router.get('/ap/notes/:id', async (req, res) => {
   // No fan_only filter in the SELECT anymore: a friends-only post is not

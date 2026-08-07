@@ -194,6 +194,10 @@ export function buildActor(base, site) {
     followers: `${id}/followers`,
     following: `${id}/following`,
     featured: `${id}/featured`,
+    // AS2-kern `streams`: "supplementary Collections which may be of
+    // interest" -- precies wat de playlist-lijst is (shaer-ayc, stap 2).
+    // Geen eigen vocabulaire nodig, en wie het niet kent negeert het.
+    streams: [`${id}/playlists`],
     // AP §5.6: the private blocked collection (owner-only GET). The server
     // list is the source of truth for Shaer's "in Orbit"; clients keep no
     // separate state.
@@ -547,7 +551,7 @@ export function buildNote(base, site, post, opts = {}) {
       ...(post.ap_visibility === 'quiet' ? [PUBLIC] : []),          // quiet public: Public in cc, not to
       ...((post.fan_only || post.ap_visibility === 'quiet') ? [] : [`${aId}/followers`]),
       ..._mentionCc])],
-    tag: [...buildHashtagList(base, post.tags, body), ..._mentionTags],
+    tag: [...buildHashtagList(base, post.tags, body), ..._mentionTags, ...playlistLinkTags(base, site, post.content)],
     replies: `${id}/replies`,
     // NSFW → Mastodon-style content warning: sensitive (blurs media) + a summary/spoiler
     // (hides the whole post behind a "Gevoelige inhoud" button until the reader opens it).
@@ -867,6 +871,121 @@ export function buildFeatured(base, site, posts) {
     totalItems: items.length,
     orderedItems: items,
   };
+}
+
+// ── Playlist als AP-collectie (shaer-ayc, stap 1 van het Funkwhale-spoor) ──
+// Een playlist heeft, anders dan een album-als-tekstveld, een id — dus kan hij
+// een stabiele URI dragen en federeren. De vorm is bewust kaal AS2: een
+// OrderedCollection van Audio-objecten, dezelfde rijvorm die een post als
+// attachment meestuurt, zodat elke client die post-audio al speelt dit ook
+// speelt.
+//
+// De poortregel verandert hier NIET: alleen fedi_open-tracks staan erin, met
+// echte bestands-URL. Een gated track is niet "een rij zonder url" maar
+// afwezig — wie de collectie leest ziet het open deel en kan niet aftellen
+// hoeveel er achter de poort staat. totalItems telt daarom ook alleen het
+// open deel: een eerlijke telling over wat er werkelijk in de collectie staat,
+// niet over wat wij thuis in de kast hebben.
+export function playlistOpenTracks(playlistId) {
+  return db.prepare(
+    `SELECT t.title, t.artist, t.duration, t.cover_url, m.filename, m.storage_path, m.mime_type
+     FROM playlist_tracks pt
+     JOIN audio_tracks t ON t.id = pt.track_id
+     JOIN media m ON m.id = t.media_id
+     WHERE pt.playlist_id = ? AND t.fedi_open = 1
+     ORDER BY pt.position`
+  ).all(playlistId);
+}
+
+// Een post die een playlist insluit wijst in zijn AS2 ook naar de collectie
+// (shaer-ayc, stap 2): een Link-tag per ingesloten playlist. Mastodon
+// parseert alleen Mention/Hashtag/Emoji en negeert een Link geruisloos; een
+// client die hem kent haalt de collectie op. Opgelost uit post.content en
+// ALLEEN binnen de eigen site: playlist-ids zijn een globale primary key, dus
+// zonder site-check zou een post van site A naar de collectie van site B
+// kunnen wijzen.
+export function playlistLinkTags(base, site, content) {
+  const out = [];
+  const seen = new Set();
+  try {
+    for (const m of (content || '').matchAll(/\[\[playlist:([A-Za-z0-9_-]+)\]\]/g)) {
+      if (seen.has(m[1])) continue;
+      seen.add(m[1]);
+      const pl = db.prepare('SELECT id, title FROM playlists WHERE id = ? AND site_id = ?').get(m[1], site.id);
+      if (!pl) continue;
+      out.push({ type: 'Link', href: `${actorId(base, site.slug)}/playlists/${pl.id}`, mediaType: 'application/activity+json', name: pl.title });
+    }
+  } catch { /* niet-fataal: een tag minder, geen kapotte Note */ }
+  return out;
+}
+
+// De lijst van alle playlist-collecties van een site (shaer-ayc, stap 2).
+// Kaal standaard (URI's), verrijkt op verzoek (FEP-9876, zelfde conventie als
+// followers/following): een stub per playlist met naam, hoes en de EERLIJKE
+// telling -- totalItems van de stub telt het open deel, dezelfde regel als de
+// collectie zelf, want ook een lijst mag niet verklappen wat er achter de
+// poort staat.
+export function listPlaylistsAP(base, site, enriched) {
+  const rows = db.prepare(
+    'SELECT id, title, artist, year, cover_url FROM playlists WHERE site_id = ? ORDER BY created_at, id'
+  ).all(site.id);
+  const colId = `${actorId(base, site.slug)}/playlists`;
+  const items = rows.map((p) => {
+    const uri = `${actorId(base, site.slug)}/playlists/${p.id}`;
+    if (!enriched) return uri;
+    const stub = buildPlaylistCollection(base, site, p, playlistOpenTracks(p.id));
+    delete stub['@context'];       // genest object draagt de context van zijn omhulsel
+    delete stub.orderedItems;      // stub: wie de tracks wil, haalt de collectie op
+    return stub;
+  });
+  return {
+    '@context': AP_CONTEXT,
+    id: colId,
+    type: 'OrderedCollection',
+    attributedTo: actorId(base, site.slug),
+    totalItems: items.length,
+    orderedItems: items,
+  };
+}
+
+export function buildPlaylistCollection(base, site, playlist, rows) {
+  const abs = (u) => !u ? null : (/^https?:/i.test(u) ? u : `${base}${u.startsWith('/') ? '' : '/'}${u}`);
+  // Zelfde afleiding als in buildNote; die daar is functie-lokaal.
+  const mediaType = (u) => {
+    const e = ((u || '').split('?')[0].match(/\.(\w+)$/) || [])[1];
+    return ({ jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', avif: 'image/avif' })[(e || '').toLowerCase()] || 'image/jpeg';
+  };
+  const items = (rows || []).map((r) => {
+    const fn = r.filename || (r.storage_path || '').split('/').pop();
+    const a = {
+      type: 'Audio',
+      mediaType: r.mime_type || 'audio/mpeg',
+      url: `${base}/audio/stream/${encodeURIComponent(fn)}`,
+      name: r.title || 'Audio',
+    };
+    if (r.artist) a.summary = r.artist; // artiest als summary: kaal AS2, geen eigen vocab
+    if (r.duration) a.duration = `PT${Math.round(r.duration)}S`;
+    const art = abs(r.cover_url || playlist.cover_url || null);
+    if (art) a.icon = { type: 'Image', mediaType: mediaType(art), url: art };
+    return a;
+  });
+  const out = {
+    '@context': AP_CONTEXT,
+    id: `${actorId(base, site.slug)}/playlists/${playlist.id}`,
+    type: 'OrderedCollection',
+    name: playlist.title,
+    attributedTo: actorId(base, site.slug),
+    totalItems: items.length,
+    orderedItems: items,
+  };
+  // Album of playlist is presentatie; op de draad is het één samenvattingsveld.
+  const parts = [];
+  if (playlist.artist) parts.push(playlist.artist);
+  if (playlist.year) parts.push(String(playlist.year));
+  if (parts.length) out.summary = parts.join(' · ');
+  const cover = abs(playlist.cover_url || null);
+  if (cover) out.icon = { type: 'Image', mediaType: mediaType(cover), url: cover };
+  return out;
 }
 
 // ── followers store (lazy stmts) ──────────────────────────────────
@@ -5417,6 +5536,7 @@ Guardianship.wireAvailability({
 export default {
   AP_CONTEXT, getOrCreateKeys, apWants, sendAP, actorId, noteId, stripLeadingMentions,
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers, buildFollowing, buildFeatured,
+  buildPlaylistCollection, playlistOpenTracks, listPlaylistsAP, playlistLinkTags,
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
   feedCursor, feedChangesSince, waitForFeedChange,
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, buildReplyNote, getOutboxNote, getSentNotes, deliverReply, resolveRemoteNote, noteAudience, mayReadNote,
