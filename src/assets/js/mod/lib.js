@@ -32,3 +32,17 @@ export function pageValue(key, fallback) {
   var d = pageData();
   return (d && Object.prototype.hasOwnProperty.call(d, key)) ? d[key] : fallback;
 }
+
+/**
+ * Een tekst veilig in HTML zetten.
+ *
+ * De modules bouwen op sommige plekken HTML met stringplakwerk. Vroeger ging een
+ * vertaling daar door de escapende EJS-tag heen; nu niet meer. Zonder deze functie
+ * breekt een apostrof in een vertaling het attribuut af waar hij in staat -- het
+ * soort fout dat pas in een andere taal opvalt.
+ */
+export function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}

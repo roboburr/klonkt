@@ -255,6 +255,8 @@ router.get('/posts/new', requireAuth, (req, res) => {
   }
 
   renderPage(req, res, 'pages/post-edit', {
+    // post-edit neemt de playlist-editor op.
+    pageJs: 'post-edit playlist-editor',
     post: {
       id: uuid(),
       title: '', slug: '', content: '', excerpt: '',
