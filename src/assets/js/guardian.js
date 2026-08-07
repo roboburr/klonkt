@@ -452,7 +452,11 @@
     });
     actRow.appendChild(rel);
     act.appendChild(actRow);
-    panel.appendChild(act);
+    // Bovenaan, niet onderaan: zwaaien en loslaten zijn de dingen die je DOET.
+    // De rest van het paneel is lezen -- instellingen, wie er nog meer op let,
+    // wat er binnenkwam. Wie het paneel opent om iets te doen hoorde eerst langs
+    // vijf secties te scrollen.
+    panel.insertBefore(act, panel.firstChild);
     return panel;
   }
 
@@ -705,7 +709,21 @@
   });
 
   renderAll(); pushState(); loadFeed(); loadFollowReqs();
-  setInterval(refresh, 45000);   // live-ish while open
+
+  // De push die de melding brengt is meteen het teken dat de staat veranderd is.
+  // Daarmee hoeft er geen tweede, open verbinding bij: hetzelfde kanaal doet het
+  // werk, en het werkt ook als de app dicht is.
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', function (e) {
+      if (e.data && e.data.klonkt === 'push') refresh();
+    });
+  }
+  // Het tikje blijft als vangnet -- niet elke verandering geeft een melding, en
+  // niet iedereen heeft meldingen aanstaan. Maar niet tikken terwijl niemand
+  // kijkt: dat waren verzoeken voor een tabblad op de achtergrond. Bij terugkomen
+  // meteen een keer, want dan is de kans op nieuws het grootst.
+  setInterval(function () { if (!document.hidden) refresh(); }, 45000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(); });
   } catch (e) {
     fatal((e && e.message) || String(e));
   }

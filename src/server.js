@@ -545,13 +545,22 @@ self.addEventListener('push', e => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (err) { /* non-JSON push */ }
   const title = d.title || 'Klonkt';
-  e.waitUntil(self.registration.showNotification(title, {
-    body: d.body || '',
-    icon: '/favicon.svg',
-    badge: '/favicon.svg',
-    tag: d.type ? ('klonkt-' + d.type) : undefined,   // collapse same-type bursts
-    data: { url: d.url || '/' },
-  }));
+  e.waitUntil(Promise.all([
+    self.registration.showNotification(title, {
+      body: d.body || '',
+      icon: '/favicon.svg',
+      badge: '/favicon.svg',
+      tag: d.type ? ('klonkt-' + d.type) : undefined,   // collapse same-type bursts
+      data: { url: d.url || '/' },
+    }),
+    // Wek ook een pagina die al openstaat. De push IS het teken dat er iets
+    // veranderd is, dus een aparte live-verbinding ernaast zou hetzelfde nog
+    // eens doen -- en die tweede zou alleen werken zolang de app open is,
+    // terwijl dit kanaal er ook is als hij dicht is. Een kanaal, twee doelen.
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then(list => { for (const c of list) c.postMessage({ klonkt: 'push', type: d.type || null }); })
+      .catch(() => { /* geen open venster: niets te wekken */ }),
+  ]));
 });
 self.addEventListener('notificationclick', e => {
   e.notification.close();
