@@ -284,10 +284,24 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
   if (req.query.since && wachtS > 0) {
     const afbreken = new AbortController();
     res.on('close', () => afbreken.abort());   // client hing op: niet doorgaan met wachten
-    await AP.waitForFeedChange(auth.site.slug, {
+    const uit = await AP.waitForFeedChange(auth.site.slug, {
       since: String(req.query.since), waitMs: wachtS * 1000, signal: afbreken.signal,
     });
     if (res.writableEnded || afbreken.signal.aborted) return undefined;
+    // Niets veranderd? Dan een LEEG antwoord (Barts punt): de hele collectie
+    // terugsturen terwijl er niets gebeurd is, is elke 25 seconden een tijdlijn
+    // over de mobiele verbinding voor niets. Met 304 kost stilte niets en kost
+    // nieuws nog steeds maar één rondje -- beter dan een apart seintje-endpoint,
+    // dat voor nieuws twee rondjes nodig heeft.
+    //
+    // De '0'-uitzondering is geen franje. Ontbreekt ap_feed_state (een instance
+    // die de migratie nog niet draaide), dan geeft feedCursor altijd '0' terug,
+    // en zou een client hier eeuwig 304 krijgen en nooit meer inhoud zien. Bij
+    // een lege merksteen sturen we dus gewoon de collectie.
+    if (!uit.changed && uit.cursor !== '0') {
+      res.set('Vary', 'Authorization');
+      return res.status(304).end();
+    }
   }
   // Gated feature (FEP-633c): may this account see EXTERNAL embeds? A ward's
   // world outside the fediverse is the guardians' call. The gate is applied

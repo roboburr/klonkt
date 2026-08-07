@@ -95,10 +95,21 @@ GET /ap/users/:slug/inbox?since=<cursor>&wait=25
 - `wait` is seconds, capped at 50 — well under what a proxy will hold.
 - Send neither and the route behaves exactly as it always did.
 
-The answer arrives as soon as anything the inbox would show has changed, or when
-`wait` runs out — whichever comes first. Either way it is the full, current
-collection with a fresh `shaer:cursor`. An empty-handed return is not an error:
-it means nothing happened, ask again.
+Two possible answers:
+
+| | |
+|---|---|
+| **`200`** | something changed. The full, current collection with a fresh `shaer:cursor`. |
+| **`304`** | nothing changed within `wait`. **No body.** Keep the cursor you have and ask again. |
+
+`304` is not an error — it is the normal answer to a quiet minute, and it is why
+this costs nothing while nothing happens. Sending the whole timeline back every
+`wait` seconds just to say "still nothing" would be a poor trade for saving one
+round trip.
+
+A server that has not run the feed-state migration yet cannot tell change from
+stillness, and answers `200` with the collection every time rather than `304`
+forever. Slower, never wrong.
 
 The cursor moves for **all four** sources this read merges: the timeline,
 messages, replies on your own posts, and your own sent notes.
