@@ -37,7 +37,21 @@ export function stableJson(value) {
 }
 
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
-const toISO = (d) => { const t = Date.parse(d); return isNaN(t) ? null : new Date(t).toISOString(); };
+// SQLite's CURRENT_TIMESTAMP schrijft 'YYYY-MM-DD HH:MM:SS' in UTC, zonder marker.
+// Kale Date.parse leest dat als LOKALE tijd, dus op een server op UTC+2 ging er twee
+// uur van elke stempel af voordat hij het archief in ging. Die verschuiving wordt bij
+// het exporteren ingebakken en valt niet weg bij het importeren: exporteer je in
+// Amsterdam, dan is die post overal permanent twee uur te vroeg, en in zomer- en
+// wintertijd verschillend. Het raakte de stempels die de database zelf zet (concepten,
+// ingeplande posts, gearchiveerde antwoorden), niet die uit de editor, dus de schade
+// was stil en gedeeltelijk. EXPORT-FORMAT.md schreef altijd al "ISO 8601, UTC" voor.
+// Zelfde regel als isoStamp() in ActivityPubService en stampMs() in guardianship/offers.
+const SQL_STAMP = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d+)?$/;
+const toISO = (d) => {
+  const s = String(d == null ? '' : d);
+  const t = Date.parse(SQL_STAMP.test(s) ? `${s.replace(' ', 'T')}Z` : s);
+  return isNaN(t) ? null : new Date(t).toISOString();
+};
 
 const MIME_BY_EXT = {
   jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',

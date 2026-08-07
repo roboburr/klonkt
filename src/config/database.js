@@ -498,6 +498,12 @@ export function initializeDatabase() {
       UNIQUE(slug, id)
     );
     CREATE INDEX IF NOT EXISTS idx_ap_timeline_slug ON ap_timeline(slug, published);
+    -- canonicalReactionUri herleidt een permalink naar het object-id door op (slug, url)
+    -- te zoeken. Zonder deze index viel dat terug op idx_ap_timeline_slug, dus een scan
+    -- van elke rij van die slug. Dat gebeurt PER REACTIE in getInteractions, en de
+    -- reactie-migratie erft het in haar re-key-join, die synchroon vóór listen draait:
+    -- de opstartkosten waren reacties maal tijdlijnrijen.
+    CREATE INDEX IF NOT EXISTS idx_ap_timeline_url ON ap_timeline(slug, url);
     CREATE TABLE IF NOT EXISTS ap_blocks (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       slug TEXT NOT NULL,          -- our site that set the block
@@ -849,9 +855,9 @@ function feedStateTriggers() {
       db.prepare('INSERT INTO ap_feed_rev (n) VALUES (0)').run();
     }
     // slug + object_uri verschillen per bron; de rest is voor alle vier gelijk.
-    const zet = (naam, gebeurtenis, tabel, slug, uri, kind, extra = '') => `
+    const zet = (naam, gebeurtenis, tabel, slug, uri, kind, extra = '', wanneer = '') => `
       DROP TRIGGER IF EXISTS ${naam};
-      CREATE TRIGGER ${naam} AFTER ${gebeurtenis} ON ${tabel} BEGIN
+      CREATE TRIGGER ${naam} AFTER ${gebeurtenis} ON ${tabel}${wanneer ? ` WHEN ${wanneer}` : ''} BEGIN
         UPDATE ap_feed_rev SET n = n + 1;
         INSERT INTO ap_feed_state (slug, object_uri, rev, kind)
           ${extra || `VALUES (${slug}, ${uri}, (SELECT n FROM ap_feed_rev), '${kind}')`}
@@ -873,9 +879,18 @@ function feedStateTriggers() {
       zet('trg_feed_ob_del', 'DELETE', 'ap_outbox', 'OLD.site_slug', 'OLD.id', 'deleted'),
       // ap_interactions draagt geen slug: die hangt aan de POST. Vandaar de join,
       // en vandaar dat deze drie niet in de gewone vorm passen.
-      zet('trg_feed_ia_ins', 'INSERT', 'ap_interactions', '', '', '', `${joinPosts('NEW.object_uri', 'new')} WHERE p.id = NEW.post_id`),
-      zet('trg_feed_ia_upd', 'UPDATE OF content, media_json, quote_json, embed_json', 'ap_interactions', '', '', '', `${joinPosts('NEW.object_uri', 'updated')} WHERE p.id = NEW.post_id`),
-      zet('trg_feed_ia_del', 'DELETE', 'ap_interactions', '', '', '', `${joinPosts('OLD.object_uri', 'deleted')} WHERE p.id = OLD.post_id`),
+      //
+      // De WHEN op kind='reply' is nodig omdat deze tabel ook likes en announces
+      // draagt, en die schrijven object_uri = '' (zie recordInteraction). Zonder de
+      // WHEN bumpte elke inkomende like de rev, werd elke wachter gewekt en kreeg
+      // die de hele collectie opnieuw terwijl er niets aan veranderd was: precies de
+      // kosten die de 304 moest wegnemen. Bovendien belandde er dan een rij op de
+      // lege string in ap_feed_state, die feedChangesSince vervolgens uitdeelt.
+      // De oude cursor filterde hier wel op kind; bij ap_timeline is dit ook gedaan
+      // (de UPDATE OF sluit liked/boosted uit) en één tabel verder vergeten.
+      zet('trg_feed_ia_ins', 'INSERT', 'ap_interactions', '', '', '', `${joinPosts('NEW.object_uri', 'new')} WHERE p.id = NEW.post_id`, "NEW.kind = 'reply'"),
+      zet('trg_feed_ia_upd', 'UPDATE OF content, media_json, quote_json, embed_json', 'ap_interactions', '', '', '', `${joinPosts('NEW.object_uri', 'updated')} WHERE p.id = NEW.post_id`, "NEW.kind = 'reply'"),
+      zet('trg_feed_ia_del', 'DELETE', 'ap_interactions', '', '', '', `${joinPosts('OLD.object_uri', 'deleted')} WHERE p.id = OLD.post_id`, "OLD.kind = 'reply'"),
     ].join('\n'));
   } catch (e) {
     // Niet fataal: zonder deze tabel valt het wachten terug op "altijd de tijd
