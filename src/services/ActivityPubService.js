@@ -3501,15 +3501,27 @@ export function getReplyMessages(slug, limit) {
  * mee; de vorm mag veranderen zonder dat dat iets breekt.
  */
 export function feedCursor(slug) {
-  const max = (sql, ...args) => { try { const r = db.prepare(sql).get(...args); return (r && r.n) || 0; } catch { return 0; } };
-  const t = max('SELECT MAX(rowid) AS n FROM ap_timeline WHERE slug = ?', slug);
-  const m = max('SELECT MAX(rowid) AS n FROM ap_mentions WHERE slug = ?', slug);
-  const o = max('SELECT MAX(rowid) AS n FROM ap_outbox WHERE site_slug = ?', slug);
-  const r = max(`SELECT MAX(i.rowid) AS n FROM ap_interactions i
-                   JOIN posts p ON p.id = i.post_id
-                   JOIN sites s ON s.id = p.site_id
-                  WHERE s.slug = ? AND i.kind = 'reply'`, slug);
-  return `${t}.${m}.${o}.${r}`;
+  try {
+    const r = db.prepare('SELECT MAX(rev) AS n FROM ap_feed_state WHERE slug = ?').get(slug);
+    return String((r && r.n) || 0);
+  } catch { return '0'; }
+}
+
+/**
+ * Wat er sinds `rev` met deze tijdlijn gebeurd is: welke berichten er nieuw zijn,
+ * bewerkt, of weg.
+ *
+ * Nog niet gebruikt door een leespad -- de vorm van de aankomst is shaer-of7 en
+ * de "bewerkt"-markering is daar nog een open beslissing. Maar de gegevens
+ * ontstaan hoe dan ook bij het bijhouden van de merksteen, en dit is de enige
+ * plek waar ze samen te lezen zijn.
+ */
+export function feedChangesSince(slug, rev, limit = 200) {
+  try {
+    return db.prepare(`SELECT object_uri, kind, rev FROM ap_feed_state
+                        WHERE slug = ? AND rev > ? ORDER BY rev ASC LIMIT ?`)
+      .all(slug, parseInt(rev, 10) || 0, limit);
+  } catch { return []; }
 }
 
 // Zoveel clients mogen er tegelijk op EEN account staan wachten. Een client met
@@ -5323,7 +5335,7 @@ export default {
   AP_CONTEXT, getOrCreateKeys, apWants, sendAP, actorId, noteId, stripLeadingMentions,
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers, buildFollowing, buildFeatured,
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
-  feedCursor, waitForFeedChange,
+  feedCursor, feedChangesSince, waitForFeedChange,
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, buildReplyNote, getOutboxNote, getSentNotes, deliverReply, resolveRemoteNote, noteAudience, mayReadNote,
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate, deliverDirectNote,
   webfingerResolve, followActor, resolveRemoteActor, unfollowActor, handleMoveInbox, moveAccount, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, getDirectMessages, isoStamp, timelineAttachments, timelineEmojis, timelineObjectLinks, timelineQuote, timelineEmbed, applyQuoteProps, deliverToActor, sendInteraction, voteOnPoll, voteOnRemotePoll,

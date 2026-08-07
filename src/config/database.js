@@ -770,6 +770,87 @@ export function initializeDatabase() {
   ensureColumn('ap_followers', 'name', 'TEXT');    // cached display name (shaer-aa3)
   ensureColumn('ap_followers', 'handle', 'TEXT');  // @user@host
   ensureColumn('ap_followers', 'icon', 'TEXT');    // avatar URL
+  feedStateTriggers();
+}
+
+/**
+ * Wat er met een tijdlijn gebeurd is, op één plek (shaer-n05).
+ *
+ * De inbox-lezing voegt vier bronnen samen. De vraag "is er iets veranderd" werd
+ * eerst beantwoord met MAX(rowid) over die vier -- een TOEVALLIGE eigenschap van
+ * de tabellen, geen feit dat ergens is opgeschreven. Dat gaf precies de gebreken
+ * die je van zo'n afleiding verwacht: bewerkingen en verwijderingen bewogen hem
+ * niet, en hij kon achteruit lopen. Dezelfde fout als reacties uitlezen uit
+ * ap_timeline.liked (shaer-9e9).
+ *
+ * Nu één rij per bericht per tijdlijn, met een oplopende `rev` en `kind`. Dat
+ * beantwoordt drie vragen die anders drie eigen oplossingen zouden krijgen:
+ * is er iets veranderd sinds N, wát is er veranderd, en is dit bericht bewerkt.
+ *
+ * Bijgehouden door TRIGGERS en niet door de aanroepende code, om dezelfde reden
+ * dat er geen gebeurtenis-emitter is: een trigger zit in de database, dus geen
+ * enkel codepad kan hem vergeten. De prijs is onzichtbare logica -- wie alleen de
+ * JavaScript leest ziet niet waarom deze tabel vult. Vandaar dat ze hier staan,
+ * bij de tabel, en niet verspreid.
+ *
+ * Let op de `UPDATE OF`-kolomlijsten: die zijn niet decoratief. Een like schrijft
+ * ap_timeline.liked en een 🔁 schrijft .boosted; zonder die afbakening zou je
+ * eigen like het bericht als BEWERKT merken en elke wachtende client wekken.
+ */
+function feedStateTriggers() {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS ap_feed_state (
+        slug TEXT NOT NULL,
+        object_uri TEXT NOT NULL,
+        rev INTEGER NOT NULL,
+        kind TEXT NOT NULL,             -- new | updated | deleted
+        at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (slug, object_uri)
+      );
+      CREATE INDEX IF NOT EXISTS idx_ap_feed_state_rev ON ap_feed_state(slug, rev);
+      -- Eén doorlopende teller voor de hele instance. Bewust niet MAX(rev) uit de
+      -- tabel zelf: verdwijnt de hoogste rij, dan zou die teruglopen en denkt een
+      -- client dat er niets gebeurd is.
+      CREATE TABLE IF NOT EXISTS ap_feed_rev (n INTEGER NOT NULL);
+    `);
+    if (!db.prepare('SELECT COUNT(*) AS n FROM ap_feed_rev').get().n) {
+      db.prepare('INSERT INTO ap_feed_rev (n) VALUES (0)').run();
+    }
+    // slug + object_uri verschillen per bron; de rest is voor alle vier gelijk.
+    const zet = (naam, gebeurtenis, tabel, slug, uri, kind, extra = '') => `
+      DROP TRIGGER IF EXISTS ${naam};
+      CREATE TRIGGER ${naam} AFTER ${gebeurtenis} ON ${tabel} BEGIN
+        UPDATE ap_feed_rev SET n = n + 1;
+        INSERT INTO ap_feed_state (slug, object_uri, rev, kind)
+          ${extra || `VALUES (${slug}, ${uri}, (SELECT n FROM ap_feed_rev), '${kind}')`}
+          ON CONFLICT(slug, object_uri) DO UPDATE
+            SET rev = excluded.rev, kind = excluded.kind, at = CURRENT_TIMESTAMP;
+      END;`;
+    const joinPosts = (uri, kind) => `
+          SELECT s.slug, ${uri}, (SELECT n FROM ap_feed_rev), '${kind}'
+            FROM posts p JOIN sites s ON s.id = p.site_id`;
+    db.exec([
+      zet('trg_feed_tl_ins', 'INSERT', 'ap_timeline', 'NEW.slug', 'NEW.id', 'new'),
+      zet('trg_feed_tl_upd', 'UPDATE OF content, media_json, nsfw, cw, url, poll_json, quote_json, embed_json', 'ap_timeline', 'NEW.slug', 'NEW.id', 'updated'),
+      zet('trg_feed_tl_del', 'DELETE', 'ap_timeline', 'OLD.slug', 'OLD.id', 'deleted'),
+      zet('trg_feed_mn_ins', 'INSERT', 'ap_mentions', 'NEW.slug', 'NEW.object_uri', 'new'),
+      zet('trg_feed_mn_upd', 'UPDATE OF content, media_json, quote_json, embed_json', 'ap_mentions', 'NEW.slug', 'NEW.object_uri', 'updated'),
+      zet('trg_feed_mn_del', 'DELETE', 'ap_mentions', 'OLD.slug', 'OLD.object_uri', 'deleted'),
+      zet('trg_feed_ob_ins', 'INSERT', 'ap_outbox', 'NEW.site_slug', 'NEW.id', 'new'),
+      zet('trg_feed_ob_upd', 'UPDATE OF content, attachments', 'ap_outbox', 'NEW.site_slug', 'NEW.id', 'updated'),
+      zet('trg_feed_ob_del', 'DELETE', 'ap_outbox', 'OLD.site_slug', 'OLD.id', 'deleted'),
+      // ap_interactions draagt geen slug: die hangt aan de POST. Vandaar de join,
+      // en vandaar dat deze drie niet in de gewone vorm passen.
+      zet('trg_feed_ia_ins', 'INSERT', 'ap_interactions', '', '', '', `${joinPosts('NEW.object_uri', 'new')} WHERE p.id = NEW.post_id`),
+      zet('trg_feed_ia_upd', 'UPDATE OF content, media_json, quote_json, embed_json', 'ap_interactions', '', '', '', `${joinPosts('NEW.object_uri', 'updated')} WHERE p.id = NEW.post_id`),
+      zet('trg_feed_ia_del', 'DELETE', 'ap_interactions', '', '', '', `${joinPosts('OLD.object_uri', 'deleted')} WHERE p.id = OLD.post_id`),
+    ].join('\n'));
+  } catch (e) {
+    // Niet fataal: zonder deze tabel valt het wachten terug op "altijd de tijd
+    // volmaken", en dat is traag maar niet stuk.
+    console.error('❌ feed-state triggers:', e.message);
+  }
 }
 
 function ensureColumn(table, column, definition) {
