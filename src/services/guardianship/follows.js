@@ -80,8 +80,9 @@ function rstmts() {
   if (!_r) {
     _r = {
       ins: db.prepare(`INSERT OR IGNORE INTO ap_follow_reviews
-        (id, guardian_slug, ward_uri, ward_inbox, follower_uri, follower_handle, follower_icon, follow_json, created_at)
-        VALUES (?,?,?,?,?,?,?,?, CURRENT_TIMESTAMP)`),
+        (id, guardian_slug, ward_uri, ward_inbox, follower_uri, follower_handle, follower_icon, follow_json,
+         direction, target_uri, target_handle, created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?, CURRENT_TIMESTAMP)`),
       get: db.prepare('SELECT * FROM ap_follow_reviews WHERE guardian_slug = ? AND id = ?'),
       bySlug: db.prepare("SELECT * FROM ap_follow_reviews WHERE guardian_slug = ? AND status = 'pending' ORDER BY created_at DESC"),
       del: db.prepare('DELETE FROM ap_follow_reviews WHERE guardian_slug = ? AND id = ?'),
@@ -90,9 +91,57 @@ function rstmts() {
   return _r;
 }
 
+/**
+ * De guardian-zijdige kopie van een gate-verzoek op een REMOTE ward.
+ *
+ * `direction` is niet cosmetisch (shaer-jdb). Bij een INKOMENDE is de follower
+ * iemand anders en de ward het doel. Bij een UITGAANDE is de ward zelf de
+ * follower en staat het doel in het Follow-object -- die werd hiervoor
+ * opgeslagen als "deze ward wil deze ward volgen", met het doel weggegooid.
+ */
 export function recordReview(guardianSlug, r) {
-  rstmts().ins.run(r.id, guardianSlug, r.wardUri, r.wardInbox || null, r.follower, r.followerHandle || null, r.followerIcon || null, r.followJson || null);
+  const richting = r.direction === 'outgoing' ? 'outgoing' : 'incoming';
+  rstmts().ins.run(r.id, guardianSlug, r.wardUri, r.wardInbox || null, r.follower, r.followerHandle || null,
+    r.followerIcon || null, r.followJson || null, richting, r.target || null, r.targetHandle || null);
   return rstmts().get.get(guardianSlug, r.id);
+}
+
+/**
+ * Een openstaande review als wachtrij-item, in dezelfde vorm die de clients al
+ * lezen (offers en outgoing-follows doen het net zo).
+ */
+export function reviewQueueItem(r, me, guardianCount) {
+  // guardianCount blijft WEG als we hem niet kennen. Bij een remote ward wordt
+  // de guardian-set op diens eigen server bijgehouden, en 0 sturen zou lezen als
+  // "dit kind heeft geen guardians" -- het tegenovergestelde van onbekend.
+  const stemmen = (() => {
+    try { return db.prepare('SELECT guardian_uri, decision FROM ap_pending_follow_approvals WHERE follow_id = ?').all(r.id); }
+    catch { return []; }
+  })();
+  const uitgaand = r.direction === 'outgoing';
+  return {
+    id: r.id,
+    type: 'Follow',
+    // Bij een uitgaande is de WARD de volger; bij een inkomende is dat de vreemde.
+    actor: uitgaand ? r.ward_uri : r.follower_uri,
+    object: uitgaand ? (r.target_uri || '') : r.ward_uri,
+    'shaer:direction': uitgaand ? 'outgoing' : 'incoming',
+    'shaer:ward': r.ward_uri,
+    'shaer:target': uitgaand ? (r.target_uri || undefined) : undefined,
+    'shaer:targetHandle': uitgaand ? (r.target_handle || undefined) : undefined,
+    'shaer:follower': uitgaand ? undefined : r.follower_uri,
+    'shaer:followerHandle': uitgaand ? undefined : (r.follower_handle || undefined),
+    'shaer:quorum': 'all',
+    'shaer:approvals': stemmen.filter((x) => x.decision === 'approve').length,
+    'shaer:guardianCount': guardianCount || undefined,
+    'shaer:myVote': stemmen.some((x) => x.guardian_uri === me),
+    published: r.created_at,
+  };
+}
+
+/** De openstaande reviews van een guardian, per richting. */
+export function listReviewsByDirection(guardianSlug, direction) {
+  return listReviews(guardianSlug).filter((r) => (r.direction === 'outgoing' ? 'outgoing' : 'incoming') === direction);
 }
 export function getReview(guardianSlug, id) { return rstmts().get.get(guardianSlug, id); }
 export function listReviews(guardianSlug) { return rstmts().bySlug.all(guardianSlug); }
@@ -101,4 +150,5 @@ export function removeReview(guardianSlug, id) { rstmts().del.run(guardianSlug, 
 export default {
   recordPending, getPending, listForWard, decide, remove,
   recordReview, getReview, listReviews, removeReview,
+  listReviewsByDirection, reviewQueueItem,
 };

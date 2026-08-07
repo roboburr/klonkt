@@ -105,6 +105,15 @@ export function initializeDatabase() {
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (guardian_slug, id)
   )`);
+  // Guardianship Fase 2 (shaer-jdb): een doorgestuurde follow-goedkeuring draagt
+  // een RICHTING. Bij een inkomende is de follower iemand anders en de ward het
+  // doel; bij een uitgaande is de ward zelf de follower en staat het doel in het
+  // Follow-object. Zonder deze twee kolommen werd een uitgaande opgeslagen als
+  // "deze ward wil deze ward volgen" en viel het doel weg -- dan valt er niets
+  // zinnigs te tonen, hoe je de wachtrij ook vult.
+  ensureColumn('ap_follow_reviews', 'direction', "TEXT DEFAULT 'incoming'");
+  ensureColumn('ap_follow_reviews', 'target_uri', 'TEXT');
+  ensureColumn('ap_follow_reviews', 'target_handle', 'TEXT');
   ensureColumn('sites', 'profile_photo', 'TEXT');
   ensureColumn('audio_tracks', 'cover_url', 'TEXT');
   ensureColumn('audio_tracks', 'album', 'TEXT');

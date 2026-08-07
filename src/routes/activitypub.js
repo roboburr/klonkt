@@ -252,7 +252,7 @@ function queueRoute(name, build) {
   });
 }
 queueRoute('offers', (id, slug, me) => Guardianship.offersCollection(id, slug, me));
-queueRoute('follows', (id) => Guardianship.followsCollection(id));
+queueRoute('follows', (id, slug, me) => Guardianship.followsCollection(id, slug, me));
 // §5.3 turned around (shaer-p729): what this ward has asked to follow, still
 // waiting on its guardians. Owner-only like the rest — who a child wants to
 // follow is nobody else's business.

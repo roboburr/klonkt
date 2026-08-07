@@ -4901,7 +4901,20 @@ async function handleFollowApprovalInbox(act, slugParam) {
       if (!Guardianship.getRelation(gslug, 'guardian', wardUri)) continue;   // must actually guard this ward
       const wardDoc = await fetchActor(wardUri).catch(() => null);
       const fai = actorInfo(await fetchActor(follower).catch(() => null), follower);
-      Guardianship.follows.recordReview(gslug, { id: followId, wardUri, wardInbox: wardDoc && wardDoc.inbox, follower, followerHandle: fai.handle, followerIcon: fai.icon, followJson: JSON.stringify(fo) });
+      // De RICHTING bewaren (shaer-jdb). shaer:direction wordt sinds de uitgaande
+      // gate meegestuurd maar werd nergens gelezen, dus een uitgaande belandde
+      // hier als "deze ward wil deze ward volgen" met het doel weggegooid.
+      // Terugval voor oudere afzenders: is de volger de ward zelf, dan is het
+      // uitgaand -- dat volgt uit de vorm en hoeft niet geloofd te worden.
+      const uitgaand = act['shaer:direction'] === 'outgoing' || follower === wardUri;
+      const doel = uitgaand ? (typeof fo.object === 'string' ? fo.object : (fo.object && fo.object.id)) : null;
+      const dai = uitgaand ? actorInfo(await fetchActor(doel).catch(() => null), doel) : null;
+      Guardianship.follows.recordReview(gslug, {
+        id: followId, wardUri, wardInbox: wardDoc && wardDoc.inbox,
+        follower, followerHandle: fai.handle, followerIcon: fai.icon, followJson: JSON.stringify(fo),
+        direction: uitgaand ? 'outgoing' : 'incoming',
+        target: doel || null, targetHandle: dai ? dai.handle : null,
+      });
       const L = pushLang(gslug);
       pushEvent(gslug, { type: 'guardian', title: i18nT(L, 'push.n_guard_cog_t'), body: i18nT(L, 'push.n_guard_cog_b', { who: fai.name || fai.handle || i18nT(L, 'notif.someone') }), url: `${pushPrefix(gslug)}/guardian` });
       stored = true;

@@ -5,13 +5,14 @@
  * Shaer test daemon so the iOS/Android dashboards read them as-is:
  *  - offers:  pending handshake offers where I am a party (§3), with the full
  *             accept tally so the client shows the right action
- *  - follows: pending gated follows for my wards (§5.3) — Fase 2, empty for now
+ *  - follows: pending gated follows ON my wards (§5.3), Fase 2 (shaer-jdb)
  *  - wards:   my committed wards
  */
 import * as offers from './offers.js';
 import * as relations from './relations.js';
 import * as availability from './availability.js';
 import * as outgoing from './outgoing.js';
+import * as follows from './follows.js';
 import * as handshake from './handshake.js';
 
 const collection = (id, items) => ({
@@ -34,14 +35,59 @@ export function offersCollection(id, slug, me) {
   return collection(id, items);
 }
 
-/** Gated follows awaiting guardian approval — not built in Klonkt yet (Fase 2). */
-export function followsCollection(id) {
-  return collection(id, []);
+/**
+ * Gate-verzoeken OP mijn wards die op mijn antwoord wachten (Guardianship Fase 2,
+ * shaer-jdb). Dit was een lege stub: de gating zelf werkt sinds shaer-hxg, maar
+ * werd nooit aan een C2S-client doorgegeven omdat de koers toen op de PWA lag.
+ *
+ * Twee bronnen, want een guardian kan wards op andere servers hebben en (nog)
+ * op deze:
+ *   - ap_follow_reviews: de doorgestuurde kopie van een REMOTE ward
+ *   - ap_pending_follows: een ward op deze instance
+ * Zie shaer-h6u: die tweede hoort op termijn ook over de lijn te gaan.
+ */
+export function followsCollection(id, slug, me) {
+  const items = follows.listReviewsByDirection(slug, 'incoming')
+    .map((r) => follows.reviewQueueItem(r, me));
+  for (const w of relations.listWards(slug)) {
+    const wardSlug = slugOf(w.other_uri);
+    if (!wardSlug) continue;
+    for (const p of follows.listForWard(wardSlug)) {
+      items.push({
+        id: p.id, type: 'Follow', actor: p.follower_uri, object: w.other_uri,
+        'shaer:direction': 'incoming', 'shaer:ward': w.other_uri,
+        'shaer:follower': p.follower_uri, 'shaer:followerHandle': p.follower_handle || undefined,
+        'shaer:quorum': p.quorum || 'any', published: p.created_at,
+      });
+    }
+  }
+  return collection(id, items);
 }
 
-/** §5.3 outbound: this ward's own follow requests, waiting for its guardians. */
+/** De slug van een actor-uri op DEZE instance, of null als hij elders woont. */
+function slugOf(uri) {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  if (!base || !String(uri || '').startsWith(`${base}/ap/users/`)) return null;
+  return decodeURIComponent(String(uri).slice(`${base}/ap/users/`.length).split(/[/?#]/)[0]) || null;
+}
+
+/**
+ * §5.3 uitgaand. Twee lezers, een wachtrij, en dat kan omdat §1 een ward en een
+ * guardian wederzijds uitsluit: je bent het een of het ander.
+ *
+ *   ALS WARD      wat IK wil volgen en waar mijn guardians nog over moeten
+ *   ALS GUARDIAN  wat mijn WARDS willen volgen en waar IK over moet (shaer-jdb)
+ *
+ * Dat tweede ontbrak. De wachtrij serveerde alleen listForWard(slug), en voor
+ * een guardian is dat per definitie leeg -- dus het scherm "Your wards want to
+ * follow" kon nooit iets tonen.
+ */
 export function outgoingFollowsCollection(id, slug, me) {
-  return collection(id, outgoing.listForWard(slug).map((o) => outgoing.queueItem(o, me)));
+  const items = outgoing.listForWard(slug).map((o) => outgoing.queueItem(o, me));
+  for (const r of follows.listReviewsByDirection(slug, 'outgoing')) {
+    items.push(follows.reviewQueueItem(r, me));
+  }
+  return collection(id, items);
 }
 
 /** The guardian's committed wards, with cached handle for display. */

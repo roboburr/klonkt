@@ -301,18 +301,6 @@ else if (_p.indexOf('/auth/login') === 0) _active = 'login';
 }
 </style>
 
-<script>
-// Bottom-tab search button → opens #search-overlay. Using event delegation + looking
-// up the overlay on EVERY click: the overlay lives in the chrome that is OOB-replaced
-// during htmx navigation, so a once-captured reference goes stale
-// (button did nothing afterwards). Guard against double-wiring.
-(function() {
-  if (window.__btSearchWired) return;
-  window.__btSearchWired = true;
-  document.addEventListener('click', function(e) {
-    if (!e.target.closest || !e.target.closest('#bottom-tab-search-toggle')) return;
-    var o = document.getElementById('search-overlay');
-    if (o) { o.hidden = false; var i = o.querySelector('input'); if (i) i.focus(); }
-  });
-})();
-</script>
+<%# De zoekknop zit nu in de chrome-module (assets/js/mod/chrome.js).
+    Inline script hier wordt door de CSP geweigerd zodra deze partial via htmx
+    binnenkomt, en dat is bij elke navigatie -- zie shaer-0i6. %>
