@@ -66,7 +66,8 @@ function uiStrings(L) {
     // Oppikken en afhandelen van een hulpvraag (shaer-lgo).
     'help_pick', 'help_close', 'help_picked_by', 'help_handled_by', 'help_handled_note',
     'help_close_ask', 'help_close_yes', 'help_just_now', 'help_hours', 'help_days',
-    'help_archive', 'help_archive_hide', 'panel_history'];
+    'help_archive', 'help_archive_hide', 'panel_history',
+    'gate_propose_open', 'gate_propose_close'];
   const s = Object.fromEntries(keys.map((k) => [k, i18nT(L, `guardian.${k}`)]));
   s.wave = i18nT(L, 'guardian.wave');
   s.waved = i18nT(L, 'guardian.waved');

@@ -521,8 +521,18 @@
         .replace('{what}', gateLabel(g.blockedBy))));
     }
     if (g.adjustable) {
-      row.appendChild(gateButton(w, g.feature, g.value, T.gate_propose || T.embeds_propose,
-        T.prop_on || 'on', T.prop_off || 'off'));
+      // De knop zegt wat er GEBEURT, niet wat er staat -- de stand staat hierboven
+      // al. Staat de poort open, dan is het enige wat je kunt voorstellen hem
+      // dichtzetten, en dat hoort op de knop te staan voordat je klikt.
+      //
+      // Bij een ONBEKENDE stand (een ward op een andere server) kun je alleen
+      // 'openzetten' voorstellen -- gateButton stuurt dan allow: true. Dat is een
+      // gat aan de veilige kant: een guardian elders kan niet voorstellen iets
+      // DICHT te zetten. Op te lossen zodra de catalogus de huidige waarde
+      // meestuurt (shaer-b78), niet hier.
+      var openzetten = T.gate_propose_open || T.gate_propose || 'Propose';
+      var dichtzetten = T.gate_propose_close || T.gate_propose || 'Propose';
+      row.appendChild(gateButton(w, g.feature, g.value, openzetten, dichtzetten, openzetten));
     }
     return row;
   }
