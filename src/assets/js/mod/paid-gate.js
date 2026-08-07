@@ -6,6 +6,11 @@
 
 import { pageData } from './lib.js';
 
+// Element-bedrading leeft zo lang als de pagina; de bootstrap roept init()
+// aan bij elke paginawissel waarop deze module actief is (shaer-5s1).
+export function init() { run(); }
+
+function run() {
 (function () {
   var _d = pageData();
   var base = _d.base || "";
@@ -59,3 +64,4 @@ import { pageData } from './lib.js';
       });
   });
 })();
+}

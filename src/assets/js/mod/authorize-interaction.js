@@ -7,9 +7,15 @@
 // Alles hier hoort GEDELEGEERD te luisteren (op document, niet op een element dat
 // er nu staat) en tegen een tweede aanroep te kunnen.
 
+// Element-bedrading leeft zo lang als de pagina; de bootstrap roept init()
+// aan bij elke paginawissel waarop deze module actief is (shaer-5s1).
+export function init() { run(); }
+
+function run() {
     (function () {
-      if (window.__fediBmWired) return; window.__fediBmWired = true;
-      var a = document.getElementById('fedi-bm-btn'); if (!a) return;
+      // Element-vlag, geen window-vlag: na een swap is de knop een NIEUW element
+      // en moet hij opnieuw bedraad; een window-vlag zou dat voorgoed blokkeren.
+      var a = document.getElementById('fedi-bm-btn'); if (!a || a.__wired) return; a.__wired = true;
       a.setAttribute('href', "javascript:void(window.open('" + location.origin + "/authorize_interaction?uri='+encodeURIComponent(window.location.href)))");
       a.addEventListener('click', function (e) { e.preventDefault(); a.classList.add('nudge'); setTimeout(function(){ a.classList.remove('nudge'); }, 600); });
     })();
@@ -59,3 +65,4 @@
       .then(function(){ btn.disabled = false; });
   });
 })();
+}
