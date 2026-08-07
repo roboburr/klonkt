@@ -1505,6 +1505,7 @@ router.get('/:slug', (req, res, next) => {
   const siteAvatar = (site && site.profile_photo) ? site.profile_photo : null;
 
   renderPage(req, res, 'pages/post', {
+    pageJs: 'post',
     post,
     poll: ActivityPubService.ownPollView(post),
     newerPost,
