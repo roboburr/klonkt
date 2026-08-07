@@ -174,6 +174,19 @@ test('de poster van een audio-bijlage gaat mee', () => {
   assert.ok(o.attachment.every((a) => a['shaer:availability'] === 'included'));
 });
 
+test('een SQL-tijdstempel wordt als UTC gelezen, niet als lokale tijd', () => {
+  // SQLite schrijft CURRENT_TIMESTAMP in UTC zonder zone erbij. Date.parse leest
+  // die vorm als LOKALE tijd, en dan schuift elk tijdstempel in het archief mee
+  // met de machine die de export draait -- in Amsterdam twee uur.
+  //
+  // Deze test is alleen zinvol onder een NIET-UTC tijdzone; draai hem daarom ook
+  // eens als:  TZ=Europe/Amsterdam node --test test/archive-export.test.js
+  post('tijdstip', { published_at: '2026-07-01 12:56:10', created_at: '2026-07-01 12:56:10' });
+  const o = lees(AX.buildArchive('me'), 'posts/tijdstip.json');
+  assert.equal(o.published, '2026-07-01T12:56:10.000Z',
+    'het moment uit de database is UTC en hoort dat te blijven');
+});
+
 test('een concept gaat gewoon mee', () => {
   post('concept', { status: 'draft', published_at: null });
   const o = lees(AX.buildArchive('me'), 'posts/concept.json');

@@ -37,7 +37,25 @@ export function stableJson(value) {
 }
 
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
-const toISO = (d) => { const t = Date.parse(d); return isNaN(t) ? null : new Date(t).toISOString(); };
+/**
+ * Naar ISO 8601 in UTC.
+ *
+ * SQLite schrijft CURRENT_TIMESTAMP als "2026-07-01 12:56:10" -- in UTC, maar
+ * ZONDER zone erbij. Date.parse leest die vorm als LOKALE tijd, en dan schuift
+ * elk tijdstempel in het archief mee met de tijdzone van de machine die de export
+ * draait. Op een server in Amsterdam is dat twee uur, en dat merk je pas als je
+ * ergens anders importeert.
+ *
+ * Gevonden doordat Bart vroeg of dit wel naar UTC normaliseert. De testmachine
+ * draait op UTC, dus geen enkele test kon het zien.
+ */
+const toISO = (d) => {
+  if (!d) return null;
+  const s = String(d).trim();
+  const zonderZone = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(s);
+  const t = Date.parse(zonderZone ? `${s.replace(' ', 'T')}Z` : s);
+  return isNaN(t) ? null : new Date(t).toISOString();
+};
 
 const MIME_BY_EXT = {
   jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
