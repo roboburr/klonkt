@@ -248,6 +248,11 @@ export async function renderPage(req, res, viewName, data = {}) {
       || (data.site && data.site.title) || 'Klonkt',
     appVersion: APP_VERSION,
     bodyClass: data.bodyClass || 'on-home',
+    // Welke module(s) deze pagina nodig heeft (shaer-bqr). De shell zet ze op
+    // body[data-js]; de bootstrap daar importeert ze uit /assets/js/mod/.
+    // Alleen kleine letters, cijfers, streepjes en spaties -- de naam wordt een
+    // pad.
+    pageJs: /^[a-z0-9 -]*$/.test(String(data.pageJs || '')) ? (data.pageJs || '') : '',
     socialDescr: data.socialDescr || '',
     socialImage: data.socialImage || '',
     cspNonce: () => '',

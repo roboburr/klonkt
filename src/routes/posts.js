@@ -935,7 +935,7 @@ router.get('/messages', requireSiteManager, (req, res) => {
     ? Guardianship.offersCollection(`${gMe}/queues/offers`, site.slug, gMe).orderedItems
     : []).filter((o) => o['shaer:ward'] === gMe && o['shaer:needsMyAccept']);
   renderPage(req, res, 'pages/messages', {
-    pageTitleKey: 'msg.title', bodyClass: 'on-special', items, seenAt,
+    pageTitleKey: 'msg.title', bodyClass: 'on-special', pageJs: 'messages', items, seenAt,
     hasMore, nextOffset: offset + FEED_PAGE, moreBase, guardianOffers,
     success: req.query.success || null, error: req.query.error || null,
   });

@@ -59,88 +59,10 @@
   </details>
 </div>
 
-<script>
-(function () {
-  if (window.__msgWired) return; window.__msgWired = true;
-
-  // Filtering: kind chip AND free-text search, combined in JS (search over the
-  // sender and the rendered message text). Empty search + "all" = show all.
-  var list = document.querySelector('.msg-list');
-  var noMatch = document.querySelector('.msg-nomatch');
-  var q = document.getElementById('msg-q');
-  var kind = 'all';
-  var items = [];
-  function indexItem(li) {
-    // Een draad indexeren op zijn eerste bubbel zou de rest onvindbaar maken,
-    // dus daar nemen we de hele tekst; losse regels blijven gericht geindexeerd.
-    if (li.classList.contains('msg-thread')) {
-      li._search = ((li.getAttribute('data-who') || '') + ' ' + li.textContent).toLowerCase();
-      return;
-    }
-    // Index once: sender + message body + linked post title + poll text.
-    var body = li.querySelector('.msg-content');
-    var post = li.querySelector('.msg-post');
-    var poll = li.querySelector('.msg-poll');
-    li._search = ((li.getAttribute('data-who') || '') + ' ' +
-      (body ? body.textContent : '') + ' ' + (post ? post.textContent : '') + ' ' +
-      (poll ? poll.textContent : '')).toLowerCase();
-  }
-  // Re-collect + index; called on load and after each "Load more" append so new
-  // items join the filter/search (and inherit the active chip via apply()).
-  function reindex() {
-    items = list ? Array.prototype.slice.call(list.querySelectorAll(':scope > .msg-item')) : [];
-    items.forEach(function (li) { if (!li._search) indexItem(li); });
-  }
-  reindex();
-  function apply() {
-    if (!list) return;
-    var term = (q && q.value || '').trim().toLowerCase();
-    var shown = 0;
-    items.forEach(function (li) {
-      var ok = (kind === 'all' || li.getAttribute('data-kind') === kind) &&
-        (!term || li._search.indexOf(term) !== -1);
-      li.style.display = ok ? '' : 'none';
-      // Een treffer die in een dichtgeklapt gesprek zit, laat anders alleen de
-      // naam zien: je zoekt iets, het staat er, en je ziet het niet. Zolang er
-      // gezocht wordt gaat zo'n gesprek open; daarna keert hij terug naar de
-      // stand die de lezer zelf koos.
-      if (li.classList.contains('msg-thread')) {
-        li.classList.toggle('is-search-open', !!term && ok);
-      }
-      if (ok) shown++;
-    });
-    if (noMatch) noMatch.hidden = shown !== 0;
-  }
-  // In- en uitklappen door op de tegenpartij te tikken (Barts aanwijzing).
-  // Gedelegeerd, zodat draden die via "meer laden" binnenkomen het vanzelf ook
-  // doen. De stand leeft alleen in deze pagina: standaard uitgeklapt, en na een
-  // herlading weer. Dat is bewust -- een gesprek dat je gisteren dichtklapte
-  // stilhouden is niet hetzelfde als het opruimen van je scherm van nu.
-  document.addEventListener('click', function (e) {
-    var who = e.target.closest('.msg-thread-who'); if (!who) return;
-    var li = who.closest('.msg-thread'); if (!li) return;
-    var dicht = li.classList.toggle('is-collapsed');
-    who.setAttribute('aria-expanded', dicht ? 'false' : 'true');
-  });
-  document.addEventListener('click', function (e) {
-    var chip = e.target.closest('.msg-chip'); if (!chip) return;
-    kind = chip.getAttribute('data-show');
-    document.querySelectorAll('.msg-chip').forEach(function (c) { c.classList.toggle('is-on', c === chip); });
-    apply();
-  });
-  if (q) q.addEventListener('input', apply);
-  // After a "Load more" append (htmx), index the new rows and re-apply the filter.
-  document.body.addEventListener('htmx:afterSettle', function (e) {
-    if (e.target && e.target.id === 'msg-list') { reindex(); apply(); }
-  });
-
-  var a = document.getElementById('fedi-bm-btn');
-  if (a) {
-    a.setAttribute('href', "javascript:void(window.open('" + location.origin + "/authorize_interaction?uri='+encodeURIComponent(window.location.href)))");
-    a.addEventListener('click', function (e) { e.preventDefault(); a.classList.add('nudge'); setTimeout(function(){ a.classList.remove('nudge'); }, 600); });
-  }
-})();
-</script>
+<%# Filteren, zoeken en het in-/uitklappen zitten in assets/js/mod/messages.js.
+    Inline script hier wordt door de CSP geweigerd zodra je deze pagina via een
+    link BINNEN de site opent -- zie shaer-0i6. De shell laadt de module op
+    body[data-js]; deze pagina vraagt erom met pageJs (routes/posts.js). %>
 
 <style>
   .msg-wrap { max-width: 640px; margin: 1rem auto; padding: 0 1rem; }
