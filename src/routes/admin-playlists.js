@@ -61,7 +61,8 @@ router.get('/', requireGod, (req, res) => {
 
   const playlists = PlaylistService.list(site.id);
   renderPage(req, res, 'pages/admin-playlists', {
-    pageJs: 'admin-playlists',
+    // admin-playlists neemt de playlist-editor op, dus die module hoort erbij.
+    pageJs: 'admin-playlists playlist-editor',
     pageTitleKey: 'admin.t_playlists',
     playlists,
     bodyClass: 'on-admin',
