@@ -78,11 +78,38 @@ const FEATURES = {
  * je niet mag zien, dus dat tweede is pas te bewegen als het eerste openstaat.
  */
 export const GATE_CATALOGUE = [
+  // Werkend: er is een kolom, de tally kan erover beslissen en de server dwingt
+  // hem af bij het serveren.
   { feature: 'shaer:externalEmbeds', kind: 'setting', reversible: true },
   { feature: 'shaer:externalPlayback', kind: 'setting', reversible: true, needs: 'shaer:externalEmbeds' },
   // Altijd aan voor een ward (5.3): niet te verzetten, wel te tonen. Een paneel
   // dat alleen verstelbare dingen laat zien verzwijgt de helft van wat er geldt.
   { feature: 'shaer:follows', kind: 'perRequest', reversible: true, fixed: true },
+
+  // GEPLAND, nog niet afgedwongen. Deze staan in het paneel omdat een guardian
+  // hoort te zien wat er straks te beslissen valt -- en omdat de SOM van de
+  // gates iets anders is dan elke gate apart: elf poorten die elk dicht falen
+  // leveren samen een kind op dat vrijwel niets kan.
+  //
+  // available: false is geen detail. featureColumn() kent deze namen niet, dus
+  // een voorstel zou stranden op unknown_feature. En ze als "uit" tonen zou
+  // ronduit onwaar zijn: plaatjes werken vandaag gewoon. Ze horen te lezen als
+  // "hier is nog niets van", niet als een gesloten poort.
+  //
+  // `kind` is hier voorlopig. Of accountmigratie een stand is of een besluit per
+  // keer hoort bij het bouwen van shaer-tge beslist te worden, niet hier.
+  { feature: 'shaer:images', kind: 'setting', reversible: true, available: false, bead: 'shaer-6p5' },
+  { feature: 'shaer:messages', kind: 'setting', reversible: true, available: false, bead: 'shaer-3ow' },
+  { feature: 'shaer:compose', kind: 'setting', reversible: true, available: false, bead: 'shaer-qgev' },
+  { feature: 'shaer:music', kind: 'setting', reversible: true, available: false, bead: 'shaer-rmz' },
+  { feature: 'shaer:quoteCards', kind: 'setting', reversible: true, available: false, bead: 'shaer-mls' },
+  { feature: 'shaer:customEmoji', kind: 'setting', reversible: true, available: false, bead: 'shaer-ytw' },
+  { feature: 'shaer:publicProfile', kind: 'setting', reversible: true, available: false, bead: 'shaer-hj0' },
+  { feature: 'shaer:accountMove', kind: 'setting', reversible: true, available: false, bead: 'shaer-tge' },
+  // De enige die gezag OVERDRAAGT, en daarmee de enige die niet terug te draaien
+  // is zodra het kind hem gebruikt (shaer-90v). Telt met de lapse-vorm: volle
+  // set, volle venster.
+  { feature: 'shaer:independence', kind: 'handover', reversible: false, available: false, bead: 'shaer-90v' },
 ];
 
 /**
@@ -117,7 +144,10 @@ export function gateRows({ settings = {}, guardianCount = null, proposals = [], 
       value,
       decided: beslist,
       // Vast staat vast: tonen mag, verzetten niet.
-      adjustable: !g.fixed && !blockedBy,
+      // Wat er niet is, valt niet te verzetten. Een knop die op unknown_feature
+      // strandt is erger dan geen knop.
+      available: g.available !== false,
+      adjustable: g.available !== false && !g.fixed && !blockedBy,
       blockedBy: blockedBy || undefined,
       // Zonder bekend aantal guardians GEEN drempel verzinnen. Nul of een gok
       // leest als een feit, en dit is precies waar een guardian op afgaat.

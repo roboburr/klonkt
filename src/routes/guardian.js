@@ -67,7 +67,10 @@ function uiStrings(L) {
     'help_pick', 'help_close', 'help_picked_by', 'help_handled_by', 'help_handled_note',
     'help_close_ask', 'help_close_yes', 'help_just_now', 'help_hours', 'help_days',
     'help_archive', 'help_archive_hide', 'panel_history',
-    'gate_propose_open', 'gate_propose_close', 'gate_default_off'];
+    'gate_propose_open', 'gate_propose_close', 'gate_default_off',
+    'gate_images', 'gate_messages', 'gate_compose', 'gate_music', 'gate_quoteCards',
+    'gate_customEmoji', 'gate_publicProfile', 'gate_accountMove', 'gate_independence',
+    'gate_unavailable', 'gate_planned_note', 'gates_summary', 'gates_show', 'gates_hide'];
   const s = Object.fromEntries(keys.map((k) => [k, i18nT(L, `guardian.${k}`)]));
   s.wave = i18nT(L, 'guardian.wave');
   s.waved = i18nT(L, 'guardian.waved');

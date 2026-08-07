@@ -317,6 +317,7 @@
   // carries counts, so nothing that needs an answer hides inside a closed
   // panel.
   var openPanels = {};   // ward uri -> open, so a refresh does not close it
+  var openGates = {};    // idem voor de poortenlijst: uitklappen mag niet elke 45s dichtvallen
   // The follow requests and the wards' posts arrive from their own endpoints
   // and are grouped into the panels by ward, so they are cached here rather
   // than rendered into a section of their own.
@@ -499,15 +500,20 @@
     // SOORT -- in het Nederlands "stand" -- vlak boven de werkelijke stand, dus
     // twee dingen die hetzelfde heetten waarvan er een nooit veranderde. Het
     // veranderlijke hoort bovenaan; het beschrijvende gaat naar de regel eronder.
-    var chip = el('span', 'g-gate-chip g-gate-chip-' + (g.value === true ? 'on' : (g.decided ? 'off' : 'undecided')), stand);
-    head.appendChild(chip);
+    // Wat er nog niet is leest niet als een dichte poort maar als een lege plek.
+    // 'Uit' zou onwaar zijn: plaatjes werken vandaag gewoon.
+    if (!g.available) stand = T.gate_unavailable || 'not available yet';
+    var soort = g.available === false ? 'planned'
+      : (g.value === true ? 'on' : (g.decided ? 'off' : 'undecided'));
+    head.appendChild(el('span', 'g-gate-chip g-gate-chip-' + soort, stand));
 
     var meta = el('div', 'g-gate-meta small');
     meta.appendChild(el('span', 'g-gate-kind', T['gate_kind_' + g.kind] || g.kind));
-    if (g.threshold) {
+    if (!g.available) meta.appendChild(el('span', 'g-dim', T.gate_planned_note || ''));
+    if (g.threshold && g.available) {
       meta.appendChild(el('span', null, (T.gate_threshold || '{need} of {of} guardians')
         .replace('{need}', g.threshold.need).replace('{of}', g.threshold.of)));
-    } else {
+    } else if (g.available) {
       // Geen drempel verzinnen die we niet kennen.
       meta.appendChild(el('span', 'g-dim', T.gate_threshold_unknown || ''));
     }
@@ -554,7 +560,33 @@
     // knoppen lieten een guardian zelf uitzoeken wat er allemaal geldt, en wat
     // niet verstelbaar is stond nergens -- terwijl dat de helft van het antwoord
     // is op "wat mag dit kind".
-    (w.gates || []).forEach(function (g) { set.appendChild(gateRow(w, g)); });
+    //
+    // INGEKLAPT met een samenvatting erboven. Met twaalf poorten duwt een open
+    // lijst alles wat eronder staat -- guardians, volgverzoeken, hulpvragen --
+    // van het scherm. Wat je meestal wilt weten is "staat er iets open en wacht
+    // er iets op mij", en dat past op een regel.
+    if ((w.gates || []).length) {
+      var lijst = el('div', 'g-gates');
+      lijst.hidden = !openGates[uri];
+      w.gates.forEach(function (g) { lijst.appendChild(gateRow(w, g)); });
+
+      var aan = w.gates.filter(function (g) { return g.available && g.value === true; }).length;
+      var wacht = w.gates.reduce(function (n, g) { return n + (g.waiting || 0) + (g.proposal && g.proposal.status === 'open' ? 1 : 0); }, 0);
+      var kop = el('button', 'quiet small g-gates-toggle');
+      var zetKop = function () {
+        kop.textContent = (lijst.hidden ? (T.gates_show || 'Show gates') : (T.gates_hide || 'Hide gates'))
+          + ' - ' + (T.gates_summary || '{n} gates - {on} on, {wait} waiting')
+            .replace('{n}', w.gates.length).replace('{on}', aan).replace('{wait}', wacht);
+      };
+      zetKop();
+      kop.addEventListener('click', function () {
+        lijst.hidden = !lijst.hidden;
+        openGates[uri] = !lijst.hidden;   // blijft open over een verversing heen
+        zetKop();
+      });
+      set.appendChild(kop);
+      set.appendChild(lijst);
+    }
     // Terugval voor een server die de catalogus nog niet stuurt: dan de twee
     // knoppen zoals ze waren, zodat een oudere Klonkt niet met een leeg vak zit.
     if (!(w.gates || []).length) {

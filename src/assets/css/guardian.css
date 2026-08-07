@@ -207,3 +207,11 @@ button.danger { background: var(--danger); color: #fff; border-color: var(--dang
 .g-gate-chip-on { font-weight: 600; }
 .g-gate-chip-off { opacity: .8; }
 .g-gate-chip-undecided { opacity: .55; border-style: dashed; }
+
+/* De poortenlijst: compact, en ingeklapt tot je hem opent. Met twaalf rijen
+   duwt een open lijst alles eronder van het scherm. */
+.g-gates-toggle { display: block; width: 100%; text-align: left; margin: .25rem 0; }
+.g-gates .g-gate { padding: .35rem 0; }
+.g-gates .g-gate-head { gap: .4rem; }
+/* Een poort die nog niet bestaat is een lege plek, geen dichte deur. */
+.g-gate-chip-planned { opacity: .45; border-style: dotted; }
