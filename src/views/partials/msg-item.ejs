@@ -14,8 +14,21 @@
         <li class="msg-item msg-thread<%= _tnew ? ' is-new' : '' %>" data-kind="conv" data-who="<%= (_tpeople.join(' ') + ' ' + (_tto || '')).toLowerCase() %>">
           <div class="msg-thread-head">
             <%# Tegenpartij en aantal in EEN uitsparing: het is een label bij het
-                gesprek, geen kop erboven. Zo houdt de inhoud de ruimte. %>
-            <span class="msg-thread-who"><%= _tlabel %><% if (n.count > 1) { %><span class="msg-thread-count"><%= n.count %></span><% } %></span>
+                gesprek, geen kop erboven. Zo houdt de inhoud de ruimte.
+
+                Deze uitsparing is ook de knop die het gesprek in- en uitklapt
+                (Barts aanwijzing): tikken op de tegenpartij is waar je van
+                nature naar wijst als je "dit gesprek" bedoelt. Een BUTTON en
+                geen span met een klikhandler, want dan werkt hij ook met het
+                toetsenbord en leest een schermlezer de stand voor.
+
+                Zonder JavaScript doet hij niets, en dan staat het gesprek
+                gewoon open -- dat is ook de stand waar we mee beginnen. %>
+            <button type="button" class="msg-thread-who" aria-expanded="true">
+              <span class="msg-thread-name"><%= _tlabel %></span>
+              <% if (n.count > 1) { %><span class="msg-thread-count"><%= n.count %></span><% } %>
+              <svg class="msg-thread-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
             <% if (_tnew) { %><span class="msg-new" title="<%= t('msg.new') %>"></span><% } %>
             <%# De context bij de draad: waar gaat dit gesprek over? Zonder deze
                 link is een antwoord in een lijst niet te plaatsen. %>

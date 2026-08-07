@@ -100,10 +100,28 @@
       var ok = (kind === 'all' || li.getAttribute('data-kind') === kind) &&
         (!term || li._search.indexOf(term) !== -1);
       li.style.display = ok ? '' : 'none';
+      // Een treffer die in een dichtgeklapt gesprek zit, laat anders alleen de
+      // naam zien: je zoekt iets, het staat er, en je ziet het niet. Zolang er
+      // gezocht wordt gaat zo'n gesprek open; daarna keert hij terug naar de
+      // stand die de lezer zelf koos.
+      if (li.classList.contains('msg-thread')) {
+        li.classList.toggle('is-search-open', !!term && ok);
+      }
       if (ok) shown++;
     });
     if (noMatch) noMatch.hidden = shown !== 0;
   }
+  // In- en uitklappen door op de tegenpartij te tikken (Barts aanwijzing).
+  // Gedelegeerd, zodat draden die via "meer laden" binnenkomen het vanzelf ook
+  // doen. De stand leeft alleen in deze pagina: standaard uitgeklapt, en na een
+  // herlading weer. Dat is bewust -- een gesprek dat je gisteren dichtklapte
+  // stilhouden is niet hetzelfde als het opruimen van je scherm van nu.
+  document.addEventListener('click', function (e) {
+    var who = e.target.closest('.msg-thread-who'); if (!who) return;
+    var li = who.closest('.msg-thread'); if (!li) return;
+    var dicht = li.classList.toggle('is-collapsed');
+    who.setAttribute('aria-expanded', dicht ? 'false' : 'true');
+  });
   document.addEventListener('click', function (e) {
     var chip = e.target.closest('.msg-chip'); if (!chip) return;
     kind = chip.getAttribute('data-show');
@@ -165,13 +183,34 @@
   /* De tegenpartij is een labeltje bij het gesprek, geen kop erboven: een
      kleine verzonken uitsparing, zodat de bubbels eronder de ruimte krijgen.
      Het aantal zit in dezelfde uitsparing in plaats van ernaast. */
+  /* Ook de knop die het gesprek in- en uitklapt. Een button erft geen font en
+     geen kleur, dus die staan hier expliciet; zonder dat wordt het ineens
+     systeemblauw in 13px. */
   .msg-thread-who { display: inline-flex; align-items: center; gap: .3rem; min-width: 0;
-    font-size: .78em; line-height: 1.5; font-weight: 500;
-    padding: .05rem .5rem; border-radius: 999px;
+    font: inherit; font-size: .78em; line-height: 1.5; font-weight: 500;
+    padding: .05rem .5rem; border-radius: 999px; border: 0; cursor: pointer;
     color: color-mix(in srgb, var(--ink, #000) 62%, transparent);
     background: color-mix(in srgb, var(--ink, #000) 5%, transparent);
     box-shadow: inset 0 1px 2px color-mix(in srgb, var(--ink, #000) 9%, transparent);
-    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    max-width: 100%; overflow: hidden; white-space: nowrap;
+    /* Ruimer aanraakvlak dan de tekst: een chip van 18px hoog is op een telefoon
+       niet te raken. De uitsparing blijft klein, het doel wordt groter. */
+    min-height: 32px; }
+  .msg-thread-who:hover { background: color-mix(in srgb, var(--ink, #000) 9%, transparent); }
+  .msg-thread-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .msg-thread-chevron { width: 12px; height: 12px; flex: none; opacity: .55;
+    transition: transform .18s ease; }
+  /* Ingeklapt: de bubbels en het antwoordveld verdwijnen, de uitsparing met de
+     naam en het AANTAL blijft staan -- dat aantal is juist ingeklapt het meest
+     waard. */
+  .msg-thread.is-collapsed .msg-thread-msgs,
+  .msg-thread.is-collapsed .msg-thread-foot { display: none; }
+  /* Tijdens het zoeken wint de treffer van de dichtgeklapte stand. */
+  .msg-thread.is-collapsed.is-search-open .msg-thread-msgs { display: flex; }
+  .msg-thread.is-collapsed.is-search-open .msg-thread-foot { display: flex; }
+  .msg-thread.is-collapsed .msg-thread-chevron { transform: rotate(-90deg); }
+  .msg-thread.is-collapsed .msg-thread-head { margin-bottom: 0; }
+  @media (prefers-reduced-motion: reduce) { .msg-thread-chevron { transition: none; } }
   .msg-thread-count { font-variant-numeric: tabular-nums; opacity: .75; flex: 0 0 auto;
     padding-inline-start: .3rem; border-inline-start: 1px solid color-mix(in srgb, var(--ink, #000) 14%, transparent); }
   .msg-thread-post { display: inline-flex; align-items: center; gap: .3rem; font-size: .85em;
