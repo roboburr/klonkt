@@ -71,7 +71,82 @@
       a.href = h.note_url; a.target = '_blank'; a.rel = 'noopener';
       card.appendChild(a);
     }
+    card.appendChild(helpState(h));
     return card;
+  }
+
+  /** Hoe lang geleden, grof. Een oppik vervalt niet maar hoort wel te verouderen. */
+  function ago(ms) {
+    var u = Math.floor(ms / 3600000);
+    if (u < 1) return T.help_just_now || 'just now';
+    if (u < 24) return (T.help_hours || '{n}h ago').replace('{n}', u);
+    return (T.help_days || '{n}d ago').replace('{n}', Math.floor(u / 24));
+  }
+
+  /**
+   * De gedeelde staat van een hulpvraag (shaer-lgo): wie er al op af is, of het
+   * is afgesloten, en de twee knoppen.
+   *
+   * De faalstand hier is NIET veilig: 'iedereen denkt dat het geregeld is' is
+   * gevaarlijker dan geen markering. Dus bij twijfel toont dit OPEN, en een oude
+   * oppik verkleurt in plaats van te verdwijnen -- anders ziet een hulpvraag er
+   * onaangeroerd uit terwijl er iemand mee bezig is.
+   */
+  function helpState(h) {
+    var st = h.state || { open: true, pickedUpBy: [], handled: null, ageMs: null };
+    var box = el('div', 'g-help-state');
+
+    if (st.handled) {
+      var wie = st.handled.handle || handleOf(st.handled.uri);
+      box.appendChild(el('div', 'g-help-done', (T.help_handled_by || 'Handled by {who}').replace('{who}', wie)));
+      // Geen terugdraaiknop: leeft de vraag nog, dan wordt hij opnieuw gesteld.
+      box.appendChild(el('p', 'small g-empty', T.help_handled_note || ''));
+      return box;
+    }
+
+    (st.pickedUpBy || []).forEach(function (p) {
+      var line = (T.help_picked_by || '{who} is looking into this').replace('{who}', p.handle || handleOf(p.uri));
+      box.appendChild(el('div', 'g-help-pick', line));
+    });
+    // Oud, maar niet weg. Dit is het verschil tussen 'er is iemand mee bezig' en
+    // 'er was ooit iemand mee bezig'.
+    if (st.ageMs != null && st.ageMs > 3600000) {
+      box.appendChild(el('div', 'g-help-age small', ago(st.ageMs)));
+    }
+
+    var row = el('div', 'row');
+    var mij = (st.pickedUpBy || []).some(function (p) { return p.uri === S.me; });
+    if (!mij) {
+      var pick = el('button', 'small', T.help_pick || 'I am on it');
+      pick.addEventListener('click', function () { markHelp(h, 'pickup', pick); });
+      row.appendChild(pick);
+    }
+    var done = el('button', 'quiet small', T.help_close || 'Mark handled');
+    // Een stevige bevestiging, en nooit een window.confirm: dat verstopt een
+    // uitleg achter een OK die mensen wegklikken. Zelfde lijn als het loslaten
+    // van een ward.
+    done.addEventListener('click', function () {
+      done.hidden = true;
+      var ask = el('div', 'g-confirm');
+      ask.appendChild(el('p', 'small', T.help_close_ask || ''));
+      var ja = el('button', 'small', T.help_close_yes || 'Yes, handled');
+      ja.addEventListener('click', function () { markHelp(h, 'handled', ja); });
+      var nee = el('button', 'quiet small', T.release_no || 'No');
+      nee.addEventListener('click', function () { ask.remove(); done.hidden = false; });
+      ask.appendChild(ja); ask.appendChild(nee);
+      box.appendChild(ask);
+    });
+    row.appendChild(done);
+    box.appendChild(row);
+    return box;
+  }
+
+  function markHelp(h, kind, btn) {
+    if (btn) btn.disabled = true;
+    fetch('/guardian/api/help/' + kind, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note: h.object_uri, ward: h.actor_uri, site: S.site }),
+    }).then(refresh).catch(function () { if (btn) btn.disabled = false; });
   }
 
   function renderHelp() {
