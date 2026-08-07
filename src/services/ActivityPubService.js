@@ -1237,6 +1237,23 @@ export async function verifyRequest(req) {
   const actor = await fetchActor(p.keyId.split('#')[0]);
   const pem = actor && actor.publicKey && actor.publicKey.publicKeyPem;
   if (!pem) return null;
+  // Bind the key to the actor it speaks for. Without this we hand back whatever
+  // `id` the fetched document claims, so anyone could host a document carrying a
+  // VICTIM's id next to their OWN public key, sign with their own private half,
+  // and be believed: the victim's server is never contacted. The caller decides on
+  // `verified.id`, so the identity has to come from where the key was FETCHED,
+  // never from what the document says about itself.
+  // Adds conditions only, and there is no exemption list on purpose: an
+  // "unless it's a known peer" escape hatch is exactly the door this closes.
+  // Note this does not narrow what we accept in practice, since the line above
+  // already requires the embedded publicKey object (an array or a bare URI
+  // reference never worked here).
+  const key = actor.publicKey;
+  try {
+    if (new URL(p.keyId).host !== new URL(actor.id).host) return null;   // same origin as the key
+    if (key.id && key.id !== p.keyId) return null;                       // this key, not a neighbour's
+    if (key.owner && key.owner !== actor.id) return null;                // and it belongs to this actor
+  } catch { return null; }                                               // unparseable id or keyId
   const hs = (p.headers || '(request-target) host date').split(/\s+/);
   // Behind a reverse proxy the raw Host header is the backend bind (e.g. localhost:3000, when
   // the proxy doesn't preserve it — Apache .htaccess [P] proxying), but the sender signed the
