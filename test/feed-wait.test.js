@@ -58,6 +58,71 @@ test('en zo ook de andere drie poten van de inbox', () => {
   }
 });
 
+test('een BEWERKING beweegt hem ook', () => {
+  // De reden dat de merksteen niet meer op MAX(rowid) leunt. Een Update schrijft
+  // dezelfde rij, dus de rowid bleef staan en een wachtende client sliep door.
+  db.prepare("INSERT INTO ap_timeline (id, slug, author_uri, content) VALUES ('bw','me','https://r.test/u/a','<p>oud</p>')").run();
+  const voor = AP.feedCursor('me');
+  db.prepare("UPDATE ap_timeline SET content = '<p>nieuw</p>' WHERE id = 'bw'").run();
+  assert.notEqual(AP.feedCursor('me'), voor);
+});
+
+test('en een VERWIJDERING, ook als het niet de laatste is', () => {
+  db.prepare("INSERT INTO ap_timeline (id, slug, author_uri, content) VALUES ('later','me','https://r.test/u/a','<p>x</p>')").run();
+  const voor = AP.feedCursor('me');
+  db.prepare("DELETE FROM ap_timeline WHERE id = 'bw'").run();
+  assert.notEqual(AP.feedCursor('me'), voor, 'anders blijft een verwijderde post staan tot je toevallig ververst');
+});
+
+test('maar een LIKE of BOOST van jezelf niet', () => {
+  // De val waar dit bijna in liep: een like schrijft ap_timeline.liked en een 🔁
+  // schrijft .boosted. Zonder de UPDATE OF-kolomlijst zou je eigen like het
+  // bericht als BEWERKT merken en elke wachtende client wekken.
+  const voor = AP.feedCursor('me');
+  db.prepare("UPDATE ap_timeline SET liked = 1 WHERE id = 'later'").run();
+  db.prepare("UPDATE ap_timeline SET boosted = 1 WHERE id = 'later'").run();
+  db.prepare("UPDATE ap_interactions SET acted_like = 1 WHERE post_id = 'p1'").run();
+  assert.equal(AP.feedCursor('me'), voor, 'je eigen reactie is geen nieuws');
+});
+
+test('een INSERT OR IGNORE die niets doet beweegt hem niet', () => {
+  const voor = AP.feedCursor('me');
+  db.prepare("INSERT OR IGNORE INTO ap_timeline (id, slug, author_uri, content) VALUES ('later','me','https://r.test/u/a','<p>x</p>')").run();
+  assert.equal(AP.feedCursor('me'), voor);
+});
+
+test('de teller loopt nooit achteruit', () => {
+  // Met MAX(rowid) zakte hij terug zodra de nieuwste rij verdween, en dan denkt
+  // een client dat er niets gebeurd is.
+  const hoog = parseInt(AP.feedCursor('me'), 10);
+  db.prepare('DELETE FROM ap_timeline WHERE slug = ?').run('me');
+  assert.ok(parseInt(AP.feedCursor('me'), 10) >= hoog);
+});
+
+test('en hij vertelt WAT er veranderd is', () => {
+  // Dit is wat een revisieteller niet kan en deze tabel gratis meegeeft: de
+  // "bewerkt"-markering hoeft er later geen eigen bouwsel voor te worden.
+  const stand = (uri) => (AP.feedChangesSince('me', 0).find((r) => r.object_uri === uri) || {}).kind;
+
+  db.prepare("INSERT INTO ap_timeline (id, slug, author_uri, content) VALUES ('vers','me','https://r.test/u/a','<p>x</p>')").run();
+  assert.equal(stand('vers'), 'new');
+
+  db.prepare("UPDATE ap_timeline SET content = '<p>anders</p>' WHERE id = 'vers'").run();
+  assert.equal(stand('vers'), 'updated');
+
+  db.prepare("DELETE FROM ap_timeline WHERE id = 'vers'").run();
+  assert.equal(stand('vers'), 'deleted');
+});
+
+test('het is een STAND en geen logboek: bewerkt-en-toen-weg leest als weg', () => {
+  // Een rij per bericht, niet een rij per gebeurtenis. Vijf keer bewerken blijft
+  // één rij, en dat is waarom er niets te snoeien valt. Mijn eerste test ging uit
+  // van een log en viel daar terecht over.
+  const alles = AP.feedChangesSince('me', 0);
+  const perUri = new Set(alles.map((r) => r.object_uri));
+  assert.equal(alles.length, perUri.size, 'geen enkel bericht komt twee keer voor');
+});
+
 test('nieuws van een ANDER account laat je merksteen staan', () => {
   const voor = AP.feedCursor('me');
   nieuwePost('buur');
