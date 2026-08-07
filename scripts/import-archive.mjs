@@ -16,10 +16,10 @@
 // hebben, blijft die daar staan; dat rechttrekken is een uitzending naar iedereen
 // en hoort een aparte, bewuste actie te zijn.
 
-import { kiesInstance, eisOrigin } from './instance-env.mjs';
+import { kiesInstance, eisOrigin, splitsArgs } from './instance-env.mjs';
 
 const args = process.argv.slice(2);
-const vrij = args.filter((a) => !a.startsWith('-'));
+const { vrij, vlaggen } = splitsArgs(args, ['--data-root', '--env']);
 const [slug, bron] = vrij;
 
 if (!slug || !bron) {
@@ -30,7 +30,7 @@ if (!slug || !bron) {
 // EERST de instance kiezen, DAN pas de service laden -- database.js opent de
 // database bij import. Bij een IMPORT weegt dit zwaarder dan bij een export: in
 // de verkeerde database schrijven is niet terug te draaien.
-const vlag = (naam) => { const i = args.indexOf(naam); return i >= 0 ? (args[i + 1] || null) : null; };
+const vlag = (naam) => vlaggen[naam] ?? null;
 let gekozen;
 try {
   gekozen = kiesInstance(slug, { dataRoot: vlag('--data-root'), envPad: vlag('--env') });

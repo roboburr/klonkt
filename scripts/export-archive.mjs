@@ -23,14 +23,20 @@
 
 import fs from 'fs';
 import path from 'path';
-import { kiesInstance, eisOrigin } from './instance-env.mjs';
+import { kiesInstance, eisOrigin, splitsArgs } from './instance-env.mjs';
 
 const args = process.argv.slice(2);
-const slug = args.find((a) => !a.startsWith('-'));
-const vlag = (naam) => { const i = args.indexOf(naam); return i >= 0 ? (args[i + 1] || true) : null; };
+// Twee namen, en ze zijn niet hetzelfde. De eerste is de INSTANCE (de map onder
+// de data-root, de systemd-unit); de tweede, optioneel, is de slug van de SITE in
+// die database. Laat je hem weg en er staat er precies een, dan is de keuze niet
+// dubbelzinnig en hoef je hem niet te weten.
+const { vrij, vlaggen } = splitsArgs(args, ['--data-root', '--env', '--out', '--dir']);
+const instance = vrij[0];
+let slug = vrij[1] || null;
+const vlag = (naam) => vlaggen[naam] ?? null;
 
-if (!slug) {
-  console.error('gebruik: node scripts/export-archive.mjs <slug> [--data-root <map>] [--env <pad>] [--dry-run | --out <zip> | --dir <map>]');
+if (!instance) {
+  console.error('gebruik: node scripts/export-archive.mjs <instance> [site-slug] [--data-root <map>] [--env <pad>] [--dry-run | --out <zip> | --dir <map>]');
   process.exit(1);
 }
 
@@ -38,7 +44,7 @@ if (!slug) {
 // leest DATABASE_PATH bij import en opent de database meteen.
 let gekozen;
 try {
-  gekozen = kiesInstance(slug, {
+  gekozen = kiesInstance(instance, {
     dataRoot: typeof vlag('--data-root') === 'string' ? vlag('--data-root') : null,
     envPad: typeof vlag('--env') === 'string' ? vlag('--env') : null,
   });
@@ -46,6 +52,23 @@ try {
 eisOrigin(gekozen.bron);
 
 const { buildArchive, zipArchive, writeArchiveDir } = await import('../src/services/ArchiveExportService.js');
+const { default: db } = await import('../src/config/database.js');
+
+// Geen slug gegeven? Dan mag de database het zeggen, mits het antwoord eenduidig is.
+if (!slug) {
+  let sites = [];
+  try { sites = db.prepare('SELECT slug FROM sites ORDER BY rowid').all().map((r) => r.slug); } catch { /* geen tabel */ }
+  if (sites.length === 1) {
+    [slug] = sites;
+    console.log(`site niet opgegeven, en er staat er precies een: ${slug}`);
+  } else if (sites.length === 0) {
+    console.error(`in ${process.env.DATABASE_PATH || 'deze database'} staat geen enkele site.`);
+    process.exit(1);
+  } else {
+    console.error(`meerdere sites in deze database: ${sites.join(', ')}\nGeef er een op: node scripts/export-archive.mjs ${instance} <site-slug>`);
+    process.exit(1);
+  }
+}
 
 let uit;
 try { uit = buildArchive(slug); }

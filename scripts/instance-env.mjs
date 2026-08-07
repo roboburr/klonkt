@@ -93,3 +93,26 @@ export function eisOrigin(bron) {
   ].join('\n'));
   process.exit(1);
 }
+
+/**
+ * Argumenten splitsen in vrije woorden en vlaggen.
+ *
+ * Nodig omdat de naieve versie -- alles wat niet met een streepje begint is
+ * positioneel -- de WAARDE van een vlag als positioneel argument oppikt. Met
+ * `export-archive.mjs liz --data-root /var/lib/klonkt` werd /var/lib/klonkt de
+ * site-slug. Precies zo'n fout die pas opvalt als iemand hem gebruikt.
+ *
+ * @param {string[]} args
+ * @param {string[]} metWaarde  vlaggen die een waarde slikken
+ */
+export function splitsArgs(args, metWaarde) {
+  const vrij = [];
+  const vlaggen = {};
+  for (let i = 0; i < args.length; i += 1) {
+    const a = args[i];
+    if (!a.startsWith('-')) { vrij.push(a); continue; }
+    if (metWaarde.includes(a)) { vlaggen[a] = args[i + 1] ?? null; i += 1; continue; }
+    vlaggen[a] = true;
+  }
+  return { vrij, vlaggen };
+}

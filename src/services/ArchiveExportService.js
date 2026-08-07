@@ -246,7 +246,17 @@ function readableMarkdown(post, obj) {
 export function buildArchive(slug, opts = {}) {
   const origin = (opts.origin || process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(slug);
-  if (!site) throw new Error(`onbekende site: ${slug}`);
+  if (!site) {
+    // De naam van de INSTANCE (de map, de unit) en de slug van de SITE in zijn
+    // database zijn twee dingen. Ze vallen vaak samen en soms niet, en dan zat je
+    // met een foutmelding die je liet raden. Zeg dus wat er wel in staat.
+    let bestaand = [];
+    try { bestaand = db.prepare('SELECT slug FROM sites ORDER BY rowid').all().map((r) => r.slug); } catch { /* geen sites-tabel */ }
+    const wat = slug ? `onbekende site: ${slug}` : 'geen site opgegeven';
+    throw new Error(bestaand.length
+      ? `${wat}. In deze database staat: ${bestaand.join(', ')}`
+      : `${wat}. In deze database staat geen enkele site -- wijst DATABASE_PATH naar de juiste?`);
+  }
 
   const bestanden = new Map();       // pad -> Buffer
   const tellingen = { posts: 0, replies: 0, media: 0, mediaMissing: 0 };
