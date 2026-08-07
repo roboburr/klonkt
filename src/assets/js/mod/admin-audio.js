@@ -4,9 +4,20 @@
 // bestand. Inline script wordt bovendien geweigerd zodra deze pagina via een
 // link BINNEN de site binnenkomt (shaer-0i6).
 
-import { pageData } from './lib.js';
+import { pageData, makeSweeper } from './lib.js';
 
-  const T = pageData();
+// Zie post-edit.js: init() per paginawissel, de veger haalt de window-
+// listeners van de vorige lichting weg (shaer-5s1).
+const doc = makeSweeper();
+let T = {};
+
+export function init() {
+  doc.sweep();
+  T = pageData();
+  run();
+}
+
+function run() {
 
 (function() {
 
@@ -196,7 +207,7 @@ import { pageData } from './lib.js';
   // discards typed metadata. We swallow drops anywhere unless the dropzone
   // explicitly handles them.
   ['dragover', 'drop'].forEach(ev => {
-    window.addEventListener(ev, e => {
+    doc.on(window, ev, e => {
       // Allow drops INSIDE the dropzone — its own listener handles those.
       if (dropzone.contains(e.target)) return;
       e.preventDefault();
@@ -440,3 +451,4 @@ import { pageData } from './lib.js';
     });
   });
 })();
+}

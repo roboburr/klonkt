@@ -8,8 +8,15 @@ import { pageData } from './lib.js';
 
 (function () {
   if (window.__mediaWired) return; window.__mediaWired = true;
-  var T = pageData();
+  // Gedelegeerd op document, dus dit overleeft elke paginawissel -- ook op
+  // pagina's waar [data-copy] iets ANDERS betekent (audio en playlists: een
+  // shortcode, geen pad). Zonder deze wacht kaapt dit daar de kopieerklik en
+  // plakt er een origin voor (shaer-5s1). T per klik gelezen, want pageData
+  // wisselt mee met de pagina.
+  function active() { return (document.body.getAttribute('data-js') || '').split(/\s+/).indexOf('admin-media') !== -1; }
   document.addEventListener('click', function (e) {
+    if (!active()) return;
+    var T = pageData();
     var c = e.target.closest('[data-copy]');
     if (c) {
       var u = location.origin + c.getAttribute('data-copy');

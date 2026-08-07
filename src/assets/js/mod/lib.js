@@ -34,6 +34,23 @@ export function pageValue(key, fallback) {
 }
 
 /**
+ * Listeners op document en window overleven een paginawissel; de pagina zelf
+ * niet. Een module die per navigatie opnieuw start (export init) registreert
+ * zulke listeners hier, en veegt bij elke start de vorige lichting weg --
+ * anders stapelen ze, elk met een closure naar elementen die al weg zijn.
+ *
+ * Listeners op ELEMENTEN hoeven hier niet doorheen: die sterven met hun
+ * element bij de swap. Alleen wat het document overleeft, moet geveegd.
+ */
+export function makeSweeper() {
+  let list = [];
+  return {
+    on(target, ev, fn, opts) { target.addEventListener(ev, fn, opts); list.push([target, ev, fn, opts]); },
+    sweep() { for (const [t, ev, fn, opts] of list) t.removeEventListener(ev, fn, opts); list = []; },
+  };
+}
+
+/**
  * Een tekst veilig in HTML zetten.
  *
  * De modules bouwen op sommige plekken HTML met stringplakwerk. Vroeger ging een

@@ -4,9 +4,25 @@
 // door esc(): de EJS-tag ontsnapte die vroeger ook, dus dit is gedragsgelijk en
 // het houdt een apostrof in een vertaling uit de HTML die hier geplakt wordt.
 
-import { pageData, esc } from './lib.js';
+import { pageData, esc, makeSweeper } from './lib.js';
 
-const T = pageData();
+// De oude inline scripts draaiden bij ELKE render; een module draait zijn
+// top-level een keer per sessie. Vandaar init(): de bootstrap roept hem aan
+// bij elke paginawissel waarop deze module actief is, en de veger haalt eerst
+// de document/window-listeners van de vorige pagina weg -- die overleven de
+// swap, met closures naar elementen die al verdwenen zijn (shaer-5s1).
+const doc = makeSweeper();
+let T = {};
+let _barObserver = null;
+
+export function init() {
+  doc.sweep();
+  if (_barObserver) { _barObserver.disconnect(); _barObserver = null; }
+  T = pageData();
+  run();
+}
+
+function run() {
 
           (function () {
             var cb = document.getElementById('pe-fedi-audio'), w = document.getElementById('pe-fedi-audio-warn');
@@ -630,11 +646,11 @@ const T = pageData();
     else applyFs(false);
   }
   function toggleFullscreen() { if (isFs()) closeFs(); else openFs(); }
-  window.addEventListener('popstate', function () { if (isFs()) applyFs(false); });
+  doc.on(window, 'popstate', function () { if (isFs()) applyFs(false); });
   if (fsBtn) fsBtn.addEventListener('click', toggleFullscreen);
   var fsDoneBtn = document.getElementById('pe-fs-done');
   if (fsDoneBtn) fsDoneBtn.addEventListener('click', closeFs);
-  document.addEventListener('keydown', (e) => {
+  doc.on(document, 'keydown', (e) => {
     if (e.key === 'Escape' && isFs()) { e.preventDefault(); closeFs(); }
   });
 
@@ -662,7 +678,7 @@ const T = pageData();
     const bqBtn = toolbar.querySelector('button[data-cmd="formatBlock"][data-arg="blockquote"]');
     if (bqBtn) bqBtn.classList.toggle('is-active', !!blockquoteAncestor());
   }
-  document.addEventListener('selectionchange', () => {
+  doc.on(document, 'selectionchange', () => {
     if (document.activeElement === editor) updateToolbarState();
   });
 
@@ -883,7 +899,7 @@ const T = pageData();
         }
       }
     });
-    document.addEventListener('keydown', (e) => {
+    doc.on(document, 'keydown', (e) => {
       if (!trackPicker.hidden && e.key === 'Escape') {
         e.preventDefault();
         closePicker();
@@ -1091,8 +1107,10 @@ const T = pageData();
     bar.style.bottom = offset ? offset + 'px' : '';
   }
   position();
-  window.addEventListener('resize', position);
-  if (vv) { vv.addEventListener('resize', position); vv.addEventListener('scroll', position); }
-  // has-audio-player is toggled via a body class → observe it.
-  try { new MutationObserver(position).observe(document.body, { attributes: true, attributeFilter: ['class'] }); } catch (_) {}
+  doc.on(window, 'resize', position);
+  if (vv) { doc.on(vv, 'resize', position); doc.on(vv, 'scroll', position); }
+  // has-audio-player is toggled via a body class → observe it. De observer
+  // overleeft de swap net als de listeners; init() disconnect de vorige.
+  try { _barObserver = new MutationObserver(position); _barObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] }); } catch (_) {}
 })();
+}

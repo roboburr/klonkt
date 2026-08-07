@@ -489,16 +489,28 @@ const _embedUrl = _postAudio
   if (window.__modBoot) return;
   window.__modBoot = true;
 
+  // name -> 1 (aan het laden) of de module-namespace (geladen). Een module
+  // die `init` exporteert draait die bij ELKE paginawissel waarop hij actief
+  // is -- dat is het gedrag van de oude inline scripts, die per render
+  // draaiden. Een module zonder init draait alleen zijn top-level, een keer.
   var loaded = {};
+  function start(name, m) {
+    if (!m || typeof m.init !== 'function') return;
+    try { m.init(); } catch (e) { console.warn('[mod] ' + name + ' init:', e && e.message); }
+  }
   function load() {
     var names = (document.body.getAttribute('data-js') || '').trim().split(/\s+/);
     names.forEach(function (name) {
       // Streng: deze waarde komt uit een template en wordt een PAD. Alleen
       // kleine letters, cijfers en streepjes; nooit een punt of een schuine
       // streep.
-      if (!name || loaded[name] || !/^[a-z0-9-]+$/.test(name)) return;
+      if (!name || !/^[a-z0-9-]+$/.test(name)) return;
+      if (loaded[name]) { start(name, loaded[name]); return; }
       loaded[name] = 1;
-      import('/assets/js/mod/' + name + '.js').catch(function (e) {
+      import('/assets/js/mod/' + name + '.js').then(function (m) {
+        loaded[name] = m;
+        start(name, m);
+      }).catch(function (e) {
         console.warn('[mod] ' + name + ' laadde niet:', e && e.message);
       });
     });

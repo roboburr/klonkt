@@ -5,6 +5,10 @@
 
 import { pageData } from './lib.js';
 
+// Element-bedrading per render, dus init() per paginawissel (shaer-5s1).
+export function init() { run(); }
+
+function run() {
 (function() {
   const _d = pageData();
   const csrf = _d.csrf || '';
@@ -73,3 +77,4 @@ import { pageData } from './lib.js';
     });
   })();
 })();
+}
