@@ -5277,23 +5277,63 @@ Guardianship.wireHandshake({
   fetchActor,
   // Guardian PWA / Berichten push. The kid answers an incoming offer in its
   // own Berichten; an existing guardian and a commit land in the PWA.
+  //
+  // De labels hangen aan dezelfde sleutels als het Guardian-paneel, zodat een
+  // melding en het scherm waar hij heen wijst hetzelfde woord gebruiken.
   onEvent: (slug, ev) => {
-    const L = pushLang(slug);
-    const texts = {
-      offer_received: ['push.n_guard_offer_t', 'push.n_guard_offer_b'],   // I am the ward
-      offer_for_ward: ['push.n_guard_cog_t', 'push.n_guard_cog_b'],       // I co-guard this ward
-      committed: ['push.n_guard_ward_t', 'push.n_guard_ward_b'],
-      // §3.2: a guardian ended the relation. The ward hears that someone who
-      // was looking after them has gone; a co-guardian hears they are one fewer.
-      guardian_left: ['push.n_guard_left_t', 'push.n_guard_left_b'],
-      coguardian_left: ['push.n_guard_cogleft_t', 'push.n_guard_cogleft_b'],
-    }[ev.kind];
-    if (!texts) return;
-    const who = deriveHandle(ev.candidate || ev.guardian || ev.ward || '') || '?';
-    const url = (ev.kind === 'offer_received' || ev.kind === 'guardian_left') ? `${pushPrefix(slug)}/messages` : '/guardian';
-    pushEvent(slug, { type: 'guardian', title: i18nT(L, texts[0]), body: i18nT(L, texts[1], { who }), url });
+    const p = guardianEventPush(slug, ev);
+    if (p) pushEvent(slug, p);
   },
 });
+
+/**
+ * Welke melding hoort bij een guardianship-gebeurtenis, of geen.
+ *
+ * Apart en puur, omdat dit een BESLISSING is en geen bezorging: de
+ * guardianship-module zendt veertien soorten uit en deze tabel bepaalt welke
+ * daarvan een mens wakker maken. Dat hoort toetsbaar te zijn zonder web-push
+ * erbij te halen.
+ */
+export function guardianEventPush(slug, ev) {
+  const L = pushLang(slug);
+  const texts = {
+    offer_received: ['push.n_guard_offer_t', 'push.n_guard_offer_b'],   // I am the ward
+    offer_for_ward: ['push.n_guard_cog_t', 'push.n_guard_cog_b'],       // I co-guard this ward
+    committed: ['push.n_guard_ward_t', 'push.n_guard_ward_b'],
+    // §3.2: a guardian ended the relation. The ward hears that someone who
+    // was looking after them has gone; a co-guardian hears they are one fewer.
+    guardian_left: ['push.n_guard_left_t', 'push.n_guard_left_b'],
+    coguardian_left: ['push.n_guard_cogleft_t', 'push.n_guard_cogleft_b'],
+    // 5.6 gated settings. Zonder deze twee is de hele tally stil: een guardian
+    // hoort niet dat er een antwoord van hem gewenst is, en dus loopt het
+    // venster leeg en verloopt het voorstel. Een drempel die niemand ziet is
+    // geen drempel.
+    gated_review: ['push.n_gate_ask_t', 'push.n_gate_ask_b'],      // jij moet antwoorden
+    gated_outcome: ['push.n_gate_done_t', 'push.n_gate_done_b'],   // er is besloten
+  }[ev.kind];
+  if (!texts) return null;
+  const who = deriveHandle(ev.candidate || ev.guardian || ev.ward || '') || '?';
+  // Een gate-melding zonder te zeggen WELKE instelling is nutteloos: er zijn er
+  // meer dan een, en ze betekenen heel verschillende dingen voor een kind.
+  const wat = i18nT(L, GATE_LABEL[ev.feature] || 'guardian.prop_embeds');
+  const stand = i18nT(L, ev.value ? 'guardian.prop_on' : 'guardian.prop_off');
+  const uitkomst = i18nT(L, GATE_OUTCOME[ev.outcome] || 'guardian.prop_st_open');
+  const url = (ev.kind === 'offer_received' || ev.kind === 'guardian_left') ? `${pushPrefix(slug)}/messages` : '/guardian';
+  return { type: 'guardian', title: i18nT(L, texts[0]), body: i18nT(L, texts[1], { who, wat, stand, uitkomst }), url };
+}
+
+// Van een gated feature naar het woord dat het Guardian-paneel er al voor
+// gebruikt. Een onbekende feature valt terug op het algemene woord in plaats van
+// de melding te laten vervallen: liever een iets vager bericht dan geen bericht.
+const GATE_LABEL = {
+  'shaer:externalEmbeds': 'guardian.prop_embeds',
+  'shaer:externalPlayback': 'guardian.prop_play',
+};
+const GATE_OUTCOME = {
+  accepted: 'guardian.prop_st_accepted',
+  rejected: 'guardian.prop_st_rejected',
+  expired: 'guardian.prop_st_expired',
+};
 
 // The notification duty of FEP-633c 3.6.2, wired once for every place a
 // dormancy promotion can happen (queue reads, fan-outs, tallies): marking a
