@@ -5,6 +5,8 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 
 ## [Unreleased]
 
+## [1.7.0] · 2026-08-07
+
 ### Toegevoegd
 - **Berichten is één gesprekkenweergave.** Berichten, Gesprekken en Verzonden
   waren drie losse filters, waardoor één uitwisseling uit elkaar viel: wat jij
@@ -56,6 +58,19 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
   wel opgeslagen, maar de app kreeg dat nooit terug, dus het hartje sprong bij de
   eerste herlaadbeurt weer uit — en omdat de app de like nooit zag, kon hij hem
   alleen opnieuw geven en nooit intrekken. Un-liken vanuit een app werkt nu.
+
+### Beveiliging
+
+- **Bijgewerkte onderdelen sluiten zeven beveiligingsadviezen.** Het zwaarste
+  zat in de bibliotheek die berichten van elders opschoont: een zorgvuldig
+  opgebouwd bericht kon daar een script langs krijgen, en een script dat op jouw
+  pagina draait kan doen alsof het jou is. Tegelijk ging de mailafhandeling drie
+  hoofdversies vooruit, wat een reeks gaten rond verzenden dichtte — waaronder
+  een waarbij een geprepareerde naam commando's het gesprek met de mailserver in
+  kon smokkelen, en een waarbij een bericht bij een ander domein kon belanden
+  dan het geadresseerde. Aan hoe Klonkt eruitziet of werkt verandert dit niets.
+  Eén advies blijft bewust staan: het gaat over een manier om identifiers te
+  maken die Klonkt niet gebruikt.
 
 ## [1.6.0] · 2026-07-31
 

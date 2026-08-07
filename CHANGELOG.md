@@ -5,6 +5,8 @@ Versions follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.7.0] · 2026-08-07
+
 ### Added
 - **Messages is one conversation view.** Messages, Conversations and Sent were
   three separate filters, so a single exchange fell apart: what you sent sat
@@ -53,6 +55,19 @@ Versions follow [SemVer](https://semver.org/).
   the app never got that back, so the heart popped off again on the next reload
   — and because the app never saw the like, it could only offer "like" again and
   never undo it. Un-liking from an app now works.
+
+### Security
+
+- **Updated components close seven security advisories.** The heaviest one sat
+  in the library that cleans up posts arriving from elsewhere: a carefully built
+  post could slip a script past it, and a script running on your page can act as
+  if it were you. At the same time mail handling moved three major versions on,
+  closing a cluster of holes around sending — among them one where a prepared
+  name could smuggle commands into the conversation with the mail server, and
+  one where a message could end up at a different domain than the one addressed.
+  None of this changes how Klonkt looks or behaves. One advisory is knowingly
+  left open: it concerns a way of generating identifiers that Klonkt does not
+  use.
 
 ## [1.6.0] · 2026-07-31
 

@@ -5,6 +5,8 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 
 ## [Unreleased]
 
+## [1.7.0] · 2026-08-07
+
 ### Hinzugefügt
 - **Nachrichten ist eine einzige Gesprächsansicht.** Nachrichten, Gespräche und
   Gesendet waren drei getrennte Filter, wodurch ein Austausch auseinanderfiel:
@@ -60,6 +62,20 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
   nächsten Laden wieder aussprang — und weil die App das Like nie sah, konnte sie
   es nur erneut senden und nie zurücknehmen. Das Zurücknehmen aus einer App
   funktioniert jetzt.
+
+### Sicherheit
+
+- **Aktualisierte Komponenten schließen sieben Sicherheitshinweise.** Der
+  schwerwiegendste steckte in der Bibliothek, die von außen eintreffende
+  Beiträge säubert: ein sorgfältig gebauter Beitrag konnte ein Skript daran
+  vorbeischmuggeln, und ein Skript, das auf deiner Seite läuft, kann in deinem
+  Namen handeln. Gleichzeitig ging der Mailversand drei Hauptversionen weiter
+  und schloss damit eine Reihe von Lücken — darunter eine, bei der ein
+  präparierter Name Befehle in das Gespräch mit dem Mailserver einschleusen
+  konnte, und eine, bei der eine Nachricht bei einer anderen Domain landen
+  konnte als der adressierten. An Aussehen und Verhalten von Klonkt ändert das
+  nichts. Ein Hinweis bleibt bewusst offen: er betrifft eine Art, Bezeichner zu
+  erzeugen, die Klonkt nicht verwendet.
 
 ## [1.6.0] · 2026-07-31
 
