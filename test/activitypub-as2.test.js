@@ -31,6 +31,9 @@ const AS2 = new Set([
   'preferredUsername', 'inbox', 'outbox', 'followers', 'following', 'endpoints', 'sharedInbox',
   // ActivityPub §5.6: the private blocked collection (owner-only GET).
   'blocked',
+  // ActivityPub §4.1: supplementary collections on the actor — Klonkt wijst
+  // ermee naar de playlist-lijst (shaer-ayc).
+  'streams',
   // FEP-633c (Guardians): the owner-only dashboard queues on the actor; the
   // sub-keys are the daemon-contract collection names the Shaer clients read.
   // `guardians` is the availability queue (3.6.1: never public, owner-only).
