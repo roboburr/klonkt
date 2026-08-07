@@ -110,6 +110,8 @@ router.get('/', requireGod, (req, res) => {
   const base = (process.env.PUBLIC_BASE_URL || ('https://' + (req.get('host') || ''))).replace(/\/$/, '');
   const embedUrl = base + (res.locals.siteUrlBase || '') + '/embed';
   renderPage(req, res, 'pages/admin-audio', {
+    // admin-audio neemt de track-editor op, dus die module hoort erbij.
+    pageJs: 'admin-audio track-editor',
     pageTitleKey: 'admin.t_audio',
     bodyClass: 'on-admin',
     tracks,
