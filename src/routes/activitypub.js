@@ -635,6 +635,15 @@ router.get('/ap/users/:slug/featured', (req, res) => {
 // en eenrichtings; zie setAudioFediOpen in routes/posts.js) — een collectie
 // zonder open tracks bestaat wel maar is leeg, want de playlist zelf is niet
 // geheim, alleen de bestanden erachter.
+// De lijst van alle playlist-collecties (shaer-ayc, stap 2). De actor wijst
+// hierheen via AS2 `streams`. Kaal standaard; verrijkte stubs op verzoek
+// (FEP-9876), dezelfde conventie als followers/following.
+router.get('/ap/users/:slug/playlists', (req, res) => {
+  const site = publicSite(req.params.slug);
+  if (!site) return res.status(404).end();
+  AP.sendAP(res, AP.listPlaylistsAP(baseUrl(req), site, wantsEnriched(req, res)));
+});
+
 router.get('/ap/users/:slug/playlists/:id', (req, res) => {
   const site = publicSite(req.params.slug);
   if (!site) return res.status(404).end();

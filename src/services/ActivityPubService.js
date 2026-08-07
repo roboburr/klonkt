@@ -194,6 +194,10 @@ export function buildActor(base, site) {
     followers: `${id}/followers`,
     following: `${id}/following`,
     featured: `${id}/featured`,
+    // AS2-kern `streams`: "supplementary Collections which may be of
+    // interest" -- precies wat de playlist-lijst is (shaer-ayc, stap 2).
+    // Geen eigen vocabulaire nodig, en wie het niet kent negeert het.
+    streams: [`${id}/playlists`],
     // AP §5.6: the private blocked collection (owner-only GET). The server
     // list is the source of truth for Shaer's "in Orbit"; clients keep no
     // separate state.
@@ -547,7 +551,7 @@ export function buildNote(base, site, post, opts = {}) {
       ...(post.ap_visibility === 'quiet' ? [PUBLIC] : []),          // quiet public: Public in cc, not to
       ...((post.fan_only || post.ap_visibility === 'quiet') ? [] : [`${aId}/followers`]),
       ..._mentionCc])],
-    tag: [...buildHashtagList(base, post.tags, body), ..._mentionTags],
+    tag: [...buildHashtagList(base, post.tags, body), ..._mentionTags, ...playlistLinkTags(base, site, post.content)],
     replies: `${id}/replies`,
     // NSFW → Mastodon-style content warning: sensitive (blurs media) + a summary/spoiler
     // (hides the whole post behind a "Gevoelige inhoud" button until the reader opens it).
@@ -891,6 +895,57 @@ export function playlistOpenTracks(playlistId) {
      WHERE pt.playlist_id = ? AND t.fedi_open = 1
      ORDER BY pt.position`
   ).all(playlistId);
+}
+
+// Een post die een playlist insluit wijst in zijn AS2 ook naar de collectie
+// (shaer-ayc, stap 2): een Link-tag per ingesloten playlist. Mastodon
+// parseert alleen Mention/Hashtag/Emoji en negeert een Link geruisloos; een
+// client die hem kent haalt de collectie op. Opgelost uit post.content en
+// ALLEEN binnen de eigen site: playlist-ids zijn een globale primary key, dus
+// zonder site-check zou een post van site A naar de collectie van site B
+// kunnen wijzen.
+export function playlistLinkTags(base, site, content) {
+  const out = [];
+  const seen = new Set();
+  try {
+    for (const m of (content || '').matchAll(/\[\[playlist:([A-Za-z0-9_-]+)\]\]/g)) {
+      if (seen.has(m[1])) continue;
+      seen.add(m[1]);
+      const pl = db.prepare('SELECT id, title FROM playlists WHERE id = ? AND site_id = ?').get(m[1], site.id);
+      if (!pl) continue;
+      out.push({ type: 'Link', href: `${actorId(base, site.slug)}/playlists/${pl.id}`, mediaType: 'application/activity+json', name: pl.title });
+    }
+  } catch { /* niet-fataal: een tag minder, geen kapotte Note */ }
+  return out;
+}
+
+// De lijst van alle playlist-collecties van een site (shaer-ayc, stap 2).
+// Kaal standaard (URI's), verrijkt op verzoek (FEP-9876, zelfde conventie als
+// followers/following): een stub per playlist met naam, hoes en de EERLIJKE
+// telling -- totalItems van de stub telt het open deel, dezelfde regel als de
+// collectie zelf, want ook een lijst mag niet verklappen wat er achter de
+// poort staat.
+export function listPlaylistsAP(base, site, enriched) {
+  const rows = db.prepare(
+    'SELECT id, title, artist, year, cover_url FROM playlists WHERE site_id = ? ORDER BY created_at, id'
+  ).all(site.id);
+  const colId = `${actorId(base, site.slug)}/playlists`;
+  const items = rows.map((p) => {
+    const uri = `${actorId(base, site.slug)}/playlists/${p.id}`;
+    if (!enriched) return uri;
+    const stub = buildPlaylistCollection(base, site, p, playlistOpenTracks(p.id));
+    delete stub['@context'];       // genest object draagt de context van zijn omhulsel
+    delete stub.orderedItems;      // stub: wie de tracks wil, haalt de collectie op
+    return stub;
+  });
+  return {
+    '@context': AP_CONTEXT,
+    id: colId,
+    type: 'OrderedCollection',
+    attributedTo: actorId(base, site.slug),
+    totalItems: items.length,
+    orderedItems: items,
+  };
 }
 
 export function buildPlaylistCollection(base, site, playlist, rows) {
@@ -5481,7 +5536,7 @@ Guardianship.wireAvailability({
 export default {
   AP_CONTEXT, getOrCreateKeys, apWants, sendAP, actorId, noteId, stripLeadingMentions,
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers, buildFollowing, buildFeatured,
-  buildPlaylistCollection, playlistOpenTracks,
+  buildPlaylistCollection, playlistOpenTracks, listPlaylistsAP, playlistLinkTags,
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
   feedCursor, feedChangesSince, waitForFeedChange,
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, buildReplyNote, getOutboxNote, getSentNotes, deliverReply, resolveRemoteNote, noteAudience, mayReadNote,
