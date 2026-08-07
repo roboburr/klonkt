@@ -59,6 +59,66 @@ const FEATURES = {
   'shaer:externalEmbeds': 'external_embeds',
   'shaer:externalPlayback': 'external_playback',
 };
+/**
+ * De gates die deze Klonkt kent, met hun SOORT.
+ *
+ * Wat gated wordt is een ontwerpkeuze van de implementatie: de FEP levert het
+ * mechanisme (voorstel, tally, settle) en een paar voorbeelden, niet de lijst.
+ * Deze catalogus is die lijst, op een plek. Een gate erbij hoort een regel data
+ * te zijn en geen nieuw stuk scherm.
+ *
+ * `kind` is niet decoratief. De gates verschillen in hoe ze werken en dat mag
+ * een guardian niet hoeven raden:
+ *
+ *   setting     een stand, aan of uit, terug te draaien
+ *   perRequest  geen stand maar een stroom beslissingen (5.3 volgverzoeken)
+ *   handover    draagt gezag OVER; onomkeerbaar zodra de ward hem gebruikt
+ *
+ * `needs` is de trap uit shaer-ahy: zien < afspelen. Je kunt niet afspelen wat
+ * je niet mag zien, dus dat tweede is pas te bewegen als het eerste openstaat.
+ */
+export const GATE_CATALOGUE = [
+  { feature: 'shaer:externalEmbeds', kind: 'setting', reversible: true },
+  { feature: 'shaer:externalPlayback', kind: 'setting', reversible: true, needs: 'shaer:externalEmbeds' },
+  // Altijd aan voor een ward (5.3): niet te verzetten, wel te tonen. Een paneel
+  // dat alleen verstelbare dingen laat zien verzwijgt de helft van wat er geldt.
+  { feature: 'shaer:follows', kind: 'perRequest', reversible: true, fixed: true },
+];
+
+/**
+ * De gates van een ward als rijen voor het paneel. Puur, zodat de regels
+ * getoetst kunnen worden zonder database of scherm.
+ *
+ * @param settings       {feature: true|false|null} -- null is ONBEKEND, niet uit
+ * @param guardianCount  aantal guardians, of null als we het niet weten
+ * @param proposals      [{feature, value, status}] lopende voorstellen
+ * @param waiting        {feature: aantal} wat er per gate op een besluit wacht
+ */
+export function gateRows({ settings = {}, guardianCount = null, proposals = [], waiting = {} } = {}) {
+  return GATE_CATALOGUE.map((g) => {
+    const value = Object.prototype.hasOwnProperty.call(settings, g.feature) ? settings[g.feature] : null;
+    // De trap: het bovenliggende moet OPEN staan. Onbekend telt niet als dicht --
+    // bij een ward elders kennen we de stand niet, en verbergen betekende daar
+    // ooit dat een voorstel nooit geopend kon worden.
+    const blockedBy = g.needs && settings[g.needs] === false ? g.needs : null;
+    return {
+      feature: g.feature,
+      kind: g.kind,
+      reversible: !!g.reversible,
+      value,
+      // Vast staat vast: tonen mag, verzetten niet.
+      adjustable: !g.fixed && !blockedBy,
+      blockedBy: blockedBy || undefined,
+      // Zonder bekend aantal guardians GEEN drempel verzinnen. Nul of een gok
+      // leest als een feit, en dit is precies waar een guardian op afgaat.
+      threshold: (guardianCount && guardianCount > 0)
+        ? { need: thresholdFor(guardianCount), of: guardianCount } : null,
+      proposal: proposals.find((p) => p.feature === g.feature) || undefined,
+      waiting: waiting[g.feature] || undefined,
+    };
+  });
+}
+
 export function featureColumn(feature) {
   return Object.prototype.hasOwnProperty.call(FEATURES, feature) ? FEATURES[feature] : null;
 }
@@ -238,6 +298,7 @@ export function sentStatus(row, now) {
 }
 
 export default {
+  GATE_CATALOGUE, gateRows,
   tallyGatedSetting, thresholdFor, featureColumn, recordGatedVote, gatedProgress, GATED_WINDOW_MS,
   parseGatedSetting, buildGatedOffer, rememberGatedOffer, recallGatedOffer,
   recordGatedReview, getGatedReview, listGatedReviews, removeGatedReview, clearGatedReviews,

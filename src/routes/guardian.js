@@ -56,7 +56,13 @@ function uiStrings(L) {
     // The status of a proposal this guardian sent (5.6).
     'prop_line', 'prop_embeds', 'prop_play', 'prop_on', 'prop_off',
     'prop_st_open', 'prop_st_accepted', 'prop_st_rejected', 'prop_st_expired',
-    'panel_guards_far'];
+    'panel_guards_far',
+    // Het gate-paneel per ward (shaer-ahy.1): een rij per gate, met het soort en
+    // de drempel erbij. De namen volgen de catalogus in gated.js.
+    'gate_externalEmbeds', 'gate_externalPlayback', 'gate_follows',
+    'gate_kind_setting', 'gate_kind_perRequest', 'gate_kind_handover',
+    'gate_unknown', 'gate_threshold', 'gate_threshold_unknown',
+    'gate_irreversible', 'gate_waiting', 'gate_blocked', 'gate_propose'];
   const s = Object.fromEntries(keys.map((k) => [k, i18nT(L, `guardian.${k}`)]));
   s.wave = i18nT(L, 'guardian.wave');
   s.waved = i18nT(L, 'guardian.waved');
@@ -102,6 +108,10 @@ function dashboardState(site, L) {
         feature: p.feature, value: !!p.value, created: p.created_at,
         status: Guardianship.gated.sentStatus(p, Date.now()),
       })),
+      // Alles wat voor dit kind gated is op EEN plek, met per gate het soort en
+      // de drempel (shaer-ahy.1). Losse knoppen lieten een guardian zelf
+      // uitzoeken wat er allemaal geldt; wat niet verstelbaar is stond nergens.
+      gates: wardGates(site.slug, w.other_uri),
     })),
     offers: Guardianship.offersCollection(`${me}/queues/offers`, site.slug, me).orderedItems,
     // Running lapses (3.6.3) this guardian or its local wards are party to.
@@ -537,6 +547,31 @@ router.post('/wards/remove', requireAuth, express.json({ limit: '4kb' }), async 
 function wardEmbedSetting(uri) { return wardGateSetting(uri, 'external_embeds'); }
 /** The playback gate of a ward we host (5.6): the heavier sibling. */
 function wardPlaybackSetting(uri) { return wardGateSetting(uri, 'external_playback'); }
+/**
+ * De gate-rijen van een ward voor het paneel.
+ *
+ * De standen komen uit onze eigen kolommen als we het kind hosten; bij een ward
+ * elders weten we ze niet en blijft het NULL -- onbekend, niet uit. Het aantal
+ * guardians idem: dat wordt op de server van die ward bijgehouden, en zonder dat
+ * getal wordt er geen drempel verzonnen.
+ */
+function wardGates(mySlug, wardUri) {
+  const statuses = wardGuardianStatuses(wardUri);
+  const wachtend = Guardianship.follows.listReviewsByDirection(mySlug, 'incoming')
+    .filter((r) => r.ward_uri === wardUri).length;
+  return Guardianship.gated.gateRows({
+    settings: {
+      'shaer:externalEmbeds': wardEmbedSetting(wardUri),
+      'shaer:externalPlayback': wardPlaybackSetting(wardUri),
+    },
+    guardianCount: statuses ? statuses.length : null,
+    proposals: Guardianship.gated.listSent(mySlug, wardUri).map((p) => ({
+      feature: p.feature, value: !!p.value, status: Guardianship.gated.sentStatus(p, Date.now()),
+    })),
+    waiting: { 'shaer:follows': wachtend || undefined },
+  });
+}
+
 function wardGateSetting(uri, column) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   if (!base || !String(uri || '').startsWith(`${base}/`)) return null;

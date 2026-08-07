@@ -350,6 +350,66 @@
     return row;
   }
 
+  /** Het woord dat we voor een gate gebruiken; onbekend valt terug op de naam. */
+  function gateLabel(feature) {
+    return T['gate_' + feature.replace('shaer:', '')] || feature.replace('shaer:', '');
+  }
+
+  /**
+   * Een rij in het gate-paneel. Toont WAT er geldt, van welk SOORT het is, welke
+   * drempel er hoort en wat er loopt -- en pas daarna een knop, als er iets te
+   * verzetten valt.
+   *
+   * Het soort staat erbij omdat de gates niet hetzelfde werken: een stand is aan
+   * of uit, volgverzoeken zijn een stroom beslissingen, en een overdracht is
+   * onomkeerbaar zodra het kind hem gebruikt. Vier rijen met dezelfde schakelaar
+   * zouden dat verschil wegpoetsen.
+   */
+  function gateRow(w, g) {
+    var row = el('div', 'g-gate');
+    var head = el('div', 'g-gate-head');
+    head.appendChild(el('span', 'g-gate-name', gateLabel(g.feature)));
+    head.appendChild(el('span', 'g-gate-kind', T['gate_kind_' + g.kind] || g.kind));
+    row.appendChild(head);
+
+    // De stand. NULL is onbekend en dat is iets anders dan uit: bij een ward op
+    // een andere server wordt die kolom daar bijgehouden.
+    var stand = g.value === null || g.value === undefined
+      ? (T.gate_unknown || 'unknown')
+      : (g.value ? (T.prop_on || 'on') : (T.prop_off || 'off'));
+    var meta = el('div', 'g-gate-meta small');
+    meta.appendChild(el('span', null, stand));
+    if (g.threshold) {
+      meta.appendChild(el('span', null, (T.gate_threshold || '{need} of {of} guardians')
+        .replace('{need}', g.threshold.need).replace('{of}', g.threshold.of)));
+    } else {
+      // Geen drempel verzinnen die we niet kennen.
+      meta.appendChild(el('span', 'g-dim', T.gate_threshold_unknown || ''));
+    }
+    if (!g.reversible) meta.appendChild(el('span', 'g-gate-warn', T.gate_irreversible || ''));
+    if (g.waiting) {
+      meta.appendChild(el('span', 'g-gate-wait', (T.gate_waiting || '{n} waiting').replace('{n}', g.waiting)));
+    }
+    row.appendChild(meta);
+
+    if (g.proposal) {
+      row.appendChild(el('p', 'small g-prop g-prop-' + g.proposal.status,
+        (T.prop_line || 'Proposal {what} {value}: {status}')
+          .replace('{what}', gateLabel(g.feature))
+          .replace('{value}', g.proposal.value ? (T.prop_on || 'on') : (T.prop_off || 'off'))
+          .replace('{status}', T['prop_st_' + g.proposal.status] || g.proposal.status)));
+    }
+    if (g.blockedBy) {
+      row.appendChild(el('p', 'small g-empty', (T.gate_blocked || 'needs {what} first')
+        .replace('{what}', gateLabel(g.blockedBy))));
+    }
+    if (g.adjustable) {
+      row.appendChild(gateButton(w, g.feature, g.value, T.gate_propose || T.embeds_propose,
+        T.prop_on || 'on', T.prop_off || 'off'));
+    }
+    return row;
+  }
+
   function wardPanel(w) {
     var uri = w.other_uri;
     var panel = el('div', 'g-panel');
@@ -357,30 +417,27 @@
 
     var set = el('div', 'g-panel-sec');
     set.appendChild(el('h3', null, T.settings_title || 'Settings'));
-    var setRow = el('div', 'row');
-    setRow.appendChild(gateButton(w, 'shaer:externalEmbeds', w.embeds, T.embeds_propose, T.embeds_on, T.embeds_off));
-    // The heavier sibling (5.6): seeing that a video exists is one decision,
-    // letting a third party's player run inside the app is another. Hidden
-    // only when previews are known-OFF: for a ward on another server the
-    // value is unknown, and unknown is not off. Hiding it there meant a
-    // guardian elsewhere could never even propose playback, which is how a
-    // whole proposal round went into the wrong gate. The ward's server
-    // enforces play-needs-previews at serve time regardless.
-    if (w.embeds !== false) {
-      setRow.appendChild(gateButton(w, 'shaer:externalPlayback', w.playback, T.play_propose, T.play_on, T.play_off));
+    // Een rij per gate, uit de catalogus van de server (shaer-ahy.1). Losse
+    // knoppen lieten een guardian zelf uitzoeken wat er allemaal geldt, en wat
+    // niet verstelbaar is stond nergens -- terwijl dat de helft van het antwoord
+    // is op "wat mag dit kind".
+    (w.gates || []).forEach(function (g) { set.appendChild(gateRow(w, g)); });
+    // Terugval voor een server die de catalogus nog niet stuurt: dan de twee
+    // knoppen zoals ze waren, zodat een oudere Klonkt niet met een leeg vak zit.
+    if (!(w.gates || []).length) {
+      var setRow = el('div', 'row');
+      setRow.appendChild(gateButton(w, 'shaer:externalEmbeds', w.embeds, T.embeds_propose, T.embeds_on, T.embeds_off));
+      if (w.embeds !== false) {
+        setRow.appendChild(gateButton(w, 'shaer:externalPlayback', w.playback, T.play_propose, T.play_on, T.play_off));
+      }
+      set.appendChild(setRow);
+      (w.proposals || []).forEach(function (p) {
+        var what = p.feature === 'shaer:externalPlayback' ? (T.prop_play || 'playback') : (T.prop_embeds || 'link previews');
+        set.appendChild(el('p', 'small g-prop g-prop-' + p.status, (T.prop_line || 'Proposal {what} {value}: {status}')
+          .replace('{what}', what).replace('{value}', p.value ? (T.prop_on || 'on') : (T.prop_off || 'off'))
+          .replace('{status}', T['prop_st_' + p.status] || p.status)));
+      });
     }
-    set.appendChild(setRow);
-    // What this guardian proposed and how it stands (5.6). This used to be a
-    // button caption that vanished on refresh, so a running decision was
-    // invisible: you could not tell "waiting", "done" and "expired" apart.
-    (w.proposals || []).forEach(function (p) {
-      var what = p.feature === 'shaer:externalPlayback' ? (T.prop_play || 'playback') : (T.prop_embeds || 'link previews');
-      var line = (T.prop_line || 'Proposal {what} {value}: {status}')
-        .replace('{what}', what)
-        .replace('{value}', p.value ? (T.prop_on || 'on') : (T.prop_off || 'off'))
-        .replace('{status}', T['prop_st_' + p.status] || p.status);
-      set.appendChild(el('p', 'small g-prop g-prop-' + p.status, line));
-    });
     panel.appendChild(set);
 
     // The fellow guardians of this child, with availability (3.6). For a

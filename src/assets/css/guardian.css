@@ -167,3 +167,20 @@ button.danger { background: var(--danger); color: #fff; border-color: var(--dang
 /* Een voorgestelde gated setting (FEP-633c 5.6) van een mede-guardian. */
 .g-card.gated { border-left: 3px solid var(--accent); }
 .g-card.gated .row { margin-top: 8px; gap: 8px; }
+
+/* Het gate-paneel per ward (shaer-ahy.1). Een rij per gate, met het soort en de
+   drempel erbij. Bewust rustig: dit is een overzicht om te LEZEN, en pas daarna
+   een plek om iets voor te stellen. */
+.g-gate { padding: .5rem 0; border-top: 1px solid var(--g-line, rgba(0,0,0,.08)); }
+.g-gate:first-of-type { border-top: 0; }
+.g-gate-head { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
+.g-gate-name { font-weight: 600; }
+/* Het soort is een fluistering, geen kop: het hoort erbij te staan zonder de
+   naam van de gate te overstemmen. */
+.g-gate-kind { font-size: .78em; opacity: .65; }
+.g-gate-meta { display: flex; gap: .75rem; flex-wrap: wrap; margin-top: .15rem; }
+.g-gate-meta .g-dim { opacity: .55; }
+/* Onomkeerbaar krijgt gewicht, want dat is het enige in dit paneel dat je niet
+   kunt terugdraaien. */
+.g-gate-warn { font-weight: 600; }
+.g-gate-wait { font-weight: 600; }
