@@ -2522,8 +2522,15 @@ export async function handleInbox(req, slugParam, preVerified = null) {
     // handtekening-geverifieerd, en actorUri is de ondertekenaar. Alleen een
     // rij die nog op pending staat wordt geraakt, dus dit kan niets anders
     // openzetten dan een follow die wij zelf hebben verstuurd.
-    if (!raak && slugParam && actorUri) {
-      try { raak = fwStmts().accByActor.run(slugParam, actorUri).changes; } catch { /* ignore */ }
+    //
+    // En de slug mag NIET van slugParam afhangen: Funkwhale bezorgt op de
+    // GEDEELDE inbox, en dan is die leeg. Wie wij zijn staat in de ingesloten
+    // Follow -- die hebben wij immers zelf verstuurd, dus `object.actor` is
+    // onze eigen actor-URI.
+    let mij = slugParam;
+    if (!mij && act.object && typeof act.object === 'object') mij = slugFromActorUrl(act.object.actor);
+    if (!raak && mij && actorUri) {
+      try { raak = fwStmts().accByActor.run(mij, actorUri).changes; } catch { /* ignore */ }
     }
     // Eerlijk loggen: zonder treffer is er niets geaccepteerd, en dat hoort te
     // zien te zijn in plaats van als succes voorbij te komen.

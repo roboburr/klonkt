@@ -63,6 +63,33 @@ test('een Accept als kale string blijft werken', async () => {
   assert.equal(status(), 'accepted');
 });
 
+test('bezorgd op de GEDEELDE inbox: de slug komt uit de ingesloten Follow', async () => {
+  // Funkwhale levert af op /ap/inbox, niet op /ap/users/<slug>/inbox. Dan is
+  // slugParam null en moeten we uit `object.actor` afleiden wie wij zijn --
+  // die Follow hebben wij immers zelf verstuurd.
+  zetPending();
+  await AP.handleInbox({
+    body: {
+      type: 'Accept', actor: REMOTE,
+      object: {
+        id: 'https://test.example/ap/users/dev#follows/389cf422-7e38-4bad-858e-35def4c3e2e9',
+        type: 'Follow', actor: 'https://test.example/ap/users/dev', object: REMOTE,
+      },
+    },
+    headers: {}, get: () => undefined, socket: {},
+  }, null, { id: REMOTE });
+  assert.equal(status(), 'accepted');
+});
+
+test('op de gedeelde inbox zonder bruikbare Follow blijft het pending', async () => {
+  zetPending();
+  await AP.handleInbox({
+    body: { type: 'Accept', actor: REMOTE, object: { id: 'https://elders.example/x', type: 'Follow' } },
+    headers: {}, get: () => undefined, socket: {},
+  }, null, { id: REMOTE });
+  assert.equal(status(), 'pending', 'zonder te weten wie wij zijn, raden we niet');
+});
+
 test('een Accept van een ANDERE actor raakt onze rij niet', async () => {
   zetPending();
   await AP.handleInbox({
