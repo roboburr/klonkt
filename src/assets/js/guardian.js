@@ -535,31 +535,49 @@
    * onomkeerbaar zodra het kind hem gebruikt. Vier rijen met dezelfde schakelaar
    * zouden dat verschil wegpoetsen.
    */
+  /**
+   * Een gate als cockpit-schakelaar (Barts richting, 8-8): een knop zoals de
+   * airco-toets in een dashboard -- lampje links, de naam erop, en een klein
+   * statusveld dat de stand toont. De KNOP is de toggle: aanraken stelt de
+   * andere stand voor, met de nf9-uitleg ervoor. Het lampje en het veld dragen
+   * dezelfde stand in twee vormen, want een lampje alleen is voor kleurenblind
+   * en onwennig volk geen antwoord.
+   *
+   * Drie standen, niet twee. "Uit" en "voor zover wij weten uit" zijn niet
+   * hetzelfde: dat tweede betekent dat niemand er ooit over besloot, en dat
+   * hoort niet te lezen als een genomen besluit. Wat er nog niet bestaat is
+   * een lege fitting, geen dichte deur. En een lopend voorstel knippert --
+   * wachten is de enige stand die vanzelf verandert, dus de enige die om je
+   * blik mag vragen (en bij prefers-reduced-motion staat hij stil).
+   */
   function gateRow(w, g) {
-    // Drie standen, niet twee. "Uit" en "voor zover wij weten uit" zijn niet
-    // hetzelfde: dat tweede betekent dat niemand er ooit over besloot, en dat
-    // hoort niet te lezen als een genomen besluit.
     var stand = g.value === null || g.value === undefined
       ? (T.gate_unknown || 'unknown')
       : (g.value ? (T.prop_on || 'on') : (T.prop_off || 'off'));
     if (!g.decided && g.value === false) stand = T.gate_default_off || stand;
-    var row = el('div', 'g-gate');
-    var head = el('div', 'g-gate-head');
-    head.appendChild(el('span', 'g-gate-name', gateLabel(g.feature)));
-    row.appendChild(head);
-
-    // De chip draagt de STAND en wisselt dus mee. Hij stond hier eerst op het
-    // SOORT -- in het Nederlands "stand" -- vlak boven de werkelijke stand, dus
-    // twee dingen die hetzelfde heetten waarvan er een nooit veranderde. Het
-    // veranderlijke hoort bovenaan; het beschrijvende gaat naar de regel eronder.
-    // Wat er nog niet is leest niet als een dichte poort maar als een lege plek.
-    // 'Uit' zou onwaar zijn: plaatjes werken vandaag gewoon.
     if (!g.available) stand = T.gate_unavailable || 'not available yet';
-    var soort = g.available === false ? 'planned'
-      : (g.value === true ? 'on' : (g.decided ? 'off' : 'undecided'));
-    head.appendChild(el('span', 'g-gate-chip g-gate-chip-' + soort, stand));
 
-    var meta = el('div', 'g-gate-meta small');
+    var lamp = !g.available ? 'planned'
+      : (g.waiting || (g.proposal && g.proposal.status === 'open')) ? 'waiting'
+      : (g.value === true ? 'on' : (g.decided ? 'off' : 'undecided'));
+
+    var wrap = el('div', 'g-sw-wrap');
+    var btn = el('button', 'g-sw');
+    btn.type = 'button';
+    if (g.value === true || g.value === false) btn.setAttribute('aria-pressed', String(g.value));
+    var head = el('span', 'g-sw-head');
+    var lampEl = el('span', 'g-sw-lamp g-lamp-' + lamp);
+    lampEl.setAttribute('aria-hidden', 'true');
+    head.appendChild(lampEl);
+    head.appendChild(el('span', 'g-sw-name', gateLabel(g.feature)));
+    btn.appendChild(head);
+    // Het statusveld: de stand als tekst, in een verzonken venstertje zoals de
+    // temperatuur op het aircopaneel. Bij een lopend voorstel telt het veld wat
+    // er wacht -- dat is op dat moment de waarheid over deze poort.
+    var veld = (g.waiting ? (T.gate_waiting || '{n} waiting').replace('{n}', g.waiting) : stand);
+    btn.appendChild(el('span', 'g-sw-state', veld));
+
+    var meta = el('span', 'g-sw-meta small');
     meta.appendChild(el('span', 'g-gate-kind', T['gate_kind_' + g.kind] || g.kind));
     if (!g.available) meta.appendChild(el('span', 'g-dim', T.gate_planned_note || ''));
     if (g.threshold && g.available) {
@@ -570,36 +588,66 @@
       meta.appendChild(el('span', 'g-dim', T.gate_threshold_unknown || ''));
     }
     if (!g.reversible) meta.appendChild(el('span', 'g-gate-warn', T.gate_irreversible || ''));
-    if (g.waiting) {
-      meta.appendChild(el('span', 'g-gate-wait', (T.gate_waiting || '{n} waiting').replace('{n}', g.waiting)));
-    }
-    row.appendChild(meta);
+    btn.appendChild(meta);
+    wrap.appendChild(btn);
 
     if (g.proposal) {
-      row.appendChild(el('p', 'small g-prop g-prop-' + g.proposal.status,
+      wrap.appendChild(el('p', 'small g-prop g-prop-' + g.proposal.status,
         (T.prop_line || 'Proposal {what} {value}: {status}')
           .replace('{what}', gateLabel(g.feature))
           .replace('{value}', g.proposal.value ? (T.prop_on || 'on') : (T.prop_off || 'off'))
           .replace('{status}', T['prop_st_' + g.proposal.status] || g.proposal.status)));
     }
     if (g.blockedBy) {
-      row.appendChild(el('p', 'small g-empty', (T.gate_blocked || 'needs {what} first')
+      wrap.appendChild(el('p', 'small g-empty', (T.gate_blocked || 'needs {what} first')
         .replace('{what}', gateLabel(g.blockedBy))));
     }
-    if (g.adjustable) {
-      // De knop zegt wat er GEBEURT, niet wat er staat -- de stand staat hierboven
-      // al. Staat de poort open, dan is het enige wat je kunt voorstellen hem
-      // dichtzetten, en dat hoort op de knop te staan voordat je klikt.
-      //
-      // De richting volgt de stand die we uit de besluiten kennen, dus ook voor
-      // een ward elders kun je nu DICHTZETTEN voorstellen. Dat was de veilige
-      // richting die eerder ontbrak toen de stand altijd onbekend was.
-      var openzetten = T.gate_propose_open || T.gate_propose || 'Propose';
-      var dichtzetten = T.gate_propose_close || T.gate_propose || 'Propose';
-      row.appendChild(gateButton(w, g.feature, g.value, openzetten, dichtzetten, openzetten,
-        g.reversible === false ? 'irreversible' : 'reversible'));
+
+    if (!g.adjustable) {
+      // Niet verstelbaar is niet hetzelfde als kapot: het lampje en het veld
+      // blijven de stand tonen, alleen de toets drukt niet in.
+      btn.disabled = true;
+      return wrap;
     }
-    return row;
+
+    // De toets stelt de ANDERE stand voor; de richting volgt de stand die we
+    // uit de besluiten kennen, dus ook voor een ward elders kun je dichtzetten
+    // voorstellen. Bij openzetten eerst de nf9-uitleg (uitleg staat er, dan pas
+    // de knop); dichtzetten laat niets nieuws door en vraagt niet.
+    var allow = (g.value === true || g.value === false) ? !g.value : true;
+    var consequence = g.reversible === false ? 'irreversible' : 'reversible';
+    btn.addEventListener('click', function () {
+      if (!allow) return doPropose();
+      if (wrap.querySelector('.g-confirm')) return;   // uitleg staat er al
+      var ask = el('div', 'g-confirm');
+      ask.appendChild(el('p', 'small', warnText(consequence)));
+      var ja = el('button', 'small', T.warn_go || 'Yes, propose this');
+      ja.addEventListener('click', function () { ask.remove(); doPropose(); });
+      var nee = el('button', 'quiet small', T.warn_back || 'No, go back');
+      nee.addEventListener('click', function () { ask.remove(); });
+      ask.appendChild(ja); ask.appendChild(nee);
+      wrap.appendChild(ask);
+    });
+
+    function doPropose() {
+      btn.disabled = true;
+      fetch('/guardian/wards/embeds', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uri: w.other_uri, feature: g.feature, allow: allow }),
+      }).then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (j && j.state === 'open') {
+            wrap.appendChild(el('p', 'small g-prop g-prop-open',
+              (T.prop_line || 'Proposal {what} {value}: {status}')
+                .replace('{what}', gateLabel(g.feature))
+                .replace('{value}', allow ? (T.prop_on || 'on') : (T.prop_off || 'off'))
+                .replace('{status}', T.prop_st_open || 'open')));
+          }
+          refresh();
+        })
+        .catch(function () { btn.disabled = false; });
+    }
+    return wrap;
   }
 
   function wardPanel(w) {

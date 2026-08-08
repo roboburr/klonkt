@@ -200,21 +200,72 @@ button.danger { background: var(--danger); color: #fff; border-color: var(--dang
    visueel losgemaakt van wat nog wacht. */
 .g-panel-history { border-top: 2px solid var(--g-line, rgba(0,0,0,.12)); margin-top: 1rem; opacity: .8; }
 
-/* De stand-chip op een gate-rij. Drie standen, drie gewichten: aan valt op,
-   uit is rustig, en "nog niets besloten" is lichter nog -- dat is namelijk geen
-   besluit maar de afwezigheid ervan. */
-.g-gate-chip { font-size: .78em; padding: .1em .5em; border-radius: 999px; border: 1px solid currentColor; }
-.g-gate-chip-on { font-weight: 600; }
-.g-gate-chip-off { opacity: .8; }
-.g-gate-chip-undecided { opacity: .55; border-style: dashed; }
+/* ── Het poortenpaneel als cockpit (shaer-ahy.1, Barts richting 8-8) ──
+   Elke gate is een toets zoals op een aircopaneel: lampje links, naam erop,
+   en een klein verzonken statusveld met de stand als tekst. Het lampje en het
+   veld zeggen hetzelfde in twee vormen -- kleur alleen is geen antwoord. */
+.g-gates { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: .5rem; margin: .35rem 0; }
+.g-sw-wrap { display: flex; flex-direction: column; gap: .25rem; min-width: 0; }
+.g-sw {
+  display: flex; flex-direction: column; align-items: stretch; gap: .3rem;
+  text-align: left; padding: .5rem .6rem; border-radius: 10px;
+  border: 1px solid var(--g-line, rgba(0,0,0,.18));
+  background: var(--g-key, linear-gradient(180deg, rgba(255,255,255,.9), rgba(0,0,0,.04)));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.6), 0 1px 2px rgba(0,0,0,.12);
+  cursor: pointer; font: inherit;
+  /* Expliciet, niet geerfd (Barts aanwijzing, 8-8): de paginakleur zakte weg
+     in het toetsvlak. Het opschrift is het donkerste op de toets. */
+  color: var(--g-key-ink, #1b1e22);
+}
+.g-sw:active:not([disabled]) { box-shadow: inset 0 1px 3px rgba(0,0,0,.25); transform: translateY(1px); }
+/* Niet verstelbaar is niet kapot: de toets drukt niet in, de stand blijft leesbaar. */
+.g-sw[disabled] { cursor: default; opacity: .8; }
+.g-sw-head { display: flex; align-items: center; gap: .45em; min-width: 0; }
+.g-sw-name { font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* De poortenlijst: compact, en ingeklapt tot je hem opent. Met twaalf rijen
-   duwt een open lijst alles eronder van het scherm. */
+/* Het lampje. Aan gloeit, uit is dof, onbeslist is een open kringetje (geen
+   besluit is de afwezigheid van een), wachten knippert -- de enige stand die
+   vanzelf verandert, dus de enige die om je blik mag vragen -- en gepland is
+   een lege fitting: een poort die nog niet bestaat is geen dichte deur. */
+.g-sw-lamp { flex: none; width: .6em; height: .6em; border-radius: 50%; box-shadow: inset 0 0 2px rgba(0,0,0,.35); }
+.g-lamp-on { background: var(--g-lamp-on, #2f9e5f); box-shadow: 0 0 6px 1px rgba(47,158,95,.55); }
+.g-lamp-off { background: var(--g-lamp-off, #7a8087); }
+.g-lamp-undecided { background: transparent; border: 1px dashed currentColor; opacity: .55; box-shadow: none; }
+.g-lamp-waiting { background: var(--g-warn, #b8860b); animation: g-lamp-pulse 1.4s ease-in-out infinite; }
+.g-lamp-planned { background: transparent; border: 1px dotted currentColor; opacity: .4; box-shadow: none; }
+@keyframes g-lamp-pulse { 50% { opacity: .3; } }
+@media (prefers-reduced-motion: reduce) { .g-lamp-waiting { animation: none; } }
+
+/* In het donker geen lichte toetsen: de site heeft een echt donker thema
+   (style.css), en een wit-op-lichtgrijs paneel is daar onleesbaar. Zelfde
+   vorm, andere verf; de vars blijven overschrijfbaar. */
+@media (prefers-color-scheme: dark) {
+  .g-sw {
+    background: var(--g-key, linear-gradient(180deg, rgba(255,255,255,.10), rgba(0,0,0,.25)));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 1px 2px rgba(0,0,0,.5);
+    color: var(--g-key-ink, rgba(255,255,255,.95));
+  }
+  .g-sw-state { background: var(--g-lcd, rgba(0,0,0,.4)); }
+}
+
+/* Het statusveld: verzonken venstertje, vaste letter, zoals de temperatuur op
+   het aircopaneel. */
+.g-sw-state {
+  align-self: flex-start; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .74em; padding: .1em .5em; border-radius: 4px;
+  border: 1px solid var(--g-line, rgba(0,0,0,.18));
+  background: var(--g-lcd, rgba(0,0,0,.07));
+  box-shadow: inset 0 1px 2px rgba(0,0,0,.12);
+  /* Het oplichtende display van de toets: de stand in de accentkleur van het
+     huis (Barts aanwijzing, 8-8), zoals de cijfers op het aircopaneel. */
+  color: var(--accent, #6b8f71);
+  font-weight: 600;
+}
+.g-sw-meta { display: flex; flex-wrap: wrap; gap: .3em .7em; opacity: .7; font-size: .82em; }
+
+/* De poortenlijst blijft ingeklapt tot je hem opent. Met twaalf toetsen duwt
+   een open paneel alles eronder van het scherm. */
 .g-gates-toggle { display: block; width: 100%; text-align: left; margin: .25rem 0; }
-.g-gates .g-gate { padding: .35rem 0; }
-.g-gates .g-gate-head { gap: .4rem; }
-/* Een poort die nog niet bestaat is een lege plek, geen dichte deur. */
-.g-gate-chip-planned { opacity: .45; border-style: dotted; }
 
 /* De waarschuwing bij een gate-voorstel (shaer-nf9). Geen rode paniekbalk: dit
    moet gelezen worden, niet weggeklikt. Een rand links, zoals een citaat. */
