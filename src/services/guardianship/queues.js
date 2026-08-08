@@ -15,6 +15,8 @@ import * as outgoing from './outgoing.js';
 import * as follows from './follows.js';
 import * as gated from './gated.js';
 import * as gatereq from './gatereq.js';
+import * as help from './help.js';
+import db from '../../config/database.js';
 import * as handshake from './handshake.js';
 
 const collection = (id, items) => ({
@@ -115,7 +117,7 @@ export function guardiansCollection(id, slug) {
   return collection(id, availability.statusesFor(slug, uris, Date.now()));
 }
 
-export default { offersCollection, followsCollection, outgoingFollowsCollection, wardsCollection, guardiansCollection, wardGates, wardGuardianStatuses };
+export default { offersCollection, followsCollection, outgoingFollowsCollection, wardsCollection, guardiansCollection, helpCollection, helpItemsFor, wardGates, wardGuardianStatuses };
 
 // ── Wat er voor een ward gated is (shaer-ahy.1) ─────────────────────────
 //
@@ -177,4 +179,56 @@ export function wardGates(mySlug, wardUri) {
     // waar het over gaat, want een aparte lijst vergeet je.
     requested: gatereq.waitingFor(mySlug, wardUri),
   });
+}
+
+
+// ── Hulpvragen met hun staat (shaer-lgo, shaer-ahy.1) ───────────────────
+//
+// De PWA had dit al; de apps kregen alleen de losse notes uit de feed en wisten
+// dus NIET of er al iemand op af was. Daarom bleef een afgehandeld verzoek daar
+// gewoon staan -- Barts melding. De staat wordt hier een keer berekend, zoals bij
+// wardGates: twee berekeningen zouden twee guardians een ander beeld geven van
+// hetzelfde kind.
+
+/** De hulpvragen van deze guardian, met wie erop af is en of het dicht is. */
+export function helpItemsFor(slug, limit = 50) {
+  let rijen = [];
+  try {
+    rijen = db.prepare(
+      `SELECT object_uri, actor_uri, actor_name, actor_handle, actor_icon, content, published, created_at
+       FROM ap_mentions WHERE slug = ? AND help_request = 1 ORDER BY created_at DESC LIMIT ?`,
+    ).all(slug, limit);
+  } catch { return []; }
+  const staat = help.statusFor(rijen.map((r) => r.object_uri));
+  const mijn = new Set(relations.listWards(slug).map((w) => w.other_uri));
+  return rijen.map((r) => ({
+    ...r,
+    // Bij twijfel OPEN. Een hulpvraag die er afgehandeld uitziet terwijl hij dat
+    // niet is, is de gevaarlijke fout -- niet andersom.
+    state: help.withWardship(
+      staat.get(r.object_uri) || { open: true, pickedUpBy: [], handled: null, ageMs: null },
+      mijn.has(r.actor_uri),
+    ),
+  }));
+}
+
+/** Dezelfde vragen als collectie voor de apps (5.2.1). */
+export function helpCollection(id, slug) {
+  const items = helpItemsFor(slug).map((h) => ({
+    id: h.object_uri,
+    type: 'Note',
+    attributedTo: h.actor_uri,
+    'shaer:handle': h.actor_handle || undefined,
+    content: h.content || '',
+    published: h.published || h.created_at,
+    'shaer:helpRequest': true,
+    // De staat als platte velden: een app hoeft hem niet af te leiden, en kan
+    // hem dus ook niet anders afleiden dan het paneel.
+    'shaer:open': h.state.open,
+    'shaer:handledBy': h.state.handled ? (h.state.handled.handle || h.state.handled.uri) : undefined,
+    'shaer:handledAt': h.state.handled ? h.state.handled.at : undefined,
+    'shaer:pickedUpBy': h.state.pickedUpBy.map((p) => p.handle || p.uri),
+    'shaer:formerWard': h.state.formerWard || undefined,
+  }));
+  return collection(id, items);
 }

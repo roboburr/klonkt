@@ -313,6 +313,10 @@ queueRoute('wards', (id, slug) => Guardianship.wardsCollection(id, slug));
 // Availability (FEP-633c 3.6.1) is never public: the ward reads its
 // guardians' real states here and nowhere else.
 queueRoute('guardians', (id, slug) => Guardianship.guardiansCollection(id, slug));
+// De hulpvragen MET hun staat (5.2.1, shaer-lgo). De apps lazen ze uit de feed
+// en wisten dus niet of er al iemand op af was -- daarom bleef een afgehandeld
+// verzoek daar staan (Barts melding, 8-8).
+queueRoute('help', (id, slug) => Guardianship.helpCollection(id, slug));
 
 // ── Inbox read (owner only, AP C2S) ───────────────────────────────
 // GET on the inbox is part of ActivityPub C2S: the account owner (a bearer

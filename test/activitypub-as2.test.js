@@ -39,7 +39,9 @@ const AS2 = new Set([
   // `guardians` is the availability queue (3.6.1: never public, owner-only).
   // `outgoingFollows` is §5.3 turned around: the ward's own follow requests,
   // waiting for the guardians (shaer-p729).
-  'shaer:queues', 'offers', 'follows', 'outgoingFollows', 'wards', 'guardians',
+  // `help` is de vragenlijst met haar STAAT (5.2.1): de apps lazen hulpvragen uit
+  // de feed en wisten niet of er al iemand op af was.
+  'shaer:queues', 'offers', 'follows', 'outgoingFollows', 'wards', 'guardians', 'help',
   // ActivityPub §4.1 `endpoints` vocabulary (same category as sharedInbox), used for C2S.
   'oauthAuthorizationEndpoint', 'oauthTokenEndpoint', 'uploadMedia',
   'publicKey', 'owner', 'publicKeyPem',

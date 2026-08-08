@@ -3343,7 +3343,20 @@ export async function ingestOutboxActivity(site, user, activity) {
             // absence like it does for a ward anywhere else. One path.
           }
           const gateReq = Guardianship.gatereq.parseRequest(object);
-          const r = await deliverDirectNote(site, { recipients, text: plain, language: object.language || null, inReplyTo: typeof object.inReplyTo === 'string' ? object.inReplyTo : null, attachments: atts, helpRequest: help, awayUntil, gateRequest: gateReq && gateReq.feature });
+          // Een hulpvraag oppikken of afsluiten vanuit de app (5.2.1, shaer-lgo).
+          // De markering IS al een gewone directe note met een shaer:-eigenschap,
+          // dus hier hoeft niets nieuws bij: de app stuurt precies wat de PWA
+          // stuurt, en het gaat over dezelfde bezorging naar de mede-guardians.
+          //
+          // We boeken hem ook LOKAAL. Zonder dat zou de guardian die de knop
+          // indrukt zijn eigen markering pas zien als hij bij zichzelf
+          // terugkomt -- en die weg bestaat niet.
+          const mark = Guardianship.help.parseMarker(object);
+          if (mark) {
+            const base2 = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+            Guardianship.help.record(mark.noteUri, actorId(base2, site.slug), mark.kind, `@${site.slug}`);
+          }
+          const r = await deliverDirectNote(site, { recipients, text: plain, language: object.language || null, inReplyTo: typeof object.inReplyTo === 'string' ? object.inReplyTo : null, attachments: atts, helpRequest: help, awayUntil, gateRequest: gateReq && gateReq.feature, helpMark: mark });
           if (!r || !r.id) return { status: 502, error: 'direct_failed' };
           return { status: 201, id: r.id, url: `${base}/ap/notes/${r.id}` };
         }

@@ -79,6 +79,7 @@ export function actorProps(id, slug) {
       outgoingFollows: `${id}/queues/outgoing-follows`,
       wards: `${id}/queues/wards`,
       guardians: `${id}/queues/guardians`,
+      help: `${id}/queues/help`,
     },
   };
   const guardians = listGuardians(slug).map((r) => r.other_uri);
