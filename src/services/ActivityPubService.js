@@ -5421,9 +5421,24 @@ export async function selfHealTimeline() {
 }
 
 // Follow a fediverse account by @handle (WebFinger → actor → signed Follow).
-export async function followActor(site, handle, autoBoost = false) {
+export async function followActor(site, handle, autoBoost = false, { approved = false } = {}) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   if (!base || !site || !site.slug) return { error: 'config' };
+  // DE POORT STAAT HIER, en niet alleen in de C2S-outbox (shaer-p729, Barts
+  // melding 8-8: de volgverzoeken van Esmee kwamen nooit bij haar guardians
+  // aan). Hij stond in `case 'Follow'` van de outbox -- dus alleen als je via
+  // Shaer volgt. Volgde het kind vanuit Klonkts eigen webinterface, dan werd er
+  // geen verzoek aangemaakt, ging er niets naar de guardians, en was er dus ook
+  // niets om te beantwoorden. Precies dezelfde deur-naast-de-poort als bij de
+  // antwoordpoort vanmiddag (shaer-r4c).
+  //
+  // Merk op wat het NIET was: niet dat een guardian elders het niet kon
+  // beantwoorden. Die weg werkt en levert een Offer af bij de externe guardian.
+  // Er kwam alleen nooit iets aan om af te leveren.
+  //
+  // `approved` is de enige doorlaat, voor performApprovedFollow: zonder dat zou
+  // een goedgekeurd verzoek opnieuw op de poort stuiten en voor eeuwig wachten.
+
   // Accept any of: a profile/actor URL, an @user@host handle (WebFinger), or a
   // bare site domain (site.com) — for a single-actor site (Klonkt etc.) the root
   // resolves to its AP actor, so you can follow a site by just its domain.
@@ -5434,6 +5449,14 @@ export async function followActor(site, handle, autoBoost = false) {
   else if (/^[a-z0-9.-]+\.[a-z]{2,}/i.test(s)) actorUrl = await resolveApActor('https://' + s.replace(/^\/+|\/+$/g, ''));
   else actorUrl = null;
   if (!actorUrl) return { error: 'not_found' };
+  // NA het oplossen, want een kind volgt net zo goed met @naam@server of een
+  // kaal domein. Zou de poort alleen naar de ruwe invoer kijken, dan is elke
+  // handle een sluiproute -- en dat is precies de fout die we hier repareren,
+  // een maat kleiner.
+  if (!approved) {
+    const held = await gateOutgoingFollow(site, actorUrl);
+    if (held) return { held: true, id: held.id, status: held.status || 'pending' };
+  }
   // SIGNED, as this actor: an authorized-fetch instance refuses an anonymous
   // GET of the actor doc, which made following from a boost silently fail
   // (Robins melding, 31-7). Signed, the other side sees who asks.
@@ -5758,7 +5781,7 @@ export async function gateOutgoingFollow(site, targetUri) {
 export async function performApprovedFollow(pending) {
   const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(pending.ward_slug);
   if (!site) return { error: 'no_such_ward' };
-  const r = await followActor(site, pending.target_uri);
+  const r = await followActor(site, pending.target_uri, false, { approved: true });
   if (r && r.error) return { error: r.error };
   console.log('[AP] outgoing Follow approved', pending.ward_slug, '→', pending.target_uri);
   return { ok: true };

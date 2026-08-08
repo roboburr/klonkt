@@ -49,6 +49,35 @@ export function listForWard(wardSlug) { return stmts().byWard.all(wardSlug); }
  * { outcome: 'approved'|'rejected'|'waiting', follow } so the caller can
  * send the Accept/Reject. A single reject denies; approvals meet the quorum.
  */
+/**
+ * Hoeveel guardians moeten ja zeggen voor een volgverzoek (Barts besluit, 8-8).
+ *
+ * EENVOUDIGE MEERDERHEID: 1 van 1, 1 van 2, 2 van 3, 2 van 4. Bart: "1/2 is
+ * voldoende."
+ *
+ * BEWUST SOEPELER DAN DE POORTDREMPEL, en dat verschil hoort uitgelegd. Een gate
+ * opent een deur voor alles wat daarna komt; die vraagt om een STRIKTE
+ * meerderheid (thresholdFor in gated.js: 2 van 2, 3 van 4). Een volgverzoek gaat
+ * over een persoon, is met ontvolgen terug te draaien, en stond hier tot vandaag
+ * op 'any' -- een enkele ja, hoeveel guardians er ook waren. Dit is dus geen
+ * versoepeling maar een AANSCHERPING voor iedereen met drie of meer guardians.
+ *
+ * De 'all'-stand die hier stond is weg. Hij werd nergens gezet -- elke schrijver
+ * gaf 'any' mee -- dus het was een keuze die niemand kon maken en die alleen in
+ * de weg stond bij het lezen van deze regel.
+ */
+export function followThreshold(setSize) {
+  return Math.max(1, Math.ceil(setSize / 2));
+}
+
+/**
+ * Een race naar de drempel, net als de poorttelling: zodra het aantal gehaald
+ * is, is het besluit gevallen.
+ *
+ * TODO (shaer-8vt): wie antwoordt weet niet dat hij de doorslag geeft. Bij 1 van
+ * 2 is de eerste ja meteen de beslissing, en het scherm zegt dat nergens. Dat is
+ * hetzelfde gat als bij de gate-voorstellen en het hoort daar samen opgelost.
+ */
 export function decide(id, guardianUri, decision, guardiansOfWard) {
   const follow = stmts().get.get(id);
   if (!follow || follow.status !== 'pending') return { outcome: 'gone', follow };
@@ -60,9 +89,7 @@ export function decide(id, guardianUri, decision, guardiansOfWard) {
   }
   const approvers = new Set(rows.filter((r) => r.decision === 'approve').map((r) => r.guardian_uri));
   const guardians = (guardiansOfWard || []).filter(Boolean);
-  const enough = follow.quorum === 'all'
-    ? guardians.length > 0 && guardians.every((g) => approvers.has(g))
-    : approvers.size >= 1;                                   // 'any' (default)
+  const enough = approvers.size >= followThreshold(guardians.length);
   if (enough) {
     stmts().setStatus.run('accepted', id);
     return { outcome: 'approved', follow };

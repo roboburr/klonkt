@@ -14,6 +14,7 @@
  * people to stop reading the question.
  */
 import db from '../../config/database.js';
+import { followThreshold } from './follows.js';
 
 let _s = null;
 function stmts() {
@@ -79,9 +80,11 @@ export function decide(id, guardianUri, decision, guardiansOfWard) {
   }
   const approvers = new Set(rows.filter((r) => r.decision === 'approve').map((r) => r.guardian_uri));
   const guardians = (guardiansOfWard || []).filter(Boolean);
-  const enough = follow.quorum === 'all'
-    ? guardians.length > 0 && guardians.every((g) => approvers.has(g))
-    : approvers.size >= 1;                                   // 'any' (default)
+  // Dezelfde eenvoudige meerderheid als bij een inkomend volgverzoek
+  // (followThreshold): het is dezelfde vraag, alleen omgedraaid. Twee
+  // verschillende drempels voor "mag dit kind met deze persoon te maken hebben"
+  // zou een guardian nooit kunnen uitleggen.
+  const enough = approvers.size >= followThreshold(guardians.length);
   if (enough) {
     stmts().setStatus.run('approved', id);
     return { outcome: 'approved', follow };

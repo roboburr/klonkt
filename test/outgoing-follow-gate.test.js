@@ -109,3 +109,45 @@ test('a refusal is remembered too, and does not re-ask by re-tapping', async () 
   const again = await AP.gateOutgoingFollow(kid, OLDPAL);
   assert.equal(again.status, 'denied', 'tapping follow again does not put it back in front of mum');
 });
+
+// ── De poort zit in followActor, niet alleen in C2S (Barts melding 8-8) ──
+//
+// Esmee's volgverzoeken kwamen nooit bij haar guardians aan. Niet omdat een
+// guardian elders ze niet kon beantwoorden -- die weg werkt -- maar omdat er
+// nooit een verzoek werd aangemaakt: de poort stond in `case 'Follow'` van de
+// C2S-outbox, en dus alleen als je via Shaer volgt. Vanuit Klonkts eigen
+// webinterface liep je er zo omheen.
+//
+// Dezelfde deur-naast-de-poort als bij de antwoordpoort (shaer-r4c), en de reden
+// dat die mutatie 0 fouten gaf: er stond niets op.
+
+test('een ward die vanaf het WEB volgt wordt ook tegengehouden', async () => {
+  const uit = await AP.followActor(kid, 'https://elders.example/users/webvriend');
+  assert.equal(uit.held, true, 'vastgehouden, niet gevolgd');
+  assert.equal(uit.status, 'pending');
+  // En er ligt echt iets voor de guardians, anders is "held" een leeg gebaar.
+  assert.ok(G.outgoing.findFor('kid', 'https://elders.example/users/webvriend'));
+});
+
+test('ook als het kind met een HANDLE volgt', async () => {
+  // De poort staat NA het oplossen. Zou hij alleen naar de ruwe invoer kijken,
+  // dan is elke @naam@server een sluiproute -- de fout die we hier repareren,
+  // een maat kleiner.
+  const uit = await AP.followActor(kid, 'https://elders.example/users/handlevriend');
+  assert.equal(uit.held, true);
+});
+
+test('een goedgekeurd verzoek komt er WEL doorheen', async () => {
+  // Zonder deze doorlaat stuit een goedgekeurd verzoek opnieuw op de poort en
+  // wacht het voor eeuwig -- de poort zou zichzelf voeden.
+  const uit = await AP.followActor(kid, 'https://elders.example/users/webvriend', false, { approved: true });
+  assert.notEqual(uit.held, true);
+});
+
+test('een site ZONDER guardians merkt er niets van', async () => {
+  // Een volwassen account is geen ward. Zou de poort daar ook dichtklappen, dan
+  // kan niemand op deze instance nog iemand volgen.
+  const vrij = site('vrij');
+  const uit = await AP.followActor(vrij, 'https://elders.example/users/iemand');
+  assert.notEqual(uit && uit.held, true);
+});

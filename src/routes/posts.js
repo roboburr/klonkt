@@ -890,11 +890,16 @@ router.post('/authorize_interaction/boost', requireSiteManager, (req, res) => {
 router.post('/authorize_interaction/follow', requireSiteManager, (req, res) => {
   const site = res.locals.site;
   const uri = (req.body.uri || '').toString();
-  if (site && uri) {
-    ActivityPubService.followActor(site, uri)
-      .catch((e) => console.warn('[AP] remote follow failed:', e.message));
-  }
-  res.redirect('/authorize_interaction?followed=1&uri=' + encodeURIComponent(uri));
+  if (!site || !uri) return res.redirect('/authorize_interaction?followed=1&uri=' + encodeURIComponent(uri));
+  // Afwachten in plaats van wegsturen: ligt het verzoek bij de guardians, dan
+  // moet dat op het scherm staan (shaer-p729). "followed=1" terwijl er niets
+  // gebeurd is, is precies de leugen die de poort waardeloos maakt.
+  ActivityPubService.followActor(site, uri)
+    .then((r) => res.redirect('/authorize_interaction?' + (r && r.held ? 'held=1' : 'followed=1') + '&uri=' + encodeURIComponent(uri)))
+    .catch((e) => {
+      console.warn('[AP] remote follow failed:', e.message);
+      res.redirect('/authorize_interaction?error=1&uri=' + encodeURIComponent(uri));
+    });
 });
 
 router.post('/authorize_interaction', requireSiteManager, (req, res) => {
@@ -1266,6 +1271,10 @@ router.post('/news/follow', requireSiteManager, async (req, res) => {
     try {
       const r = await ActivityPubService.followActor(site, handle, !!req.body.auto_boost);
       if (r && r.error) q = 'error=' + encodeURIComponent(r.error === 'not_found' ? 'Account niet gevonden' : (r.error === 'unreachable' ? 'Server onbereikbaar' : 'Volgen mislukt'));
+      // Een DERDE uitkomst, niet gelukt en niet mislukt (shaer-p729). "Je volgt
+      // nu X" zeggen terwijl het verzoek bij de guardians ligt is de leugen die
+      // deze poort waardeloos maakt: het kind denkt dat het gebeurd is.
+      else if (r && r.held) q = 'success=' + encodeURIComponent(r.status === 'denied' ? 'Je guardians hebben dit geweigerd' : 'Je verzoek ligt bij je guardians');
       else {
         q = 'success=' + encodeURIComponent('Je volgt nu ' + ((r && r.name) || handle));
       }

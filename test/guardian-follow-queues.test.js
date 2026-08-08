@@ -84,3 +84,35 @@ test('een oude rij zonder richting telt als inkomend', () => {
   const inn = G.followsCollection(`${ME}/q/f`, 'oma', ME).orderedItems.map((x) => x.id);
   assert.ok(inn.includes('f-oud'));
 });
+
+// ── De drempel voor een volgverzoek (Barts besluit, 8-8) ────────────────
+
+test('een eenvoudige meerderheid: 1 van 2 is voldoende', () => {
+  // Barts woorden. Bewust soepeler dan de POORTdrempel: een gate opent een deur
+  // voor alles wat daarna komt, een volgverzoek gaat over een persoon en is met
+  // ontvolgen terug te draaien.
+  assert.equal(G.follows.followThreshold(1), 1);
+  assert.equal(G.follows.followThreshold(2), 1);
+  assert.equal(G.follows.followThreshold(3), 2);
+  assert.equal(G.follows.followThreshold(4), 2);
+});
+
+test('en dat is een AANSCHERPING, geen versoepeling', () => {
+  // Tot vandaag stond dit op 'any': een enkele ja, hoeveel guardians er ook
+  // waren. Bij drie of meer is er nu meer nodig, niet minder.
+  assert.ok(G.follows.followThreshold(3) > 1);
+  assert.ok(G.follows.followThreshold(5) > 1);
+});
+
+test('nul guardians vraagt nog steeds iemand', () => {
+  // Een lege set mag nooit "iedereen is het eens" opleveren. Dat is de stille
+  // fout waarmee een verzoek zichzelf goedkeurt.
+  assert.equal(G.follows.followThreshold(0), 1);
+});
+
+test('de drempel voor een POORT blijft strikter', () => {
+  // Twee verschillende vragen, twee drempels, en dat verschil is opzet: 2 van 2
+  // voor een gate, 1 van 2 voor een volgverzoek.
+  assert.equal(G.gated.thresholdFor(2), 2);
+  assert.equal(G.follows.followThreshold(2), 1);
+});
