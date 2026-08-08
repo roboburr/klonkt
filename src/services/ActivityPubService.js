@@ -3380,20 +3380,24 @@ export async function ingestOutboxActivity(site, user, activity) {
     const g = await Guardianship.handleGuardianshipOutbox(site, activity).catch(() => null);
     if (g) return g;
   }
+  // Een gate-voorstel uit de app (5.6, shaer-8ru): een Offer van een
+  // shaer:GatedSetting, de vorm die 5.6 al beschrijft.
+  //
+  // HIER, EN GEEN `case` IN DE SWITCH. Dat was hij eerst, en die claimde ELKE
+  // Offer: wat geen gate-voorstel was kreeg 400 unsupported_offer -- ook de
+  // adoptie-handshake, en straks elke Offer-vorm die we nog toevoegen. Barts
+  // honderd aanbiedingen liepen er meteen op stuk. Alleen claimen wat je
+  // herkent, en de rest laten doorlopen.
+  if (type === 'Offer') {
+    const gs = Guardianship.gated.parseGatedSetting(activity.object);
+    if (gs) {
+      const uit = proposeGate(site, gs.ward, gs.feature, gs.value);
+      return uit.status === 200 ? { ...uit, status: 201, id: uit.offerId } : uit;
+    }
+  }
 
   try {
     switch (type) {
-      // Een gate-voorstel uit de app (5.6, shaer-8ru). De PWA deed dit al over
-      // een eigen route; hier komt het binnen als wat het in AP IS -- een Offer
-      // van een shaer:GatedSetting. Dezelfde functie erachter, want twee wegen
-      // naar hetzelfde besluit is precies wat we vandaag hebben rechtgezet.
-      case 'Offer': {
-        const gs = Guardianship.gated.parseGatedSetting(object);
-        if (!gs) return { status: 400, error: 'unsupported_offer' };
-        const uit = proposeGate(site, gs.ward, gs.feature, gs.value);
-        if (uit.status !== 200) return uit;
-        return { ...uit, status: 201, id: uit.offerId };
-      }
       case 'Create': {
         if (!object || typeof object !== 'object') return { status: 400, error: 'missing_object' };
         // Innamepoorten (shaer-ahy.1, 8-8): wat de ward niet mag versturen

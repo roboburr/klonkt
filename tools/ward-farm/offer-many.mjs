@@ -60,7 +60,9 @@ for (let i = van; i <= tot; i++) {
       type: 'Relationship',
       subject: ward,
       object: me,
-      relationship: 'https://shaer.klonkt.com/ns#guardian',
+      // De exacte waarde die isGuardianRelationship accepteert. Mijn eerste
+      // poging gebruikte een verzonnen URI en werd stil geweigerd.
+      relationship: 'shaer:Guardian',
     },
   };
 

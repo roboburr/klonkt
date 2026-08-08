@@ -285,5 +285,5 @@ for (let i = 1; i <= N; i++) ward(i);
 bewaarStaat(staat);
 
 server.listen(PORT, '::1', () => {
-  console.log(`[farm] ${N} wards op ${BASE} (luistert op 127.0.0.1:${PORT})`);
+  console.log(`[farm] ${N} wards op ${BASE} (luistert op [::1]:${PORT})`);
 });

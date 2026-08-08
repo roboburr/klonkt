@@ -60,10 +60,22 @@ test('een onbekende feature wordt GEWEIGERD, niet herschreven', () => {
   assert.equal(uit.error, 'unknown_feature');
 });
 
-test('een Offer dat GEEN gate-voorstel is wordt niet stilletjes geslikt', async () => {
+test('een Offer dat GEEN gate-voorstel is wordt NIET geclaimd', async () => {
+  // WAS: dit gaf 400 unsupported_offer, en dat was fout. Deze tak claimde elke
+  // Offer, dus ook de adoptie-handshake -- Barts honderd aanbiedingen liepen er
+  // meteen op stuk. Alleen claimen wat je herkent.
   const uit = await AP.ingestOutboxActivity(site(), user, { type: 'Offer', object: { type: 'Note', content: 'hoi' } });
-  assert.equal(uit.status, 400);
-  assert.equal(uit.error, 'unsupported_offer');
+  assert.notEqual(uit && uit.error, 'unsupported_offer');
+});
+
+test('en een adoptie-Offer komt bij de handshake terecht', async () => {
+  // De regressie die Bart ving, als toets. Een Relationship-offer hoort NOOIT
+  // door de gate-tak afgevangen te worden.
+  const uit = await AP.ingestOutboxActivity(site(), user, {
+    type: 'Offer', to: [KIND],
+    object: { type: 'Relationship', subject: KIND, object: 'https://oma.test/ap/users/oma', relationship: 'shaer:Guardian' },
+  });
+  assert.notEqual(uit && uit.error, 'unsupported_offer');
 });
 
 test('de app en de PWA lopen door DEZELFDE functie', async () => {

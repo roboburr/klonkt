@@ -11,7 +11,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 process.env.DATABASE_PATH = ':memory:';
-process.env.AP_ALLOW_HOSTS = '[::1]:3060';
+// Een poort waar met opzet NIETS op luistert. Eerst stond hier 3060, en toen de
+// testkudde daar ging draaien slaagde de fetch en viel de toets om -- een toets
+// die afhangt van wat er toevallig draait, bewijst niets.
+process.env.AP_ALLOW_HOSTS = '[::1]:59321';
 const AP = await import('../src/services/ActivityPubService.js');
 
 const faalt = async (url) => {
@@ -24,19 +27,19 @@ test('wat er WEL op staat komt langs de poort', async () => {
   // toetsen laat de suite groen terwijl er niets doorheen komt. Er draait hier
   // niets op 3060, dus we verwachten een VERBINDINGSfout -- het bewijs is dat
   // het geen ssrf-fout is.
-  const fout = await faalt('http://[::1]:3060/u/w001');
-  assert.ok(fout, 'er is wel degelijk een fout, want er luistert niets');
+  const fout = await faalt('http://[::1]:59321/niets');
+  assert.ok(fout, 'er is wel een fout, want er luistert niets op die poort');
   assert.ok(!String(fout).startsWith('ssrf-'), `door de poort, maar kreeg: ${fout}`);
 });
 
 test('een adres dat NIET op de lijst staat blijft geweigerd', async () => {
   // Zelfde machine, andere poort. Zou dit doorlaten, dan is de lijst een vlag.
-  assert.equal(await faalt('http://[::1]:3061/u/w001'), 'ssrf-blocked-ip');
+  assert.equal(await faalt('http://[::1]:3060/u/w001'), 'ssrf-blocked-ip');
 });
 
 test('en 127.0.0.1 evenmin, ook al is het dezelfde machine', async () => {
   // De lijst opent een HOST:POORT, geen begrip van "lokaal".
-  assert.equal(await faalt('http://127.0.0.1:3060/u/w001'), 'ssrf-blocked-ip');
+  assert.equal(await faalt('http://127.0.0.1:59321/niets'), 'ssrf-blocked-ip');
 });
 
 test('het metadata-adres blijft dicht', async () => {
@@ -51,7 +54,7 @@ test('zonder de omgevingsvariabele is er geen uitzondering', async () => {
   delete process.env.AP_ALLOW_HOSTS;
   const mod = await import(`../src/services/ActivityPubService.js?leeg=${Date.now()}`);
   let fout = null;
-  try { await mod.safeFetch('http://[::1]:3060/u/w001'); } catch (e) { fout = e.message; }
+  try { await mod.safeFetch('http://[::1]:59321/niets'); } catch (e) { fout = e.message; }
   assert.equal(fout, 'ssrf-blocked-ip');
   process.env.AP_ALLOW_HOSTS = eerder;
 });
