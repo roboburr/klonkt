@@ -944,9 +944,56 @@ export function buildCreate(base, site, post) {
   };
 }
 
-export function buildOutbox(base, site, posts) {
+/**
+ * Een track als publicatie: Create(Audio) (shaer-0nh, stap 4).
+ *
+ * Zelfde vorm als buildCreate voor een post, met een STABIEL id: dezelfde track
+ * levert altijd dezelfde activiteit, zodat een lezer die de outbox twee keer
+ * ophaalt niet denkt dat er iets nieuws is.
+ */
+export function buildTrackCreate(base, site, r) {
+  const audio = buildTrackAudio(base, site, r);
+  const me = actorId(base, site.slug);
+  return {
+    '@context': AP_CONTEXT,
+    id: `${audio.id}#create`,
+    type: 'Create',
+    actor: me,
+    published: audio.published,
+    to: [PUBLIC],
+    cc: [`${me}/followers`],
+    object: audio,
+  };
+}
+
+/**
+ * De outbox: wat deze actor heeft uitgebracht. Posts EN tracks (shaer-0nh,
+ * stap 4).
+ *
+ * WAAROM HIER EN NIET IN EEN BEZORGING. Een kanaal-lezer HAALT de outbox op --
+ * zo heb ik zelf Funkwhales kanaal uitgelezen. Een Create(Audio) ook naar de
+ * inboxen van volgers duwen zou schade doen: Mastodon neemt Audio aan als
+ * statustype, dus bij een album-post zou dezelfde muziek twee keer in hun
+ * tijdlijn komen -- een keer als bijlage bij de Note, en dan nog N keer los.
+ * De post is het bericht, de outbox is de discografie.
+ *
+ * Door elkaar op datum, nieuwste eerst, zodat de outbox één verhaal vertelt in
+ * plaats van twee lijstjes achter elkaar.
+ *
+ * De tracks komen als ARGUMENT binnen, net als de posts, en worden hier
+ * uitdrukkelijk NIET zelf opgehaald. De route beslist wie wat mag zien -- een
+ * geblokkeerde bezoeker krijgt daar een lege outbox, en een bouwer die stiekem
+ * zijn eigen database bevraagt zou dwars door die deur heen leveren.
+ */
+export function buildOutbox(base, site, posts, tracks = []) {
   const id = `${actorId(base, site.slug)}/outbox`;
-  const items = (posts || []).slice(0, MAX_OUTBOX).map((p) => buildCreate(base, site, p));
+  const wanneer = (x) => Date.parse(x && x.published ? x.published : 0) || 0;
+  const items = [
+    ...(posts || []).map((p) => buildCreate(base, site, p)),
+    ...(tracks || []).map((r) => buildTrackCreate(base, site, r)),
+  ]
+    .sort((a, b) => wanneer(b) - wanneer(a))
+    .slice(0, MAX_OUTBOX);
   return {
     '@context': AP_CONTEXT,
     id,
@@ -5968,7 +6015,7 @@ export default {
   AP_CONTEXT, getOrCreateKeys, apWants, sendAP, actorId, noteId, stripLeadingMentions,
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers, buildFollowing, buildFeatured,
   channelUrls, timelineFields, guessMediaType,
-  siteOpenTracks, openTrack, buildTrackAudio, buildTrackCollection,
+  siteOpenTracks, openTrack, buildTrackAudio, buildTrackCollection, buildTrackCreate,
   buildPlaylistCollection, playlistOpenTracks, listPlaylistsAP, playlistLinkTags,
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
   feedCursor, feedChangesSince, waitForFeedChange,

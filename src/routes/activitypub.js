@@ -132,7 +132,9 @@ router.get('/ap/users/:slug/outbox', async (req, res) => {
      FROM posts WHERE site_id = ? AND status = 'published' ${fanClause}
      ORDER BY COALESCE(published_at, created_at) DESC LIMIT 20`
   ).all(site.id);
-  const ob = AP.buildOutbox(baseUrl(req), site, posts);
+  // De tracks gaan mee voor iedereen die de deur door mag; de blocked-tak
+  // hierboven levert bewust een outbox ZONDER posts en zonder tracks.
+  const ob = AP.buildOutbox(baseUrl(req), site, posts, AP.siteOpenTracks(site.id));
   if (audience === 'friend') {
     // The owner's app builds its feed from this leg, and every note here is
     // by the site itself: give it the same `shaer:author` byline the timeline
