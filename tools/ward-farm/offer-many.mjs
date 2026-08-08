@@ -24,7 +24,7 @@ const args = Object.fromEntries(
 );
 
 const slug = args.slug || 'dev';
-const farmBase = (args.base || 'https://wards.klonkt.com').replace(/\/+$/, '');
+const farmBase = (args.base || 'http://[::1]:3060').replace(/\/+$/, '');
 const van = Number(args.from || 1);
 const tot = Number(args.to || 100);
 const pauze = Number(args.pauze || 150);

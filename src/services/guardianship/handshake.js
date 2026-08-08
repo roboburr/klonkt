@@ -45,6 +45,36 @@ export function parseUndoRelationship(activity) {
   return parseRelationship(activity && activity.object);
 }
 
+/**
+ * De overgebleven guardians opnieuw vertellen of ZIJ nu de doorslag geven
+ * (shaer-8vt, Barts correctie 8-8).
+ *
+ * "Doorslaggevend" is geen eigenschap van een moment maar van een STAND: zodra
+ * er nog een stem nodig is, is iedereen die nog moet antwoorden het. Eenmalig
+ * berekenen bij het doorsturen bevriest een antwoord dat verandert.
+ *
+ * Nooit dragend: lukt de update niet, dan blijft de oude waarde staan. Die is
+ * dan te voorzichtig of te stil -- en juist daarom staat de FAALSTAND aan de
+ * kant van waarschuwen (isDecisive leest onbekend als "ja, jij beslist").
+ */
+function herzieDoorslag(site, offerId, gsOffer, laatsteStem) {
+  try {
+    const p = gated.gatedProgress(site.slug, gsOffer.feature);
+    if (!gated.isDecisive(p.votes, p.need)) return;   // nog niets veranderd
+    const me = deps.selfId(site.slug);
+    const gestemd = new Set([gsOffer.proposer, laatsteStem].filter(Boolean));
+    for (const g of relations.listGuardians(site.slug).map((x) => x.other_uri)) {
+      if (gestemd.has(g)) continue;
+      deps.deliverTo(site, g, {
+        id: offerId, type: 'Offer', actor: me, to: [g],
+        object: { type: 'shaer:GatedSetting', 'shaer:ward': me, 'shaer:feature': gsOffer.feature, 'shaer:value': !!gsOffer.value },
+        'shaer:proposer': gsOffer.proposer || undefined,
+        'shaer:decisive': true,
+      }).catch(() => { /* de bezorgwachtrij probeert opnieuw */ });
+    }
+  } catch { /* nooit dragend */ }
+}
+
 /** Parse a Relationship object into {ward, candidate} or null. */
 export function parseRelationship(rel) {
   if (!rel || typeof rel !== 'object') return null;
@@ -536,6 +566,16 @@ export async function handleInbox(site, activity) {
     const value = type === 'Accept' ? !!gsOffer.value : !gsOffer.value;
     const r = gated.recordGatedVote(site.slug, gsOffer.feature, actor, value);
     if (r.state === 'settled') answerGatedProposer(site, offerId, r);
+    // DOORSLAGGEVEND SCHUIFT MEE (Barts correctie, 8-8). Ik berekende dit een
+    // keer bij het doorsturen en bevroor het. Bij vijf guardians staat er dan
+    // "je beslist niets" -- en zodra er een ja bij komt IS elk van de anderen de
+    // doorslag. Dat is precies de stille kant: het scherm zwijgt op het moment
+    // dat het moet spreken.
+    //
+    // Dus na elke stem die het open laat: de overgeblevenen opnieuw vertellen
+    // waar ze staan. Alleen wie NOG NIET geantwoord heeft, en alleen als het
+    // antwoord verandert -- anders is dit een bericht per stem per guardian.
+    else herzieDoorslag(site, offerId, gsOffer, actor);
     notify(site.slug, { kind: 'gated_setting', feature: gsOffer.feature, value, state: r.state });
     return true;
   }

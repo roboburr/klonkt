@@ -46,3 +46,16 @@ test('onzin telt als BESLISSEND, niet als veilig', () => {
   assert.equal(gated.isDecisive(NaN, NaN), true);
   assert.equal(gated.isDecisive(null, null), true);
 });
+
+test('doorslaggevend is een STAND, geen moment', () => {
+  // Barts correctie (8-8): het geldt voor ALLE opvolgende beslissers. Bij vijf
+  // guardians is bij het doorsturen niemand het (drempel 3, een stem), maar na
+  // de tweede ja is iedereen die nog moet antwoorden het wel.
+  const drempel = gated.thresholdFor(5);          // 3
+  assert.equal(gated.isDecisive(1, drempel), false, 'bij het doorsturen nog niet');
+  assert.equal(gated.isDecisive(2, drempel), true, 'na een ja erbij wel');
+});
+
+test('en bij drie guardians is het meteen zo', () => {
+  assert.equal(gated.isDecisive(1, gated.thresholdFor(3)), true);
+});

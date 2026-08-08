@@ -32,7 +32,16 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const STATE = path.join(HERE, 'state.json');
-const BASE = process.env.BASE || 'https://wards.klonkt.com';
+// GEEN TLS, en dat hoort ook zo (Barts vraag, 8-8: "waarom via https? gewoon
+// localhost ::1"). Een certificaat en een publieke hostname toevoegen aan een
+// doos die ook andermans sites draait, om honderd neptestkinderen te kunnen
+// bereiken, is de verkeerde prijs. Klonkt laat dit adres door via AP_ALLOW_HOSTS
+// -- een precies host:poort-paar, geen "loopback mag"-vlag.
+//
+// EN HET TOETST IETS DAT WE TOCH MOESTEN KUNNEN: http met HTTP-signatures, zonder
+// TLS. Dat is een echt federatiegeval (interne netwerken, onion), en tot nu toe
+// was het nergens uitgeprobeerd.
+const BASE = process.env.BASE || 'http://[::1]:3060';
 const PORT = Number(process.env.PORT || 3060);
 const N = Number(process.env.WARDS || 100);
 const HOST = new URL(BASE).host;
@@ -275,6 +284,6 @@ const server = http.createServer(async (req, res) => {
 for (let i = 1; i <= N; i++) ward(i);
 bewaarStaat(staat);
 
-server.listen(PORT, '127.0.0.1', () => {
+server.listen(PORT, '::1', () => {
   console.log(`[farm] ${N} wards op ${BASE} (luistert op 127.0.0.1:${PORT})`);
 });

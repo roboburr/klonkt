@@ -109,9 +109,39 @@ function isBlockedIp(ip) {
   }
   return true; // not an IP literal we recognise → refuse
 }
+/**
+ * Uitzonderingen op de SSRF-poort, voor een testkudde op de eigen machine
+ * (shaer-6wt: honderd wards met een guardian, Barts opdracht 8-8).
+ *
+ * WAAROM DIT MAG BESTAAN. De bescherming hierboven is er omdat een actor-URI van
+ * een VREEMDE komt: een aanvaller die "http://169.254.169.254/" doorgeeft laat
+ * ons zijn werk doen. Deze lijst gaat niet over vreemden -- hij staat in de
+ * omgeving van deze server, wordt door de beheerder gezet, en is leeg tenzij
+ * iemand hem expliciet vult.
+ *
+ * WAAROM HIJ ZO SMAL IS. Geen vlag die "loopback is oke" zegt, maar een lijst
+ * van precieze host:poort-paren. `[::1]:3060` opent niet 127.0.0.1, niet poort
+ * 3061, en niets in het interne netwerk. Een brede vlag zou de bescherming in
+ * een dev-omgeving uitzetten, en dev-omgevingen worden productie.
+ *
+ *   AP_ALLOW_HOSTS="[::1]:3060,[::1]:3061"
+ */
+const AP_ALLOW_HOSTS = new Set(
+  String(process.env.AP_ALLOW_HOSTS || '').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean),
+);
+function isAllowedTestHost(u) {
+  if (!AP_ALLOW_HOSTS.size) return false;
+  return AP_ALLOW_HOSTS.has(u.host.toLowerCase());
+}
 async function assertPublicHost(hostname) {
-  if (net.isIP(hostname)) { if (isBlockedIp(hostname)) throw new Error('ssrf-blocked-ip'); return; }
-  const addrs = await dns.promises.lookup(hostname, { all: true });
+  // URL.hostname geeft een IPv6-literal MET blokhaken ("[::1]"), en net.isIP
+  // herkent die vorm niet. Zonder strippen viel elk IPv6-adres door naar de
+  // DNS-tak, waar het strandde op ENOTFOUND: geweigerd, maar per ongeluk en met
+  // de verkeerde reden. isBlockedIp strippde ze al -- die verwachtte dus input
+  // die hier nooit aankwam.
+  const naakt = String(hostname || '').replace(/^\[|\]$/g, '');
+  if (net.isIP(naakt)) { if (isBlockedIp(naakt)) throw new Error('ssrf-blocked-ip'); return; }
+  const addrs = await dns.promises.lookup(naakt, { all: true });
   if (!addrs.length || addrs.some((a) => isBlockedIp(a.address))) throw new Error('ssrf-blocked-host');
 }
 // One honest name on ALL outbound federation traffic (Robins vraag, 31-7):
@@ -127,7 +157,9 @@ export async function safeFetch(url, opts = {}, maxRedirects = 3) {
   for (let hop = 0; ; hop++) {
     const u = new URL(target); // throws on malformed → caller's catch
     if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new Error('ssrf-bad-scheme');
-    await assertPublicHost(u.hostname);
+    // Alleen op de precieze host:poort uit AP_ALLOW_HOSTS, en per hop opnieuw:
+    // een omleiding naar een ANDER intern adres blijft geweigerd.
+    if (!isAllowedTestHost(u)) await assertPublicHost(u.hostname);
     const r = await fetch(target, {
       ...opts,
       headers: { 'User-Agent': KLONKT_UA, ...(opts.headers || {}) },
