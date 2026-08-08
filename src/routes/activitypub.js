@@ -675,6 +675,26 @@ router.get('/ap/users/:slug/playlists', (req, res) => {
   AP.sendAP(res, AP.listPlaylistsAP(baseUrl(req), site, wantsEnriched(req, res)));
 });
 
+// De tracks van deze site: de kanonieke plek voor onze muziek (shaer-0nh,
+// stap 3). Een playlist is een keuze hieruit; deze collectie is alles wat de
+// artiest heeft opengezet, ook wat in geen enkele playlist staat.
+router.get('/ap/users/:slug/tracks', (req, res) => {
+  const site = publicSite(req.params.slug);
+  if (!site) return res.status(404).end();
+  AP.sendAP(res, AP.buildTrackCollection(baseUrl(req), site, AP.siteOpenTracks(site.id)));
+});
+
+// Eén track, los op te halen. Een gesloten track is AFWEZIG, niet leeg: 404,
+// dezelfde regel als in de collectie, zodat het bestaan van een gated nummer
+// niet uit een ander antwoord af te leiden is.
+router.get('/ap/users/:slug/tracks/:id', (req, res) => {
+  const site = publicSite(req.params.slug);
+  if (!site) return res.status(404).end();
+  const row = AP.openTrack(site.id, req.params.id);
+  if (!row) return res.status(404).end();
+  AP.sendAP(res, AP.buildTrackAudio(baseUrl(req), site, row, { standalone: true }));
+});
+
 router.get('/ap/users/:slug/playlists/:id', (req, res) => {
   const site = publicSite(req.params.slug);
   if (!site) return res.status(404).end();

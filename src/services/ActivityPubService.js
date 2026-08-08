@@ -178,6 +178,22 @@ export function sendAP(res, obj, cacheControl) {
 
 // ── document builders ─────────────────────────────────────────────
 export function actorId(base, slug) { return `${base}/ap/users/${encodeURIComponent(slug)}`; }
+
+/**
+ * mediaType raden uit een bestandsnaam. Stond twee keer functie-lokaal in dit
+ * bestand, met een commentaar dat ze "dezelfde afleiding" waren -- en dat was
+ * niet zo: de ene kende video, de andere alleen beeld. Nu een kaart, hier.
+ * De terugval is image/jpeg omdat dit alleen op omslagen en bijlagen wordt
+ * losgelaten, nooit op geluid: dat draagt zijn eigen mime_type uit de database.
+ */
+export function guessMediaType(u) {
+  const e = ((u || '').split('?')[0].match(/\.(\w+)$/) || [])[1];
+  return ({
+    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
+    webp: 'image/webp', avif: 'image/avif',
+    mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime',
+  })[(e || '').toLowerCase()] || 'image/jpeg';
+}
 export function noteId(base, postId) { return `${base}/ap/notes/${encodeURIComponent(postId)}`; }
 
 /** Eén Link uit een AS2 `url` kiezen op mediaType. Een `url` mag een string,
@@ -310,7 +326,7 @@ export function buildActor(base, site) {
     // AS2-kern `streams`: "supplementary Collections which may be of
     // interest" -- precies wat de playlist-lijst is (shaer-ayc, stap 2).
     // Geen eigen vocabulaire nodig, en wie het niet kent negeert het.
-    streams: [`${id}/playlists`],
+    streams: [`${id}/tracks`, `${id}/playlists`],
     // AP §5.6: the private blocked collection (owner-only GET). The server
     // list is the source of truth for Shaer's "in Orbit"; clients keep no
     // separate state.
@@ -482,10 +498,6 @@ export function buildNote(base, site, post, opts = {}) {
   // the cover + any inline <img>, make absolute, then strip <img> from the content
   // to avoid duplicate rendering on clients that DO keep them.
   const abs = (u) => !u ? null : (/^https?:/i.test(u) ? u : `${base}${u.startsWith('/') ? '' : '/'}${u}`);
-  const mediaType = (u) => {
-    const e = ((u || '').split('?')[0].match(/\.(\w+)$/) || [])[1];
-    return ({ jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', avif: 'image/avif', mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime' })[(e || '').toLowerCase()] || 'image/jpeg';
-  };
   const hadAudio = /\[\[(track|album|playlist):/i.test(post.content || '');
   const playable = hasPlayableAudio(post.content || '', site && site.id);
   // A post with an external embed (Spotify/YouTube/SoundCloud/Vimeo/Bandcamp/Apple) should let
@@ -579,7 +591,7 @@ export function buildNote(base, site, post, opts = {}) {
       // Cover art on the Audio attachment (AS2 `icon`): track cover, else the post cover.
       // Mastodon renders it as the artwork thumbnail on its native audio player.
       const art = abs(r.cover_url || post.cover_image_url || null);
-      if (art) a.icon = { type: 'Image', mediaType: mediaType(art), url: art };
+      if (art) a.icon = { type: 'Image', mediaType: guessMediaType(art), url: art };
       openAudio.push(a);
     };
     const SEL = 'SELECT t.title, t.cover_url, m.filename, m.storage_path, m.mime_type FROM audio_tracks t JOIN media m ON m.id = t.media_id WHERE t.fedi_open = 1 AND ';
@@ -634,7 +646,7 @@ export function buildNote(base, site, post, opts = {}) {
   const seen = new Set();
   const attachment = urls.filter((x) => x && x.url)
     .filter((x) => { if (seen.has(x.url)) return false; seen.add(x.url); return true; })
-    .map((x) => { const mt = x.mt || mediaType(x.url); // the stored type wins; the extension map is the fallback
+    .map((x) => { const mt = x.mt || guessMediaType(x.url); // the stored type wins; the extension map is the fallback
       const ty = /^image\//i.test(mt) ? 'Image' : /^video\//i.test(mt) ? 'Video' : /^audio\//i.test(mt) ? 'Audio' : 'Document';
       const a = { type: ty, mediaType: mt, url: x.url };
       if (x.name) a.name = String(x.name).slice(0, 1500); // alt text / description (AS2 `name`)
@@ -683,7 +695,7 @@ export function buildNote(base, site, post, opts = {}) {
   // `image`, so its card is unaffected — but a Klonkt receiver reads it (handleInbox o.image).
   if (post.cover_image_url && noImages) {
     const cov = abs(post.cover_image_url);
-    if (cov) { note.image = { type: 'Image', mediaType: mediaType(cov), url: cov }; if (post.cover_alt) note.image.name = String(post.cover_alt).slice(0, 1500); }
+    if (cov) { note.image = { type: 'Image', mediaType: guessMediaType(cov), url: cov }; if (post.cover_alt) note.image.name = String(post.cover_alt).slice(0, 1500); }
   }
   // Experiment (mirrors PeerTube / schema.org `embedUrl`): point at the GATED player page
   // (/embed) so a client that honours embedUrl can show an inline player WITHOUT ever
@@ -999,15 +1011,89 @@ export function buildFeatured(base, site, posts) {
 // hoeveel er achter de poort staat. totalItems telt daarom ook alleen het
 // open deel: een eerlijke telling over wat er werkelijk in de collectie staat,
 // niet over wat wij thuis in de kast hebben.
+const TRACK_KOLOMMEN = `t.id, t.title, t.artist, t.duration, t.cover_url, t.created_at,
+     m.filename, m.storage_path, m.mime_type`;
+
 export function playlistOpenTracks(playlistId) {
   return db.prepare(
-    `SELECT t.title, t.artist, t.duration, t.cover_url, m.filename, m.storage_path, m.mime_type
+    `SELECT ${TRACK_KOLOMMEN}
      FROM playlist_tracks pt
      JOIN audio_tracks t ON t.id = pt.track_id
      JOIN media m ON m.id = t.media_id
      WHERE pt.playlist_id = ? AND t.fedi_open = 1
      ORDER BY pt.position`
   ).all(playlistId);
+}
+
+/**
+ * Alle tracks die deze site aan de federatie heeft opengezet (shaer-0nh, stap 3).
+ *
+ * Dit is de KANONIEKE plek, niet de playlist: een playlist is een keuze, dit is
+ * wat de artiest heeft uitgebracht. Een track die in geen enkele playlist zit
+ * was tot nu toe onzichtbaar voor de federatie -- die staat hier wel.
+ */
+export function siteOpenTracks(siteId) {
+  return db.prepare(
+    `SELECT ${TRACK_KOLOMMEN}
+     FROM audio_tracks t JOIN media m ON m.id = t.media_id
+     WHERE t.site_id = ? AND t.fedi_open = 1
+     ORDER BY t.position, t.created_at, t.id`
+  ).all(siteId);
+}
+
+export function openTrack(siteId, trackId) {
+  return db.prepare(
+    `SELECT ${TRACK_KOLOMMEN}
+     FROM audio_tracks t JOIN media m ON m.id = t.media_id
+     WHERE t.site_id = ? AND t.id = ? AND t.fedi_open = 1`
+  ).get(siteId, trackId);
+}
+
+/**
+ * Eén track als AS2 `Audio`, met een EIGEN id (shaer-0nh, stap 3).
+ *
+ * Waarom dat id het verschil maakt: zonder id is een track een naamloze bijlage
+ * die alleen bestaat zolang je het omhullende object vasthoudt. Met id is het
+ * een ding waar je naar kunt wijzen, dat je los kunt ophalen, en dat in twee
+ * playlists hetzelfde ding is. Funkwhale adresseert zijn Audio-objecten
+ * precies zo, per stuk, in Create en Delete.
+ *
+ * `url` is een Link-ARRAY, net als bij Funkwhale en net als wat onze eigen
+ * inbox sinds bdcb3a3 verwacht: de mediaType hoort bij de link, niet bij het
+ * object. Er zit GEEN text/html-link in: Klonkt heeft geen trackpagina -- een
+ * track wordt getoond binnen een post, en een post over vijf nummers is niet de
+ * pagina van dit ene nummer. Liever geen link dan een link die iets anders
+ * belooft.
+ */
+export function buildTrackAudio(base, site, r, opts = {}) {
+  const abs = (u) => !u ? null : (/^https?:/i.test(u) ? u : `${base}${u.startsWith('/') ? '' : '/'}${u}`);
+  const fn = r.filename || (r.storage_path || '').split('/').pop();
+  const a = {
+    ...(opts.standalone ? { '@context': AP_CONTEXT } : {}),
+    id: `${actorId(base, site.slug)}/tracks/${encodeURIComponent(r.id)}`,
+    type: 'Audio',
+    name: r.title || 'Audio',
+    attributedTo: actorId(base, site.slug),
+    url: [{ type: 'Link', href: `${base}/audio/stream/${encodeURIComponent(fn)}`, mediaType: r.mime_type || 'audio/mpeg' }],
+  };
+  if (r.artist) a.summary = r.artist;              // artiest als summary: kaal AS2, geen eigen vocab
+  if (r.duration) a.duration = `PT${Math.round(r.duration)}S`;
+  if (r.created_at) a.published = new Date(r.created_at).toISOString();
+  const art = abs(r.cover_url || opts.coverFallback || null);
+  if (art) a.icon = { type: 'Image', mediaType: guessMediaType(art), url: art };
+  return a;
+}
+
+/** De collectie van alle open tracks van een site (shaer-0nh, stap 3). */
+export function buildTrackCollection(base, site, rows) {
+  return {
+    '@context': AP_CONTEXT,
+    id: `${actorId(base, site.slug)}/tracks`,
+    type: 'OrderedCollection',
+    attributedTo: actorId(base, site.slug),
+    totalItems: (rows || []).length,
+    orderedItems: (rows || []).map((r) => buildTrackAudio(base, site, r)),
+  };
 }
 
 // Een post die een playlist insluit wijst in zijn AS2 ook naar de collectie
@@ -1063,25 +1149,12 @@ export function listPlaylistsAP(base, site, enriched) {
 
 export function buildPlaylistCollection(base, site, playlist, rows) {
   const abs = (u) => !u ? null : (/^https?:/i.test(u) ? u : `${base}${u.startsWith('/') ? '' : '/'}${u}`);
-  // Zelfde afleiding als in buildNote; die daar is functie-lokaal.
-  const mediaType = (u) => {
-    const e = ((u || '').split('?')[0].match(/\.(\w+)$/) || [])[1];
-    return ({ jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', avif: 'image/avif' })[(e || '').toLowerCase()] || 'image/jpeg';
-  };
-  const items = (rows || []).map((r) => {
-    const fn = r.filename || (r.storage_path || '').split('/').pop();
-    const a = {
-      type: 'Audio',
-      mediaType: r.mime_type || 'audio/mpeg',
-      url: `${base}/audio/stream/${encodeURIComponent(fn)}`,
-      name: r.title || 'Audio',
-    };
-    if (r.artist) a.summary = r.artist; // artiest als summary: kaal AS2, geen eigen vocab
-    if (r.duration) a.duration = `PT${Math.round(r.duration)}S`;
-    const art = abs(r.cover_url || playlist.cover_url || null);
-    if (art) a.icon = { type: 'Image', mediaType: mediaType(art), url: art };
-    return a;
-  });
+  // Dezelfde objecten als in de actor-collectie, met hetzelfde id (shaer-0nh,
+  // stap 3). Een playlist is een KEUZE uit wat de artiest heeft uitgebracht,
+  // geen tweede exemplaar ervan: staat een track in twee playlists, dan is het
+  // twee keer hetzelfde ding en niet twee dingen die toevallig gelijk klinken.
+  // De hoes van de playlist dient als terugval voor een track zonder eigen hoes.
+  const items = (rows || []).map((r) => buildTrackAudio(base, site, r, { coverFallback: playlist.cover_url || null }));
   const out = {
     '@context': AP_CONTEXT,
     id: `${actorId(base, site.slug)}/playlists/${playlist.id}`,
@@ -1097,7 +1170,7 @@ export function buildPlaylistCollection(base, site, playlist, rows) {
   if (playlist.year) parts.push(String(playlist.year));
   if (parts.length) out.summary = parts.join(' · ');
   const cover = abs(playlist.cover_url || null);
-  if (cover) out.icon = { type: 'Image', mediaType: mediaType(cover), url: cover };
+  if (cover) out.icon = { type: 'Image', mediaType: guessMediaType(cover), url: cover };
   return out;
 }
 
@@ -5894,7 +5967,8 @@ Guardianship.wireAvailability({
 export default {
   AP_CONTEXT, getOrCreateKeys, apWants, sendAP, actorId, noteId, stripLeadingMentions,
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers, buildFollowing, buildFeatured,
-  channelUrls, timelineFields,
+  channelUrls, timelineFields, guessMediaType,
+  siteOpenTracks, openTrack, buildTrackAudio, buildTrackCollection,
   buildPlaylistCollection, playlistOpenTracks, listPlaylistsAP, playlistLinkTags,
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
   feedCursor, feedChangesSince, waitForFeedChange,

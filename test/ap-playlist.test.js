@@ -78,8 +78,12 @@ test('de volgorde is de playlist-volgorde, en elke rij is een speelbare Audio', 
   assert.deepEqual(body.orderedItems.map((a) => a.name), ['Opening', 'Finale']);
   for (const a of body.orderedItems) {
     assert.equal(a.type, 'Audio');
-    assert.match(a.url, /^https:\/\/test\.example\/audio\/stream\//);
-    assert.equal(a.mediaType, 'audio/mpeg');
+    // Sinds stap 3: een eigen id, en url als Link-array -- de mediaType hoort
+    // bij de link, niet bij het object.
+    assert.match(a.id, /^https:\/\/test\.example\/ap\/users\/band\/tracks\//);
+    assert.ok(Array.isArray(a.url), 'url is een Link-array');
+    assert.match(a.url[0].href, /^https:\/\/test\.example\/audio\/stream\//);
+    assert.equal(a.url[0].mediaType, 'audio/mpeg');
   }
   assert.equal(body.orderedItems[0].duration, 'PT215S');
   assert.equal(body.orderedItems[0].summary, 'De Band');

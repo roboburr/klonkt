@@ -54,7 +54,12 @@ const getJson = async (path, headers = {}) => {
 
 test('de actor wijst via streams naar de playlist-lijst', async () => {
   const { body } = await getJson('/ap/users/band');
-  assert.deepEqual(body.streams, ['https://test.example/ap/users/band/playlists']);
+  // Sinds stap 3 staat de TRACK-collectie er ook in, en vooraan: die is de
+  // kanonieke plek voor onze muziek, de playlists zijn een keuze daaruit.
+  assert.deepEqual(body.streams, [
+    'https://test.example/ap/users/band/tracks',
+    'https://test.example/ap/users/band/playlists',
+  ]);
 });
 
 test('de lijst is kaal standaard: URI-per-playlist, alleen van deze site, in vaste volgorde', async () => {
