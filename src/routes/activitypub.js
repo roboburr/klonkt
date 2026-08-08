@@ -722,12 +722,20 @@ router.get('/ap/users/:slug/thread', async (req, res) => {
   const isWard = (() => { try { return Guardianship.listGuardians(auth.site.slug).length > 0; } catch { return false; } })();
   const uit = await AP.getThread(auth.site.slug, objectUri, { isWard });
   if (!uit.found) return res.status(404).json({ error: 'note not reachable' });
+  // Liked/boosted per antwoord, BUITEN de cache om: de genormaliseerde notes
+  // mogen twee minuten oud zijn, maar of JIJ iets geliked hebt hoort van nu te
+  // zijn -- anders springt het hartje terug zodra de reader opnieuw opent.
+  const reacties = AP.getReactionsFor(auth.site.slug, uit.notes.map((n) => n.id));
   AP.sendAP(res, {
     '@context': AP.AP_CONTEXT,
     id: `${baseUrl(req)}/ap/users/${encodeURIComponent(auth.site.slug)}/thread?object=${encodeURIComponent(objectUri)}`,
     type: 'OrderedCollection',
     totalItems: uit.notes.length,
-    orderedItems: uit.notes,
+    orderedItems: uit.notes.map((n) => ({
+      ...n,
+      'shaer:liked': !!(reacties.get(n.id) || {}).liked,
+      'shaer:boosted': !!(reacties.get(n.id) || {}).boosted,
+    })),
     'shaer:hidden': uit.hidden || undefined,
   }, 'private, no-store');
 });
