@@ -74,9 +74,13 @@ test('een track heeft een eigen id en url als Link-array', async () => {
   assert.equal(a.attributedTo, 'https://test.example/ap/users/band');
   assert.equal(a.duration, 'PT203S');
   assert.equal(a.summary, 'De Band');
-  assert.deepEqual(a.url, [{
-    type: 'Link', href: 'https://test.example/audio/stream/open.mp3', mediaType: 'audio/mpeg',
-  }], 'de mediaType hoort bij de link, niet bij het object');
+  // De Link draagt sinds de veldvergelijking met Funkwhale ook de
+  // bestandsgegevens: die horen bij DEZE representatie, niet bij het nummer.
+  assert.equal(a.url.length, 1);
+  assert.equal(a.url[0].type, 'Link');
+  assert.equal(a.url[0].href, 'https://test.example/audio/stream/open.mp3');
+  assert.equal(a.url[0].mediaType, 'audio/mpeg', 'de mediaType hoort bij de link, niet bij het object');
+  assert.equal(a.mediaType, undefined, 'en dus NIET op het object');
   assert.equal(a.icon.url, 'https://test.example/media/hoes.jpg');
 });
 

@@ -51,6 +51,15 @@ const AP_CONTEXT = [
     PropertyValue: 'schema:PropertyValue',
     value: 'schema:value',
     embedUrl: { '@id': 'schema:embedUrl', '@type': '@id' },
+    // Wat een track beschrijft en AS2 niet kent (shaer-0nh). Funkwhale zet deze
+    // vier op zijn Audio; het bleken geen eigen verzinsels maar termen die
+    // schema.org gewoon heeft -- en schema.org stond hier al. De SLEUTELS zijn
+    // die van Funkwhale, want daar leest hij op; de BETEKENIS komt van
+    // schema.org, dus we hoeven geen vreemd vocabulaire binnen te halen.
+    license: { '@id': 'schema:license', '@type': '@id' },
+    position: 'schema:position',
+    bitrate: 'schema:bitrate',
+    size: 'schema:contentSize',
     // Poll (Question) extension: Question/oneOf/anyOf/endTime/closed are AS2 core, but the
     // per-poll unique-voter count is a Mastodon (toot) term — declare it so the emitted
     // Question stays valid JSON-LD (a strict processor would otherwise drop votersCount).
@@ -1066,6 +1075,7 @@ export function buildFeatured(base, site, posts) {
 // niet over wat wij thuis in de kast hebben.
 // m.size hoort erbij voor de RSS-enclosure: die eist een lengte in bytes.
 const TRACK_KOLOMMEN = `t.id, t.title, t.artist, t.duration, t.cover_url, t.created_at,
+     t.position, t.license,
      m.filename, m.storage_path, m.mime_type, m.size`;
 
 export function playlistOpenTracks(playlistId) {
@@ -1122,20 +1132,64 @@ export function openTrack(siteId, trackId) {
 export function buildTrackAudio(base, site, r, opts = {}) {
   const abs = (u) => !u ? null : (/^https?:/i.test(u) ? u : `${base}${u.startsWith('/') ? '' : '/'}${u}`);
   const fn = r.filename || (r.storage_path || '').split('/').pop();
+  // De bestandsgegevens horen bij de LINK, niet bij het object: het is die ene
+  // representatie die zoveel bytes is en die bitrate heeft, niet het nummer.
+  // Zo doet Funkwhale het ook.
+  const bestand = { type: 'Link', href: `${base}/audio/stream/${encodeURIComponent(fn)}`, mediaType: r.mime_type || 'audio/mpeg' };
+  if (Number(r.size)) bestand.size = Number(r.size);
+  // Bitrate leiden we af uit bytes en seconden. Geen gok: voor een bestand IS
+  // dat de gemiddelde bitrate, en bij CBR ook de echte. Alleen als we allebei
+  // de getallen hebben -- liever geen veld dan een verzonnen getal.
+  if (Number(r.size) && Number(r.duration)) bestand.bitrate = Math.round((Number(r.size) * 8) / Number(r.duration));
+
   const a = {
     ...(opts.standalone ? { '@context': AP_CONTEXT } : {}),
     id: `${actorId(base, site.slug)}/tracks/${encodeURIComponent(r.id)}`,
     type: 'Audio',
     name: r.title || 'Audio',
     attributedTo: actorId(base, site.slug),
-    url: [{ type: 'Link', href: `${base}/audio/stream/${encodeURIComponent(fn)}`, mediaType: r.mime_type || 'audio/mpeg' }],
+    // Op het OBJECT, niet alleen op de omhullende Create: een los opgehaalde
+    // track moet zelf kunnen zeggen dat hij openbaar is.
+    to: [PUBLIC],
+    url: [bestand],
   };
   if (r.artist) a.summary = r.artist;              // artiest als summary: kaal AS2, geen eigen vocab
   if (r.duration) a.duration = `PT${Math.round(r.duration)}S`;
   if (r.created_at) a.published = new Date(r.created_at).toISOString();
+  if (Number(r.position)) a.position = Number(r.position);
+  const lic = licentieUri(r.license);
+  if (lic) a.license = lic;
   const art = abs(r.cover_url || opts.coverFallback || null);
-  if (art) a.icon = { type: 'Image', mediaType: guessMediaType(art), url: art };
+  // icon EN image: allebei AS2-kern. Wij gebruikten alleen icon; Funkwhale
+  // leest image. Dezelfde hoes, twee namen, niemand die iets misloopt.
+  if (art) {
+    const plaat = { type: 'Image', mediaType: guessMediaType(art), url: art };
+    a.icon = plaat;
+    a.image = plaat;
+  }
   return a;
+}
+
+/**
+ * Onze licentie is VRIJE TEKST uit een keuzelijst ("CC BY 4.0", "Alle rechten
+ * voorbehouden"); schema.org en Funkwhale willen een URI. Alleen de waarden die
+ * onze eigen keuzelijst aanbiedt worden vertaald -- die kennen we exact. Al het
+ * andere levert niets op: een zelfbedachte licentie-URI is erger dan geen, want
+ * een lezer gelooft hem.
+ */
+const LICENTIES = {
+  'cc0 1.0 (publiek domein)': 'http://creativecommons.org/publicdomain/zero/1.0/',
+  'cc by 4.0': 'http://creativecommons.org/licenses/by/4.0/',
+  'cc by-sa 4.0': 'http://creativecommons.org/licenses/by-sa/4.0/',
+  'cc by-nc 4.0': 'http://creativecommons.org/licenses/by-nc/4.0/',
+  'cc by-nc-sa 4.0': 'http://creativecommons.org/licenses/by-nc-sa/4.0/',
+  'cc by-nd 4.0': 'http://creativecommons.org/licenses/by-nd/4.0/',
+};
+export function licentieUri(waarde) {
+  const s = String(waarde || '').trim();
+  if (!s) return null;
+  if (/^https?:\/\//i.test(s)) return safeUrl(s);   // iemand vulde al een URI in
+  return LICENTIES[s.toLowerCase()] || null;        // "Alle rechten voorbehouden" heeft er geen
 }
 
 /** De collectie van alle open tracks van een site (shaer-0nh, stap 3). */
