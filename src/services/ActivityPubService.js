@@ -55,6 +55,14 @@ const AP_CONTEXT = [
     // per-poll unique-voter count is a Mastodon (toot) term — declare it so the emitted
     // Question stays valid JSON-LD (a strict processor would otherwise drop votersCount).
     votersCount: 'toot:votersCount',
+    // Kanaal-vocabulaire (shaer-0nh). Funkwhale declareert `category` niet
+    // inline maar via zijn eigen remote context https://funkwhale.audio/ns, en
+    // die host is vanaf hier onbereikbaar -- de IRI hieronder is dus AFGELEID
+    // en niet geverifieerd. Wat vandaag telt voor interop is de JSON-sleutel,
+    // want daar matchen lezers op; de declaratie zorgt alleen dat een strikte
+    // JSON-LD-processor hem niet laat vallen. Nakijken zodra die host weer
+    // antwoordt.
+    category: { '@id': 'https://funkwhale.audio/ns#category' },
     // FEP-633c (Guardians): the shaer namespace, owned by the guardianship
     // module (src/services/guardianship/).
     ...Guardianship.SHAER_CONTEXT,
@@ -172,6 +180,106 @@ export function sendAP(res, obj, cacheControl) {
 export function actorId(base, slug) { return `${base}/ap/users/${encodeURIComponent(slug)}`; }
 export function noteId(base, postId) { return `${base}/ap/notes/${encodeURIComponent(postId)}`; }
 
+/** Eén Link uit een AS2 `url` kiezen op mediaType. Een `url` mag een string,
+ *  een Link of een array van beide zijn; dit is de enige plek die dat weet. */
+function pickLink(url, test) {
+  const links = Array.isArray(url) ? url : (url ? [url] : []);
+  for (const l of links) {
+    const href = safeUrl(typeof l === 'string' ? l : (l && l.href));
+    const mt = (l && typeof l === 'object' && l.mediaType) || '';
+    if (href && test(mt)) return { href, mediaType: mt };
+  }
+  return null;
+}
+
+/**
+ * De `url` van de actor als kanaal (shaer-0nh): de webpagina en, als die er is,
+ * de RSS-feed ernaast.
+ *
+ * De RSS-link gaat er ALLEEN in voor de site waar de instance op gepind staat.
+ * Sinds hub-modus verdween serveert routes/feed.js `/feed.xml` van de primaire
+ * site en bestaat `/user/<slug>` niet meer als route; een feed-link voor een
+ * andere site zou naar de verkeerde feed wijzen. Liever een link minder dan een
+ * link die iemand anders' muziek belooft.
+ */
+export function channelUrls(base, site) {
+  const isPrimair = site.slug === site.primary_slug;
+  const pagina = `${base}/${isPrimair ? '' : 'user/' + encodeURIComponent(site.slug)}`;
+  const uit = [{ type: 'Link', href: pagina, mediaType: 'text/html' }];
+  if (isPrimair) uit.push({ type: 'Link', href: `${base}/feed.xml`, mediaType: 'application/rss+xml' });
+  return uit;
+}
+
+/**
+ * `category` is kanaal-vocabulaire, en de waarde is 'music' (Robins keuze, 7-8).
+ * Alleen gezet als de site ECHT audio publiceert: een blog zonder muziek als
+ * muziekkanaal aankondigen is erger dan geen label. Het signaal is een track in
+ * de kast, niet enable_audio_player -- die staat standaard aan en zegt niets.
+ */
+function channelCategory(site) {
+  try {
+    return db.prepare('SELECT 1 FROM audio_tracks WHERE site_id = ? LIMIT 1').get(site.id) ? 'music' : null;
+  } catch { return null; }
+}
+
+/**
+ * Welke objectsoorten deze inbox in de tijdlijn opneemt.
+ *
+ * `Audio` staat erbij sinds de kanaalbeslissing (shaer-0nh): een Funkwhale-
+ * kanaal stuurt Create(Audio), geen Note. Uitbreiden gebeurt HIER en in
+ * timelineFields -- en uitdrukkelijk NIET door vreemde soorten tot Note om te
+ * vormen. Een Audio is geen Note, en die soort willen we kunnen blijven zien.
+ */
+const TIJDLIJN_SOORTEN = new Set(['Note', 'Article', 'Question', 'Audio']);
+
+/**
+ * Wat de tijdlijn van een binnengekomen object nodig heeft, PER SOORT: de
+ * inhoud-HTML, de bijlagen voor media_json, en de link van het item.
+ *
+ * Eén plek, zodat een nieuwe soort erbij een tak is en geen speurtocht. De
+ * Krant rendert media_json al naar soort -- audio/* wordt een speler -- dus een
+ * track komt vanzelf als echte speler binnen zonder dat de weergave iets van
+ * Funkwhale hoeft te weten.
+ */
+export function timelineFields(o) {
+  // De hoes: een `image` op het object. Bij een Note alleen als terugval (daar
+  // is het de kaart-afbeelding van een player-post), bij een Audio altijd,
+  // want daar IS het de albumhoes.
+  const hoes = () => {
+    if (!o.image) return null;
+    const im = Array.isArray(o.image) ? o.image[0] : o.image;
+    const iu = safeUrl(typeof im === 'string' ? im : (im && im.url));
+    return iu ? { url: iu, type: (im && im.mediaType) || 'image/jpeg' } : null;
+  };
+
+  if (o.type === 'Audio') {
+    const geluid = pickLink(o.url, (mt) => /^audio\//i.test(mt));
+    // De webpagina van de track. Zonder mediaType is dat de veilige aanname:
+    // er een speler op zetten zou een HTML-pagina als geluid aanbieden.
+    const pagina = pickLink(o.url, (mt) => /^text\/html/i.test(mt)) || pickLink(o.url, (mt) => !mt);
+    const atts = [];
+    const h = hoes(); if (h) atts.push(h);              // eerst kijken, dan luisteren
+    if (geluid) atts.push({ url: geluid.href, type: geluid.mediaType || 'audio/mpeg' });
+    // Een Audio heeft geen `content`; de titel is wat er te lezen valt. Door de
+    // sanitizer, want hij komt van een vreemde server.
+    return {
+      html: o.name ? HtmlSanitizerService.sanitize(`<p>${o.name}</p>`) : '',
+      atts,
+      url: pagina ? pagina.href : null,
+    };
+  }
+
+  // Note / Article / Question -- ongewijzigd gedrag.
+  const atts = (Array.isArray(o.attachment) ? o.attachment : [])
+    .map((a) => ({ url: safeUrl(a && a.url), type: (a && a.mediaType) || '' }))
+    .filter((m) => m.url);
+  if (!atts.some((m) => !m.type || /image/i.test(m.type))) {
+    const h = hoes(); if (h) atts.push(h);
+  }
+  const pagina = pickLink(o.url, () => true);
+  return { html: HtmlSanitizerService.sanitize(o.content || ''), atts, url: pagina ? pagina.href : null };
+}
+
 export function buildActor(base, site) {
   const id = actorId(base, site.slug);
   const keys = getOrCreateKeys(site.slug);
@@ -186,7 +294,12 @@ export function buildActor(base, site) {
     preferredUsername: site.slug,
     name: site.title || site.slug,
     summary: site.tagline || site.description || '',
-    url: `${base}/${site.slug === site.primary_slug ? '' : 'user/' + encodeURIComponent(site.slug)}`,
+    // Een Link-ARRAY in plaats van een kale string (shaer-0nh): zo adverteert
+    // een kanaal zichzelf, en zo vindt een podcast-app de feed. De text/html
+    // staat VOORAAN, want een lezer die maar één url verwacht pakt de eerste --
+    // dezelfde vorm die Funkwhale in productie met Mastodon uitwisselt.
+    url: channelUrls(base, site),
+    ...(channelCategory(site) ? { category: channelCategory(site) } : {}),
     manuallyApprovesFollowers: isWard,
     discoverable: true,
     inbox: `${id}/inbox`,
@@ -2193,7 +2306,7 @@ export async function handleInbox(req, slugParam, preVerified = null) {
   const isLocalActor = !!(actorUri && slugParam && actorUri === actorId(base, slugParam));
 
   // Inbound reply: a Create whose object replies to one of our notes (post OR comment).
-  if (type === 'Create' && act.object && (act.object.type === 'Note' || act.object.type === 'Article' || act.object.type === 'Question')) {
+  if (type === 'Create' && act.object && TIJDLIJN_SOORTEN.has(act.object.type)) {
     const o = act.object;
     // A poll ballot: a Note carrying a `name` (the chosen option) inReplyTo one of OUR poll
     // posts. Record it (deduped per actor) BEFORE the reply logic so a vote is never stored
@@ -2246,15 +2359,7 @@ export async function handleInbox(req, slugParam, preVerified = null) {
       let subs = []; try { subs = db.prepare('SELECT slug, auto_boost FROM ap_following WHERE actor_uri = ?').all(actorUri); } catch { /* table may not exist yet */ }
       if (subs.length) {
         const ai = actorInfo(await resolveActor(actorUri), actorUri);
-        const html = HtmlSanitizerService.sanitize(o.content || '');
-        const _atts = (Array.isArray(o.attachment) ? o.attachment : []).map((a) => ({ url: safeUrl(a && a.url), type: (a && a.mediaType) || '' })).filter((m) => m.url);
-        // Fallback cover: a Note's `image` (set when the attachment was suppressed
-        // for a player-card post, e.g. hosted-audio posts).
-        if (!_atts.some((m) => !m.type || /image/i.test(m.type)) && o.image) {
-          const _im = Array.isArray(o.image) ? o.image[0] : o.image;
-          const _iu = safeUrl(typeof _im === 'string' ? _im : (_im && _im.url));
-          if (_iu) _atts.push({ url: _iu, type: (_im && _im.mediaType) || 'image/jpeg' });
-        }
+        const { html, atts: _atts, url: _url } = timelineFields(o);
         const media = JSON.stringify(_atts);
         const poll = parsePoll(o); // a Question (fediverse poll) → cache its options/counts
         // "Feature" = show in the Cirkel (local only). We do NOT auto-Announce
@@ -2262,7 +2367,7 @@ export async function handleInbox(req, slugParam, preVerified = null) {
         // fediverse is only ever a deliberate, manual per-post action (the 🔁 on
         // the timeline).
         for (const s of subs) {
-          tlStmts().ins.run(o.id, s.slug, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.url || null, o.published || null, media, o.sensitive ? 1 : 0, o.summary || null);
+          tlStmts().ins.run(o.id, s.slug, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, _url, o.published || null, media, o.sensitive ? 1 : 0, o.summary || null);
           // FEP-633c §2.2: register the ward hint on the stored object (no action yet).
           if (Guardianship.objectHasGuardians(o)) { try { db.prepare('UPDATE ap_timeline SET has_guardians = 1 WHERE id = ? AND slug = ?').run(o.id, s.slug); } catch { /* ignore */ } }
           // FEP-9098: keep the note's custom-emoji tags so the C2S inbox read can serve them.
@@ -5789,6 +5894,7 @@ Guardianship.wireAvailability({
 export default {
   AP_CONTEXT, getOrCreateKeys, apWants, sendAP, actorId, noteId, stripLeadingMentions,
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers, buildFollowing, buildFeatured,
+  channelUrls, timelineFields,
   buildPlaylistCollection, playlistOpenTracks, listPlaylistsAP, playlistLinkTags,
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
   feedCursor, feedChangesSince, waitForFeedChange,
