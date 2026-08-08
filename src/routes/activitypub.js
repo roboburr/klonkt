@@ -56,11 +56,61 @@ const asciiHost = (h) => {
   try { return new URL(`https://${h}`).host.toLowerCase(); } catch { return String(h).trim().toLowerCase(); }
 };
 
+// ── host-meta ─────────────────────────────────────────────────────
+// De klassieke eerste stap van WebFinger (RFC 6415): een client die het
+// webfinger-pad niet wil raden, vraagt hier de sjabloon op. Mastodon serveert
+// dit ook, en een client die ermee begint kreeg bij ons een 404 en gaf het dan
+// op -- terwijl de webfinger eronder gewoon werkte.
+//
+// Twee vormen, want beide worden in het wild gevraagd: XRD (het origineel) en
+// JRD (de JSON-variant, RFC 6415 §3).
+const lrddSjabloon = (req) => `${baseUrl(req)}/.well-known/webfinger?resource={uri}`;
+
+router.get('/.well-known/host-meta', (req, res) => {
+  res.type('application/xrd+xml; charset=utf-8');
+  res.set('Cache-Control', 'public, max-age=86400');
+  res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<XRD xmlns="http://docs.oasis-open.org/ns/xri/xrd-1.0">
+  <Link rel="lrdd" template="${lrddSjabloon(req)}"/>
+</XRD>`);
+});
+
+router.get('/.well-known/host-meta.json', (req, res) => {
+  res.type('application/jrd+json; charset=utf-8');
+  res.set('Cache-Control', 'public, max-age=86400');
+  res.send(JSON.stringify({ links: [{ rel: 'lrdd', template: lrddSjabloon(req) }] }));
+});
+
 // ── WebFinger ─────────────────────────────────────────────────────
+/**
+ * De `resource` uitpakken tot de gebruiker die bedoeld wordt.
+ *
+ * RFC 7033 schrijft een URI voor, en `acct:` is de nette vorm -- maar in het
+ * wild komen er vier spellingen langs, en drie daarvan wezen we af met een 400
+ * terwijl we prima wisten wie er bedoeld werd:
+ *
+ *   acct:naam@host      de nette vorm (Mastodon stuurt altijd deze)
+ *   naam@host           zonder schema
+ *   @naam@host          met het apenstaartje dat mensen intypen
+ *
+ * Coulant zijn kost hier niets: het antwoord noemt altijd de canonieke
+ * `acct:`-vorm terug, dus een slordige vraag levert geen slordig antwoord.
+ *
+ * De ACTOR-URI als resource (die Mastodon ook accepteert) hoort hier NIET bij,
+ * bewust: test/webfinger-bare-host.test.js legt vast dat die een 400 geeft.
+ * Dat is een uitgesproken keuze van eerder en geen vergetelheid, dus die draai
+ * ik niet om als bijvangst van een coulance-fix.
+ */
+function webfingerGebruiker(resource) {
+  const r = String(resource || '').trim();
+  if (!r) return null;
+  const acct = r.match(/^(?:acct:)?@?([^@/]+)@(.+)$/i);
+  return acct ? acct[1] : null;
+}
+
 router.get('/.well-known/webfinger', (req, res) => {
-  const m = String(req.query.resource || '').match(/^acct:([^@]+)@(.+)$/i);
-  if (!m) return res.status(400).type('text/plain').send('bad resource');
-  const user = m[1];
+  const user = webfingerGebruiker(req.query.resource);
+  if (!user) return res.status(400).type('text/plain').send('bad resource');
   let site = publicSite(user);
   // `acct:<host>@<host>` asks for this server's primary actor — the convention
   // Shaer's Handle relies on so a Ward is reachable without knowing anyone's
