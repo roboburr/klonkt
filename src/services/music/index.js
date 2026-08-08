@@ -331,3 +331,60 @@ export function channelCategory(site) {
     return db.prepare('SELECT 1 FROM audio_tracks WHERE site_id = ? AND fedi_open = 1 LIMIT 1').get(site.id) ? 'music' : null;
   } catch { return null; }
 }
+
+// ── Welk soort muzikale uitgave is deze post? (shaer-cyg) ─────────────────
+
+/**
+ * Het type van een post afleiden uit de muziek die erin staat.
+ *
+ * DE REGEL GAAT OVER IDENTITEIT, NIET OVER TELLEN (Robins herformulering, 9-8):
+ * een post neemt het type van zijn muziek over als hij precies EEN muzikale
+ * eenheid bevat. Zijn het er meer, dan is de post een post die naar muziek
+ * verwijst, en houden de collecties hun eigen identiteit.
+ *
+ *   losse track(s)                -> playlist   metadata van de post geleend
+ *   een collectie                 -> die soort  metadata van de post geleend
+ *   een collectie + losse tracks  -> album      de losse zijn BONUS-TRACKS
+ *   twee of meer collecties       -> post       NIETS geleend
+ *
+ * Waarom de lening bij de laatste vervalt: die bestaat omdat een collectie soms
+ * dun is -- geen eigen hoes, geen eigen titel. Bij twee is de post niet meer de
+ * drager van EEN identiteit, en vervalt de reden vanzelf. Dezelfde regel zet
+ * zichzelf uit.
+ *
+ * EEN COLLECTIE IS EEN PLAYLIST OF EEN ALBUM-INSLUITING. Robins regel noemde
+ * alleen playlists, maar [[album:naam]] groepeert net zo goed tracks en is
+ * letterlijk een album; hem als losse tracks tellen zou een albumpost tot
+ * playlist maken. Telt hij straks anders, dan is dat hier een regel.
+ */
+export function postMusicType(content) {
+  const c = String(content || '');
+  const uniek = (re) => [...new Set([...c.matchAll(re)].map((m) => m[1].trim()))];
+
+  const playlists = uniek(/\[\[playlist:([A-Za-z0-9_-]+)\]\]/g);
+  const albums    = uniek(/\[\[album:([^\]]+)\]\]/g);
+  const tracks    = uniek(/\[\[track:([A-Za-z0-9_-]+)\]\]/g);
+
+  const collecties = [
+    ...playlists.map((id) => ({ soort: 'playlist', id })),
+    ...albums.map((naam) => ({ soort: 'album', naam })),
+  ];
+
+  if (!collecties.length && !tracks.length) return null;          // geen muziek
+
+  if (!collecties.length) {
+    // Ook EEN losse track wordt een playlist: naar buiten toe is er dan altijd
+    // een collectie om naar te wijzen. Hoe Klonkt dat toont is een aparte vraag.
+    return { type: 'playlist', collectie: null, tracks, bonus: [], leentMetadata: true };
+  }
+
+  if (collecties.length === 1) {
+    const c0 = collecties[0];
+    // Losse tracks naast een collectie zijn geen rommelrestje maar bonus-tracks,
+    // en dat maakt het geheel een album.
+    if (tracks.length) return { type: 'album', collectie: c0, tracks: [], bonus: tracks, leentMetadata: true };
+    return { type: c0.soort, collectie: c0, tracks: [], bonus: [], leentMetadata: true };
+  }
+
+  return { type: 'post', collecties, tracks, bonus: [], leentMetadata: false };
+}
