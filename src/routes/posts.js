@@ -283,7 +283,9 @@ function setAudioFediOpen(siteId, content, open) {
   try {
     for (const m of c.matchAll(/\[\[track:([A-Za-z0-9_-]+)\]\]/g)) db.prepare('UPDATE audio_tracks SET fedi_open = 1 WHERE id = ? AND site_id = ?').run(m[1], siteId);
     for (const m of c.matchAll(/\[\[album:([^\]]+)\]\]/g)) db.prepare('UPDATE audio_tracks SET fedi_open = 1 WHERE site_id = ? AND album = ?').run(siteId, m[1].trim());
-    for (const m of c.matchAll(/\[\[playlist:([A-Za-z0-9_-]+)\]\]/g)) db.prepare('UPDATE audio_tracks SET fedi_open = 1 WHERE id IN (SELECT track_id FROM playlist_tracks WHERE playlist_id = ?)').run(m[1]);
+    // playlists.id is a GLOBAL key, so the site filter has to sit on the tracks: without it a
+    // post on site A embedding site B's playlist would open B's files — permanently.
+    for (const m of c.matchAll(/\[\[playlist:([A-Za-z0-9_-]+)\]\]/g)) db.prepare('UPDATE audio_tracks SET fedi_open = 1 WHERE site_id = ? AND id IN (SELECT track_id FROM playlist_tracks WHERE playlist_id = ?)').run(siteId, m[1]);
   } catch { /* non-fatal */ }
 }
 // True when the post references hosted audio AND all of it is currently fedi_open (drives the
