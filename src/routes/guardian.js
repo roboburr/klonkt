@@ -184,7 +184,9 @@ router.get('/', requireAuth, (req, res) => {
 router.get('/api/state', requireAuth, (req, res) => {
   const site = siteForUser(req);
   if (!site) return res.status(404).json({ error: 'no_site' });
-  res.json(dashboardState(site, resolveLang(req)));
+  // Het paneel tikt elke 45 seconden, of er nu iets gebeurd is of niet. Met een
+  // ETag kost stilte een lege 304 in plaats van het hele paneel (Barts punt, 9-8).
+  return AP.sendMaybe304(req, res, dashboardState(site, resolveLang(req)), { contentType: 'application/json' });
 });
 
 // ── Meekijken (FEP-633c §5, interop-hoofdroute): a committed guardian FOLLOWS

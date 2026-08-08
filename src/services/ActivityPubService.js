@@ -210,6 +210,46 @@ export function apWants(req) {
 }
 
 const AP_CONTENT_TYPE = 'application/activity+json; charset=utf-8';
+/**
+ * Hetzelfde antwoord als de vorige keer? Dan 304 (Barts punt, 9-8).
+ *
+ * De inbox doet dit al met `since` + `wait`, en de guardian-wachtrijen niet: die
+ * stuurden bij elke verversing de hele lijst terug, ook als er niets veranderd
+ * was. Bij honderd wards is dat 217 KB JSON die de telefoon opnieuw moet
+ * parsen -- over de lijn valt het mee (2,8 KB gzip), maar het OPBOUWEN van
+ * veertienhonderd objecten is wat je merkt.
+ *
+ * EEN INHOUDS-ETAG, geen cursor. Een cursor vraagt een tweede beschrijving van
+ * wanneer iets "veranderd" is, en die kan uit de pas gaan lopen met wat er
+ * werkelijk in het antwoord staat; een hash van het antwoord zelf kan dat per
+ * definitie niet. De server bouwt het antwoord nog steeds (26 ms) -- wat we
+ * besparen is de overdracht en het parsen.
+ *
+ * NOOIT 304 OP EEN LEEG ANTWOORD. Dezelfde les als de '0'-uitzondering bij de
+ * inbox: gaat er bij het opbouwen iets mis en komt er een lege lijst uit, dan is
+ * die hash ook stabiel, en zou een client voor eeuwig 304 krijgen op niets.
+ */
+export function etagFor(body) {
+  return `"${crypto.createHash('sha256').update(body).digest('base64url').slice(0, 27)}"`;
+}
+
+export function sendMaybe304(req, res, obj, { cacheControl, contentType } = {}) {
+  const body = JSON.stringify(obj);
+  const leeg = !obj || (Array.isArray(obj.orderedItems) && obj.orderedItems.length === 0);
+  res.set('Vary', 'Authorization');
+  if (!leeg) {
+    const tag = etagFor(body);
+    res.set('ETag', tag);
+    if (req.headers['if-none-match'] === tag) return res.status(304).end();
+  }
+  res.type(contentType || AP_CONTENT_TYPE);
+  // `no-cache` betekent NIET "niet bewaren": de client bewaart het antwoord en
+  // vraagt elke keer of het nog klopt. Precies wat we willen -- zonder dit
+  // stuurt een browser geen If-None-Match en is de ETag decoratie.
+  res.set('Cache-Control', cacheControl || 'private, no-cache');
+  return res.send(body);
+}
+
 export function sendAP(res, obj, cacheControl) {
   res.type(AP_CONTENT_TYPE);
   // A per-caller (e.g. guardian-widened) view must not be publicly cached.
@@ -6389,7 +6429,7 @@ export default {
   autoBoostCount, boostedCount, setReaction, getReaction, getReactionsFor, canonicalReactionUri, migrateReactions, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
-  proposeGate, getReplyUris, getThread, filterThreadToCircle, gateAttachments, stripEmojiTags, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
+  sendMaybe304, etagFor, proposeGate, getReplyUris, getThread, filterThreadToCircle, gateAttachments, stripEmojiTags, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
   linkifyBody, bakePostContent, bakePostContentWithMentions, listFollowers, removeFollower, listConnections,
   noteVisibility, belongsInTimeline, playerUrlFor, isRejectedObject, rejectInteraction, interactionReportTarget,
   getMessages, notificationsSeenAt, ingestOutboxActivity, c2sVisibility, actorDisplay, buildActorRef, prefersEnriched, selfAuthor, getReplyMessages, onNews, wakeNews,

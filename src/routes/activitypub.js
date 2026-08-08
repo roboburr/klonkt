@@ -320,7 +320,10 @@ function queueRoute(name, build) {
     if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
     const base = baseUrl(req);
     const me = `${base}/ap/users/${auth.site.slug}`;
-    AP.sendAP(res, { '@context': AP.AP_CONTEXT, ...build(`${me}/queues/${name}`, auth.site.slug, me) });
+    // 304 als er niets veranderde (Barts punt, 9-8). Zonder dit haalde een app
+    // bij elke actie de hele lijst opnieuw op -- een hulpvraag afvinken vroeg de
+    // honderd wards inclusief poorten terug.
+    AP.sendMaybe304(req, res, { '@context': AP.AP_CONTEXT, ...build(`${me}/queues/${name}`, auth.site.slug, me) });
   });
 }
 queueRoute('offers', (id, slug, me) => Guardianship.offersCollection(id, slug, me));
