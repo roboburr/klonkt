@@ -45,8 +45,11 @@ globalThis.fetch = async (url, opts = {}) => {
 };
 
 test('een externe link in een eigen post wordt een embed-snapshot op de post', async () => {
+  // PLATTE tekst, geen anker: zo komt een post uit de app binnen (het
+  // C2S-pad bakt niet voor het opslaan). Op het toestel bleef precies dit
+  // geval een kale link terwijl de web-editor wel een kaart kreeg.
   db.prepare("INSERT INTO posts (id, site_id, author_id, slug, title, content, status) VALUES ('p1','s1','u1','p1','', ?, 'published')")
-    .run(`<p>Kijk: <a href="${EXTERN}">${EXTERN}</a></p>`);
+    .run(`<p>Kijk: ${EXTERN}</p>`);
   const post = db.prepare("SELECT * FROM posts WHERE id = 'p1'").get();
   await AP.deliverCreate(site, post);
   const rij = db.prepare("SELECT quote_json, embed_json FROM posts WHERE id = 'p1'").get();

@@ -2948,8 +2948,15 @@ export async function deliverCreate(site, post) {
   // never has to fetch. The quoted author's inbox joins the delivery set: that
   // IS the notification.
   const quoteInboxes = [];
+  // EERST BAKKEN, dan pas linken zoeken (shaer-k3f, gevonden op het toestel):
+  // firstExternalUrl leest <a href>-ankers, en de web-editor bakt die er bij
+  // het opslaan al in -- maar een post uit de APP is platte tekst waarin de
+  // URL nog geen anker is. Zonder deze bak zag het C2S-pad dus nooit een link
+  // en kreeg een app-post nooit een kaart, terwijl de preview hem net wel
+  // beloofd had.
+  const gebakken = bakePostContent(post2.content || '');
   if (post2.quote_uri === undefined || post2.quote_uri === null) {
-    const q = await resolveOwnQuote(post2.content || '');
+    const q = await resolveOwnQuote(gebakken);
     if (q) {
       try { db.prepare('UPDATE posts SET quote_uri = ?, quote_actor = ? WHERE id = ?').run(q.uri, q.actor || null, post.id); } catch { /* ignore */ }
       post2 = { ...post2, quote_uri: q.uri, quote_actor: q.actor || null };
@@ -2967,7 +2974,7 @@ export async function deliverCreate(site, post) {
         const qj = await resolveQuoteByUri(post2.quote_uri);
         if (qj) { db.prepare('UPDATE posts SET quote_json = ? WHERE id = ?').run(qj, post.id); post2 = { ...post2, quote_json: qj }; }
       } else {
-        const ej = await resolveExternalEmbed(post2.content || '');
+        const ej = await resolveExternalEmbed(gebakken);
         if (ej) { db.prepare('UPDATE posts SET embed_json = ? WHERE id = ?').run(ej, post.id); post2 = { ...post2, embed_json: ej }; }
       }
     } catch { /* een kaart is nooit een blokkade voor de post zelf */ }
