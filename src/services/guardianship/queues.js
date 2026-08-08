@@ -169,10 +169,12 @@ export function wardGates(mySlug, wardUri) {
     proposals: gated.listSent(mySlug, wardUri).map((p) => ({
       feature: p.feature, value: !!p.value, status: gated.sentStatus(p, Date.now()),
     })),
-    // Wat er op deze poort wacht: volgverzoeken bij de volgpoort, en de vraag
-    // van het kind zelf bij de poort waar hij over gaat (shaer-8ru). Zo staat
-    // hij waar je hem nodig hebt, en niet in een aparte lijst die je apart moet
-    // openen -- en die je dus vergeet.
-    waiting: { ...gatereq.waitingFor(mySlug, wardUri), 'shaer:follows': wachtend || undefined },
+    waiting: { 'shaer:follows': wachtend || undefined },
+    // De vraag van het kind zelf staat APART van wat er in een wachtrij staat
+    // (shaer-8ru). Allebei "n waiting" noemen maakt van twee verschillende
+    // dingen een getal: drie onbekenden die je kind willen volgen is iets heel
+    // anders dan je kind dat een keer vraagt of muziek aan mag. Wel bij de poort
+    // waar het over gaat, want een aparte lijst vergeet je.
+    requested: gatereq.waitingFor(mySlug, wardUri),
   });
 }

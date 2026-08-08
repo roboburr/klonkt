@@ -591,6 +591,13 @@
     btn.appendChild(meta);
     wrap.appendChild(btn);
 
+    // Het kind vroeg hier ZELF om (shaer-8ru). Eigen regel onder de schakelaar,
+    // niet in het statusveld: dit is het enige op deze rij dat van het kind komt
+    // en het hoort niet weg te vallen tussen de drempels en de soorten. Ook
+    // bewust niet als "n waiting" -- drie onbekenden die je kind willen volgen is
+    // iets heel anders dan je kind dat een keer vraagt of muziek aan mag.
+    if (g.requested) wrap.appendChild(el('p', 'small g-gate-asked', T.gate_asked || ''));
+
     if (g.proposal) {
       wrap.appendChild(el('p', 'small g-prop g-prop-' + g.proposal.status,
         (T.prop_line || 'Proposal {what} {value}: {status}')

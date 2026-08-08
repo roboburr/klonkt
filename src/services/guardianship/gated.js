@@ -143,7 +143,7 @@ export const GATE_CATALOGUE = [
  * @param proposals      [{feature, value, status}] lopende voorstellen
  * @param waiting        {feature: aantal} wat er per gate op een besluit wacht
  */
-export function gateRows({ settings = {}, guardianCount = null, proposals = [], waiting = {} } = {}) {
+export function gateRows({ settings = {}, guardianCount = null, proposals = [], waiting = {}, requested = {} } = {}) {
   return GATE_CATALOGUE.map((g) => {
     // Een stand kan drie dingen zijn: beslist-aan, beslist-uit, of de standaard
     // omdat er nooit iets besloten is. Dat derde als "uit" tonen zou een besluit
@@ -177,6 +177,11 @@ export function gateRows({ settings = {}, guardianCount = null, proposals = [], 
         ? { need: thresholdFor(guardianCount), of: guardianCount } : null,
       proposal: proposals.find((p) => p.feature === g.feature) || undefined,
       waiting: waiting[g.feature] || undefined,
+      // Het kind vroeg hier zelf om (shaer-8ru). Apart van `waiting`: drie
+      // onbekenden die je kind willen volgen is iets anders dan je kind dat
+      // een keer vraagt of muziek aan mag, en een gedeeld getal maakt daar
+      // hetzelfde van.
+      requested: requested[g.feature] || undefined,
     };
   });
 }

@@ -49,7 +49,15 @@ test('een VRAAG is geen STEM', () => {
 test('de vraag staat BIJ de poort waar hij over gaat', () => {
   // Niet in een aparte lijst die je apart moet openen, en dus vergeet.
   const rij = queues.wardGates('oma', KIND).find((g) => g.feature === 'shaer:images');
-  assert.equal(rij.waiting, 1);
+  assert.equal(rij.requested, 1);
+});
+
+test('en NIET op een hoop met de wachtrij', () => {
+  // Drie onbekenden die je kind willen volgen is iets heel anders dan je kind
+  // dat een keer vraagt of muziek aan mag. Een gedeeld getal maakt daar
+  // hetzelfde van, en dan leest de ene urgentie als de andere.
+  const rij = queues.wardGates('oma', KIND).find((g) => g.feature === 'shaer:images');
+  assert.equal(rij.waiting, undefined);
 });
 
 test('afgehandeld verdwijnt uit het zicht maar niet uit de geschiedenis', () => {

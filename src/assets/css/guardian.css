@@ -273,3 +273,7 @@ button.danger { background: var(--danger); color: #fff; border-color: var(--dang
 .g-warn p { margin: 0 0 .25rem; }
 .g-warn p:last-child { margin-bottom: 0; }
 .g-confirm .g-warn { border-left: 0; padding-left: 0; }
+
+/* De vraag van het kind zelf (shaer-8ru). Het enige op een poortrij dat van het
+   kind komt, dus niet grijs weggeschreven tussen de drempels. */
+.g-gate-asked { margin: .2rem 0 0; color: var(--g-asked, #7a5ea8); font-weight: 600; }
