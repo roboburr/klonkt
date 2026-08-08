@@ -2505,8 +2505,29 @@ export async function handleInbox(req, slugParam, preVerified = null) {
   // Accept/Reject of a Follow WE sent (client side).
   if (type === 'Accept' && act.object) {
     const fid = typeof act.object === 'string' ? act.object : (act.object && act.object.id);
-    if (fid) { try { fwStmts().acc.run(fid); } catch { /* ignore */ } }
-    console.log('[AP] follow accepted', actorUri);
+    let raak = 0;
+    if (fid) { try { raak = fwStmts().acc.run(fid).changes; } catch { /* ignore */ } }
+    // TERUGVAL, en die is nodig gebleken tegen Funkwhale. Een Accept hoort de
+    // Follow terug te geven die hij beantwoordt, maar Funkwhale verzint er een
+    // EIGEN id voor, in ONZE namespace:
+    //
+    //   wij stuurden   .../ap/users/dev#follow-1786161977286-bb2de32f
+    //   Funkwhale zegt .../ap/users/dev#follows/19fd8b00-8f66-...
+    //
+    // Matchen op follow_id raakt dan niets, en de volgrelatie bleef eeuwig op
+    // 'pending' staan terwijl de logregel 'accepted' riep -- een stille no-op
+    // die pas opviel toen er nooit iets binnenkwam.
+    //
+    // Het paar dat we WEL zeker weten is (deze site, deze actor): de Accept is
+    // handtekening-geverifieerd, en actorUri is de ondertekenaar. Alleen een
+    // rij die nog op pending staat wordt geraakt, dus dit kan niets anders
+    // openzetten dan een follow die wij zelf hebben verstuurd.
+    if (!raak && slugParam && actorUri) {
+      try { raak = fwStmts().accByActor.run(slugParam, actorUri).changes; } catch { /* ignore */ }
+    }
+    // Eerlijk loggen: zonder treffer is er niets geaccepteerd, en dat hoort te
+    // zien te zijn in plaats van als succes voorbij te komen.
+    console.log('[AP] follow', raak ? 'accepted' : 'accept UNMATCHED', actorUri, fid ? '(' + fid + ')' : '');
     // The moment a friendship exists is the moment the history comes along
     // (Robins besluit, 30-7): delivery cannot reach into the past, so the
     // fresh follower pulls the outbox, signed, and the other side now serves
@@ -3724,17 +3745,21 @@ export async function webfingerResolve(handle) {
   } catch { return null; }
 }
 
-let _insFw, _delFw, _listFw, _accFw, _oneFw, _setAB;
+let _insFw, _delFw, _listFw, _accFw, _accFwByActor, _oneFw, _setAB;
 function fwStmts() {
   if (!_insFw) {
     _insFw = db.prepare('INSERT OR REPLACE INTO ap_following (slug, actor_uri, handle, name, icon, url, inbox, follow_id, status, auto_boost, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)');
     _delFw = db.prepare('DELETE FROM ap_following WHERE slug = ? AND actor_uri = ?');
     _listFw = db.prepare('SELECT * FROM ap_following WHERE slug = ? ORDER BY created_at DESC');
     _accFw = db.prepare("UPDATE ap_following SET status = 'accepted' WHERE follow_id = ?");
+    // Terugval als de Accept ons follow-id niet teruggeeft (zie de Accept-tak
+    // in handleInbox): dan is het paar dat we WEL zeker weten (deze site, deze
+    // actor) genoeg, mits de rij nog op pending staat.
+    _accFwByActor = db.prepare("UPDATE ap_following SET status = 'accepted' WHERE slug = ? AND actor_uri = ? AND status = 'pending'");
     _oneFw = db.prepare('SELECT * FROM ap_following WHERE slug = ? AND actor_uri = ?');
     _setAB = db.prepare('UPDATE ap_following SET auto_boost = ? WHERE slug = ? AND actor_uri = ?');
   }
-  return { ins: _insFw, del: _delFw, list: _listFw, acc: _accFw, one: _oneFw, setAB: _setAB };
+  return { ins: _insFw, del: _delFw, list: _listFw, acc: _accFw, accByActor: _accFwByActor, one: _oneFw, setAB: _setAB };
 }
 export function listFollowing(slug) { return fwStmts().list.all(slug); }
 
