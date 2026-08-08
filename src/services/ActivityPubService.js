@@ -3406,12 +3406,23 @@ export async function getThread(slug, objectUri, { isWard = false } = {}) {
     coll = collectionItems(repliesRef).length || repliesRef.first ? repliesRef
       : (repliesRef.id ? await signedGetJson(slug, repliesRef.id) : repliesRef);
   }
-  // ÉÉN pagina, met opzet: de eerste. Wie meer wil moet eerst kunnen zeggen
-  // waarom dertig directe antwoorden niet genoeg context is voor een gesprek.
-  let items = collectionItems(coll);
-  if (!items.length && coll && coll.first) {
-    const first = typeof coll.first === 'string' ? await signedGetJson(slug, coll.first) : coll.first;
-    items = collectionItems(first);
+  // De pagina-wandeling van collectReplyItems, maar met behoud van INLINE
+  // objecten (die niet opnieuw opgehaald hoeven). Niet "de eerste pagina":
+  // Mastodon serveert `first` als inline-pagina met LEGE items en een `next`
+  // waar de antwoorden echt staan -- wie alleen de eerste pagina leest, ziet
+  // op elke Mastodon-post een leeg gesprek. Dat was precies Barts melding
+  // (8-8, reacties op een vreemde post). Eigen posts maskeerden het: die
+  // gaan door de lokale kortsluiting en hebben orderedItems meteen vol.
+  let items = [];
+  let node = coll;
+  if (node && node.first && !collectionItems(node).length) {
+    node = typeof node.first === 'string' ? await signedGetJson(slug, node.first) : node.first;
+  }
+  let pages = 0;
+  while (node && pages++ < 3 && items.length < THREAD_VIEW_LIMIT) {
+    items.push(...collectionItems(node));
+    if (!node.next) break;
+    node = typeof node.next === 'string' ? await signedGetJson(slug, node.next) : node.next;
   }
   items = items.slice(0, THREAD_VIEW_LIMIT);
 

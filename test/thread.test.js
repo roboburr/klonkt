@@ -90,6 +90,33 @@ test('een onbereikbare note zegt dat, in plaats van een lege thread te veinzen',
   assert.equal(uit.notes.length, 0);
 });
 
+test('de Mastodon-vorm: first is een lege inline-pagina, de antwoorden staan op next', async () => {
+  // Precies wat Mastodon serveert en wat Barts melding (8-8) verklaarde: wie
+  // alleen de eerste pagina leest, ziet op elke Mastodon-post een leeg gesprek.
+  const MPOST = 'https://203.0.113.50/notes/masto-1';
+  const vorige = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    const json = (o) => new Response(JSON.stringify(o), { status: 200, headers: { 'content-type': 'application/activity+json' } });
+    if (u === MPOST) return json({
+      id: MPOST, type: 'Note', attributedTo: TANTE, content: '<p>toot</p>',
+      replies: {
+        id: `${MPOST}/replies`, type: 'Collection',
+        first: { type: 'CollectionPage', items: [], next: `${MPOST}/replies?page=true` },
+      },
+    });
+    if (u === `${MPOST}/replies?page=true`) return json({
+      type: 'CollectionPage',
+      items: [{ id: `${MPOST}/r1`, type: 'Note', attributedTo: TANTE, inReplyTo: MPOST, content: '<p>eerste echte antwoord</p>', published: '2026-08-02T10:00:00Z' }],
+    });
+    return vorige(url);
+  };
+  const uit = await AP.getThread('kind', MPOST, { isWard: false });
+  globalThis.fetch = vorige;
+  assert.equal(uit.notes.length, 1, 'het antwoord op de next-pagina is gevonden');
+  assert.ok(uit.notes[0].content.includes('eerste echte antwoord'));
+});
+
 test('de tweede lezing komt uit het geheugen, niet van het netwerk', async () => {
   let calls = 0;
   const vorige = globalThis.fetch;
