@@ -703,6 +703,35 @@ router.get('/ap/notes/:id', async (req, res) => {
 });
 
 // ── Replies collection ── lets remote servers fetch a post's whole thread.
+// ── De thread onder een post (shaer-tqz): ophalen, niet bewaren ────
+//
+// Bearer-only: dit is de eigen app van deze account die vraagt, nooit een
+// vreemde. Klonkt doet de ondertekende GET die de app zelf niet kan (de
+// sleutel staat hier), loopt één pagina van de replies-collectie af en geeft
+// genormaliseerde notes terug. Er wordt NIETS opgeslagen; zie getThread.
+//
+// Voor een ward geldt de veiligste stand tot shaer-vw4 beslist is: alleen
+// antwoorden uit de kring die de guardians al kennen, en shaer:hidden telt wat
+// er buiten viel. De telling staat er zodat de UI eerlijk kan zijn -- OF hij
+// getoond wordt is onderdeel van datzelfde besluit.
+router.get('/ap/users/:slug/thread', async (req, res) => {
+  const auth = OAuth.verifyBearer(req.headers.authorization);
+  if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
+  const objectUri = String(req.query.object || '');
+  if (!/^https:\/\//i.test(objectUri)) return res.status(400).json({ error: 'object must be an https URI' });
+  const isWard = (() => { try { return Guardianship.listGuardians(auth.site.slug).length > 0; } catch { return false; } })();
+  const uit = await AP.getThread(auth.site.slug, objectUri, { isWard });
+  if (!uit.found) return res.status(404).json({ error: 'note not reachable' });
+  AP.sendAP(res, {
+    '@context': AP.AP_CONTEXT,
+    id: `${baseUrl(req)}/ap/users/${encodeURIComponent(auth.site.slug)}/thread?object=${encodeURIComponent(objectUri)}`,
+    type: 'OrderedCollection',
+    totalItems: uit.notes.length,
+    orderedItems: uit.notes,
+    'shaer:hidden': uit.hidden || undefined,
+  }, 'private, no-store');
+});
+
 router.get('/ap/notes/:id/replies', (req, res) => {
   const base = baseUrl(req);
   const items = AP.getReplyUris(base, req.params.id);

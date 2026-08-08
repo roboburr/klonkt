@@ -3346,6 +3346,133 @@ function localActorObject(uri) {
   return site ? buildActor((process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, ''), site) : null;
 }
 
+// ── De thread onder een post (shaer-tqz) ───────────────────────────
+//
+// Klonkt is hier een TOLK, geen archief (Barts besluit, 7-8): de antwoorden
+// worden opgehaald op het moment dat iemand kijkt en daarna weer vergeten.
+// Geen tabel, geen migratie -- wie replies bewaart van elke post die iemand
+// tegenkomt, laat de omvang van zijn database bepalen door surfgedrag. Dat is
+// de AFWIJKING, niet de norm: Mastodon serveert /context uit zijn eigen
+// database, en dat verdient zich daar terug omdat honderden mensen de cache
+// delen. Een Klonkt-instance is de server van één persoon.
+//
+// Waarom dit niet in de app kan: de replies-collectie van een vreemde server
+// eist in secure mode een ONDERTEKEND verzoek, en de sleutel staat hier en kan
+// hier niet weg. Voor de opgaande inReplyTo-keten komt de app weg met een
+// ongetekende GET (mist er een, jammer); voor een thread van dertig is "de
+// helft doet het niet" geen resultaat.
+//
+// Je krijgt hier NOOIT de hele thread: een replies-collectie bevat alleen wat
+// die ene server gezien heeft. De UI hoort "wat de bron weet" te tonen en geen
+// volledigheid te suggereren.
+// NIET hetzelfde als maybeCrawlThread verderop: die kruipt de thread onder je
+// EIGEN posts af en bewaart de antwoorden in ap_interactions (dat zijn de
+// jouwe, die horen te blijven). Dit hier is voor een post van een ANDER die je
+// tegenkomt, en bewaart niets.
+const THREAD_VIEW_LIMIT = 30;
+const THREAD_VIEW_TTL_MS = 120_000;
+const THREAD_VIEW_CACHE_MAX = 200;
+const threadViewCache = new Map();   // `${slug}|${uri}` -> { at, out } -- geheugen, weg bij herstart
+
+/** Eén pagina items uit een AS2-collectie, welke spelling hij ook koos. */
+function collectionItems(coll) {
+  if (!coll || typeof coll !== 'object') return [];
+  const arr = coll.orderedItems || coll.items;
+  return Array.isArray(arr) ? arr : [];
+}
+
+/**
+ * De directe antwoorden op één note, genormaliseerd voor de C2S-lezer.
+ *
+ * `circle` is de wachtwoord-vraag van shaer-vw4 in zijn veiligste stand: is de
+ * lezer een ward, dan komen alleen antwoorden door van accounts die de
+ * guardians al kennen (gevolgd of volgend). Wat er buiten valt wordt GETELD en
+ * als aantal teruggegeven, nooit stil weggelaten -- maar het besluit of dat
+ * aantal getoond wordt, en of dit de blijvende regel is, ligt bij Bart en
+ * Robin (shaer-vw4). Geblokkeerde actors zijn een andere categorie: die
+ * verdwijnen zonder telling, een blokkade is onzichtbaar.
+ */
+export async function getThread(slug, objectUri, { isWard = false } = {}) {
+  const key = `${slug}|${objectUri}`;
+  const hit = threadViewCache.get(key);
+  if (hit && Date.now() - hit.at < THREAD_VIEW_TTL_MS) return hit.out;
+
+  const get = (u) => localNoteObject(u, slug) || signedGetJson(slug, u);
+  const note = await get(objectUri);
+  const repliesRef = note && note.replies;
+  let coll = null;
+  if (typeof repliesRef === 'string') coll = await signedGetJson(slug, repliesRef);
+  else if (repliesRef && typeof repliesRef === 'object') {
+    coll = collectionItems(repliesRef).length || repliesRef.first ? repliesRef
+      : (repliesRef.id ? await signedGetJson(slug, repliesRef.id) : repliesRef);
+  }
+  // ÉÉN pagina, met opzet: de eerste. Wie meer wil moet eerst kunnen zeggen
+  // waarom dertig directe antwoorden niet genoeg context is voor een gesprek.
+  let items = collectionItems(coll);
+  if (!items.length && coll && coll.first) {
+    const first = typeof coll.first === 'string' ? await signedGetJson(slug, coll.first) : coll.first;
+    items = collectionItems(first);
+  }
+  items = items.slice(0, THREAD_VIEW_LIMIT);
+
+  // Alles tegelijk in plaats van om de beurt: dertig vreemde servers na elkaar
+  // afwachten is een halve minuut kijken naar een spinner.
+  const objs = await Promise.all(items.map(async (it) => {
+    const o = typeof it === 'string' ? await get(it) : (it && it.object && typeof it.object === 'object' ? it.object : it);
+    return (o && o.id && o.attributedTo) ? o : null;
+  }));
+
+  const circle = isWard ? (() => {
+    const s = new Set();
+    try { for (const r of db.prepare("SELECT actor_uri FROM ap_following WHERE slug = ? AND status = 'accepted'").all(slug)) s.add(r.actor_uri); } catch { /* geen tabel */ }
+    try { for (const r of db.prepare('SELECT actor_uri FROM ap_followers WHERE slug = ?').all(slug)) s.add(r.actor_uri); } catch { /* geen tabel */ }
+    return s;
+  })() : null;
+
+  let hidden = 0;
+  const kept = [];
+  for (const o of objs) {
+    if (!o) continue;
+    const actorUri = actorUriOf(o.attributedTo);
+    if (!actorUri || isBlockedAny(actorUri)) continue;   // een blokkade telt niet mee
+    if (circle && !circle.has(actorUri)) { hidden += 1; continue; }
+    kept.push({ o, actorUri });
+  }
+
+  // Bylines: één fetch per unieke auteur, niet één per antwoord.
+  const authors = new Map();
+  await Promise.all([...new Set(kept.map((k) => k.actorUri))].map(async (uri) => {
+    authors.set(uri, localActorObject(uri) || await signedGetJson(slug, uri).catch(() => null));
+  }));
+
+  const notes = kept.map(({ o, actorUri }) => ({
+    id: o.id,
+    type: 'Note',
+    attributedTo: actorUri,
+    inReplyTo: (typeof o.inReplyTo === 'string' ? o.inReplyTo : (o.inReplyTo && o.inReplyTo.id)) || objectUri,
+    content: HtmlSanitizerService.sanitize(String(o.content || '').slice(0, 50_000)),
+    url: safeUrl(typeof o.url === 'string' ? o.url : (o.url && o.url.href)) || undefined,
+    published: typeof o.published === 'string' ? o.published : undefined,
+    sensitive: !!o.sensitive,
+    summary: typeof o.summary === 'string' ? o.summary.slice(0, 500) : undefined,
+    attachment: (() => {
+      const arr = Array.isArray(o.attachment) ? o.attachment : (o.attachment ? [o.attachment] : []);
+      const out = arr.map((a) => ({ type: 'Document', mediaType: (a && a.mediaType) || undefined, url: safeUrl(a && a.url), name: (a && typeof a.name === 'string') ? a.name.slice(0, 1500) : undefined }))
+        .filter((a) => a.url);
+      return out.length ? out.slice(0, 8) : undefined;
+    })(),
+    'shaer:author': actorInfo(authors.get(actorUri), actorUri),
+  })).sort((a, b) => String(a.published || '').localeCompare(String(b.published || '')));
+
+  const out = { notes, hidden, found: !!note };
+  threadViewCache.set(key, { at: Date.now(), out });
+  if (threadViewCache.size > THREAD_VIEW_CACHE_MAX) {
+    const oldest = [...threadViewCache.entries()].sort((a, b) => a[1].at - b[1].at)[0];
+    if (oldest) threadViewCache.delete(oldest[0]);
+  }
+  return out;
+}
+
 export async function resolveRemoteNote(url, opts = {}) {
   if (!/^https?:\/\//i.test(String(url || ''))) return null;
   // With `asSlug` the fetches are SIGNED as that local actor. An anonymous
@@ -5548,7 +5675,7 @@ export default {
   autoBoostCount, boostedCount, setReaction, getReaction, getReactionsFor, canonicalReactionUri, migrateReactions, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
-  getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
+  getReplyUris, getThread, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
   linkifyBody, bakePostContent, bakePostContentWithMentions, listFollowers, removeFollower, listConnections,
   noteVisibility, belongsInTimeline, playerUrlFor, isRejectedObject, rejectInteraction, interactionReportTarget,
   getMessages, notificationsSeenAt, ingestOutboxActivity, c2sVisibility, actorDisplay, buildActorRef, prefersEnriched, selfAuthor, getReplyMessages, onNews, wakeNews,
