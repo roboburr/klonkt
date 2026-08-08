@@ -59,7 +59,7 @@ function uiStrings(L) {
     'panel_guards_far',
     // Het gate-paneel per ward (shaer-ahy.1): een rij per gate, met het soort en
     // de drempel erbij. De namen volgen de catalogus in gated.js.
-    'gate_externalEmbeds', 'gate_externalPlayback', 'gate_follows',
+    'gate_externalEmbeds', 'gate_externalPlayback', 'gate_externalThreads', 'gate_follows',
     'gate_kind_setting', 'gate_kind_perRequest', 'gate_kind_handover',
     'gate_unknown', 'gate_threshold', 'gate_threshold_unknown',
     'gate_irreversible', 'gate_waiting', 'gate_blocked', 'gate_propose',
@@ -629,10 +629,9 @@ function wardGates(mySlug, wardUri) {
     // elke ward woont elders, dus wardEmbedSetting() gaf voor iedere ward null en
     // stond er in het paneel overal "onbekend". Wat een guardian wel heeft is de
     // uitslag van wat hij voorstelde.
-    settings: {
-      'shaer:externalEmbeds': Guardianship.gated.knownSetting(mySlug, wardUri, 'shaer:externalEmbeds'),
-      'shaer:externalPlayback': Guardianship.gated.knownSetting(mySlug, wardUri, 'shaer:externalPlayback'),
-    },
+    settings: Object.fromEntries(Guardianship.gated.GATE_CATALOGUE
+      .filter((g) => g.available !== false && Guardianship.gated.featureColumn(g.feature))
+      .map((g) => [g.feature, Guardianship.gated.knownSetting(mySlug, wardUri, g.feature)])),
     guardianCount: statuses ? statuses.length : null,
     proposals: Guardianship.gated.listSent(mySlug, wardUri).map((p) => ({
       feature: p.feature, value: !!p.value, status: Guardianship.gated.sentStatus(p, Date.now()),
@@ -655,7 +654,14 @@ function wardGateSetting(uri, column) {
 // server-side when the feed is serialised, so this endpoint is the only way it
 // can move, and only a committed guardian of THAT ward may move it.
 router.post('/wards/embeds', requireAuth, express.json({ limit: '4kb' }), (req, res) => {
-  req.body = { ...req.body, feature: req.body?.feature === 'shaer:externalPlayback' ? 'shaer:externalPlayback' : 'shaer:externalEmbeds' };
+  // Niet meer alleen embeds/playback: elke gate uit de catalogus met een kolom
+  // is voorstelbaar (8-8, "maak ze allemaal functioneel"). De oude regel
+  // HERSCHREEF een onbekende feature stilletjes naar externalEmbeds -- een
+  // voorstel voor de ene poort dat op de andere landt is precies het soort
+  // fout dat een guardian nooit mag overkomen. Onbekend wordt nu geweigerd.
+  const feature = String(req.body?.feature || 'shaer:externalEmbeds');
+  if (!Guardianship.gated.featureColumn(feature)) return res.status(400).json({ error: 'unknown_feature' });
+  req.body = { ...req.body, feature };
   return proposeGated(req, res);
 });
 function proposeGated(req, res) {

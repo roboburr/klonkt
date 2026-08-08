@@ -58,6 +58,14 @@ export function tallyGatedSetting(votes, guardianSet, ageMs, windowMs = GATED_WI
 const FEATURES = {
   'shaer:externalEmbeds': 'external_embeds',
   'shaer:externalPlayback': 'external_playback',
+  'shaer:externalThreads': 'external_threads',
+  'shaer:images': 'gate_images',
+  'shaer:messages': 'gate_messages',
+  'shaer:compose': 'gate_compose',
+  'shaer:music': 'gate_music',
+  'shaer:quoteCards': 'gate_quote_cards',
+  'shaer:customEmoji': 'gate_custom_emoji',
+  'shaer:accountMove': 'gate_account_move',
 };
 /**
  * De gates die deze Klonkt kent, met hun SOORT.
@@ -79,36 +87,41 @@ const FEATURES = {
  */
 export const GATE_CATALOGUE = [
   // Werkend: er is een kolom, de tally kan erover beslissen en de server dwingt
-  // hem af bij het serveren.
+  // hem af bij het serveren (of, voor compose/messages/move, bij het INNEMEN:
+  // wat de ward niet mag versturen wordt aan de outbox geweigerd).
   { feature: 'shaer:externalEmbeds', kind: 'setting', reversible: true },
   { feature: 'shaer:externalPlayback', kind: 'setting', reversible: true, needs: 'shaer:externalEmbeds' },
+  // Sinds 8-8 ("maak ze allemaal functioneel", Bart): de hele setting-familie
+  // schakelt echt. De bead-nummers blijven staan, want elk van deze heeft nog
+  // een app-kant (wat de UI toont als de poort dicht is) en die woont daar.
+  { feature: 'shaer:externalThreads', kind: 'setting', reversible: true, bead: 'shaer-9y2' },
+  { feature: 'shaer:images', kind: 'setting', reversible: true, bead: 'shaer-6p5' },
+  { feature: 'shaer:messages', kind: 'setting', reversible: true, bead: 'shaer-3ow' },
+  { feature: 'shaer:compose', kind: 'setting', reversible: true, bead: 'shaer-qgev' },
+  { feature: 'shaer:music', kind: 'setting', reversible: true, bead: 'shaer-rmz' },
+  { feature: 'shaer:quoteCards', kind: 'setting', reversible: true, bead: 'shaer-mls' },
+  { feature: 'shaer:customEmoji', kind: 'setting', reversible: true, bead: 'shaer-ytw' },
+  { feature: 'shaer:accountMove', kind: 'setting', reversible: true, bead: 'shaer-tge' },
   // Altijd aan voor een ward (5.3): niet te verzetten, wel te tonen. Een paneel
   // dat alleen verstelbare dingen laat zien verzwijgt de helft van wat er geldt.
   { feature: 'shaer:follows', kind: 'perRequest', reversible: true, fixed: true },
 
-  // GEPLAND, nog niet afgedwongen. Deze staan in het paneel omdat een guardian
-  // hoort te zien wat er straks te beslissen valt -- en omdat de SOM van de
-  // gates iets anders is dan elke gate apart: elf poorten die elk dicht falen
-  // leveren samen een kind op dat vrijwel niets kan.
+  // GEPLAND, en dat is bij deze twee geen achterstand maar een besluit.
   //
-  // available: false is geen detail. featureColumn() kent deze namen niet, dus
-  // een voorstel zou stranden op unknown_feature. En ze als "uit" tonen zou
-  // ronduit onwaar zijn: plaatjes werken vandaag gewoon. Ze horen te lezen als
-  // "hier is nog niets van", niet als een gesloten poort.
+  // publicProfile is niet een veld dat je wegfiltert: het is het hele publieke
+  // web-oppervlak van een site (de Krant, de AP-objecten, de scrape-vraag van
+  // shaer-hj0). Dat dichtzetten zonder dat ontwerp is een half slot, en een
+  // half slot leest als een heel slot -- gevaarlijker dan geen.
   //
-  // `kind` is hier voorlopig. Of accountmigratie een stand is of een besluit per
-  // keer hoort bij het bouwen van shaer-tge beslist te worden, niet hier.
-  { feature: 'shaer:images', kind: 'setting', reversible: true, available: false, bead: 'shaer-6p5' },
-  { feature: 'shaer:messages', kind: 'setting', reversible: true, available: false, bead: 'shaer-3ow' },
-  { feature: 'shaer:compose', kind: 'setting', reversible: true, available: false, bead: 'shaer-qgev' },
-  { feature: 'shaer:music', kind: 'setting', reversible: true, available: false, bead: 'shaer-rmz' },
-  { feature: 'shaer:quoteCards', kind: 'setting', reversible: true, available: false, bead: 'shaer-mls' },
-  { feature: 'shaer:customEmoji', kind: 'setting', reversible: true, available: false, bead: 'shaer-ytw' },
+  // available: false is geen detail. featureColumn() kent deze naam niet, dus
+  // een voorstel strandt op unknown_feature, en de rij leest als "hier is nog
+  // niets van", niet als een gesloten poort.
   { feature: 'shaer:publicProfile', kind: 'setting', reversible: true, available: false, bead: 'shaer-hj0' },
-  { feature: 'shaer:accountMove', kind: 'setting', reversible: true, available: false, bead: 'shaer-tge' },
   // De enige die gezag OVERDRAAGT, en daarmee de enige die niet terug te draaien
   // is zodra het kind hem gebruikt (shaer-90v). Telt met de lapse-vorm: volle
-  // set, volle venster.
+  // set, volle venster. Die vorm hoort daar beslist te worden, niet hier
+  // geimproviseerd: een verkeerd gemaakte onafhankelijkheid is een kind zonder
+  // vangnet.
   { feature: 'shaer:independence', kind: 'handover', reversible: false, available: false, bead: 'shaer-90v' },
 ];
 

@@ -163,6 +163,18 @@ export function initializeDatabase() {
   // else. The guardians flip it; the gate itself lives server-side, so a ward
   // never even receives the thumbnail it is not allowed to see.
   ensureColumn('sites', 'external_embeds', 'INTEGER');
+  // De rest van de gate-familie (shaer-ahy.1, "maak ze allemaal functioneel",
+  // Barts opdracht 8-8). Zelfde drietal als external_embeds: NULL is de
+  // automatiek (dicht voor een ward, open voor de rest), 0/1 is een besluit
+  // van de guardians en wint van de automatiek.
+  ensureColumn('sites', 'external_threads', 'INTEGER');   // replies van vreemden onder een post (shaer-9y2)
+  ensureColumn('sites', 'gate_images', 'INTEGER');        // afbeeldingsbijlagen (shaer-6p5)
+  ensureColumn('sites', 'gate_messages', 'INTEGER');      // heel Messages (shaer-3ow)
+  ensureColumn('sites', 'gate_compose', 'INTEGER');       // zelf posten, de (+) kaart (shaer-qgev)
+  ensureColumn('sites', 'gate_music', 'INTEGER');         // audiobijlagen (shaer-rmz)
+  ensureColumn('sites', 'gate_quote_cards', 'INTEGER');   // ingebedde quote-kaarten (shaer-mls)
+  ensureColumn('sites', 'gate_custom_emoji', 'INTEGER');  // FEP-9098 emoji-plaatjes (shaer-ytw)
+  ensureColumn('sites', 'gate_account_move', 'INTEGER');  // FEP-7628 Move (shaer-tge)
   // The heavier sibling (FEP-633c 5.6): may a player from outside this app run
   // INSIDE it? A preview is a picture; playback hands the screen to a third
   // party's engine, recommendations and all. Two settings, so the guardians can

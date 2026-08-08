@@ -64,7 +64,7 @@ globalThis.fetch = async (url) => {
 };
 
 test('een gewone lezer krijgt alles behalve de geblokkeerde, oudste eerst, geschoond', async () => {
-  const uit = await AP.getThread('kind', BRON, { isWard: false });
+  const uit = await AP.getThread('kind', BRON);
   assert.equal(uit.found, true);
   assert.equal(uit.notes.length, 2);
   // Oudste eerst: een gesprek lees je van boven naar beneden.
@@ -73,8 +73,9 @@ test('een gewone lezer krijgt alles behalve de geblokkeerde, oudste eerst, gesch
   // De sanitizer heeft het script eruit gehaald, de tekst mag blijven.
   assert.ok(!uit.notes[1].content.includes('<script'), 'script weggeschoond');
   assert.ok(uit.notes[1].content.includes('Hoi!'));
-  // Een blokkade is onzichtbaar: niet in de lijst en NIET in de telling.
-  assert.equal(uit.hidden, 0);
+  // Een blokkade is onzichtbaar: niet in de lijst en NIET in een telling --
+  // getThread telt sindsdien niets meer, dat doet de kringfilter in de route.
+  assert.equal(uit.hidden, undefined);
   assert.ok(uit.notes.every((n) => n.attributedTo !== GEBLOKT));
   // FEP-9098: alleen de echte emoji komt door -- niet de hashtag, niet de
   // emoji zonder icoon -- en het icoon-adres is geschoond.
@@ -85,21 +86,22 @@ test('een gewone lezer krijgt alles behalve de geblokkeerde, oudste eerst, gesch
   assert.ok(!uit.notes[1].tag, 'een antwoord zonder emoji draagt geen tag-veld');
 });
 
-test('een ward ziet alleen de kring van de guardians, de rest wordt geteld', async () => {
-  // Eigen cache-sleutel per (slug, uri) zou hier de vorige uitkomst hergeven;
-  // een andere slug dwingt een verse opbouw af zonder aan de cache te morrelen.
+test('de kringfilter houdt goedgekeurd volk en telt de rest (de dichte stand van de gate)', async () => {
+  // Sinds de gate (shaer-9y2) zit de kring in de ROUTE, per verzoek en buiten
+  // de threadcache om -- een poort die net dichtging mag niet twee minuten
+  // open nawerken. Hier de functie zelf.
   db.prepare("INSERT INTO sites (id, slug, title, owner_id) VALUES ('s2', 'pupil', 'Pupil', 'u1')").run();
   db.prepare("INSERT INTO ap_following (slug, actor_uri, status) VALUES ('pupil', ?, 'accepted')").run(TANTE);
-  db.prepare("INSERT INTO ap_blocks (slug, kind, target) VALUES ('pupil', 'actor', ?)").run(GEBLOKT);
-  const uit = await AP.getThread('pupil', BRON, { isWard: true });
-  assert.equal(uit.notes.length, 1);
-  assert.equal(uit.notes[0]['shaer:author'].name, 'tante');
+  const uit = await AP.getThread('kind', BRON);
+  const kring = AP.filterThreadToCircle('pupil', uit.notes);
+  assert.equal(kring.notes.length, 1);
+  assert.equal(kring.notes[0]['shaer:author'].name, 'tante');
   // De vreemde is er, en dat mag gezegd: geteld, niet stil weggelaten.
-  assert.equal(uit.hidden, 1);
+  assert.equal(kring.hidden, 1);
 });
 
 test('een onbereikbare note zegt dat, in plaats van een lege thread te veinzen', async () => {
-  const uit = await AP.getThread('kind', 'https://203.0.113.99/weg', { isWard: false });
+  const uit = await AP.getThread('kind', 'https://203.0.113.99/weg');
   assert.equal(uit.found, false);
   assert.equal(uit.notes.length, 0);
 });
@@ -125,7 +127,7 @@ test('de Mastodon-vorm: first is een lege inline-pagina, de antwoorden staan op 
     });
     return vorige(url);
   };
-  const uit = await AP.getThread('kind', MPOST, { isWard: false });
+  const uit = await AP.getThread('kind', MPOST);
   globalThis.fetch = vorige;
   assert.equal(uit.notes.length, 1, 'het antwoord op de next-pagina is gevonden');
   assert.ok(uit.notes[0].content.includes('eerste echte antwoord'));
@@ -135,7 +137,7 @@ test('de tweede lezing komt uit het geheugen, niet van het netwerk', async () =>
   let calls = 0;
   const vorige = globalThis.fetch;
   globalThis.fetch = async (...a) => { calls += 1; return vorige(...a); };
-  const uit = await AP.getThread('kind', BRON, { isWard: false });
+  const uit = await AP.getThread('kind', BRON);
   assert.equal(uit.notes.length, 2);
   assert.equal(calls, 0, 'alles uit de cache, nul fetches');
   globalThis.fetch = vorige;

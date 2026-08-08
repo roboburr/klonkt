@@ -2918,6 +2918,25 @@ export async function ingestOutboxActivity(site, user, activity) {
     switch (type) {
       case 'Create': {
         if (!object || typeof object !== 'object') return { status: 400, error: 'missing_object' };
+        // Innamepoorten (shaer-ahy.1, 8-8): wat de ward niet mag versturen
+        // wordt HIER geweigerd, niet in de app verstopt -- een knop die de
+        // client alleen verbergt is geen poort. De reddingsboei gaat ALTIJD
+        // voor: een hulpvraag aan de guardians mag door elke dichte deur heen,
+        // anders sluit een messages-poort precies het kanaal af dat het kind
+        // veilig houdt.
+        {
+          const isWard = (() => { try { return Guardianship.listGuardians(site.slug).length > 0; } catch { return false; } })();
+          const isHelp = object['shaer:helpRequest'] === true || object.helpRequest === true;
+          const direct = c2sVisibility(object) === 'direct';
+          if (!isHelp) {
+            if (direct && !Guardianship.wardGateAllowed(site.gate_messages, isWard)) {
+              return { status: 403, error: 'gated_messages' };
+            }
+            if (!direct && !object.inReplyTo && !Guardianship.wardGateAllowed(site.gate_compose, isWard)) {
+              return { status: 403, error: 'gated_compose' };
+            }
+          }
+        }
         // Client sends `source` (plain/markdown) + `content` (HTML). deliverReply
         // re-escapes, so it needs plain text; a top-level post keeps sanitized HTML.
         const plain = (object.source && object.source.content) || HtmlSanitizerService.toPlainText(object.content || '');
@@ -3384,15 +3403,15 @@ function collectionItems(coll) {
 /**
  * De directe antwoorden op één note, genormaliseerd voor de C2S-lezer.
  *
- * `circle` is de wachtwoord-vraag van shaer-vw4 in zijn veiligste stand: is de
- * lezer een ward, dan komen alleen antwoorden door van accounts die de
- * guardians al kennen (gevolgd of volgend). Wat er buiten valt wordt GETELD en
- * als aantal teruggegeven, nooit stil weggelaten -- maar het besluit of dat
- * aantal getoond wordt, en of dit de blijvende regel is, ligt bij Bart en
- * Robin (shaer-vw4). Geblokkeerde actors zijn een andere categorie: die
- * verdwijnen zonder telling, een blokkade is onzichtbaar.
+ * ALLEEN ophalen en normaliseren; de poorten zitten in de route. De
+ * kringfilter (de dichte stand van shaer:externalThreads) woont in
+ * filterThreadToCircle en de beeld/muziek/emoji-poorten in
+ * gateAttachments/stripEmojiTags -- per verzoek, buiten deze cache om, want de
+ * stand van een poort mag hier niet twee minuten bevriezen. Geblokkeerde
+ * actors zijn een andere categorie en verdwijnen WEL hier, zonder telling:
+ * een blokkade is onzichtbaar, ook als getal.
  */
-export async function getThread(slug, objectUri, { isWard = false } = {}) {
+export async function getThread(slug, objectUri) {
   const key = `${slug}|${objectUri}`;
   const hit = threadViewCache.get(key);
   if (hit && Date.now() - hit.at < THREAD_VIEW_TTL_MS) return hit.out;
@@ -3433,20 +3452,11 @@ export async function getThread(slug, objectUri, { isWard = false } = {}) {
     return (o && o.id && o.attributedTo) ? o : null;
   }));
 
-  const circle = isWard ? (() => {
-    const s = new Set();
-    try { for (const r of db.prepare("SELECT actor_uri FROM ap_following WHERE slug = ? AND status = 'accepted'").all(slug)) s.add(r.actor_uri); } catch { /* geen tabel */ }
-    try { for (const r of db.prepare('SELECT actor_uri FROM ap_followers WHERE slug = ?').all(slug)) s.add(r.actor_uri); } catch { /* geen tabel */ }
-    return s;
-  })() : null;
-
-  let hidden = 0;
   const kept = [];
   for (const o of objs) {
     if (!o) continue;
     const actorUri = actorUriOf(o.attributedTo);
     if (!actorUri || isBlockedAny(actorUri)) continue;   // een blokkade telt niet mee
-    if (circle && !circle.has(actorUri)) { hidden += 1; continue; }
     kept.push({ o, actorUri });
   }
 
@@ -3488,12 +3498,32 @@ export async function getThread(slug, objectUri, { isWard = false } = {}) {
     'shaer:author': actorInfo(authors.get(actorUri), actorUri),
   })).sort((a, b) => String(a.published || '').localeCompare(String(b.published || '')));
 
-  const out = { notes, hidden, found: !!note };
+  const out = { notes, found: !!note };
   threadViewCache.set(key, { at: Date.now(), out });
   if (threadViewCache.size > THREAD_VIEW_CACHE_MAX) {
     const oldest = [...threadViewCache.entries()].sort((a, b) => a[1].at - b[1].at)[0];
     if (oldest) threadViewCache.delete(oldest[0]);
   }
+  return out;
+}
+
+/**
+ * De thread gefilterd op de kring die de guardians al kennen (gevolgd of
+ * volgend) -- de dichte stand van shaer:externalThreads. PER VERZOEK, buiten de
+ * threadcache om: een poort die de guardians net dichtzetten mag niet nog twee
+ * minuten open nawerken uit een cache. Wat er buiten valt wordt GETELD, nooit
+ * stil weggelaten.
+ */
+export function filterThreadToCircle(slug, notes) {
+  const circle = new Set();
+  try { for (const r of db.prepare("SELECT actor_uri FROM ap_following WHERE slug = ? AND status = 'accepted'").all(slug)) circle.add(r.actor_uri); } catch { /* geen tabel */ }
+  try { for (const r of db.prepare('SELECT actor_uri FROM ap_followers WHERE slug = ?').all(slug)) circle.add(r.actor_uri); } catch { /* geen tabel */ }
+  const kept = [], out = { hidden: 0 };
+  for (const n of notes) {
+    if (circle.has(n.attributedTo)) kept.push(n);
+    else out.hidden += 1;
+  }
+  out.notes = kept;
   return out;
 }
 
@@ -3923,6 +3953,35 @@ export function extractEmojiTags(tag) {
     && typeof t.name === 'string' && t.icon);
   return emojis.length ? JSON.stringify(emojis) : null;
 }
+// ── Gate-filters voor de C2S-serialisatie (shaer-ahy.1, 8-8) ──────
+//
+// Dezelfde regel als bij de embeds: de poort zit bij de AFLEVERING. Een
+// bijlage die de client alleen verbergt is wel degelijk geleverd, dus wat
+// dicht is wordt hier nooit geserialiseerd. Puur, zodat de regels los van de
+// routes te toetsen zijn.
+
+/** Bijlagen door de beeld- en muziekpoort. Leeg wordt undefined, zoals de
+ *  serialisatie dat overal doet. */
+export function gateAttachments(atts, { images = true, audio = true } = {}) {
+  if (!Array.isArray(atts)) return atts;
+  const out = atts.filter((a) => {
+    const mt = String((a && a.mediaType) || '');
+    if (!images && mt.startsWith('image/')) return false;
+    if (!audio && (mt.startsWith('audio/') || (a && a.type === 'Audio'))) return false;
+    return true;
+  });
+  return out.length ? out : undefined;
+}
+
+/** Tag-array zonder de FEP-9098 Emoji-tags, voor een dichte emoji-poort. De
+ *  :shortcode: blijft als tekst staan -- dat is eerlijk: er STAAT iets, het
+ *  wordt alleen niet als plaatje van een vreemde server gerenderd. */
+export function stripEmojiTags(tags) {
+  if (!Array.isArray(tags)) return tags;
+  const out = tags.filter((t) => (Array.isArray(t && t.type) ? t.type[0] : (t && t.type)) !== 'Emoji');
+  return out.length ? out : undefined;
+}
+
 export function timelineEmojis(emojiJson) {
   try { const arr = emojiJson ? JSON.parse(emojiJson) : null; return (Array.isArray(arr) && arr.length) ? arr : undefined; }
   catch { return undefined; }
@@ -4975,9 +5034,14 @@ export async function moveAccount(site, targetRaw, { fetchActorFn = null, delive
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   if (!base || !site || !site.slug) return { error: 'config' };
   try {
-    const guardians = Guardianship.listGuardians(site.slug);
-    if (guardians.length) {
-      console.warn('[AP] move refused: guarded account (shaer-tge):', site.slug, '→', String(targetRaw || ''));
+    // Was een harde weigering voor elk bewaakt account (shaer-tge); sinds 8-8
+    // een GATE met dezelfde standaard: de automatiek weigert voor een ward,
+    // maar de guardians kunnen shaer:accountMove expliciet openzetten -- en
+    // expliciet dichtzetten geldt dan ook voor een account dat net geen ward
+    // meer is, net als bij de embeds.
+    const isWard = Guardianship.listGuardians(site.slug).length > 0;
+    if (!Guardianship.wardGateAllowed(site.gate_account_move, isWard)) {
+      console.warn('[AP] move refused: gated (shaer-tge):', site.slug, '→', String(targetRaw || ''));
       return { error: 'guarded_account' };
     }
   } catch { /* geen guardianship-tabellen = geen guardians */ }
@@ -5699,7 +5763,7 @@ export default {
   autoBoostCount, boostedCount, setReaction, getReaction, getReactionsFor, canonicalReactionUri, migrateReactions, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
-  getReplyUris, getThread, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
+  getReplyUris, getThread, filterThreadToCircle, gateAttachments, stripEmojiTags, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
   linkifyBody, bakePostContent, bakePostContentWithMentions, listFollowers, removeFollower, listConnections,
   noteVisibility, belongsInTimeline, playerUrlFor, isRejectedObject, rejectInteraction, interactionReportTarget,
   getMessages, notificationsSeenAt, ingestOutboxActivity, c2sVisibility, actorDisplay, buildActorRef, prefersEnriched, selfAuthor, getReplyMessages, onNews, wakeNews,

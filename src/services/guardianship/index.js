@@ -15,7 +15,7 @@
  * delegates; nothing here imports ActivityPubService back.
  */
 export { SHAER_CONTEXT, GUARDIAN_RELATIONSHIP, GUARDIAN_RELATIONSHIP_COMPACT, isGuardianRelationship } from './context.js';
-export { helpRequestProps, isHelpRequest, waveProps, isWave, awayProps, hasGuardiansProps, objectHasGuardians, externalEmbedsAllowed, externalPlaybackAllowed } from './notes.js';
+export { helpRequestProps, isHelpRequest, waveProps, isWave, awayProps, hasGuardiansProps, objectHasGuardians, externalEmbedsAllowed, externalPlaybackAllowed, wardGateAllowed } from './notes.js';
 export { wireDelivery, c2sVisibility, deliverDirectNote } from './delivery.js';
 export { wireHandshake, handleOutbox as handleGuardianshipOutbox, handleInbox as handleGuardianshipInbox, parseRelationship, parseUndoRelationship, endGuardianship } from './handshake.js';
 export { offersCollection, followsCollection, outgoingFollowsCollection, wardsCollection, guardiansCollection } from './queues.js';

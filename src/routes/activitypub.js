@@ -316,6 +316,19 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
   // the app knows what it may offer instead of guessing.
   const playbackAllowed = embedsAllowed
     && Guardianship.externalPlaybackAllowed(auth.site.external_playback, isWard);
+  // De rest van de familie (shaer-ahy.1, 8-8): zelfde regel, zelfde plek --
+  // de poort zit bij de serialisatie, wat dicht is wordt nooit geleverd.
+  const gate = (col) => Guardianship.wardGateAllowed(auth.site[col], isWard);
+  const imagesAllowed = gate('gate_images');
+  const musicAllowed = gate('gate_music');
+  const quotesAllowed = gate('gate_quote_cards');
+  const emojiAllowed = gate('gate_custom_emoji');
+  const messagesAllowed = gate('gate_messages');
+  const composeAllowed = gate('gate_compose');
+  const threadsAllowed = gate('external_threads');
+  // Emoji dicht raakt ook de bylines: de plaatjes in een naam komen net zo
+  // goed van een vreemde server. De naam zelf blijft, met :shortcode: als tekst.
+  const gateAuthor = (a) => (a && !emojiAllowed ? { ...a, emojis: undefined } : a);
   const rows = AP.getTimeline(auth.site.slug, 60);
   // Eén query voor de hele pagina (shaer-9e9 fase 2): shaer:liked komt uit de
   // tussentabel, de bron van waarheid, en niet meer uit de afgeleide kolom op
@@ -337,36 +350,36 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
       summary: t.cw || undefined,
       // Friends' media travels along (media_json → AS2 attachment), so the
       // client renders their images/audio like own outbox posts.
-      attachment: AP.timelineAttachments(t.media_json),
+      attachment: AP.gateAttachments(AP.timelineAttachments(t.media_json), { images: imagesAllowed, audio: musicAllowed }),
       // The note's preserved tags, so the client can render them: FEP-9098
       // Emoji tags (:shortcode: → image) and FEP-e232 Link tags (quotes /
       // inline object references). Combined into one `tag` array; omitted
       // when the note has neither.
       tag: (() => {
-        const tags = [...(AP.timelineEmojis(t.emoji_json) || []), ...(AP.timelineObjectLinks(t.link_json) || [])];
+        const tags = [...(emojiAllowed ? (AP.timelineEmojis(t.emoji_json) || []) : []), ...(AP.timelineObjectLinks(t.link_json) || [])];
         return tags.length ? tags : undefined;
       })(),
       // FEP-044f: the resolved quoted post (author + content), so the client
       // renders an embedded quote card instead of a bare link. Omitted when the
       // note has no quote or the quoted post could not be resolved.
-      'shaer:quote': AP.timelineQuote(t.quote_json),
+      'shaer:quote': quotesAllowed ? AP.timelineQuote(t.quote_json) : undefined,
       // The post author's display info (name / @handle / avatar), so every card
       // gets a byline header like the quote card. attributedTo stays the bare
       // actor URI; this is the resolved presentation Klonkt already stored.
-      'shaer:author': (t.author_name || t.author_handle || t.author_icon) ? {
+      'shaer:author': gateAuthor((t.author_name || t.author_handle || t.author_icon) ? {
         name: t.author_name || undefined, handle: t.author_handle || undefined,
         icon: t.author_icon || undefined, url: t.author_url || undefined,
         // FEP-9098: emojis in the display name (":shortcode:"), if any.
         emojis: (() => { try { return t.author_emoji_json ? JSON.parse(t.author_emoji_json) : undefined; } catch { return undefined; } })(),
-      } : undefined,
+      } : undefined),
       // When a followed account boosted this, who did ("X boosted"). Omitted for
       // ordinary posts.
-      'shaer:booster': (t.reblog_name || t.reblog_handle || t.reblog_icon) ? {
+      'shaer:booster': gateAuthor((t.reblog_name || t.reblog_handle || t.reblog_icon) ? {
         name: t.reblog_name || undefined, handle: t.reblog_handle || undefined,
         icon: t.reblog_icon || undefined,
         // FEP-9098: emojis in the booster's display name (":shortcode:"), if any.
         emojis: (() => { try { return t.reblog_emoji_json ? JSON.parse(t.reblog_emoji_json) : undefined; } catch { return undefined; } })(),
-      } : undefined,
+      } : undefined),
       // Whether THIS account already liked/boosted the note, so the app's
       // detail-view buttons show the current state (and can toggle/undo).
       'shaer:liked': !!(reacties.get(t.id) || {}).liked,
@@ -383,7 +396,14 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
   // what you said yourself. Same shape as a post, so one parser handles both.
   const me = AP.actorId(base, auth.site.slug);
   const myHandle = (() => { try { return `@${auth.site.slug}@${new URL(base).host}`; } catch { return `@${auth.site.slug}`; } })();
-  const messages = AP.getDirectMessages(auth.site.slug, 60).map((m) => ({
+  // Messages dicht (shaer-3ow) sluit vreemden en vrienden, maar NOOIT het
+  // guardian-kanaal: de zwaai en het gesprek na een hulpvraag zijn precies
+  // het kanaal dat het kind veilig houdt, en een poort die dat afsnijdt
+  // beschermt niemand. De hulpvraag zelf gaat aan de innamekant al altijd voor.
+  const guardianUris = (() => { try { return new Set(Guardianship.listGuardians(auth.site.slug).map((g) => g.other_uri)); } catch { return new Set(); } })();
+  const messages = AP.getDirectMessages(auth.site.slug, 60)
+    .filter((m) => messagesAllowed || m.help_request || guardianUris.has(m.actor_uri))
+    .map((m) => ({
     id: `${m.object_uri}#create`,
     type: 'Create',
     actor: m.actor_uri,
@@ -401,18 +421,18 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
       // The Mention is how the client recognises itself as the addressee and
       // groups the note into a conversation. No FEP-e232 link tags here: a
       // mention row keeps the resolved quote, not the raw tags.
-      tag: [{ type: 'Mention', href: me, name: myHandle }, ...(AP.timelineEmojis(m.emoji_json) || [])],
-      attachment: AP.timelineAttachments(m.media_json),
+      tag: [{ type: 'Mention', href: me, name: myHandle }, ...(emojiAllowed ? (AP.timelineEmojis(m.emoji_json) || []) : [])],
+      attachment: AP.gateAttachments(AP.timelineAttachments(m.media_json), { images: imagesAllowed, audio: musicAllowed }),
       // FEP-633c: what kind of message this is. The wave is a gentle nudge from
       // a guardian; the help request is the buoy. Both render differently.
       'shaer:wave': m.wave ? true : undefined,
       'shaer:helpRequest': m.help_request ? true : undefined,
-      'shaer:quote': AP.timelineQuote(m.quote_json),
-      'shaer:author': (m.actor_name || m.actor_handle || m.actor_icon) ? {
+      'shaer:quote': quotesAllowed ? AP.timelineQuote(m.quote_json) : undefined,
+      'shaer:author': gateAuthor((m.actor_name || m.actor_handle || m.actor_icon) ? {
         name: m.actor_name || undefined, handle: m.actor_handle || undefined,
         icon: m.actor_icon || undefined, url: m.actor_url || undefined,
         emojis: (() => { try { return m.actor_emoji_json ? JSON.parse(m.actor_emoji_json) : undefined; } catch { return undefined; } })(),
-      } : undefined,
+      } : undefined),
       'shaer:embed': embedsAllowed ? AP.timelineEmbed(m.embed_json, { playback: playbackAllowed }) : undefined,
     },
   }));
@@ -474,6 +494,17 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
       // gate shut a link is shown but not followed, so the door is closed too
       // and not just the picture over it.
       'shaer:externalLinks': playbackAllowed,
+      // De rest van de familie (8-8): de app hoort VOORAF te weten wat hij mag
+      // aanbieden in plaats van het bij de eerste weigering te ontdekken. De
+      // (+) kaart leest shaer:compose al (Barts gate); de rest is er voor de
+      // schermen die nog komen. Serveren wat waar is kost hier niets.
+      'shaer:compose': composeAllowed,
+      'shaer:messages': messagesAllowed,
+      'shaer:images': imagesAllowed,
+      'shaer:music': musicAllowed,
+      'shaer:quoteCards': quotesAllowed,
+      'shaer:customEmoji': emojiAllowed,
+      'shaer:externalThreads': threadsAllowed,
     },
     // Het merk van wat hierin zit. Geef hem terug als `since` om op het
     // volgende te wachten. NA het samenstellen bepaald, zodat hij precies dekt
@@ -720,8 +751,24 @@ router.get('/ap/users/:slug/thread', async (req, res) => {
   const objectUri = String(req.query.object || '');
   if (!/^https:\/\//i.test(objectUri)) return res.status(400).json({ error: 'object must be an https URI' });
   const isWard = (() => { try { return Guardianship.listGuardians(auth.site.slug).length > 0; } catch { return false; } })();
-  const uit = await AP.getThread(auth.site.slug, objectUri, { isWard });
+  const uit = await AP.getThread(auth.site.slug, objectUri);
   if (!uit.found) return res.status(404).json({ error: 'note not reachable' });
+  // De poortstand komt uit de kolom (shaer-9y2): expliciete 0/1 van de
+  // guardians wint, de automatiek is dicht-voor-een-ward. Dicht is de KRING,
+  // niet niets: antwoorden van al goedgekeurd volk blijven staan, en wat er
+  // buiten valt wordt geteld. Beeld, muziek en emoji gaan door dezelfde
+  // poorten als de tijdlijn -- per verzoek, buiten de threadcache om.
+  const threadsOpen = Guardianship.wardGateAllowed(auth.site.external_threads, isWard);
+  const gate2 = (col) => Guardianship.wardGateAllowed(auth.site[col], isWard);
+  const kring = threadsOpen ? { notes: uit.notes, hidden: 0 } : AP.filterThreadToCircle(auth.site.slug, uit.notes);
+  const imagesOk = gate2('gate_images'), musicOk = gate2('gate_music'), emojiOk = gate2('gate_custom_emoji');
+  uit.notes = kring.notes.map((n) => ({
+    ...n,
+    attachment: AP.gateAttachments(n.attachment, { images: imagesOk, audio: musicOk }),
+    tag: emojiOk ? n.tag : AP.stripEmojiTags(n.tag),
+    'shaer:author': (n['shaer:author'] && !emojiOk) ? { ...n['shaer:author'], emojis: undefined } : n['shaer:author'],
+  }));
+  uit.hidden = kring.hidden;
   // Liked/boosted per antwoord, BUITEN de cache om: de genormaliseerde notes
   // mogen twee minuten oud zijn, maar of JIJ iets geliked hebt hoort van nu te
   // zijn -- anders springt het hartje terug zodra de reader opnieuw opent.

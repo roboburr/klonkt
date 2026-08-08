@@ -46,6 +46,19 @@ export function externalPlaybackAllowed(setting, isWard) {
   return !isWard;
 }
 
+/**
+ * Dezelfde regel voor de hele gate-familie (8-8, "maak ze allemaal
+ * functioneel"): een expliciete 0/1 van de guardians wint, anders de
+ * automatiek -- dicht voor een ward, open voor de rest. EEN implementatie,
+ * zodat er geen tweede plek is die er anders over kan gaan denken; de twee
+ * benoemde varianten hierboven blijven bestaan omdat er tests en aanroepen
+ * aan hangen, en doen exact hetzelfde.
+ */
+export function wardGateAllowed(setting, isWard) {
+  if (setting === 0 || setting === 1) return setting === 1;
+  return !isWard;
+}
+
 /** True when an incoming object carries the ward hint (§2.2). Register-only for
  *  now; acted on later at reddings-boei / escalation routing. */
 export function objectHasGuardians(o) {
