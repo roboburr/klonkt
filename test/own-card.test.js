@@ -87,3 +87,39 @@ test('previewCard geeft voor dezelfde twee links dezelfde twee kaarten', async (
   // Rommel is geen kaart en geen fout.
   assert.deepEqual(await AP.previewCard('geen url'), {});
 });
+
+
+test('actorInfo kiest de html-Link uit een url-array (geen object-stringing)', async () => {
+  // Barts vondst (8-8): buildActor serveert `url` als array van Links
+  // (profiel + RSS), en een consument die dat niet kent stringde de array tot
+  // "[object Object],[object Object]" in de mention-href van een HULPVRAAG.
+  // De thread-byline loopt door dezelfde actorInfo, dus die legt het vast.
+  const HOST = 'https://203.0.113.62';
+  const NOTE = `${HOST}/notes/n1`;
+  const AUTEUR = `${HOST}/users/array`;
+  const vorige = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    const json = (o) => new Response(JSON.stringify(o), { status: 200, headers: { 'content-type': 'application/activity+json' } });
+    if (u === NOTE) return json({
+      id: NOTE, type: 'Note', attributedTo: AUTEUR, content: '<p>bron</p>',
+      replies: { type: 'Collection', first: { type: 'CollectionPage', items: [
+        { id: `${NOTE}/r1`, type: 'Note', attributedTo: AUTEUR, inReplyTo: NOTE, content: '<p>antwoord</p>', published: '2026-08-02T10:00:00Z' },
+      ] } },
+    });
+    if (u === AUTEUR) return json({
+      id: AUTEUR, type: 'Person', preferredUsername: 'array', inbox: `${AUTEUR}/inbox`,
+      url: [
+        { type: 'Link', href: `${HOST}/`, mediaType: 'text/html' },
+        { type: 'Link', href: `${HOST}/feed.xml`, mediaType: 'application/rss+xml' },
+      ],
+    });
+    return vorige(url);
+  };
+  const uit = await AP.getThread('schrijver', NOTE);
+  globalThis.fetch = vorige;
+  assert.equal(uit.notes.length, 1);
+  const auteur = uit.notes[0]['shaer:author'];
+  assert.equal(auteur.url, `${HOST}/`, 'de html-Link, niet de array gestringd');
+  assert.ok(!String(auteur.url).includes('object'), 'nergens [object Object]');
+});

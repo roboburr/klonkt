@@ -1311,10 +1311,18 @@ function actorInfo(doc, actorUri) {
   const handle = doc && doc.preferredUsername ? `@${doc.preferredUsername}@${host}` : deriveHandle(actorUri);
   const icon = doc && doc.icon ? (doc.icon.url || (Array.isArray(doc.icon) && doc.icon[0] && doc.icon[0].url)) : null;
   const name = (doc && (doc.name || doc.preferredUsername)) || handle;
+  // Een AS2 `url` mag een ARRAY van Links zijn -- onze eigen buildActor doet
+  // dat (profiel + RSS), en een oudere consument stringde die array tot
+  // "[object Object],[object Object]" in de mention-hrefs van een hulpvraag
+  // (Barts vondst, 8-8). pickLink kiest de html-Link; de kale string blijft
+  // de gewone weg, en de actor-id de terugval.
+  const profiel = (doc && Array.isArray(doc.url))
+    ? ((pickLink(doc.url, (mt) => !mt || /html/i.test(mt)) || {}).href || safeUrl(doc.id || actorUri))
+    : safeUrl((doc && (doc.url || doc.id)) || actorUri);
   return {
     name,
     handle,
-    url: safeUrl((doc && (doc.url || doc.id)) || actorUri) || null,
+    url: profiel || null,
     icon: safeUrl(icon) || null,
     // FEP-9098 custom emojis in the display name (":shortcode:"), so the byline
     // renders them. Only computed when the name actually has a shortcode.
