@@ -1058,8 +1058,9 @@ export function buildFeatured(base, site, posts) {
 // hoeveel er achter de poort staat. totalItems telt daarom ook alleen het
 // open deel: een eerlijke telling over wat er werkelijk in de collectie staat,
 // niet over wat wij thuis in de kast hebben.
+// m.size hoort erbij voor de RSS-enclosure: die eist een lengte in bytes.
 const TRACK_KOLOMMEN = `t.id, t.title, t.artist, t.duration, t.cover_url, t.created_at,
-     m.filename, m.storage_path, m.mime_type`;
+     m.filename, m.storage_path, m.mime_type, m.size`;
 
 export function playlistOpenTracks(playlistId) {
   return db.prepare(

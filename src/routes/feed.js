@@ -11,6 +11,7 @@
 
 import express from 'express';
 import db from '../config/database.js';
+import { siteOpenTracks } from '../services/ActivityPubService.js';
 
 const router = express.Router();
 
@@ -49,11 +50,51 @@ router.get('/feed.xml', (req, res) => {
   const origin = siteOrigin(req);
   const base = origin + (res.locals.siteUrlBase || '');
   const posts = postsForFeed(site.id);
+
+  // De tracks die deze site aan de federatie heeft opengezet, elk als eigen
+  // item met een <enclosure> (shaer-0nh). Dat laatste is wat een podcast-app
+  // zoekt: zonder enclosure is een feed voor hem leeg, hoe veel items er ook
+  // in staan -- en de actor adverteert deze feed nu juist als kanaal-feed.
+  //
+  // EEN ITEM PER TRACK, want RSS 2.0 staat maar EEN enclosure per item toe.
+  // Een album in een item proppen zou betekenen dat er van vijf nummers vier
+  // verdwijnen. Dezelfde keuze als in de outbox: de post is het bericht, de
+  // track is de publicatie.
+  //
+  // Welke tracks open zijn beslist de AP-service, niet deze route: dat is een
+  // poortregel en die hoort op een plek te staan.
+  const tracks = siteOpenTracks(site.id);
   const lastBuild = posts[0]?.published_at || new Date().toISOString();
+
+  const wanneer = (d) => { const t = Date.parse(d); return Number.isNaN(t) ? 0 : t; };
+  const items = [
+    ...posts.map((p) => ({ op: wanneer(p.published_at), xml: `    <item>
+      <title>${escapeXml(p.title || '(untitled)')}</title>
+      <link>${escapeXml(base + '/' + p.slug)}</link>
+      <guid isPermaLink="true">${escapeXml(base + '/' + p.slug)}</guid>
+      <pubDate>${new Date(p.published_at).toUTCString()}</pubDate>
+      <author>${escapeXml((p.author_email || 'noreply@localhost') + ' (' + p.author_username + ')')}</author>
+      <description>${escapeXml(p.excerpt || '')}</description>
+    </item>` })),
+    ...tracks.map((t) => {
+      const fn = t.filename || (t.storage_path || '').split('/').pop();
+      // Geen <link>: Klonkt heeft geen trackpagina, en een post over vijf
+      // nummers is niet de pagina van dit ene nummer. De guid is daarom geen
+      // permalink maar de stabiele AP-id van de track.
+      return { op: wanneer(t.created_at), xml: `    <item>
+      <title>${escapeXml(t.title || 'Audio')}</title>
+      <guid isPermaLink="false">${escapeXml(`${base}/ap/users/${encodeURIComponent(site.slug)}/tracks/${encodeURIComponent(t.id)}`)}</guid>
+      <pubDate>${new Date(t.created_at || Date.now()).toUTCString()}</pubDate>
+      <description>${escapeXml(t.artist || '')}</description>
+      <enclosure url="${escapeXml(`${base}/audio/stream/${encodeURIComponent(fn)}`)}" length="${Number(t.size) || 0}" type="${escapeXml(t.mime_type || 'audio/mpeg')}" />${t.duration ? `
+      <itunes:duration>${Math.round(t.duration)}</itunes:duration>` : ''}
+    </item>` };
+    }),
+  ].sort((a, b) => b.op - a.op).map((x) => x.xml).join('\n');
 
   res.set('Content-Type', 'application/rss+xml; charset=utf-8');
   res.send(`<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
   <channel>
     <title>${escapeXml(site.title)}</title>
     <link>${escapeXml(base + '/')}</link>
@@ -61,14 +102,7 @@ router.get('/feed.xml', (req, res) => {
     <language>${escapeXml(site.language || 'nl')}</language>
     <lastBuildDate>${new Date(lastBuild).toUTCString()}</lastBuildDate>
     <atom:link href="${escapeXml(base + '/feed.xml')}" rel="self" type="application/rss+xml" />
-${posts.map(p => `    <item>
-      <title>${escapeXml(p.title || '(untitled)')}</title>
-      <link>${escapeXml(base + '/' + p.slug)}</link>
-      <guid isPermaLink="true">${escapeXml(base + '/' + p.slug)}</guid>
-      <pubDate>${new Date(p.published_at).toUTCString()}</pubDate>
-      <author>${escapeXml((p.author_email || 'noreply@localhost') + ' (' + p.author_username + ')')}</author>
-      <description>${escapeXml(p.excerpt || '')}</description>
-    </item>`).join('\n')}
+${items}
   </channel>
 </rss>`);
 });
