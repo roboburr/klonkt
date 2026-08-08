@@ -2633,6 +2633,24 @@ export async function handleInbox(req, slugParam, preVerified = null) {
             console.log('[AP] guardian declared away (3.6.1):', actorUri, '→', slug, 'until', new Date(until).toISOString());
           }
         }
+        // Een kind dat zelf om een poort vraagt (shaer-8ru). Zelfde weg als de
+        // afwezigheidsmelding: een gewone directe note met een shaer:-markering,
+        // per genoemde ontvanger afgehandeld.
+        //
+        // ALLEEN VAN EEN EIGEN WARD. Een verzoek van een vreemde is geen vraag
+        // maar een onbekende die iets over jouw instellingen wil zeggen -- dat
+        // hoort in geen enkele lijst te belanden waar een guardian op afgaat.
+        {
+          const req = Guardianship.gatereq.parseRequest(o);
+          if (req) {
+            for (const slug of slugs) {
+              const mijn = (() => { try { return Guardianship.listWards(slug).some((w) => w.other_uri === actorUri); } catch { return false; } })();
+              if (!mijn) { console.warn('[AP] gate request from someone who is not our ward, ignored:', actorUri, '→', slug); continue; }
+              Guardianship.gatereq.record(slug, actorUri, req.feature, o.id);
+              console.log('[AP] gate request', req.feature, actorUri, '→', slug);
+            }
+          }
+        }
         for (const slug of slugs) {
           try {
             const r = db.prepare(`INSERT OR IGNORE INTO ap_mentions (slug, object_uri, note_url, actor_uri, actor_name, actor_handle, actor_icon, actor_url, content, published, help_request, wave, has_guardians, emoji_json, actor_emoji_json, media_json, created_at)
@@ -3236,6 +3254,17 @@ export async function ingestOutboxActivity(site, user, activity) {
 
   try {
     switch (type) {
+      // Een gate-voorstel uit de app (5.6, shaer-8ru). De PWA deed dit al over
+      // een eigen route; hier komt het binnen als wat het in AP IS -- een Offer
+      // van een shaer:GatedSetting. Dezelfde functie erachter, want twee wegen
+      // naar hetzelfde besluit is precies wat we vandaag hebben rechtgezet.
+      case 'Offer': {
+        const gs = Guardianship.gated.parseGatedSetting(object);
+        if (!gs) return { status: 400, error: 'unsupported_offer' };
+        const uit = proposeGate(site, gs.ward, gs.feature, gs.value);
+        if (uit.status !== 200) return uit;
+        return { ...uit, status: 201, id: uit.offerId };
+      }
       case 'Create': {
         if (!object || typeof object !== 'object') return { status: 400, error: 'missing_object' };
         // Innamepoorten (shaer-ahy.1, 8-8): wat de ward niet mag versturen
@@ -3247,8 +3276,15 @@ export async function ingestOutboxActivity(site, user, activity) {
         {
           const isWard = (() => { try { return Guardianship.listGuardians(site.slug).length > 0; } catch { return false; } })();
           const isHelp = object['shaer:helpRequest'] === true || object.helpRequest === true;
+          // Een poortverzoek van het kind zelf (shaer-8ru) gaat langs de
+          // messages-poort. Dat lijkt een gat en is het niet: het verzoek draagt
+          // ALLEEN de naam van de feature, geen vrije tekst, dus er ontstaat geen
+          // kanaal om omheen die poort te praten. Zonder deze uitzondering kan
+          // een kind met berichten dicht nergens meer om vragen -- en dan is de
+          // hele weg dood op precies het moment dat hij nodig is.
+          const isGateReq = !!Guardianship.gatereq.parseRequest(object);
           const direct = c2sVisibility(object) === 'direct';
-          if (!isHelp) {
+          if (!isHelp && !isGateReq) {
             if (direct && !Guardianship.wardGateAllowed(site.gate_messages, isWard)) {
               return { status: 403, error: 'gated_messages' };
             }
@@ -3306,7 +3342,8 @@ export async function ingestOutboxActivity(site, user, activity) {
             // instance through the loopback, and its inbox handler applies the
             // absence like it does for a ward anywhere else. One path.
           }
-          const r = await deliverDirectNote(site, { recipients, text: plain, language: object.language || null, inReplyTo: typeof object.inReplyTo === 'string' ? object.inReplyTo : null, attachments: atts, helpRequest: help, awayUntil });
+          const gateReq = Guardianship.gatereq.parseRequest(object);
+          const r = await deliverDirectNote(site, { recipients, text: plain, language: object.language || null, inReplyTo: typeof object.inReplyTo === 'string' ? object.inReplyTo : null, attachments: atts, helpRequest: help, awayUntil, gateRequest: gateReq && gateReq.feature });
           if (!r || !r.id) return { status: 502, error: 'direct_failed' };
           return { status: 201, id: r.id, url: `${base}/ap/notes/${r.id}` };
         }
@@ -3537,6 +3574,45 @@ export const deliverDirectNote = Guardianship.deliverDirectNote;
 
 // Send a reply FROM this site to a remote actor (in reply to their inbound reply).
 // `parent` = an ap_interactions row (actor_uri, actor_url, actor_handle, object_uri).
+/**
+ * Een gate-voorstel de deur uit (FEP-633c 5.6, shaer-8ru).
+ *
+ * STOND IN routes/guardian.js en kon daar alleen door de PWA aangeroepen worden.
+ * De apps moeten hetzelfde kunnen, en een tweede implementatie ernaast zou een
+ * tweede weg naar hetzelfde besluit zijn -- precies de fout die we vandaag bij
+ * de antwoordpoort hebben rechtgezet, toen de innamepoort alleen in C2S bleek te
+ * zitten en het webpad eromheen liep. Een pad dus.
+ *
+ * EEN WEG, waar de ward ook woont (Robins regel, 29-7): voorstellen over de
+ * lijn en de server van de ward laat tellen. Co-locatie verandert alleen het
+ * transport -- deliverToActor lust een lokale ontvanger terug door dezelfde
+ * inbox. De oude kortsluiting boekte de stem hier meteen, en zo bleef het
+ * remote-pad een maand stuk zonder dat iemand het merkte.
+ */
+export function proposeGate(site, wardUri, feature, allow) {
+  const uri = String(wardUri || '').trim();
+  if (!uri) return { status: 400, error: 'empty_uri' };
+  if (!Guardianship.gated.featureColumn(feature)) return { status: 400, error: 'unknown_feature' };
+  // Alleen een guardian van dit kind. Zonder deze regel zou iedereen met een
+  // token een instelling van een vreemd kind kunnen aanvragen.
+  if (!Guardianship.listWards(site.slug).some((w) => w.other_uri === uri)) {
+    return { status: 403, error: 'not_your_ward' };
+  }
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  const me = actorId(base, site.slug);
+  const offerId = `${me}/gated/${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
+  const offer = Guardianship.gated.buildGatedOffer(offerId, me, uri, feature, allow);
+  // Ons eigen spoor van wat we stuurden: de server van de ward antwoordt op deze
+  // Offer zodra het besluit valt, en dat antwoord heeft een rij nodig om in te
+  // landen. Het is ook het enige waardoor het scherm van de voorsteller meer kan
+  // zeggen dan een knoptekst.
+  Guardianship.gated.recordSent(offerId, site.slug, uri, feature, allow);
+  deliverToActor(site, uri, offer).catch(() => { /* queued, best-effort */ });
+  const localSlug = (base && uri.startsWith(`${base}/`)) ? uri.replace(/\/+$/, '').split('/').pop() : null;
+  const progress = localSlug ? Guardianship.gated.gatedProgress(localSlug, feature) : null;
+  return { status: 200, ok: true, allow, state: 'open', offerId, ...(progress || { federated: true }) };
+}
+
 export async function deliverReply(site, { postId, postSlug, parent, text, html, language, attachments, mentions, visibility }) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   // Rich replies: `html` is the reply editor's HTML (sanitized here); `text` is
@@ -6112,7 +6188,7 @@ export default {
   autoBoostCount, boostedCount, setReaction, getReaction, getReactionsFor, canonicalReactionUri, migrateReactions, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
-  getReplyUris, getThread, filterThreadToCircle, gateAttachments, stripEmojiTags, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
+  proposeGate, getReplyUris, getThread, filterThreadToCircle, gateAttachments, stripEmojiTags, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
   linkifyBody, bakePostContent, bakePostContentWithMentions, listFollowers, removeFollower, listConnections,
   noteVisibility, belongsInTimeline, playerUrlFor, isRejectedObject, rejectInteraction, interactionReportTarget,
   getMessages, notificationsSeenAt, ingestOutboxActivity, c2sVisibility, actorDisplay, buildActorRef, prefersEnriched, selfAuthor, getReplyMessages, onNews, wakeNews,

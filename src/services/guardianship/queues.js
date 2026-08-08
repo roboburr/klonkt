@@ -14,6 +14,7 @@ import * as availability from './availability.js';
 import * as outgoing from './outgoing.js';
 import * as follows from './follows.js';
 import * as gated from './gated.js';
+import * as gatereq from './gatereq.js';
 import * as handshake from './handshake.js';
 
 const collection = (id, items) => ({
@@ -168,6 +169,10 @@ export function wardGates(mySlug, wardUri) {
     proposals: gated.listSent(mySlug, wardUri).map((p) => ({
       feature: p.feature, value: !!p.value, status: gated.sentStatus(p, Date.now()),
     })),
-    waiting: { 'shaer:follows': wachtend || undefined },
+    // Wat er op deze poort wacht: volgverzoeken bij de volgpoort, en de vraag
+    // van het kind zelf bij de poort waar hij over gaat (shaer-8ru). Zo staat
+    // hij waar je hem nodig hebt, en niet in een aparte lijst die je apart moet
+    // openen -- en die je dus vergeet.
+    waiting: { ...gatereq.waitingFor(mySlug, wardUri), 'shaer:follows': wachtend || undefined },
   });
 }

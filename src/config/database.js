@@ -775,6 +775,21 @@ export function initializeDatabase() {
     PRIMARY KEY (note_uri, guardian_uri, kind)
   )`);
   db.exec('CREATE INDEX IF NOT EXISTS idx_ap_help_state_note ON ap_help_state(note_uri)');
+  // Een kind dat zelf om een poort vraagt (shaer-8ru). Een VRAAG, geen stem:
+  // pas als een guardian hem oppakt wordt het een voorstel dat langs de tally
+  // gaat. handled_at in plaats van verwijderen -- wat een kind gevraagd heeft
+  // hoort terug te vinden te zijn, ook als het antwoord nee was.
+  db.exec(`CREATE TABLE IF NOT EXISTS ap_gate_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug TEXT NOT NULL,                 -- de guardian die hem ontving
+    ward_uri TEXT NOT NULL,
+    feature TEXT NOT NULL,
+    note_uri TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    handled_at TEXT,
+    UNIQUE (slug, ward_uri, feature, handled_at)
+  )`);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_ap_gate_requests_slug ON ap_gate_requests(slug, handled_at)');
   ensureColumn('ap_mentions', 'help_request', 'INTEGER'); // inbound ward call-for-help (Guardian PWA message centre)
   ensureColumn('ap_outbox', 'wave', 'INTEGER');    // FEP-633c shaer:wave (guardian -> ward nudge)
   ensureColumn('ap_outbox', 'away_until', 'INTEGER'); // FEP-633c 3.6.1 shaer:away + endTime (epoch ms)

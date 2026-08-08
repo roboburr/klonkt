@@ -619,37 +619,11 @@ router.post('/wards/embeds', requireAuth, express.json({ limit: '4kb' }), (req, 
 function proposeGated(req, res) {
   const site = siteForUser(req);
   if (!site) return res.status(404).json({ error: 'no_site' });
-  const uri = String(req.body?.uri || '').trim();
-  const allow = req.body?.allow === true;
-  if (!uri) return res.status(400).json({ error: 'empty_uri' });
-  // Only a guardian of this ward, and only for a ward we host: a setting on a
-  // remote ward belongs to that ward's own server (federating it is Fase 4).
-  const isMyWard = Guardianship.listWards(site.slug).some((w) => w.other_uri === uri);
-  if (!isMyWard) return res.status(403).json({ error: 'not_your_ward' });
-  // §5.6: propose it to the WARD'S server, wherever that is. The ward's server
-  // tallies (a majority of its guardians, §3.5) and enforces. Co-location is
-  // just the case where that server happens to be this one, so it takes the
-  // same road: propose, then let the tally decide. Anything else would make a
-  // guardian on the ward's own instance more powerful than one elsewhere.
-  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
-  const me = AP.actorId(base, site.slug);
-  const feature = req.body.feature;   // normalised by the route above
-  const offerId = `${me}/gated/${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
-  const offer = Guardianship.gated.buildGatedOffer(offerId, me, uri, feature, allow);
-  // ONE path, whether the ward lives here or on the other side of the world
-  // (Robins regel, 29-7): propose over the wire and let the ward's server do
-  // what it does for everyone. deliverToActor loops a local recipient back
-  // into the same inbox handler, so co-location changes the transport and
-  // nothing else. The old shortcut recorded the vote here directly, which is
-  // how the remote path stayed broken for a month without anyone noticing.
-  // Our own record of what we sent (5.6): the ward's server answers this Offer
-  // once the decision settles, and that answer needs a row to land in. It is
-  // also the only way the proposer's screen can say more than a button caption.
-  Guardianship.gated.recordSent(offerId, site.slug, uri, feature, allow);
-  AP.deliverToActor(site, uri, offer).catch(() => { /* queued, best-effort */ });
-  const localSlug = (base && uri.startsWith(`${base}/`)) ? uri.replace(/\/+$/, '').split('/').pop() : null;
-  const progress = localSlug ? Guardianship.gated.gatedProgress(localSlug, feature) : null;
-  res.json({ ok: true, allow, state: 'open', ...(progress || { federated: true }) });
+  // De hele afweging staat in AP.proposeGate, zodat de apps langs dezelfde weg
+  // kunnen voorstellen (shaer-8ru). Deze route is nog maar de PWA-deur ernaartoe.
+  const uit = AP.proposeGate(site, req.body?.uri, req.body?.feature, req.body?.allow === true);
+  const { status, ...rest } = uit;
+  return res.status(status === 200 ? 200 : status).json(rest);
 }
 
 // ── The installable identity: own scope so the Guardian corner installs as

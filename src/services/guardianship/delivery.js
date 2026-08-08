@@ -40,7 +40,7 @@ export function c2sVisibility(object) {
 // so no boosts and no timelines. The same S2S leg a Mastodon DM takes, so a
 // guardian on any instance receives it as a private mention (the ward
 // call-for-help path).
-export async function deliverDirectNote(site, { recipients, text, html, language, inReplyTo, attachments, helpRequest, wave, awayUntil, helpMark }) {
+export async function deliverDirectNote(site, { recipients, text, html, language, inReplyTo, attachments, helpRequest, wave, awayUntil, helpMark, gateRequest }) {
   const { actorId, fetchActor, localActor, deliverTo, deriveHandle, escHtml, linkUrls, linkHashtags,
           getOutboxRow, buildReplyNote, AP_CONTEXT, getOrCreateKeys, deliver, enqueueDelivery } = deps;
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
@@ -115,6 +115,9 @@ export async function deliverDirectNote(site, { recipients, text, html, language
   if (helpMark && helpMark.noteUri) {
     note[helpMark.kind === 'handled' ? 'shaer:helpHandled' : 'shaer:helpPickup'] = helpMark.noteUri;
   }
+  // Een kind dat zelf om een poort vraagt (shaer-8ru). Alleen de naam van de
+  // feature reist mee -- geen vrije tekst, zie gatereq.js.
+  if (gateRequest) note['shaer:gateRequest'] = String(gateRequest);
   const create = {
     '@context': AP_CONTEXT,
     id: note.id + '#create', type: 'Create', actor: me,
