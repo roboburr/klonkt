@@ -3472,6 +3472,19 @@ export async function getThread(slug, objectUri, { isWard = false } = {}) {
         .filter((a) => a.url);
       return out.length ? out.slice(0, 8) : undefined;
     })(),
+    // FEP-9098: de custom emoji van het antwoord (":shortcode:" -> plaatje).
+    // Zonder deze tags rendert een reply van een Mastodon-account zijn emoji
+    // als kale tekst (Barts punt, 8-8). Alleen naam + geschoond icoon-adres
+    // gaan door; de rest van de vreemde tag-array blijft achter.
+    tag: (() => {
+      const j = extractEmojiTags(o.tag);
+      if (!j) return undefined;
+      const out = JSON.parse(j)
+        .map((t) => ({ type: 'Emoji', name: t.name, icon: { type: 'Image', url: safeUrl(t.icon && (t.icon.url || (Array.isArray(t.icon) && t.icon[0] && t.icon[0].url))) } }))
+        .filter((t) => t.icon.url)
+        .slice(0, 30);
+      return out.length ? out : undefined;
+    })(),
     'shaer:author': actorInfo(authors.get(actorUri), actorUri),
   })).sort((a, b) => String(a.published || '').localeCompare(String(b.published || '')));
 

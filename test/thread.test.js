@@ -40,7 +40,14 @@ const reply = (n, actor, content, published) => ({
 
 const antwoorden = [
   reply(1, VREEMDE, '<p>Hoi! <script>alert(1)</script></p>', '2026-08-01T10:00:00Z'),
-  reply(2, TANTE, '<p>Dag lieverd</p>', '2026-08-01T09:00:00Z'),
+  { ...reply(2, TANTE, '<p>Dag lieverd :hartje:</p>', '2026-08-01T09:00:00Z'),
+    // FEP-9098 zoals Mastodon hem stuurt, plus een niet-Emoji-tag en een
+    // emoji zonder bruikbaar icoon: alleen de echte hoort erdoor te komen.
+    tag: [
+      { type: 'Emoji', name: ':hartje:', icon: { type: 'Image', url: 'https://203.0.113.20/emoji/hartje.png' } },
+      { type: 'Emoji', name: ':kapot:', icon: {} },
+      { type: 'Hashtag', name: '#muziek' },
+    ] },
   reply(3, GEBLOKT, '<p>naar bericht</p>', '2026-08-01T11:00:00Z'),
 ];
 
@@ -69,6 +76,13 @@ test('een gewone lezer krijgt alles behalve de geblokkeerde, oudste eerst, gesch
   // Een blokkade is onzichtbaar: niet in de lijst en NIET in de telling.
   assert.equal(uit.hidden, 0);
   assert.ok(uit.notes.every((n) => n.attributedTo !== GEBLOKT));
+  // FEP-9098: alleen de echte emoji komt door -- niet de hashtag, niet de
+  // emoji zonder icoon -- en het icoon-adres is geschoond.
+  const tags = uit.notes[0].tag;
+  assert.equal(tags.length, 1);
+  assert.equal(tags[0].name, ':hartje:');
+  assert.equal(tags[0].icon.url, 'https://203.0.113.20/emoji/hartje.png');
+  assert.ok(!uit.notes[1].tag, 'een antwoord zonder emoji draagt geen tag-veld');
 });
 
 test('een ward ziet alleen de kring van de guardians, de rest wordt geteld', async () => {
