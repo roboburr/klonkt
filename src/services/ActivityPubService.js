@@ -2548,7 +2548,13 @@ export async function handleInbox(req, slugParam, preVerified = null) {
     return 202;
   }
 
-  console.log('[AP] inbox', type || 'unknown', '→', slugParam || 'shared', 'from', ip, '(ignored)');
+  // Zeg ook WAT er viel. Een kale "Create (ignored)" verbergt het verschil
+  // tussen een soort die we bewust overslaan en een die we niet kennen -- en
+  // dat verschil was precies de vraag bij Funkwhale, dat Create(Audio) stuurt
+  // waar deze inbox alleen Note, Article en Question aanneemt.
+  const objType = act.object && typeof act.object === 'object' ? act.object.type : (typeof act.object === 'string' ? '<uri>' : null);
+  console.log('[AP] inbox', type || 'unknown', objType ? '(' + objType + ')' : '', '→', slugParam || 'shared',
+    'from', ip, 'by', claimedActor || '?', '(ignored)');
   return 202;
 }
 
