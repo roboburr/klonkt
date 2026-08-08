@@ -966,8 +966,8 @@ export function buildCreate(base, site, post) {
  * levert altijd dezelfde activiteit, zodat een lezer die de outbox twee keer
  * ophaalt niet denkt dat er iets nieuws is.
  */
-export function buildTrackCreate(base, site, r) {
-  const audio = buildTrackAudio(base, site, r);
+export function buildTrackCreate(base, site, r, opts = {}) {
+  const audio = buildTrackAudio(base, site, r, opts);
   const me = actorId(base, site.slug);
   return {
     '@context': AP_CONTEXT,
@@ -1005,7 +1005,11 @@ export function buildOutbox(base, site, posts, tracks = []) {
   const wanneer = (x) => Date.parse(x && x.published ? x.published : 0) || 0;
   const items = [
     ...(posts || []).map((p) => buildCreate(base, site, p)),
-    ...(tracks || []).map((r) => buildTrackCreate(base, site, r)),
+    // Eén zoekopdracht voor alle tracks samen, niet per stuk.
+    ...(() => {
+      const posts = (tracks || []).length && site.id ? trackHostPosts(site.id) : null;
+      return (tracks || []).map((r) => buildTrackCreate(base, site, r, { hostPosts: posts }));
+    })(),
   ]
     .sort((a, b) => wanneer(b) - wanneer(a))
     .slice(0, MAX_OUTBOX);
@@ -1129,12 +1133,65 @@ export function openTrack(siteId, trackId) {
  * pagina van dit ene nummer. Liever geen link dan een link die iets anders
  * belooft.
  */
+/**
+ * Bij welke post hoort een track? (shaer-0nh)
+ *
+ * Een track staat nooit los in Klonkt: hij wordt getoond BINNEN een post, via
+ * een van drie insluitingen in posts.content. Die relatie stond alleen in die
+ * tekst en nergens op de draad -- waardoor Shaer, dat zijn feed uit de outbox
+ * bouwt, sinds fb22f78 losse Audio-kaarten kreeg zonder inhoud.
+ *
+ * ALLES IN EEN ZOEKOPDRACHT, niet per track. De collectie loopt over elke open
+ * track, en drie LIKE-scans per stuk wordt bij tweehonderd nummers zeshonderd
+ * scans. Nu is het er een, en de map gaat mee als optie.
+ *
+ * De rang bepaalt welke post wint als er meerdere zijn: rechtstreeks ingesloten
+ * is specifieker dan via een playlist, en die weer specifieker dan via een
+ * albumnaam. Bij gelijke rang de nieuwste post -- dat is waar iemand hem het
+ * laatst heeft uitgebracht.
+ */
+export function trackHostPosts(siteId) {
+  const rijen = db.prepare(`
+    SELECT tid, post_id, post_slug, rang, wanneer FROM (
+      SELECT t.id AS tid, p.id AS post_id, p.slug AS post_slug, 1 AS rang,
+             COALESCE(p.published_at, p.created_at) AS wanneer
+        FROM audio_tracks t
+        JOIN posts p ON p.site_id = t.site_id AND p.status = 'published'
+                    AND p.content LIKE '%[[track:' || t.id || ']]%'
+       WHERE t.site_id = ? AND t.fedi_open = 1
+      UNION ALL
+      SELECT t.id, p.id, p.slug, 2, COALESCE(p.published_at, p.created_at)
+        FROM playlist_tracks pt
+        JOIN audio_tracks t ON t.id = pt.track_id
+        JOIN posts p ON p.site_id = t.site_id AND p.status = 'published'
+                    AND p.content LIKE '%[[playlist:' || pt.playlist_id || ']]%'
+       WHERE t.site_id = ? AND t.fedi_open = 1
+      UNION ALL
+      SELECT t.id, p.id, p.slug, 3, COALESCE(p.published_at, p.created_at)
+        FROM audio_tracks t
+        JOIN posts p ON p.site_id = t.site_id AND p.status = 'published'
+                    AND p.content LIKE '%[[album:' || t.album || ']]%'
+       WHERE t.site_id = ? AND t.fedi_open = 1 AND t.album IS NOT NULL AND t.album <> ''
+    ) ORDER BY rang, wanneer DESC
+  `).all(siteId, siteId, siteId);
+  const uit = new Map();
+  for (const r of rijen) if (!uit.has(r.tid)) uit.set(r.tid, { id: r.post_id, slug: r.post_slug });
+  return uit;
+}
+
 export function buildTrackAudio(base, site, r, opts = {}) {
   const abs = (u) => !u ? null : (/^https?:/i.test(u) ? u : `${base}${u.startsWith('/') ? '' : '/'}${u}`);
   const fn = r.filename || (r.storage_path || '').split('/').pop();
   // De bestandsgegevens horen bij de LINK, niet bij het object: het is die ene
   // representatie die zoveel bytes is en die bitrate heeft, niet het nummer.
   // Zo doet Funkwhale het ook.
+  // De post waar dit nummer in staat. Meegegeven door de collectie (een
+  // zoekopdracht voor alles), of hier opgezocht als deze track los wordt
+  // opgehaald. `hostPosts` mag expliciet null zijn: dan is er niets te zoeken.
+  const post = opts.hostPosts !== undefined
+    ? (opts.hostPosts && opts.hostPosts.get(r.id)) || null
+    : ((site.id && trackHostPosts(site.id).get(r.id)) || null);
+
   const bestand = { type: 'Link', href: `${base}/audio/stream/${encodeURIComponent(fn)}`, mediaType: r.mime_type || 'audio/mpeg' };
   if (Number(r.size)) bestand.size = Number(r.size);
   // Bitrate leiden we af uit bytes en seconden. Geen gok: voor een bestand IS
@@ -1151,9 +1208,19 @@ export function buildTrackAudio(base, site, r, opts = {}) {
     // Op het OBJECT, niet alleen op de omhullende Create: een los opgehaalde
     // track moet zelf kunnen zeggen dat hij openbaar is.
     to: [PUBLIC],
-    url: [bestand],
+    // De post die dit nummer uitbrengt staat VOORAAN als text/html, precies
+    // zoals Funkwhale zijn trackpagina zet. Wij hadden dat veld leeg gelaten
+    // omdat Klonkt geen trackpagina heeft -- maar de post IS waar je het kunt
+    // horen, en dat is wat zo'n link betekent.
+    url: [...(post ? [{ type: 'Link', href: `${base}/${post.slug}`, mediaType: 'text/html' }] : []), bestand],
   };
   if (r.artist) a.summary = r.artist;              // artiest als summary: kaal AS2, geen eigen vocab
+  // AS2-kern `context`: "de context waarbinnen dit object bestaat". Voor een
+  // track is dat de post die hem uitbrengt. Daarmee is de relatie die tot nu
+  // toe alleen in posts.content stond, op de draad te zien -- en kan een lezer
+  // die de post al heeft dit nummer overslaan in plaats van er een lege kaart
+  // van te maken.
+  if (post) a.context = noteId(base, post.id);
   if (r.duration) a.duration = `PT${Math.round(r.duration)}S`;
   if (r.created_at) a.published = new Date(r.created_at).toISOString();
   if (Number(r.position)) a.position = Number(r.position);
@@ -1200,7 +1267,11 @@ export function buildTrackCollection(base, site, rows) {
     type: 'OrderedCollection',
     attributedTo: actorId(base, site.slug),
     totalItems: (rows || []).length,
-    orderedItems: (rows || []).map((r) => buildTrackAudio(base, site, r)),
+    // Eén zoekopdracht voor alle rijen samen; zie trackHostPosts.
+    orderedItems: (() => {
+      const posts = site.id ? trackHostPosts(site.id) : null;
+      return (rows || []).map((r) => buildTrackAudio(base, site, r, { hostPosts: posts }));
+    })(),
   };
 }
 
@@ -1262,7 +1333,8 @@ export function buildPlaylistCollection(base, site, playlist, rows) {
   // geen tweede exemplaar ervan: staat een track in twee playlists, dan is het
   // twee keer hetzelfde ding en niet twee dingen die toevallig gelijk klinken.
   // De hoes van de playlist dient als terugval voor een track zonder eigen hoes.
-  const items = (rows || []).map((r) => buildTrackAudio(base, site, r, { coverFallback: playlist.cover_url || null }));
+  const hostPosts = site.id ? trackHostPosts(site.id) : null;
+  const items = (rows || []).map((r) => buildTrackAudio(base, site, r, { coverFallback: playlist.cover_url || null, hostPosts }));
   const out = {
     '@context': AP_CONTEXT,
     id: `${actorId(base, site.slug)}/playlists/${playlist.id}`,
@@ -6188,7 +6260,7 @@ export default {
   AP_CONTEXT, getOrCreateKeys, apWants, sendAP, actorId, noteId, stripLeadingMentions,
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers, buildFollowing, buildFeatured,
   channelUrls, channelCategory, timelineFields, guessMediaType,
-  siteOpenTracks, openTrack, buildTrackAudio, buildTrackCollection, buildTrackCreate,
+  siteOpenTracks, openTrack, buildTrackAudio, buildTrackCollection, buildTrackCreate, trackHostPosts,
   buildPlaylistCollection, playlistOpenTracks, listPlaylistsAP, playlistLinkTags,
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
   feedCursor, feedChangesSince, waitForFeedChange,

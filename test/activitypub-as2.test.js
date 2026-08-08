@@ -25,6 +25,9 @@ const AS2 = new Set([
   'id', 'type', 'actor', 'object', 'target', 'to', 'cc',
   'content', 'name', 'summary', 'url', 'href', 'mediaType',
   'published', 'updated', 'attributedTo', 'inReplyTo', 'replies',
+  // AS2-kern: de context waarbinnen een object bestaat. Een track wijst ermee
+  // naar de post die hem uitbrengt (shaer-0nh).
+  'context',
   'attachment', 'tag', 'icon', 'image', 'duration',
   'contentMap', 'nameMap', 'summaryMap', // AS2 @language-map counterparts of content/name/summary
   'totalItems', 'orderedItems', 'items', 'first', 'last', 'partOf', 'next', 'prev',
