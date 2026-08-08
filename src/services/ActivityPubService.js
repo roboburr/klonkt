@@ -1859,6 +1859,34 @@ export function onNews(slug, cb) {
   set.add(cb);
   return () => { set.delete(cb); if (!set.size) _newsWaiters.delete(slug); };
 }
+/**
+ * Wachters op het Guardian-paneel (Barts opdracht, 9-8).
+ *
+ * APART VAN onNews, en dat is met opzet. `news` gaat over de tijdlijn; dit gaat
+ * over alles wat een guardian te VERWERKEN krijgt -- een aanbod, een
+ * volgverzoek, een gate-voorstel, een hulpvraag, een lapse. De guardianship-
+ * module zendt daar al veertien soorten voor uit; die gingen alleen naar push,
+ * en push kiest bewust maar een handvol. Het paneel moet ze allemaal weten.
+ *
+ * Een wachter wordt EEN keer gewekt en daarna vergeten: het antwoord dat volgt
+ * is de nieuwe waarheid, en de client komt terug met een nieuwe wachter.
+ */
+const _guardWaiters = new Map();   // slug -> Set<cb>
+export function onGuardian(slug, cb) {
+  let set = _guardWaiters.get(slug);
+  if (!set) { set = new Set(); _guardWaiters.set(slug, set); }
+  set.add(cb);
+  return () => { set.delete(cb); if (!set.size) _guardWaiters.delete(slug); };
+}
+export function wakeGuardian(slug) {
+  const set = _guardWaiters.get(slug);
+  if (!set || !set.size) return;
+  const cbs = [...set];
+  set.clear();
+  _guardWaiters.delete(slug);
+  for (const cb of cbs) { try { cb(); } catch { /* een wachter mag de rest nooit breken */ } }
+}
+
 export function wakeNews(slug) {
   const set = _newsWaiters.get(slug);
   if (!set || !set.size) return;
@@ -2386,6 +2414,7 @@ export async function handleInbox(req, slugParam, preVerified = null) {
       if (mark) {
         const ai = actorInfo(await resolveActor(actorUri).catch(() => null), actorUri);
         Guardianship.help.record(mark.noteUri, actorUri, mark.kind, ai && ai.handle);
+        wakeGuardian(slug);   // een mede-guardian pakte iets op: het paneel hoort het meteen
         console.log('[AP] help', mark.kind, actorUri, '→', mark.noteUri);
       }
     }
@@ -2428,6 +2457,7 @@ export async function handleInbox(req, slugParam, preVerified = null) {
               const mijn = (() => { try { return Guardianship.listWards(slug).some((w) => w.other_uri === actorUri); } catch { return false; } })();
               if (!mijn) { console.warn('[AP] gate request from someone who is not our ward, ignored:', actorUri, '→', slug); continue; }
               Guardianship.gatereq.record(slug, actorUri, req.feature, o.id);
+              wakeGuardian(slug);   // het kind vroeg om een poort
               console.log('[AP] gate request', req.feature, actorUri, '→', slug);
             }
           }
@@ -5969,11 +5999,26 @@ Guardianship.wireHandshake({
   //
   // De labels hangen aan dezelfde sleutels als het Guardian-paneel, zodat een
   // melding en het scherm waar hij heen wijst hetzelfde woord gebruiken.
-  onEvent: (slug, ev) => {
-    const p = guardianEventPush(slug, ev);
-    if (p) pushEvent(slug, p);
-  },
+  onEvent: (slug, ev) => onGuardianshipEvent(slug, ev),
 });
+
+/**
+ * Wat er gebeurt als de guardianship-module iets uitzendt.
+ *
+ * TWEE VERSCHILLENDE VRAGEN, en ze horen niet dezelfde te zijn: wie maak je
+ * WAKKER (push kiest bewust een handvol soorten), en wat moet een scherm dat
+ * openstaat WETEN (alles). Het paneel werd daarom voorheen niet gewekt door de
+ * tien soorten zonder pushtekst -- die zag je pas bij de volgende tik.
+ *
+ * Apart en met een naam, zodat een toets erbij kan. Verstopt in de deps-literal
+ * was hij onbereikbaar, en een mutatie die het wekken weghaalde bleef groen.
+ */
+export function onGuardianshipEvent(slug, ev) {
+  wakeGuardian(slug);
+  const p = guardianEventPush(slug, ev);
+  if (p) pushEvent(slug, p);
+  return p;
+}
 
 /**
  * Welke melding hoort bij een guardianship-gebeurtenis, of geen.
@@ -6065,7 +6110,7 @@ export default {
   autoBoostCount, boostedCount, setReaction, getReaction, getReactionsFor, canonicalReactionUri, migrateReactions, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
-  sendMaybe304, etagFor, proposeGate, getReplyUris, getThread, filterThreadToCircle, gateAttachments, stripEmojiTags, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
+  sendMaybe304, etagFor, onGuardian, wakeGuardian, onGuardianshipEvent, proposeGate, getReplyUris, getThread, filterThreadToCircle, gateAttachments, stripEmojiTags, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
   linkifyBody, bakePostContent, bakePostContentWithMentions, listFollowers, removeFollower, listConnections,
   noteVisibility, belongsInTimeline, playerUrlFor, isRejectedObject, rejectInteraction, interactionReportTarget,
   getMessages, notificationsSeenAt, ingestOutboxActivity, c2sVisibility, actorDisplay, buildActorRef, prefersEnriched, selfAuthor, getReplyMessages, onNews, wakeNews,

@@ -966,6 +966,37 @@
       .then(loadFeed).then(loadFollowReqs);
   }
 
+  // ── De lange poll (Barts opdracht, 9-8) ──────────────────────────────
+  //
+  // Het paneel tikte elke 45 seconden, ongeacht of er iets gebeurd was. Nu hangt
+  // er een verzoek open tot er iets is dat je moet verwerken -- een aanbod, een
+  // volgverzoek, een gate-voorstel, een hulpvraag. Dat is niet alleen zuiniger,
+  // het is ook SNELLER: een hulproep stond eerst tot drie kwartier van een
+  // minuut op het scherm te wachten.
+  //
+  // 304 = stilte, en dan meteen opnieuw wachten. Alleen bij 200 wordt er iets
+  // opnieuw getekend.
+  var pollBezig = false;
+  function longPoll() {
+    if (pollBezig || document.hidden) return;
+    pollBezig = true;
+    fetch('/guardian/api/state?wait=25&site=' + encodeURIComponent(S.site))
+      .then(function (r) {
+        pollBezig = false;
+        if (r.status === 304) return null;          // stilte
+        return r.json().then(function (s) {
+          if (s && !s.error) { S = s; T = s.strings || T; renderAll(); }
+          return loadFeed().then(loadFollowReqs);
+        });
+      })
+      .then(function () { setTimeout(longPoll, 200); })
+      .catch(function () {
+        // Netwerk weg of server herstart: niet meteen opnieuw beuken.
+        pollBezig = false;
+        setTimeout(longPoll, 5000);
+      });
+  }
+
   // ── 2. Adopt ───────────────────────────────────────────────────────────
   var form = document.getElementById('adopt-form');
   var input = document.getElementById('adopt-handle');
@@ -1071,8 +1102,17 @@
   // niet iedereen heeft meldingen aanstaan. Maar niet tikken terwijl niemand
   // kijkt: dat waren verzoeken voor een tabblad op de achtergrond. Bij terugkomen
   // meteen een keer, want dan is de kans op nieuws het grootst.
-  setInterval(function () { if (!document.hidden) refresh(); }, 45000);
-  document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(); });
+  // De lange poll doet het werk. Het tikje blijft als vangnet, maar veel trager:
+  // valt er een wekker weg (een pad dat niet wekt, een herstart midden in een
+  // verzoek), dan mag het scherm niet voorgoed stilstaan. Vijf minuten in plaats
+  // van vijfenveertig seconden, en met de ETag kost zo'n tik meestal een lege 304.
+  longPoll();
+  setInterval(function () { if (!document.hidden) refresh(); }, 300000);
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) return;
+    refresh();
+    longPoll();       // bij terugkomst weer een wachter openzetten
+  });
   } catch (e) {
     fatal((e && e.message) || String(e));
   }

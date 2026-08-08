@@ -181,12 +181,47 @@ router.get('/', requireAuth, (req, res) => {
 });
 
 // ── JSON state for refreshes ─────────────────────────────────────────────
-router.get('/api/state', requireAuth, (req, res) => {
+/**
+ * De staat van het paneel, desgewenst als LANGE POLL (Barts opdracht, 9-8).
+ *
+ * Zonder `wait` gedraagt de route zich exact zoals altijd. Met `wait` blijft het
+ * antwoord hangen tot er iets gebeurt dat de guardian moet verwerken, of tot de
+ * tijd om is -- dan een lege 304.
+ *
+ * EERST KIJKEN, DAN WACHTEN. Veranderde er iets tussen het vorige antwoord en
+ * dit verzoek, dan is de merksteen nu al anders en gaat het antwoord METEEN de
+ * deur uit. Zou je eerst gaan wachten, dan blijft nieuws dat net in dat gaatje
+ * viel vijfentwintig seconden liggen -- en juist bij een hulpvraag is dat de
+ * verkeerde vertraging.
+ *
+ * WAKKER OP ALLES. De guardianship-module zendt veertien soorten gebeurtenissen
+ * uit en die wekken allemaal (wakeGuardian); daarnaast wekt de tijdlijn (onNews),
+ * want de berichten van je wards staan in ditzelfde scherm.
+ */
+router.get('/api/state', requireAuth, async (req, res) => {
   const site = siteForUser(req);
   if (!site) return res.status(404).json({ error: 'no_site' });
-  // Het paneel tikt elke 45 seconden, of er nu iets gebeurd is of niet. Met een
-  // ETag kost stilte een lege 304 in plaats van het hele paneel (Barts punt, 9-8).
-  return AP.sendMaybe304(req, res, dashboardState(site, resolveLang(req)), { contentType: 'application/json' });
+  const stuur = () => AP.sendMaybe304(req, res, dashboardState(site, resolveLang(req)), { contentType: 'application/json' });
+
+  const wachtS = Math.min(Math.max(parseInt(req.query.wait, 10) || 0, 0), 50);
+  const merk = req.headers['if-none-match'];
+  if (!wachtS || !merk) return stuur();
+
+  // Is er nu al iets anders? Dan niet wachten.
+  const nu = AP.etagFor(JSON.stringify(dashboardState(site, resolveLang(req))));
+  if (nu !== merk) return stuur();
+
+  await new Promise((klaar) => {
+    let af = false;
+    const eind = () => { if (af) return; af = true; clearTimeout(t); offG(); offN(); klaar(); };
+    const offG = AP.onGuardian(site.slug, eind);
+    const offN = AP.onNews(site.slug, eind);
+    const t = setTimeout(eind, wachtS * 1000);
+    // Hing de client op, dan houdt niemand dit antwoord meer vast.
+    res.on('close', eind);
+  });
+  if (res.writableEnded) return undefined;
+  return stuur();
 });
 
 // ── Meekijken (FEP-633c §5, interop-hoofdroute): a committed guardian FOLLOWS
