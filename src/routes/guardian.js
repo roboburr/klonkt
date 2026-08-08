@@ -69,7 +69,7 @@ function uiStrings(L) {
   'warn_reversible', 'warn_irreversible', 'warn_unknown', 'warn_tally_elsewhere', 'warn_go', 'warn_back',
     'help_archive', 'help_archive_hide', 'panel_history',
     'gate_propose_open', 'gate_propose_close', 'gate_default_off',
-    'gate_images', 'gate_messages', 'gate_compose', 'gate_music', 'gate_quoteCards',
+    'gate_images', 'gate_messages', 'gate_compose', 'gate_replies', 'gate_music', 'gate_quoteCards',
     'gate_customEmoji', 'gate_publicProfile', 'gate_accountMove', 'gate_independence',
     'gate_unavailable', 'gate_planned_note', 'gates_summary', 'gates_show', 'gates_hide'];
   const s = Object.fromEntries(keys.map((k) => [k, i18nT(L, `guardian.${k}`)]));

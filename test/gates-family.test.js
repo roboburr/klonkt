@@ -83,6 +83,66 @@ test('compose dicht weigert een eigen post aan de outbox, maar geen antwoord', a
   db.prepare("UPDATE sites SET gate_compose = NULL WHERE slug = 'kind'").run();
 });
 
+// ── Antwoorden: een eigen poort (shaer-r4c) ─────────────────────────────
+//
+// Hier stond de aanname dat een antwoord meedoen is en geen eigen podium, en
+// dus onder compose door mocht. Bart heeft die teruggedraaid: meedoen aan een
+// gesprek valt ook onder een poort. Wat deze toetsen bewaken is dat het een
+// EIGEN poort is en geen aanhangsel van compose -- anders is hij in het paneel
+// wel te zien maar niet los te zetten.
+
+test('replies dicht weigert een antwoord', async () => {
+  db.prepare("UPDATE sites SET gate_replies = 0 WHERE slug = 'kind'").run();
+  const reply = { type: 'Create', object: { type: 'Note', content: '<p>ja!</p>', inReplyTo: 'https://elders/x', to: ['https://www.w3.org/ns/activitystreams#Public'] } };
+  const uit = await AP.ingestOutboxActivity(site(), user, reply);
+  assert.equal(uit.status, 403);
+  assert.equal(uit.error, 'gated_replies');
+  db.prepare("UPDATE sites SET gate_replies = NULL WHERE slug = 'kind'").run();
+});
+
+test('replies dicht laat een EIGEN post staan', async () => {
+  // Los van compose, en dat is de hele reden dat het een eigen rij is: je kunt
+  // willen dat een kind een podium heeft zonder in vreemde draadjes te duiken.
+  db.prepare("UPDATE sites SET gate_replies = 0 WHERE slug = 'kind'").run();
+  const post = { type: 'Create', object: { type: 'Note', content: '<p>hoi</p>', to: ['https://www.w3.org/ns/activitystreams#Public'] } };
+  const uit = await AP.ingestOutboxActivity(site(), user, post);
+  assert.notEqual(uit.error, 'gated_replies');
+  assert.notEqual(uit.error, 'gated_compose');
+  db.prepare("UPDATE sites SET gate_replies = NULL WHERE slug = 'kind'").run();
+});
+
+test('compose dicht laat een antwoord staan zolang replies open is', async () => {
+  // De andere richting van dezelfde onafhankelijkheid. Zou compose ook
+  // antwoorden dichtzetten, dan is de nieuwe rij een knop die niets doet.
+  db.prepare("UPDATE sites SET gate_compose = 0, gate_replies = 1 WHERE slug = 'kind'").run();
+  const reply = { type: 'Create', object: { type: 'Note', content: '<p>ja!</p>', inReplyTo: 'https://elders/x', to: ['https://www.w3.org/ns/activitystreams#Public'] } };
+  const uit = await AP.ingestOutboxActivity(site(), user, reply);
+  assert.notEqual(uit.error, 'gated_compose');
+  assert.notEqual(uit.error, 'gated_replies');
+  db.prepare("UPDATE sites SET gate_compose = NULL, gate_replies = NULL WHERE slug = 'kind'").run();
+});
+
+test('replies dicht houdt ook een DIRECT antwoord tegen', async () => {
+  // Een prive-antwoord is allebei: meedoen aan een gesprek en een bericht. Dan
+  // mag allebei hem tegenhouden. Zou alleen de messages-poort gelden, dan is
+  // dat het gat waar een dichte replies-poort omheen loopt.
+  db.prepare("UPDATE sites SET gate_replies = 0, gate_messages = 1 WHERE slug = 'kind'").run();
+  const dm = { type: 'Create', object: { type: 'Note', content: '<p>psst</p>', inReplyTo: 'https://elders/x', to: ['https://elders/ap/users/vreemde'] } };
+  const uit = await AP.ingestOutboxActivity(site(), user, dm);
+  assert.equal(uit.error, 'gated_replies');
+  db.prepare("UPDATE sites SET gate_replies = NULL, gate_messages = NULL WHERE slug = 'kind'").run();
+});
+
+test('replies dicht laat de REDDINGSBOEI door, ook als die een antwoord is', async () => {
+  // Het gevaarlijkste dat deze poort kan doen. Een kind dat om hulp vraagt in
+  // een draadje waar het misgaat, is precies het geval waarvoor de boei bestaat.
+  db.prepare("UPDATE sites SET gate_replies = 0 WHERE slug = 'kind'").run();
+  const hulp = { type: 'Create', object: { type: 'Note', content: '<p>🛟</p>', 'shaer:helpRequest': true, inReplyTo: 'https://elders/x', to: ['https://elders/ap/users/oma'] } };
+  const uit = await AP.ingestOutboxActivity(site(), user, hulp);
+  assert.notEqual(uit.error, 'gated_replies');
+  db.prepare("UPDATE sites SET gate_replies = NULL WHERE slug = 'kind'").run();
+});
+
 test('messages dicht weigert een direct bericht, maar NOOIT de reddingsboei', async () => {
   db.prepare("UPDATE sites SET gate_messages = 0 WHERE slug = 'kind'").run();
   const dm = { type: 'Create', object: { type: 'Note', content: '<p>psst</p>', to: ['https://elders/ap/users/vreemde'] } };
@@ -102,4 +162,15 @@ test('accountMove dicht weigert de verhuizing voordat er iets vertrekt', async (
   const uit = await AP.moveAccount(site(), '@iemand@elders.example');
   assert.equal(uit.error, 'guarded_account');
   db.prepare("UPDATE sites SET gate_account_move = NULL WHERE slug = 'kind'").run();
+});
+
+test('replies dicht houdt OOK het webpad tegen, niet alleen de app', async () => {
+  // routes/posts.js roept deliverReply rechtstreeks aan en gaat nooit langs
+  // ingestOutboxActivity. Een poort die alleen in C2S staat heeft een deur
+  // ernaast -- en die deur is de eigen webinterface van het kind.
+  db.prepare("UPDATE sites SET gate_replies = 0 WHERE slug = 'kind'").run();
+  const parent = { id: 'https://elders/x', attributedTo: 'https://elders/ap/users/vreemde' };
+  const uit = await AP.deliverReply(site(), { postId: '', postSlug: null, parent, text: 'ja!' });
+  assert.equal(uit, null);
+  db.prepare("UPDATE sites SET gate_replies = NULL WHERE slug = 'kind'").run();
 });

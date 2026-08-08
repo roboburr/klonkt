@@ -168,6 +168,7 @@ export function initializeDatabase() {
   // automatiek (dicht voor een ward, open voor de rest), 0/1 is een besluit
   // van de guardians en wint van de automatiek.
   ensureColumn('sites', 'external_threads', 'INTEGER');   // replies van vreemden onder een post (shaer-9y2)
+  ensureColumn('sites', 'gate_replies', 'INTEGER');       // zelf antwoorden in een gesprek (shaer-r4c)
   ensureColumn('sites', 'gate_images', 'INTEGER');        // afbeeldingsbijlagen (shaer-6p5)
   ensureColumn('sites', 'gate_messages', 'INTEGER');      // heel Messages (shaer-3ow)
   ensureColumn('sites', 'gate_compose', 'INTEGER');       // zelf posten, de (+) kaart (shaer-qgev)

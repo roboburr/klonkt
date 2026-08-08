@@ -3195,6 +3195,17 @@ export async function ingestOutboxActivity(site, user, activity) {
             if (!direct && !object.inReplyTo && !Guardianship.wardGateAllowed(site.gate_compose, isWard)) {
               return { status: 403, error: 'gated_compose' };
             }
+            // Meedoen aan een gesprek is ook iets (Bart, 8-8). Hier stond de
+            // aanname dat een antwoord geen eigen podium is en dus onder compose
+            // door mocht. Dat is teruggedraaid: antwoorden heeft een EIGEN poort,
+            // los van compose in beide richtingen -- je kunt willen dat een kind
+            // meepraat zonder podium, en ook andersom.
+            //
+            // Geldt ook voor een DIRECT antwoord, bovenop de messages-poort: een
+            // privé-antwoord is allebei, en dan mag allebei hem tegenhouden.
+            if (object.inReplyTo && !Guardianship.wardGateAllowed(site.gate_replies, isWard)) {
+              return { status: 403, error: 'gated_replies' };
+            }
           }
         }
         // Client sends `source` (plain/markdown) + `content` (HTML). deliverReply
@@ -3481,6 +3492,18 @@ export async function deliverReply(site, { postId, postSlug, parent, text, html,
     .map((a) => ({ url: a.url, mediaType: String(a.mediaType), name: String(a.name || '').slice(0, 120) }));
   // A media-only reply (no text) is a valid reply.
   if (!base || !site || !site.slug || !parent || (!String(text || '').trim() && !rich && !media.length)) return null;
+  // DE POORT STAAT HIER en niet alleen in de outbox (shaer-r4c). routes/posts.js
+  // roept deliverReply op drie plekken rechtstreeks aan -- de eigen webinterface
+  // van Klonkt gaat dus nooit langs ingestOutboxActivity. Een poort die alleen in
+  // C2S staat is een poort met een deur ernaast.
+  //
+  // Dit is het knooppunt dat beide paden delen. De reddingsboei komt hier niet
+  // langs: een hulpvraag is altijd direct en loopt via deliverDirectNote, dus de
+  // boei blijft open zonder dat daar een uitzondering voor nodig is.
+  {
+    const isWard = (() => { try { return Guardianship.listGuardians(site.slug).length > 0; } catch { return false; } })();
+    if (!Guardianship.wardGateAllowed(site.gate_replies, isWard)) return null;
+  }
   const me = actorId(base, site.slug);
   // u02, the mentions bar: `mentions` undefined = legacy behavior (mention the
   // parent author). An ARRAY (possibly empty) = the kept conversation partners

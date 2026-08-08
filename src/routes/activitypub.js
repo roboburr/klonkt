@@ -377,6 +377,7 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
   const emojiAllowed = gate('gate_custom_emoji');
   const messagesAllowed = gate('gate_messages');
   const composeAllowed = gate('gate_compose');
+  const repliesAllowed = gate('gate_replies');
   const threadsAllowed = gate('external_threads');
   // Emoji dicht raakt ook de bylines: de plaatjes in een naam komen net zo
   // goed van een vreemde server. De naam zelf blijft, met :shortcode: als tekst.
@@ -551,6 +552,7 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
       // (+) kaart leest shaer:compose al (Barts gate); de rest is er voor de
       // schermen die nog komen. Serveren wat waar is kost hier niets.
       'shaer:compose': composeAllowed,
+      'shaer:replies': repliesAllowed,
       'shaer:messages': messagesAllowed,
       'shaer:images': imagesAllowed,
       'shaer:music': musicAllowed,

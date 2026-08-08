@@ -62,6 +62,7 @@ const FEATURES = {
   'shaer:images': 'gate_images',
   'shaer:messages': 'gate_messages',
   'shaer:compose': 'gate_compose',
+  'shaer:replies': 'gate_replies',
   'shaer:music': 'gate_music',
   'shaer:quoteCards': 'gate_quote_cards',
   'shaer:customEmoji': 'gate_custom_emoji',
@@ -98,6 +99,14 @@ export const GATE_CATALOGUE = [
   { feature: 'shaer:images', kind: 'setting', reversible: true, bead: 'shaer-6p5' },
   { feature: 'shaer:messages', kind: 'setting', reversible: true, bead: 'shaer-3ow' },
   { feature: 'shaer:compose', kind: 'setting', reversible: true, bead: 'shaer-qgev' },
+  // MEEDOEN AAN EEN GESPREK IS OOK IETS (Bart, 8-8). Dit stond hier bewust niet:
+  // een antwoord gold als meedoen en niet als eigen podium, dus compose liet het
+  // door. Bart heeft dat teruggedraaid -- wie mag antwoorden staat los van wie
+  // mag posten, en het hoort een eigen poort te zijn die je kunt zien.
+  //
+  // Los van compose en niet eronder: je kunt willen dat een kind wel meepraat
+  // maar geen eigen podium heeft, en ook precies andersom.
+  { feature: 'shaer:replies', kind: 'setting', reversible: true, bead: 'shaer-r4c' },
   { feature: 'shaer:music', kind: 'setting', reversible: true, bead: 'shaer-rmz' },
   { feature: 'shaer:quoteCards', kind: 'setting', reversible: true, bead: 'shaer-mls' },
   { feature: 'shaer:customEmoji', kind: 'setting', reversible: true, bead: 'shaer-ytw' },
