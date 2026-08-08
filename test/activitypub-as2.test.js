@@ -42,6 +42,9 @@ const AS2 = new Set([
   // `help` is de vragenlijst met haar STAAT (5.2.1): de apps lazen hulpvragen uit
   // de feed en wisten niet of er al iemand op af was.
   'shaer:queues', 'offers', 'follows', 'outgoingFollows', 'wards', 'guardians', 'help',
+  // Elke OPEN hulpvraag zit in de collectie; daarom mag een app uit afwezigheid
+  // concluderen dat iets niet open is (shaer-6wt).
+  'shaer:openComplete',
   // ActivityPub §4.1 `endpoints` vocabulary (same category as sharedInbox), used for C2S.
   'oauthAuthorizationEndpoint', 'oauthTokenEndpoint', 'uploadMedia',
   'publicKey', 'owner', 'publicKeyPem',

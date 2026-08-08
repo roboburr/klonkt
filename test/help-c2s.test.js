@@ -82,3 +82,28 @@ test('een note zonder markering blijft een gewoon bericht', async () => {
   });
   assert.notEqual(uit.status, 400);
 });
+
+test('OPEN vragen worden nooit afgekapt, hoeveel het er ook zijn', () => {
+  // Barts punt (8-8): ik noemde tientallen hulpvragen bij een guardian een
+  // randgeval, maar voor een jeugdzorgmedewerker is dat een caseload en dus een
+  // gewone dinsdag. De gebruiker die dit het hardst nodig heeft was precies
+  // degene voor wie het brak.
+  //
+  // Zonder deze regel viel een oudere vraag buiten de queue, vond de app geen
+  // staat, en toonde hem -- terecht, want bij twijfel OPEN -- alsof er nog
+  // iemand op moest.
+  for (let i = 0; i < 120; i++) {
+    db.prepare(`INSERT INTO ap_mentions (slug, object_uri, actor_uri, actor_handle, content, help_request)
+                VALUES (?,?,?,?,?,1)`).run('oma', `https://elders.test/ap/notes/veel-${i}`, KIND, '@kind', '<p>help</p>');
+  }
+  const open = queues.helpItemsFor('oma').filter((h) => h.state.open);
+  assert.equal(open.length, 120, 'alle 120 open vragen komen mee');
+});
+
+test('de collectie zegt dat je uit afwezigheid mag concluderen', () => {
+  // Zonder die vlag mag een app niets afleiden uit een ontbrekende staat, en
+  // valt hij terug op bij-twijfel-open. Dat is de veilige kant, maar dan komt
+  // een afgehandelde vraag terug in het zicht.
+  const coll = queues.helpCollection('https://x/queues/help', 'oma');
+  assert.equal(coll['shaer:openComplete'], true);
+});

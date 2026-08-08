@@ -190,18 +190,37 @@ export function wardGates(mySlug, wardUri) {
 // wardGates: twee berekeningen zouden twee guardians een ander beeld geven van
 // hetzelfde kind.
 
-/** De hulpvragen van deze guardian, met wie erop af is en of het dicht is. */
-export function helpItemsFor(slug, limit = 50) {
+/**
+ * De hulpvragen van deze guardian, met wie erop af is en of het dicht is.
+ *
+ * OPEN VRAGEN WORDEN NOOIT AFGEKAPT, en dat is geen ruimhartigheid maar de reden
+ * dat de app iets mag CONCLUDEREN uit afwezigheid (Barts punt, 8-8).
+ *
+ * Dit stond op 50, en ik noemde 'tientallen hulpvragen bij een guardian' een
+ * randgeval. Bart wees op de jeugdzorgmedewerker: die heeft geen handvol wards
+ * maar een caseload, en voor hem is dat een gewone dinsdag. De gebruiker die dit
+ * het hardst nodig heeft was precies degene voor wie het brak.
+ *
+ * Met een afkap op alles zag een app een oudere vraag niet in de queue, vond geen
+ * staat, en toonde hem -- terecht, want bij twijfel OPEN -- als openstaand. Een
+ * allang afgehandelde hulpvraag die weer om aandacht vraagt. Nu geldt: staat hij
+ * niet in de queue, dan is hij NIET open. Die gevolgtrekking klopt alleen zolang
+ * we open vragen volledig leveren.
+ *
+ * De geschiedenis mag wel afgekapt: die vraagt niets, en wat eraf valt is nog
+ * steeds op de server te vinden.
+ */
+export function helpItemsFor(slug, historyLimit = 50) {
   let rijen = [];
   try {
     rijen = db.prepare(
       `SELECT object_uri, actor_uri, actor_name, actor_handle, actor_icon, content, published, created_at
-       FROM ap_mentions WHERE slug = ? AND help_request = 1 ORDER BY created_at DESC LIMIT ?`,
-    ).all(slug, limit);
+       FROM ap_mentions WHERE slug = ? AND help_request = 1 ORDER BY created_at DESC`,
+    ).all(slug);
   } catch { return []; }
   const staat = help.statusFor(rijen.map((r) => r.object_uri));
   const mijn = new Set(relations.listWards(slug).map((w) => w.other_uri));
-  return rijen.map((r) => ({
+  const alles = rijen.map((r) => ({
     ...r,
     // Bij twijfel OPEN. Een hulpvraag die er afgehandeld uitziet terwijl hij dat
     // niet is, is de gevaarlijke fout -- niet andersom.
@@ -210,6 +229,9 @@ export function helpItemsFor(slug, limit = 50) {
       mijn.has(r.actor_uri),
     ),
   }));
+  const open = alles.filter((h) => h.state.open);
+  const rest = alles.filter((h) => !h.state.open).slice(0, historyLimit);
+  return [...open, ...rest];
 }
 
 /** Dezelfde vragen als collectie voor de apps (5.2.1). */
@@ -230,5 +252,10 @@ export function helpCollection(id, slug) {
     'shaer:pickedUpBy': h.state.pickedUpBy.map((p) => p.handle || p.uri),
     'shaer:formerWard': h.state.formerWard || undefined,
   }));
-  return collection(id, items);
+  const coll = collection(id, items);
+  // Het teken dat de app mag concluderen uit afwezigheid: elke OPEN vraag zit
+  // hierin. Ontbreekt deze vlag (een oudere server), dan valt de app terug op
+  // bij-twijfel-open, en dat is de veilige kant.
+  coll['shaer:openComplete'] = true;
+  return coll;
 }
