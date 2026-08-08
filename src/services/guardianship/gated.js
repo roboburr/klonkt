@@ -259,6 +259,30 @@ export function gateConsequence(feature) {
   return g.reversible === false ? 'irreversible' : 'reversible';
 }
 
+/**
+ * Zou het antwoord van deze guardian het besluit AFMAKEN (shaer-8vt)?
+ *
+ * De telling is een race naar de drempel: zodra het aantal gehaald is, is het
+ * gevallen. Bij 2 van 3 is de tweede ja dus meteen de beslissing, en bij een
+ * volgverzoek met twee guardians is de EERSTE ja dat al. Wie antwoordt weet dat
+ * niet, en het scherm zei het nergens.
+ *
+ * EEN JA/NEE, GEEN TELLING, en dat is een besluit. Een getal ("1 van 2") reist
+ * mee, veroudert onderweg en leest daarna als een feit; de beschikbare set
+ * schuift bovendien met 3.6 mee. En hoeveel guardians een kind heeft, en wie er
+ * al gestemd heeft, is niet vanzelf iets dat elke mede-guardian hoort te zien.
+ * Een waarschuwing veroudert ook, maar hij CLAIMT niets -- en dat scheelt.
+ *
+ * BIJ TWIJFEL WAARSCHUWEN. De twee fouten zijn niet gelijk: zeggen dat je
+ * beslist terwijl dat niet zo is maakt iemand voorzichtiger dan nodig; niets
+ * zeggen terwijl hij wel beslist laat hem het onwetend doen.
+ */
+export function isDecisive(votes, need) {
+  const v = Number.isFinite(votes) ? votes : 0;
+  const n = Number.isFinite(need) ? need : 1;
+  return (n - v) <= 1;
+}
+
 /** The open decision for a feature, for showing progress ("1 of 2"). */
 export function gatedProgress(slug, feature) {
   const votes = db.prepare('SELECT guardian_uri, value FROM ap_gated_votes WHERE slug = ? AND feature = ?')
@@ -312,9 +336,9 @@ let _rs = null;
 function rstmts() {
   if (!_rs) {
     _rs = {
-      ins: db.prepare(`INSERT INTO ap_gated_reviews (id, guardian_slug, ward_uri, ward_inbox, proposer, feature, value)
-                       VALUES (?,?,?,?,?,?,?)
-                       ON CONFLICT(guardian_slug, id) DO UPDATE SET value = excluded.value, ward_inbox = excluded.ward_inbox`),
+      ins: db.prepare(`INSERT INTO ap_gated_reviews (id, guardian_slug, ward_uri, ward_inbox, proposer, feature, value, decisive)
+                       VALUES (?,?,?,?,?,?,?,?)
+                       ON CONFLICT(guardian_slug, id) DO UPDATE SET value = excluded.value, ward_inbox = excluded.ward_inbox, decisive = excluded.decisive`),
       get: db.prepare('SELECT * FROM ap_gated_reviews WHERE guardian_slug = ? AND id = ?'),
       bySlug: db.prepare('SELECT * FROM ap_gated_reviews WHERE guardian_slug = ? ORDER BY created_at DESC'),
       del: db.prepare('DELETE FROM ap_gated_reviews WHERE guardian_slug = ? AND id = ?'),
@@ -325,7 +349,8 @@ function rstmts() {
 }
 
 export function recordGatedReview(guardianSlug, r) {
-  rstmts().ins.run(r.id, guardianSlug, r.wardUri, r.wardInbox || null, r.proposer || null, r.feature, r.value ? 1 : 0);
+  // decisive ontbreekt bij een oudere server -> 1, want bij twijfel waarschuwen.
+  rstmts().ins.run(r.id, guardianSlug, r.wardUri, r.wardInbox || null, r.proposer || null, r.feature, r.value ? 1 : 0, r.decisive === false ? 0 : 1);
   return rstmts().get.get(guardianSlug, r.id);
 }
 export function getGatedReview(guardianSlug, id) { return rstmts().get.get(guardianSlug, id); }
@@ -423,7 +448,7 @@ export function sentStatus(row, now) {
 
 export default {
   GATE_CATALOGUE, gateRows, knownSetting,
-  tallyGatedSetting, thresholdFor, featureColumn, recordGatedVote, gatedProgress, gateConsequence, GATED_WINDOW_MS,
+  tallyGatedSetting, thresholdFor, featureColumn, recordGatedVote, gatedProgress, gateConsequence, isDecisive, GATED_WINDOW_MS,
   parseGatedSetting, buildGatedOffer, rememberGatedOffer, recallGatedOffer,
   recordGatedReview, getGatedReview, listGatedReviews, removeGatedReview, clearGatedReviews,
   recordSent, recallSent, settleSent, listSent, sentStatus,

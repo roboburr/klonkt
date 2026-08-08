@@ -427,9 +427,15 @@ export async function handleInbox(site, activity) {
             // and the signature proved another. §5.3 forwards a gated follow
             // the same way. Who proposed it rides along separately, for the
             // guardian's screen.
+            // Zou DIT antwoord het besluit afmaken (shaer-8vt)? De telling loopt
+            // hier, op de server van het kind, en nergens anders -- zonder dit
+            // veld kan een guardian elders onmogelijk weten dat hij de doorslag
+            // geeft. Een ja/nee en geen getal: zie isDecisive.
+            const p = gated.gatedProgress(site.slug, gs.feature);
             deps.deliverTo(site, g, {
               id: offerId, type: 'Offer', actor: me, to: [g], object: activity.object,
               'shaer:proposer': actor,
+              'shaer:decisive': gated.isDecisive(p.votes, p.need),
             }).catch(() => { /* the delivery queue retries */ });
           }
         } else {
@@ -449,6 +455,9 @@ export async function handleInbox(site, activity) {
           // guardian who opened it travels in shaer:proposer.
           proposer: (typeof activity['shaer:proposer'] === 'string' ? activity['shaer:proposer'] : actor),
           feature: gs.feature, value: gs.value,
+          // Ontbreekt het veld (een oudere server), dan WAARSCHUWEN we: niets
+          // zeggen terwijl je beslist is de gevaarlijke kant (shaer-8vt).
+          decisive: activity['shaer:decisive'] !== false,
         });
         notify(site.slug, { kind: 'gated_review', feature: gs.feature, value: gs.value, ward: gs.ward });
         return true;

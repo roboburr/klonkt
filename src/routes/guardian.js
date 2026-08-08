@@ -66,7 +66,7 @@ function uiStrings(L) {
     // Oppikken en afhandelen van een hulpvraag (shaer-lgo).
     'help_pick', 'help_close', 'help_picked_by', 'help_handled_by', 'help_handled_note',
     'help_close_ask', 'help_close_yes', 'help_just_now', 'help_hours', 'help_days', 'help_former_ward',
-  'warn_reversible', 'warn_irreversible', 'warn_unknown', 'warn_tally_elsewhere', 'warn_go', 'warn_back',
+  'warn_reversible', 'warn_irreversible', 'warn_unknown', 'warn_tally_elsewhere', 'warn_decides', 'warn_not_last', 'warn_go', 'warn_back',
     'help_archive', 'help_archive_hide', 'panel_history',
     'gate_propose_open', 'gate_propose_close', 'gate_default_off',
     'gate_images', 'gate_messages', 'gate_compose', 'gate_replies', 'gate_music', 'gate_quoteCards', 'gate_asked',
@@ -148,6 +148,10 @@ function dashboardState(site, L) {
       // dichtzetten laat niets nieuws door en hoeft dus niet gewaarschuwd te
       // worden -- een waarschuwing die overal staat wordt nergens gelezen.
       consequence: r.value ? Guardianship.gated.gateConsequence(r.feature) : null,
+      // Maakt JOUW antwoord dit af (shaer-8vt)? De telling loopt op de server van
+      // het kind, dus dit is het enige wat we erover weten -- en zonder dat
+      // weet niemand dat hij de doorslag geeft.
+      decisive: r.decisive !== 0,
     })),
     help: helpItems,
     strings: uiStrings(L),

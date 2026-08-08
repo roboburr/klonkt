@@ -799,6 +799,10 @@ export function initializeDatabase() {
   ensureColumn('ap_outbox', 'wave', 'INTEGER');    // FEP-633c shaer:wave (guardian -> ward nudge)
   ensureColumn('ap_outbox', 'away_until', 'INTEGER'); // FEP-633c 3.6.1 shaer:away + endTime (epoch ms)
   ensureColumn('ap_gated_offers', 'proposer', 'TEXT'); // who proposed (5.6): the settle-answer goes back to them
+  // Zou JOUW antwoord het besluit afmaken (shaer-8vt)? De telling loopt op de
+  // server van het kind; zonder dit veld kan een guardian elders niet weten dat
+  // hij de doorslag geeft. Ontbreekt hij, dan waarschuwen we -- bij twijfel.
+  ensureColumn('ap_gated_reviews', 'decisive', 'INTEGER');
   // Did a guardian actually say yes to this follower? That is what makes the
   // mutual shortcut sound: a ward may follow back anyone its guardians already
   // admitted, without asking the same question twice. Only follows that came

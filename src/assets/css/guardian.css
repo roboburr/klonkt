@@ -277,3 +277,7 @@ button.danger { background: var(--danger); color: #fff; border-color: var(--dang
 /* De vraag van het kind zelf (shaer-8ru). Het enige op een poortrij dat van het
    kind komt, dus niet grijs weggeschreven tussen de drempels. */
 .g-gate-asked { margin: .2rem 0 0; color: var(--g-asked, #7a5ea8); font-weight: 600; }
+
+/* "Jouw antwoord beslist dit" (shaer-8vt). Zwaarder dan de rest van de
+   waarschuwing: dit is het verschil tussen meedoen en beslissen. */
+.g-decisive { font-weight: 700; color: var(--g-decisive, #a33); }

@@ -2499,7 +2499,8 @@ export async function handleInbox(req, slugParam, preVerified = null) {
           fetchActor(g).then((ga) => {
             const inbox = ga && ((ga.endpoints && ga.endpoints.sharedInbox) || ga.inbox);
             if (!inbox) return;
-            const offer = { '@context': AP_CONTEXT, id: `${wardActor}#followoffer-${Date.now()}-${rid()}`, type: 'Offer', actor: wardActor, to: [g], object: followObj, 'shaer:followApproval': true };
+            const beslissend2 = Guardianship.gated.isDecisive(0, Guardianship.follows.followThreshold(guardians.length));
+            const offer = { '@context': AP_CONTEXT, id: `${wardActor}#followoffer-${Date.now()}-${rid()}`, type: 'Offer', actor: wardActor, to: [g], object: followObj, 'shaer:followApproval': true, 'shaer:decisive': beslissend2 };
             deliverWithRetry(slug, inbox, offer, `${wardActor}#main-key`, wardKeys.private_pem).catch(() => {});
           }).catch(() => {});
         }
@@ -5762,7 +5763,11 @@ export async function gateOutgoingFollow(site, targetUri) {
       fetchActor(g).then((ga) => {
         const inbox = ga && ((ga.endpoints && ga.endpoints.sharedInbox) || ga.inbox);
         if (!inbox) return;
-        const offer = { '@context': AP_CONTEXT, id: `${wardActor}#outfollowoffer-${Date.now()}-${rid()}`, type: 'Offer', actor: wardActor, to: [g], object: followObj, 'shaer:followApproval': true, 'shaer:direction': 'outgoing' };
+        // Zou DIT antwoord het besluit afmaken (shaer-8vt)? Bij twee guardians is de
+        // drempel 1, dus de EERSTE ja beslist -- en dat is precies wat de
+        // beantwoorder niet kon weten.
+        const beslissend = Guardianship.gated.isDecisive(0, Guardianship.follows.followThreshold(guardians.length));
+        const offer = { '@context': AP_CONTEXT, id: `${wardActor}#outfollowoffer-${Date.now()}-${rid()}`, type: 'Offer', actor: wardActor, to: [g], object: followObj, 'shaer:followApproval': true, 'shaer:direction': 'outgoing', 'shaer:decisive': beslissend };
         deliverWithRetry(slug, inbox, offer, `${wardActor}#main-key`, wardKeys.private_pem).catch(() => {});
       }).catch(() => {});
     }

@@ -297,7 +297,11 @@
     if (g.consequence) {
       var warn = el('div', 'g-warn');
       warn.appendChild(el('p', 'small', warnText(g.consequence)));
-      warn.appendChild(el('p', 'small g-dim', T.warn_tally_elsewhere || ''));
+      // Wat we WEL weten sinds shaer-8vt: de server van het kind heeft
+      // meegestuurd of jouw antwoord het afmaakt. Zo niet -- een oudere server
+      // -- dan blijft de algemene regel staan, want bij twijfel waarschuwen.
+      warn.appendChild(el('p', g.decisive === false ? 'small g-dim' : 'small g-decisive',
+        g.decisive === false ? (T.warn_not_last || '') : (T.warn_decides || T.warn_tally_elsewhere || '')));
       card.appendChild(warn);
     }
 
