@@ -34,9 +34,16 @@ const router = express.Router();
 // off. Use next('router') to SKIP this router entirely and let the normal routes handle it
 // (the /ap/* paths then fall through to the app's normal 404, which is correct).
 router.use((req, res, next) => { if (!apEnabled()) return next('router'); next(); });
-// Generous per-IP baseline over all /ap/* (reads). The inbox POST gets an
+// Generous per-IP baseline over the AP-READ paths. The inbox POST gets an
 // additional, tighter cap inline (it triggers outbound fetches).
-router.use(apReadLimiter);
+//
+// PADGEBONDEN, niet router.use kaal (Barts 429-jacht, 9-8): deze router is op
+// de ROOT gemonteerd, dus een kale use() draait voor ELKE request van de hele
+// site -- pagina's, media, avatars, de PWA. De guardian-PWA met honderd
+// ward-avatars leegde zo in seconden een emmer die "voor /ap-reads" heette,
+// en hield hem leeg: vandaar een Too many requests die niet overging. De
+// kijkbuis die dit vond: een lege /ap-teller naast remaining: 0.
+router.use(['/ap', '/.well-known', '/nodeinfo'], apReadLimiter);
 let _ver = '1.0.0';
 try { _ver = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url))).version || _ver; } catch { /* keep default */ }
 
