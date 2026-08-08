@@ -125,6 +125,54 @@
     });
   }
 
+  // Zwaaien ter plekke: een seintje is geen paginawissel.
+  //
+  // Het formulier blijft een echt formulier -- zonder JS post het en leidt de
+  // route om, precies als vroeger. Hier onderscheppen we het en sturen het met
+  // fetch, zoals like/boost in de Krant het al deden.
+  //
+  // LET OP DE VERZENDKNOP. Deze formulieren hebben er MEERDERE ("Wat leuk!",
+  // "Hoe gaat het?", "Terug"), elk met een eigen name="text". FormData(f) neemt
+  // de aangeklikte knop NIET mee -- dat doet de browser alleen bij een echte
+  // verzending. Zonder submitter vertrekt er dus een zwaai zonder tekst, en die
+  // weigert de route. Vandaar submitter, met een terugval op de eerste knop.
+  document.addEventListener('submit', function (e) {
+    var f = e.target.closest && e.target.closest('.msg-wave, .msg-quickreply');
+    if (!f || f.dataset.sending) return;
+    e.preventDefault();
+    var knoppen = [].slice.call(f.querySelectorAll('button'));
+    var knop = e.submitter || knoppen[0];
+    if (!knop) return;
+    f.dataset.sending = '1';
+    knoppen.forEach(function (b) { b.disabled = true; });
+    var body = new URLSearchParams();
+    new FormData(f).forEach(function (v, k) { body.append(k, v); });
+    if (knop.name) body.set(knop.name, knop.value);
+    fetch(f.action, {
+      method: 'POST', body: body,
+      headers: { 'X-Requested-With': 'fetch' },
+      credentials: 'same-origin',
+    })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        if (!j || !j.ok) throw new Error('geweigerd');
+        // Gelukt: de knoppen maken plaats voor de bevestiging. Zwaaien is
+        // eenmalig -- anders dan een like valt het niet terug te draaien, dus
+        // een aan/uit-knop zou liegen over wat er kan.
+        var klaar = document.createElement('span');
+        klaar.className = 'msg-wave-done';
+        klaar.textContent = '👋 ' + (f.dataset.sent || '');
+        f.replaceChildren(klaar);
+      })
+      .catch(function () {
+        // Mislukt: alles terug zoals het was, zodat een tweede poging kan.
+        delete f.dataset.sending;
+        knoppen.forEach(function (b) { b.disabled = false; });
+        f.classList.add('is-failed');
+        setTimeout(function () { f.classList.remove('is-failed'); }, 600);
+      });
+  });
+
   function start() { reindex(); apply(); wireBookmarklet(); }
   start();
   // Kom je hier via een link binnen de site, dan is de lijst er pas na de swap.

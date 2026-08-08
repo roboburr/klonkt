@@ -972,12 +972,17 @@ router.post('/messages/quick-reply', requireSiteManager, express.urlencoded({ ex
   const back = `${res.locals.siteUrlBase || ''}/messages`;
   const to = String(req.body.to || '').trim();
   const text = String(req.body.text || '').trim().slice(0, 200);
-  if (!site || !/^https?:\/\//i.test(to) || !text) return res.redirect(back + '?error=quickreply');
+  // Zwaaien is een seintje, en een seintje hoort de pagina niet te herladen.
+  // De module stuurt hem met X-Requested-With: fetch en krijgt JSON terug;
+  // zonder JS blijft het formulier gewoon posten en omleiden.
+  const viaFetch = req.get('X-Requested-With') === 'fetch';
+  const mis = (reden) => (viaFetch ? res.status(400).json({ ok: false, error: reden }) : res.redirect(back + '?error=' + reden));
+  if (!site || !/^https?:\/\//i.test(to) || !text) return mis('quickreply');
   try {
     const r = await ActivityPubService.deliverDirectNote(site, { recipients: [to], text, wave: true });
-    if (r) return res.redirect(back + '?success=wave_sent');
+    if (r) return viaFetch ? res.json({ ok: true }) : res.redirect(back + '?success=wave_sent');
   } catch { /* fall through */ }
-  res.redirect(back + '?error=quickreply');
+  return mis('quickreply');
 });
 
 // Antwoorden vanuit een gesprek in Berichten. Twee paden, en welke het wordt

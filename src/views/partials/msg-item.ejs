@@ -69,7 +69,7 @@
               <%# De zwaai blijft een eigen knop: het is geen antwoord maar een
                   seintje (FEP-633c), en die twee horen niet op een hoop. %>
               <% if (_rt.actorUri) { %>
-                <form method="post" action="<%= (typeof siteUrlBase !== 'undefined' ? siteUrlBase : '') %>/messages/quick-reply" class="msg-wave">
+                <form method="post" action="<%= (typeof siteUrlBase !== 'undefined' ? siteUrlBase : '') %>/messages/quick-reply" class="msg-wave" data-sent="<%= t('msg.wave_sent') %>">
                   <input type="hidden" name="to" value="<%= _rt.actorUri %>">
                   <button class="btn small" name="text" value="&#128075;" title="<%= t('msg.wave_back') %>">&#128075;</button>
                 </form>
@@ -166,7 +166,7 @@
             <% if (_t === 'report' && n.content) { %><div class="msg-content"><%= n.content %></div>
             <% } else if ((_t === 'reply' || _t === 'mention' || _t === 'sent') && n.content) { %><div class="msg-content msg-note"><%- include('../partials/note-body', { nb: n }) %></div>
               <% if (_t === 'mention' && n.wave && n.actorUri && canMutate) { %>
-                <form class="msg-quickreply" method="post" action="<%= (typeof siteUrlBase !== 'undefined' ? siteUrlBase : '') %>/messages/quick-reply" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+                <form class="msg-quickreply" method="post" action="<%= (typeof siteUrlBase !== 'undefined' ? siteUrlBase : '') %>/messages/quick-reply" data-sent="<%= t('msg.wave_sent') %>" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
                   <input type="hidden" name="to" value="<%= n.actorUri %>">
                   <button class="btn small" name="text" value="<%= t('msg.wave_r1') %>"><%= t('msg.wave_r1') %></button>
                   <button class="btn small" name="text" value="<%= t('msg.wave_r2') %>"><%= t('msg.wave_r2') %></button>

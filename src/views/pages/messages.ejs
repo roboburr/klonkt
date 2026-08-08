@@ -161,6 +161,22 @@
   .msg-reply-form { min-width: 0; }
   .msg-wave button { line-height: 1.2; }
 
+  /* Zwaaien gebeurt ter plekke (mod/messages.js). Twee toestanden na de klik:
+     gelukt, dan vervangt de bevestiging de knoppen -- en mislukt, dan komen de
+     knoppen terug met een schud, zodat een tweede poging voor de hand ligt.
+     De bestaande klasse `nudge` kon hier niet voor dienen: die heeft alleen
+     CSS op authorize-interaction, dus op deze pagina zou hij niets doen. */
+  .msg-wave-done { font-size: .82rem; color: var(--ink-soft, #888); white-space: nowrap; }
+  .msg-wave.is-failed, .msg-quickreply.is-failed { animation: msg-wave-shake .4s ease; }
+  @keyframes msg-wave-shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .msg-wave.is-failed, .msg-quickreply.is-failed { animation: none; outline: 2px solid var(--accent); }
+  }
+
   @media (max-width: 560px) {
     /* Op een telefoon is 40px avatar per bubbel puur verlies: de naam staat er
        al naast, en de inhoud heeft de breedte harder nodig. */
