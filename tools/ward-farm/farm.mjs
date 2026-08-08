@@ -123,11 +123,25 @@ async function inboxVan(actorUri) {
 // juist dit het moment waarop iemand moet nadenken; dat staat er hier expliciet
 // bij zodat deze code nooit ergens anders terechtkomt.
 
+/**
+ * Alles wat er gebeurt, en meteen naar schijf.
+ *
+ * Stond eerst los: een push in het geheugen, en wegschrijven alleen in de takken
+ * die toch al iets bewaarden. Gevolg: /log en state.json spraken elkaar tegen --
+ * de een had een Follow die de ander niet kende. Bij een testkudde die je gebruikt
+ * om een fout te vinden is dat het ergste wat je kunt hebben: dan zoek je in
+ * bewijs dat zelf niet klopt.
+ */
+function noteer(w, regel) {
+  w.log.push({ at: new Date().toISOString(), ...regel });
+  if (w.log.length > 80) w.log = w.log.slice(-80);
+  bewaarStaat(staat);
+}
+
 async function verwerkInbox(w, activity) {
   const type = Array.isArray(activity.type) ? activity.type[0] : activity.type;
   const actor = typeof activity.actor === 'string' ? activity.actor : (activity.actor && activity.actor.id);
-  w.log.push({ at: new Date().toISOString(), type, actor });
-  if (w.log.length > 50) w.log = w.log.slice(-50);
+  noteer(w, { type, actor });
 
   const o = activity.object;
   const relType = o && (Array.isArray(o.type) ? o.type[0] : o.type);
@@ -145,12 +159,19 @@ async function verwerkInbox(w, activity) {
     for (const doel of aan) {
       try {
         const inbox = await inboxVan(doel);
-        await bezorg(w, inbox, {
+        const code = await bezorg(w, inbox, {
           '@context': ['https://www.w3.org/ns/activitystreams', { shaer: 'https://shaer.klonkt.com/ns#' }],
           id: `${uriVan(w.naam)}/accepts/${crypto.randomUUID()}`,
-          type: 'Accept', actor: uriVan(w.naam), to: aan, object: activity,
+          // `object` is de OFFER-ID, niet het hele Offer. Zo stuurt Klonkt hem
+          // ook (fanout in handshake.js), en een testkudde die er net anders
+          // uitziet dan een echte implementatie laat je een verschil onderzoeken
+          // dat je zelf gemaakt hebt.
+          type: 'Accept', actor: uriVan(w.naam), to: aan, object: activity.id,
         });
-      } catch (e) { w.log.push({ at: new Date().toISOString(), fout: String(e.message) }); }
+        // De statuscode erbij. "Hij stuurde een Accept" is een aanname zolang je
+        // niet weet wat de andere kant ervan vond.
+        noteer(w, { verstuurd: 'Accept', naar: doel, code });
+      } catch (e) { noteer(w, { fout: String(e.message), naar: doel }); }
     }
     bewaarStaat(staat);
     return 'geaccepteerd';
@@ -249,7 +270,7 @@ const server = http.createServer(async (req, res) => {
     for await (const c of req) body += c;
     let uit = 'onleesbaar';
     try { uit = await verwerkInbox(w, JSON.parse(body)); }
-    catch (e) { w.log.push({ at: new Date().toISOString(), fout: String(e.message) }); }
+    catch (e) { noteer(w, { fout: String(e.message) }); }
     // 202 hoe dan ook: een inbox die 4xx geeft op iets dat hij niet kent laat de
     // afzender eindeloos opnieuw proberen.
     return stuur(res, 202, { ok: true, uit });
