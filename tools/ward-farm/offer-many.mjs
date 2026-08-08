@@ -68,7 +68,11 @@ for (let i = van; i <= tot; i++) {
 
   try {
     const uit = await AP.ingestOutboxActivity(site, { id: site.owner_id, username: slug }, activity);
-    if (uit && (uit.status === 201 || uit.status === 200)) gestuurd++;
+    // 202 is hier de NORMALE uitkomst: de handshake is aangenomen en loopt, de
+    // commit valt pas als de ward antwoordt. Ik telde hem als mislukt, en de
+    // eindregel zei daardoor "verstuurd 0" terwijl alles goed ging -- een
+    // verzonnen mislukking is net zo verwarrend als een verzwegen fout.
+    if (uit && uit.status >= 200 && uit.status < 300) gestuurd++;
     else { mislukt++; console.warn(`  ${naam}: ${uit && uit.status} ${uit && uit.error}`); }
   } catch (e) {
     mislukt++;

@@ -122,6 +122,19 @@ async function inboxVan(actorUri) {
 // AUTOMATISCH JA, en alleen omdat dit een testkudde is. Bij een echt kind is
 // juist dit het moment waarop iemand moet nadenken; dat staat er hier expliciet
 // bij zodat deze code nooit ergens anders terechtkomt.
+//
+// HET OFFER IS AL DE TOESTEMMING VAN DE KANDIDAAT, en daar zat mijn fout. Ik
+// wachtte op een afsluitende Accept van de kandidaat, en die komt bij een VRIJE
+// ward nooit -- terecht. Klonkt zegt het met zoveel woorden in handshake.js:
+// "The Offer carries the candidate's agreement -- a free ward then commits on
+// its own accept." Dev deed dus precies wat het hoorde te doen; mijn daemon
+// bleef wachten op iets dat het protocol niet stuurt.
+//
+// De afsluitende Accept van de kandidaat bestaat WEL, maar in het meerpartijen-
+// geval: heeft het kind al guardians, dan moeten die eerst ja zeggen en sluit de
+// kandidaat af. Vandaar de telling hieronder in plaats van "commit bij mijn
+// eigen ja" -- dat laatste zou werken voor de eerste guardian en stilletjes fout
+// zijn voor de tweede.
 
 /**
  * Alles wat er gebeurt, en meteen naar schijf.
@@ -138,6 +151,24 @@ function noteer(w, regel) {
   bewaarStaat(staat);
 }
 
+/**
+ * Een ja bijschrijven, en committen zodra iedereen ja heeft gezegd.
+ *
+ * Dezelfde regel als readyToCommit in Klonkt: de ward, de kandidaat, en -- als
+ * het kind er al had -- minstens een van de bestaande guardians.
+ */
+function telAccept(w, offerId, wie) {
+  const off = w.offers[offerId];
+  if (!off || off.commit) return 'onbekend offer';
+  if (wie && !off.accepts.includes(wie)) off.accepts.push(wie);
+  const iedereen = off.partijen.every((p) => off.accepts.includes(p));
+  if (!iedereen) { noteer(w, { wacht_op: off.partijen.filter((p) => !off.accepts.includes(p)) }); return 'nog niet compleet'; }
+  off.commit = new Date().toISOString();
+  if (!w.guardians.includes(off.kandidaat)) w.guardians.push(off.kandidaat);
+  noteer(w, { commit: off.kandidaat });
+  return 'guardian erbij';
+}
+
 async function verwerkInbox(w, activity) {
   const type = Array.isArray(activity.type) ? activity.type[0] : activity.type;
   const actor = typeof activity.actor === 'string' ? activity.actor : (activity.actor && activity.actor.id);
@@ -150,7 +181,14 @@ async function verwerkInbox(w, activity) {
     const subject = typeof o.subject === 'string' ? o.subject : (o.subject && o.subject.id);
     if (subject !== uriVan(w.naam)) return 'niet voor mij';
     const kandidaat = typeof o.object === 'string' ? o.object : (o.object && o.object.id);
-    w.offers[activity.id] = { kandidaat, at: Date.now() };
+    // De partijen: de kandidaat, ikzelf, en mijn bestaande guardians (die staan
+    // in `to`). De kandidaat telt meteen als ja -- zijn Offer IS zijn instemming.
+    const partijen = [...new Set([
+      kandidaat,
+      uriVan(w.naam),
+      ...(Array.isArray(activity.to) ? activity.to : []),
+    ])].filter(Boolean);
+    w.offers[activity.id] = { kandidaat, at: Date.now(), partijen, accepts: [kandidaat] };
     bewaarStaat(staat);
     // Accepteren, gericht aan iedereen die in `to` stond plus de kandidaat, zodat
     // elke kopie van de telling dezelfde kant op loopt.
@@ -173,24 +211,16 @@ async function verwerkInbox(w, activity) {
         noteer(w, { verstuurd: 'Accept', naar: doel, code });
       } catch (e) { noteer(w, { fout: String(e.message), naar: doel }); }
     }
-    bewaarStaat(staat);
+    telAccept(w, activity.id, uriVan(w.naam));
     return 'geaccepteerd';
   }
 
   if (type === 'Accept') {
-    // De laatste Accept van de kandidaat is de commit (3.1.3). Wij houden hem
-    // gewoon bij: wie ons bewaakt is het enige dat wij hoeven te weten.
-    const binnenste = o && o.object;
-    const rel = binnenste && (Array.isArray(binnenste.type) ? binnenste.type[0] : binnenste.type) === 'Relationship'
-      ? binnenste : (relType === 'Relationship' ? o : null);
-    const kandidaat = rel && (typeof rel.object === 'string' ? rel.object : (rel.object && rel.object.id));
-    const wie = kandidaat || actor;
-    if (wie && !w.guardians.includes(wie)) {
-      w.guardians.push(wie);
-      bewaarStaat(staat);
-      return 'guardian erbij';
-    }
-    return 'al bekend';
+    // Een ja van een mede-partij (een bestaande guardian, of de kandidaat die in
+    // het meerpartijengeval afsluit). `object` is de offer-id.
+    const offerId = typeof o === 'string' ? o : (o && o.id);
+    if (!offerId || !w.offers[offerId]) return 'onbekend offer';
+    return telAccept(w, offerId, actor);
   }
 
   if (type === 'Undo') {
