@@ -581,6 +581,16 @@ function run() {
   const fsBtn = document.getElementById('pe-fullscreen-btn');
   const editorFrame = document.querySelector('.pe-editor-frame');
   const isTouch = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  // OP TOUCH IS DIT GEEN LUXE MAAR DE ENIGE INGANG (shaer-kd1). Buiten
+  // fullscreen is de toolbar daar verborgen (@media (pointer: coarse) in
+  // pages/post-edit.ejs), en het veld staat op contenteditable=false. Ontbreekt
+  // een van deze twee elementen, dan kun je op een telefoon NIET TYPEN -- en tot
+  // nu toe gebeurde dat zonder één spoor: applyFs deed een kale `return`.
+  if (isTouch && (!editorFrame || !editor)) {
+    console.warn('[post-edit] fullscreen onbereikbaar op touch:',
+      'frame=' + !!editorFrame, 'editor=' + !!editor,
+      '-- de toolbar is hier verborgen, dus dit betekent: niet kunnen typen');
+  }
 
   // On mobile the keyboard pushes the visible (visual) viewport up while
   // a position:fixed frame stays pinned to the LAYOUT viewport → the toolbar
@@ -600,7 +610,12 @@ function run() {
   }
   function isFs() { return !!(editorFrame && editorFrame.classList.contains('pe-fs')); }
   function applyFs(on) {
-    if (!editorFrame) return;
+    if (!editorFrame) {
+      // Was een kale `return`. Op touch is dit het verschil tussen "fullscreen
+      // werkt niet" en "je kunt niet typen", en het gebeurde zonder spoor.
+      console.warn('[post-edit] fullscreen kan niet: .pe-editor-frame ontbreekt');
+      return;
+    }
     editorFrame.classList.toggle('pe-fs', on);
     document.body.classList.toggle('pe-fs-open', on);
     document.documentElement.classList.toggle('pe-fs-open', on);
@@ -647,9 +662,12 @@ function run() {
   }
   function toggleFullscreen() { if (isFs()) closeFs(); else openFs(); }
   doc.on(window, 'popstate', function () { if (isFs()) applyFs(false); });
-  if (fsBtn) fsBtn.addEventListener('click', toggleFullscreen);
+  // __wired zoals overal in run(): init() draait bij ELKE paginawissel, en op
+  // dezelfde DOM zou een kale addEventListener stapelen. Na een htmx-wissel is
+  // het element nieuw en dus de vlag weg -- precies de bedoeling.
+  if (fsBtn && !fsBtn.__fsWired) { fsBtn.__fsWired = true; fsBtn.addEventListener('click', toggleFullscreen); }
   var fsDoneBtn = document.getElementById('pe-fs-done');
-  if (fsDoneBtn) fsDoneBtn.addEventListener('click', closeFs);
+  if (fsDoneBtn && !fsDoneBtn.__fsWired) { fsDoneBtn.__fsWired = true; fsDoneBtn.addEventListener('click', closeFs); }
   doc.on(document, 'keydown', (e) => {
     if (e.key === 'Escape' && isFs()) { e.preventDefault(); closeFs(); }
   });
@@ -657,7 +675,8 @@ function run() {
   // On mobile/tablet (touch): the content field is NOT editable inline — it is
   // not a text field there. One tap → fullscreen, where it becomes editable
   // (toggleFullscreen toggles contenteditable). This prevents inline typing.
-  if (isTouch) {
+  if (isTouch && editor && !editor.__fsTapWired) {
+    editor.__fsTapWired = true;
     editor.setAttribute('contenteditable', 'false');
     editor.classList.add('pe-tap-to-edit');
     editor.addEventListener('click', function () {
