@@ -1,17 +1,26 @@
+// Rijke reply-editor -- MODULE sinds shaer-nh2.
+//
+// Stond als <script src> onderaan partials/reply-editor.ejs. Bij een volledige
+// laadbeurt ging dat goed (injectCspNonce zet er een nonce op), maar bij een
+// htmx-navigatie draagt de partial de nonce van DAT verzoek terwijl het
+// document die van zijn eigen laadbeurt heeft. De CSP is strict-dynamic, dus
+// alleen die laatste telt -- en het script draaide niet. Gevolg: geen toolbar,
+// geen .re-full, en op mobiel dus geen fullscreen-compose.
+//
+// Als module wordt hij door de bootstrap in de shell geladen, die WEL de juiste
+// nonce heeft. Dat is bovendien de voorwaarde om straks code te DELEN met de
+// posteditor: een los script kan niet importeren uit mod/lib.js.
+
 // Rich reply editor — upgrades every form[data-re] (partials/reply-editor.ejs)
 // from a plain textarea to a contenteditable with a small toolbar and, on
 // narrow screens (≤700px), a full-screen compose overlay (the right pattern on
 // mobile). Progressive enhancement: without this file the textarea submits as
 // before. On submit: `content` = editor HTML (server sanitizes), `text` =
 // plain-text fallback.
-(function () {
-  'use strict';
-  if (window.__replyEditorInit) return;
-  window.__replyEditorInit = true;
 
   var MOBILE = '(max-width: 700px)';
 
-  function init(form) {
+function initForm(form) {
     if (form.__re) return;
     form.__re = true;
 
@@ -205,9 +214,12 @@
     void foot;
   }
 
-  function initAll() {
-    document.querySelectorAll('form[data-re]').forEach(init);
-  }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initAll);
-  else initAll();
-})();
+/**
+ * De bootstrap roept dit aan bij elke paginawissel waarop deze module actief
+ * is. Opnieuw scannen is veilig: init(form) heeft een eigen `__re`-vlag per
+ * FORMULIER, en na een htmx-wissel zijn de formulieren nieuw -- dus geen vlag,
+ * dus opnieuw opgewaardeerd. Precies wat je wilt.
+ */
+export function init() {
+  document.querySelectorAll('form[data-re]').forEach(initForm);
+}

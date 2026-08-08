@@ -801,7 +801,7 @@ router.get('/authorize_interaction', requireSiteManager, async (req, res) => {
     if (!target) { try { followTarget = await ActivityPubService.resolveRemoteActor(uri); } catch { /* ignore */ } }
   }
   renderPage(req, res, 'pages/authorize-interaction', {
-    pageJs: 'authorize-interaction',
+    pageJs: 'authorize-interaction reply-editor',
     pageTitleKey: 'fedi.remote_interact', // i18n: was hardcoded Dutch on non-NL sites
     bodyClass: 'on-special',
     uri,
@@ -948,7 +948,7 @@ router.get('/messages', requireSiteManager, (req, res) => {
     ? Guardianship.offersCollection(`${gMe}/queues/offers`, site.slug, gMe).orderedItems
     : []).filter((o) => o['shaer:ward'] === gMe && o['shaer:needsMyAccept']);
   renderPage(req, res, 'pages/messages', {
-    pageTitleKey: 'msg.title', bodyClass: 'on-special', pageJs: 'messages', items, seenAt,
+    pageTitleKey: 'msg.title', bodyClass: 'on-special', pageJs: 'messages reply-editor', items, seenAt,
     hasMore, nextOffset: offset + FEED_PAGE, moreBase, guardianOffers,
     success: req.query.success || null, error: req.query.error || null,
   });
@@ -1529,7 +1529,7 @@ router.get('/:slug', (req, res, next) => {
   const siteAvatar = (site && site.profile_photo) ? site.profile_photo : null;
 
   renderPage(req, res, 'pages/post', {
-    pageJs: 'post',
+    pageJs: 'post reply-editor',
     post,
     poll: ActivityPubService.ownPollView(post),
     newerPost,
