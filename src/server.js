@@ -178,7 +178,16 @@ app.use(bodyParser.json({ limit: '10mb' }));
 // HTTPS and forwards to us over plain HTTP, setting X-Forwarded-Proto: https.
 // Without this, Express sees req.protocol === 'http' and won't issue secure
 // cookies — sessions never persist past the redirect after login.
-if (!isDev) app.set('trust proxy', 1);
+// Trust proxy hoort bij WAAR JE DRAAIT, niet bij dev/prod (Barts 429-jacht,
+// 9-8): klonkt-dev draait NODE_ENV=development ACHTER Caddy, en zonder trust
+// proxy was req.ip voor elk verzoek 127.0.0.1 -- de hele wereld plus de
+// honderd kudde-daemons deelden EEN rate-limit-emmer van 300/min. De kudde
+// leegde hem, en Barts refresh kreeg 'Too many requests' terwijl de live-lus
+// aan dezelfde 429's verhongerde. TRUST_PROXY=1 zet hem aan waar een proxy
+// voor de deur staat; kaal-op-poort blijft hem uit laten, want een direct
+// bereikbare server die X-Forwarded-For vertrouwt laat iedereen zijn eigen
+// IP kiezen -- en daarmee de limiter omzeilen.
+if (!isDev || process.env.TRUST_PROXY === '1') app.set('trust proxy', 1);
 
 // Collapse leading duplicate slashes in the path. A reverse proxy that proxies with
 // `RewriteRule ^(.*)$ http://localhost:3000/$1` (Apache [P]) sends "//" for the root and
