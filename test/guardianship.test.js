@@ -120,6 +120,33 @@ test('a ward cannot become a guardian (§1)', async () => {
   assert.equal(r.error, 'a_ward_cannot_guard');
 });
 
+test('a guardian cannot be guarded either: §1 is flat in both directions', async () => {
+  // parent guards kid by now, and gran (a guardian, so free to offer) offers
+  // to guard parent. The offer itself is fine; only parent's accept would
+  // make one actor ward and guardian at once.
+  assert.ok(G.listWards('parent').length, 'parent already guards someone');
+  const off = await G.handleGuardianshipOutbox(gran, {
+    type: 'Offer', object: { type: 'Relationship', subject: ME, relationship: 'shaer:Guardian', object: GRAN },
+  });
+  assert.equal(off.status, 202, 'a guardian may still offer to guard');
+  const id = offerIdFrom(off);
+
+  const r = await G.handleGuardianshipOutbox(parent, { type: 'Accept', object: id });
+  assert.equal(r.status, 403);
+  assert.equal(r.error, 'a_guardian_cannot_be_guarded');
+
+  // Nothing recorded, and the actor document still reads as a pure guardian.
+  // Without the check actorProps() would have flipped it to a ward silently.
+  assert.deepEqual(G.listGuardians('parent'), []);
+  const doc = AP.buildActor('https://test.example', parent);
+  assert.equal(doc['shaer:isGuardian'], true);
+  assert.equal(doc['shaer:guardians'], undefined);
+
+  // The candidate and the existing guardians are untouched by the check, so
+  // the offer is refusable in the ordinary way rather than stuck.
+  await G.handleGuardianshipOutbox(parent, { type: 'Reject', object: id });
+});
+
 test('a candidate adopted between Offer and Accept is refused at commit (§4.2)', async () => {
   // The case the §1 check above structurally cannot catch. Tess is free when
   // she offers, so the Offer is legitimate and accepted. Only afterwards does
