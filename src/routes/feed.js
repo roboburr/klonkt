@@ -66,6 +66,24 @@ router.get('/feed.xml', (req, res) => {
   const tracks = siteOpenTracks(site.id);
   const lastBuild = posts[0]?.published_at || new Date().toISOString();
 
+  // De itunes-velden waar een podcast-app een kanaal aan herkent. Funkwhale
+  // bouwde onze kanaalpagina langs de RSS-kant op en liet de categorie leeg,
+  // want die leest hij hier -- niet uit `category` op de AP-actor.
+  //
+  // De categorie volgt DEZELFDE regel als daar: alleen 'Music' als er ook
+  // werkelijk publieke muziek is. Een blog zonder open track is naar buiten
+  // toe geen muziekkanaal, en gated muziek telt niet mee -- afwezig is
+  // afwezig, ook in een categorie.
+  const abs = (u) => !u ? null : (/^https?:/i.test(u) ? u : `${base}${u.startsWith('/') ? '' : '/'}${u}`);
+  const kanaalKunst = abs(site.profile_photo || site.og_image_default || null);
+  const kanaalTags = [
+    `    <itunes:author>${escapeXml(site.author || site.title || '')}</itunes:author>`,
+    site.description || site.tagline
+      ? `    <itunes:summary>${escapeXml(site.description || site.tagline)}</itunes:summary>` : null,
+    kanaalKunst ? `    <itunes:image href="${escapeXml(kanaalKunst)}" />` : null,
+    tracks.length ? '    <itunes:category text="Music" />' : null,
+  ].filter(Boolean).join('\n');
+
   const wanneer = (d) => { const t = Date.parse(d); return Number.isNaN(t) ? 0 : t; };
   const items = [
     ...posts.map((p) => ({ op: wanneer(p.published_at), xml: `    <item>
@@ -87,7 +105,9 @@ router.get('/feed.xml', (req, res) => {
       <pubDate>${new Date(t.created_at || Date.now()).toUTCString()}</pubDate>
       <description>${escapeXml(t.artist || '')}</description>
       <enclosure url="${escapeXml(`${base}/audio/stream/${encodeURIComponent(fn)}`)}" length="${Number(t.size) || 0}" type="${escapeXml(t.mime_type || 'audio/mpeg')}" />${t.duration ? `
-      <itunes:duration>${Math.round(t.duration)}</itunes:duration>` : ''}
+      <itunes:duration>${Math.round(t.duration)}</itunes:duration>` : ''}${t.artist ? `
+      <itunes:author>${escapeXml(t.artist)}</itunes:author>` : ''}${abs(t.cover_url) ? `
+      <itunes:image href="${escapeXml(abs(t.cover_url))}" />` : ''}
     </item>` };
     }),
   ].sort((a, b) => b.op - a.op).map((x) => x.xml).join('\n');
@@ -102,6 +122,7 @@ router.get('/feed.xml', (req, res) => {
     <language>${escapeXml(site.language || 'nl')}</language>
     <lastBuildDate>${new Date(lastBuild).toUTCString()}</lastBuildDate>
     <atom:link href="${escapeXml(base + '/feed.xml')}" rel="self" type="application/rss+xml" />
+${kanaalTags}
 ${items}
   </channel>
 </rss>`);

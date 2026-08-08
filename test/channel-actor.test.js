@@ -35,10 +35,21 @@ test('zonder muziek geen category -- liever geen label dan een verkeerd label', 
   assert.equal(AP.buildActor(BASE, site()).category, undefined);
 });
 
-test('met muziek is de category "music"', () => {
+test('een GATED track maakt er nog geen muziekkanaal van', () => {
+  // Aangescherpt: eerst telde elke track mee, ook een afgeschermde -- dan riep
+  // een site met uitsluitend gated muziek toch "hier is muziek" naar buiten.
+  // Afwezig is afwezig, ook in een categorie.
+  db.prepare('INSERT INTO media (id, site_id, filename, storage_path, mime_type, size) VALUES (?,?,?,?,?,1)')
+    .run('m0', 's1', 'dicht.mp3', 'audio/dicht.mp3', 'audio/mpeg');
+  db.prepare('INSERT INTO audio_tracks (id, site_id, title, media_id, fedi_open) VALUES (?,?,?,?,0)')
+    .run('t0', 's1', 'Achter de poort', 'm0');
+  assert.equal(AP.buildActor(BASE, site()).category, undefined);
+});
+
+test('met OPENGEZETTE muziek is de category "music"', () => {
   db.prepare('INSERT INTO media (id, site_id, filename, storage_path, mime_type, size) VALUES (?,?,?,?,?,1)')
     .run('m1', 's1', 'a.mp3', 'audio/a.mp3', 'audio/mpeg');
-  db.prepare('INSERT INTO audio_tracks (id, site_id, title, media_id) VALUES (?,?,?,?)')
+  db.prepare('INSERT INTO audio_tracks (id, site_id, title, media_id, fedi_open) VALUES (?,?,?,?,1)')
     .run('t1', 's1', 'Een nummer', 'm1');
   assert.equal(AP.buildActor(BASE, site()).category, 'music');
 });

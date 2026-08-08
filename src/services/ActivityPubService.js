@@ -232,9 +232,15 @@ export function channelUrls(base, site) {
  * muziekkanaal aankondigen is erger dan geen label. Het signaal is een track in
  * de kast, niet enable_audio_player -- die staat standaard aan en zegt niets.
  */
-function channelCategory(site) {
+export function channelCategory(site) {
   try {
-    return db.prepare('SELECT 1 FROM audio_tracks WHERE site_id = ? LIMIT 1').get(site.id) ? 'music' : null;
+    // ALLEEN opengezette tracks tellen. Eerst keek dit naar elke track, ook een
+    // gated -- en dan roept een site met uitsluitend afgeschermde muziek toch
+    // "hier is muziek" naar de hele fediverse. Dat botst met de regel die we
+    // overal aanhouden: een gesloten track is AFWEZIG, niet stilletjes
+    // aanwezig. Naar buiten toe is een kanaal zonder publieke muziek geen
+    // muziekkanaal.
+    return db.prepare('SELECT 1 FROM audio_tracks WHERE site_id = ? AND fedi_open = 1 LIMIT 1').get(site.id) ? 'music' : null;
   } catch { return null; }
 }
 
@@ -6038,7 +6044,7 @@ Guardianship.wireAvailability({
 export default {
   AP_CONTEXT, getOrCreateKeys, apWants, sendAP, actorId, noteId, stripLeadingMentions,
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers, buildFollowing, buildFeatured,
-  channelUrls, timelineFields, guessMediaType,
+  channelUrls, channelCategory, timelineFields, guessMediaType,
   siteOpenTracks, openTrack, buildTrackAudio, buildTrackCollection, buildTrackCreate,
   buildPlaylistCollection, playlistOpenTracks, listPlaylistsAP, playlistLinkTags,
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
