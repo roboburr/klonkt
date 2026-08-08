@@ -144,3 +144,35 @@ test('elke gate uit de catalogus levert een gevolg op', () => {
     assert.ok(['reversible', 'irreversible'].includes(gated.gateConsequence(g.feature)), g.feature);
   }
 });
+
+// ── Dezelfde poorten voor het paneel en voor de apps (shaer-ahy.1) ───────
+
+test('de wards-queue draagt de poorten mee', async () => {
+  // Zonder dit kon een app een ward wel TONEN maar niets over hem zeggen. De
+  // apps lezen deze collectie; het PWA-paneel leest wardGates rechtstreeks.
+  const q = await import('../src/services/guardianship/queues.js');
+  const rel = await import('../src/services/guardianship/relations.js');
+  const dbm = await import('../src/config/database.js');
+  dbm.initializeDatabase();
+  dbm.default.prepare('INSERT OR IGNORE INTO users (id, username, email, password_hash, role) VALUES (?,?,?,?,?)')
+    .run('gu', 'gu', 'gu@t', 'x', 'god');
+  dbm.default.prepare('INSERT OR IGNORE INTO sites (id, slug, title, owner_id) VALUES (?,?,?,?)').run('gs', 'oma', 'Oma', 'gu');
+  rel.commitWardForGuardian('oma', 'https://elders/ap/users/kind', { handle: '@kind' });
+
+  const coll = q.wardsCollection('https://x/queues/wards', 'oma');
+  const ward = coll.orderedItems.find((w) => w.id === 'https://elders/ap/users/kind');
+  assert.ok(ward, 'de ward staat in de collectie');
+  assert.ok(Array.isArray(ward['shaer:gates']), 'en draagt zijn poorten');
+  assert.equal(ward['shaer:gates'].length, gated.GATE_CATALOGUE.length);
+});
+
+test('de app krijgt PRECIES dezelfde rijen als het paneel', async () => {
+  // Twee berekeningen naast elkaar geven vroeg of laat een ander antwoord op
+  // dezelfde vraag, en dat is hier geen schoonheidsfoutje: dan krijgen twee
+  // guardians een verschillend beeld van hetzelfde kind.
+  const q = await import('../src/services/guardianship/queues.js');
+  const coll = q.wardsCollection('https://x/queues/wards', 'oma');
+  const uitQueue = coll.orderedItems.find((w) => w.id === 'https://elders/ap/users/kind')['shaer:gates'];
+  const uitPaneel = q.wardGates('oma', 'https://elders/ap/users/kind');
+  assert.deepEqual(uitQueue, uitPaneel);
+});

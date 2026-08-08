@@ -122,7 +122,7 @@ function dashboardState(site, L) {
       ...w,
       embeds: wardEmbedSetting(w.other_uri),
       playback: wardPlaybackSetting(w.other_uri),
-      guardians: wardGuardianStatuses(w.other_uri),
+      guardians: Guardianship.queues.wardGuardianStatuses(w.other_uri),
       // What THIS guardian proposed for this ward and how it stands (5.6):
       // open, accepted, rejected, or expired when the window ran out and the
       // ward's server had nothing to write home. The answer is a real
@@ -134,7 +134,7 @@ function dashboardState(site, L) {
       // Alles wat voor dit kind gated is op EEN plek, met per gate het soort en
       // de drempel (shaer-ahy.1). Losse knoppen lieten een guardian zelf
       // uitzoeken wat er allemaal geldt; wat niet verstelbaar is stond nergens.
-      gates: wardGates(site.slug, w.other_uri),
+      gates: Guardianship.queues.wardGates(site.slug, w.other_uri),
     })),
     offers: Guardianship.offersCollection(`${me}/queues/offers`, site.slug, me).orderedItems,
     // Running lapses (3.6.3) this guardian or its local wards are party to.
@@ -154,27 +154,6 @@ function dashboardState(site, L) {
   };
 }
 
-/** The guardians of a ward WE host, with availability (3.6.1: owner-only in
- *  spirit; the co-guardians are among the owners of the relationship). Null
- *  for a remote ward: its server tracks availability, not us. */
-function wardGuardianStatuses(wardUri) {
-  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
-  if (!base || !String(wardUri || '').startsWith(`${base}/`)) return null;
-  const slug = String(wardUri).trim().replace(/\/+$/, '').split('/').pop();
-  try {
-    const uris = Guardianship.listGuardians(slug).map((g) => ({ uri: g.other_uri, handle: g.other_handle }));
-    const st = Object.fromEntries(
-      Guardianship.availability.statusesFor(slug, uris.map((u) => u.uri), Date.now()).map((s) => [s.id, s]),
-    );
-    return uris.map((u) => ({
-      uri: u.uri,
-      handle: u.handle,
-      availability: (st[u.uri] || {})['shaer:availability'] || 'active',
-      awayUntil: (st[u.uri] || {})['shaer:awayUntil'] || null,
-      lapse: (st[u.uri] || {})['shaer:lapse'] || null,
-    }));
-  } catch { return null; }
-}
 
 // ── The PWA page ─────────────────────────────────────────────────────────
 router.get('/', requireAuth, (req, res) => {
@@ -577,7 +556,7 @@ router.get('/wards/guardians', requireAuth, async (req, res) => {
   if (!Guardianship.listWards(site.slug).some((w) => w.other_uri === uri)) {
     return res.status(403).json({ error: 'not_my_ward' });
   }
-  const local = wardGuardianStatuses(uri);
+  const local = Guardianship.queues.wardGuardianStatuses(uri);
   if (local) return res.json({ local: true, guardians: local });
   const doc = await AP.fetchActor(uri).catch(() => null);
   let g = doc && doc['shaer:guardians'];
@@ -612,33 +591,6 @@ router.post('/wards/remove', requireAuth, express.json({ limit: '4kb' }), async 
 function wardEmbedSetting(uri) { return wardGateSetting(uri, 'external_embeds'); }
 /** The playback gate of a ward we host (5.6): the heavier sibling. */
 function wardPlaybackSetting(uri) { return wardGateSetting(uri, 'external_playback'); }
-/**
- * De gate-rijen van een ward voor het paneel.
- *
- * De standen komen uit onze eigen kolommen als we het kind hosten; bij een ward
- * elders weten we ze niet en blijft het NULL -- onbekend, niet uit. Het aantal
- * guardians idem: dat wordt op de server van die ward bijgehouden, en zonder dat
- * getal wordt er geen drempel verzonnen.
- */
-function wardGates(mySlug, wardUri) {
-  const statuses = wardGuardianStatuses(wardUri);
-  const wachtend = Guardianship.follows.listReviewsByDirection(mySlug, 'incoming')
-    .filter((r) => r.ward_uri === wardUri).length;
-  return Guardianship.gated.gateRows({
-    // Uit de BESLUITEN, niet uit onze eigen kolom. Er zijn geen lokale accounts:
-    // elke ward woont elders, dus wardEmbedSetting() gaf voor iedere ward null en
-    // stond er in het paneel overal "onbekend". Wat een guardian wel heeft is de
-    // uitslag van wat hij voorstelde.
-    settings: Object.fromEntries(Guardianship.gated.GATE_CATALOGUE
-      .filter((g) => g.available !== false && Guardianship.gated.featureColumn(g.feature))
-      .map((g) => [g.feature, Guardianship.gated.knownSetting(mySlug, wardUri, g.feature)])),
-    guardianCount: statuses ? statuses.length : null,
-    proposals: Guardianship.gated.listSent(mySlug, wardUri).map((p) => ({
-      feature: p.feature, value: !!p.value, status: Guardianship.gated.sentStatus(p, Date.now()),
-    })),
-    waiting: { 'shaer:follows': wachtend || undefined },
-  });
-}
 
 function wardGateSetting(uri, column) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');

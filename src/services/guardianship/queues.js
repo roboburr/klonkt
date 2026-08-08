@@ -13,6 +13,7 @@ import * as relations from './relations.js';
 import * as availability from './availability.js';
 import * as outgoing from './outgoing.js';
 import * as follows from './follows.js';
+import * as gated from './gated.js';
 import * as handshake from './handshake.js';
 
 const collection = (id, items) => ({
@@ -93,7 +94,16 @@ export function outgoingFollowsCollection(id, slug, me) {
 /** The guardian's committed wards, with cached handle for display. */
 export function wardsCollection(id, slug) {
   const items = relations.listWards(slug)
-    .map((r) => ({ id: r.other_uri, 'shaer:handle': r.other_handle || undefined, since: r.created_at }));
+    .map((r) => ({
+      id: r.other_uri,
+      'shaer:handle': r.other_handle || undefined,
+      since: r.created_at,
+      // Alles wat voor dit kind gated is, met soort, drempel en lopend voorstel
+      // (shaer-ahy.1). Zonder dit kon een app wel een ward TONEN maar niets over
+      // hem zeggen -- en dat is precies de helft van het antwoord op "wat mag
+      // dit kind". Dezelfde rijen als het PWA-paneel, uit dezelfde functie.
+      'shaer:gates': wardGates(slug, r.other_uri),
+    }));
   return collection(id, items);
 }
 
@@ -104,4 +114,60 @@ export function guardiansCollection(id, slug) {
   return collection(id, availability.statusesFor(slug, uris, Date.now()));
 }
 
-export default { offersCollection, followsCollection, outgoingFollowsCollection, wardsCollection, guardiansCollection };
+export default { offersCollection, followsCollection, outgoingFollowsCollection, wardsCollection, guardiansCollection, wardGates, wardGuardianStatuses };
+
+// ── Wat er voor een ward gated is (shaer-ahy.1) ─────────────────────────
+//
+// STOND IN routes/guardian.js, en daar kon alleen de PWA erbij. De Shaer-apps
+// lezen dezelfde toestand via de wards-queue, en een tweede berekening naast
+// deze zou vroeg of laat een ander antwoord geven op dezelfde vraag -- dat is
+// hier geen schoonheidsfoutje maar twee guardians die een verschillend beeld
+// van hetzelfde kind krijgen. Een plek dus, en beide schermen lezen eruit.
+/** The guardians of a ward WE host, with availability (3.6.1: owner-only in
+ *  spirit; the co-guardians are among the owners of the relationship). Null
+ *  for a remote ward: its server tracks availability, not us. */
+export function wardGuardianStatuses(wardUri) {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  if (!base || !String(wardUri || '').startsWith(`${base}/`)) return null;
+  const slug = String(wardUri).trim().replace(/\/+$/, '').split('/').pop();
+  try {
+    const uris = relations.listGuardians(slug).map((g) => ({ uri: g.other_uri, handle: g.other_handle }));
+    const st = Object.fromEntries(
+      availability.statusesFor(slug, uris.map((u) => u.uri), Date.now()).map((s) => [s.id, s]),
+    );
+    return uris.map((u) => ({
+      uri: u.uri,
+      handle: u.handle,
+      availability: (st[u.uri] || {})['shaer:availability'] || 'active',
+      awayUntil: (st[u.uri] || {})['shaer:awayUntil'] || null,
+      lapse: (st[u.uri] || {})['shaer:lapse'] || null,
+    }));
+  } catch { return null; }
+}
+/**
+ * De gate-rijen van een ward voor het paneel.
+ *
+ * De standen komen uit onze eigen kolommen als we het kind hosten; bij een ward
+ * elders weten we ze niet en blijft het NULL -- onbekend, niet uit. Het aantal
+ * guardians idem: dat wordt op de server van die ward bijgehouden, en zonder dat
+ * getal wordt er geen drempel verzonnen.
+ */
+export function wardGates(mySlug, wardUri) {
+  const statuses = wardGuardianStatuses(wardUri);
+  const wachtend = follows.listReviewsByDirection(mySlug, 'incoming')
+    .filter((r) => r.ward_uri === wardUri).length;
+  return gated.gateRows({
+    // Uit de BESLUITEN, niet uit onze eigen kolom. Er zijn geen lokale accounts:
+    // elke ward woont elders, dus wardEmbedSetting() gaf voor iedere ward null en
+    // stond er in het paneel overal "onbekend". Wat een guardian wel heeft is de
+    // uitslag van wat hij voorstelde.
+    settings: Object.fromEntries(gated.GATE_CATALOGUE
+      .filter((g) => g.available !== false && gated.featureColumn(g.feature))
+      .map((g) => [g.feature, gated.knownSetting(mySlug, wardUri, g.feature)])),
+    guardianCount: statuses ? statuses.length : null,
+    proposals: gated.listSent(mySlug, wardUri).map((p) => ({
+      feature: p.feature, value: !!p.value, status: gated.sentStatus(p, Date.now()),
+    })),
+    waiting: { 'shaer:follows': wachtend || undefined },
+  });
+}
