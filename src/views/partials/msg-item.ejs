@@ -47,7 +47,12 @@
               dat deze weergave moest oplossen. De route kiest het pad: een
               draad aan een post krijgt een reply, een draad aan een persoon een
               direct bericht. %>
-          <% var _rt = n.replyTo || {}; var _kan = canMutate && ((_rt.interactionId && _rt.postSlug) || _rt.actorUri); %>
+          <%# shaer-r4c: precies de tak die de server ook kiest. /messages/reply
+              gaat naar deliverReply als er een interaction+post is (dat is een
+              ANTWOORD en valt onder de poort), en anders naar deliverDirectNote
+              (dat is een bericht, andere poort). Alleen de eerste verbergen. %>
+          <% var _rt = n.replyTo || {}; var _thread = _rt.interactionId && _rt.postSlug; %>
+          <% var _kan = canMutate && ((_thread && locals.mayReply !== false) || (!_thread && _rt.actorUri)); %>
           <% if (_kan) { %>
             <div class="msg-thread-foot">
               <details class="msg-reply">

@@ -11,6 +11,7 @@
 import db from '../config/database.js';
 import { audioUrl } from '../services/AudioStreamService.js';
 import { audioEnabled } from '../config/features.js';
+import * as Guardianship from '../services/guardianship/index.js';
 
 /**
  * The primary/main site — ONE source of truth (replaces the "oldest site ="
@@ -32,6 +33,14 @@ export function resolveSite(req, res, next) {
   if (defaultSite) {
     res.locals.site = defaultSite;
     res.locals.siteUrlBase = '';
+    // Mag deze account antwoorden (shaer-r4c)? Eén keer hier, zodat de
+    // antwoordvelden in de views hem kunnen lezen zonder dat elke route hem
+    // apart doorgeeft. De server weigert het antwoord toch al in deliverReply;
+    // dit voorkomt alleen dat een kind tegen een deur duwt die op slot zit.
+    try {
+      const isWard = Guardianship.listGuardians(defaultSite.slug).length > 0;
+      res.locals.mayReply = Guardianship.wardGateAllowed(defaultSite.gate_replies, isWard);
+    } catch { res.locals.mayReply = true; }
   }
 
   next();

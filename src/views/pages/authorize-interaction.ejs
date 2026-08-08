@@ -173,6 +173,7 @@
         </button>
       </form>
     </div>
+    <% if (locals.mayReply !== false) { %>
     <p class="auth-interact-or"><%= t('fedi.or_reply') %></p>
     <p class="auth-interact-where">💬 <%= t('fedi.reply_where') %></p>
     <div class="auth-interact-form">
@@ -190,6 +191,7 @@
       }) %>
       <div class="auth-interact-actions"><a href="<%= uri %>" class="btn"><%= t('comments.cancel') %></a></div>
     </div>
+    <% } %>
     <p class="auth-interact-note"><%= t('fedi.remote_as', { site: siteTitle }) %></p>
     <details class="auth-report">
       <summary>🚩 <%= t('fedi.report_open') %></summary>
