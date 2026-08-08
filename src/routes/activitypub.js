@@ -190,8 +190,28 @@ router.get('/ap/users/:slug/outbox', async (req, res) => {
     // by the site itself: give it the same `shaer:author` byline the timeline
     // entries carry, so your own cards get a header too (avatar + name).
     const me = AP.selfAuthor(baseUrl(req), site);
+    // De kaart op je eigen post (shaer-k3f): dezelfde shaer:quote/shaer:embed
+    // die de tijdlijn voor andermans posts draagt, uit de snapshots die
+    // deliverCreate bij het publiceren opsloeg. Op note-id gekoppeld, want
+    // buildOutbox sorteert en mengt tracks erdoorheen. De embed alleen voor de
+    // BEARER en langs zijn eigen poort: een remote vriend krijgt hem niet
+    // (diens server resolvet en gate zelf bij ontvangst), en een ward zonder
+    // open embeds-poort krijgt hem hier net zo min als in de tijdlijn.
+    const byNote = new Map(posts.map((p) => [AP.noteId(baseUrl(req), p.id), p]));
+    const bearerEmbeds = bearer ? (() => {
+      const isWard = (() => { try { return Guardianship.listGuardians(bearer.site.slug).length > 0; } catch { return false; } })();
+      return Guardianship.externalEmbedsAllowed(bearer.site.external_embeds, isWard)
+        ? { playback: Guardianship.externalPlaybackAllowed(bearer.site.external_playback, isWard) } : null;
+    })() : null;
     for (const it of ob.orderedItems) {
-      if (it && it.object && typeof it.object === 'object') it.object['shaer:author'] = me;
+      if (it && it.object && typeof it.object === 'object') {
+        it.object['shaer:author'] = me;
+        const row = byNote.get(it.object.id);
+        if (row) {
+          it.object['shaer:quote'] = AP.timelineQuote(row.quote_json);
+          if (bearerEmbeds) it.object['shaer:embed'] = AP.timelineEmbed(row.embed_json, { playback: bearerEmbeds.playback });
+        }
+      }
     }
   }
   AP.sendAP(res, ob, audience === 'friend' ? 'private, no-store' : undefined);
@@ -812,6 +832,27 @@ router.get('/ap/notes/:id', async (req, res) => {
 });
 
 // ── Replies collection ── lets remote servers fetch a post's whole thread.
+// ── De composer-preview (shaer-k3f): een URL wordt alvast een kaart ──
+//
+// Bearer-only, net als de thread: dit is de eigen app die tijdens het typen
+// vraagt wat een link gaat worden. Dezelfde pijplijn als publiceren, dus de
+// preview kan niet iets beloven dat de post niet waarmaakt. De embed gaat
+// langs de eigen poort van de lezer -- een ward zonder open embeds-poort
+// krijgt in de composer geen kaart die zijn feed hem ook niet zou tonen.
+router.get('/ap/users/:slug/card', async (req, res) => {
+  const auth = OAuth.verifyBearer(req.headers.authorization);
+  if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
+  const uit = await AP.previewCard(String(req.query.url || ''));
+  const isWard = (() => { try { return Guardianship.listGuardians(auth.site.slug).length > 0; } catch { return false; } })();
+  const embedsAllowed = Guardianship.externalEmbedsAllowed(auth.site.external_embeds, isWard);
+  const playback = embedsAllowed && Guardianship.externalPlaybackAllowed(auth.site.external_playback, isWard);
+  AP.sendAP(res, {
+    '@context': AP.AP_CONTEXT,
+    'shaer:quote': AP.timelineQuote(uit.quoteJson),
+    'shaer:embed': embedsAllowed ? AP.timelineEmbed(uit.embedJson, { playback }) : undefined,
+  }, 'private, no-store');
+});
+
 // ── De thread onder een post (shaer-tqz): ophalen, niet bewaren ────
 //
 // Bearer-only: dit is de eigen app van deze account die vraagt, nooit een

@@ -2955,6 +2955,23 @@ export async function deliverCreate(site, post) {
       post2 = { ...post2, quote_uri: q.uri, quote_actor: q.actor || null };
     }
   }
+  // De kaart op de eigen post (shaer-k3f), langs dezelfde pijplijn als een
+  // binnenkomende: een fediverse-quote wordt een quote-snapshot, anders
+  // probeert de link een externe kaart. VOOR de vroege return hieronder, want
+  // ook een post zonder volgers hoort zijn kaart te krijgen -- de app leest
+  // hem uit de outbox, niet uit een bezorging. Best-effort en eenmalig: wat
+  // hier niet lukt blijft een kale link, precies wat het was.
+  if (!post2.quote_json && !post2.embed_json) {
+    try {
+      if (post2.quote_uri) {
+        const qj = await resolveQuoteByUri(post2.quote_uri);
+        if (qj) { db.prepare('UPDATE posts SET quote_json = ? WHERE id = ?').run(qj, post.id); post2 = { ...post2, quote_json: qj }; }
+      } else {
+        const ej = await resolveExternalEmbed(post2.content || '');
+        if (ej) { db.prepare('UPDATE posts SET embed_json = ? WHERE id = ?').run(ej, post.id); post2 = { ...post2, embed_json: ej }; }
+      }
+    } catch { /* een kaart is nooit een blokkade voor de post zelf */ }
+  }
   if (post2.quote_actor) {
     const a = await fetchActor(post2.quote_actor).catch(() => null);
     const inbox = a && ((a.endpoints && a.endpoints.sharedInbox) || a.inbox);
@@ -4995,6 +5012,28 @@ export async function resolveOwnQuote(html) {
   return { uri: card.id, actor: card.attributedTo || null };
 }
 
+/**
+ * De composer-preview (shaer-k3f): één URL langs exact dezelfde pijplijn als
+ * publiceren, zodat wat de preview toont ook is wat de post krijgt. Twee
+ * uitkomsten, hoogstens een gevuld: een AP-object wordt een quote-snapshot,
+ * een externe link probeert een kaart. Beide als JSON-string, dezelfde vorm
+ * als de kolommen -- de route serveert ze door timelineQuote/timelineEmbed en
+ * de gate, net als de tijdlijn.
+ */
+export async function previewCard(url) {
+  if (!/^https?:\/\//i.test(String(url || ''))) return {};
+  const html = `<a href="${String(url).replace(/"/g, '&quot;')}">x</a>`;
+  const q = await resolveOwnQuote(html);
+  if (q && q.uri) {
+    const quoteJson = await resolveQuoteByUri(q.uri).catch(() => null);
+    if (quoteJson) return { quoteJson };
+  } else {
+    const embedJson = await resolveExternalEmbed(html).catch(() => null);
+    if (embedJson) return { embedJson };
+  }
+  return {};
+}
+
 /** The first http(s) link in sanitized note HTML that is not a mention/hashtag. */
 export function firstExternalUrl(html) {
   if (!html || typeof html !== 'string') return null;
@@ -5050,6 +5089,12 @@ export function playerUrlFor(url) {
 async function resolveQuote(note) {
   const url = quoteHrefOf(note);
   if (!url) return null;
+  return resolveQuoteByUri(url);
+}
+
+/** Hetzelfde snapshot, maar vanaf een kale URI: eigen posts en de
+ *  composer-preview (shaer-k3f) kennen alleen de link, niet de tag-vorm. */
+async function resolveQuoteByUri(url) {
   const q = await apGetJson(url);
   if (!q || typeof q !== 'object') return null;
   const authorUri = typeof q.attributedTo === 'string' ? q.attributedTo
@@ -6269,7 +6314,7 @@ export default {
   webfingerResolve, followActor, resolveRemoteActor, unfollowActor, handleMoveInbox, moveAccount, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, getDirectMessages, isoStamp, timelineAttachments, timelineEmojis, timelineObjectLinks, timelineQuote, timelineEmbed, applyQuoteProps, deliverToActor, sendInteraction, voteOnPoll, voteOnRemotePoll,
   acceptGatedFollow, rejectGatedFollow, isWardGuardian, outboxAudience, sendFollowDecision,
   gateOutgoingFollow, performApprovedFollow,
-  parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread, sendReport, localMentionSlugs,
+  parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread, sendReport, localMentionSlugs, previewCard,
   autoBoostCount, boostedCount, setReaction, getReaction, getReactionsFor, canonicalReactionUri, migrateReactions, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,

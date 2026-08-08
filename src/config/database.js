@@ -717,6 +717,11 @@ export function initializeDatabase() {
   // FEP-044f: the fediverse object THIS post quotes, resolved once at publish
   // time so buildNote (sync, also used by the outbox) needs no network.
   ensureColumn('posts', 'quote_uri', 'TEXT');     // the quoted object's id
+  // De kaart op je EIGEN post (shaer-k3f): dezelfde snapshots die ap_timeline
+  // voor binnenkomende posts draagt, maar dan voor wat je zelf publiceert --
+  // zonder deze twee kan de app een eigen post nooit als kaart tonen.
+  ensureColumn('posts', 'quote_json', 'TEXT');    // FEP-044f resolved quote snapshot
+  ensureColumn('posts', 'embed_json', 'TEXT');    // externe linkkaart (oEmbed/OG), thumbnail-only
   ensureColumn('posts', 'quote_actor', 'TEXT');   // its author, so we can address them
   ensureColumn('ap_timeline', 'embed_json', 'TEXT');       // resolved EXTERNAL embed (oEmbed/provider), thumbnail-only; gated per site (sites.external_embeds)
   ensureColumn('ap_timeline', 'author_emoji_json', 'TEXT');  // FEP-9098 custom emojis in the author's display name (shaer:author.emojis)
