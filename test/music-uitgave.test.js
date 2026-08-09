@@ -50,7 +50,7 @@ const losse = maakPost({
   content: 'Hier: [[track:t-drie]] dan [[track:t-een]] en tot slot [[track:t-twee]]',
   excerpt: 'Opgenomen op zolder, in een week.',
   cover: '/media/hoes.jpg',
-  tags: 'lofi, zolder',
+  tags: '["lofi","zolder tapes"]',
 });
 
 test('losse tracks in een post worden EEN collectie', () => {
@@ -73,7 +73,10 @@ test('de post leent zijn titel, tekst, hoes en tags uit', () => {
   assert.equal(col.content, 'Opgenomen op zolder, in een week.');
   assert.equal(col.image.type, 'Image');
   assert.equal(col.image.url, `${BASE}/media/hoes.jpg`);
-  assert.deepEqual(col.tag.map((t) => t.name), ['#lofi', '#zolder']);
+  // Het tagveld is JSON in de database, en een tag van twee woorden wordt
+  // CamelCase -- zelfde regel als elders, want het is nu dezelfde parser.
+  assert.deepEqual(col.tag.map((t) => t.name), ['#lofi', '#ZolderTapes']);
+  assert.equal(col.tag[1].href, `${BASE}/tag/zoldertapes`);
   assert.equal(col.url, `${BASE}/drie-nieuwe`);
   assert.equal(col.context, `${BASE}/ap/notes/p-los`);
 });
@@ -151,4 +154,25 @@ test('twee collecties in een post: dan leent de playlist niets', () => {
   // De post is dan geen drager van EEN identiteit meer -- dezelfde regel als in
   // de afleiding, hier alleen toegepast op de lening.
   assert.equal(M.uitgavePost(SITE, 'tweede'), null);
+});
+
+test('zonder excerpt leent hij de tekst uit het lijf van de post', () => {
+  // Live bleek de excerpt vaak leeg; dan is `content` weglaten slechter dan de
+  // tekst zelf pakken. Shortcodes gaan eruit -- die zijn de muziek, niet het
+  // verhaal erover.
+  const p = maakPost({
+    id: 'p-tekst', slug: 'zonder-excerpt', titel: 'Zonder excerpt',
+    content: '<p>Drie schetsen van vorige week.</p>[[track:t-een]]<div>&nbsp;</div>',
+  });
+  const col = M.buildPostTrackCollection(BASE, site, p);
+  assert.equal(col.content, 'Drie schetsen van vorige week.');
+});
+
+test('en een post die alleen uit shortcodes bestaat leent geen lege tekst', () => {
+  const p = maakPost({
+    id: 'p-kaal', slug: 'alleen-muziek', titel: 'Alleen muziek',
+    content: '[[track:t-twee]]<div> </div>',
+  });
+  const col = M.buildPostTrackCollection(BASE, site, p);
+  assert.equal(col.content, undefined, 'een leeg veld is slechter dan geen veld');
 });

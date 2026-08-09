@@ -28,7 +28,7 @@ import Push from './PushService.js';
 import { t as i18nT } from './i18n.js';
 import Blocklist from './BlocklistService.js';
 import * as Guardianship from './guardianship/index.js';
-import { PUBLIC, AP_CONTEXT, safeUrl, actorId, noteId, guessMediaType } from './ap-core.js';
+import { PUBLIC, AP_CONTEXT, safeUrl, actorId, noteId, guessMediaType, normalizeTags, tagParts } from './ap-core.js';
 // Doorgeven wat hier altijd vandaan kwam, zodat elke bestaande aanroep blijft werken.
 export { AP_CONTEXT, actorId, noteId, guessMediaType };
 // De muziekkant woont in music/ (shaer-drc). Doorgeven wat hier altijd
@@ -2972,26 +2972,11 @@ function hashtagTags(base, content) {
 }
 
 // Normalise a post's tags field (array, JSON-string, or comma-string) to an array.
-function normalizeTags(t) {
-  if (Array.isArray(t)) return t;
-  if (typeof t === 'string') {
-    const s = t.trim(); if (!s) return [];
-    if (s[0] === '[') { try { const a = JSON.parse(s); return Array.isArray(a) ? a : []; } catch { /* fall through */ } }
-    return s.split(',').map((x) => x.trim()).filter(Boolean);
-  }
-  return [];
-}
+// normalizeTags en tagParts staan sinds shaer-38y in ap-core: music/ heeft ze
+// ook nodig en mag hier niet uit importeren.
 // A tag → { label, slug }. Multi-word tags become CamelCase (#LiveMusic) for the display
 // name (Mastodon hashtags can't contain spaces; CamelCase is the accessibility norm); the
 // slug/href stays lowercase ("livemusic").
-function tagParts(raw) {
-  const words = String(raw || '').trim().split(/[\s_]+/).map((w) => w.replace(/[^\p{L}\p{M}\p{N}]/gu, '')).filter(Boolean);
-  if (!words.length) return null;
-  const slug = words.join('').toLowerCase();
-  if (!slug) return null;
-  const label = words.length > 1 ? words.map((w) => w[0].toUpperCase() + w.slice(1)).join('') : words[0];
-  return { label, slug };
-}
 // Merge a post's tags field + the #hashtags linked inline in its body into one deduped
 // Hashtag tag list (with hrefs to our /tag page).
 function buildHashtagList(base, tagsField, content) {

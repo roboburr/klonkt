@@ -13,7 +13,7 @@
  */
 
 import db from '../../config/database.js';
-import { AP_CONTEXT, PUBLIC, actorId, noteId, safeUrl, guessMediaType } from '../ap-core.js';
+import { AP_CONTEXT, PUBLIC, actorId, noteId, safeUrl, guessMediaType, normalizeTags, tagParts } from '../ap-core.js';
 import { afleidenUitInsluitingen, ingeslotenPlaylists } from '../../assets/js/shared/post-music-type.js';
 
 // m.size hoort erbij voor de RSS-enclosure: die eist een lengte in bytes.
@@ -367,7 +367,7 @@ function leenVanPost(base, site, obj, post) {
   // De tekst als `content`, niet als `summary`: in AS2 is summary de korte
   // samenvatting en content het lijf. Artiest en jaar blijven dus in summary
   // staan -- dat is een samenvatting, en de posttekst is dat niet.
-  const tekst = (post.excerpt || '').trim();
+  const tekst = tekstVanPost(post);
   if (tekst) obj.content = tekst;
 
   const cover = abs(post.cover_image_url || null);
@@ -387,21 +387,41 @@ function leenVanPost(base, site, obj, post) {
   return obj;
 }
 
-/** De tags van een post als AS2 Hashtags. Zelfde vorm als buildHashtagList. */
+/**
+ * De tags van een post als AS2 Hashtags -- zelfde vorm als buildHashtagList.
+ *
+ * Met normalizeTags en niet met een eigen split: het veld staat als JSON-array
+ * in de database, en op komma's splitsen leverde live `#["Doen we Niet"` op.
+ * Dat is het soort fout dat niet omvalt maar onzin uitlevert.
+ */
 function hashtagsVanPost(base, tagsField) {
-  const ruw = Array.isArray(tagsField)
-    ? tagsField
-    : String(tagsField || '').split(',');
   const uit = [], gezien = new Set();
-  for (const t of ruw) {
-    const label = String(t || '').trim().replace(/^#/, '');
-    if (!label) continue;
-    const slug = label.toLowerCase().replace(/\s+/g, '-');
-    if (gezien.has(slug)) continue;
-    gezien.add(slug);
-    uit.push({ type: 'Hashtag', href: `${base}/tag/${encodeURIComponent(slug)}`, name: '#' + label });
+  for (const t of normalizeTags(tagsField)) {
+    const p = tagParts(t);
+    if (!p || gezien.has(p.slug)) continue;
+    gezien.add(p.slug);
+    uit.push({ type: 'Hashtag', href: `${base}/tag/${encodeURIComponent(p.slug)}`, name: '#' + p.label });
   }
   return uit;
+}
+
+/**
+ * De tekst van een post, als er een is. De excerpt heeft voorrang -- die is
+ * geschreven om samen te vatten. Staat die leeg, dan het lijf zelf: zonder
+ * shortcodes (die zijn de muziek, niet het verhaal erover) en zonder opmaak.
+ * Levert null als er niets overblijft, want een leeg veld is slechter dan geen.
+ */
+function tekstVanPost(post) {
+  const excerpt = String(post.excerpt || '').trim();
+  if (excerpt) return excerpt;
+  const kaal = String(post.content || '')
+    .replace(/\[\[[a-z]+:[^\]]*\]\]/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&[a-z#0-9]+;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return kaal || null;
 }
 
 /** De open tracks uit een lijst ids, in de volgorde van die lijst. */

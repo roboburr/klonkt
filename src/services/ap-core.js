@@ -92,3 +92,34 @@ export function guessMediaType(u) {
     mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime',
   })[(e || '').toLowerCase()] || 'image/jpeg';
 }
+
+/**
+ * Het tagveld van een post als lijst. Het staat in de database als JSON-ARRAY
+ * en niet als kommalijst -- op komma's splitsen levert `#["Doen we Niet"` op,
+ * en dat faalt niet, het liegt. Vandaar een echte parser, met de kommavorm als
+ * terugval voor wat er handmatig is ingevuld.
+ */
+export function normalizeTags(t) {
+  if (Array.isArray(t)) return t;
+  if (typeof t === 'string') {
+    const s = t.trim(); if (!s) return [];
+    if (s[0] === '[') { try { const a = JSON.parse(s); return Array.isArray(a) ? a : []; } catch { /* dan toch als kommalijst */ } }
+    return s.split(',').map((x) => x.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+/**
+ * Een tag -> { label, slug }. Tags van meerdere woorden worden CamelCase
+ * (#LiveMusic) voor de weergavenaam -- een Mastodon-hashtag mag geen spaties
+ * bevatten en CamelCase is daar de toegankelijkheidsnorm; de slug en de href
+ * blijven kleingeschreven ("livemusic").
+ */
+export function tagParts(raw) {
+  const words = String(raw || '').trim().split(/[\s_]+/).map((w) => w.replace(/[^\p{L}\p{M}\p{N}]/gu, '')).filter(Boolean);
+  if (!words.length) return null;
+  const slug = words.join('').toLowerCase();
+  if (!slug) return null;
+  const label = words.length > 1 ? words.map((w) => w[0].toUpperCase() + w.slice(1)).join('') : words[0];
+  return { label, slug };
+}
