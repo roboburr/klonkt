@@ -419,6 +419,10 @@ function tekstVanPost(post) {
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/gi, ' ')
     .replace(/&[a-z#0-9]+;/gi, ' ')
+    // Losse hashtags gaan eruit: die staan al in `tag`, en een description die
+    // de tagwolk herhaalt is ruis. Live leverde dit "#DoenweNiet #DoenWeNiet
+    // #devs" op als omschrijving van een post die verder geen tekst heeft.
+    .replace(/(^|\s)#[\p{L}\p{M}\p{N}_]+/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim();
   return kaal || null;

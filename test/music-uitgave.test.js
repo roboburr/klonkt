@@ -176,3 +176,22 @@ test('en een post die alleen uit shortcodes bestaat leent geen lege tekst', () =
   const col = M.buildPostTrackCollection(BASE, site, p);
   assert.equal(col.content, undefined, 'een leeg veld is slechter dan geen veld');
 });
+
+test('losse hashtags horen niet in de omschrijving -- die staan al in tag', () => {
+  // Live leverde dit "#DoenweNiet #DoenWeNiet #devs" op als omschrijving van
+  // een post die verder geen tekst heeft. Een description die de tagwolk
+  // herhaalt is ruis.
+  const p = maakPost({
+    id: 'p-tags', slug: 'alleen-tags', titel: 'Alleen tags',
+    content: '[[track:t-een]]<div>#lofi #zolder</div>',
+  });
+  assert.equal(M.buildPostTrackCollection(BASE, site, p).content, undefined);
+});
+
+test('maar tekst MET een hashtag erin blijft gewoon staan', () => {
+  const p = maakPost({
+    id: 'p-mix', slug: 'tekst-en-tags', titel: 'Tekst en tags',
+    content: '<p>Opgenomen in de schuur.</p>[[track:t-twee]]<div>#lofi</div>',
+  });
+  assert.equal(M.buildPostTrackCollection(BASE, site, p).content, 'Opgenomen in de schuur.');
+});
