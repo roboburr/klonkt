@@ -67,6 +67,7 @@ const FEATURES = {
   'shaer:quoteCards': 'gate_quote_cards',
   'shaer:customEmoji': 'gate_custom_emoji',
   'shaer:accountMove': 'gate_account_move',
+  'shaer:following': 'gate_following',
 };
 /**
  * De gates die deze Klonkt kent, met hun SOORT.
@@ -111,9 +112,22 @@ export const GATE_CATALOGUE = [
   { feature: 'shaer:quoteCards', kind: 'setting', reversible: true, bead: 'shaer-mls' },
   { feature: 'shaer:customEmoji', kind: 'setting', reversible: true, bead: 'shaer-ytw' },
   { feature: 'shaer:accountMove', kind: 'setting', reversible: true, bead: 'shaer-tge' },
-  // Altijd aan voor een ward (5.3): niet te verzetten, wel te tonen. Een paneel
-  // dat alleen verstelbare dingen laat zien verzwijgt de helft van wat er geldt.
+  // Wie de ward mag VOLGEN, en wie de ward mag volgen: twee poorten, want twee
+  // vragen. Ze stonden hier als één rij, en dan telt het paneel de ene richting
+  // en zwijgt over de andere -- een guardian ziet "follows: 3 wachtend" en weet
+  // niet of er drie vreemden bij zijn kind willen of dat zijn kind drie keer
+  // heeft gevraagd of het iemand mag volgen. Dat zijn niet dezelfde zorg.
+  //
+  // Inkomend is vast: §5.3 EIST dat een Follow naar een ward langs de guardians
+  // gaat, dus die staat aan en blijft aanstaan. Tonen mag, verzetten niet.
   { feature: 'shaer:follows', kind: 'perRequest', reversible: true, fixed: true },
+  // Uitgaand is verstelbaar, en dat verschil is opzet. De FEP zegt over deze
+  // richting niets: §5.3 gaat alleen over een Follow die op een ward AF komt.
+  // Wat je verder gated is expliciet aan de implementatie gelaten, dus dit is
+  // onze keuze en niet die van de spec -- en dan hoort hij ook echt te kunnen
+  // worden losgelaten, want een kind dat ouder wordt hoort niet eeuwig te
+  // blijven vragen wie het mag volgen (shaer-p729, shaer-yeo5).
+  { feature: 'shaer:following', kind: 'perRequest', reversible: true, bead: 'shaer-p729' },
 
   // GEPLAND, en dat is bij deze twee geen achterstand maar een besluit.
   //

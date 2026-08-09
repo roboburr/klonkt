@@ -5475,6 +5475,14 @@ export async function gateOutgoingFollow(site, targetUri) {
   if (!slug || !targetUri) return null;
   const guardians = Guardianship.listGuardians(slug).map((g) => g.other_uri);
   if (!guardians.length) return null;                                   // not a ward: nothing to gate
+  // shaer:following (shaer-p729) — its own gate, apart from shaer:follows,
+  // which governs the OTHER direction. §5.3 fixes the inbound one on: a Follow
+  // aimed at a ward MUST pass the guardians. About this direction the FEP says
+  // nothing, so it is ours to set and ours to let go of, and the guardians can
+  // relax it for a child who has grown into it. Undecided means gated for a
+  // ward, the same automatiek as the rest of the family.
+  const gateRow = db.prepare('SELECT gate_following FROM sites WHERE slug = ?').get(slug);
+  if (Guardianship.wardGateAllowed(gateRow && gateRow.gate_following, true)) return null;
   if (guardians.includes(targetUri)) return null;                       // your own guardian
   if (Guardianship.outgoing.isMutual(slug, targetUri)) return null;     // already vetted by name
 

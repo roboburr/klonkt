@@ -176,6 +176,12 @@ export function initializeDatabase() {
   ensureColumn('sites', 'gate_quote_cards', 'INTEGER');   // ingebedde quote-kaarten (shaer-mls)
   ensureColumn('sites', 'gate_custom_emoji', 'INTEGER');  // FEP-9098 emoji-plaatjes (shaer-ytw)
   ensureColumn('sites', 'gate_account_move', 'INTEGER');  // FEP-7628 Move (shaer-tge)
+  // Wie de ward ZELF mag volgen (shaer-p729): de tegenhanger van shaer:follows,
+  // dat over de andere richting gaat. §5.3 schrijft alleen het doorsturen voor
+  // van een Follow NAAR een ward; wat je verder gated is een keuze van de
+  // implementatie, en dit is die keuze. Verstelbaar, anders dan de inkomende
+  // kant: een kind dat ouder wordt hoort niet eeuwig te blijven vragen.
+  ensureColumn('sites', 'gate_following', 'INTEGER');     // zelf iemand volgen (shaer-p729)
   // The heavier sibling (FEP-633c 5.6): may a player from outside this app run
   // INSIDE it? A preview is a picture; playback hands the screen to a third
   // party's engine, recommendations and all. Two settings, so the guardians can

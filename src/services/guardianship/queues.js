@@ -157,7 +157,12 @@ export function wardGuardianStatuses(wardUri) {
  */
 export function wardGates(mySlug, wardUri) {
   const statuses = wardGuardianStatuses(wardUri);
-  const wachtend = follows.listReviewsByDirection(mySlug, 'incoming')
+  // Per richting geteld, want het zijn twee zorgen. "follows: 3 wachtend" liet
+  // een guardian niet zien of er drie vreemden bij zijn kind willen of dat zijn
+  // kind drie keer heeft gevraagd of het iemand mag volgen (shaer-p729).
+  const wachtendIn = follows.listReviewsByDirection(mySlug, 'incoming')
+    .filter((r) => r.ward_uri === wardUri).length;
+  const wachtendUit = follows.listReviewsByDirection(mySlug, 'outgoing')
     .filter((r) => r.ward_uri === wardUri).length;
   return gated.gateRows({
     // Uit de BESLUITEN, niet uit onze eigen kolom. Er zijn geen lokale accounts:
@@ -171,7 +176,10 @@ export function wardGates(mySlug, wardUri) {
     proposals: gated.listSent(mySlug, wardUri).map((p) => ({
       feature: p.feature, value: !!p.value, status: gated.sentStatus(p, Date.now()),
     })),
-    waiting: { 'shaer:follows': wachtend || undefined },
+    waiting: {
+      'shaer:follows': wachtendIn || undefined,
+      'shaer:following': wachtendUit || undefined,
+    },
     // De vraag van het kind zelf staat APART van wat er in een wachtrij staat
     // (shaer-8ru). Allebei "n waiting" noemen maakt van twee verschillende
     // dingen een getal: drie onbekenden die je kind willen volgen is iets heel

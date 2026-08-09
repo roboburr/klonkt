@@ -151,3 +151,48 @@ test('een site ZONDER guardians merkt er niets van', async () => {
   const uit = await AP.followActor(vrij, 'https://elders.example/users/iemand');
   assert.notEqual(uit && uit.held, true);
 });
+
+// ── shaer:following als eigen poort (shaer-p729) ──────────────────────────
+// De uitgaande kant stond als één rij met de inkomende in het paneel, en dan
+// telt een guardian de ene richting en hoort niets over de andere. Nu twee
+// poorten. Het VERSCHIL tussen die twee is opzet: §5.3 eist dat een Follow
+// NAAR een ward langs de guardians gaat, dus die staat vast aan. Over deze
+// richting zegt de FEP niets, dus die is van ons -- en dan hoort hij ook echt
+// losgelaten te kunnen worden.
+
+test('onbeslist betekent dicht voor een ward, net als bij de andere poorten', async () => {
+  const wim = site('wim');
+  guards('wim', local('mum'));
+  const held = await AP.gateOutgoingFollow(wim, 'https://elders.example/users/nieuw');
+  assert.ok(held, 'niemand heeft er iets over besloten, dus vragen we');
+});
+
+test('de guardians kunnen de poort openzetten, en dan vraagt het kind niets meer', async () => {
+  const zoe = site('zoe');
+  guards('zoe', local('mum'));
+  db.prepare('UPDATE sites SET gate_following = 1 WHERE slug = ?').run('zoe');
+  const zoeSite = db.prepare('SELECT * FROM sites WHERE slug = ?').get('zoe');
+  assert.equal(await AP.gateOutgoingFollow(zoeSite, 'https://elders.example/users/nieuw'), null,
+    'een kind dat erin gegroeid is hoeft niet eeuwig te blijven vragen');
+});
+
+test('en weer dicht is ook een besluit', async () => {
+  const zoeSite = db.prepare('SELECT * FROM sites WHERE slug = ?').get('zoe');
+  db.prepare('UPDATE sites SET gate_following = 0 WHERE slug = ?').run('zoe');
+  const dicht = db.prepare('SELECT * FROM sites WHERE slug = ?').get('zoe');
+  assert.ok(await AP.gateOutgoingFollow(dicht, 'https://elders.example/users/weer'),
+    'terugdraaien kan: de poort is reversible');
+  assert.equal(zoeSite.gate_following, 1, '(en de oude rij was echt open)');
+});
+
+test('de twee richtingen tellen apart in het paneel', async () => {
+  const queues = await import('../src/services/guardianship/queues.js');
+  const rows = queues.wardGates('mum', local('kid'));
+  const namen = rows.map((r) => r.feature);
+  assert.ok(namen.includes('shaer:follows'), 'wie het kind wil volgen');
+  assert.ok(namen.includes('shaer:following'), 'en wie het kind wil volgen -- andersom');
+  const uit = rows.find((r) => r.feature === 'shaer:following');
+  assert.equal(uit.adjustable, true, 'deze mag verzet worden');
+  const inn = rows.find((r) => r.feature === 'shaer:follows');
+  assert.equal(inn.adjustable, false, 'en deze niet: §5.3 laat er geen ruimte voor');
+});
