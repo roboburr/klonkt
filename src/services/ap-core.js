@@ -123,3 +123,43 @@ export function tagParts(raw) {
   const label = words.length > 1 ? words.map((w) => w[0].toUpperCase() + w.slice(1)).join('') : words[0];
   return { label, slug };
 }
+
+/**
+ * De #hashtags die in het LIJF van een post gelinkt staan, zoals ze GESCHREVEN
+ * zijn. De slug in de href is kleingeschreven -- dat is een adres -- maar de
+ * naam niet: #DoenweNiet blijft #DoenweNiet.
+ */
+export function hashtagTags(base, content) {
+  const tags = [], seen = new Set();
+  const re = /class="[^"]*\bhashtag\b[^"]*"[^>]*>#([\p{L}\p{M}\p{N}_]+)</giu;
+  let m;
+  while ((m = re.exec(content || ''))) {
+    const k = m[1].toLowerCase();
+    if (seen.has(k)) continue; seen.add(k);
+    tags.push({ type: 'Hashtag', href: `${base}/tag/${encodeURIComponent(k)}`, name: '#' + m[1] });
+  }
+  return tags;
+}
+
+/**
+ * Het tagveld van een post en de #hashtags uit het lijf, samen en ontdubbeld.
+ *
+ * HET LIJF GAAT VOOR (Robin, 9-8): staat een tag allebei, dan wint de vorm
+ * zoals hij GESCHREVEN is. Het tagveld gaat door tagParts, en die maakt van
+ * "Doen we Niet" het CamelCase #DoenWeNiet -- nodig, want een hashtag mag geen
+ * spaties bevatten. Maar als iemand in zijn tekst #DoenweNiet heeft getypt is
+ * dat geen benadering meer maar de tag zelf, en dan hoort die te staan zoals
+ * hij er staat. Eerder won het veld, en verdween de geschreven vorm.
+ */
+export function buildHashtagList(base, tagsField, content) {
+  const out = [], seen = new Set();
+  for (const h of hashtagTags(base, content)) {
+    const k = h.name.slice(1).toLowerCase(); if (seen.has(k)) continue; seen.add(k);
+    out.push(h);
+  }
+  for (const t of normalizeTags(tagsField)) {
+    const p = tagParts(t); if (!p || seen.has(p.slug)) continue; seen.add(p.slug);
+    out.push({ type: 'Hashtag', href: `${base}/tag/${encodeURIComponent(p.slug)}`, name: '#' + p.label });
+  }
+  return out;
+}

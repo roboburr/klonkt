@@ -28,7 +28,7 @@ import Push from './PushService.js';
 import { t as i18nT } from './i18n.js';
 import Blocklist from './BlocklistService.js';
 import * as Guardianship from './guardianship/index.js';
-import { PUBLIC, AP_CONTEXT, safeUrl, actorId, noteId, guessMediaType, normalizeTags, tagParts } from './ap-core.js';
+import { PUBLIC, AP_CONTEXT, safeUrl, actorId, noteId, guessMediaType, normalizeTags, tagParts, hashtagTags, buildHashtagList } from './ap-core.js';
 // Doorgeven wat hier altijd vandaan kwam, zodat elke bestaande aanroep blijft werken.
 export { AP_CONTEXT, actorId, noteId, guessMediaType };
 // De muziekkant woont in music/ (shaer-drc). Doorgeven wat hier altijd
@@ -2959,17 +2959,6 @@ export async function bakePostContentWithMentions(source) {
 }
 
 // Extract the AP Hashtag tag objects from already-linked reply content.
-function hashtagTags(base, content) {
-  const tags = [], seen = new Set();
-  const re = /class="[^"]*\bhashtag\b[^"]*"[^>]*>#([\p{L}\p{M}\p{N}_]+)</giu;
-  let m;
-  while ((m = re.exec(content || ''))) {
-    const k = m[1].toLowerCase();
-    if (seen.has(k)) continue; seen.add(k);
-    tags.push({ type: 'Hashtag', href: `${base}/tag/${encodeURIComponent(k)}`, name: '#' + m[1] });
-  }
-  return tags;
-}
 
 // Normalise a post's tags field (array, JSON-string, or comma-string) to an array.
 // normalizeTags en tagParts staan sinds shaer-38y in ap-core: music/ heeft ze
@@ -2979,18 +2968,8 @@ function hashtagTags(base, content) {
 // slug/href stays lowercase ("livemusic").
 // Merge a post's tags field + the #hashtags linked inline in its body into one deduped
 // Hashtag tag list (with hrefs to our /tag page).
-function buildHashtagList(base, tagsField, content) {
-  const out = [], seen = new Set();
-  for (const t of normalizeTags(tagsField)) {
-    const p = tagParts(t); if (!p || seen.has(p.slug)) continue; seen.add(p.slug);
-    out.push({ type: 'Hashtag', href: `${base}/tag/${encodeURIComponent(p.slug)}`, name: '#' + p.label });
-  }
-  for (const h of hashtagTags(base, content)) {
-    const k = h.name.slice(1).toLowerCase(); if (seen.has(k)) continue; seen.add(k);
-    out.push(h);
-  }
-  return out;
-}
+// hashtagTags en buildHashtagList staan sinds shaer-38y in ap-core: music/
+// heeft dezelfde lijst nodig en mag hier niet uit importeren.
 
 // Extract Mention tag objects from already-linked content (class="u-url mention").
 function mentionTags(content) {

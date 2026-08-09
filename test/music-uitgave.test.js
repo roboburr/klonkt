@@ -73,8 +73,8 @@ test('de post leent zijn titel, tekst, hoes en tags uit', () => {
   assert.equal(col.content, 'Opgenomen op zolder, in een week.');
   assert.equal(col.image.type, 'Image');
   assert.equal(col.image.url, `${BASE}/media/hoes.jpg`);
-  // Het tagveld is JSON in de database, en een tag van twee woorden wordt
-  // CamelCase -- zelfde regel als elders, want het is nu dezelfde parser.
+  // Het tagveld is JSON in de database. Een tag van twee woorden wordt
+  // CamelCase, want een hashtag mag geen spaties bevatten.
   assert.deepEqual(col.tag.map((t) => t.name), ['#lofi', '#ZolderTapes']);
   assert.equal(col.tag[1].href, `${BASE}/tag/zoldertapes`);
   assert.equal(col.url, `${BASE}/drie-nieuwe`);
@@ -194,4 +194,21 @@ test('maar tekst MET een hashtag erin blijft gewoon staan', () => {
     content: '<p>Opgenomen in de schuur.</p>[[track:t-twee]]<div>#lofi</div>',
   });
   assert.equal(M.buildPostTrackCollection(BASE, site, p).content, 'Opgenomen in de schuur.');
+});
+
+test('een hashtag uit het LIJF staat zoals hij geschreven is', () => {
+  // Robins punt (9-8): #DoenweNiet in de tekst hoort #DoenweNiet te blijven.
+  // Eerder won de vorm uit het tagveld -- tagParts maakt daar #DoenWeNiet van --
+  // en verdween de geschreven vorm als duplicaat.
+  const p = maakPost({
+    id: 'p-schrijf', slug: 'zoals-geschreven', titel: 'Zoals geschreven',
+    content: '<p>Zie <a class="hashtag" href="/tag/doenweniet">#DoenweNiet</a></p>[[track:t-een]]',
+    tags: '["Doen we Niet","lofi"]',
+  });
+  const col = M.buildPostTrackCollection(BASE, site, p);
+  const namen = col.tag.map((t) => t.name);
+  assert.ok(namen.includes('#DoenweNiet'), 'de geschreven vorm wint');
+  assert.ok(!namen.includes('#DoenWeNiet'), 'en de genormaliseerde staat er niet naast');
+  assert.ok(namen.includes('#lofi'), 'tags die alleen in het veld staan blijven');
+  assert.equal(col.tag[0].href, `${BASE}/tag/doenweniet`, 'de slug blijft wel klein: dat is een adres');
 });

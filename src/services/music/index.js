@@ -13,7 +13,7 @@
  */
 
 import db from '../../config/database.js';
-import { AP_CONTEXT, PUBLIC, actorId, noteId, safeUrl, guessMediaType, normalizeTags, tagParts } from '../ap-core.js';
+import { AP_CONTEXT, PUBLIC, actorId, noteId, safeUrl, guessMediaType, buildHashtagList } from '../ap-core.js';
 import { afleidenUitInsluitingen, ingeslotenPlaylists } from '../../assets/js/shared/post-music-type.js';
 
 // m.size hoort erbij voor de RSS-enclosure: die eist een lengte in bytes.
@@ -376,7 +376,10 @@ function leenVanPost(base, site, obj, post) {
     if (!obj.icon) obj.icon = obj.image;      // geen eigen hoes? dan die van de post
   }
 
-  const tags = hashtagsVanPost(base, post.tags);
+  // Dezelfde lijst als de Note: het tagveld EN de hashtags uit het lijf, waarbij
+  // de geschreven vorm voorgaat. Een eigen lijst hier zou de tags uit de tekst
+  // missen en de rest anders spellen dan dezelfde post elders doet.
+  const tags = buildHashtagList(base, post.tags, post.content);
   if (tags.length) obj.tag = tags;
 
   // Waar je hem kunt horen, en waar hij bij hoort. Zelfde paar als bij een
@@ -385,24 +388,6 @@ function leenVanPost(base, site, obj, post) {
   obj.url = `${base}/${post.slug}`;
   obj.context = noteId(base, post.id);
   return obj;
-}
-
-/**
- * De tags van een post als AS2 Hashtags -- zelfde vorm als buildHashtagList.
- *
- * Met normalizeTags en niet met een eigen split: het veld staat als JSON-array
- * in de database, en op komma's splitsen leverde live `#["Doen we Niet"` op.
- * Dat is het soort fout dat niet omvalt maar onzin uitlevert.
- */
-function hashtagsVanPost(base, tagsField) {
-  const uit = [], gezien = new Set();
-  for (const t of normalizeTags(tagsField)) {
-    const p = tagParts(t);
-    if (!p || gezien.has(p.slug)) continue;
-    gezien.add(p.slug);
-    uit.push({ type: 'Hashtag', href: `${base}/tag/${encodeURIComponent(p.slug)}`, name: '#' + p.label });
-  }
-  return uit;
 }
 
 /**
