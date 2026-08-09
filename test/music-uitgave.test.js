@@ -202,7 +202,7 @@ test('een hashtag uit het LIJF staat zoals hij geschreven is', () => {
   // en verdween de geschreven vorm als duplicaat.
   const p = maakPost({
     id: 'p-schrijf', slug: 'zoals-geschreven', titel: 'Zoals geschreven',
-    content: '<p>Zie <a class="hashtag" href="/tag/doenweniet">#DoenweNiet</a></p>[[track:t-een]]',
+    content: '<p>Zie #DoenweNiet</p>[[track:t-een]]',
     tags: '["Doen we Niet","lofi"]',
   });
   const col = M.buildPostTrackCollection(BASE, site, p);
@@ -211,4 +211,12 @@ test('een hashtag uit het LIJF staat zoals hij geschreven is', () => {
   assert.ok(!namen.includes('#DoenWeNiet'), 'en de genormaliseerde staat er niet naast');
   assert.ok(namen.includes('#lofi'), 'tags die alleen in het veld staan blijven');
   assert.equal(col.tag[0].href, `${BASE}/tag/doenweniet`, 'de slug blijft wel klein: dat is een adres');
+});
+
+test('"issue #12" levert geen tag op -- een nummer is geen hashtag', () => {
+  const p = maakPost({
+    id: 'p-nr', slug: 'nummer', titel: 'Nummer',
+    content: '<p>Zie issue #12 en #lofi</p>[[track:t-twee]]',
+  });
+  assert.deepEqual(M.buildPostTrackCollection(BASE, site, p).tag.map((t) => t.name), ['#lofi']);
 });

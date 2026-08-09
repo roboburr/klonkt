@@ -150,10 +150,33 @@ export function hashtagTags(base, content) {
  * spaties bevatten. Maar als iemand in zijn tekst #DoenweNiet heeft getypt is
  * dat geen benadering meer maar de tag zelf, en dan hoort die te staan zoals
  * hij er staat. Eerder won het veld, en verdween de geschreven vorm.
+ *
+ * `opts.ruw` voor inhoud die nog niet door de renderer is geweest: dan staan de
+ * hashtags er als kale tekst en niet als <a class="hashtag">. buildNote krijgt
+ * het bewerkte lijf en heeft dit niet nodig; wie rechtstreeks uit posts.content
+ * leest wel -- anders vindt hij er geen enkele en valt hij stil terug op het
+ * tagveld, precies de vorm die hier juist niet moest winnen.
  */
-export function buildHashtagList(base, tagsField, content) {
+export function hashtagTagsRuw(base, content) {
+  const tags = [], seen = new Set();
+  // Moet met een LETTER beginnen: "#12" in "issue #12" is een nummer en geen
+  // tag, en die zou hier anders als hashtag de deur uit gaan.
+  const re = /(^|[\s>(\[])#(\p{L}[\p{L}\p{M}\p{N}_]*)/gu;
+  let m;
+  while ((m = re.exec(content || ''))) {
+    const k = m[2].toLowerCase();
+    if (seen.has(k)) continue; seen.add(k);
+    tags.push({ type: 'Hashtag', href: `${base}/tag/${encodeURIComponent(k)}`, name: '#' + m[2] });
+  }
+  return tags;
+}
+
+export function buildHashtagList(base, tagsField, content, opts = {}) {
   const out = [], seen = new Set();
-  for (const h of hashtagTags(base, content)) {
+  const uitLijf = opts.ruw
+    ? [...hashtagTags(base, content), ...hashtagTagsRuw(base, content)]
+    : hashtagTags(base, content);
+  for (const h of uitLijf) {
     const k = h.name.slice(1).toLowerCase(); if (seen.has(k)) continue; seen.add(k);
     out.push(h);
   }

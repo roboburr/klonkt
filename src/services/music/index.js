@@ -379,7 +379,7 @@ function leenVanPost(base, site, obj, post) {
   // Dezelfde lijst als de Note: het tagveld EN de hashtags uit het lijf, waarbij
   // de geschreven vorm voorgaat. Een eigen lijst hier zou de tags uit de tekst
   // missen en de rest anders spellen dan dezelfde post elders doet.
-  const tags = buildHashtagList(base, post.tags, post.content);
+  const tags = buildHashtagList(base, post.tags, post.content, { ruw: true });
   if (tags.length) obj.tag = tags;
 
   // Waar je hem kunt horen, en waar hij bij hoort. Zelfde paar als bij een
