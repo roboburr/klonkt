@@ -37,12 +37,14 @@ import {
   playlistOpenTracks, siteOpenTracks, openTrack, trackHostPosts,
   buildTrackAudio, buildTrackCollection, buildTrackCreate,
   buildPlaylistCollection, listPlaylistsAP, playlistLinkTags,
+  buildPostTrackCollection, uitgavePost,
   licentieUri, channelCategory,
 } from './music/index.js';
 export {
   playlistOpenTracks, siteOpenTracks, openTrack, trackHostPosts,
   buildTrackAudio, buildTrackCollection, buildTrackCreate,
   buildPlaylistCollection, listPlaylistsAP, playlistLinkTags, licentieUri,
+  buildPostTrackCollection, uitgavePost,
 };
 
 
@@ -696,7 +698,7 @@ export function buildNote(base, site, post, opts = {}) {
       ...(post.ap_visibility === 'quiet' ? [PUBLIC] : []),          // quiet public: Public in cc, not to
       ...((post.fan_only || post.ap_visibility === 'quiet') ? [] : [`${aId}/followers`]),
       ..._mentionCc])],
-    tag: [...buildHashtagList(base, post.tags, body), ..._mentionTags, ...playlistLinkTags(base, site, post.content)],
+    tag: [...buildHashtagList(base, post.tags, body), ..._mentionTags, ...playlistLinkTags(base, site, post.content, post)],
     replies: `${id}/replies`,
     // NSFW → Mastodon-style content warning: sensitive (blurs media) + a summary/spoiler
     // (hides the whole post behind a "Gevoelige inhoud" button until the reader opens it).
@@ -6107,6 +6109,7 @@ export default {
   channelUrls, channelCategory, timelineFields, guessMediaType,
   siteOpenTracks, openTrack, buildTrackAudio, buildTrackCollection, buildTrackCreate, trackHostPosts,
   buildPlaylistCollection, playlistOpenTracks, listPlaylistsAP, playlistLinkTags,
+  buildPostTrackCollection, uitgavePost,
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
   feedCursor, feedChangesSince, waitForFeedChange,
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, buildReplyNote, getOutboxNote, getSentNotes, deliverReply, resolveRemoteNote, noteAudience, mayReadNote,

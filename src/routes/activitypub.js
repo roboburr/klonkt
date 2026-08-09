@@ -783,6 +783,24 @@ router.get('/ap/users/:slug/tracks/:id', (req, res) => {
   AP.sendAP(res, AP.buildTrackAudio(baseUrl(req), site, row, { standalone: true }));
 });
 
+// De losse tracks van een post als EEN uitgave (shaer-38y). Ze gingen tot nu
+// toe los de deur uit -- Audio-objecten die een lezer nergens kon plaatsen. Ze
+// horen bij elkaar omdat ze in dezelfde post staan, en die post leent zijn
+// titel, tekst, hoes en tags uit. 404 als de post geen muzikale eenheid IS:
+// dan is er niets om naar te wijzen, en dat is geen lege collectie maar een
+// collectie die niet bestaat.
+router.get('/ap/users/:slug/posts/:id/tracks', (req, res) => {
+  const site = publicSite(req.params.slug);
+  if (!site) return res.status(404).end();
+  const post = db.prepare(
+    "SELECT id, slug, title, excerpt, content, cover_image_url, tags FROM posts WHERE id = ? AND site_id = ? AND status = 'published'"
+  ).get(req.params.id, site.id);
+  if (!post) return res.status(404).end();
+  const col = AP.buildPostTrackCollection(baseUrl(req), site, post);
+  if (!col) return res.status(404).end();
+  AP.sendAP(res, col);
+});
+
 router.get('/ap/users/:slug/playlists/:id', (req, res) => {
   const site = publicSite(req.params.slug);
   if (!site) return res.status(404).end();

@@ -14,7 +14,7 @@
 
 import db from '../../config/database.js';
 import { AP_CONTEXT, PUBLIC, actorId, noteId, safeUrl, guessMediaType } from '../ap-core.js';
-import { afleidenUitInsluitingen } from '../../assets/js/shared/post-music-type.js';
+import { afleidenUitInsluitingen, ingeslotenPlaylists } from '../../assets/js/shared/post-music-type.js';
 
 // m.size hoort erbij voor de RSS-enclosure: die eist een lengte in bytes.
 const TRACK_KOLOMMEN = `t.id, t.title, t.artist, t.duration, t.cover_url, t.created_at,
@@ -221,16 +221,30 @@ export function buildTrackCollection(base, site, rows) {
 // ALLEEN binnen de eigen site: playlist-ids zijn een globale primary key, dus
 // zonder site-check zou een post van site A naar de collectie van site B
 // kunnen wijzen.
-export function playlistLinkTags(base, site, content) {
+export function playlistLinkTags(base, site, content, post = null) {
   const out = [];
-  const seen = new Set();
   try {
-    for (const m of (content || '').matchAll(/\[\[playlist:([A-Za-z0-9_-]+)\]\]/g)) {
-      if (seen.has(m[1])) continue;
-      seen.add(m[1]);
-      const pl = db.prepare('SELECT id, title FROM playlists WHERE id = ? AND site_id = ?').get(m[1], site.id);
+    // Zelfde patroon als de renderer en als de afleiding: wat niet insluit,
+    // krijgt ook geen link. Dit stond hier met een eigen patroon dat
+    // underscores accepteerde die nergens anders meetellen.
+    for (const id of ingeslotenPlaylists(content)) {
+      const pl = db.prepare('SELECT id, title FROM playlists WHERE id = ? AND site_id = ?').get(id, site.id);
       if (!pl) continue;
       out.push({ type: 'Link', href: `${actorId(base, site.slug)}/playlists/${pl.id}`, mediaType: 'application/activity+json', name: pl.title });
+    }
+    // Losse tracks in een post zijn ook een uitgave (shaer-38y): ze krijgen een
+    // eigen collectie, en de post wijst er langs dezelfde weg naar. Zonder deze
+    // link zou die collectie bestaan maar door niemand te vinden zijn.
+    if (post && post.id) {
+      const eenheid = postMusicType(content, site.id);
+      if (eenheid && !eenheid.collectie && eenheid.tracks?.length && losseTracksVanPost(site.id, eenheid.tracks).length) {
+        out.push({
+          type: 'Link',
+          href: postTracksId(base, site, post.id),
+          mediaType: 'application/activity+json',
+          name: post.title || 'Tracks',
+        });
+      }
     }
   } catch { /* niet-fataal: een tag minder, geen kapotte Note */ }
   return out;
@@ -290,7 +304,150 @@ export function buildPlaylistCollection(base, site, playlist, rows) {
   if (parts.length) out.summary = parts.join(' · ');
   const cover = abs(playlist.cover_url || null);
   if (cover) out.icon = { type: 'Image', mediaType: guessMediaType(cover), url: cover };
-  return out;
+  return leenVanPost(base, site, out, uitgavePost(site.id, playlist.id));
+}
+
+// ── De post als uitgave (shaer-38y) ───────────────────────────────────────
+
+/** Het AS2-id van de collectie losse tracks van een post. */
+function postTracksId(base, site, postId) {
+  return `${actorId(base, site.slug)}/posts/${encodeURIComponent(postId)}/tracks`;
+}
+
+/**
+ * Welke post brengt deze playlist uit, en mag die zijn gegevens uitlenen?
+ *
+ * Niet zomaar de eerste post die de playlist noemt: alleen een post die er EEN
+ * muzikale eenheid van maakt leent uit. Staan er twee collecties in, dan is de
+ * post niet meer de drager van een identiteit en houdt de playlist de zijne --
+ * dezelfde regel als in de afleiding, hier alleen toegepast.
+ *
+ * De nieuwste wint als er meerdere zijn: dat is waar hij het laatst is
+ * uitgebracht.
+ */
+export function uitgavePost(siteId, playlistId) {
+  if (!siteId || !playlistId) return null;
+  try {
+    const rijen = db.prepare(`
+      SELECT id, slug, title, excerpt, content, cover_image_url, tags
+      FROM posts
+      WHERE site_id = ? AND status = 'published'
+        AND content LIKE '%[[playlist:' || ? || ']]%'
+      ORDER BY COALESCE(published_at, created_at) DESC
+    `).all(siteId, playlistId);
+    for (const p of rijen) {
+      const r = postMusicType(p.content, siteId);
+      if (r && r.leentMetadata && r.collectie && r.collectie.id === playlistId) return p;
+    }
+  } catch { /* geen lening is geen fout */ }
+  return null;
+}
+
+/**
+ * De post leent zijn gegevens aan de uitgave (shaer-38y, punt 3).
+ *
+ * WAAROM DE POST WINT EN NIET DE PLAYLIST. Een playlist heeft een titel en soms
+ * een hoes; een post heeft een titel, een tekst, een hoes, tags EN een datum.
+ * Voor audio-gebaseerde inhoud is de post de uitgave -- dat is waar iemand hem
+ * heeft uitgebracht en waar het verhaal erbij staat. Een Funkwhale-achtige
+ * lezer vindt een collectie met alleen een naam te mager, en dat is precies wat
+ * hij nu krijgt.
+ *
+ * De naam van de playlist gaat niet verloren: die blijft als `alsoKnownAs`
+ * staan, zodat de eigen naam terug te vinden is als hij afwijkt.
+ */
+function leenVanPost(base, site, obj, post) {
+  if (!post) return obj;
+  const abs = (u) => !u ? null : (/^https?:/i.test(u) ? u : `${base}${u.startsWith('/') ? '' : '/'}${u}`);
+
+  if (post.title) {
+    if (obj.name && obj.name !== post.title) obj.alsoKnownAs = obj.name;
+    obj.name = post.title;
+  }
+  // De tekst als `content`, niet als `summary`: in AS2 is summary de korte
+  // samenvatting en content het lijf. Artiest en jaar blijven dus in summary
+  // staan -- dat is een samenvatting, en de posttekst is dat niet.
+  const tekst = (post.excerpt || '').trim();
+  if (tekst) obj.content = tekst;
+
+  const cover = abs(post.cover_image_url || null);
+  if (cover) {
+    obj.image = { type: 'Image', mediaType: guessMediaType(cover), url: cover };
+    if (!obj.icon) obj.icon = obj.image;      // geen eigen hoes? dan die van de post
+  }
+
+  const tags = hashtagsVanPost(base, post.tags);
+  if (tags.length) obj.tag = tags;
+
+  // Waar je hem kunt horen, en waar hij bij hoort. Zelfde paar als bij een
+  // losse track: url wijst een mens naar de post, context zegt waar dit object
+  // thuishoort.
+  obj.url = `${base}/${post.slug}`;
+  obj.context = noteId(base, post.id);
+  return obj;
+}
+
+/** De tags van een post als AS2 Hashtags. Zelfde vorm als buildHashtagList. */
+function hashtagsVanPost(base, tagsField) {
+  const ruw = Array.isArray(tagsField)
+    ? tagsField
+    : String(tagsField || '').split(',');
+  const uit = [], gezien = new Set();
+  for (const t of ruw) {
+    const label = String(t || '').trim().replace(/^#/, '');
+    if (!label) continue;
+    const slug = label.toLowerCase().replace(/\s+/g, '-');
+    if (gezien.has(slug)) continue;
+    gezien.add(slug);
+    uit.push({ type: 'Hashtag', href: `${base}/tag/${encodeURIComponent(slug)}`, name: '#' + label });
+  }
+  return uit;
+}
+
+/** De open tracks uit een lijst ids, in de volgorde van die lijst. */
+function losseTracksVanPost(siteId, ids) {
+  if (!siteId || !ids?.length) return [];
+  const gaten = ids.map(() => '?').join(',');
+  const rijen = db.prepare(
+    `SELECT ${TRACK_KOLOMMEN}
+     FROM audio_tracks t JOIN media m ON m.id = t.media_id
+     WHERE t.site_id = ? AND t.fedi_open = 1 AND t.id IN (${gaten})`
+  ).all(siteId, ...ids);
+  // De volgorde van de POST, niet die van de tabel (shaer-38y, punt 1): zoals
+  // iemand ze heeft neergezet is de volgorde waarin ze bedoeld zijn.
+  const opId = new Map(rijen.map((r) => [r.id, r]));
+  return ids.map((id) => opId.get(id)).filter(Boolean);
+}
+
+/**
+ * De losse tracks van een post als EEN uitgave (shaer-38y).
+ *
+ * Tot nu toe gingen die los de deur uit: losse Audio-objecten die een lezer
+ * nergens kon plaatsen. Ze horen bij elkaar omdat ze in dezelfde post staan, en
+ * dat is wat deze collectie zegt -- met de gegevens van de post erbij, want die
+ * heeft ze wel en de losse tracks niet.
+ *
+ * Geeft null als er niets te tonen is: geen post, geen losse tracks, of een
+ * post die geen enkele muzikale eenheid IS.
+ */
+export function buildPostTrackCollection(base, site, post) {
+  if (!post || !post.id) return null;
+  const eenheid = postMusicType(post.content, site.id);
+  if (!eenheid || eenheid.collectie || !eenheid.tracks?.length) return null;
+
+  const rows = losseTracksVanPost(site.id, eenheid.tracks);
+  if (!rows.length) return null;
+
+  const hostPosts = new Map(rows.map((r) => [r.id, { id: post.id, slug: post.slug }]));
+  const out = {
+    '@context': AP_CONTEXT,
+    id: postTracksId(base, site, post.id),
+    type: 'OrderedCollection',
+    attributedTo: actorId(base, site.slug),
+    totalItems: rows.length,
+    orderedItems: rows.map((r) => buildTrackAudio(base, site, r, { hostPosts })),
+  };
+  return leenVanPost(base, site, out, post);
 }
 
 /**

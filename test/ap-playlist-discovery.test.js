@@ -107,9 +107,28 @@ test('een playlist van een ANDERE site levert geen tag -- de site-check is de te
   assert.equal((note.tag || []).filter((t) => t.type === 'Link').length, 0);
 });
 
-test('een post zonder playlist heeft geen Link-tags', () => {
+test('losse tracks in een post krijgen sinds shaer-38y wel een Link-tag', () => {
+  // Dit testte eerder dat er GEEN Link-tag was. Dat klopte zolang alleen een
+  // playlist een collectie had; nu zijn losse tracks in een post ook een
+  // uitgave, met een eigen collectie. Zonder deze link bestaat die wel maar
+  // vindt niemand hem -- dus de verwachting is omgedraaid, niet het gedrag
+  // stukgegaan.
   const site = db.prepare("SELECT * FROM sites WHERE id = 's1'").get();
   const note = AP.buildNote('https://test.example', site, { id: 'p3', slug: 'p3', title: 'Los', content: 'Gewoon tekst met [[track:t1]]', status: 'published' });
+  const links = (note.tag || []).filter((t) => t.type === 'Link');
+  assert.equal(links.length, 1);
+  assert.equal(links[0].href, 'https://test.example/ap/users/band/posts/p3/tracks');
+});
+
+test('en een post met alleen tekst nog steeds geen enkele Link-tag', () => {
+  const site = db.prepare("SELECT * FROM sites WHERE id = 's1'").get();
+  const note = AP.buildNote('https://test.example', site, { id: 'p4', slug: 'p4', title: 'Niets', content: 'Gewoon tekst', status: 'published' });
+  assert.equal((note.tag || []).filter((t) => t.type === 'Link').length, 0);
+});
+
+test('een post met alleen een DICHTE track ook niet -- geen lege uitgave', () => {
+  const site = db.prepare("SELECT * FROM sites WHERE id = 's1'").get();
+  const note = AP.buildNote('https://test.example', site, { id: 'p5', slug: 'p5', title: 'Dicht', content: 'Alleen [[track:t2]]', status: 'published' });
   assert.equal((note.tag || []).filter((t) => t.type === 'Link').length, 0);
 });
 
