@@ -66,7 +66,7 @@ function uiStrings(L) {
     // houden zodra ze naast elkaar staan (shaer-p729).
     'gate_follows', 'gate_following',
     'gate_kind_setting', 'gate_kind_perRequest', 'gate_kind_handover',
-    'gate_unknown', 'gate_threshold', 'gate_threshold_unknown',
+    'gate_unknown', 'gate_always', 'gate_threshold', 'gate_threshold_unknown',
     'gate_irreversible', 'gate_waiting', 'gate_blocked', 'gate_propose',
     // Oppikken en afhandelen van een hulpvraag (shaer-lgo).
     'help_pick', 'help_close', 'help_picked_by', 'help_handled_by', 'help_handled_note',

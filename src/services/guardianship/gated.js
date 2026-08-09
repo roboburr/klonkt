@@ -120,7 +120,10 @@ export const GATE_CATALOGUE = [
   //
   // Inkomend is vast: §5.3 EIST dat een Follow naar een ward langs de guardians
   // gaat, dus die staat aan en blijft aanstaan. Tonen mag, verzetten niet.
-  { feature: 'shaer:follows', kind: 'perRequest', reversible: true, fixed: true },
+  // fixedValue false: de poort staat DICHT en blijft dicht -- een Follow naar
+  // een ward gaat altijd langs de guardians. Dezelfde polariteit als de rest
+  // van de familie, waar `value` "mag het zonder tussenkomst?" betekent.
+  { feature: 'shaer:follows', kind: 'perRequest', reversible: true, fixed: true, fixedValue: false },
   // Uitgaand is verstelbaar, en dat verschil is opzet. De FEP zegt over deze
   // richting niets: §5.3 gaat alleen over een Follow die op een ward AF komt.
   // Wat je verder gated is expliciet aan de implementatie gelaten, dus dit is
@@ -163,8 +166,14 @@ export function gateRows({ settings = {}, guardianCount = null, proposals = [], 
     // omdat er nooit iets besloten is. Dat derde als "uit" tonen zou een besluit
     // suggereren dat niemand nam.
     const raw = Object.prototype.hasOwnProperty.call(settings, g.feature) ? settings[g.feature] : null;
-    const beslist = raw && typeof raw === 'object' ? !!raw.decided : (raw === true || raw === false);
-    const value = raw && typeof raw === 'object' ? raw.value : raw;
+    let beslist = raw && typeof raw === 'object' ? !!raw.decided : (raw === true || raw === false);
+    let value = raw && typeof raw === 'object' ? raw.value : raw;
+    // Een VASTE poort heeft geen kolom om een stand in te bewaren, want er valt
+    // niets te bewaren: hij staat zoals de spec hem zet. Zonder dit viel hij
+    // door naar "nooit besloten" en las het paneel eeuwig "onbekend" -- wat een
+    // vraag suggereert die er niet is. §5.3 EIST dat een Follow naar een ward
+    // langs de guardians gaat, dus dat is beslist, alleen niet door ons.
+    if (g.fixed) { value = !!g.fixedValue; beslist = true; }
     // De trap: het bovenliggende moet OPEN staan. Onbekend telt niet als dicht --
     // bij een ward elders kennen we de stand niet, en verbergen betekende daar
     // ooit dat een voorstel nooit geopend kon worden.
@@ -183,6 +192,11 @@ export function gateRows({ settings = {}, guardianCount = null, proposals = [], 
       // Wat er niet is, valt niet te verzetten. Een knop die op unknown_feature
       // strandt is erger dan geen knop.
       available: g.available !== false,
+      // Vast is iets anders dan geblokkeerd of afwezig, en alle drie maken ze
+      // `adjustable` false. Een client die alleen dat ziet weet niet WAAROM er
+      // geen knop is; met dit veld kan hij "altijd" zeggen in plaats van een
+      // stand te tonen alsof er ooit nog iets aan verandert.
+      fixed: !!g.fixed,
       adjustable: g.available !== false && !g.fixed && !blockedBy,
       blockedBy: blockedBy || undefined,
       // Zonder bekend aantal guardians GEEN drempel verzinnen. Nul of een gok

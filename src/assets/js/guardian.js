@@ -563,6 +563,10 @@
       ? (T.gate_unknown || 'unknown')
       : (g.value ? (T.prop_on || 'on') : (T.prop_off || 'off'));
     if (!g.decided && g.value === false) stand = T.gate_default_off || stand;
+    // Een VASTE poort is geen stand die nog kan draaien: hij staat zoals de spec
+    // hem zet. "aan" of "uit" leest als iets waar nog over te praten valt, en
+    // dat is hier niet zo -- §5.3 laat er geen ruimte voor.
+    if (g.fixed) stand = T.gate_always || 'always';
     if (!g.available) stand = T.gate_unavailable || 'not available yet';
 
     var lamp = !g.available ? 'planned'
