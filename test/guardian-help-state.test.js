@@ -62,7 +62,10 @@ test('een oppik VERVALT NIET maar veroudert wel zichtbaar', () => {
   const rijen = [{ kind: 'pickup', guardian_uri: OMA, created_at: '2026-08-05T10:00:00.000Z' }];
   const s = help.helpStatus(rijen, Date.parse('2026-08-07T10:00:00.000Z'));
   assert.equal(s.open, true);
-  assert.equal(s.ageMs, 2 * 24 * 3600 * 1000, 'twee dagen oud, en dat hoort te zien te zijn');
+  // Een TIJDSTIP, geen leeftijd: een verschil met `now` maakt het antwoord elke
+  // milliseconde anders, en dan kan de ETag van het paneel nooit gelijk zijn --
+  // dat leverde een lus op waarin de browser zichzelf bleef verversen.
+  assert.equal(s.oldestPickupAt, '2026-08-05T10:00:00.000Z');
 });
 
 test('afhandelen sluit hem, met naam', () => {
@@ -70,7 +73,7 @@ test('afhandelen sluit hem, met naam', () => {
   const s = help.statusOf(NOTE);
   assert.equal(s.open, false);
   assert.equal(s.handled.handle, '@opa@opa.test');
-  assert.equal(s.ageMs, null, 'de leeftijd van een oppik zegt niets meer als het klaar is');
+  assert.equal(s.oldestPickupAt, null, 'het tijdstip van een oppik zegt niets meer als het klaar is');
 });
 
 test('er is GEEN terugdraai', () => {
@@ -144,4 +147,18 @@ test('zolang het WEL je ward is verandert er niets', () => {
   const rijen = [{ kind: 'pickup', guardian_uri: OMA, guardian_handle: '@oma', created_at: '2026-08-05T10:00:00.000Z' }];
   const basis = help.helpStatus(rijen, Date.parse('2026-08-05T11:00:00.000Z'));
   assert.deepEqual(help.withWardship(basis, true), basis);
+});
+
+test('het antwoord verandert NIET als je het twee keer opvraagt', () => {
+  // De fout die Barts browser in een lus bracht (9-8): hier stond ageMs, een
+  // verschil met `now`. Daardoor was elk antwoord anders, kon de ETag van het
+  // paneel nooit gelijk zijn, kwam de 304 nooit, en keerde de lange poll meteen
+  // terug -- inclusief een hertekening die de scrollpositie vermaalde.
+  //
+  // Een levende klok in een antwoord maakt dat antwoord onvergelijkbaar met
+  // zichzelf. Deze toets bewaakt precies dat.
+  const rijen = [{ kind: 'pickup', guardian_uri: OMA, created_at: '2026-08-05T10:00:00.000Z' }];
+  const a = JSON.stringify(help.helpStatus(rijen, Date.parse('2026-08-05T12:00:00.000Z')));
+  const b = JSON.stringify(help.helpStatus(rijen, Date.parse('2026-08-05T12:00:00.500Z')));
+  assert.equal(a, b, 'een halve seconde later is hetzelfde antwoord');
 });

@@ -51,9 +51,18 @@ export function record(noteUri, guardianUri, kind, handle = null) {
  * De staat van een hulpvraag, uit zijn rijen. Puur, zodat de regels te toetsen
  * zijn zonder database of scherm.
  *
- * `ageMs` is de leeftijd van de OUDSTE oppik. Daar tekent het scherm mee dat een
- * signaal oud wordt -- niets verdwijnt, maar je ziet wel dat er misschien niets
- * meer gebeurt.
+ * `oldestPickupAt` is het TIJDSTIP van de oudste oppik, niet de leeftijd. Daar
+ * tekent het scherm mee dat een signaal oud wordt -- niets verdwijnt, maar je
+ * ziet wel dat er misschien niets meer gebeurt.
+ *
+ * EEN TIJDSTIP, GEEN LEEFTIJD, en dat is geen smaak. Hier stond `ageMs`, een
+ * verschil met `now`, en dus veranderde dit antwoord elke milliseconde. Zodra
+ * het paneel een ETag kreeg (9-8) kon die daardoor nooit meer gelijk zijn: de
+ * 304 kwam nooit, de lange poll keerde meteen terug, en de browser kwam in een
+ * lus van ongeveer een seconde waarin de scrollpositie werd vermalen. Een
+ * levende klok in een antwoord maakt dat antwoord onvergelijkbaar met zichzelf.
+ *
+ * De leeftijd is een weergavedetail en wordt in de client uitgerekend.
  */
 export function helpStatus(rows, now = Date.now()) {
   const list = rows || [];
@@ -66,7 +75,7 @@ export function helpStatus(rows, now = Date.now()) {
     pickedUpBy: pickups.map((r) => ({ uri: r.guardian_uri, handle: r.guardian_handle || null, at: r.created_at })),
     handled: done ? { uri: done.guardian_uri, handle: done.guardian_handle || null, at: done.created_at } : null,
     // Alleen betekenisvol zolang er niets is afgesloten.
-    ageMs: (!done && oudste) ? Math.max(0, now - oudste) : null,
+    oldestPickupAt: (!done && oudste) ? new Date(oudste).toISOString() : null,
     // Waar het scherm op afgaat. Bij twijfel OPEN: een lege lijst, een rij die we
     // niet kunnen lezen, wat dan ook -- alles wat geen expliciete afsluiting is,
     // is een hulpvraag die nog op iemand wacht.

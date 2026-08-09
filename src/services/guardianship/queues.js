@@ -225,7 +225,7 @@ export function helpItemsFor(slug, historyLimit = 50) {
     // Bij twijfel OPEN. Een hulpvraag die er afgehandeld uitziet terwijl hij dat
     // niet is, is de gevaarlijke fout -- niet andersom.
     state: help.withWardship(
-      staat.get(r.object_uri) || { open: true, pickedUpBy: [], handled: null, ageMs: null },
+      staat.get(r.object_uri) || { open: true, pickedUpBy: [], handled: null, oldestPickupAt: null },
       mijn.has(r.actor_uri),
     ),
   }));

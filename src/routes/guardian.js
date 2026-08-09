@@ -98,7 +98,7 @@ function dashboardState(site, L) {
     // Bij twijfel OPEN. Een hulpvraag die er afgehandeld uitziet terwijl hij dat
     // niet is, is de gevaarlijke fout -- niet andersom.
     state: Guardianship.help.withWardship(
-      helpStaat.get(h.object_uri) || { open: true, pickedUpBy: [], handled: null, ageMs: null },
+      helpStaat.get(h.object_uri) || { open: true, pickedUpBy: [], handled: null, oldestPickupAt: null },
       mijnWards.has(h.actor_uri),
     ),
     // The dashboard is built in the browser, so it gets the body finished: the

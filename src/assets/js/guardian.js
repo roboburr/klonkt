@@ -107,7 +107,7 @@
    * onaangeroerd uit terwijl er iemand mee bezig is.
    */
   function helpState(h) {
-    var st = h.state || { open: true, pickedUpBy: [], handled: null, ageMs: null };
+    var st = h.state || { open: true, pickedUpBy: [], handled: null, oldestPickupAt: null };
     var box = el('div', 'g-help-state');
 
     // Niet meer jouw ward: geen knoppen, want de route zou ze weigeren. En geen
@@ -132,8 +132,12 @@
     });
     // Oud, maar niet weg. Dit is het verschil tussen 'er is iemand mee bezig' en
     // 'er was ooit iemand mee bezig'.
-    if (st.ageMs != null && st.ageMs > 3600000) {
-      box.appendChild(el('div', 'g-help-age small', ago(st.ageMs)));
+    // De leeftijd wordt HIER uitgerekend, niet op de server: een verschil met
+    // `now` in het antwoord maakt dat antwoord elke milliseconde anders, en dan
+    // kan de ETag nooit gelijk zijn.
+    var oud = st.oldestPickupAt ? (Date.now() - Date.parse(st.oldestPickupAt)) : null;
+    if (oud != null && !isNaN(oud) && oud > 3600000) {
+      box.appendChild(el('div', 'g-help-age small', ago(oud)));
     }
 
     var row = el('div', 'row');
@@ -893,6 +897,18 @@
       .catch(function () { if (onError) onError('network'); else btn.disabled = false; });
   }
 
+
+  // De scrollpositie overleeft een verversing (Barts melding, 9-8). renderAll
+  // bouwt lijsten opnieuw op; staat de pagina daarbij even korter, dan springt
+  // de browser omhoog en ben je kwijt waar je was. Meten en terugzetten is
+  // genoeg -- en het is het verschil tussen een scherm dat bijwerkt en een
+  // scherm dat onder je handen wegschuift.
+  function metBehoudVanScroll(fn) {
+    var y = window.scrollY || document.documentElement.scrollTop || 0;
+    fn();
+    if (y) window.scrollTo(0, y);
+  }
+
   function renderAll() { renderHelp(); renderPending(); renderWards(); }
 
   // ── 0. Wards' corner: read-only feed of your wards' posts ───────────────
@@ -962,7 +978,7 @@
   function refresh() {
     return fetch('/guardian/api/state?site=' + encodeURIComponent(S.site))
       .then(function (r) { return r.json(); })
-      .then(function (s) { if (s && !s.error) { S = s; T = s.strings || T; renderAll(); } })
+      .then(function (s) { if (s && !s.error) { S = s; T = s.strings || T; metBehoudVanScroll(renderAll); } })
       .then(loadFeed).then(loadFollowReqs);
   }
 
@@ -977,19 +993,37 @@
   // 304 = stilte, en dan meteen opnieuw wachten. Alleen bij 200 wordt er iets
   // opnieuw getekend.
   var pollBezig = false;
+  var laatsteState = null;   // de vorige body, om onnodig hertekenen te herkennen
+
   function longPoll() {
     if (pollBezig || document.hidden) return;
     pollBezig = true;
+    var t0 = Date.now();
     fetch('/guardian/api/state?wait=25&site=' + encodeURIComponent(S.site))
       .then(function (r) {
         pollBezig = false;
         if (r.status === 304) return null;          // stilte
-        return r.json().then(function (s) {
-          if (s && !s.error) { S = s; T = s.strings || T; renderAll(); }
+        return r.text().then(function (tekst) {
+          // ZELFDE INHOUD, NIET HERTEKENEN. De 304 zou dit al moeten afvangen,
+          // maar een enkel veld dat per verzoek verandert (er stond een levende
+          // klok in) maakt elke ETag anders, en dan tekent het paneel zichzelf
+          // stuk terwijl je scrollt. Dit is de tweede grendel, aan de kant die
+          // de gebruiker merkt.
+          if (tekst === laatsteState) return null;
+          laatsteState = tekst;
+          var s; try { s = JSON.parse(tekst); } catch (e) { return null; }
+          if (s && !s.error) { S = s; T = s.strings || T; metBehoudVanScroll(renderAll); }
           return loadFeed().then(loadFollowReqs);
         });
       })
-      .then(function () { setTimeout(longPoll, 200); })
+      .then(function () {
+        // EEN LANGE POLL DIE METEEN TERUGKEERT MAG GEEN LUS WORDEN. Wachtte de
+        // server niet (een fout, een tussenliggende proxy, iets wat we nog niet
+        // weten), dan houden we zelf de rem erop. Anders vervangt een defect de
+        // ene tik van 45 seconden door duizend per minuut.
+        var snel = Date.now() - t0 < 2000;
+        setTimeout(longPoll, snel ? 3000 : 200);
+      })
       .catch(function () {
         // Netwerk weg of server herstart: niet meteen opnieuw beuken.
         pollBezig = false;
