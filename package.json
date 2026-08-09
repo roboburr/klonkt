@@ -11,7 +11,8 @@
     "test": "node --test",
     "migrate": "node src/db/migrate.js",
     "reset-admin": "node scripts/reset-admin.mjs",
-    "backfill:durations": "node scripts/backfill-durations.mjs"
+    "backfill:durations": "node scripts/backfill-durations.mjs",
+    "backfill:post-types": "node scripts/backfill-post-types.mjs"
   },
   "dependencies": {
     "@resvg/resvg-js": "^2.6.2",

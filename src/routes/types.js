@@ -7,10 +7,12 @@
 
 import express from 'express';
 import db from '../config/database.js';
+import { POST_TYPES } from '../config/post-types.js';
 import { renderPage } from '../middleware/render.js';
 
 const router = express.Router();
-const VALID_TYPES = new Set(['post', 'foto', 'video', 'audio']);
+// Een lijst, drie gebruikers: zie config/post-types.js.
+const VALID_TYPES = POST_TYPES;
 
 router.get('/:type', (req, res) => {
   const site = res.locals.site;

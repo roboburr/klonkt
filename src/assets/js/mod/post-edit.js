@@ -979,7 +979,12 @@ function run() {
         b.classList.toggle('is-active', on);
         b.setAttribute('aria-checked', on ? 'true' : 'false');
       });
-      panels.forEach(p => { p.hidden = (p.dataset.panel !== tt); });
+      // data-panel mag meerdere types noemen: Album en Playlist delen het
+      // muziekpaneel, want het verschil zit in de playlist en niet in de upload.
+      panels.forEach(p => {
+        const voor = String(p.dataset.panel || '').trim().split(/\s+/);
+        p.hidden = !voor.includes(tt);
+      });
     }
     seg.addEventListener('click', (e) => {
       const btn = e.target.closest('.pe-typeseg-btn');

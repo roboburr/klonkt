@@ -23,12 +23,18 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
         reveals its own input: Audio → inline upload, Video → embed URL,
         Foto → cover/insert hint. %>
     <% var ptype = post.type || 'post'; %>
-    <% var TYPE_ICONS = { post: '📝', foto: '📷', video: '🎬', audio: '🎵' }; %>
+    <% var TYPE_ICONS = { post: '📝', foto: '📷', video: '🎬', album: '💿', playlist: '📃', audio: '🎵' }; %>
+    <%# Audio is geen keuze meer (shaer-cyg): alles wat muziek is landt op Album
+        of Playlist. De knop blijft alleen staan zolang deze post nog audio IS,
+        zodat een oude post niet stilzwijgend van type verandert bij het openen. %>
+    <% var TYPES = (typeof keuzeTypes !== 'undefined' && keuzeTypes.length)
+                     ? keuzeTypes.slice() : ['post','foto','video','album','playlist']; %>
+    <% if (ptype === 'audio' && TYPES.indexOf('audio') < 0) TYPES.push('audio'); %>
     <section class="pe-card pe-type-card">
       <div class="pe-section-title"><%= t('pedit.s_type') %></div>
       <input type="hidden" name="type" id="pe-type-input" value="<%= ptype %>">
       <div class="pe-typeseg" role="radiogroup" aria-label="<%= t('pedit.s_type') %>">
-        <% ['post','foto','video','audio'].forEach(function (tt) { %>
+        <% TYPES.forEach(function (tt) { %>
           <button type="button" class="pe-typeseg-btn<%= ptype === tt ? ' is-active' : '' %>"
                   data-type="<%= tt %>" role="radio" aria-checked="<%= ptype === tt ? 'true' : 'false' %>">
             <span class="pe-typeseg-ic" aria-hidden="true"><%= TYPE_ICONS[tt] %></span>
@@ -37,8 +43,10 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
         <% }); %>
       </div>
 
-      <%# Audio: inline upload (transcodes + drops [[track]] into the post) %>
-      <div class="pe-type-panel" data-panel="audio" hidden>
+      <%# Muziek: inline upload (transcodes + drops [[track]] into the post).
+          Album en Playlist delen dit paneel -- het verschil zit in de playlist,
+          niet in wat je hier uploadt. Audio staat er alleen nog voor oude posts. %>
+      <div class="pe-type-panel" data-panel="album playlist audio" hidden>
         <div class="pe-audio-up" id="pe-audio-drop" tabindex="0" role="button" aria-label="<%= t('pedit.audio_up_drop') %>">
           <input type="file" id="pe-audio-file" accept="audio/*,.mp3,.m4a,.ogg,.opus,.flac,.wav" multiple hidden>
           <span class="pe-audio-up-ic" aria-hidden="true">🎵</span>

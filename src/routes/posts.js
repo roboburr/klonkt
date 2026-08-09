@@ -5,6 +5,7 @@ import fs from 'fs';
 import multer from 'multer';
 import ejs from 'ejs';
 import db from '../config/database.js';
+import { POST_TYPES, KEUZE_TYPES } from '../config/post-types.js';
 import { requireAuth, requireSiteManager, isViewer } from '../middleware/auth.js';
 import { renderPage } from '../middleware/render.js';
 import { recordPageview, recordPostView } from '../services/StatsService.js';
@@ -264,6 +265,7 @@ router.get('/posts/new', requireAuth, (req, res) => {
       cover_image_url: '',
     },
     isNew: true,
+    keuzeTypes: KEUZE_TYPES,
     pageTitle: 'New post',
     bodyClass: 'on-special',
   });
@@ -358,8 +360,7 @@ router.post('/posts/create', requireAuth, (req, res) => {
   // Duplicate title/slug? Make it unique automatically (title-2, title-3, …) instead of rejecting.
   finalSlug = uniqueSlug(site.id, finalSlug);
 
-  const validTypes = new Set(['post', 'foto', 'video', 'audio']);
-  const finalType = validTypes.has(type) ? type : 'post';
+  const finalType = POST_TYPES.has(type) ? type : 'post';
   const pollJson = parsePollForm(req.body);   // AS2 Question definition, or null
   const postId = uuid();
   const now = new Date().toISOString();
@@ -453,6 +454,7 @@ router.get('/posts/:slug/edit', requireAuth, (req, res) => {
     pageJs: 'post-edit playlist-editor',
     post,
     isNew: false,
+    keuzeTypes: KEUZE_TYPES,
     pollLocked,
     fediOpenAudio: postAudioFediOpen(site.id, post.content),
     pageTitle: 'Edit: ' + (post.title || 'Untitled'),
@@ -485,8 +487,7 @@ router.post('/posts/:slug/save', requireAuth, (req, res) => {
   const language = /^[a-z]{2,3}(-[A-Za-z]{2,4})?$/.test(req.body.language || '') ? req.body.language : (res.locals.lang || null); // BCP-47 content language
   const newSlug = req.body.slug;
   const action = req.body.action || 'save';
-  const validTypes = new Set(['post', 'foto', 'video', 'audio']);
-  const finalType = validTypes.has(type) ? type : (post.type || 'post');
+  const finalType = POST_TYPES.has(type) ? type : (post.type || 'post');
 
   // A poll that has already received votes is frozen (you can still edit the surrounding
   // post, but not the options) — changing options after votes would scramble the tally and
