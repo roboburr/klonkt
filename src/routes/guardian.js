@@ -59,7 +59,12 @@ function uiStrings(L) {
     'panel_guards_far',
     // Het gate-paneel per ward (shaer-ahy.1): een rij per gate, met het soort en
     // de drempel erbij. De namen volgen de catalogus in gated.js.
-    'gate_externalEmbeds', 'gate_externalPlayback', 'gate_externalThreads', 'gate_follows',
+    'gate_externalEmbeds', 'gate_externalPlayback', 'gate_externalThreads',
+    // De twee richtingen van §5.3, met woorden die niet op elkaar lijken:
+    // "Volgverzoeken" komt naar het kind toe, "Zelf iemand volgen" gaat ervan
+    // weg. Zonder dat verschil in de tekst zijn de rijen niet uit elkaar te
+    // houden zodra ze naast elkaar staan (shaer-p729).
+    'gate_follows', 'gate_following',
     'gate_kind_setting', 'gate_kind_perRequest', 'gate_kind_handover',
     'gate_unknown', 'gate_threshold', 'gate_threshold_unknown',
     'gate_irreversible', 'gate_waiting', 'gate_blocked', 'gate_propose',

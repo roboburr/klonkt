@@ -413,6 +413,12 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
   const composeAllowed = gate('gate_compose');
   const repliesAllowed = gate('gate_replies');
   const threadsAllowed = gate('external_threads');
+  // Zelf iemand volgen (shaer-p729). Anders dan de rest betekent dicht hier niet
+  // "kan niet" maar "moet eerst gevraagd worden": het verzoek gaat naar de
+  // guardians. Juist dat hoort de app VOORAF te weten, zodat de knop kan zeggen
+  // dat je het gaat vragen in plaats van te doen alsof het al gelukt is en het
+  // kind het pas bij het antwoord te laten ontdekken.
+  const followingAllowed = gate('gate_following');
   // Emoji dicht raakt ook de bylines: de plaatjes in een naam komen net zo
   // goed van een vreemde server. De naam zelf blijft, met :shortcode: als tekst.
   const gateAuthor = (a) => (a && !emojiAllowed ? { ...a, emojis: undefined } : a);
@@ -593,6 +599,7 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
       'shaer:quoteCards': quotesAllowed,
       'shaer:customEmoji': emojiAllowed,
       'shaer:externalThreads': threadsAllowed,
+      'shaer:following': followingAllowed,
     },
     // Het merk van wat hierin zit. Geef hem terug als `since` om op het
     // volgende te wachten. NA het samenstellen bepaald, zodat hij precies dekt
