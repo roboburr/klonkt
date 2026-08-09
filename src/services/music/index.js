@@ -335,7 +335,14 @@ export function channelCategory(site) {
 // ── Welk soort muzikale uitgave is deze post? (shaer-cyg) ─────────────────
 
 /**
- * Het type van een post afleiden uit de muziek die erin staat.
+ * Het type van een BESTAANDE post afleiden uit de muziek die erin staat.
+ *
+ * WAARVOOR DIT WEL EN NIET IS (Robins afbakening, 9-8). Nieuwe posts krijgen
+ * hun type uit de keuze: album of playlist wordt gekozen als de playlist wordt
+ * gemaakt, en de post neemt dat over. Deze functie is er voor wat er al staat --
+ * de posts met type=audio uit de tijd voor die keuze bestond. Daarmee is de
+ * vraag "wie wint, de keuze of de afleiding?" geen vraag meer: ze komen elkaar
+ * niet tegen. De afleiding draait eenmalig, de keuze draait daarna.
  *
  * DE REGEL GAAT OVER IDENTITEIT, NIET OVER TELLEN (Robins herformulering, 9-8):
  * een post neemt het type van zijn muziek over als hij precies EEN muzikale
@@ -356,21 +363,52 @@ export function channelCategory(site) {
  * alleen playlists, maar [[album:naam]] groepeert net zo goed tracks en is
  * letterlijk een album; hem als losse tracks tellen zou een albumpost tot
  * playlist maken. Telt hij straks anders, dan is dat hier een regel.
+ *
+ * WIE KIEST ALBUM OF PLAYLIST: dat gebeurt wanneer de PLAYLIST wordt gemaakt,
+ * en die keuze staat al in playlists.kind. Bij een enkele insluiting neemt de
+ * post dus die soort over -- een post om een album is een album, ook al heet de
+ * shortcode [[playlist:...]]. De soort van een playlist wordt hier dus
+ * OPGEZOCHT en niet afgeleid.
+ *
+ * EN ALS WE HET NIET WETEN: een gewone post met insluitingen die de post als
+ * context hebben. Dat is geen noodgreep maar de rustende toestand -- tracks
+ * wijzen met `context` toch al terug naar hun post, dus er gaat niets verloren
+ * als het label 'post' wordt.
+ *
+ * @param {string} content   de HTML/tekst van de post
+ * @param {string} siteId    nodig om playlists.kind te kunnen opzoeken
  */
-export function postMusicType(content) {
+export function postMusicType(content, siteId) {
   const c = String(content || '');
   const uniek = (re) => [...new Set([...c.matchAll(re)].map((m) => m[1].trim()))];
 
-  const playlists = uniek(/\[\[playlist:([A-Za-z0-9_-]+)\]\]/g);
+  // Dezelfde patronen als de renderer in AudioEmbedService: wat daar niet
+  // insluit, telt hier niet mee. Anders zou een shortcode die niets oplevert
+  // wel het type van de post kunnen bepalen.
+  const playlists = uniek(/\[\[playlist:([a-z0-9][a-z0-9-]*)\]\]/gi);
   const albums    = uniek(/\[\[album:([^\]]+)\]\]/g);
   const tracks    = uniek(/\[\[track:([A-Za-z0-9_-]+)\]\]/g);
 
+  if (!playlists.length && !albums.length && !tracks.length) return null;
+
+  // De soort van een playlist is een gegeven, geen afleiding.
+  let onbekend = [];
+  const uitPlaylists = playlists.map((id) => {
+    const kind = playlistKind(id, siteId);
+    if (!kind) { onbekend.push(id); return null; }
+    return { soort: kind, id };
+  }).filter(Boolean);
+
   const collecties = [
-    ...playlists.map((id) => ({ soort: 'playlist', id })),
+    ...uitPlaylists,
     ...albums.map((naam) => ({ soort: 'album', naam })),
   ];
 
-  if (!collecties.length && !tracks.length) return null;          // geen muziek
+  // Onbekende situatie -> gewone post. De insluitingen blijven staan en houden
+  // de post als context; alleen het label wordt niet verzonnen.
+  if (onbekend.length) {
+    return { type: 'post', collecties, tracks, bonus: [], onbekend, leentMetadata: false };
+  }
 
   if (!collecties.length) {
     // Ook EEN losse track wordt een playlist: naar buiten toe is er dan altijd
@@ -387,4 +425,18 @@ export function postMusicType(content) {
   }
 
   return { type: 'post', collecties, tracks, bonus: [], leentMetadata: false };
+}
+
+/**
+ * De gekozen soort van een playlist: 'album' | 'playlist', of null als hij niet
+ * (op deze site) bestaat. Zelfde normalisatie als PlaylistService: alles wat
+ * geen 'playlist' zegt is een album.
+ */
+function playlistKind(id, siteId) {
+  if (!siteId) return null;
+  try {
+    const r = db.prepare('SELECT kind FROM playlists WHERE id = ? AND site_id = ?').get(id, siteId);
+    if (!r) return null;
+    return r.kind === 'playlist' ? 'playlist' : 'album';
+  } catch { return null; }
 }
