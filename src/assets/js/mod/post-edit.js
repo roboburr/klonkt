@@ -5,6 +5,9 @@
 // het houdt een apostrof in een vertaling uit de HTML die hier geplakt wordt.
 
 import { pageData, esc, makeSweeper } from './lib.js';
+// Dezelfde regel die de server gebruikt -- zie shared/post-music-type.js voor
+// waarom hij daar staat en niet twee keer.
+import { afleidenUitInsluitingen } from '../shared/post-music-type.js';
 
 // De oude inline scripts draaiden bij ELKE render; een module draait zijn
 // top-level een keer per sessie. Vandaar init(): de bootstrap roept hem aan
@@ -790,7 +793,13 @@ function run() {
       editor.appendChild(document.createTextNode('\u00A0'));
     }
     updateCharCount();
+    volgMuziek();
   }
+
+  // Wordt hieronder gevuld door het typeblok. Zolang dat er niet is (of de
+  // gebruiker het type zelf koos) gebeurt er niets -- insertChip mag daar niet
+  // op stuklopen.
+  let volgMuziek = () => {};
 
   // ── Embed insert: paste a platform URL -> [[embed:url]]-chip that becomes
   //    an iframe server-side (YouTube/Spotify/SoundCloud/Vimeo/Apple Music/Bandcamp).
@@ -971,6 +980,7 @@ function run() {
     if (!typeInput || !card) return;
     const seg = card.querySelector('.pe-typeseg');
     const panels = card.querySelectorAll('.pe-type-panel');
+    let handmatig = false;   // heeft de gebruiker het type zelf aangeklikt?
 
     function applyType(tt) {
       typeInput.value = tt;
@@ -988,9 +998,68 @@ function run() {
     }
     seg.addEventListener('click', (e) => {
       const btn = e.target.closest('.pe-typeseg-btn');
-      if (btn) applyType(btn.dataset.type);
+      if (!btn) return;
+      handmatig = true;          // jouw klik wint vanaf nu van de afleiding
+      applyType(btn.dataset.type);
     });
     applyType(typeInput.value || 'post');
+
+    // ── Het type volgt de muziek (shaer-cyg) ──────────────────────
+    //
+    // Robins regel: de post neemt de soort van zijn muziek over als hij precies
+    // EEN muzikale eenheid bevat. Dus zodra je een playlist invoegt verspringt
+    // de balk mee, en zie je wat je aan het maken bent in plaats van het zelf te
+    // moeten bijhouden.
+    //
+    // TWEE DINGEN DIE HIJ MET RUST LAAT. Klik je zelf een type aan, dan wint die
+    // keuze -- daarna wordt er niets meer voor je omgezet. En Foto en Video zijn
+    // een bewuste andere keuze over dezelfde post, dus die overschrijft hij
+    // nooit, ook niet als er muziek in staat.
+    //
+    // Bij het OPENEN van een post gebeurt er niets: de eerste afleiding wordt
+    // alleen als ijkpunt onthouden. Anders zou een oude post van type veranderen
+    // door hem te bekijken.
+    const VOLGBAAR = new Set(['post', 'album', 'playlist', 'audio']);
+    const kindVan = new Map();
+    let vorigeAfleiding = null;
+
+    const soortenGeladen = fetch('/admin/playlists/api/list', { credentials: 'same-origin' })
+      .then((r) => r.json())
+      .then((j) => {
+        if (j && j.ok && Array.isArray(j.playlists)) {
+          for (const p of j.playlists) kindVan.set(p.id, p.kind === 'playlist' ? 'playlist' : 'album');
+        }
+      })
+      // Zonder de soorten leidt de regel niets af (elke playlist is dan
+      // 'onbekend'), en dat is beter dan een gok die als keuze oogt.
+      .catch(() => {})
+      .then(() => { vorigeAfleiding = afleidenNu(); });
+
+    function afleidenNu() {
+      // Precies de tekst die straks wordt opgeslagen: chips terug naar
+      // shortcodes. Zo leidt de editor af uit wat de server ook zal zien.
+      const clone = editor.cloneNode(true);
+      serializeChips(clone);
+      const r = afleidenUitInsluitingen(clone.innerHTML, (id) => kindVan.get(id) || null);
+      return r ? r.type : null;
+    }
+
+    volgMuziek = async () => {
+      await soortenGeladen;
+      const nu = afleidenNu();
+      if (nu === vorigeAfleiding) return;    // de muziek is niet van soort veranderd
+      vorigeAfleiding = nu;
+      if (handmatig || !nu) return;
+      if (!VOLGBAAR.has(typeInput.value)) return;
+      applyType(nu);
+    };
+
+    // Ook getypte of geplakte shortcodes tellen, niet alleen de knoppen.
+    let tik = null;
+    editor.addEventListener('input', () => {
+      clearTimeout(tik);
+      tik = setTimeout(volgMuziek, 300);
+    });
 
     // Video URL → [[embed:url]] chip
     const vBtn = document.getElementById('pe-video-insert');

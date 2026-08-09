@@ -14,6 +14,7 @@
 
 import db from '../../config/database.js';
 import { AP_CONTEXT, PUBLIC, actorId, noteId, safeUrl, guessMediaType } from '../ap-core.js';
+import { afleidenUitInsluitingen } from '../../assets/js/shared/post-music-type.js';
 
 // m.size hoort erbij voor de RSS-enclosure: die eist een lengte in bytes.
 const TRACK_KOLOMMEN = `t.id, t.title, t.artist, t.duration, t.cover_url, t.created_at,
@@ -332,99 +333,27 @@ export function channelCategory(site) {
   } catch { return null; }
 }
 
-// ── Welk soort muzikale uitgave is deze post? (shaer-cyg) ─────────────────
+// ── Welk soort muzikale uitgave is deze post? (shaer-cyg) ─────────────
 
 /**
- * Het type van een BESTAANDE post afleiden uit de muziek die erin staat.
+ * Het type van een post afleiden uit de muziek die erin staat.
+ *
+ * DE REGEL ZELF staat in assets/js/shared/post-music-type.js, want de editor
+ * gebruikt hem ook -- daar volgt het type live mee terwijl je schrijft. Twee
+ * kopieen zouden stil uit elkaar lopen, dus is er er een. Hier komt alleen het
+ * stuk bij dat de server kan en de browser niet: de gekozen soort van een
+ * playlist opzoeken.
  *
  * WAARVOOR DIT WEL EN NIET IS (Robins afbakening, 9-8). Nieuwe posts krijgen
  * hun type uit de keuze: album of playlist wordt gekozen als de playlist wordt
- * gemaakt, en de post neemt dat over. Deze functie is er voor wat er al staat --
- * de posts met type=audio uit de tijd voor die keuze bestond. Daarmee is de
- * vraag "wie wint, de keuze of de afleiding?" geen vraag meer: ze komen elkaar
- * niet tegen. De afleiding draait eenmalig, de keuze draait daarna.
- *
- * DE REGEL GAAT OVER IDENTITEIT, NIET OVER TELLEN (Robins herformulering, 9-8):
- * een post neemt het type van zijn muziek over als hij precies EEN muzikale
- * eenheid bevat. Zijn het er meer, dan is de post een post die naar muziek
- * verwijst, en houden de collecties hun eigen identiteit.
- *
- *   losse track(s)                -> playlist   metadata van de post geleend
- *   een collectie                 -> die soort  metadata van de post geleend
- *   een collectie + losse tracks  -> album      de losse zijn BONUS-TRACKS
- *   twee of meer collecties       -> post       NIETS geleend
- *
- * Waarom de lening bij de laatste vervalt: die bestaat omdat een collectie soms
- * dun is -- geen eigen hoes, geen eigen titel. Bij twee is de post niet meer de
- * drager van EEN identiteit, en vervalt de reden vanzelf. Dezelfde regel zet
- * zichzelf uit.
- *
- * EEN COLLECTIE IS EEN PLAYLIST OF EEN ALBUM-INSLUITING. Robins regel noemde
- * alleen playlists, maar [[album:naam]] groepeert net zo goed tracks en is
- * letterlijk een album; hem als losse tracks tellen zou een albumpost tot
- * playlist maken. Telt hij straks anders, dan is dat hier een regel.
- *
- * WIE KIEST ALBUM OF PLAYLIST: dat gebeurt wanneer de PLAYLIST wordt gemaakt,
- * en die keuze staat al in playlists.kind. Bij een enkele insluiting neemt de
- * post dus die soort over -- een post om een album is een album, ook al heet de
- * shortcode [[playlist:...]]. De soort van een playlist wordt hier dus
- * OPGEZOCHT en niet afgeleid.
- *
- * EN ALS WE HET NIET WETEN: een gewone post met insluitingen die de post als
- * context hebben. Dat is geen noodgreep maar de rustende toestand -- tracks
- * wijzen met `context` toch al terug naar hun post, dus er gaat niets verloren
- * als het label 'post' wordt.
+ * gemaakt, en de post neemt dat over. Op de server is dit vooral voor wat er al
+ * staat -- de posts met type=audio uit de tijd voor die keuze bestond.
  *
  * @param {string} content   de HTML/tekst van de post
  * @param {string} siteId    nodig om playlists.kind te kunnen opzoeken
  */
 export function postMusicType(content, siteId) {
-  const c = String(content || '');
-  const uniek = (re) => [...new Set([...c.matchAll(re)].map((m) => m[1].trim()))];
-
-  // Dezelfde patronen als de renderer in AudioEmbedService: wat daar niet
-  // insluit, telt hier niet mee. Anders zou een shortcode die niets oplevert
-  // wel het type van de post kunnen bepalen.
-  const playlists = uniek(/\[\[playlist:([a-z0-9][a-z0-9-]*)\]\]/gi);
-  const albums    = uniek(/\[\[album:([^\]]+)\]\]/g);
-  const tracks    = uniek(/\[\[track:([A-Za-z0-9_-]+)\]\]/g);
-
-  if (!playlists.length && !albums.length && !tracks.length) return null;
-
-  // De soort van een playlist is een gegeven, geen afleiding.
-  let onbekend = [];
-  const uitPlaylists = playlists.map((id) => {
-    const kind = playlistKind(id, siteId);
-    if (!kind) { onbekend.push(id); return null; }
-    return { soort: kind, id };
-  }).filter(Boolean);
-
-  const collecties = [
-    ...uitPlaylists,
-    ...albums.map((naam) => ({ soort: 'album', naam })),
-  ];
-
-  // Onbekende situatie -> gewone post. De insluitingen blijven staan en houden
-  // de post als context; alleen het label wordt niet verzonnen.
-  if (onbekend.length) {
-    return { type: 'post', collecties, tracks, bonus: [], onbekend, leentMetadata: false };
-  }
-
-  if (!collecties.length) {
-    // Ook EEN losse track wordt een playlist: naar buiten toe is er dan altijd
-    // een collectie om naar te wijzen. Hoe Klonkt dat toont is een aparte vraag.
-    return { type: 'playlist', collectie: null, tracks, bonus: [], leentMetadata: true };
-  }
-
-  if (collecties.length === 1) {
-    const c0 = collecties[0];
-    // Losse tracks naast een collectie zijn geen rommelrestje maar bonus-tracks,
-    // en dat maakt het geheel een album.
-    if (tracks.length) return { type: 'album', collectie: c0, tracks: [], bonus: tracks, leentMetadata: true };
-    return { type: c0.soort, collectie: c0, tracks: [], bonus: [], leentMetadata: true };
-  }
-
-  return { type: 'post', collecties, tracks, bonus: [], leentMetadata: false };
+  return afleidenUitInsluitingen(content, (id) => playlistKind(id, siteId));
 }
 
 /**
