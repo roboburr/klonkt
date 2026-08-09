@@ -594,10 +594,38 @@ export function buildNote(base, site, post, opts = {}) {
   // replace the shortcodes with a "🎵 listen on the site" link so the post invites
   // a click-through to the protected player (discovery without leaking the file).
   const esc = (s) => String(s == null ? '' : s).replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+  // Elke titel met zijn track-id erbij, zodat hij hieronder een EIGEN link
+  // krijgt naar #track-<id> op de postpagina (shaer-38y). Zonder id was dit een
+  // vetgedrukte opsomming waar je niets mee kon: vijf namen en een enkele
+  // "listen on"-link naar de post als geheel. Elke track heeft daar al een
+  // anker -- direct ingesloten, in een album of in een playlist -- dus dit
+  // wijst naar precies het nummer waar de naam bij hoort.
   const audioLabels = [];
   try {
-    for (const m of body.matchAll(/\[\[track:([A-Za-z0-9_-]+)\]\]/g)) { const r = db.prepare('SELECT title FROM audio_tracks WHERE id = ?').get(m[1]); if (r && r.title) audioLabels.push(r.title); }
-    for (const m of body.matchAll(/\[\[album:([^\]]+)\]\]/g)) audioLabels.push(m[1].trim());
+    const zien = new Set();
+    const voegToe = (id, titel) => {
+      const t = String(titel || '').trim();
+      if (!t) return;
+      const sleutel = id || ('naam:' + t);
+      if (zien.has(sleutel)) return;
+      zien.add(sleutel);
+      audioLabels.push({ id: id || null, titel: t });
+    };
+    // In de volgorde van de POST: een enkele scan over alle drie de vormen,
+    // zodat de opsomming leest zoals de post is neergezet.
+    for (const m of body.matchAll(/\[\[(track|album|playlist):([^\]]+)\]\]/gi)) {
+      const soort = m[1].toLowerCase(), waarde = m[2].trim();
+      if (soort === 'track') {
+        const r = db.prepare('SELECT id, title FROM audio_tracks WHERE id = ?').get(waarde);
+        if (r) voegToe(r.id, r.title);
+      } else if (soort === 'album') {
+        const rs = db.prepare('SELECT id, title FROM audio_tracks WHERE site_id = ? AND album = ? ORDER BY rowid').all(site.id, waarde);
+        if (rs.length) for (const r of rs) voegToe(r.id, r.title);
+        else voegToe(null, waarde);            // album zonder tracks: dan maar de naam
+      } else {
+        for (const r of db.prepare('SELECT t.id, t.title FROM playlist_tracks pt JOIN audio_tracks t ON t.id = pt.track_id WHERE pt.playlist_id = ? ORDER BY pt.position').all(waarde)) voegToe(r.id, r.title);
+      }
+    }
   } catch { /* non-fatal */ }
   // fedi_open tracks → real AS2 Audio attachments (the actual file URL, served ungated) so
   // EVERY client incl. the Mastodon apps plays them inline natively. Gated tracks (default)
@@ -632,7 +660,11 @@ export function buildNote(base, site, post, opts = {}) {
     return `<p><a href="${u}">${u}</a></p>`;
   });
   if (hadAudio) {
-    const lbl = audioLabels.length ? esc(audioLabels.slice(0, 4).join(', ')) : '';
+    // Elke titel als eigen link naar zijn anker; een titel zonder id (een
+    // albumnaam zonder tracks) blijft gewone tekst.
+    const lbl = audioLabels.slice(0, 4)
+      .map((a) => (a.id ? `<a href="${human}#track-${esc(a.id)}">${esc(a.titel)}</a>` : esc(a.titel)))
+      .join(', ');
     if (trackEmbedLinks.length) {
       // Link-only track(s): emit the external link(s). Mastodon cards the first (Spotify → its
       // player), the rest render as clickable links — the fediverse-native "embed + links".
