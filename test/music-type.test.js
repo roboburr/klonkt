@@ -131,3 +131,18 @@ test('een playlist van een ANDERE site telt niet als de onze', () => {
 test('zonder site is er niets op te zoeken, dus geen type verzinnen', () => {
   assert.equal(postMusicType('[[playlist:nachtlicht]]').type, 'post');
 });
+
+test('de regel werkt ook zonder database -- de editor gebruikt hem zo', async () => {
+  // De editor draait dezelfde module in de browser, met een Map in plaats van
+  // een query. Deze test bewaakt dat de gedeelde module PUUR blijft: gaat er
+  // ooit een db-import in, dan valt hij hier om en niet pas in de browser.
+  const { afleidenUitInsluitingen } = await import('../src/assets/js/shared/post-music-type.js');
+  const soorten = new Map([['een', 'album'], ['twee', 'playlist']]);
+  const kindVan = (id) => soorten.get(id) || null;
+
+  assert.equal(afleidenUitInsluitingen('[[playlist:een]]', kindVan).type, 'album');
+  assert.equal(afleidenUitInsluitingen('[[playlist:twee]]', kindVan).type, 'playlist');
+  assert.equal(afleidenUitInsluitingen('[[track:x]]', kindVan).type, 'playlist');
+  assert.equal(afleidenUitInsluitingen('gewoon tekst', kindVan), null);
+  assert.equal(afleidenUitInsluitingen('[[playlist:weg]]', kindVan).type, 'post');
+});
