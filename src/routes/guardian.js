@@ -81,26 +81,13 @@ function uiStrings(L) {
 function dashboardState(site, L) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   const me = AP.actorId(base, site.slug);
-  const help = db.prepare(
-    `SELECT object_uri, note_url, actor_uri, actor_name, actor_handle, actor_icon, content, published, created_at,
-            emoji_json, actor_emoji_json, media_json, quote_json, embed_json
-     FROM ap_mentions WHERE slug = ? AND help_request = 1 ORDER BY created_at DESC LIMIT 50`
-  ).all(site.slug);
-  // De gedeelde staat in EEN query (shaer-lgo): wie er al op af is en of het is
-  // afgesloten. Per kaart vragen zou hier een N+1 opleveren, en dit is precies
-  // het scherm dat een guardian in een haast openslaat.
-  const helpStaat = Guardianship.help.statusFor(help.map((h) => h.object_uri));
-  // Wie bewaak je NU nog? Een hulpvraag van een oud-ward is niet meer van jou en
-  // hoort niet in de lijst die om je aandacht vraagt te blijven staan.
-  const mijnWards = new Set(Guardianship.listWards(site.slug).map((w) => w.other_uri));
-  const helpItems = help.map((h) => ({
+  // EEN weg naar de hulpvragen (Barts 429-jacht, 9-8): dit scherm had een
+  // eigen kopie van de queue-query, met een afkap op 50 -- dus de fix die open
+  // vragen nooit meer afkapt (shaer-6wt) ging aan het paneel voorbij, en juist
+  // de guardian met een caseload zag oude open vragen wegvallen. Nu dezelfde
+  // bron als de apps: open vragen volledig, geschiedenis afgekapt.
+  const helpItems = Guardianship.queues.helpItemsFor(site.slug).map((h) => ({
     ...h,
-    // Bij twijfel OPEN. Een hulpvraag die er afgehandeld uitziet terwijl hij dat
-    // niet is, is de gevaarlijke fout -- niet andersom.
-    state: Guardianship.help.withWardship(
-      helpStaat.get(h.object_uri) || { open: true, pickedUpBy: [], handled: null, oldestPickupAt: null },
-      mijnWards.has(h.actor_uri),
-    ),
     // The dashboard is built in the browser, so it gets the body finished: the
     // same partial de Krant and Berichten use. A 🛟 often carries a screenshot
     // and a link to the post it is about; both belong in the card.

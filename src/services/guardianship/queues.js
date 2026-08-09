@@ -213,8 +213,16 @@ export function wardGates(mySlug, wardUri) {
 export function helpItemsFor(slug, historyLimit = 50) {
   let rijen = [];
   try {
+    // Alle velden die een kaart kan tonen, niet alleen die van de queue: de
+    // PWA had hierom een EIGEN kopie van deze query -- mét een afkap op 50,
+    // waardoor de fix hierboven aan het paneel voorbijging (Barts 429-jacht,
+    // 9-8). Een tweede weg naar dezelfde staat is precies wat er bij de
+    // reply-gate al misging; nu is dit de enige weg, en dan hoort hij ook te
+    // dragen wat een kaart nodig heeft. De extra kolommen kosten de queue
+    // niets: die leest ze gewoon niet.
     rijen = db.prepare(
-      `SELECT object_uri, actor_uri, actor_name, actor_handle, actor_icon, content, published, created_at
+      `SELECT object_uri, note_url, actor_uri, actor_name, actor_handle, actor_icon, content, published, created_at,
+              emoji_json, actor_emoji_json, media_json, quote_json, embed_json
        FROM ap_mentions WHERE slug = ? AND help_request = 1 ORDER BY created_at DESC`,
     ).all(slug);
   } catch { return []; }
