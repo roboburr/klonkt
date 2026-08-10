@@ -951,23 +951,34 @@
   }
 
   // ── 0b. Follow requests on your wards (§5.3) ────────────────────────────
-  function answerFollow(id, decision, btn) {
+  /**
+   * Twee richtingen, twee eindpunten. Ze deelden er een, en dat kon niet goed
+   * gaan: /api/follow zoekt in ap_pending_follows en vindt een uitgaand verzoek
+   * daar nooit. De knop deed dus niets en zei niets -- erger dan geen knop.
+   */
+  function answerFollow(id, decision, btn, uitgaand) {
     if (btn) btn.disabled = true;
-    fetch('/guardian/api/follow/' + encodeURIComponent(id), {
+    var pad = uitgaand ? '/guardian/api/outgoing-follow/' : '/guardian/api/follow/';
+    fetch(pad + encodeURIComponent(id), {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ decision: decision, site: S.site }),
     }).then(loadFollowReqs);
   }
   function followCard(f) {
+    var uitgaand = f.direction === 'outgoing';
     var card = el('div', 'g-card');
     var row = el('div', 'row');
-    // Inside the child's own panel the ward name is a given, so only the
-    // person asking is named here.
-    row.appendChild(el('span', 'who grow', f.follower));
+    // Binnen het paneel van het kind is de ward een gegeven, dus alleen de
+    // ANDER wordt genoemd -- en wie dat is hangt van de richting af. Zonder dat
+    // onderscheid stond bij een uitgaand verzoek de ward zelf op de kaart
+    // ("je kind wil je kind volgen") en verdween degene om wie het ging.
+    row.appendChild(el('span', 'who grow',
+      uitgaand ? ((T.follow_out_line || 'wants to follow {who}').replace('{who}', f.target || '?'))
+               : f.follower));
     var ok = el('button', 'small', T.accept || 'Accept');
-    ok.addEventListener('click', function () { answerFollow(f.id, 'approve', ok); });
+    ok.addEventListener('click', function () { answerFollow(f.id, 'approve', ok, uitgaand); });
     var no = el('button', 'quiet small', T.reject || 'Deny');
-    no.addEventListener('click', function () { answerFollow(f.id, 'reject', no); });
+    no.addEventListener('click', function () { answerFollow(f.id, 'reject', no, uitgaand); });
     row.appendChild(ok); row.appendChild(no);
     card.appendChild(row);
     return card;

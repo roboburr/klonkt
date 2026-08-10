@@ -41,7 +41,7 @@ function uiStrings(L) {
     'accept', 'reject', 'complete', 'awaiting_others', 'coguard',
     // The per-ward panel: everything about one child in one place.
     'settings_title', 'panel_open', 'panel_close', 'panel_help', 'panel_help_empty',
-    'panel_follow', 'panel_follow_empty', 'panel_posts', 'panel_posts_empty',
+    'panel_follow', 'panel_follow_empty', 'follow_out_line', 'panel_posts', 'panel_posts_empty',
     'panel_actions', 'badge_help', 'badge_follow', 'badge_follow_one', 'help_empty',
     // Releasing a ward: a deliberate two-step answer, never one click.
     'release_title', 'release_effect', 'release_local', 'release_step_down',
@@ -288,13 +288,30 @@ router.get('/api/follow-requests', requireAuth, (req, res) => {
   // Local wards (guardian co-located): read the pending follows directly.
   for (const w of wardSlugsOf(site)) {
     for (const f of Guardianship.follows.listForWard(w.slug)) {
-      items.push({ id: f.id, ward: `@${w.slug}@${host}`, wardUri: w.uri, follower: f.follower_handle || f.follower_name || f.follower_uri, followerIcon: f.follower_icon, remote: false, created: f.created_at });
+      items.push({ id: f.id, direction: 'incoming', ward: `@${w.slug}@${host}`, wardUri: w.uri, follower: f.follower_handle || f.follower_name || f.follower_uri, followerIcon: f.follower_icon, remote: false, created: f.created_at });
+    }
+    // §5.3 andersom (shaer-p729): wat dit kind zelf heeft gevraagd. Stond hier
+    // niet, dus een guardian met een LOKALE ward zag uitgaande verzoeken in de
+    // PWA helemaal niet -- ze wachtten op iemand die er nooit naar keek.
+    for (const o of Guardianship.outgoing.listForWard(w.slug)) {
+      items.push({ id: o.id, direction: 'outgoing', ward: `@${w.slug}@${host}`, wardUri: w.uri, target: o.target_handle || o.target_uri, remote: false, created: o.created_at });
     }
   }
   // Remote wards: the copies forwarded here as Offer(Follow) (cross-instance).
   for (const rev of Guardianship.follows.listReviews(site.slug)) {
     const wardName = (() => { try { const u = new URL(rev.ward_uri); return `@${u.pathname.split('/').pop()}@${u.host}`; } catch { return rev.ward_uri; } })();
-    items.push({ id: rev.id, ward: wardName, wardUri: rev.ward_uri, follower: rev.follower_handle || rev.follower_uri, followerIcon: rev.follower_icon, remote: true, created: rev.created_at });
+    // De richting stond in de tabel en werd hier weggelaten. Zonder haar leest
+    // een uitgaand verzoek als een inkomend: de follower IS dan de ward, dus de
+    // kaart zei "je kind wil je kind volgen" en het doel viel weg.
+    const uitgaand = rev.direction === 'outgoing';
+    items.push({
+      id: rev.id, direction: uitgaand ? 'outgoing' : 'incoming',
+      ward: wardName, wardUri: rev.ward_uri,
+      follower: uitgaand ? undefined : (rev.follower_handle || rev.follower_uri),
+      target: uitgaand ? (rev.target_handle || rev.target_uri) : undefined,
+      followerIcon: uitgaand ? undefined : rev.follower_icon,
+      remote: true, created: rev.created_at,
+    });
   }
   res.json({ items });
 });
