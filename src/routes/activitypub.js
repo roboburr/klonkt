@@ -600,6 +600,10 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
       'shaer:customEmoji': emojiAllowed,
       'shaer:externalThreads': threadsAllowed,
       'shaer:following': followingAllowed,
+      // Stond in de catalogus mét kolom, en ontbrak hier: de guardian zag de
+      // poort in zijn paneel en de app van het kind heeft er nooit van gehoord.
+      // Gevonden door de pariteitstest, niet door iemand die het toevallig zag.
+      'shaer:accountMove': gate('gate_account_move'),
     },
     // Het merk van wat hierin zit. Geef hem terug als `since` om op het
     // volgende te wachten. NA het samenstellen bepaald, zodat hij precies dekt
