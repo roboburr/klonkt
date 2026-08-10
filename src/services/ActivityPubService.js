@@ -2272,7 +2272,11 @@ export async function handleInbox(req, slugParam, preVerified = null) {
         const isLocal = gslug && db.prepare('SELECT 1 FROM sites WHERE slug = ?').get(gslug);
         if (isLocal) {
           const L = pushLang(gslug);
-          pushEvent(gslug, { type: 'guardian', title: i18nT(L, 'push.n_guard_cog_t'), body: i18nT(L, 'push.n_guard_cog_b', { who: fi.name || fi.handle || i18nT(L, 'notif.someone') }), url: `${pushPrefix(gslug)}/guardian` });
+          // Een volgverzoek is geen mede-voogdij. Deze push leende de tekst van
+          // offer_for_ward en meldde dus een adoptie die niet gebeurde -- met de
+          // volger als onderwerp. Eigen woorden, en allebei de namen erin: wie
+          // er vraagt, en om wie het gaat (shaer-p729).
+          pushEvent(gslug, { type: 'guardian', title: i18nT(L, 'push.n_guard_folin_t'), body: i18nT(L, 'push.n_guard_folin_b', { who: fi.name || fi.handle || i18nT(L, 'notif.someone'), ward: slug }), url: `${pushPrefix(gslug)}/guardian` });
         } else {
           fetchActor(g).then((ga) => {
             const inbox = ga && ((ga.endpoints && ga.endpoints.sharedInbox) || ga.inbox);
@@ -5514,7 +5518,10 @@ export async function gateOutgoingFollow(site, targetUri) {
     const isLocal = gslug && db.prepare('SELECT 1 FROM sites WHERE slug = ?').get(gslug);
     if (isLocal) {
       const L = pushLang(gslug);
-      pushEvent(gslug, { type: 'guardian', title: i18nT(L, 'push.n_guard_cog_t'), body: i18nT(L, 'push.n_guard_cog_b', { who: ti.name || ti.handle || i18nT(L, 'notif.someone') }), url: `${pushPrefix(gslug)}/guardian` });
+      // De andere richting, en dus andere woorden: hier vraagt het kind of het
+      // iemand mag volgen. Met dezelfde tekst als hierboven kon een guardian
+      // op zijn telefoon niet zien wie er nu eigenlijk om wie vroeg.
+      pushEvent(gslug, { type: 'guardian', title: i18nT(L, 'push.n_guard_folout_t'), body: i18nT(L, 'push.n_guard_folout_b', { who: ti.name || ti.handle || i18nT(L, 'notif.someone'), ward: slug }), url: `${pushPrefix(gslug)}/guardian` });
     } else {
       fetchActor(g).then((ga) => {
         const inbox = ga && ((ga.endpoints && ga.endpoints.sharedInbox) || ga.inbox);
@@ -5624,7 +5631,20 @@ async function handleFollowApprovalInbox(act, slugParam) {
         target: doel || null, targetHandle: dai ? dai.handle : null,
       });
       const L = pushLang(gslug);
-      pushEvent(gslug, { type: 'guardian', title: i18nT(L, 'push.n_guard_cog_t'), body: i18nT(L, 'push.n_guard_cog_b', { who: fai.name || fai.handle || i18nT(L, 'notif.someone') }), url: `${pushPrefix(gslug)}/guardian` });
+      // `uitgaand` staat hier al, drie regels hoger, en werd voor de melding
+      // weer weggegooid: elke richting kreeg dezelfde tekst, geleend van
+      // offer_for_ward. Op de telefoon las een volgverzoek dus als een
+      // adoptie-aanvraag, en beide richtingen als elkaar.
+      const wardNaam = (wardDoc && (wardDoc.preferredUsername || wardDoc.name)) || slugFromActorUrl(wardUri) || wardUri;
+      const anderNaam = uitgaand
+        ? ((dai && (dai.name || dai.handle)) || i18nT(L, 'notif.someone'))
+        : (fai.name || fai.handle || i18nT(L, 'notif.someone'));
+      pushEvent(gslug, {
+        type: 'guardian',
+        title: i18nT(L, uitgaand ? 'push.n_guard_folout_t' : 'push.n_guard_folin_t'),
+        body: i18nT(L, uitgaand ? 'push.n_guard_folout_b' : 'push.n_guard_folin_b', { who: anderNaam, ward: wardNaam }),
+        url: `${pushPrefix(gslug)}/guardian`,
+      });
       stored = true;
     }
     return stored;
