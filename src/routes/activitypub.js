@@ -561,8 +561,11 @@ router.get('/ap/users/:slug/conversations', (req, res) => {
   // AS2 heeft geen term voor ongelezen; dit is per-lezer-interactiestatus,
   // dezelfde categorie als shaer:liked. Niet in totalItems persen: dat betekent
   // 'hoeveel er zijn' en niet 'hoeveel jij nog niet zag'.
+  // De poorten van DEZE lezer, niet die van de inbox-handler: die leeft in een
+  // andere functie en heette hier per ongeluk P.
+  const poorten = gatesFor(auth.site);
   const ongelezen = AP.unreadPerConversation(auth.site.slug, {
-    messagesAllowed: P.messagesAllowed,
+    messagesAllowed: poorten.messagesAllowed,
     guardians: (() => { try { return new Set(Guardianship.listGuardians(auth.site.slug).map((g) => g.other_uri)); } catch { return new Set(); } })(),
   });
   const gezien = new Set();
