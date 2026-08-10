@@ -282,6 +282,102 @@ router.get('/ap/users/:slug/follow', (req, res) => {
 </main></body></html>`);
 });
 
+/** De byline-gegevens uit een tijdlijnrij, langs de emoji-poort. */
+function authorInfoFrom(r, prefix, gates) {
+  const info = {
+    name: r[`${prefix}name`] || undefined, handle: r[`${prefix}handle`] || undefined,
+    icon: r[`${prefix}icon`] || undefined, url: r[`${prefix}url`] || undefined,
+    emojis: (() => { try { return r[`${prefix}emoji_json`] ? JSON.parse(r[`${prefix}emoji_json`]) : undefined; } catch { return undefined; } })(),
+  };
+  return (info.name || info.handle || info.icon) ? gates.gateAuthor(info) : undefined;
+}
+
+// ── Een tijdlijnpost als AS2-item: EEN beschrijving van de kaartvorm ──
+//
+// Zelfde reden als messageItem hieronder: de volledige lezing en de
+// verschil-lezing bouwen dezelfde kaart, en twee beschrijvingen lopen uit de
+// pas zonder dat iemand het merkt.
+function timelineItem(t, { p, reactions }) {
+  const authorInfo = (r, prefix) => authorInfoFrom(r, prefix, p);
+  const {
+    embedsAllowed, playbackAllowed, imagesAllowed, musicAllowed, quotesAllowed, emojiAllowed,
+  } = p;
+  const reacties = reactions || new Map();
+    const auteur = authorInfo(t, 'author_');
+    const booster = authorInfo(t, 'reblog_');
+    const boosterUri = t.reblog_url || t.reblog_handle || undefined;
+    return {
+    id: `${t.id}#create`,
+    // EEN BOOST IS EEN ANNOUNCE (shaer-nmw): een Create met een
+    // zijkanaal-property was onze uitvinding; de wrapper is de standaard, en
+    // elke AP-client leest hem al.
+    type: booster ? 'Announce' : 'Create',
+    actor: booster ? (AP.actorObject(boosterUri || t.author_uri, booster)) : t.author_uri,
+    published: t.published || t.created_at || undefined,
+    object: {
+      id: t.id,
+      type: 'Note',
+      // AS2 staat een INGESLOTEN actor toe; dan heeft elke client de byline,
+      // niet alleen de onze (shaer-nmw).
+      attributedTo: AP.actorObject(t.author_uri, auteur),
+      content: t.content,
+      url: t.url || undefined,
+      published: t.published || t.created_at || undefined,
+      sensitive: !!t.nsfw,
+      summary: t.cw || undefined,
+      // Friends' media travels along (media_json → AS2 attachment), so the
+      // client renders their images/audio like own outbox posts.
+      attachment: AP.gateAttachments(AP.timelineAttachments(t.media_json), { images: imagesAllowed, audio: musicAllowed }),
+      // The note's preserved tags, so the client can render them: FEP-9098
+      // Emoji tags (:shortcode: → image) and FEP-e232 Link tags (quotes /
+      // inline object references). Combined into one `tag` array; omitted
+      // when the note has neither.
+      tag: (() => {
+        const tags = [...(emojiAllowed ? (AP.timelineEmojis(t.emoji_json) || []) : []), ...(AP.timelineObjectLinks(t.link_json) || [])];
+        return tags.length ? tags : undefined;
+      })(),
+      // Whether THIS account already liked/boosted the note, so the app's
+      // detail-view buttons show the current state (and can toggle/undo).
+      'shaer:liked': !!(reacties.get(t.id) || {}).liked,
+      'shaer:boosted': !!(reacties.get(t.id) || {}).boosted,
+      // FEP-044f: de geciteerde post als object, zodat de client een kaart
+      // rendert in plaats van een kale link. AS2 preview is diezelfde kaart
+      // voor een EXTERNE link: thumbnail, nooit de iframe van de aanbieder.
+      // Allebei weg zodra hun poort dicht staat; de speler in preview hangt
+      // aan de playback-poort.
+      quote: quotesAllowed ? AP.quoteObject(t.quote_json) : undefined,
+      preview: embedsAllowed ? AP.previewObject(t.embed_json, { playback: playbackAllowed }) : undefined,
+    },
+  };
+}
+
+/** Een inkomend antwoord op je eigen post als AS2-item. */
+function replyItem(m, { base, me, myHandle, p }) {
+  return {
+    id: `${m.object_uri}#create`,
+    type: 'Create',
+    actor: m.actor_uri,
+    published: AP.isoStamp(m.published || m.created_at),
+    object: {
+      id: m.object_uri,
+      type: 'Note',
+      attributedTo: AP.actorObject(m.actor_uri, (m.actor_name || m.actor_handle || m.actor_icon) ? p.gateAuthor({
+        name: m.actor_name || undefined, handle: m.actor_handle || undefined,
+        icon: m.actor_icon || undefined, url: m.actor_url || undefined,
+        emojis: (() => { try { return m.actor_emoji_json ? JSON.parse(m.actor_emoji_json) : undefined; } catch { return undefined; } })(),
+      }) : undefined),
+      content: AP.stripLeadingMentions(m.content),
+      inReplyTo: m.parent_uri || `${base}/ap/notes/${m.post_id}`,
+      published: AP.isoStamp(m.published || m.created_at),
+      to: [me],
+      tag: [{ type: 'Mention', href: me, name: myHandle }, ...(AP.timelineEmojis(m.emoji_json) || [])],
+      attachment: AP.timelineAttachments(m.media_json),
+      quote: p.quotesAllowed ? AP.quoteObject(m.quote_json) : undefined,
+      preview: p.embedsAllowed ? AP.previewObject(m.embed_json, { playback: p.playbackAllowed }) : undefined,
+    },
+  };
+}
+
 // ── De poorten van een lezer, op EEN plek (FEP-633c) ─────────────
 //
 // De inbox-lezing rekende ze inline uit. Nu er meer lezingen zijn die
@@ -603,78 +699,79 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
   // actor), quote (FEP-044f als object), preview (AS2 core) en de
   // Announce-wrapper. De shaer:-velden blijven er nog naast staan voor apps
   // in het veld; die gaan eruit als de clients om zijn.
-  const authorInfo = (r, p) => {
-    const info = {
-      name: r[`${p}name`] || undefined, handle: r[`${p}handle`] || undefined,
-      icon: r[`${p}icon`] || undefined, url: r[`${p}url`] || undefined,
-      emojis: (() => { try { return r[`${p}emoji_json`] ? JSON.parse(r[`${p}emoji_json`]) : undefined; } catch { return undefined; } })(),
-    };
-    return (info.name || info.handle || info.icon) ? gateAuthor(info) : undefined;
-  };
+  // Wie ik ben en wie mijn guardians zijn: allebei de lezingen hieronder
+  // hebben ze nodig, dus een keer, hierboven.
+  const me = AP.actorId(base, auth.site.slug);
+  const myHandle = (() => { try { return `@${auth.site.slug}@${new URL(base).host}`; } catch { return `@${auth.site.slug}`; } })();
+  const guardianUris = (() => { try { return new Set(Guardianship.listGuardians(auth.site.slug).map((g) => g.other_uri)); } catch { return new Set(); } })();
+  // ── Alleen het VERSCHIL, als de client daarom vraagt (shaer-pq4) ──
+  //
+  // De wachtende lezing zei tot nu toe alleen DAT er iets veranderde, waarna de
+  // client alles opnieuw las: vier legs van zestig met al hun media-, quote- en
+  // embed-JSON, voor een enkel nieuw bericht. ap_feed_state houdt per object al
+  // bij wat er wanneer veranderde, dus het verschil lag er klaar en werd alleen
+  // nooit uitgedeeld (feedChangesSince had geen enkele aanroeper).
+  //
+  // OPT-IN met ?changes=1, en dat is geen franje: een app in het veld stuurt
+  // `since` al mee en vervangt haar hele feed door wat er terugkomt. Zou
+  // `since` opeens een verschil betekenen, dan wist die app zichzelf leeg.
+  //
+  // Het antwoord is een OrderedCollectionPage met partOf, want dat is wat het
+  // IS -- een deel, geen collectie. Een generieke lezer ziet dat verschil ook.
+  if (req.query.changes && req.query.since) {
+    const veranderd = AP.feedChangesSince(auth.site.slug, String(req.query.since));
+    const levend = veranderd.filter((c) => c.kind !== 'deleted').map((c) => c.object_uri);
+    const tl = new Map(AP.timelineRowsByIds(auth.site.slug, levend).map((r) => [r.id, r]));
+    const mn = new Map(AP.messageRowsByUri(auth.site.slug, levend.filter((u) => !tl.has(u))).map((r) => [r.object_uri, r]));
+    const rp = new Map(AP.replyRowsByUri(auth.site.slug, levend.filter((u) => !tl.has(u) && !mn.has(u))).map((r) => [r.object_uri, r]));
+    const reacties = AP.getReactionsFor(auth.site.slug, [...tl.keys()]);
+    const ctx = { base, me, myHandle, p: P };
+    const items = [];
+    for (const c of veranderd) {
+      if (c.kind === 'deleted') {
+        // Een verwijdering reisde tot nu toe als AFWEZIGHEID mee: de volledige
+        // lezing bevatte hem simpelweg niet meer. Die volledigheid is precies
+        // wat hier wegvalt, dus zonder grafsteen zou een weggehaalde post voor
+        // altijd in de app blijven staan -- en dat faalt stil. AS2 heeft er een
+        // vorm voor, en de rij lag er al.
+        items.push({ type: 'Delete', actor: me, object: { id: c.object_uri, type: 'Tombstone' } });
+        continue;
+      }
+      const t = tl.get(c.object_uri);
+      if (t) { items.push(timelineItem(t, { p: P, reactions: reacties })); continue; }
+      const m = mn.get(c.object_uri);
+      if (m) {
+        if (messagesAllowed || m.help_request || guardianUris.has(m.actor_uri)) items.push(messageItem(m, ctx));
+        continue;
+      }
+      const r = rp.get(c.object_uri);
+      if (r) { items.push(replyItem(r, ctx)); continue; }
+      const n = AP.getOutboxNote(base, c.object_uri);
+      if (n) items.push(sentItem(n, { me, mine: AP.selfAuthor(base, auth.site) }));
+    }
+    return AP.sendAP(res, {
+      '@context': AP.AP_CONTEXT,
+      id: `${base}/ap/users/${encodeURIComponent(auth.site.slug)}/inbox?changes=1&since=${encodeURIComponent(String(req.query.since))}`,
+      type: 'OrderedCollectionPage',
+      partOf: `${base}/ap/users/${auth.site.slug}/inbox`,
+      orderedItems: items,
+      'shaer:cursor': AP.feedCursor(auth.site.slug),
+    }, 'private, no-store');
+  }
   const rows = AP.getTimeline(auth.site.slug, 60);
   // Eén query voor de hele pagina (shaer-9e9 fase 2): shaer:liked komt uit de
   // tussentabel, de bron van waarheid, en niet meer uit de afgeleide kolom op
   // ap_timeline. Per rij vragen zou hier een N+1 opleveren.
   const reacties = AP.getReactionsFor(auth.site.slug, rows.map((t) => t.id));
-  const posts = rows.map((t) => {
-    const auteur = authorInfo(t, 'author_');
-    const booster = authorInfo(t, 'reblog_');
-    const boosterUri = t.reblog_url || t.reblog_handle || undefined;
-    return {
-    id: `${t.id}#create`,
-    // EEN BOOST IS EEN ANNOUNCE (shaer-nmw): een Create met een
-    // zijkanaal-property was onze uitvinding; de wrapper is de standaard, en
-    // elke AP-client leest hem al.
-    type: booster ? 'Announce' : 'Create',
-    actor: booster ? (AP.actorObject(boosterUri || t.author_uri, booster)) : t.author_uri,
-    published: t.published || t.created_at || undefined,
-    object: {
-      id: t.id,
-      type: 'Note',
-      // AS2 staat een INGESLOTEN actor toe; dan heeft elke client de byline,
-      // niet alleen de onze (shaer-nmw).
-      attributedTo: AP.actorObject(t.author_uri, auteur),
-      content: t.content,
-      url: t.url || undefined,
-      published: t.published || t.created_at || undefined,
-      sensitive: !!t.nsfw,
-      summary: t.cw || undefined,
-      // Friends' media travels along (media_json → AS2 attachment), so the
-      // client renders their images/audio like own outbox posts.
-      attachment: AP.gateAttachments(AP.timelineAttachments(t.media_json), { images: imagesAllowed, audio: musicAllowed }),
-      // The note's preserved tags, so the client can render them: FEP-9098
-      // Emoji tags (:shortcode: → image) and FEP-e232 Link tags (quotes /
-      // inline object references). Combined into one `tag` array; omitted
-      // when the note has neither.
-      tag: (() => {
-        const tags = [...(emojiAllowed ? (AP.timelineEmojis(t.emoji_json) || []) : []), ...(AP.timelineObjectLinks(t.link_json) || [])];
-        return tags.length ? tags : undefined;
-      })(),
-      // Whether THIS account already liked/boosted the note, so the app's
-      // detail-view buttons show the current state (and can toggle/undo).
-      'shaer:liked': !!(reacties.get(t.id) || {}).liked,
-      'shaer:boosted': !!(reacties.get(t.id) || {}).boosted,
-      // FEP-044f: de geciteerde post als object, zodat de client een kaart
-      // rendert in plaats van een kale link. AS2 preview is diezelfde kaart
-      // voor een EXTERNE link: thumbnail, nooit de iframe van de aanbieder.
-      // Allebei weg zodra hun poort dicht staat; de speler in preview hangt
-      // aan de playback-poort.
-      quote: quotesAllowed ? AP.quoteObject(t.quote_json) : undefined,
-      preview: embedsAllowed ? AP.previewObject(t.embed_json, { playback: playbackAllowed }) : undefined,
-    },
-  };
-  });
+  const posts = rows.map((t) => timelineItem(t, { p: P, reactions: reacties }));
   // The direct notes addressed to this account: a plain DM, a guardian's wave
   // (§5), a ward's 🛟 help request (§5.2.1). Those are messages, not posts, so
   // they are not in the timeline; without them the app's Berichten shows only
   // what you said yourself. Same shape as a post, so one parser handles both.
-  const me = AP.actorId(base, auth.site.slug);
-  const myHandle = (() => { try { return `@${auth.site.slug}@${new URL(base).host}`; } catch { return `@${auth.site.slug}`; } })();
   // Messages dicht (shaer-3ow) sluit vreemden en vrienden, maar NOOIT het
   // guardian-kanaal: de zwaai en het gesprek na een hulpvraag zijn precies
   // het kanaal dat het kind veilig houdt, en een poort die dat afsnijdt
   // beschermt niemand. De hulpvraag zelf gaat aan de innamekant al altijd voor.
-  const guardianUris = (() => { try { return new Set(Guardianship.listGuardians(auth.site.slug).map((g) => g.other_uri)); } catch { return new Set(); } })();
   const messageCtx = { base, me, myHandle, p: P };
   const messages = AP.getDirectMessages(auth.site.slug, 60)
     .filter((m) => messagesAllowed || m.help_request || guardianUris.has(m.actor_uri))
@@ -683,29 +780,7 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
   // comment machinery), never as mentions, so this read missed them and a
   // friend's reply arrived everywhere except in your app (Robins melding,
   // 30-7). Same shape as the other legs; media/quotes ride the stored JSON.
-  const replies = AP.getReplyMessages(auth.site.slug, 60).map((m) => ({
-    id: `${m.object_uri}#create`,
-    type: 'Create',
-    actor: m.actor_uri,
-    published: AP.isoStamp(m.published || m.created_at),
-    object: {
-      id: m.object_uri,
-      type: 'Note',
-      attributedTo: AP.actorObject(m.actor_uri, (m.actor_name || m.actor_handle || m.actor_icon) ? gateAuthor({
-        name: m.actor_name || undefined, handle: m.actor_handle || undefined,
-        icon: m.actor_icon || undefined, url: m.actor_url || undefined,
-        emojis: (() => { try { return m.actor_emoji_json ? JSON.parse(m.actor_emoji_json) : undefined; } catch { return undefined; } })(),
-      }) : undefined),
-      content: AP.stripLeadingMentions(m.content),
-      inReplyTo: m.parent_uri || `${base}/ap/notes/${m.post_id}`,
-      published: AP.isoStamp(m.published || m.created_at),
-      to: [me],
-      tag: [{ type: 'Mention', href: me, name: myHandle }, ...(AP.timelineEmojis(m.emoji_json) || [])],
-      attachment: AP.timelineAttachments(m.media_json),
-      quote: quotesAllowed ? AP.quoteObject(m.quote_json) : undefined,
-      preview: embedsAllowed ? AP.previewObject(m.embed_json, { playback: playbackAllowed }) : undefined,
-    },
-  }));
+  const replies = AP.getReplyMessages(auth.site.slug, 60).map((m) => replyItem(m, messageCtx));
   // Your OWN sent notes (replies and direct messages, ap_outbox): without
   // them a reply existed everywhere except in your own app, Messages showed
   // half a conversation, and a retry ran into the duplicate guard (Robins

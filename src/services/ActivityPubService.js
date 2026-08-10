@@ -4094,12 +4094,46 @@ export function getTimeline(slug, limit, offset) {
 // C2S read missed them entirely: a reply arrived at the other side
 // everywhere EXCEPT in the other's app (Robins melding, 30-7: "komt niet
 // binnen bij de ander").
+const REPLY_COLUMNS = `
+      i.object_uri, i.actor_uri, i.actor_name, i.actor_handle, i.actor_icon, i.actor_url,
+      i.content, i.published, i.created_at, i.parent_uri, i.post_id,
+      i.emoji_json, i.actor_emoji_json, i.media_json, i.quote_json, i.embed_json`;
+
+/** Dezelfde antwoordrijen, maar op object-uri -- voor de verschil-lezing. */
+export function replyRowsByUri(slug, uris) {
+  const list = (uris || []).filter((u) => typeof u === 'string' && u);
+  if (!list.length) return [];
+  try {
+    const holes = list.map(() => '?').join(',');
+    return db.prepare(`SELECT ${REPLY_COLUMNS} FROM ap_interactions i
+                        JOIN posts p ON p.id = i.post_id
+                        JOIN sites s ON s.id = p.site_id
+                       WHERE s.slug = ? AND i.kind = 'reply' AND i.object_uri IN (${holes})`)
+      .all(slug, ...list);
+  } catch { return []; }
+}
+
+/** Tijdlijnrijen op id, met dezelfde afgeleide liked/boosted als getTimeline. */
+export function timelineRowsByIds(slug, ids) {
+  const list = (ids || []).filter((u) => typeof u === 'string' && u);
+  if (!list.length) return [];
+  try {
+    const holes = list.map(() => '?').join(',');
+    const rows = db.prepare(`SELECT * FROM ap_timeline WHERE slug = ? AND id IN (${holes})`).all(slug, ...list);
+    const reacties = getReactionsFor(slug, rows.map((r) => r.id));
+    for (const r of rows) {
+      const x = reacties.get(r.id);
+      r.liked = !!(x && x.liked);
+      r.boosted = !!(x && x.boosted);
+    }
+    return rows;
+  } catch { return []; }
+}
+
 export function getReplyMessages(slug, limit) {
   try {
     return db.prepare(`
-      SELECT i.object_uri, i.actor_uri, i.actor_name, i.actor_handle, i.actor_icon, i.actor_url,
-             i.content, i.published, i.created_at, i.parent_uri, i.post_id,
-             i.emoji_json, i.actor_emoji_json, i.media_json, i.quote_json, i.embed_json
+      SELECT ${REPLY_COLUMNS}
       FROM ap_interactions i
       JOIN posts p ON p.id = i.post_id
       JOIN sites s ON s.id = p.site_id
@@ -6390,7 +6424,7 @@ export default {
   feedCursor, feedChangesSince, waitForFeedChange,
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, buildReplyNote, getOutboxNote, getSentNotes, deliverReply, resolveRemoteNote, noteAudience, mayReadNote,
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate, deliverDirectNote,
-  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, handleMoveInbox, moveAccount, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, getDirectMessages, messageRowsByUri, conversationHeads, conversationHistory, isoStamp, timelineAttachments, timelineEmojis, timelineObjectLinks, timelineQuote, timelineEmbed, applyQuoteProps, deliverToActor, sendInteraction, voteOnPoll, voteOnRemotePoll,
+  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, handleMoveInbox, moveAccount, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, timelineRowsByIds, getDirectMessages, messageRowsByUri, replyRowsByUri, conversationHeads, conversationHistory, isoStamp, timelineAttachments, timelineEmojis, timelineObjectLinks, timelineQuote, timelineEmbed, applyQuoteProps, deliverToActor, sendInteraction, voteOnPoll, voteOnRemotePoll,
   acceptGatedFollow, rejectGatedFollow, isWardGuardian, outboxAudience, sendFollowDecision,
   gateOutgoingFollow, performApprovedFollow, recordGuardianEvent, listGuardianEvents, GUARDIAN_EVENT_KEEP,
   parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread, sendReport, localMentionSlugs, previewCard,
