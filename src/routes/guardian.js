@@ -73,6 +73,10 @@ function uiStrings(L) {
     'help_close_ask', 'help_close_yes', 'help_just_now', 'help_hours', 'help_days', 'help_former_ward',
   'warn_reversible', 'warn_irreversible', 'warn_unknown', 'warn_tally_elsewhere', 'warn_decides', 'warn_not_last', 'warn_go', 'warn_back',
     'help_archive', 'help_archive_hide', 'panel_history',
+    // Het logboek (§4.2): onbekende soorten vallen terug op hun ruwe naam.
+    'log_show', 'log_hide', 'evr_not_a_teapot',
+    'ev_offer_rejected', 'ev_offer_refused', 'ev_committed', 'ev_guardian_left',
+    'ev_coguardian_left', 'ev_gated_outcome', 'ev_lapse_opened',
     'gate_propose_open', 'gate_propose_close', 'gate_default_off',
     'gate_images', 'gate_messages', 'gate_compose', 'gate_replies', 'gate_music', 'gate_quoteCards', 'gate_asked',
     'gate_customEmoji', 'gate_publicProfile', 'gate_accountMove', 'gate_independence',
@@ -314,6 +318,16 @@ router.get('/api/follow-requests', requireAuth, (req, res) => {
     });
   }
   res.json({ items });
+});
+
+// Het logboek (§4.2): wat er is gebeurd, met de reden erbij. GEEN wachtrij --
+// hier staat niets dat om een antwoord vraagt, en daarom hoort het ingeklapt.
+// Het bestaat omdat een weigering anders alleen te merken was doordat er iets
+// uit een lijst verdween, en "het is weg" vertelt een ward niet waarom.
+router.get('/api/events', requireAuth, (req, res) => {
+  const site = siteForUser(req);
+  if (!site) return res.status(404).json({ error: 'no_site' });
+  res.json({ items: AP.listGuardianEvents(site.slug, 50) });
 });
 
 router.post('/api/follow/:id', requireAuth, express.json({ limit: '4kb' }), async (req, res) => {

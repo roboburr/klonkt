@@ -90,6 +90,15 @@
               data-off-label="<%= t('guardian.push_on') %>"><%= t('guardian.push_on') %></button>
       <p id="push-msg" class="g-msg" hidden></p>
     </section>
+
+    <!-- 6. Het logboek (FEP-633c §4.2). Onderaan en ingeklapt, want hier vraagt
+         niets om een antwoord: het staat er zodat een besluit -- en vooral de
+         REDEN ervan -- ergens na te lezen is. Zonder dit merkte een ward een
+         weigering alleen doordat er iets uit een lijst verdween. -->
+    <section id="log-section">
+      <div class="g-sec-head"><h2><%= t('guardian.panel_history') %></h2></div>
+      <div id="g-log"></div>
+    </section>
   </main>
 
   <script type="application/json" id="guardian-state"><%- JSON.stringify(state) %></script>

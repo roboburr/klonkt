@@ -6047,7 +6047,49 @@ Guardianship.wireHandshake({
  * Apart en met een naam, zodat een toets erbij kan. Verstopt in de deps-literal
  * was hij onbereikbaar, en een mutatie die het wekken weghaalde bleef groen.
  */
+/**
+ * Hoeveel er van bewaard blijft. Een logboek dat oneindig groeit is een
+ * logboek dat niemand meer opent, en dit is geschiedenis, geen archief: wat
+ * ertoe doet staat vooraan.
+ */
+export const GUARDIAN_EVENT_KEEP = 200;
+
+/**
+ * Leg de gebeurtenis vast VOOR de melding.
+ *
+ * De meldingstabel beslist wie er wakker van wordt, en dat is terecht een korte
+ * lijst -- maar hij besliste daarmee ook wat er onthouden werd, en dat was niet
+ * de bedoeling. Elf van de achttien soorten verdwenen spoorloos, met hun inhoud:
+ * een geweigerd aanbod droeg de REDEN mee tot hier en niet verder, terwijl §4.2
+ * eist dat de ward en zijn guardians die te horen krijgen.
+ *
+ * Vastleggen en melden zijn nu twee dingen. Alles komt in het logboek; alleen
+ * wat een mens moet wekken gaat ook als push de deur uit.
+ */
+export function recordGuardianEvent(slug, ev) {
+  if (!slug || !ev || !ev.kind) return;
+  try {
+    db.prepare('INSERT INTO ap_guardian_events (slug, kind, payload, created_at) VALUES (?,?,?,CURRENT_TIMESTAMP)')
+      .run(slug, String(ev.kind), JSON.stringify(ev));
+    db.prepare(`DELETE FROM ap_guardian_events WHERE slug = ? AND id NOT IN
+                (SELECT id FROM ap_guardian_events WHERE slug = ? ORDER BY id DESC LIMIT ?)`)
+      .run(slug, slug, GUARDIAN_EVENT_KEEP);
+  } catch { /* een logboek mag nooit de gebeurtenis zelf breken */ }
+}
+
+/** De laatste gebeurtenissen voor dit account, nieuwste eerst. */
+export function listGuardianEvents(slug, limit = 50) {
+  try {
+    return db.prepare('SELECT id, kind, payload, created_at FROM ap_guardian_events WHERE slug = ? ORDER BY id DESC LIMIT ?')
+      .all(slug, Math.max(1, Math.min(Number(limit) || 50, GUARDIAN_EVENT_KEEP)))
+      .map((r) => ({ id: r.id, kind: r.kind, created: r.created_at, ...safeJson(r.payload) }));
+  } catch { return []; }
+}
+
+function safeJson(s) { try { return JSON.parse(s) || {}; } catch { return {}; } }
+
 export function onGuardianshipEvent(slug, ev) {
+  recordGuardianEvent(slug, ev);
   wakeGuardian(slug);
   const p = guardianEventPush(slug, ev);
   if (p) pushEvent(slug, p);
@@ -6140,7 +6182,7 @@ export default {
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate, deliverDirectNote,
   webfingerResolve, followActor, resolveRemoteActor, unfollowActor, handleMoveInbox, moveAccount, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, getDirectMessages, isoStamp, timelineAttachments, timelineEmojis, timelineObjectLinks, timelineQuote, timelineEmbed, applyQuoteProps, deliverToActor, sendInteraction, voteOnPoll, voteOnRemotePoll,
   acceptGatedFollow, rejectGatedFollow, isWardGuardian, outboxAudience, sendFollowDecision,
-  gateOutgoingFollow, performApprovedFollow,
+  gateOutgoingFollow, performApprovedFollow, recordGuardianEvent, listGuardianEvents, GUARDIAN_EVENT_KEEP,
   parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread, sendReport, localMentionSlugs, previewCard,
   autoBoostCount, boostedCount, setReaction, getReaction, getReactionsFor, canonicalReactionUri, migrateReactions, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,

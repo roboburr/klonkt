@@ -354,7 +354,7 @@
   // The follow requests and the wards' posts arrive from their own endpoints
   // and are grouped into the panels by ward, so they are cached here rather
   // than rendered into a section of their own.
-  var FEED = [], FOLLOWS = [];
+  var FEED = [], FOLLOWS = [], EVENTS = [];
 
   function sectionInto(panel, title, items, empty, build) {
     var h = el('div', 'g-panel-sec');
@@ -983,6 +983,52 @@
     card.appendChild(row);
     return card;
   }
+  /**
+   * Het logboek. Apart geladen en apart getoond: dit is geschiedenis, geen
+   * wachtrij. Faalt hij, dan blijft de sectie gewoon weg -- een guardian mist
+   * er niets door dat om hem vraagt.
+   */
+  function loadEvents() {
+    return fetch('/guardian/api/events?site=' + encodeURIComponent(S.site))
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (d && !d.error) { EVENTS = d.items || []; renderLog(); } })
+      .catch(function () { /* geen logboek is geen storing */ });
+  }
+
+  /** Een regel per gebeurtenis: wat er gebeurde, om wie, en waarom. */
+  function eventLine(e) {
+    var wie = e.candidate || e.guardian || e.ward || e.follower || e.target || '';
+    var stuk = (T['ev_' + e.kind] || e.kind);
+    if (wie) stuk += ' - ' + handleOf(wie, wie);
+    // De REDEN is waarvoor dit logboek bestaat: zonder haar merkte een ward een
+    // weigering alleen doordat er iets uit een lijst verdween.
+    if (e.reason) stuk += ' (' + (T['evr_' + e.reason] || e.reason) + ')';
+    var row = el('div', 'g-card');
+    row.appendChild(el('span', 'who grow', stuk));
+    row.appendChild(el('span', 'when', when(e, e.created)));
+    return row;
+  }
+
+  function renderLog() {
+    var host = document.getElementById('g-log');
+    if (!host) return;
+    host.textContent = '';
+    if (!EVENTS.length) return;
+    var lijst = el('div', 'g-gates');
+    lijst.hidden = !S._logOpen;
+    EVENTS.forEach(function (e) { lijst.appendChild(eventLine(e)); });
+    var kop = el('button', 'quiet small g-gates-toggle');
+    var zet = function () {
+      kop.textContent = (lijst.hidden ? (T.log_show || 'Show history') : (T.log_hide || 'Hide history'))
+        + ' (' + EVENTS.length + ')';
+    };
+    zet();
+    kop.addEventListener('click', function () {
+      lijst.hidden = !lijst.hidden; S._logOpen = !lijst.hidden; zet();
+    });
+    host.appendChild(kop); host.appendChild(lijst);
+  }
+
   function loadFollowReqs() {
     return fetch('/guardian/api/follow-requests?site=' + encodeURIComponent(S.site))
       .then(function (r) { return r.json(); })
@@ -1137,7 +1183,7 @@
     });
   });
 
-  renderAll(); pushState(); loadFeed(); loadFollowReqs();
+  renderAll(); pushState(); loadFeed(); loadFollowReqs(); loadEvents();
 
   // De push die de melding brengt is meteen het teken dat de staat veranderd is.
   // Daarmee hoeft er geen tweede, open verbinding bij: hetzelfde kanaal doet het

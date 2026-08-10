@@ -81,6 +81,24 @@ export function initializeDatabase() {
   )`);
   db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_ap_outgoing_follows_target
            ON ap_pending_outgoing_follows(ward_slug, target_uri)`);
+  // Wat er gebeurd is, en waarom (shaer-p729, §4.2). Guardianship-events waren
+  // vluchtig: onGuardianshipEvent wekte de long-poll en stuurde eventueel een
+  // push, en de rest van de gebeurtenis loste op. Een weigering droeg
+  // `reason: 'not_a_teapot'` tot in die functie en verder niet -- de ward en
+  // zijn guardians hoorden het alleen doordat het aanbod uit de wachtrij
+  // verdween. §4.2 eist dat ze het TE HOREN krijgen, met de reden erbij.
+  //
+  // Een logboek, geen wachtrij: hier staat niets dat om een antwoord vraagt.
+  // Daarom hoort het ook ingeklapt te staan -- naast wat nog wel wacht, maakt
+  // afgelopen nieuws de open vraag onleesbaar.
+  db.exec(`CREATE TABLE IF NOT EXISTS ap_guardian_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    payload TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )`);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_ap_guardian_events_slug ON ap_guardian_events(slug, id DESC)');
   db.exec(`CREATE TABLE IF NOT EXISTS ap_outgoing_follow_approvals (
     follow_id TEXT NOT NULL,
     guardian_uri TEXT NOT NULL,
