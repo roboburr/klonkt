@@ -43,13 +43,32 @@ function postsForFeed(siteId, limit = 30) {
 }
 
 // ==================== RSS 2.0 ====================
-router.get('/feed.xml', (req, res) => {
+/**
+ * Twee feeds, een bouwer.
+ *
+ *   /feed.xml    de site: posts EN open tracks door elkaar, chronologisch
+ *   /tracks.xml  alleen de open tracks -- de hele site als muziekkanaal
+ *
+ * WAAROM DIE TWEEDE (Robins vraag, 10-8). Hij vroeg naar een "hele site, open
+ * tracks"-library voor Funkwhale. Als AS2-object helpt zo'n ding daar niet: een
+ * Funkwhale-KANAAL wijst nergens naar een library, en hun library is een eigen
+ * actor met inbox en sleutel -- de optie die op 7 augustus is afgewezen. Maar de
+ * vorm waarin Funkwhale een kanaal WEL uitgeeft is RSS met iTunes en een
+ * enclosure per item, en dat is precies wat Klonkt hier al doet. Naast een echte
+ * kanaalfeed gelegd (audio.pepemoss.com/api/v1/channels/tnd/rss): dezelfde
+ * namespaces, dezelfde enclosure.
+ *
+ * Het enige verschil was dat onze feed ook gewone posts draagt. Een muziekkanaal
+ * met blogberichten ertussen is er geen, dus die feed staat er nu apart -- een
+ * URL om te plakken, zonder dat er iets naar buiten geduwd wordt.
+ */
+function stuurFeed(req, res, { alleenTracks }) {
   const site = res.locals.site;
   if (!site) return res.status(404).send('No site');
 
   const origin = siteOrigin(req);
   const base = origin + (res.locals.siteUrlBase || '');
-  const posts = postsForFeed(site.id);
+  const posts = alleenTracks ? [] : postsForFeed(site.id);
 
   // De tracks die deze site aan de federatie heeft opengezet, elk als eigen
   // item met een <enclosure> (shaer-0nh). Dat laatste is wat een podcast-app
@@ -64,7 +83,7 @@ router.get('/feed.xml', (req, res) => {
   // Welke tracks open zijn beslist de AP-service, niet deze route: dat is een
   // poortregel en die hoort op een plek te staan.
   const tracks = siteOpenTracks(site.id);
-  const lastBuild = posts[0]?.published_at || new Date().toISOString();
+  const lastBuild = posts[0]?.published_at || tracks[0]?.created_at || new Date().toISOString();
 
   // De itunes-velden waar een podcast-app een kanaal aan herkent. Funkwhale
   // bouwde onze kanaalpagina langs de RSS-kant op en liet de categorie leeg,
@@ -116,17 +135,21 @@ router.get('/feed.xml', (req, res) => {
   res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
   <channel>
-    <title>${escapeXml(site.title)}</title>
+    <title>${escapeXml(alleenTracks ? `${site.title} \u2014 muziek` : site.title)}</title>
     <link>${escapeXml(base + '/')}</link>
     <description>${escapeXml(site.description || site.tagline || '')}</description>
     <language>${escapeXml(site.language || 'nl')}</language>
     <lastBuildDate>${new Date(lastBuild).toUTCString()}</lastBuildDate>
-    <atom:link href="${escapeXml(base + '/feed.xml')}" rel="self" type="application/rss+xml" />
+    <atom:link href="${escapeXml(base + (alleenTracks ? '/tracks.xml' : '/feed.xml'))}" rel="self" type="application/rss+xml" />
 ${kanaalTags}
 ${items}
   </channel>
 </rss>`);
-});
+}
+
+router.get('/feed.xml', (req, res) => stuurFeed(req, res, { alleenTracks: false }));
+// De hele site als muziekkanaal: alleen wat op de federatie openstaat.
+router.get('/tracks.xml', (req, res) => stuurFeed(req, res, { alleenTracks: true }));
 
 // ==================== Atom 1.0 ====================
 router.get('/atom.xml', (req, res) => {
