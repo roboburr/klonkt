@@ -125,7 +125,17 @@ button.small { padding: 6px 12px; font-size: .82rem; }
    paneel nooit iets verbergt dat een antwoord nodig heeft. */
 .g-card.ward > .row { gap: 8px; }
 .g-panel { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
-.g-panel[hidden] { display: none; }
+/* HIDDEN MOET ALTIJD WINNEN, van elke display-regel hierboven of hieronder.
+   Dit stond eerst alleen op .g-panel, en toen de poortenlijst `display: grid`
+   kreeg klapte die niet meer dicht -- Barts melding (9-8): "die is er onderuit
+   gekomen". Ook het geschiedenislogje deelde die klasse en stond dus permanent
+   open.
+
+   Een auteursregel slaat de browserstijl `[hidden] { display: none }` ongeacht
+   specificiteit, dus elke nieuwe `display:` in dit bestand zou de fout opnieuw
+   maken. Dit is de zeldzame plek waar !important het juiste gereedschap is: de
+   regel hoort per definitie boven alles te staan. */
+[hidden] { display: none !important; }
 .g-panel-sec + .g-panel-sec { margin-top: 16px; }
 .g-panel-sec h3 { margin: 0 0 6px; font-size: .82rem; font-weight: 600; letter-spacing: .03em;
   text-transform: uppercase; color: var(--sub); }
