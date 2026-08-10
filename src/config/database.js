@@ -898,6 +898,24 @@ export function initializeDatabase() {
 function feedStateTriggers() {
   try {
     db.exec(`
+      -- Tot waar jij een gesprek gelezen hebt (shaer-frontend-3tx).
+      --
+      -- Een MARKERING, geen teller: het aantal ongelezen berichten is een
+      -- COUNT over de berichten die na deze cursor komen. Een opgeslagen
+      -- getal zou opgehoogd, verlaagd en gerepareerd moeten worden, en zou
+      -- blijven staan als er iets verwijderd wordt -- badge zegt 3, er is
+      -- niets.
+      --
+      -- De cursor is samengesteld ('<stempel>|<ref>'), dezelfde vorm als de
+      -- gesprekspaginering en om dezelfde reden: twee berichten in dezelfde
+      -- seconde is bij DM's een gesprek, geen randgeval.
+      CREATE TABLE IF NOT EXISTS ap_read_markers (
+        slug TEXT NOT NULL,
+        other TEXT NOT NULL,          -- de tegenpartij (actor uri)
+        cursor TEXT NOT NULL,
+        at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (slug, other)
+      );
       CREATE TABLE IF NOT EXISTS ap_feed_state (
         slug TEXT NOT NULL,
         object_uri TEXT NOT NULL,

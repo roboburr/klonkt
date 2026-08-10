@@ -491,28 +491,52 @@ function conversationItems(req, auth, refs) {
 
   const incoming = new Map(AP.messageRowsByUri(auth.site.slug, refs.filter((r) => r.direction === 'in').map((r) => r.ref))
     .map((m) => [m.object_uri, m]));
-  const items = [];
+  // PAREN, geen losse lijst: een kop levert niet altijd een item op (dichte
+  // poort, ontbrekende rij), en dan zou de aanroeper op index koppelen en de
+  // telling aan het verkeerde gesprek hangen. Stil, en pas te zien als iemand
+  // een badge op de verkeerde naam ziet staan.
+  const pairs = [];
   for (const r of refs) {
     if (r.direction === 'in') {
       const m = incoming.get(r.ref);
       if (!m) continue;
       if (!(P.messagesAllowed || m.help_request || guardianUris.has(m.actor_uri))) continue;
-      items.push(messageItem(m, ctx));
+      pairs.push({ head: r, item: messageItem(m, ctx) });
     } else {
       const n = AP.getOutboxNote(base, r.ref);
       // Je eigen woorden blijven van jou: een dichte messages-poort verbergt
       // niet wat je zelf gezegd hebt.
-      if (n) items.push(sentItem(n, { me, mine }));
+      if (n) pairs.push({ head: r, item: sentItem(n, { me, mine }) });
     }
   }
-  return items;
+  return pairs;
 }
 
 router.get('/ap/users/:slug/conversations', (req, res) => {
   const auth = OAuth.verifyBearer(req.headers.authorization);
   if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
   const heads = AP.conversationHeads(auth.site.slug);
-  const items = conversationItems(req, auth, heads);
+  const pairs = conversationItems(req, auth, heads);
+  const items = pairs.map((x) => x.item);
+  // Ongelezen per gesprek (shaer-frontend-3tx): een COUNT, geen bijgehouden
+  // getal. Hij hangt aan het NIEUWSTE kopje van elke persoon -- er kunnen er
+  // twee zijn (zie conversationHeads) en het aantal hoort bij het gesprek, niet
+  // bij een bericht.
+  //
+  // AS2 heeft geen term voor ongelezen; dit is per-lezer-interactiestatus,
+  // dezelfde categorie als shaer:liked. Niet in totalItems persen: dat betekent
+  // 'hoeveel er zijn' en niet 'hoeveel jij nog niet zag'.
+  const ongelezen = AP.unreadPerConversation(auth.site.slug);
+  const gezien = new Set();
+  for (const { head, item } of pairs) {
+    if (gezien.has(head.other)) continue;
+    gezien.add(head.other);
+    const u = ongelezen.get(head.other);
+    if (!u) continue;
+    item.object['shaer:unread'] = u.n;
+    // Een zwaai is geen aantal maar een zetje van een guardian: eigen teken.
+    if (u.wave) item.object['shaer:unreadWave'] = true;
+  }
   AP.sendAP(res, {
     '@context': AP.AP_CONTEXT,
     id: `${baseUrl(req)}/ap/users/${encodeURIComponent(auth.site.slug)}/conversations`,
@@ -532,7 +556,7 @@ router.get('/ap/users/:slug/messages', (req, res) => {
     before: req.query.before ? String(req.query.before) : null,
     limit: req.query.limit,
   });
-  const items = conversationItems(req, auth, page.rows);
+  const items = conversationItems(req, auth, page.rows).map((x) => x.item);
   // De paginagrootte reist mee in next: vroeg je om 30, dan hoort de volgende
   // pagina er ook 30 te zijn. Zonder dit wordt hij stilletjes de standaard, en
   // dan klopt het ritme van een 'load more' niet meer met wat de gebruiker ziet.

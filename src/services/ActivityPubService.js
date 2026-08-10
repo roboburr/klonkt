@@ -3237,6 +3237,20 @@ export async function ingestOutboxActivity(site, user, activity) {
         }
         return await c2sCreatePost(base, site, user, object);
       }
+      // ── Gelezen tot hier (shaer-frontend-3tx) ───────────────────
+      //
+      // AS2 kent Read: 'the actor has read the object'. Geen shaer:seen
+      // verzinnen, en geen zetbare stand: dit is een GEBEURTENIS, dus twee
+      // toestellen kunnen elkaar niet terugzetten. Blijft lokaal -- een
+      // leesbevestiging heeft in de fediverse niets te zoeken.
+      case 'Read': {
+        const targetUri = c2sIdOf(object);
+        if (!targetUri) return { status: 400, error: 'missing_object' };
+        const uit = markRead(site.slug, targetUri);
+        // Kennen we die note niet, dan is er niets gelezen om te onthouden.
+        // Geen fout: een client mag best een oud bericht aanwijzen.
+        return { status: uit ? 200 : 202 };
+      }
       case 'Like':
       case 'Announce': {
         const targetUri = c2sIdOf(object);
@@ -4345,6 +4359,70 @@ export function messageRowsByUri(slug, uris) {
     return db.prepare(`SELECT ${MESSAGE_COLUMNS} FROM ap_mentions m
                         WHERE m.slug = ? AND m.object_uri IN (${gaten})`).all(slug, ...lijst);
   } catch { return []; }
+}
+
+/**
+ * Tot waar deze lezer elk gesprek gelezen heeft (shaer-frontend-3tx).
+ *
+ * De markering komt uit AS2 `Read`-activiteiten, en die zijn OPTELLEND: het
+ * lezen van bericht N maakt niets anders ongelezen. Daarom is achteruit gaan
+ * geen regel die iemand moet onthouden maar een eigenschap van het model --
+ * markRead neemt het maximum. Een 'zet mijn markering op X' zou een toestel
+ * dat een week uit stond je gelezen berichten weer op ongelezen laten zetten.
+ */
+export function readMarkers(slug) {
+  try {
+    return new Map(db.prepare('SELECT other, cursor FROM ap_read_markers WHERE slug = ?')
+      .all(slug).map((r) => [r.other, r.cursor]));
+  } catch { return new Map(); }
+}
+
+/**
+ * Markeer een gesprek als gelezen tot en met dit bericht.
+ *
+ * Het object van de Read is een berichturi; welk gesprek dat is en waar het in
+ * de tijd staat weet de server zelf, dus de client hoeft niets uit te rekenen
+ * en kan er ook niet naast zitten.
+ */
+export function markRead(slug, objectUri) {
+  try {
+    const rij = db.prepare(`SELECT other, stamp, ref FROM (${CONVERSATION_UNION})
+                             WHERE ref = @ref ORDER BY stamp DESC LIMIT 1`)
+      .get({ slug, ref: String(objectUri || '') });
+    if (!rij) return null;
+    const cursor = `${rij.stamp}|${rij.ref}`;
+    db.prepare(`INSERT INTO ap_read_markers (slug, other, cursor) VALUES (?,?,?)
+                ON CONFLICT(slug, other) DO UPDATE SET cursor = MAX(cursor, excluded.cursor), at = CURRENT_TIMESTAMP`)
+      .run(slug, rij.other, cursor);
+    return { other: rij.other, cursor };
+  } catch { return null; }
+}
+
+/**
+ * Hoeveel er per gesprek nog ongelezen is, en of daar een zwaai bij zit.
+ *
+ * Een COUNT en geen bijgehouden getal (Barts besluit): niets om op te hogen
+ * bij bezorging, niets om te verlagen bij lezen, en bij een verwijdering klopt
+ * het vanzelf weer.
+ *
+ * Een zwaai telt apart, want dat is geen gesprek maar een zetje van een
+ * guardian -- die hoort een eigen teken te krijgen en niet opgeteld te worden.
+ * Eigen berichten tellen nooit mee: je hebt jezelf gelezen.
+ */
+export function unreadPerConversation(slug) {
+  try {
+    const rijen = db.prepare(`
+      SELECT u.other AS other,
+             COUNT(*) AS n,
+             MAX(CASE WHEN m.wave = 1 THEN 1 ELSE 0 END) AS wave
+        FROM (${CONVERSATION_UNION}) u
+        LEFT JOIN ap_read_markers r ON r.slug = @slug AND r.other = u.other
+        LEFT JOIN ap_mentions m ON m.slug = @slug AND m.object_uri = u.ref
+       WHERE u.direction = 'in'
+         AND (r.cursor IS NULL OR (u.stamp || '|' || u.ref) > r.cursor)
+       GROUP BY u.other`).all({ slug });
+    return new Map(rijen.map((r) => [r.other, { n: r.n, wave: !!r.wave }]));
+  } catch { return new Map(); }
 }
 
 export function getDirectMessages(slug, limit) {
@@ -6440,7 +6518,7 @@ export default {
   feedCursor, feedChangesSince, waitForFeedChange,
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, buildReplyNote, getOutboxNote, getSentNotes, deliverReply, resolveRemoteNote, noteAudience, mayReadNote,
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate, deliverDirectNote,
-  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, handleMoveInbox, moveAccount, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, timelineRowsByIds, getDirectMessages, messageRowsByUri, replyRowsByUri, conversationHeads, conversationHistory, isoStamp, timelineAttachments, timelineEmojis, timelineObjectLinks, timelineQuote, timelineEmbed, applyQuoteProps, deliverToActor, sendInteraction, voteOnPoll, voteOnRemotePoll,
+  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, handleMoveInbox, moveAccount, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, timelineRowsByIds, getDirectMessages, readMarkers, markRead, unreadPerConversation, messageRowsByUri, replyRowsByUri, conversationHeads, conversationHistory, isoStamp, timelineAttachments, timelineEmojis, timelineObjectLinks, timelineQuote, timelineEmbed, applyQuoteProps, deliverToActor, sendInteraction, voteOnPoll, voteOnRemotePoll,
   acceptGatedFollow, rejectGatedFollow, isWardGuardian, outboxAudience, sendFollowDecision,
   gateOutgoingFollow, performApprovedFollow, recordGuardianEvent, listGuardianEvents, GUARDIAN_EVENT_KEEP,
   parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread, sendReport, localMentionSlugs, previewCard,
