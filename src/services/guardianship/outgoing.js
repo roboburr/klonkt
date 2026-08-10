@@ -103,7 +103,13 @@ export function queueItem(o, me) {
   return {
     id: o.id,
     type: 'Follow',
-    actor: o.ward_slug,
+    // De ward is de ACTOR van zijn eigen Follow, en dat hoort een actor-URI te
+    // zijn: hier stond de slug ('mee'), en elke lezer vergelijkt dit veld met
+    // actor-URI's. Een ward zag zijn eigen verzoeken daardoor nooit als de
+    // zijne -- ze vielen in de bak "hoort niet bij een ward die je hebt", met
+    // knoppen erbij die hij niet mag gebruiken. `listForWard(slug)` levert per
+    // definitie de verzoeken van de LEZER, dus dat is `me`.
+    actor: me,
     object: o.target_uri,
     'shaer:direction': 'outgoing',
     'shaer:target': o.target_uri,
