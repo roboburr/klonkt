@@ -75,3 +75,39 @@ test('een kapotte gebeurtenis breekt de gebeurtenis zelf niet', () => {
   assert.doesNotThrow(() => AP.onGuardianshipEvent('kid', {}));
   assert.doesNotThrow(() => AP.onGuardianshipEvent(null, { kind: 'setting' }));
 });
+
+// ── De collectie die de apps lezen (shaer:log) ────────────────────────────
+// Het logboek staat NAAST shaer:queues. Alles daarin wacht op een antwoord; dit
+// is wat er al besloten is. Een aparte sleutel dus, en een aparte vorm.
+
+test('de actor wijst het logboek aan, los van de wachtrijen', async () => {
+  const G = await import('../src/services/guardianship/index.js');
+  const props = G.guardianshipActorProps('https://test.example/ap/users/kid', 'kid');
+  assert.equal(props['shaer:log'], 'https://test.example/ap/users/kid/log');
+  assert.equal(props['shaer:queues'].log, undefined,
+    'geen geschiedenis onder een woord dat "wachtend" betekent');
+});
+
+test('elk item draagt zijn soort en zijn reden mee', async () => {
+  const G = await import('../src/services/guardianship/index.js');
+  const c = G.logCollection('https://test.example/ap/users/kid/log', 'kid',
+    (s) => AP.listGuardianEvents(s, 50));
+  assert.equal(c.type, 'OrderedCollection');
+  const weigering = c.orderedItems.find((i) => i['shaer:kind'] === 'offer_rejected');
+  assert.ok(weigering, 'de weigering staat erin');
+  assert.equal(weigering['shaer:reason'], 'not_a_teapot',
+    'MET de reden: daarvoor bestaat dit ding');
+  assert.equal(weigering['shaer:candidate'], 'https://elders.example/users/tess');
+  assert.ok(weigering.published, 'en wanneer');
+  // Geen AS2-werkwoord: een lapse-stem of een opgepakte hulpvraag is geen
+  // Accept, en het zo noemen zou netter lezen dan het is.
+  assert.equal(weigering.type, 'shaer:Event');
+});
+
+test('een leeg logboek is een lege collectie, geen fout', async () => {
+  const G = await import('../src/services/guardianship/index.js');
+  const c = G.logCollection('https://test.example/ap/users/niemand/log', 'niemand',
+    (s) => AP.listGuardianEvents(s, 50));
+  assert.equal(c.totalItems, 0);
+  assert.deepEqual(c.orderedItems, []);
+});

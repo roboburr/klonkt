@@ -18,7 +18,7 @@ export { SHAER_CONTEXT, GUARDIAN_RELATIONSHIP, GUARDIAN_RELATIONSHIP_COMPACT, is
 export { helpRequestProps, isHelpRequest, waveProps, isWave, awayProps, hasGuardiansProps, objectHasGuardians, externalEmbedsAllowed, externalPlaybackAllowed, wardGateAllowed } from './notes.js';
 export { wireDelivery, c2sVisibility, deliverDirectNote } from './delivery.js';
 export { wireHandshake, handleOutbox as handleGuardianshipOutbox, handleInbox as handleGuardianshipInbox, parseRelationship, parseUndoRelationship, endGuardianship } from './handshake.js';
-export { offersCollection, followsCollection, outgoingFollowsCollection, wardsCollection, guardiansCollection, helpCollection } from './queues.js';
+export { offersCollection, followsCollection, outgoingFollowsCollection, logCollection, wardsCollection, guardiansCollection, helpCollection } from './queues.js';
 export * as availability from './availability.js';
 export { wireAvailability } from './availability.js';
 export * as follows from './follows.js';

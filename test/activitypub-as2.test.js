@@ -44,7 +44,9 @@ const AS2 = new Set([
   // waiting for the guardians (shaer-p729).
   // `help` is de vragenlijst met haar STAAT (5.2.1): de apps lazen hulpvragen uit
   // de feed en wisten niet of er al iemand op af was.
-  'shaer:queues', 'offers', 'follows', 'outgoingFollows', 'wards', 'guardians', 'help',
+  'shaer:queues', 'offers', 'follows', 'outgoingFollows', 'wards', 'guardians',
+  // §4.2: het logboek staat NAAST de wachtrijen, want het wacht nergens op.
+  'shaer:log', 'help',
   // Elke OPEN hulpvraag zit in de collectie; daarom mag een app uit afwezigheid
   // concluderen dat iets niet open is (shaer-6wt).
   'shaer:openComplete',

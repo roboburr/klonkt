@@ -117,7 +117,34 @@ export function guardiansCollection(id, slug) {
   return collection(id, availability.statusesFor(slug, uris, Date.now()));
 }
 
-export default { offersCollection, followsCollection, outgoingFollowsCollection, wardsCollection, guardiansCollection, helpCollection, helpItemsFor, wardGates, wardGuardianStatuses };
+/**
+ * Het logboek (§4.2): wat er is besloten, en waarom.
+ *
+ * Geen wachtrij, en daarom een eigen sleutel op de actor. Elk item draagt zijn
+ * soort en, als die er was, de REDEN -- want zonder die reden merkte een ward
+ * een weigering alleen doordat er iets uit een lijst verdween.
+ *
+ * `type` is geen AS2-werkwoord: de meeste soorten zijn er geen. Een lapse-stem
+ * of een opgepakte hulpvraag is geen Accept, en het zo noemen zou netter lezen
+ * dan het is.
+ *
+ * De lezer levert `listEvents` aan; deze module kent ActivityPubService niet en
+ * houdt dat zo (zie de kop van delivery.js).
+ */
+export function logCollection(id, slug, listEvents) {
+  const items = (typeof listEvents === 'function' ? listEvents(slug) : []).map((e) => {
+    const { id: n, kind, created, ...rest } = e;
+    const item = { id: `${id}/${n}`, type: 'shaer:Event', 'shaer:kind': kind, published: created };
+    for (const [k, v] of Object.entries(rest)) {
+      if (v === undefined || v === null) continue;
+      item[k.startsWith('shaer:') ? k : `shaer:${k}`] = v;
+    }
+    return item;
+  });
+  return collection(id, items);
+}
+
+export default { offersCollection, followsCollection, outgoingFollowsCollection, wardsCollection, guardiansCollection, helpCollection, helpItemsFor, wardGates, wardGuardianStatuses, logCollection };
 
 // ── Wat er voor een ward gated is (shaer-ahy.1) ─────────────────────────
 //

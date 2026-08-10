@@ -343,6 +343,21 @@ queueRoute('wards', (id, slug) => Guardianship.wardsCollection(id, slug));
 // Availability (FEP-633c 3.6.1) is never public: the ward reads its
 // guardians' real states here and nowhere else.
 queueRoute('guardians', (id, slug) => Guardianship.guardiansCollection(id, slug));
+
+// ── Het logboek (FEP-633c §4.2, shaer:log) ────────────────────────────
+// NAAST de wachtrijen en niet erin: alles onder shaer:queues wacht op een
+// antwoord, dit is wat er al besloten is. Eigen pad, dezelfde eigenaar-only
+// bearer. Het bestaat omdat een weigering anders alleen te merken viel doordat
+// er iets uit een lijst verdween, en "het is weg" is geen reden.
+router.get('/ap/users/:slug/log', (req, res) => {
+  const auth = OAuth.verifyBearer(req.headers.authorization);
+  if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
+  const me = `${baseUrl(req)}/ap/users/${auth.site.slug}`;
+  AP.sendAP(res, {
+    '@context': AP.AP_CONTEXT,
+    ...Guardianship.logCollection(`${me}/log`, auth.site.slug, (s) => AP.listGuardianEvents(s, 50)),
+  }, 'private, no-store');
+});
 // De hulpvragen MET hun staat (5.2.1, shaer-lgo). De apps lazen ze uit de feed
 // en wisten dus niet of er al iemand op af was -- daarom bleef een afgehandeld
 // verzoek daar staan (Barts melding, 8-8).
