@@ -49,7 +49,18 @@ test('de oude lezing verliest tante achter een druk gesprek -- dat is de bug', (
 
 test('een rij per tegenpartij, hoe druk de drukste ook is', () => {
   const heads = AP.conversationHeads('kind');
-  assert.deepEqual(heads.map((k) => k.other), [OMA, TANTE], 'nieuwste gesprek eerst, allebei aanwezig');
+  assert.deepEqual([...new Set(heads.map((k) => k.other))], [OMA, TANTE], 'nieuwste gesprek eerst, allebei aanwezig');
+});
+
+test('is het nieuwste bericht van MIJ, dan gaat dat van hem ook mee', () => {
+  // Anders draagt het kopje mijn byline en zoekt de hemel de naam en het
+  // gezicht van de ander tevergeefs -- die viel dan terug op het staartje van
+  // de actor-uri. Bij tante is mijn antwoord het nieuwste.
+  const vanTante = AP.conversationHeads('kind').filter((k) => k.other === TANTE);
+  assert.equal(vanTante.length, 2);
+  assert.deepEqual(vanTante.map((k) => k.direction).sort(), ['in', 'out']);
+  // Bij oma is het nieuwste al van haar: dan is een rij genoeg.
+  assert.equal(AP.conversationHeads('kind').filter((k) => k.other === OMA).length, 1);
 });
 
 test('een publiek antwoord is geen gesprek en wordt geen gezicht', () => {
@@ -109,7 +120,13 @@ test('de gesprekslezingen: een rij per persoon, en een gesprek met next', async 
 
   const list = await get(`${slug}/conversations`);
   assert.equal(list.status, 200);
-  assert.equal(list.body.totalItems, 2, 'oma en tante, en niet de publieke vreemde');
+  // Drie items voor twee mensen: bij tante gaat haar eigen bericht mee omdat
+  // het nieuwste van mij is (anders mist de hemel haar naam en gezicht).
+  assert.equal(list.body.totalItems, 3);
+  assert.ok(!JSON.stringify(list.body).includes(VREEMDE), 'de publieke vreemde is geen gesprek');
+  const vanTante = list.body.orderedItems.filter((i) => i.actor === TANTE);
+  assert.equal(vanTante.length, 1, 'en dat bericht van tante draagt haar byline');
+  assert.ok(vanTante[0].object.attributedTo.name);
   // De byline zit in de ingesloten actor, net als overal sinds shaer-nmw.
   assert.ok(list.body.orderedItems.every((i) => i.object.attributedTo));
 

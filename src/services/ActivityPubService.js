@@ -4265,10 +4265,26 @@ const CONVERSATION_UNION = `
  */
 export function conversationHeads(slug) {
   try {
+    // Twee rijen per persoon, niet een: het nieuwste bericht (dat bepaalt waar
+    // iemand in de hemel hangt) EN het nieuwste bericht VAN HEM.
+    //
+    // Die tweede is er omdat het nieuwste bericht van jou kan zijn, en dan
+    // draagt het jouw byline. De hemel zoekt de naam en het gezicht van de
+    // ander in een bericht van de ander -- vond hij dat niet, dan viel hij
+    // terug op het staartje van de actor-uri en heette tante opeens
+    // 'hotelbreakfast'. Op het toestel gezien, 10-8.
+    //
+    // Valt het samen (het nieuwste is al van hem), dan is het een rij; dubbel
+    // sturen doen we niet.
     return db.prepare(`
       SELECT other, stamp, direction, ref FROM (
         SELECT *, ROW_NUMBER() OVER (PARTITION BY other ORDER BY stamp DESC, ref DESC) AS rn
           FROM (${CONVERSATION_UNION})
+      ) WHERE rn = 1
+      UNION
+      SELECT other, stamp, direction, ref FROM (
+        SELECT *, ROW_NUMBER() OVER (PARTITION BY other ORDER BY stamp DESC, ref DESC) AS rn
+          FROM (${CONVERSATION_UNION}) WHERE direction = 'in'
       ) WHERE rn = 1
       ORDER BY stamp DESC, ref DESC`).all({ slug });
   } catch { return []; }
