@@ -378,6 +378,41 @@ function replyItem(m, { base, me, myHandle, p }) {
   };
 }
 
+/** Wat deze lezer mag (FEP-633c 5.6), op EEN plek.
+ *
+ *  De verschil-lezing draagt ze net zo goed: een antwoord zonder rechten zou
+ *  de client naar zijn standaard laten terugvallen, en die standaard is
+ *  'alles mag'. Dan zet een gesloten poort zichzelf stil open. Dezelfde reden
+ *  waarom een 304 de caps met rust laat.
+ */
+function capabilitiesOf(p, gate) {
+  return {
+      'shaer:externalEmbeds': p.embedsAllowed,
+      'shaer:externalPlayback': p.playbackAllowed,
+      // Leaving the app is the same decision as playing inside it: with the
+      // gate shut a link is shown but not followed, so the door is closed too
+      // and not just the picture over it.
+      'shaer:externalLinks': p.playbackAllowed,
+      // De rest van de familie (8-8): de app hoort VOORAF te weten wat hij mag
+      // aanbieden in plaats van het bij de eerste weigering te ontdekken. De
+      // (+) kaart leest shaer:compose al (Barts gate); de rest is er voor de
+      // schermen die nog komen. Serveren wat waar is kost hier niets.
+      'shaer:compose': p.composeAllowed,
+      'shaer:replies': p.repliesAllowed,
+      'shaer:messages': p.messagesAllowed,
+      'shaer:images': p.imagesAllowed,
+      'shaer:music': p.musicAllowed,
+      'shaer:quoteCards': p.quotesAllowed,
+      'shaer:customEmoji': p.emojiAllowed,
+      'shaer:externalThreads': p.threadsAllowed,
+      'shaer:following': p.followingAllowed,
+      // Stond in de catalogus mét kolom, en ontbrak hier: de guardian zag de
+      // poort in zijn paneel en de app van het kind heeft er nooit van gehoord.
+      // Gevonden door de pariteitstest, niet door iemand die het toevallig zag.
+      'shaer:accountMove': gate('gate_account_move'),
+    };
+}
+
 // ── De poorten van een lezer, op EEN plek (FEP-633c) ─────────────
 //
 // De inbox-lezing rekende ze inline uit. Nu er meer lezingen zijn die
@@ -779,6 +814,11 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
       type: 'OrderedCollectionPage',
       partOf: `${base}/ap/users/${auth.site.slug}/inbox`,
       orderedItems: items,
+      // De rechten gaan MEE. Zonder dit valt de client terug op zijn standaard,
+      // en die standaard is 'alles mag' -- dan zet een gesloten poort zichzelf
+      // stil open bij elke verschil-lezing. Dezelfde reden waarom een 304 de
+      // caps met rust laat.
+      'shaer:capabilities': capabilitiesOf(P, gate),
       'shaer:cursor': AP.feedCursor(auth.site.slug),
     }, 'private, no-store');
   }
@@ -831,31 +871,7 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
     // What this account may do with what is in here (FEP-633c 5.6). Owner-only
     // by construction, and never on the public actor document: it says
     // something about a child, and only the child and its guardians need it.
-    'shaer:capabilities': {
-      'shaer:externalEmbeds': embedsAllowed,
-      'shaer:externalPlayback': playbackAllowed,
-      // Leaving the app is the same decision as playing inside it: with the
-      // gate shut a link is shown but not followed, so the door is closed too
-      // and not just the picture over it.
-      'shaer:externalLinks': playbackAllowed,
-      // De rest van de familie (8-8): de app hoort VOORAF te weten wat hij mag
-      // aanbieden in plaats van het bij de eerste weigering te ontdekken. De
-      // (+) kaart leest shaer:compose al (Barts gate); de rest is er voor de
-      // schermen die nog komen. Serveren wat waar is kost hier niets.
-      'shaer:compose': composeAllowed,
-      'shaer:replies': repliesAllowed,
-      'shaer:messages': messagesAllowed,
-      'shaer:images': imagesAllowed,
-      'shaer:music': musicAllowed,
-      'shaer:quoteCards': quotesAllowed,
-      'shaer:customEmoji': emojiAllowed,
-      'shaer:externalThreads': threadsAllowed,
-      'shaer:following': followingAllowed,
-      // Stond in de catalogus mét kolom, en ontbrak hier: de guardian zag de
-      // poort in zijn paneel en de app van het kind heeft er nooit van gehoord.
-      // Gevonden door de pariteitstest, niet door iemand die het toevallig zag.
-      'shaer:accountMove': gate('gate_account_move'),
-    },
+    'shaer:capabilities': capabilitiesOf(P, gate),
     // Het merk van wat hierin zit. Geef hem terug als `since` om op het
     // volgende te wachten. NA het samenstellen bepaald, zodat hij precies dekt
     // wat je in handen hebt en niet iets dat er ondertussen bij kwam.

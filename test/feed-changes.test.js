@@ -86,6 +86,18 @@ test('zonder changes=1 verandert er NIETS aan de oude lezing', async () => {
   assert.equal(oud.body.orderedItems.length, vol.body.orderedItems.length);
 });
 
+test('het verschil draagt de rechten mee', async () => {
+  // Zonder dit valt de client terug op zijn standaard, en die standaard is
+  // 'alles mag': een gesloten poort zou zichzelf stil openzetten bij elke
+  // verschil-lezing.
+  const vol = await get('');
+  db.prepare("UPDATE sites SET gate_images = 0 WHERE slug = 'kind'").run();
+  db.prepare("INSERT INTO ap_guardianships (slug, other_uri, role, status) VALUES ('kind', 'https://elders/u/oma', 'guardian', 'accepted')").run();
+  post('https://elders/n/9', '<p>na de poort</p>');
+  const delta = await get(`?changes=1&since=${encodeURIComponent(vol.body['shaer:cursor'])}`);
+  assert.equal(delta.body['shaer:capabilities']['shaer:images'], false, 'de dichte poort reist mee');
+});
+
 test('niets veranderd is een leeg verschil, niet een leeg antwoord', async () => {
   const vol = await get('');
   const delta = await get(`?changes=1&since=${encodeURIComponent(vol.body['shaer:cursor'])}`);

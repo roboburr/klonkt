@@ -28,11 +28,17 @@ const gated = await import('../src/services/guardianship/gated.js');
 
 const SOURCE = 'src/routes/activitypub.js';
 
-/** De sleutels binnen het shaer:capabilities-blok, gelezen uit de bron. */
+/** De sleutels van het rechtenblok, gelezen uit de bron.
+ *
+ *  Het blok woont sinds 10-8 in capabilitiesOf(), omdat de verschil-lezing
+ *  (?changes=1) dezelfde rechten moet dragen: een antwoord zonder rechten laat
+ *  de client terugvallen op zijn standaard, en die standaard is 'alles mag'.
+ *  Deze toets kijkt daarom naar die functie en niet meer naar de plek in de
+ *  route. */
 function capabilityKeys() {
   const src = fs.readFileSync(SOURCE, 'utf8');
-  const start = src.indexOf("'shaer:capabilities': {");
-  assert.notEqual(start, -1, `${SOURCE} heeft nog een shaer:capabilities-blok`);
+  const start = src.indexOf('function capabilitiesOf(');
+  assert.notEqual(start, -1, `${SOURCE} heeft geen capabilitiesOf() meer`);
   const open = src.indexOf('{', start);
   let depth = 0;
   let end = open;
