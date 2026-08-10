@@ -194,11 +194,11 @@ router.get('/ap/users/:slug/outbox', async (req, res) => {
   const ob = AP.buildOutbox(baseUrl(req), site, posts, AP.siteOpenTracks(site.id));
   if (audience === 'friend') {
     // The owner's app builds its feed from this leg, and every note here is
-    // by the site itself: give it the same `shaer:author` byline the timeline
-    // entries carry, so your own cards get a header too (avatar + name).
+    // by the site itself, so give it a byline too (avatar + name): de
+    // ingesloten actor in attributedTo, net als de tijdlijn.
     const me = AP.selfAuthor(baseUrl(req), site);
-    // De kaart op je eigen post (shaer-k3f): dezelfde shaer:quote/shaer:embed
-    // die de tijdlijn voor andermans posts draagt, uit de snapshots die
+    // De kaart op je eigen post (shaer-k3f): dezelfde quote/preview die de
+    // tijdlijn voor andermans posts draagt, uit de snapshots die
     // deliverCreate bij het publiceren opsloeg. Op note-id gekoppeld, want
     // buildOutbox sorteert en mengt tracks erdoorheen. De embed alleen voor de
     // BEARER en langs zijn eigen poort: een remote vriend krijgt hem niet
@@ -212,19 +212,14 @@ router.get('/ap/users/:slug/outbox', async (req, res) => {
     })() : null;
     for (const it of ob.orderedItems) {
       if (it && it.object && typeof it.object === 'object') {
-        it.object['shaer:author'] = me;
-        // En de standaardvorm ernaast (shaer-nmw): de ingesloten actor, zodat
-        // ook een generieke lezer de byline heeft.
         it.object.attributedTo = AP.actorObject(
           (typeof it.object.attributedTo === 'string' ? it.object.attributedTo : undefined) || AP.actorId(baseUrl(req), site.slug),
           me,
         );
         const row = byNote.get(it.object.id);
         if (row) {
-          it.object['shaer:quote'] = AP.timelineQuote(row.quote_json);
           it.object.quote = AP.quoteObject(row.quote_json);
           if (bearerEmbeds) {
-            it.object['shaer:embed'] = AP.timelineEmbed(row.embed_json, { playback: bearerEmbeds.playback });
             it.object.preview = AP.previewObject(row.embed_json, { playback: bearerEmbeds.playback });
           }
         }
@@ -500,37 +495,15 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
         const tags = [...(emojiAllowed ? (AP.timelineEmojis(t.emoji_json) || []) : []), ...(AP.timelineObjectLinks(t.link_json) || [])];
         return tags.length ? tags : undefined;
       })(),
-      // FEP-044f: the resolved quoted post (author + content), so the client
-      // renders an embedded quote card instead of a bare link. Omitted when the
-      // note has no quote or the quoted post could not be resolved.
-      'shaer:quote': quotesAllowed ? AP.timelineQuote(t.quote_json) : undefined,
-      // The post author's display info (name / @handle / avatar), so every card
-      // gets a byline header like the quote card. attributedTo stays the bare
-      // actor URI; this is the resolved presentation Klonkt already stored.
-      'shaer:author': gateAuthor((t.author_name || t.author_handle || t.author_icon) ? {
-        name: t.author_name || undefined, handle: t.author_handle || undefined,
-        icon: t.author_icon || undefined, url: t.author_url || undefined,
-        // FEP-9098: emojis in the display name (":shortcode:"), if any.
-        emojis: (() => { try { return t.author_emoji_json ? JSON.parse(t.author_emoji_json) : undefined; } catch { return undefined; } })(),
-      } : undefined),
-      // When a followed account boosted this, who did ("X boosted"). Omitted for
-      // ordinary posts.
-      'shaer:booster': gateAuthor((t.reblog_name || t.reblog_handle || t.reblog_icon) ? {
-        name: t.reblog_name || undefined, handle: t.reblog_handle || undefined,
-        icon: t.reblog_icon || undefined,
-        // FEP-9098: emojis in the booster's display name (":shortcode:"), if any.
-        emojis: (() => { try { return t.reblog_emoji_json ? JSON.parse(t.reblog_emoji_json) : undefined; } catch { return undefined; } })(),
-      } : undefined),
       // Whether THIS account already liked/boosted the note, so the app's
       // detail-view buttons show the current state (and can toggle/undo).
       'shaer:liked': !!(reacties.get(t.id) || {}).liked,
       'shaer:boosted': !!(reacties.get(t.id) || {}).boosted,
-      // An external (non-fediverse) embed, thumbnail-only and never an iframe.
-      // Omitted entirely when the gate is closed (see above).
-      // Carries shaer:playerUrl only when the playback gate is open too.
-      'shaer:embed': embedsAllowed ? AP.timelineEmbed(t.embed_json, { playback: playbackAllowed }) : undefined,
-      // De standaardvormen (shaer-nmw): FEP-044f quote als object, AS2 preview
-      // als kaart. Dezelfde poorten als hun shaer:-tegenhangers hierboven.
+      // FEP-044f: de geciteerde post als object, zodat de client een kaart
+      // rendert in plaats van een kale link. AS2 preview is diezelfde kaart
+      // voor een EXTERNE link: thumbnail, nooit de iframe van de aanbieder.
+      // Allebei weg zodra hun poort dicht staat; de speler in preview hangt
+      // aan de playback-poort.
       quote: quotesAllowed ? AP.quoteObject(t.quote_json) : undefined,
       preview: embedsAllowed ? AP.previewObject(t.embed_json, { playback: playbackAllowed }) : undefined,
     },
@@ -577,13 +550,6 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
       // a guardian; the help request is the buoy. Both render differently.
       'shaer:wave': m.wave ? true : undefined,
       'shaer:helpRequest': m.help_request ? true : undefined,
-      'shaer:quote': quotesAllowed ? AP.timelineQuote(m.quote_json) : undefined,
-      'shaer:author': gateAuthor((m.actor_name || m.actor_handle || m.actor_icon) ? {
-        name: m.actor_name || undefined, handle: m.actor_handle || undefined,
-        icon: m.actor_icon || undefined, url: m.actor_url || undefined,
-        emojis: (() => { try { return m.actor_emoji_json ? JSON.parse(m.actor_emoji_json) : undefined; } catch { return undefined; } })(),
-      } : undefined),
-      'shaer:embed': embedsAllowed ? AP.timelineEmbed(m.embed_json, { playback: playbackAllowed }) : undefined,
       quote: quotesAllowed ? AP.quoteObject(m.quote_json) : undefined,
       preview: embedsAllowed ? AP.previewObject(m.embed_json, { playback: playbackAllowed }) : undefined,
     },
@@ -611,13 +577,6 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
       to: [me],
       tag: [{ type: 'Mention', href: me, name: myHandle }, ...(AP.timelineEmojis(m.emoji_json) || [])],
       attachment: AP.timelineAttachments(m.media_json),
-      'shaer:quote': AP.timelineQuote(m.quote_json),
-      'shaer:author': (m.actor_name || m.actor_handle || m.actor_icon) ? {
-        name: m.actor_name || undefined, handle: m.actor_handle || undefined,
-        icon: m.actor_icon || undefined, url: m.actor_url || undefined,
-        emojis: (() => { try { return m.actor_emoji_json ? JSON.parse(m.actor_emoji_json) : undefined; } catch { return undefined; } })(),
-      } : undefined,
-      'shaer:embed': embedsAllowed ? AP.timelineEmbed(m.embed_json, { playback: playbackAllowed }) : undefined,
       quote: quotesAllowed ? AP.quoteObject(m.quote_json) : undefined,
       preview: embedsAllowed ? AP.previewObject(m.embed_json, { playback: playbackAllowed }) : undefined,
     },
@@ -636,7 +595,6 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
     // it the same way); the Mention tags built from the full content stay.
     object: {
       ...n, content: AP.stripLeadingMentions(n.content),
-      'shaer:author': mine,
       attributedTo: AP.actorObject(typeof n.attributedTo === 'string' ? n.attributedTo : me, mine),
     },
   }));
@@ -956,8 +914,6 @@ router.get('/ap/users/:slug/card', async (req, res) => {
   const playback = embedsAllowed && Guardianship.externalPlaybackAllowed(auth.site.external_playback, isWard);
   AP.sendAP(res, {
     '@context': AP.AP_CONTEXT,
-    'shaer:quote': AP.timelineQuote(uit.quoteJson),
-    'shaer:embed': embedsAllowed ? AP.timelineEmbed(uit.embedJson, { playback }) : undefined,
     quote: AP.quoteObject(uit.quoteJson),
     preview: embedsAllowed ? AP.previewObject(uit.embedJson, { playback }) : undefined,
   }, 'private, no-store');
@@ -995,7 +951,10 @@ router.get('/ap/users/:slug/thread', async (req, res) => {
     ...n,
     attachment: AP.gateAttachments(n.attachment, { images: imagesOk, audio: musicOk }),
     tag: emojiOk ? n.tag : AP.stripEmojiTags(n.tag),
-    'shaer:author': (n['shaer:author'] && !emojiOk) ? { ...n['shaer:author'], emojis: undefined } : n['shaer:author'],
+    // De emoji-poort knipt in de byline zelf: FEP-9098 zit in de tag van de
+    // ingesloten actor, niet meer in een eigen emoji-kaart ernaast.
+    attributedTo: (!emojiOk && n.attributedTo && typeof n.attributedTo === 'object')
+      ? { ...n.attributedTo, tag: undefined } : n.attributedTo,
   }));
   uit.hidden = kring.hidden;
   // Liked/boosted per antwoord, BUITEN de cache om: de genormaliseerde notes

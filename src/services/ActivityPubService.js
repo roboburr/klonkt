@@ -3750,7 +3750,9 @@ export async function getThread(slug, objectUri) {
   const notes = kept.map(({ o, actorUri }) => ({
     id: o.id,
     type: 'Note',
-    attributedTo: actorUri,
+    // De ingesloten actor (shaer-nmw): de byline hoort in attributedTo, waar
+    // elke AP-lezer hem zoekt, en niet in een eigen property ernaast.
+    attributedTo: actorObject(actorUri, actorInfo(authors.get(actorUri), actorUri)),
     inReplyTo: (typeof o.inReplyTo === 'string' ? o.inReplyTo : (o.inReplyTo && o.inReplyTo.id)) || objectUri,
     content: HtmlSanitizerService.sanitize(String(o.content || '').slice(0, 50_000)),
     url: safeUrl(typeof o.url === 'string' ? o.url : (o.url && o.url.href)) || undefined,
@@ -3776,7 +3778,6 @@ export async function getThread(slug, objectUri) {
         .slice(0, 30);
       return out.length ? out : undefined;
     })(),
-    'shaer:author': actorInfo(authors.get(actorUri), actorUri),
   })).sort((a, b) => String(a.published || '').localeCompare(String(b.published || '')));
 
   const out = { notes, found: !!note };
@@ -3801,7 +3802,10 @@ export function filterThreadToCircle(slug, notes) {
   try { for (const r of db.prepare('SELECT actor_uri FROM ap_followers WHERE slug = ?').all(slug)) circle.add(r.actor_uri); } catch { /* geen tabel */ }
   const kept = [], out = { hidden: 0 };
   for (const n of notes) {
-    if (circle.has(n.attributedTo)) kept.push(n);
+    // actorUriOf, niet n.attributedTo: sinds de byline ingesloten meegaat is
+    // dat een OBJECT en zou een kale vergelijking hier stil alles wegfilteren
+    // -- een ward met een lege thread en nergens een foutmelding.
+    if (circle.has(actorUriOf(n.attributedTo))) kept.push(n);
     else out.hidden += 1;
   }
   out.notes = kept;

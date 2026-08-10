@@ -119,7 +119,7 @@ test('actorInfo kiest de html-Link uit een url-array (geen object-stringing)', a
   const uit = await AP.getThread('schrijver', NOTE);
   globalThis.fetch = vorige;
   assert.equal(uit.notes.length, 1);
-  const auteur = uit.notes[0]['shaer:author'];
+  const auteur = uit.notes[0].attributedTo;
   assert.equal(auteur.url, `${HOST}/`, 'de html-Link, niet de array gestringd');
   assert.ok(!String(auteur.url).includes('object'), 'nergens [object Object]');
 });

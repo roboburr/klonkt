@@ -51,6 +51,11 @@ const antwoorden = [
   reply(3, GEBLOKT, '<p>naar bericht</p>', '2026-08-01T11:00:00Z'),
 ];
 
+// De echte fetch, voordat de stub hem overneemt: de route-test onderaan doet
+// een ECHT verzoek aan een testserver op localhost, en dat mag de stub niet
+// beantwoorden met zijn 404.
+const echteFetch = globalThis.fetch;
+
 globalThis.fetch = async (url) => {
   const u = String(url);
   const json = (o) => new Response(JSON.stringify(o), { status: 200, headers: { 'content-type': 'application/activity+json' } });
@@ -68,8 +73,8 @@ test('een gewone lezer krijgt alles behalve de geblokkeerde, oudste eerst, gesch
   assert.equal(uit.found, true);
   assert.equal(uit.notes.length, 2);
   // Oudste eerst: een gesprek lees je van boven naar beneden.
-  assert.equal(uit.notes[0]['shaer:author'].name, 'tante');
-  assert.equal(uit.notes[1]['shaer:author'].name, 'vreemde');
+  assert.equal(uit.notes[0].attributedTo.name, 'tante');
+  assert.equal(uit.notes[1].attributedTo.name, 'vreemde');
   // De sanitizer heeft het script eruit gehaald, de tekst mag blijven.
   assert.ok(!uit.notes[1].content.includes('<script'), 'script weggeschoond');
   assert.ok(uit.notes[1].content.includes('Hoi!'));
@@ -95,7 +100,9 @@ test('de kringfilter houdt goedgekeurd volk en telt de rest (de dichte stand van
   const uit = await AP.getThread('kind', BRON);
   const kring = AP.filterThreadToCircle('pupil', uit.notes);
   assert.equal(kring.notes.length, 1);
-  assert.equal(kring.notes[0]['shaer:author'].name, 'tante');
+  // Ook de zeef zelf leest de ingesloten actor: een kale vergelijking op
+  // attributedTo zou hier stil ALLES wegfilteren.
+  assert.equal(kring.notes[0].attributedTo.name, 'tante');
   // De vreemde is er, en dat mag gezegd: geteld, niet stil weggelaten.
   assert.equal(kring.hidden, 1);
 });
@@ -141,4 +148,47 @@ test('de tweede lezing komt uit het geheugen, niet van het netwerk', async () =>
   assert.equal(uit.notes.length, 2);
   assert.equal(calls, 0, 'alles uit de cache, nul fetches');
   globalThis.fetch = vorige;
+});
+
+// ── Door de route heen, want daar wordt de vorm beslist ──────────────
+//
+// De byline van een antwoord verhuisde naar de ingesloten attributedTo
+// (shaer-nmw). Deze leg had geen route-dekking, en juist hier zit de
+// emoji-poort die IN die byline knipt -- knipt hij in het oude veld, dan
+// gebeurt er stil niets meer.
+test('de thread-route geeft de byline in attributedTo, en de emoji-poort knipt daarin', async (t) => {
+  const crypto = await import('crypto');
+  const express = (await import('express')).default;
+  const routes = (await import('../src/routes/activitypub.js')).default;
+
+  const bearer = 'test-token-' + 'c'.repeat(24);
+  db.prepare('INSERT INTO oauth_tokens (token_hash, client_id, user_id, site_slug, scope) VALUES (?,?,?,?,?)')
+    .run(crypto.createHash('sha256').update(bearer).digest('base64url'), 'c', 'u1', 'kind', 'read write');
+
+  const app = express();
+  app.use(routes);
+  const server = app.listen(0);
+  t.after(() => server.close());
+  await new Promise((r) => server.once('listening', r));
+  const haal = async () => (await (await echteFetch(
+    `http://127.0.0.1:${server.address().port}/ap/users/kind/thread?object=${encodeURIComponent(BRON)}`,
+    { headers: { Authorization: `Bearer ${bearer}` } })).json());
+
+  const doc = await haal();
+  assert.ok(!JSON.stringify(doc).includes('"shaer:author":'), 'geen dialect meer op deze leg');
+  const vanTante = doc.orderedItems.find((n) => n.id.endsWith('/replies/2'));
+  assert.equal(vanTante.attributedTo.name, 'tante', 'de byline zit in attributedTo');
+  assert.equal(vanTante.attributedTo.preferredUsername, 'tante');
+  assert.ok((vanTante.tag || []).some((x) => x.type === 'Emoji'), 'open poort: de emoji van het antwoord blijft');
+
+  // Poort dicht: FEP-9098 zit in de tag van de ingesloten actor, dus daar
+  // hoort geknipt te worden -- en het antwoord zelf houdt zijn eigen emoji
+  // niet meer over.
+  db.prepare("UPDATE sites SET gate_custom_emoji = 0 WHERE slug = 'kind'").run();
+  db.prepare("INSERT INTO ap_guardianships (slug, other_uri, role, status) VALUES ('kind', ?, 'guardian', 'accepted')")
+    .run('https://203.0.113.20/users/tante');
+  const dicht = await haal();
+  const na = dicht.orderedItems.find((n) => n.id.endsWith('/replies/2'));
+  assert.ok(!(na.tag || []).some((x) => x.type === 'Emoji'), 'dichte poort: geen emoji meer');
+  assert.ok(!na.attributedTo.tag, 'ook niet in de byline');
 });
