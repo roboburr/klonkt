@@ -282,6 +282,179 @@ router.get('/ap/users/:slug/follow', (req, res) => {
 </main></body></html>`);
 });
 
+// ── De poorten van een lezer, op EEN plek (FEP-633c) ─────────────
+//
+// De inbox-lezing rekende ze inline uit. Nu er meer lezingen zijn die
+// dezelfde poorten moeten eerbiedigen (de gesprekken, de geschiedenis), zou
+// dat evenveel kopieen worden -- en een poort die op een van die plekken
+// vergeten wordt, levert stil iets uit dat dicht hoorde te staan.
+function leesPoorten(site) {
+  const isWard = (() => { try { return Guardianship.listGuardians(site.slug).length > 0; } catch { return false; } })();
+  const embeds = Guardianship.externalEmbedsAllowed(site.external_embeds, isWard);
+  const gate = (col) => Guardianship.wardGateAllowed(site[col], isWard);
+  const emoji = gate('gate_custom_emoji');
+  return {
+    isWard,
+    embedsAllowed: embeds,
+    playbackAllowed: embeds && Guardianship.externalPlaybackAllowed(site.external_playback, isWard),
+    imagesAllowed: gate('gate_images'),
+    musicAllowed: gate('gate_music'),
+    quotesAllowed: gate('gate_quote_cards'),
+    emojiAllowed: emoji,
+    messagesAllowed: gate('gate_messages'),
+    composeAllowed: gate('gate_compose'),
+    repliesAllowed: gate('gate_replies'),
+    threadsAllowed: gate('external_threads'),
+    followingAllowed: gate('gate_following'),
+    // Emoji dicht raakt ook de bylines: de plaatjes in een naam komen net zo
+    // goed van een vreemde server. De naam zelf blijft, met :shortcode: als tekst.
+    gateAuthor: (a) => (a && !emoji ? { ...a, emojis: undefined } : a),
+  };
+}
+
+/** De naam waaronder deze lezer zichzelf herkent in een Mention. */
+function eigenHandle(base, slug) {
+  try { return `@${slug}@${new URL(base).host}`; } catch { return `@${slug}`; }
+}
+
+// ── Een bericht als AS2-item: EEN beschrijving van de kaartvorm ──
+//
+// Gebruikt door de inbox-lezing en door de gesprekslezingen. Twee keer
+// opschrijven is twee vormen die uit de pas kunnen lopen, en dat merk je pas
+// als een kaart ergens anders rendert dan waar je keek.
+function berichtItem(m, { base, me, myHandle, p }) {
+  return {
+    id: `${m.object_uri}#create`,
+    type: 'Create',
+    actor: m.actor_uri,
+    published: AP.isoStamp(m.published || m.created_at),
+    object: {
+      id: m.object_uri,
+      type: 'Note',
+      attributedTo: AP.actorObject(m.actor_uri, (m.actor_name || m.actor_handle || m.actor_icon) ? p.gateAuthor({
+        name: m.actor_name || undefined, handle: m.actor_handle || undefined,
+        icon: m.actor_icon || undefined, url: m.actor_url || undefined,
+        emojis: (() => { try { return m.actor_emoji_json ? JSON.parse(m.actor_emoji_json) : undefined; } catch { return undefined; } })(),
+      }) : undefined),
+      content: AP.stripLeadingMentions(m.content),
+      url: m.note_url || undefined,
+      published: AP.isoStamp(m.published || m.created_at),
+      // Addressed to us and to nobody we know of: the other recipients of a
+      // note to several people are not ours to see, so we serve what we know.
+      to: [me],
+      // The Mention is how the client recognises itself as the addressee and
+      // groups the note into a conversation. No FEP-e232 link tags here: a
+      // mention row keeps the resolved quote, not the raw tags.
+      tag: [{ type: 'Mention', href: me, name: myHandle }, ...(p.emojiAllowed ? (AP.timelineEmojis(m.emoji_json) || []) : [])],
+      attachment: AP.gateAttachments(AP.timelineAttachments(m.media_json), { images: p.imagesAllowed, audio: p.musicAllowed }),
+      // FEP-633c: what kind of message this is. The wave is a gentle nudge from
+      // a guardian; the help request is the buoy. Both render differently.
+      'shaer:wave': m.wave ? true : undefined,
+      'shaer:helpRequest': m.help_request ? true : undefined,
+      quote: p.quotesAllowed ? AP.quoteObject(m.quote_json) : undefined,
+      preview: p.embedsAllowed ? AP.previewObject(m.embed_json, { playback: p.playbackAllowed }) : undefined,
+    },
+  };
+}
+
+/** Een eigen verzonden note als AS2-item, zelfde vorm als de inbox-leg. */
+function verzondenItem(n, { me, mine }) {
+  return {
+    id: `${n.id}#create`,
+    type: 'Create',
+    actor: me,
+    published: n.published,
+    // The leading mention anchor is addressing, not prose (the DM leg strips
+    // it the same way); the Mention tags built from the full content stay.
+    object: {
+      ...n, content: AP.stripLeadingMentions(n.content),
+      attributedTo: AP.actorObject(typeof n.attributedTo === 'string' ? n.attributedTo : me, mine),
+    },
+  };
+}
+
+// ── Gesprekken: eerst wie, dan pas wat (shaer-frontend-yso) ──────
+//
+// Twee lezingen naast de bestaande inbox-lezing, niet in de plaats ervan: de
+// apps in het veld lezen die nog. /conversations geeft EEN rij per tegenpartij
+// -- compleet van vorm, dus de avatarhemel kan niemand kwijtraken doordat een
+// ander druk was -- en /messages geeft een gesprek met een cursor, zodat een
+// 'load more' eerlijk kan verschijnen in plaats van dat de geschiedenis stil
+// ophoudt.
+//
+// Beide lopen langs dezelfde poorten als de inbox-lezing (leesPoorten) en
+// dezelfde kaartvorm (berichtItem/verzondenItem). Messages dicht sluit ook
+// hier vreemden en vrienden, maar nooit het guardian-kanaal en nooit de boei.
+function gesprekItems(req, auth, refs) {
+  const base = baseUrl(req);
+  const P = leesPoorten(auth.site);
+  const me = AP.actorId(base, auth.site.slug);
+  const ctx = { base, me, myHandle: eigenHandle(base, auth.site.slug), p: P };
+  const mine = AP.selfAuthor(base, auth.site);
+  const guardianUris = (() => { try { return new Set(Guardianship.listGuardians(auth.site.slug).map((g) => g.other_uri)); } catch { return new Set(); } })();
+
+  const binnen = new Map(AP.messageRowsByUri(auth.site.slug, refs.filter((r) => r.richting === 'in').map((r) => r.ref))
+    .map((m) => [m.object_uri, m]));
+  const uit = [];
+  for (const r of refs) {
+    if (r.richting === 'in') {
+      const m = binnen.get(r.ref);
+      if (!m) continue;
+      if (!(P.messagesAllowed || m.help_request || guardianUris.has(m.actor_uri))) continue;
+      uit.push(berichtItem(m, ctx));
+    } else {
+      const n = AP.getOutboxNote(base, r.ref);
+      // Je eigen woorden blijven van jou: een dichte messages-poort verbergt
+      // niet wat je zelf gezegd hebt.
+      if (n) uit.push(verzondenItem(n, { me, mine }));
+    }
+  }
+  return uit;
+}
+
+router.get('/ap/users/:slug/conversations', (req, res) => {
+  const auth = OAuth.verifyBearer(req.headers.authorization);
+  if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
+  const koppen = AP.conversationHeads(auth.site.slug);
+  const items = gesprekItems(req, auth, koppen);
+  AP.sendAP(res, {
+    '@context': AP.AP_CONTEXT,
+    id: `${baseUrl(req)}/ap/users/${encodeURIComponent(auth.site.slug)}/conversations`,
+    type: 'OrderedCollection',
+    totalItems: items.length,
+    orderedItems: items,
+    'shaer:cursor': AP.feedCursor(auth.site.slug),
+  }, 'private, no-store');
+});
+
+router.get('/ap/users/:slug/messages', (req, res) => {
+  const auth = OAuth.verifyBearer(req.headers.authorization);
+  if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
+  const other = String(req.query.with || '');
+  if (!/^https?:\/\//i.test(other)) return res.status(400).json({ error: 'with must be an actor URI' });
+  const uit = AP.conversationHistory(auth.site.slug, other, {
+    before: req.query.before ? String(req.query.before) : null,
+    limit: req.query.limit,
+  });
+  const items = gesprekItems(req, auth, uit.rijen);
+  // De paginagrootte reist mee in next: vroeg je om 30, dan hoort de volgende
+  // pagina er ook 30 te zijn. Zonder dit wordt hij stilletjes de standaard, en
+  // dan klopt het ritme van een 'load more' niet meer met wat de gebruiker ziet.
+  const maat = req.query.limit ? `&limit=${encodeURIComponent(String(req.query.limit))}` : '';
+  const zelf = `${baseUrl(req)}/ap/users/${encodeURIComponent(auth.site.slug)}/messages?with=${encodeURIComponent(other)}`;
+  AP.sendAP(res, {
+    '@context': AP.AP_CONTEXT,
+    id: req.query.before ? `${zelf}${maat}&before=${encodeURIComponent(String(req.query.before))}` : `${zelf}${maat}`,
+    type: 'OrderedCollectionPage',
+    partOf: zelf,
+    orderedItems: items,
+    // De volgende pagina is de standaardvorm van 'er is meer' (AS2). Ontbreekt
+    // hij, dan is het gesprek op -- en dat mag de client weten zonder gokken,
+    // want anders kan een 'load more' niet eerlijk verschijnen.
+    next: uit.meer && uit.oudste ? `${zelf}${maat}&before=${encodeURIComponent(uit.oudste)}` : undefined,
+  }, 'private, no-store');
+});
+
 // ── Long-poll (owner only, Robins verzoek 31-7) ───────────────────
 // Hold the request until something push-worthy lands for this account, then
 // answer 200 (news: re-read your feed) or 204 after ~25s (nothing: re-arm).
@@ -413,35 +586,17 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
   // world outside the fediverse is the guardians' call. The gate is applied
   // here, at serialisation: a blocked embed is never sent, because an embed the
   // client merely hides has still been delivered to the device.
-  const isWard = (() => { try { return Guardianship.listGuardians(auth.site.slug).length > 0; } catch { return false; } })();
-  const embedsAllowed = Guardianship.externalEmbedsAllowed(auth.site.external_embeds, isWard);
-  // The heavier sibling (5.6): may a third party's PLAYER run inside the app,
-  // and may a link hand the child over to a browser? Both are the guardians'
-  // call, both default to off for a ward, and both need the preview gate open
-  // first: you cannot play, or follow, what you may not see. Served here so
-  // the app knows what it may offer instead of guessing.
-  const playbackAllowed = embedsAllowed
-    && Guardianship.externalPlaybackAllowed(auth.site.external_playback, isWard);
-  // De rest van de familie (shaer-ahy.1, 8-8): zelfde regel, zelfde plek --
-  // de poort zit bij de serialisatie, wat dicht is wordt nooit geleverd.
-  const gate = (col) => Guardianship.wardGateAllowed(auth.site[col], isWard);
-  const imagesAllowed = gate('gate_images');
-  const musicAllowed = gate('gate_music');
-  const quotesAllowed = gate('gate_quote_cards');
-  const emojiAllowed = gate('gate_custom_emoji');
-  const messagesAllowed = gate('gate_messages');
-  const composeAllowed = gate('gate_compose');
-  const repliesAllowed = gate('gate_replies');
-  const threadsAllowed = gate('external_threads');
-  // Zelf iemand volgen (shaer-p729). Anders dan de rest betekent dicht hier niet
-  // "kan niet" maar "moet eerst gevraagd worden": het verzoek gaat naar de
-  // guardians. Juist dat hoort de app VOORAF te weten, zodat de knop kan zeggen
-  // dat je het gaat vragen in plaats van te doen alsof het al gelukt is en het
-  // kind het pas bij het antwoord te laten ontdekken.
-  const followingAllowed = gate('gate_following');
-  // Emoji dicht raakt ook de bylines: de plaatjes in een naam komen net zo
-  // goed van een vreemde server. De naam zelf blijft, met :shortcode: als tekst.
-  const gateAuthor = (a) => (a && !emojiAllowed ? { ...a, emojis: undefined } : a);
+  // De poorten van deze lezer (leesPoorten): een plek waar ze berekend worden,
+  // zodat de gesprekslezingen dezelfde stand eerbiedigen en niet hun eigen
+  // kopie krijgen die kan gaan afwijken.
+  const P = leesPoorten(auth.site);
+  const {
+    embedsAllowed, playbackAllowed, imagesAllowed, musicAllowed, quotesAllowed,
+    emojiAllowed, messagesAllowed, composeAllowed, repliesAllowed, threadsAllowed,
+    followingAllowed, gateAuthor,
+  } = P;
+  // De rechten-lijst hieronder vraagt er nog een paar rechtstreeks op.
+  const gate = (col) => Guardianship.wardGateAllowed(auth.site[col], P.isWard);
   // ── Standaardvormen naast het dialect (shaer-nmw) ────────────────
   //
   // Een lezer die AS2 kent heeft nu genoeg aan attributedTo (ingesloten
@@ -520,40 +675,10 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
   // het kanaal dat het kind veilig houdt, en een poort die dat afsnijdt
   // beschermt niemand. De hulpvraag zelf gaat aan de innamekant al altijd voor.
   const guardianUris = (() => { try { return new Set(Guardianship.listGuardians(auth.site.slug).map((g) => g.other_uri)); } catch { return new Set(); } })();
+  const berichtCtx = { base, me, myHandle, p: P };
   const messages = AP.getDirectMessages(auth.site.slug, 60)
     .filter((m) => messagesAllowed || m.help_request || guardianUris.has(m.actor_uri))
-    .map((m) => ({
-    id: `${m.object_uri}#create`,
-    type: 'Create',
-    actor: m.actor_uri,
-    published: AP.isoStamp(m.published || m.created_at),
-    object: {
-      id: m.object_uri,
-      type: 'Note',
-      attributedTo: AP.actorObject(m.actor_uri, (m.actor_name || m.actor_handle || m.actor_icon) ? gateAuthor({
-        name: m.actor_name || undefined, handle: m.actor_handle || undefined,
-        icon: m.actor_icon || undefined, url: m.actor_url || undefined,
-        emojis: (() => { try { return m.actor_emoji_json ? JSON.parse(m.actor_emoji_json) : undefined; } catch { return undefined; } })(),
-      }) : undefined),
-      content: AP.stripLeadingMentions(m.content),
-      url: m.note_url || undefined,
-      published: AP.isoStamp(m.published || m.created_at),
-      // Addressed to us and to nobody we know of: the other recipients of a
-      // note to several people are not ours to see, so we serve what we know.
-      to: [me],
-      // The Mention is how the client recognises itself as the addressee and
-      // groups the note into a conversation. No FEP-e232 link tags here: a
-      // mention row keeps the resolved quote, not the raw tags.
-      tag: [{ type: 'Mention', href: me, name: myHandle }, ...(emojiAllowed ? (AP.timelineEmojis(m.emoji_json) || []) : [])],
-      attachment: AP.gateAttachments(AP.timelineAttachments(m.media_json), { images: imagesAllowed, audio: musicAllowed }),
-      // FEP-633c: what kind of message this is. The wave is a gentle nudge from
-      // a guardian; the help request is the buoy. Both render differently.
-      'shaer:wave': m.wave ? true : undefined,
-      'shaer:helpRequest': m.help_request ? true : undefined,
-      quote: quotesAllowed ? AP.quoteObject(m.quote_json) : undefined,
-      preview: embedsAllowed ? AP.previewObject(m.embed_json, { playback: playbackAllowed }) : undefined,
-    },
-  }));
+    .map((m) => berichtItem(m, berichtCtx));
   // Inbound REPLIES on your own posts: stored as interactions (the web's
   // comment machinery), never as mentions, so this read missed them and a
   // friend's reply arrived everywhere except in your app (Robins melding,

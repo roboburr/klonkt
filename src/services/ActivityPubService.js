@@ -4190,12 +4190,117 @@ export async function waitForFeedChange(slug, opts = {}) {
   }
 }
 
+// ── Gesprekken: eerst wie, dan pas wat (shaer-frontend-yso) ──────────
+//
+// De oude lezing gaf de nieuwste 60 berichten over ALLE gesprekken samen. Dat
+// knipt geschiedenis weg zonder dat iemand het merkt, en het is bij DM's veel
+// erger dan bij posts: dat zijn er meer en het zijn kortere berichten, dus een
+// druk gesprek kan de 60 in zijn eentje opeten en de rest uit de lezing duwen.
+// Viel het laatste bericht van iemand erbuiten, dan verdween die persoon
+// helemaal uit Messages -- de avatarhemel plaatst mensen op de leeftijd van hun
+// laatste bericht, dus geen bericht is geen gezicht.
+//
+// Vandaar twee lezingen. Deze geeft EEN rij per tegenpartij, hoe druk iemand
+// ook is, en conversationHistory hieronder geeft het gesprek zelf met een
+// cursor. Wat de client van de hemel nodig heeft -- wie, wanneer, en waarmee --
+// zit in die ene nieuwste note.
+//
+// Een gesprek is hier hetzelfde als in de app: incoming zijn de ap_mentions
+// (die tabel IS de aan ons gerichte post), uitgaand zijn de eigen notes met
+// visibility 'direct'. Een publiek antwoord is geen gesprek en hoort niet als
+// gezicht in de hemel.
+const GESPREK_UNIE = `
+  SELECT m.actor_uri AS other, COALESCE(m.published, m.created_at) AS stamp,
+         'in' AS richting, m.object_uri AS ref
+    FROM ap_mentions m
+   WHERE m.slug = @slug AND m.actor_uri IS NOT NULL AND m.actor_uri <> ''
+  UNION ALL
+  SELECT j.value AS other, o.created_at AS stamp,
+         'uit' AS richting, o.id AS ref
+    FROM ap_outbox o
+    JOIN json_each(COALESCE(NULLIF(o.to_actors, ''), json_array(o.to_actor))) j
+   WHERE o.site_slug = @slug AND o.visibility = 'direct'
+     AND j.value IS NOT NULL AND j.value <> ''`;
+
+/**
+ * Een rij per tegenpartij: zijn nieuwste bericht, nieuwste gesprek eerst.
+ *
+ * Compleet van vorm -- het aantal rijen is het aantal mensen, niet het aantal
+ * berichten -- dus de hemel kan niemand meer kwijtraken doordat een ander druk
+ * was. Zonder limiet, en dat mag: dit schaalt met je kring.
+ */
+export function conversationHeads(slug) {
+  try {
+    return db.prepare(`
+      SELECT other, stamp, richting, ref FROM (
+        SELECT *, ROW_NUMBER() OVER (PARTITION BY other ORDER BY stamp DESC, ref DESC) AS rn
+          FROM (${GESPREK_UNIE})
+      ) WHERE rn = 1
+      ORDER BY stamp DESC, ref DESC`).all({ slug });
+  } catch { return []; }
+}
+
+/**
+ * Een gesprek, nieuwste eerst, met een cursor.
+ *
+ * BEIDE KANTEN ONDER EEN LIMIET. In de oude lezing werden jouw kant
+ * (getSentNotes) en hun kant apart afgekapt, waardoor een gesprek eenzijdig
+ * kon lijken -- alsof iemand nooit geantwoord had. Hier is de limiet er een
+ * voor het gesprek als geheel.
+ *
+ * `before` is de cursor van het OUDSTE bericht dat je al hebt; je krijgt wat
+ * daarvoor ligt. Er komt er een extra op om te weten of er nog meer is: de
+ * client hoort dat te weten zonder te moeten gokken, en zonder dat weten kan
+ * 'load more' niet eerlijk verschijnen.
+ *
+ * DE CURSOR IS SAMENGESTELD -- '<stempel>|<ref>' -- en niet alleen de stempel.
+ * Twee berichten in dezelfde seconde is bij DM's geen randgeval maar een
+ * gesprek, en met 'stamp < before' zou alles wat die grensseconde deelt stil
+ * overgeslagen worden. Je zou het niet merken: de pagina komt gewoon, er
+ * ontbreekt alleen iets in het midden.
+ */
+const cursorVan = (r) => (r ? `${r.stamp}|${r.ref}` : null);
+
+export function conversationHistory(slug, other, { before = null, limit = 60 } = {}) {
+  try {
+    const n = Math.min(Math.max(parseInt(limit, 10) || 60, 1), 200);
+    const knip = String(before || '').indexOf('|');
+    const bStamp = before && knip > 0 ? String(before).slice(0, knip) : null;
+    const bRef = before && knip > 0 ? String(before).slice(knip + 1) : null;
+    const rijen = db.prepare(`
+      SELECT other, stamp, richting, ref FROM (${GESPREK_UNIE})
+       WHERE other = @other
+         AND (@bStamp IS NULL OR stamp < @bStamp OR (stamp = @bStamp AND ref < @bRef))
+       ORDER BY stamp DESC, ref DESC LIMIT @n`).all({ slug, other, bStamp, bRef, n: n + 1 });
+    const meer = rijen.length > n;
+    const uit = meer ? rijen.slice(0, n) : rijen;
+    return { rijen: uit, meer, oudste: cursorVan(uit[uit.length - 1]) };
+  } catch { return { rijen: [], meer: false, oudste: null }; }
+}
+
+// De kolommen die een bericht tot kaart maken. Een constante, want de
+// gesprekslezing haalt dezelfde rijen op: twee lijsten die uiteenlopen leveren
+// een kaart die op de ene plek een plaatje heeft en op de andere niet.
+const BERICHT_KOLOMMEN = `
+      m.object_uri, m.note_url, m.actor_uri, m.actor_name, m.actor_handle, m.actor_icon, m.actor_url,
+      m.content, m.published, m.created_at, m.wave, m.help_request,
+      m.emoji_json, m.actor_emoji_json, m.media_json, m.quote_json, m.embed_json`;
+
+/** Dezelfde berichtrijen, maar op object-uri -- voor een gesprek. */
+export function messageRowsByUri(slug, uris) {
+  const lijst = (uris || []).filter((u) => typeof u === 'string' && u);
+  if (!lijst.length) return [];
+  try {
+    const gaten = lijst.map(() => '?').join(',');
+    return db.prepare(`SELECT ${BERICHT_KOLOMMEN} FROM ap_mentions m
+                        WHERE m.slug = ? AND m.object_uri IN (${gaten})`).all(slug, ...lijst);
+  } catch { return []; }
+}
+
 export function getDirectMessages(slug, limit) {
   try {
     return db.prepare(`
-      SELECT m.object_uri, m.note_url, m.actor_uri, m.actor_name, m.actor_handle, m.actor_icon, m.actor_url,
-             m.content, m.published, m.created_at, m.wave, m.help_request,
-             m.emoji_json, m.actor_emoji_json, m.media_json, m.quote_json, m.embed_json
+      SELECT ${BERICHT_KOLOMMEN}
       FROM ap_mentions m
       WHERE m.slug = ?
         AND NOT EXISTS (SELECT 1 FROM ap_timeline t WHERE t.slug = m.slug AND t.id = m.object_uri)
@@ -6285,7 +6390,7 @@ export default {
   feedCursor, feedChangesSince, waitForFeedChange,
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, buildReplyNote, getOutboxNote, getSentNotes, deliverReply, resolveRemoteNote, noteAudience, mayReadNote,
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate, deliverDirectNote,
-  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, handleMoveInbox, moveAccount, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, getDirectMessages, isoStamp, timelineAttachments, timelineEmojis, timelineObjectLinks, timelineQuote, timelineEmbed, applyQuoteProps, deliverToActor, sendInteraction, voteOnPoll, voteOnRemotePoll,
+  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, handleMoveInbox, moveAccount, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, getDirectMessages, messageRowsByUri, conversationHeads, conversationHistory, isoStamp, timelineAttachments, timelineEmojis, timelineObjectLinks, timelineQuote, timelineEmbed, applyQuoteProps, deliverToActor, sendInteraction, voteOnPoll, voteOnRemotePoll,
   acceptGatedFollow, rejectGatedFollow, isWardGuardian, outboxAudience, sendFollowDecision,
   gateOutgoingFollow, performApprovedFollow, recordGuardianEvent, listGuardianEvents, GUARDIAN_EVENT_KEEP,
   parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread, sendReport, localMentionSlugs, previewCard,
