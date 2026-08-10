@@ -59,6 +59,20 @@ test('oppikken vanuit de app landt in dezelfde staat als het paneel', async () =
   assert.equal(h.state.open, true);
 });
 
+test('en de apps krijgen te horen HOE OUD dat oppakken is', () => {
+  // Barts besluit: opgepikt vervalt niet maar veroudert zichtbaar -- het
+  // verschil tussen "er is iemand mee bezig" en "er was ooit iemand mee bezig".
+  // Het paneel toonde dat al uit dezelfde staat; de apps kregen het veld niet,
+  // dus daar zag een oppak van vijf minuten eruit als een van vijf dagen.
+  const coll = queues.helpCollection('https://x/queues/help', 'oma');
+  const item = coll.orderedItems.find((i) => i.id === BOEI);
+  assert.ok(item['shaer:oldestPickupAt'], 'het veld staat er');
+  assert.ok(!Number.isNaN(Date.parse(item['shaer:oldestPickupAt'])), 'en is een leesbaar tijdstip');
+  // Een TIJDSTIP en geen leeftijd: een leeftijd maakt elk antwoord anders en
+  // dan kan de ETag nooit gelijk zijn. De client rekent zelf terug.
+  assert.equal(typeof item['shaer:oldestPickupAt'], 'string');
+});
+
 test('afsluiten vanuit de app sluit hem ook echt', async () => {
   await AP.ingestOutboxActivity(site(), user, marker('handled'));
   const h = queues.helpItemsFor('oma').find((x) => x.object_uri === BOEI);
@@ -74,6 +88,9 @@ test('de collectie voor de apps draagt de staat plat mee', () => {
   assert.equal(item['shaer:open'], false);
   assert.ok(item['shaer:handledBy']);
   assert.equal(item['shaer:helpRequest'], true);
+  // En de ouderdom is WEG zodra hij is afgehandeld: hoe lang er iemand naar
+  // keek is dan geen informatie meer, en zou als "er wacht nog iets" lezen.
+  assert.equal(item['shaer:oldestPickupAt'], undefined);
 });
 
 test('een note zonder markering blijft een gewoon bericht', async () => {

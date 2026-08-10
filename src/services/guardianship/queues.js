@@ -293,6 +293,17 @@ export function helpCollection(id, slug) {
     'shaer:handledBy': h.state.handled ? (h.state.handled.handle || h.state.handled.uri) : undefined,
     'shaer:handledAt': h.state.handled ? h.state.handled.at : undefined,
     'shaer:pickedUpBy': h.state.pickedUpBy.map((p) => p.handle || p.uri),
+    // HOE OUD het oudste oppakken is (shaer-lgo). Barts besluit was dat
+    // "opgepikt" niet vervalt maar zichtbaar VEROUDERT -- het verschil tussen
+    // "er is iemand mee bezig" en "er was ooit iemand mee bezig". Het paneel
+    // toonde dat al; de apps konden het niet, want dit veld bleef hier liggen.
+    // Een oppak van vijf minuten zag er daar uit als een van vijf dagen, en de
+    // faalstand is hier nou juist "iedereen denkt dat het geregeld is".
+    //
+    // Als TIJDSTIP en niet als leeftijd: een leeftijd maakt elk antwoord anders
+    // en dan kan de ETag nooit gelijk zijn. De client rekent zelf terug, precies
+    // zoals guardian.js het doet.
+    'shaer:oldestPickupAt': h.state.oldestPickupAt || undefined,
     'shaer:formerWard': h.state.formerWard || undefined,
   }));
   const coll = collection(id, items);
