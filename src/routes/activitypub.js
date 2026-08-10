@@ -288,7 +288,7 @@ router.get('/ap/users/:slug/follow', (req, res) => {
 // dezelfde poorten moeten eerbiedigen (de gesprekken, de geschiedenis), zou
 // dat evenveel kopieen worden -- en een poort die op een van die plekken
 // vergeten wordt, levert stil iets uit dat dicht hoorde te staan.
-function leesPoorten(site) {
+function gatesFor(site) {
   const isWard = (() => { try { return Guardianship.listGuardians(site.slug).length > 0; } catch { return false; } })();
   const embeds = Guardianship.externalEmbedsAllowed(site.external_embeds, isWard);
   const gate = (col) => Guardianship.wardGateAllowed(site[col], isWard);
@@ -313,7 +313,7 @@ function leesPoorten(site) {
 }
 
 /** De naam waaronder deze lezer zichzelf herkent in een Mention. */
-function eigenHandle(base, slug) {
+function ownHandle(base, slug) {
   try { return `@${slug}@${new URL(base).host}`; } catch { return `@${slug}`; }
 }
 
@@ -322,7 +322,7 @@ function eigenHandle(base, slug) {
 // Gebruikt door de inbox-lezing en door de gesprekslezingen. Twee keer
 // opschrijven is twee vormen die uit de pas kunnen lopen, en dat merk je pas
 // als een kaart ergens anders rendert dan waar je keek.
-function berichtItem(m, { base, me, myHandle, p }) {
+function messageItem(m, { base, me, myHandle, p }) {
   return {
     id: `${m.object_uri}#create`,
     type: 'Create',
@@ -358,7 +358,7 @@ function berichtItem(m, { base, me, myHandle, p }) {
 }
 
 /** Een eigen verzonden note als AS2-item, zelfde vorm als de inbox-leg. */
-function verzondenItem(n, { me, mine }) {
+function sentItem(n, { me, mine }) {
   return {
     id: `${n.id}#create`,
     type: 'Create',
@@ -382,41 +382,41 @@ function verzondenItem(n, { me, mine }) {
 // 'load more' eerlijk kan verschijnen in plaats van dat de geschiedenis stil
 // ophoudt.
 //
-// Beide lopen langs dezelfde poorten als de inbox-lezing (leesPoorten) en
-// dezelfde kaartvorm (berichtItem/verzondenItem). Messages dicht sluit ook
+// Beide lopen langs dezelfde poorten als de inbox-lezing (gatesFor) en
+// dezelfde kaartvorm (messageItem/sentItem). Messages dicht sluit ook
 // hier vreemden en vrienden, maar nooit het guardian-kanaal en nooit de boei.
-function gesprekItems(req, auth, refs) {
+function conversationItems(req, auth, refs) {
   const base = baseUrl(req);
-  const P = leesPoorten(auth.site);
+  const P = gatesFor(auth.site);
   const me = AP.actorId(base, auth.site.slug);
-  const ctx = { base, me, myHandle: eigenHandle(base, auth.site.slug), p: P };
+  const ctx = { base, me, myHandle: ownHandle(base, auth.site.slug), p: P };
   const mine = AP.selfAuthor(base, auth.site);
   const guardianUris = (() => { try { return new Set(Guardianship.listGuardians(auth.site.slug).map((g) => g.other_uri)); } catch { return new Set(); } })();
 
-  const binnen = new Map(AP.messageRowsByUri(auth.site.slug, refs.filter((r) => r.richting === 'in').map((r) => r.ref))
+  const incoming = new Map(AP.messageRowsByUri(auth.site.slug, refs.filter((r) => r.direction === 'in').map((r) => r.ref))
     .map((m) => [m.object_uri, m]));
-  const uit = [];
+  const items = [];
   for (const r of refs) {
-    if (r.richting === 'in') {
-      const m = binnen.get(r.ref);
+    if (r.direction === 'in') {
+      const m = incoming.get(r.ref);
       if (!m) continue;
       if (!(P.messagesAllowed || m.help_request || guardianUris.has(m.actor_uri))) continue;
-      uit.push(berichtItem(m, ctx));
+      items.push(messageItem(m, ctx));
     } else {
       const n = AP.getOutboxNote(base, r.ref);
       // Je eigen woorden blijven van jou: een dichte messages-poort verbergt
       // niet wat je zelf gezegd hebt.
-      if (n) uit.push(verzondenItem(n, { me, mine }));
+      if (n) items.push(sentItem(n, { me, mine }));
     }
   }
-  return uit;
+  return items;
 }
 
 router.get('/ap/users/:slug/conversations', (req, res) => {
   const auth = OAuth.verifyBearer(req.headers.authorization);
   if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
-  const koppen = AP.conversationHeads(auth.site.slug);
-  const items = gesprekItems(req, auth, koppen);
+  const heads = AP.conversationHeads(auth.site.slug);
+  const items = conversationItems(req, auth, heads);
   AP.sendAP(res, {
     '@context': AP.AP_CONTEXT,
     id: `${baseUrl(req)}/ap/users/${encodeURIComponent(auth.site.slug)}/conversations`,
@@ -432,26 +432,26 @@ router.get('/ap/users/:slug/messages', (req, res) => {
   if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
   const other = String(req.query.with || '');
   if (!/^https?:\/\//i.test(other)) return res.status(400).json({ error: 'with must be an actor URI' });
-  const uit = AP.conversationHistory(auth.site.slug, other, {
+  const page = AP.conversationHistory(auth.site.slug, other, {
     before: req.query.before ? String(req.query.before) : null,
     limit: req.query.limit,
   });
-  const items = gesprekItems(req, auth, uit.rijen);
+  const items = conversationItems(req, auth, page.rows);
   // De paginagrootte reist mee in next: vroeg je om 30, dan hoort de volgende
   // pagina er ook 30 te zijn. Zonder dit wordt hij stilletjes de standaard, en
   // dan klopt het ritme van een 'load more' niet meer met wat de gebruiker ziet.
-  const maat = req.query.limit ? `&limit=${encodeURIComponent(String(req.query.limit))}` : '';
-  const zelf = `${baseUrl(req)}/ap/users/${encodeURIComponent(auth.site.slug)}/messages?with=${encodeURIComponent(other)}`;
+  const size = req.query.limit ? `&limit=${encodeURIComponent(String(req.query.limit))}` : '';
+  const self = `${baseUrl(req)}/ap/users/${encodeURIComponent(auth.site.slug)}/messages?with=${encodeURIComponent(other)}`;
   AP.sendAP(res, {
     '@context': AP.AP_CONTEXT,
-    id: req.query.before ? `${zelf}${maat}&before=${encodeURIComponent(String(req.query.before))}` : `${zelf}${maat}`,
+    id: req.query.before ? `${self}${size}&before=${encodeURIComponent(String(req.query.before))}` : `${self}${size}`,
     type: 'OrderedCollectionPage',
-    partOf: zelf,
+    partOf: self,
     orderedItems: items,
     // De volgende pagina is de standaardvorm van 'er is meer' (AS2). Ontbreekt
     // hij, dan is het gesprek op -- en dat mag de client weten zonder gokken,
     // want anders kan een 'load more' niet eerlijk verschijnen.
-    next: uit.meer && uit.oudste ? `${zelf}${maat}&before=${encodeURIComponent(uit.oudste)}` : undefined,
+    next: page.more && page.oldest ? `${self}${size}&before=${encodeURIComponent(page.oldest)}` : undefined,
   }, 'private, no-store');
 });
 
@@ -586,10 +586,10 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
   // world outside the fediverse is the guardians' call. The gate is applied
   // here, at serialisation: a blocked embed is never sent, because an embed the
   // client merely hides has still been delivered to the device.
-  // De poorten van deze lezer (leesPoorten): een plek waar ze berekend worden,
+  // De poorten van deze lezer (gatesFor): een plek waar ze berekend worden,
   // zodat de gesprekslezingen dezelfde stand eerbiedigen en niet hun eigen
   // kopie krijgen die kan gaan afwijken.
-  const P = leesPoorten(auth.site);
+  const P = gatesFor(auth.site);
   const {
     embedsAllowed, playbackAllowed, imagesAllowed, musicAllowed, quotesAllowed,
     emojiAllowed, messagesAllowed, composeAllowed, repliesAllowed, threadsAllowed,
@@ -675,10 +675,10 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
   // het kanaal dat het kind veilig houdt, en een poort die dat afsnijdt
   // beschermt niemand. De hulpvraag zelf gaat aan de innamekant al altijd voor.
   const guardianUris = (() => { try { return new Set(Guardianship.listGuardians(auth.site.slug).map((g) => g.other_uri)); } catch { return new Set(); } })();
-  const berichtCtx = { base, me, myHandle, p: P };
+  const messageCtx = { base, me, myHandle, p: P };
   const messages = AP.getDirectMessages(auth.site.slug, 60)
     .filter((m) => messagesAllowed || m.help_request || guardianUris.has(m.actor_uri))
-    .map((m) => berichtItem(m, berichtCtx));
+    .map((m) => messageItem(m, messageCtx));
   // Inbound REPLIES on your own posts: stored as interactions (the web's
   // comment machinery), never as mentions, so this read missed them and a
   // friend's reply arrived everywhere except in your app (Robins melding,

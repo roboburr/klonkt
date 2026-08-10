@@ -54,7 +54,7 @@ const antwoorden = [
 // De echte fetch, voordat de stub hem overneemt: de route-test onderaan doet
 // een ECHT verzoek aan een testserver op localhost, en dat mag de stub niet
 // beantwoorden met zijn 404.
-const echteFetch = globalThis.fetch;
+const realFetch = globalThis.fetch;
 
 globalThis.fetch = async (url) => {
   const u = String(url);
@@ -170,16 +170,16 @@ test('de thread-route geeft de byline in attributedTo, en de emoji-poort knipt d
   const server = app.listen(0);
   t.after(() => server.close());
   await new Promise((r) => server.once('listening', r));
-  const haal = async () => (await (await echteFetch(
+  const get = async () => (await (await realFetch(
     `http://127.0.0.1:${server.address().port}/ap/users/kind/thread?object=${encodeURIComponent(BRON)}`,
     { headers: { Authorization: `Bearer ${bearer}` } })).json());
 
-  const doc = await haal();
+  const doc = await get();
   assert.ok(!JSON.stringify(doc).includes('"shaer:author":'), 'geen dialect meer op deze leg');
-  const vanTante = doc.orderedItems.find((n) => n.id.endsWith('/replies/2'));
-  assert.equal(vanTante.attributedTo.name, 'tante', 'de byline zit in attributedTo');
-  assert.equal(vanTante.attributedTo.preferredUsername, 'tante');
-  assert.ok((vanTante.tag || []).some((x) => x.type === 'Emoji'), 'open poort: de emoji van het antwoord blijft');
+  const fromAunt = doc.orderedItems.find((n) => n.id.endsWith('/replies/2'));
+  assert.equal(fromAunt.attributedTo.name, 'tante', 'de byline zit in attributedTo');
+  assert.equal(fromAunt.attributedTo.preferredUsername, 'tante');
+  assert.ok((fromAunt.tag || []).some((x) => x.type === 'Emoji'), 'open poort: de emoji van het antwoord blijft');
 
   // Poort dicht: FEP-9098 zit in de tag van de ingesloten actor, dus daar
   // hoort geknipt te worden -- en het antwoord zelf houdt zijn eigen emoji
@@ -187,10 +187,10 @@ test('de thread-route geeft de byline in attributedTo, en de emoji-poort knipt d
   db.prepare("UPDATE sites SET gate_custom_emoji = 0 WHERE slug = 'kind'").run();
   db.prepare("INSERT INTO ap_guardianships (slug, other_uri, role, status) VALUES ('kind', ?, 'guardian', 'accepted')")
     .run('https://203.0.113.20/users/tante');
-  const dicht = await haal();
-  const na = dicht.orderedItems.find((n) => n.id.endsWith('/replies/2'));
-  assert.ok(!(na.tag || []).some((x) => x.type === 'Emoji'), 'dichte poort: geen emoji meer');
-  assert.ok(!na.attributedTo.tag, 'ook niet in de byline');
+  const closed = await get();
+  const after = closed.orderedItems.find((n) => n.id.endsWith('/replies/2'));
+  assert.ok(!(after.tag || []).some((x) => x.type === 'Emoji'), 'dichte poort: geen emoji meer');
+  assert.ok(!after.attributedTo.tag, 'ook niet in de byline');
 });
 
 // ── Wiens schuld is het? ─────────────────────────────────────────────
@@ -216,8 +216,8 @@ test('een weigering van de bron is 404, een storing is 502', async (t) => {
 
   const vorige = globalThis.fetch;
   t.after(() => { globalThis.fetch = vorige; });
-  const vraag = async (uri) => {
-    const r = await echteFetch(
+  const ask = async (uri) => {
+    const r = await realFetch(
       `http://127.0.0.1:${server.address().port}/ap/users/kind/thread?object=${encodeURIComponent(uri)}`,
       { headers: { Authorization: `Bearer ${bearer}` } });
     return { status: r.status, body: await r.json() };
@@ -225,17 +225,17 @@ test('een weigering van de bron is 404, een storing is 502', async (t) => {
 
   // De bron zegt nee -- precies wat boiert.eu doet met een friends-only post
   // voor iemand die de auteur niet (meer) volgt.
-  const DICHT = 'https://203.0.113.50/notes/dicht';
+  const SHUT = 'https://203.0.113.50/notes/dicht';
   globalThis.fetch = async () => new Response('nope', { status: 404 });
-  const nee = await vraag(DICHT);
-  assert.equal(nee.status, 404);
-  assert.equal(nee.body.error, 'not shared by source');
-  assert.equal(nee.body.sourceStatus, 404);
+  const refused = await ask(SHUT);
+  assert.equal(refused.status, 404);
+  assert.equal(refused.body.error, 'not shared by source');
+  assert.equal(refused.body.sourceStatus, 404);
 
   // De bron ligt eruit. Dezelfde lege uitkomst, een andere waarheid.
-  const STUK = 'https://203.0.113.51/notes/stuk';
+  const BROKEN = 'https://203.0.113.51/notes/stuk';
   globalThis.fetch = async () => new Response('boem', { status: 500 });
-  const stuk = await vraag(STUK);
-  assert.equal(stuk.status, 502);
-  assert.equal(stuk.body.error, 'source unreachable');
+  const broken = await ask(BROKEN);
+  assert.equal(broken.status, 502);
+  assert.equal(broken.body.error, 'source unreachable');
 });

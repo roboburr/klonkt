@@ -116,18 +116,18 @@ test('de C2S-leg spreekt geen dialect meer waar de standaard het regelt', async 
   const doc = await (await fetch(`http://127.0.0.1:${server.address().port}/ap/users/kind/inbox`,
     { headers: { Authorization: `Bearer ${bearer}` } })).json();
 
-  const tekst = JSON.stringify(doc);
-  // Op de SLEUTEL, niet op een stuk tekst: 'shaer:quote' zit ook in
+  const text = JSON.stringify(doc);
+  // Op de SLEUTEL, niet op een stuk text: 'shaer:quote' zit ook in
   // shaer:quoteCards, en dat is een poortnaam die blijft. Een te grove zeef
   // zou hier rood staan om iets dat klopt -- of erger, groen om iets dat niet
   // klopt.
-  for (const weg of ['shaer:author', 'shaer:booster', 'shaer:quote', 'shaer:embed']) {
-    assert.ok(!tekst.includes(`"${weg}":`), `${weg} hoort weg te zijn`);
+  for (const gone of ['shaer:author', 'shaer:booster', 'shaer:quote', 'shaer:embed']) {
+    assert.ok(!text.includes(`"${gone}":`), `${gone} hoort weg te zijn`);
   }
   // Wat WEL mag blijven, en waarom: per-lezer-interactiestatus heeft in AS2
   // geen tegenhanger (Mastodon lost het in zijn eigen REST-API op), en de
   // FEP-633c-termen zijn bewust van ons en in standaardisatie.
-  assert.ok(tekst.includes('shaer:liked'), 'interactiestatus blijft, die heeft geen standaard');
+  assert.ok(text.includes('shaer:liked'), 'interactiestatus blijft, die heeft geen standaard');
 
   const item = doc.orderedItems.find((i) => i.object.id === 'https://elders/n1');
   assert.equal(item.type, 'Announce', 'een boost is de wrapper, niet een zijkanaal');

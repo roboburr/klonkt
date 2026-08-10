@@ -4209,14 +4209,14 @@ export async function waitForFeedChange(slug, opts = {}) {
 // (die tabel IS de aan ons gerichte post), uitgaand zijn de eigen notes met
 // visibility 'direct'. Een publiek antwoord is geen gesprek en hoort niet als
 // gezicht in de hemel.
-const GESPREK_UNIE = `
+const CONVERSATION_UNION = `
   SELECT m.actor_uri AS other, COALESCE(m.published, m.created_at) AS stamp,
-         'in' AS richting, m.object_uri AS ref
+         'in' AS direction, m.object_uri AS ref
     FROM ap_mentions m
    WHERE m.slug = @slug AND m.actor_uri IS NOT NULL AND m.actor_uri <> ''
   UNION ALL
   SELECT j.value AS other, o.created_at AS stamp,
-         'uit' AS richting, o.id AS ref
+         'out' AS direction, o.id AS ref
     FROM ap_outbox o
     JOIN json_each(COALESCE(NULLIF(o.to_actors, ''), json_array(o.to_actor))) j
    WHERE o.site_slug = @slug AND o.visibility = 'direct'
@@ -4232,9 +4232,9 @@ const GESPREK_UNIE = `
 export function conversationHeads(slug) {
   try {
     return db.prepare(`
-      SELECT other, stamp, richting, ref FROM (
+      SELECT other, stamp, direction, ref FROM (
         SELECT *, ROW_NUMBER() OVER (PARTITION BY other ORDER BY stamp DESC, ref DESC) AS rn
-          FROM (${GESPREK_UNIE})
+          FROM (${CONVERSATION_UNION})
       ) WHERE rn = 1
       ORDER BY stamp DESC, ref DESC`).all({ slug });
   } catch { return []; }
@@ -4259,29 +4259,29 @@ export function conversationHeads(slug) {
  * overgeslagen worden. Je zou het niet merken: de pagina komt gewoon, er
  * ontbreekt alleen iets in het midden.
  */
-const cursorVan = (r) => (r ? `${r.stamp}|${r.ref}` : null);
+const cursorOf = (r) => (r ? `${r.stamp}|${r.ref}` : null);
 
 export function conversationHistory(slug, other, { before = null, limit = 60 } = {}) {
   try {
     const n = Math.min(Math.max(parseInt(limit, 10) || 60, 1), 200);
-    const knip = String(before || '').indexOf('|');
-    const bStamp = before && knip > 0 ? String(before).slice(0, knip) : null;
-    const bRef = before && knip > 0 ? String(before).slice(knip + 1) : null;
-    const rijen = db.prepare(`
-      SELECT other, stamp, richting, ref FROM (${GESPREK_UNIE})
+    const sep = String(before || '').indexOf('|');
+    const bStamp = before && sep > 0 ? String(before).slice(0, sep) : null;
+    const bRef = before && sep > 0 ? String(before).slice(sep + 1) : null;
+    const rows = db.prepare(`
+      SELECT other, stamp, direction, ref FROM (${CONVERSATION_UNION})
        WHERE other = @other
          AND (@bStamp IS NULL OR stamp < @bStamp OR (stamp = @bStamp AND ref < @bRef))
        ORDER BY stamp DESC, ref DESC LIMIT @n`).all({ slug, other, bStamp, bRef, n: n + 1 });
-    const meer = rijen.length > n;
-    const uit = meer ? rijen.slice(0, n) : rijen;
-    return { rijen: uit, meer, oudste: cursorVan(uit[uit.length - 1]) };
-  } catch { return { rijen: [], meer: false, oudste: null }; }
+    const more = rows.length > n;
+    const page = more ? rows.slice(0, n) : rows;
+    return { rows: page, more, oldest: cursorOf(page[page.length - 1]) };
+  } catch { return { rows: [], more: false, oldest: null }; }
 }
 
 // De kolommen die een bericht tot kaart maken. Een constante, want de
-// gesprekslezing haalt dezelfde rijen op: twee lijsten die uiteenlopen leveren
+// gesprekslezing haalt dezelfde rows op: twee lijsten die uiteenlopen leveren
 // een kaart die op de ene plek een plaatje heeft en op de andere niet.
-const BERICHT_KOLOMMEN = `
+const MESSAGE_COLUMNS = `
       m.object_uri, m.note_url, m.actor_uri, m.actor_name, m.actor_handle, m.actor_icon, m.actor_url,
       m.content, m.published, m.created_at, m.wave, m.help_request,
       m.emoji_json, m.actor_emoji_json, m.media_json, m.quote_json, m.embed_json`;
@@ -4292,7 +4292,7 @@ export function messageRowsByUri(slug, uris) {
   if (!lijst.length) return [];
   try {
     const gaten = lijst.map(() => '?').join(',');
-    return db.prepare(`SELECT ${BERICHT_KOLOMMEN} FROM ap_mentions m
+    return db.prepare(`SELECT ${MESSAGE_COLUMNS} FROM ap_mentions m
                         WHERE m.slug = ? AND m.object_uri IN (${gaten})`).all(slug, ...lijst);
   } catch { return []; }
 }
@@ -4300,7 +4300,7 @@ export function messageRowsByUri(slug, uris) {
 export function getDirectMessages(slug, limit) {
   try {
     return db.prepare(`
-      SELECT ${BERICHT_KOLOMMEN}
+      SELECT ${MESSAGE_COLUMNS}
       FROM ap_mentions m
       WHERE m.slug = ?
         AND NOT EXISTS (SELECT 1 FROM ap_timeline t WHERE t.slug = m.slug AND t.id = m.object_uri)
