@@ -4807,6 +4807,98 @@ export function firstExternalUrl(html) {
 }
 
 /** The stored external-embed card, for the C2S read. */
+// ── Standaardvormen in plaats van eigen dialect (shaer-nmw) ───────
+//
+// Robins waarschuwing: geen Klonkt/Shaer-dialect schrijven waar AS2 of een FEP
+// het al regelt. Vier eigen properties hadden een standaard naast zich staan,
+// en deze helpers zijn die standaard -- een definitie per vorm, zodat de tien
+// plekken die ze emitten niet elk hun eigen variant krijgen.
+//
+// De oude shaer:-velden blijven er voorlopig NAAST staan. Een app in het veld
+// leest ze nog, en een leeg scherm is een duurdere fout dan een dubbel veld;
+// ze gaan eruit als de clients om zijn (tweede helft van shaer-nmw).
+
+/** FEP-9098 Emoji-tags uit een {shortcode: url}-kaart. */
+function emojiTagsFromMap(emojis) {
+  const uit = Object.entries(emojis || {})
+    .filter(([naam, url]) => naam && url)
+    .map(([naam, url]) => ({ type: 'Emoji', name: naam, icon: { type: 'Image', url } }));
+  return uit.length ? uit : undefined;
+}
+
+/**
+ * Een actor als INGESLOTEN OBJECT voor `attributedTo` / `actor`.
+ *
+ * AS2 staat toe dat attributedTo een object is in plaats van een URI, en dan
+ * heeft ELKE client er wat aan -- niet alleen de onze, die er shaer:author
+ * naast kreeg. `preferredUsername` is de lokale naam; een lezer leidt de handle
+ * af uit die naam plus de host van de id, precies zoals wij serverkant ook
+ * doen. Weten we niets van de persoon, dan blijft het de kale URI: een leeg
+ * object zou beweren dat we hem kennen.
+ */
+export function actorObject(uri, info) {
+  if (!uri) return undefined;
+  const iets = info && (info.name || info.handle || info.icon || info.url);
+  if (!iets) return uri;
+  const o = { id: uri, type: 'Person' };
+  if (info.name) o.name = info.name;
+  const lokaal = String(info.handle || '').replace(/^@/, '').split('@')[0];
+  if (lokaal) o.preferredUsername = lokaal;
+  if (info.icon) o.icon = { type: 'Image', url: info.icon };
+  if (info.url) o.url = info.url;
+  const tags = emojiTagsFromMap(info.emojis);
+  if (tags) o.tag = tags;
+  return o;
+}
+
+/**
+ * De linkkaart als AS2 `preview` (core: "identifies an entity that provides a
+ * preview of this object"). Een Page met url, name en image IS een kaart; daar
+ * hoefde shaer:embed nooit voor te bestaan.
+ *
+ * Wat WEL van ons blijft is de spelerpagina: dat die alleen meegaat als de
+ * guardians de poort openden is FEP-633c-gedrag en heeft geen AS2-tegenhanger.
+ */
+export function previewObject(embedJson, { playback = false } = {}) {
+  const e = timelineEmbed(embedJson, { playback });
+  if (!e) return undefined;
+  const thumb = (e.media || []).find((m) => m && m.url);
+  const p = { type: 'Page', url: e.url };
+  if (e.title) p.name = e.title;
+  if (thumb) p.image = { type: 'Image', url: thumb.url };
+  if (e.author && (e.author.name || e.author.handle)) {
+    p.attributedTo = { type: 'Person', name: e.author.name || e.author.handle };
+  }
+  if (e['shaer:playerUrl']) p['shaer:playerUrl'] = e['shaer:playerUrl'];
+  if (e['shaer:playable']) p['shaer:playable'] = e['shaer:playable'];
+  return p;
+}
+
+/**
+ * De geciteerde post als OBJECT in `quote` (FEP-044f staat toe dat quote het
+ * object zelf is, niet alleen een URI). De opgeslagen momentopname wordt hier
+ * een echte Note, met de auteur als ingesloten actor -- dus geen tweede eigen
+ * property voor iets dat de FEP al kan.
+ */
+export function quoteObject(quoteJson) {
+  const q = timelineQuote(quoteJson);
+  if (!q) return undefined;
+  const note = { type: 'Note', id: q.url, url: q.url };
+  if (q.content) note.content = q.content;
+  if (q.published) note.published = q.published;
+  if (q.author) {
+    note.attributedTo = actorObject(q.author.url || q.url, {
+      name: q.author.name, handle: q.author.handle, icon: q.author.icon,
+    });
+  }
+  const media = (q.media || []).filter((m) => m && m.url)
+    .map((m) => ({ type: 'Document', mediaType: m.type || undefined, url: m.url }));
+  if (media.length) note.attachment = media;
+  const tags = emojiTagsFromMap(q.emojis);
+  if (tags) note.tag = tags;
+  return note;
+}
+
 export function timelineEmbed(embedJson, { playback = false } = {}) {
   try {
     const e = embedJson ? JSON.parse(embedJson) : null;
@@ -6187,7 +6279,7 @@ export default {
   autoBoostCount, boostedCount, setReaction, getReaction, getReactionsFor, canonicalReactionUri, migrateReactions, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
-  sendMaybe304, etagFor, onGuardian, wakeGuardian, onGuardianshipEvent, proposeGate, getReplyUris, getThread, filterThreadToCircle, gateAttachments, stripEmojiTags, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
+  sendMaybe304, etagFor, onGuardian, wakeGuardian, onGuardianshipEvent, proposeGate, getReplyUris, getThread, filterThreadToCircle, gateAttachments, stripEmojiTags, actorObject, previewObject, quoteObject, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
   linkifyBody, bakePostContent, bakePostContentWithMentions, listFollowers, removeFollower, listConnections,
   noteVisibility, belongsInTimeline, playerUrlFor, isRejectedObject, rejectInteraction, interactionReportTarget,
   getMessages, notificationsSeenAt, ingestOutboxActivity, c2sVisibility, actorDisplay, buildActorRef, prefersEnriched, selfAuthor, getReplyMessages, onNews, wakeNews,

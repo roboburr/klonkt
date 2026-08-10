@@ -213,10 +213,20 @@ router.get('/ap/users/:slug/outbox', async (req, res) => {
     for (const it of ob.orderedItems) {
       if (it && it.object && typeof it.object === 'object') {
         it.object['shaer:author'] = me;
+        // En de standaardvorm ernaast (shaer-nmw): de ingesloten actor, zodat
+        // ook een generieke lezer de byline heeft.
+        it.object.attributedTo = AP.actorObject(
+          (typeof it.object.attributedTo === 'string' ? it.object.attributedTo : undefined) || AP.actorId(baseUrl(req), site.slug),
+          me,
+        );
         const row = byNote.get(it.object.id);
         if (row) {
           it.object['shaer:quote'] = AP.timelineQuote(row.quote_json);
-          if (bearerEmbeds) it.object['shaer:embed'] = AP.timelineEmbed(row.embed_json, { playback: bearerEmbeds.playback });
+          it.object.quote = AP.quoteObject(row.quote_json);
+          if (bearerEmbeds) {
+            it.object['shaer:embed'] = AP.timelineEmbed(row.embed_json, { playback: bearerEmbeds.playback });
+            it.object.preview = AP.previewObject(row.embed_json, { playback: bearerEmbeds.playback });
+          }
         }
       }
     }
@@ -437,20 +447,43 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
   // Emoji dicht raakt ook de bylines: de plaatjes in een naam komen net zo
   // goed van een vreemde server. De naam zelf blijft, met :shortcode: als tekst.
   const gateAuthor = (a) => (a && !emojiAllowed ? { ...a, emojis: undefined } : a);
+  // ── Standaardvormen naast het dialect (shaer-nmw) ────────────────
+  //
+  // Een lezer die AS2 kent heeft nu genoeg aan attributedTo (ingesloten
+  // actor), quote (FEP-044f als object), preview (AS2 core) en de
+  // Announce-wrapper. De shaer:-velden blijven er nog naast staan voor apps
+  // in het veld; die gaan eruit als de clients om zijn.
+  const authorInfo = (r, p) => {
+    const info = {
+      name: r[`${p}name`] || undefined, handle: r[`${p}handle`] || undefined,
+      icon: r[`${p}icon`] || undefined, url: r[`${p}url`] || undefined,
+      emojis: (() => { try { return r[`${p}emoji_json`] ? JSON.parse(r[`${p}emoji_json`]) : undefined; } catch { return undefined; } })(),
+    };
+    return (info.name || info.handle || info.icon) ? gateAuthor(info) : undefined;
+  };
   const rows = AP.getTimeline(auth.site.slug, 60);
   // Eén query voor de hele pagina (shaer-9e9 fase 2): shaer:liked komt uit de
   // tussentabel, de bron van waarheid, en niet meer uit de afgeleide kolom op
   // ap_timeline. Per rij vragen zou hier een N+1 opleveren.
   const reacties = AP.getReactionsFor(auth.site.slug, rows.map((t) => t.id));
-  const posts = rows.map((t) => ({
+  const posts = rows.map((t) => {
+    const auteur = authorInfo(t, 'author_');
+    const booster = authorInfo(t, 'reblog_');
+    const boosterUri = t.reblog_url || t.reblog_handle || undefined;
+    return {
     id: `${t.id}#create`,
-    type: 'Create',
-    actor: t.author_uri,
+    // EEN BOOST IS EEN ANNOUNCE (shaer-nmw): een Create met een
+    // zijkanaal-property was onze uitvinding; de wrapper is de standaard, en
+    // elke AP-client leest hem al.
+    type: booster ? 'Announce' : 'Create',
+    actor: booster ? (AP.actorObject(boosterUri || t.author_uri, booster)) : t.author_uri,
     published: t.published || t.created_at || undefined,
     object: {
       id: t.id,
       type: 'Note',
-      attributedTo: t.author_uri,
+      // AS2 staat een INGESLOTEN actor toe; dan heeft elke client de byline,
+      // niet alleen de onze (shaer-nmw).
+      attributedTo: AP.actorObject(t.author_uri, auteur),
       content: t.content,
       url: t.url || undefined,
       published: t.published || t.created_at || undefined,
@@ -496,8 +529,13 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
       // Omitted entirely when the gate is closed (see above).
       // Carries shaer:playerUrl only when the playback gate is open too.
       'shaer:embed': embedsAllowed ? AP.timelineEmbed(t.embed_json, { playback: playbackAllowed }) : undefined,
+      // De standaardvormen (shaer-nmw): FEP-044f quote als object, AS2 preview
+      // als kaart. Dezelfde poorten als hun shaer:-tegenhangers hierboven.
+      quote: quotesAllowed ? AP.quoteObject(t.quote_json) : undefined,
+      preview: embedsAllowed ? AP.previewObject(t.embed_json, { playback: playbackAllowed }) : undefined,
     },
-  }));
+  };
+  });
   // The direct notes addressed to this account: a plain DM, a guardian's wave
   // (§5), a ward's 🛟 help request (§5.2.1). Those are messages, not posts, so
   // they are not in the timeline; without them the app's Berichten shows only
@@ -519,7 +557,11 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
     object: {
       id: m.object_uri,
       type: 'Note',
-      attributedTo: m.actor_uri,
+      attributedTo: AP.actorObject(m.actor_uri, (m.actor_name || m.actor_handle || m.actor_icon) ? gateAuthor({
+        name: m.actor_name || undefined, handle: m.actor_handle || undefined,
+        icon: m.actor_icon || undefined, url: m.actor_url || undefined,
+        emojis: (() => { try { return m.actor_emoji_json ? JSON.parse(m.actor_emoji_json) : undefined; } catch { return undefined; } })(),
+      }) : undefined),
       content: AP.stripLeadingMentions(m.content),
       url: m.note_url || undefined,
       published: AP.isoStamp(m.published || m.created_at),
@@ -542,6 +584,8 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
         emojis: (() => { try { return m.actor_emoji_json ? JSON.parse(m.actor_emoji_json) : undefined; } catch { return undefined; } })(),
       } : undefined),
       'shaer:embed': embedsAllowed ? AP.timelineEmbed(m.embed_json, { playback: playbackAllowed }) : undefined,
+      quote: quotesAllowed ? AP.quoteObject(m.quote_json) : undefined,
+      preview: embedsAllowed ? AP.previewObject(m.embed_json, { playback: playbackAllowed }) : undefined,
     },
   }));
   // Inbound REPLIES on your own posts: stored as interactions (the web's
@@ -556,7 +600,11 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
     object: {
       id: m.object_uri,
       type: 'Note',
-      attributedTo: m.actor_uri,
+      attributedTo: AP.actorObject(m.actor_uri, (m.actor_name || m.actor_handle || m.actor_icon) ? gateAuthor({
+        name: m.actor_name || undefined, handle: m.actor_handle || undefined,
+        icon: m.actor_icon || undefined, url: m.actor_url || undefined,
+        emojis: (() => { try { return m.actor_emoji_json ? JSON.parse(m.actor_emoji_json) : undefined; } catch { return undefined; } })(),
+      }) : undefined),
       content: AP.stripLeadingMentions(m.content),
       inReplyTo: m.parent_uri || `${base}/ap/notes/${m.post_id}`,
       published: AP.isoStamp(m.published || m.created_at),
@@ -570,6 +618,8 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
         emojis: (() => { try { return m.actor_emoji_json ? JSON.parse(m.actor_emoji_json) : undefined; } catch { return undefined; } })(),
       } : undefined,
       'shaer:embed': embedsAllowed ? AP.timelineEmbed(m.embed_json, { playback: playbackAllowed }) : undefined,
+      quote: quotesAllowed ? AP.quoteObject(m.quote_json) : undefined,
+      preview: embedsAllowed ? AP.previewObject(m.embed_json, { playback: playbackAllowed }) : undefined,
     },
   }));
   // Your OWN sent notes (replies and direct messages, ap_outbox): without
@@ -584,7 +634,11 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
     published: n.published,
     // The leading mention anchor is addressing, not prose (the DM leg strips
     // it the same way); the Mention tags built from the full content stay.
-    object: { ...n, content: AP.stripLeadingMentions(n.content), 'shaer:author': mine },
+    object: {
+      ...n, content: AP.stripLeadingMentions(n.content),
+      'shaer:author': mine,
+      attributedTo: AP.actorObject(typeof n.attributedTo === 'string' ? n.attributedTo : me, mine),
+    },
   }));
   // Newest first over all legs, so the app can keep treating this as one feed.
   const items = [...posts, ...messages, ...replies, ...sent].sort((a, b) => String(b.published || '').localeCompare(String(a.published || '')));
@@ -904,6 +958,8 @@ router.get('/ap/users/:slug/card', async (req, res) => {
     '@context': AP.AP_CONTEXT,
     'shaer:quote': AP.timelineQuote(uit.quoteJson),
     'shaer:embed': embedsAllowed ? AP.timelineEmbed(uit.embedJson, { playback }) : undefined,
+    quote: AP.quoteObject(uit.quoteJson),
+    preview: embedsAllowed ? AP.previewObject(uit.embedJson, { playback }) : undefined,
   }, 'private, no-store');
 });
 
