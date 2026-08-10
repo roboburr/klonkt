@@ -937,7 +937,17 @@ router.get('/ap/users/:slug/thread', async (req, res) => {
   if (!/^https:\/\//i.test(objectUri)) return res.status(400).json({ error: 'object must be an https URI' });
   const isWard = (() => { try { return Guardianship.listGuardians(auth.site.slug).length > 0; } catch { return false; } })();
   const uit = await AP.getThread(auth.site.slug, objectUri);
-  if (!uit.found) return res.status(404).json({ error: 'note not reachable' });
+  if (!uit.found) {
+    // WIENS schuld is dit? De oude melding zei "jouw server kon het niet
+    // laden" terwijl onze server het prima deed en de BRON weigerde -- dat
+    // wees naar de verkeerde partij (Barts melding, 10-8: een post van een
+    // account dat hij vanochtend nog volgde, en dat nu niet meer).
+    // 401/403/404/410 is een besluit van die server; al het andere, inclusief
+    // een status die we niet eens kregen, is een storing.
+    const geweigerd = [401, 403, 404, 410].includes(uit.sourceStatus);
+    return res.status(geweigerd ? 404 : 502)
+      .json({ error: geweigerd ? 'not shared by source' : 'source unreachable', sourceStatus: uit.sourceStatus || undefined });
+  }
   // De poortstand komt uit de kolom (shaer-9y2): expliciete 0/1 van de
   // guardians wint, de automatiek is dicht-voor-een-ward. Dicht is de KRING,
   // niet niets: antwoorden van al goedgekeurd volk blijven staan, en wat er

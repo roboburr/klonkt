@@ -3697,7 +3697,12 @@ export async function getThread(slug, objectUri) {
   const hit = threadViewCache.get(key);
   if (hit && Date.now() - hit.at < THREAD_VIEW_TTL_MS) return hit.out;
 
-  const get = (u) => localNoteObject(u, slug) || signedGetJson(slug, u);
+  // De status waarmee de BRON antwoordde op de note zelf. 401/403/404/410 is
+  // een besluit van die server (niet gedeeld, of weg); alles daarbuiten -- ook
+  // een stuk netwerk dat wegviel -- is een storing. De route moet dat verschil
+  // kunnen zeggen, anders wijst de melding naar de verkeerde partij.
+  let sourceStatus = 0;
+  const get = (u) => localNoteObject(u, slug) || signedGetJson(slug, u, (st) => { sourceStatus = st; });
   const note = await get(objectUri);
   const repliesRef = note && note.replies;
   let coll = null;
@@ -3780,7 +3785,7 @@ export async function getThread(slug, objectUri) {
     })(),
   })).sort((a, b) => String(a.published || '').localeCompare(String(b.published || '')));
 
-  const out = { notes, found: !!note };
+  const out = { notes, found: !!note, sourceStatus };
   threadViewCache.set(key, { at: Date.now(), out });
   if (threadViewCache.size > THREAD_VIEW_CACHE_MAX) {
     const oldest = [...threadViewCache.entries()].sort((a, b) => a[1].at - b[1].at)[0];
@@ -5000,7 +5005,7 @@ async function resolveCard(o) {
  * exactly like the guardian's authorized fetch. The signature covers
  * (request-target) host date, the set verifyRequest checks.
  */
-async function signedGetJson(slug, url) {
+async function signedGetJson(slug, url, onStatus) {
   try {
     const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
     if (!base || !slug) return apGetJson(url);
@@ -5013,6 +5018,10 @@ async function signedGetJson(slug, url) {
     const signature = crypto.sign('sha256', Buffer.from(signingString), keys.private_pem).toString('base64');
     const sig = `keyId="${me}#main-key",algorithm="rsa-sha256",headers="(request-target) host date",signature="${signature}"`;
     const r = await safeFetch(url, { headers: { Accept: 'application/activity+json', Date: date, Signature: sig } });
+    // De status doorgeven aan wie erom vroeg: null alleen zegt "het lukte
+    // niet", en dat is te weinig om een WEIGERING van een STORING te
+    // onderscheiden. Wie geen callback meegeeft merkt hier niets van.
+    if (typeof onStatus === 'function') onStatus(r.status);
     if (!r.ok) return null;
     const len = Number(r.headers.get('content-length') || 0);
     if (len > 3_000_000) return null;

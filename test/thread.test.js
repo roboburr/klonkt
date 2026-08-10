@@ -192,3 +192,50 @@ test('de thread-route geeft de byline in attributedTo, en de emoji-poort knipt d
   assert.ok(!(na.tag || []).some((x) => x.type === 'Emoji'), 'dichte poort: geen emoji meer');
   assert.ok(!na.attributedTo.tag, 'ook niet in de byline');
 });
+
+// ── Wiens schuld is het? ─────────────────────────────────────────────
+//
+// "Replies could not be loaded from your server" wees naar de verkeerde
+// partij: onze server deed het prima en de BRON weigerde. Een weigering
+// (401/403/404/410 -- niet gedeeld, of weg) is iets anders dan een storing, en
+// alleen de server weet welke van de twee het was.
+test('een weigering van de bron is 404, een storing is 502', async (t) => {
+  const crypto = await import('crypto');
+  const express = (await import('express')).default;
+  const routes = (await import('../src/routes/activitypub.js')).default;
+
+  const bearer = 'test-token-' + 'd'.repeat(24);
+  db.prepare('INSERT INTO oauth_tokens (token_hash, client_id, user_id, site_slug, scope) VALUES (?,?,?,?,?)')
+    .run(crypto.createHash('sha256').update(bearer).digest('base64url'), 'c', 'u1', 'kind', 'read write');
+
+  const app = express();
+  app.use(routes);
+  const server = app.listen(0);
+  t.after(() => server.close());
+  await new Promise((r) => server.once('listening', r));
+
+  const vorige = globalThis.fetch;
+  t.after(() => { globalThis.fetch = vorige; });
+  const vraag = async (uri) => {
+    const r = await echteFetch(
+      `http://127.0.0.1:${server.address().port}/ap/users/kind/thread?object=${encodeURIComponent(uri)}`,
+      { headers: { Authorization: `Bearer ${bearer}` } });
+    return { status: r.status, body: await r.json() };
+  };
+
+  // De bron zegt nee -- precies wat boiert.eu doet met een friends-only post
+  // voor iemand die de auteur niet (meer) volgt.
+  const DICHT = 'https://203.0.113.50/notes/dicht';
+  globalThis.fetch = async () => new Response('nope', { status: 404 });
+  const nee = await vraag(DICHT);
+  assert.equal(nee.status, 404);
+  assert.equal(nee.body.error, 'not shared by source');
+  assert.equal(nee.body.sourceStatus, 404);
+
+  // De bron ligt eruit. Dezelfde lege uitkomst, een andere waarheid.
+  const STUK = 'https://203.0.113.51/notes/stuk';
+  globalThis.fetch = async () => new Response('boem', { status: 500 });
+  const stuk = await vraag(STUK);
+  assert.equal(stuk.status, 502);
+  assert.equal(stuk.body.error, 'source unreachable');
+});
