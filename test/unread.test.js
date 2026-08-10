@@ -70,3 +70,20 @@ test('een verwijdering laat het getal vanzelf kloppen', () => {
 test('een onbekende note markeert niets, en dat is geen fout', () => {
   assert.equal(AP.markRead('kind', 'https://elders/n/bestaat-niet'), null);
 });
+
+test('een dichte messages-poort telt niet mee wat hij verbergt', () => {
+  // Anders vertelt het getal precies wat de poort verbergt: 'er zijn 3
+  // berichten' terwijl de app er geen laat zien.
+  const OPA = 'https://elders/u/opa';
+  arrived('https://elders/n/opa1', OPA, '2026-08-02T10:00:00Z');
+  arrived('https://elders/n/oom2', OOM, '2026-08-02T11:00:00Z');
+  db.prepare(`INSERT INTO ap_mentions (slug, object_uri, actor_uri, actor_name, content, published, help_request)
+              VALUES ('kind', 'https://elders/n/boei', ?, 'iemand', '<p>help</p>', '2026-08-02T12:00:00Z', 1)`).run(OPA);
+
+  const dicht = AP.unreadPerConversation('kind', { messagesAllowed: false, guardians: new Set([OOM]) });
+  assert.equal(dicht.get(OPA).n, 1, 'alleen de boei van opa telt');
+  assert.ok(dicht.get(OOM), 'het guardian-kanaal gaat altijd door');
+
+  const open = AP.unreadPerConversation('kind', { messagesAllowed: true });
+  assert.equal(open.get(OPA).n, 2, 'met de poort open tellen ze allebei');
+});

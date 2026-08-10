@@ -4409,8 +4409,12 @@ export function markRead(slug, objectUri) {
  * guardian -- die hoort een eigen teken te krijgen en niet opgeteld te worden.
  * Eigen berichten tellen nooit mee: je hebt jezelf gelezen.
  */
-export function unreadPerConversation(slug) {
+export function unreadPerConversation(slug, { messagesAllowed = true, guardians = new Set() } = {}) {
   try {
+    // DE POORT TELT MEE. Staat messages dicht, dan toont de app die berichten
+    // niet -- en dan mag een badge ze ook niet aankondigen, want dat getal
+    // vertelt precies wat de poort verbergt. Wat er altijd door mag telt wel:
+    // het guardian-kanaal en de boei. Zelfde regel als bij de serialisatie.
     const rijen = db.prepare(`
       SELECT u.other AS other,
              COUNT(*) AS n,
@@ -4420,7 +4424,9 @@ export function unreadPerConversation(slug) {
         LEFT JOIN ap_mentions m ON m.slug = @slug AND m.object_uri = u.ref
        WHERE u.direction = 'in'
          AND (r.cursor IS NULL OR (u.stamp || '|' || u.ref) > r.cursor)
-       GROUP BY u.other`).all({ slug });
+         AND (@open = 1 OR m.help_request = 1 OR u.other IN (SELECT value FROM json_each(@guardians)))
+       GROUP BY u.other`)
+      .all({ slug, open: messagesAllowed ? 1 : 0, guardians: JSON.stringify([...guardians]) });
     return new Map(rijen.map((r) => [r.other, { n: r.n, wave: !!r.wave }]));
   } catch { return new Map(); }
 }
