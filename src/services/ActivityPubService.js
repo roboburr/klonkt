@@ -28,7 +28,7 @@ import Push from './PushService.js';
 import { t as i18nT } from './i18n.js';
 import Blocklist from './BlocklistService.js';
 import * as Guardianship from './guardianship/index.js';
-import { PUBLIC, AP_CONTEXT, safeUrl, actorId, noteId, guessMediaType, normalizeTags, tagParts, hashtagTags, buildHashtagList } from './ap-core.js';
+import { PUBLIC, AP_CONTEXT, safeUrl, actorId, noteId, guessMediaType, normalizeTags, tagParts, hashtagTags, buildHashtagList, pagedCollection } from './ap-core.js';
 // Doorgeven wat hier altijd vandaan kwam, zodat elke bestaande aanroep blijft werken.
 export { AP_CONTEXT, actorId, noteId, guessMediaType };
 // De muziekkant woont in music/ (shaer-drc). Doorgeven wat hier altijd
@@ -1042,26 +1042,7 @@ export function buildOutbox(base, site, posts, tracks = [], { page = false } = {
   // De items blijven WEL inline op de wortel. Shaer bouwt zijn feed daaruit, en
   // wie hem vandaag leest hoort er morgen niet voor te hoeven pagineren. Er is
   // precies een pagina, dus first en last wijzen naar dezelfde.
-  const eerste = `${id}?page=1`;
-  if (page) {
-    return {
-      '@context': AP_CONTEXT,
-      id: eerste,
-      type: 'OrderedCollectionPage',
-      partOf: id,
-      totalItems: items.length,
-      orderedItems: items,
-    };
-  }
-  return {
-    '@context': AP_CONTEXT,
-    id,
-    type: 'OrderedCollection',
-    totalItems: items.length,
-    first: eerste,
-    last: eerste,
-    orderedItems: items,
-  };
+  return pagedCollection(id, items, { page });
 }
 
 // Public callers get a count-only collection (privacy). The authenticated
@@ -1069,26 +1050,16 @@ export function buildOutbox(base, site, posts, tracks = [], { page = false } = {
 // `items`, so their own client can build a friends list.
 export function buildFollowers(base, site, count, items = null) {
   const id = `${actorId(base, site.slug)}/followers`;
-  return {
-    '@context': AP_CONTEXT,
-    id,
-    type: 'OrderedCollection',
-    totalItems: items ? items.length : (count || 0),
-    orderedItems: items || [], // count-only for the public; full for the owner
-  };
+  // count-only for the public; full for the owner
+  return pagedCollection(id, items || [], { totalItems: items ? items.length : (count || 0) });
 }
 
 // The accounts this site follows — count only, mirroring buildFollowers. The spec lists
 // `following` as a standard actor property; Hubzilla/Friendica + crawlers expect it.
 export function buildFollowing(base, site, count, items = null) {
   const id = `${actorId(base, site.slug)}/following`;
-  return {
-    '@context': AP_CONTEXT,
-    id,
-    type: 'OrderedCollection',
-    totalItems: items ? items.length : (count || 0),
-    orderedItems: items || [], // count-only for the public; full for the owner
-  };
+  // count-only for the public; full for the owner
+  return pagedCollection(id, items || [], { totalItems: items ? items.length : (count || 0) });
 }
 
 // Pinned posts → the actor's `featured` collection. Mastodon reads this and shows
@@ -1097,13 +1068,7 @@ export function buildFollowing(base, site, count, items = null) {
 export function buildFeatured(base, site, posts) {
   const id = `${actorId(base, site.slug)}/featured`;
   const items = (posts || []).map((p) => buildNote(base, site, p));
-  return {
-    '@context': AP_CONTEXT,
-    id,
-    type: 'OrderedCollection',
-    totalItems: items.length,
-    orderedItems: items,
-  };
+  return pagedCollection(id, items);
 }
 
 // ── Playlist als AP-collectie (shaer-ayc, stap 1 van het Funkwhale-spoor) ──
@@ -6554,7 +6519,7 @@ Guardianship.wireAvailability({
 });
 
 export default {
-  AP_CONTEXT, getOrCreateKeys, apWants, sendAP, actorId, noteId, stripLeadingMentions,
+  AP_CONTEXT, getOrCreateKeys, apWants, sendAP, actorId, noteId, stripLeadingMentions, pagedCollection,
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers, buildFollowing, buildFeatured,
   channelUrls, channelCategory, timelineFields, guessMediaType,
   siteOpenTracks, openTrack, buildTrackAudio, buildTrackCollection, buildTrackCreate, trackHostPosts,

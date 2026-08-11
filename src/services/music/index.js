@@ -13,7 +13,7 @@
  */
 
 import db from '../../config/database.js';
-import { AP_CONTEXT, PUBLIC, actorId, noteId, safeUrl, guessMediaType, buildHashtagList } from '../ap-core.js';
+import { AP_CONTEXT, PUBLIC, actorId, noteId, safeUrl, guessMediaType, buildHashtagList, pagedCollection } from '../ap-core.js';
 import { afleidenUitInsluitingen, ingeslotenPlaylists } from '../../assets/js/shared/post-music-type.js';
 
 // m.size hoort erbij voor de RSS-enclosure: die eist een lengte in bytes.
@@ -200,18 +200,10 @@ export function licentieUri(waarde) {
 
 /** De collectie van alle open tracks van een site (shaer-0nh, stap 3). */
 export function buildTrackCollection(base, site, rows) {
-  return {
-    '@context': AP_CONTEXT,
-    id: `${actorId(base, site.slug)}/tracks`,
-    type: 'OrderedCollection',
-    attributedTo: actorId(base, site.slug),
-    totalItems: (rows || []).length,
-    // Eén zoekopdracht voor alle rijen samen; zie trackHostPosts.
-    orderedItems: (() => {
-      const posts = site.id ? trackHostPosts(site.id) : null;
-      return (rows || []).map((r) => buildTrackAudio(base, site, r, { hostPosts: posts }));
-    })(),
-  };
+  // Eén zoekopdracht voor alle rijen samen; zie trackHostPosts.
+  const posts = site.id ? trackHostPosts(site.id) : null;
+  const items = (rows || []).map((r) => buildTrackAudio(base, site, r, { hostPosts: posts }));
+  return pagedCollection(`${actorId(base, site.slug)}/tracks`, items, { extra: { attributedTo: actorId(base, site.slug) } });
 }
 
 // Een post die een playlist insluit wijst in zijn AS2 ook naar de collectie
@@ -269,14 +261,7 @@ export function listPlaylistsAP(base, site, enriched) {
     delete stub.orderedItems;      // stub: wie de tracks wil, haalt de collectie op
     return stub;
   });
-  return {
-    '@context': AP_CONTEXT,
-    id: colId,
-    type: 'OrderedCollection',
-    attributedTo: actorId(base, site.slug),
-    totalItems: items.length,
-    orderedItems: items,
-  };
+  return pagedCollection(colId, items, { extra: { attributedTo: actorId(base, site.slug) } });
 }
 
 export function buildPlaylistCollection(base, site, playlist, rows) {
@@ -288,15 +273,9 @@ export function buildPlaylistCollection(base, site, playlist, rows) {
   // De hoes van de playlist dient als terugval voor een track zonder eigen hoes.
   const hostPosts = site.id ? trackHostPosts(site.id) : null;
   const items = (rows || []).map((r) => buildTrackAudio(base, site, r, { coverFallback: playlist.cover_url || null, hostPosts }));
-  const out = {
-    '@context': AP_CONTEXT,
-    id: `${actorId(base, site.slug)}/playlists/${playlist.id}`,
-    type: 'OrderedCollection',
-    name: playlist.title,
-    attributedTo: actorId(base, site.slug),
-    totalItems: items.length,
-    orderedItems: items,
-  };
+  const out = pagedCollection(`${actorId(base, site.slug)}/playlists/${playlist.id}`, items, {
+    extra: { name: playlist.title, attributedTo: actorId(base, site.slug) },
+  });
   // Album of playlist is presentatie; op de draad is het één samenvattingsveld.
   const parts = [];
   if (playlist.artist) parts.push(playlist.artist);
@@ -448,14 +427,9 @@ export function buildPostTrackCollection(base, site, post) {
   if (!rows.length) return null;
 
   const hostPosts = new Map(rows.map((r) => [r.id, { id: post.id, slug: post.slug }]));
-  const out = {
-    '@context': AP_CONTEXT,
-    id: postTracksId(base, site, post.id),
-    type: 'OrderedCollection',
-    attributedTo: actorId(base, site.slug),
-    totalItems: rows.length,
-    orderedItems: rows.map((r) => buildTrackAudio(base, site, r, { hostPosts })),
-  };
+  const out = pagedCollection(postTracksId(base, site, post.id),
+    rows.map((r) => buildTrackAudio(base, site, r, { hostPosts })),
+    { extra: { attributedTo: actorId(base, site.slug) } });
   return leenVanPost(base, site, out, post);
 }
 

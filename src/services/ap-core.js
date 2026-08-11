@@ -186,3 +186,53 @@ export function buildHashtagList(base, tagsField, content, opts = {}) {
   }
   return out;
 }
+
+/**
+ * Een AS2-collectie MET de paginavelden erbij (shaer-0nh, 11-8).
+ *
+ * WAAROM DIT EEN HELPER IS EN GEEN REGELS. Funkwhale weigerde onze outbox met
+ * "first: This field is required" en "last: This field is required" -- de eerste
+ * concrete reden die we hoorden waarom er niets van ons binnenkwam. AS2 EIST die
+ * velden niet, maar bijna iedereen pagineert, en een lezer die de paginaweg
+ * volgt liep dood. Toen dat voor de outbox gerepareerd was misten alle andere
+ * collecties ze nog steeds. Een helper zorgt dat de volgende collectie ze niet
+ * opnieuw vergeet.
+ *
+ * DE ITEMS BLIJVEN INLINE op de wortel. Shaer bouwt zijn feed daaruit, en wie
+ * hem vandaag leest hoort er morgen niet voor te hoeven pagineren. Onze
+ * collecties zijn gekapt, dus er is precies EEN pagina en wijzen first en last
+ * naar dezelfde.
+ *
+ * @param {string} id        de collectie-uri, zonder query
+ * @param {Array}  items     wat erin zit (mag leeg)
+ * @param {object} opts
+ *   totalItems  als de telling niet items.length is (followers geeft publiek
+ *               alleen een AANTAL en houdt de lijst dicht)
+ *   page        true -> een OrderedCollectionPage met partOf in plaats van de wortel
+ *   extra       velden die op de wortel horen (attributedTo, shaer:*)
+ */
+export function pagedCollection(id, items, { totalItems, page = false, extra = {} } = {}) {
+  const lijst = items || [];
+  const telling = totalItems === undefined ? lijst.length : totalItems;
+  const eerste = `${id}?page=1`;
+  if (page) {
+    return {
+      '@context': AP_CONTEXT,
+      id: eerste,
+      type: 'OrderedCollectionPage',
+      partOf: id,
+      totalItems: telling,
+      orderedItems: lijst,
+    };
+  }
+  return {
+    '@context': AP_CONTEXT,
+    id,
+    type: 'OrderedCollection',
+    ...extra,
+    totalItems: telling,
+    first: eerste,
+    last: eerste,
+    orderedItems: lijst,
+  };
+}

@@ -1203,6 +1203,9 @@ router.get('/ap/users/:slug/thread', async (req, res) => {
   // mogen twee minuten oud zijn, maar of JIJ iets geliked hebt hoort van nu te
   // zijn -- anders springt het hartje terug zodra de reader opnieuw opent.
   const reacties = AP.getReactionsFor(auth.site.slug, uit.notes.map((n) => n.id));
+  // De thread heeft al een ?object= in zijn id, dus geen ?page= erachter: die
+  // collectie is niet te pagineren zonder de vraag zelf te herhalen. Hij is
+  // owner-only en wordt door Shaer gelezen, niet door de federatie.
   AP.sendAP(res, {
     '@context': AP.AP_CONTEXT,
     id: `${baseUrl(req)}/ap/users/${encodeURIComponent(auth.site.slug)}/thread?object=${encodeURIComponent(objectUri)}`,
@@ -1220,13 +1223,7 @@ router.get('/ap/users/:slug/thread', async (req, res) => {
 router.get('/ap/notes/:id/replies', (req, res) => {
   const base = baseUrl(req);
   const items = AP.getReplyUris(base, req.params.id);
-  AP.sendAP(res, {
-    '@context': AP.AP_CONTEXT,
-    id: `${base}/ap/notes/${req.params.id}/replies`,
-    type: 'OrderedCollection',
-    totalItems: items.length,
-    orderedItems: items,
-  });
+  AP.sendAP(res, AP.pagedCollection(`${base}/ap/notes/${req.params.id}/replies`, items));
 });
 
 // ── NodeInfo ── standard instance metadata so fediverse tools recognise Klonkt.

@@ -61,3 +61,39 @@ test('ook een LEGE outbox draagt ze -- een geblokkeerde lezer krijgt geldige AS2
   assert.equal(leeg.first, `${OUT}?page=1`);
   assert.equal(leeg.last, `${OUT}?page=1`);
 });
+
+// ── En de andere collecties, want compleetheid was de opdracht ────────────
+
+test('followers en following dragen ze ook, ook count-only', () => {
+  // Publiek geven die alleen een AANTAL en houden de lijst dicht. Juist dan is
+  // een geldige collectie belangrijk: anders is "ik mag de lijst niet zien"
+  // niet te onderscheiden van een kapot antwoord.
+  const f = AP.buildFollowers(BASE, site, 42, null);
+  assert.equal(f.totalItems, 42);
+  assert.deepEqual(f.orderedItems, []);
+  assert.equal(f.first, `${BASE}/ap/users/dev/followers?page=1`);
+  const g = AP.buildFollowing(BASE, site, 3, null);
+  assert.equal(g.first, `${BASE}/ap/users/dev/following?page=1`);
+  assert.equal(g.last, `${BASE}/ap/users/dev/following?page=1`);
+});
+
+test('featured ook', () => {
+  const ft = AP.buildFeatured(BASE, site, [POST]);
+  assert.equal(ft.first, `${BASE}/ap/users/dev/featured?page=1`);
+  assert.equal(ft.orderedItems.length, 1, 'en de items blijven inline');
+});
+
+test('de muziekcollecties ook, met hun eigen velden erbij', () => {
+  const tc = AP.buildTrackCollection(BASE, site, []);
+  assert.equal(tc.first, `${BASE}/ap/users/dev/tracks?page=1`);
+  assert.equal(tc.attributedTo, `${BASE}/ap/users/dev`,
+    'de helper mag attributedTo niet opeten');
+});
+
+test('de guardianship-wachtrijen ook', async () => {
+  const q = await import('../src/services/guardianship/queues.js');
+  const c = q.helpCollection('https://ons.test/q/help', 'dev');
+  assert.equal(c.first, 'https://ons.test/q/help?page=1');
+  assert.equal(c['@context'], undefined,
+    'de context zet de route erop -- twee keer zou hem ongeldig maken');
+});

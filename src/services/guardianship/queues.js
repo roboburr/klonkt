@@ -19,8 +19,14 @@ import * as help from './help.js';
 import db from '../../config/database.js';
 import * as handshake from './handshake.js';
 
+// De @context zet de route erop (queueRoute), dus hier bewust niet
+// pagedCollection uit ap-core -- die voegt hem toe en dan staat hij er twee
+// keer. Wel dezelfde paginavelden, om dezelfde reden: een lezer die de
+// paginaweg volgt hoort niet dood te lopen (Funkwhale, 11-8).
 const collection = (id, items) => ({
-  id, type: 'OrderedCollection', totalItems: items.length, orderedItems: items,
+  id, type: 'OrderedCollection', totalItems: items.length,
+  first: `${id}?page=1`, last: `${id}?page=1`,
+  orderedItems: items,
 });
 
 /** Pending offers where the local site is a party, each with its accept
