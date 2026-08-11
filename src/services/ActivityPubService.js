@@ -2180,14 +2180,21 @@ export async function handleInbox(req, slugParam, preVerified = null) {
     // Every LOCAL party this activity is addressed to gets its own copy of the
     // handshake (a ward and a co-guardian may both live here). Gather candidate
     // local slugs from the inbox owner, the `to` list, and the ward.
+    // MET localSlugOf en niet met slugFromActorUrl. Dat laatste knipt alleen de
+    // staart van een pad af, zonder naar de HOST te kijken -- en deze uri's
+    // komen uit `to` en uit de relatie, dus van de afzender. Een Offer gericht
+    // aan https://elders.example/ap/users/dev leverde zo de slug "dev" op, en
+    // die bestaat hier. Dan draait onze dev de afhandeling van een activiteit
+    // die nooit aan hem geadresseerd was. localSlugOf eist dat de uri met onze
+    // eigen basis begint en dat de site echt bestaat.
     const cand = new Set();
     if (slugParam) cand.add(slugParam);
     for (const t of (Array.isArray(act.to) ? act.to : (act.to ? [act.to] : []))) {
-      if (typeof t === 'string') { const s = slugFromActorUrl(t); if (s) cand.add(s); }
+      if (typeof t === 'string') { const s = localSlugOf(t); if (s) cand.add(s); }
     }
     if (type === 'Offer' || type === 'Undo') {
       const rel = type === 'Undo' ? Guardianship.parseUndoRelationship(act) : Guardianship.parseRelationship(act.object);
-      if (rel) { const s = slugFromActorUrl(rel.ward); if (s) cand.add(s); }
+      if (rel) { const s = localSlugOf(rel.ward); if (s) cand.add(s); }
     }
     let consumed = false;
     for (const slug of cand) {
@@ -2205,7 +2212,7 @@ export async function handleInbox(req, slugParam, preVerified = null) {
     let targetSlug = null;
     const noteIds = [];
     for (const u of objectUris) {
-      const s = slugFromActorUrl(u);        // one of our actors?
+      const s = localSlugOf(u);             // one of OURS -- host meegewogen
       if (s) { targetSlug = targetSlug || s; continue; }
       const pid = postIdFromNoteUrl(u, base); // one of our notes?
       if (pid) noteIds.push(pid);
@@ -2233,7 +2240,11 @@ export async function handleInbox(req, slugParam, preVerified = null) {
 
   if (type === 'Follow') {
     const who = typeof act.actor === 'string' ? act.actor : (act.actor && act.actor.id);
-    const slug = slugParam || slugFromActorUrl(typeof act.object === 'string' ? act.object : (act.object && act.object.id));
+    // slugParam is de eigenaar van een per-actor inbox; op de GEDEELDE inbox is
+    // die er niet en werd de slug uit act.object geraden. Zonder hostcontrole
+    // kon een Follow op andermans actor met dezelfde padstaart hier een volger
+    // opleveren.
+    const slug = slugParam || localSlugOf(typeof act.object === 'string' ? act.object : (act.object && act.object.id));
     if (!who || !slug) return 400;
     const remote = await fetchActor(who);
     if (!remote || !remote.inbox) return 202; // can't reach them → drop quietly
@@ -6363,7 +6374,7 @@ function localActor(actorUri) {
 }
 // Which local site (if any) hosts this actor URI — used by the handshake to
 // apply the local side of a commit and to derive a ward's existing guardians.
-function localSlugOf(actorUri) {
+export function localSlugOf(actorUri) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   if (!actorUri || !actorUri.startsWith(`${base}/ap/users/`)) return null;
   const slug = slugFromActorUrl(actorUri);
