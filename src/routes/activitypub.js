@@ -181,7 +181,7 @@ router.get('/ap/users/:slug/outbox', async (req, res) => {
     verifiedActor,
   });
   if (audience === 'blocked') {
-    return AP.sendAP(res, AP.buildOutbox(baseUrl(req), site, []), 'private, no-store');
+    return AP.sendAP(res, AP.buildOutbox(baseUrl(req), site, [], [], { page: !!req.query.page }), 'private, no-store');
   }
   const fanClause = audience === 'friend' ? '' : "AND (fan_only IS NULL OR fan_only = 0)";
   const posts = db.prepare(
@@ -191,7 +191,7 @@ router.get('/ap/users/:slug/outbox', async (req, res) => {
   ).all(site.id);
   // De tracks gaan mee voor iedereen die de deur door mag; de blocked-tak
   // hierboven levert bewust een outbox ZONDER posts en zonder tracks.
-  const ob = AP.buildOutbox(baseUrl(req), site, posts, AP.siteOpenTracks(site.id));
+  const ob = AP.buildOutbox(baseUrl(req), site, posts, AP.siteOpenTracks(site.id), { page: !!req.query.page });
   if (audience === 'friend') {
     // The owner's app builds its feed from this leg, and every note here is
     // by the site itself, so give it a byline too (avatar + name): de

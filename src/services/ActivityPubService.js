@@ -1018,7 +1018,7 @@ export function buildCreate(base, site, post) {
  * geblokkeerde bezoeker krijgt daar een lege outbox, en een bouwer die stiekem
  * zijn eigen database bevraagt zou dwars door die deur heen leveren.
  */
-export function buildOutbox(base, site, posts, tracks = []) {
+export function buildOutbox(base, site, posts, tracks = [], { page = false } = {}) {
   const id = `${actorId(base, site.slug)}/outbox`;
   const wanneer = (x) => Date.parse(x && x.published ? x.published : 0) || 0;
   const items = [
@@ -1031,11 +1031,35 @@ export function buildOutbox(base, site, posts, tracks = []) {
   ]
     .sort((a, b) => wanneer(b) - wanneer(a))
     .slice(0, MAX_OUTBOX);
+  // GEPAGINEERD, ook al past alles op een pagina (Funkwhale, 11-8).
+  //
+  // Hun serializer weigerde onze outbox met "first: This field is required" en
+  // "last: This field is required". AS2 EIST ze niet -- een collectie mag zijn
+  // items inline dragen -- maar bijna iedereen pagineert, en een lezer die de
+  // paginaweg volgt liep hier dood. Dit is de eerste concrete reden die we
+  // hoorden waarom er niets van ons binnenkwam.
+  //
+  // De items blijven WEL inline op de wortel. Shaer bouwt zijn feed daaruit, en
+  // wie hem vandaag leest hoort er morgen niet voor te hoeven pagineren. Er is
+  // precies een pagina, dus first en last wijzen naar dezelfde.
+  const eerste = `${id}?page=1`;
+  if (page) {
+    return {
+      '@context': AP_CONTEXT,
+      id: eerste,
+      type: 'OrderedCollectionPage',
+      partOf: id,
+      totalItems: items.length,
+      orderedItems: items,
+    };
+  }
   return {
     '@context': AP_CONTEXT,
     id,
     type: 'OrderedCollection',
     totalItems: items.length,
+    first: eerste,
+    last: eerste,
     orderedItems: items,
   };
 }
