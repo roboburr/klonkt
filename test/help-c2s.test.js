@@ -59,6 +59,17 @@ test('oppikken vanuit de app landt in dezelfde staat als het paneel', async () =
   assert.equal(h.state.open, true);
 });
 
+test('onze EIGEN markering draagt onze eigen handle', () => {
+  // "Door wie" was de hele vraag van deze bead. Een binnengekomen markering
+  // draagt de handle van de afzender wel; onze eigen rij stond op null en viel
+  // op het scherm terug op de kale URI. Gezien op 11-8 in de echte data naast
+  // een rij van boiert.eu, die zijn handle wel had.
+  const coll = queues.helpCollection('https://x/queues/help', 'oma');
+  const item = coll.orderedItems.find((i) => i.id === BOEI);
+  assert.deepEqual(item['shaer:pickedUpBy'], ['@oma@oma.test'],
+    'een handle en geen URI');
+});
+
 test('en de apps krijgen te horen HOE OUD dat oppakken is', () => {
   // Barts besluit: opgepikt vervalt niet maar veroudert zichtbaar -- het
   // verschil tussen "er is iemand mee bezig" en "er was ooit iemand mee bezig".

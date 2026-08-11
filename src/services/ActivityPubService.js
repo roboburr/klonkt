@@ -1337,7 +1337,7 @@ function postIdFromNoteUrl(url, base) {
   const m = s.match(/\/ap\/notes\/([^/?#]+)/);
   return m ? decodeURIComponent(m[1]) : null;
 }
-function deriveHandle(actorUri) {
+export function deriveHandle(actorUri) {
   try { const u = new URL(actorUri); const seg = u.pathname.split('/').filter(Boolean).pop() || ''; return `@${seg}@${u.host}`; } catch { return String(actorUri || ''); }
 }
 function actorInfo(doc, actorUri) {
@@ -3203,7 +3203,12 @@ export async function ingestOutboxActivity(site, user, activity) {
           const mark = Guardianship.help.parseMarker(object);
           if (mark) {
             const base2 = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
-            Guardianship.help.record(mark.noteUri, actorId(base2, site.slug), mark.kind, `@${site.slug}`);
+            // Met de VOLLEDIGE handle. Hier stond `@${site.slug}` -- zonder host,
+            // dus een derde vorm naast de kale URI van de PWA-route en de echte
+            // handle die een binnengekomen markering draagt. Drie spellingen van
+            // dezelfde naam, en "door wie" was de hele vraag van shaer-lgo.
+            const mij = actorId(base2, site.slug);
+            Guardianship.help.record(mark.noteUri, mij, mark.kind, deriveHandle(mij));
           }
           const r = await deliverDirectNote(site, { recipients, text: plain, language: object.language || null, inReplyTo: typeof object.inReplyTo === 'string' ? object.inReplyTo : null, attachments: atts, helpRequest: help, awayUntil, gateRequest: gateReq && gateReq.feature, helpMark: mark });
           if (!r || !r.id) return { status: 502, error: 'direct_failed' };

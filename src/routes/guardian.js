@@ -430,7 +430,11 @@ router.post('/api/help/:kind', requireAuth, express.json({ limit: '2kb' }), asyn
   const me = AP.actorId((process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, ''), site.slug);
   // Onze eigen kopie meteen, zonder op bezorging te wachten: het scherm van
   // degene die klikt hoort niet te liegen omdat een andere server traag is.
-  Guardianship.help.record(noteUri, me, kind, null);
+  // MET onze eigen handle. Die stond hier op null, en "door wie" was juist de
+  // hele vraag van deze bead: een binnengekomen markering draagt de handle van
+  // de afzender wel, dus onze EIGEN rij was de enige zonder naam. Op het scherm
+  // viel dat terug op de kale URI.
+  Guardianship.help.record(noteUri, me, kind, AP.deriveHandle(me));
 
   // DE MEDE-GUARDIANS, en dit ging mis (shaer-lgo, gevonden 11-8 met @mee).
   //
