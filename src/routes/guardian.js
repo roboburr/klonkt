@@ -432,8 +432,24 @@ router.post('/api/help/:kind', requireAuth, express.json({ limit: '2kb' }), asyn
   // degene die klikt hoort niet te liegen omdat een andere server traag is.
   Guardianship.help.record(noteUri, me, kind, null);
 
-  const anderen = Guardianship.listGuardians(wardUri.replace(/.*\/ap\/users\//, '')) || [];
-  const ontvangers = [wardUri, ...anderen.map((g) => g.other_uri)].filter((u) => u && u !== me);
+  // DE MEDE-GUARDIANS, en dit ging mis (shaer-lgo, gevonden 11-8 met @mee).
+  //
+  // Hier stond listGuardians(wardUri.replace(/.*\/ap\/users\//, '')): de staart
+  // van de URI als slug. listGuardians kent alleen relaties van LOKALE sites,
+  // dus voor een ward elders leverde dat altijd een lege lijst -- en juist die
+  // ward is het hele punt, want een ward op je eigen instance heeft geen
+  // federatie nodig. De markering ging dus alleen naar het kind en nooit naar
+  // de andere guardian. Precies de faalstand waar deze bead voor bestaat:
+  // iedereen denkt dat de ander het oppakt.
+  //
+  // Erger nog: had er toevallig een lokale site met die naam bestaan, dan
+  // waren het DIENS guardians geweest.
+  //
+  // existingGuardiansOf kende de goede weg al -- lokaal opzoeken, en anders
+  // shaer:guardians uit de actor van de ward. Die stond alleen niet aan deze
+  // route vast.
+  const anderen = await Guardianship.existingGuardiansOf(wardUri).catch(() => []);
+  const ontvangers = [wardUri, ...anderen].filter((u) => u && u !== me);
   const r = await AP.deliverDirectNote(site, {
     recipients: ontvangers,
     text: kind === 'handled' ? 'Deze hulpvraag is afgehandeld.' : 'Ik kijk hiernaar.',

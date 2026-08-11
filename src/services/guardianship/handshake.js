@@ -86,8 +86,14 @@ export function parseRelationship(rel) {
   return ward && candidate ? { ward, candidate } : null;
 }
 
-/** The existing guardians of a ward: local list, or the remote actor's shaer:guardians. */
-async function existingGuardiansOf(wardUri) {
+/**
+ * The existing guardians of a ward: local list, or the remote actor's
+ * shaer:guardians.
+ *
+ * Geexporteerd sinds shaer-lgo: de markeerroute had zijn EIGEN afleiding, en
+ * die was fout voor precies het geval dat telt (zie routes/guardian.js).
+ */
+export async function existingGuardiansOf(wardUri) {
   const local = deps.localSlug(wardUri);
   if (local) return relations.listGuardians(local).map((r) => r.other_uri);
   const doc = await deps.fetchActor(wardUri).catch(() => null);
@@ -626,4 +632,4 @@ function notify(slug, ev) {
   try { if (deps && typeof deps.onEvent === 'function') deps.onEvent(slug, ev); } catch { /* best-effort */ }
 }
 
-export default { wireHandshake, handleOutbox, handleInbox, parseRelationship, parseUndoRelationship, endGuardianship, retryDeferred };
+export default { wireHandshake, handleOutbox, handleInbox, parseRelationship, parseUndoRelationship, endGuardianship, retryDeferred, existingGuardiansOf };
