@@ -265,8 +265,11 @@ export function initializeDatabase() {
       ON playlist_tracks(playlist_id, position);
   `);
 
-  // Global app settings (key/value singleton). Includes the tenancy mode
-  // (solo = one site, hub = company site + /user/). Default = solo.
+  // Global app settings (key/value singleton). One instance is one owner, so
+  // there is no tenancy mode here anymore — see SettingsService.
+  // Oudere installaties dragen nog een dode rij key='tenancy' ('solo' of
+  // 'circle'). Niets leest hem; bewust laten staan (shaer-x7c0) in plaats van
+  // er opruimcode voor te schrijven die na één ronde zelf dood is.
   db.exec(`
     CREATE TABLE IF NOT EXISTS app_settings (
       key TEXT PRIMARY KEY,
@@ -274,7 +277,6 @@ export function initializeDatabase() {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
   `);
-  db.prepare("INSERT OR IGNORE INTO app_settings (key, value) VALUES ('tenancy', 'solo')").run();
 
   // ── Statistics (premium) — cookie-free ──────────────────────
   // stat_daily: pageview count per day per site (bare counter).

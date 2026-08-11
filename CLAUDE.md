@@ -62,8 +62,8 @@ npm test           # unit tests (built-in node:test runner, no extra deps)
 
 Tests live in `test/*.test.js` and run against an in-memory SQLite
 (`DATABASE_PATH=':memory:'`), so they never touch real data. Cover new
-permission/tenancy logic with tests — `PermissionsService.canAdminSite` was once
-silently broken; see `test/hub-permissions.test.js`.
+permission logic with tests — `PermissionsService.canAdminSite` was once
+silently broken; see `test/site-permissions.test.js`.
 
 ## Architecture Overview
 
