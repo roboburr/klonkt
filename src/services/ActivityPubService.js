@@ -6520,6 +6520,7 @@ Guardianship.wireAvailability({
 
 export default {
   AP_CONTEXT, getOrCreateKeys, apWants, sendAP, actorId, noteId, stripLeadingMentions, pagedCollection,
+  deriveHandle, localSlugOf,
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers, buildFollowing, buildFeatured,
   channelUrls, channelCategory, timelineFields, guessMediaType,
   siteOpenTracks, openTrack, buildTrackAudio, buildTrackCollection, buildTrackCreate, trackHostPosts,

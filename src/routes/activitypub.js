@@ -443,9 +443,18 @@ function gatesFor(site) {
   };
 }
 
-/** De naam waaronder deze lezer zichzelf herkent in een Mention. */
+/**
+ * De naam waaronder deze lezer zichzelf herkent in een Mention.
+ *
+ * Via deriveHandle op de actor-URI, niet uit de slug hier opgebouwd. Dit stond
+ * er als `@${slug}@${host}` met `@${slug}` als terugval, en die terugval is een
+ * HALVE naam: zonder host zegt @dev niets op een oppervlak waar iedereen @dev
+ * kan heten. Hij ging alleen af bij een onparseerbare PUBLIC_BASE_URL -- maar
+ * dan klopt elke URI die we bouwen al niet, en is de kale actor-URI (wat
+ * deriveHandle dan teruggeeft) eerlijker dan een naam die compleet lijkt.
+ */
 function ownHandle(base, slug) {
-  try { return `@${slug}@${new URL(base).host}`; } catch { return `@${slug}`; }
+  return AP.deriveHandle(AP.actorId(base, slug));
 }
 
 // ── Een bericht als AS2-item: EEN beschrijving van de kaartvorm ──
@@ -753,7 +762,7 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
   // Wie ik ben en wie mijn guardians zijn: allebei de lezingen hieronder
   // hebben ze nodig, dus een keer, hierboven.
   const me = AP.actorId(base, auth.site.slug);
-  const myHandle = (() => { try { return `@${auth.site.slug}@${new URL(base).host}`; } catch { return `@${auth.site.slug}`; } })();
+  const myHandle = AP.deriveHandle(me);   // een naam, of de kale URI -- nooit een halve
   const guardianUris = (() => { try { return new Set(Guardianship.listGuardians(auth.site.slug).map((g) => g.other_uri)); } catch { return new Set(); } })();
   // ── Alleen het VERSCHIL, als de client daarom vraagt (shaer-pq4) ──
   //
