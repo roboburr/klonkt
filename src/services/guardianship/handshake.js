@@ -291,6 +291,20 @@ export async function handleOutbox(site, activity) {
     return { status: 202, id: offerId, url: offerId };
   }
 
+  // §1 is flat in BOTH directions. The Offer path above bars a ward from
+  // offering to guard; this is the mirror: an actor that already guards wards
+  // must not become a ward itself. Only the ward's own accept can create that
+  // state, so the candidate and the existing guardians pass through untouched.
+  //
+  // Without it the inconsistency would also be invisible. actorProps() picks
+  // one role with an if/else and would publish shaer:guardians while dropping
+  // shaer:isGuardian, so this account keeps routing its wards' escalations
+  // locally while every remote §4 check reads it as malformed and drops it —
+  // a ward believing it is watched over when it is not, silent on both sides.
+  if (me === offer.ward_uri && relations.listWards(site.slug).length) {
+    return { status: 403, error: 'a_guardian_cannot_be_guarded' };
+  }
+
   // Accept: record my accept, broadcast it to the other parties, and commit
   // this copy if the tally is now complete (order-independent, §3.1.3).
   offers.recordAccept(site.slug, offerId, me);
