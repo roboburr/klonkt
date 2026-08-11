@@ -55,7 +55,19 @@ export async function deliverDirectNote(site, { recipients, text, html, language
     // hostname: that request has to leave the machine and come back, and when
     // it does not, the recipient is silently dropped from the note. Everything
     // that decides anything still runs below, for local and remote alike.
-    const a = (localActor && localActor(uri)) || await fetchActor(uri).catch(() => null);
+    // ONDERTEKEND ophalen als het onbetekend niet lukt (asSlug). Een instance
+    // met Mastodons secure mode -- infosec.exchange bijvoorbeeld -- antwoordt
+    // 401 op een anonieme GET van het actor-document. Zonder document geen
+    // inbox, dus viel de ontvanger hier stil weg, en met de laatste ontvanger
+    // gaf deliverDirectNote null terug: "502 direct_failed", zonder te zeggen
+    // wie er niet bereikbaar was.
+    //
+    // Dezelfde les als bij het volgen vanaf een boost (Robins melding, 31-7):
+    // die weg kreeg toen signedGetJson, deze niet. fetchActor probeert nog
+    // steeds ONBETEKEND eerst -- dat blijft de veiligheidskeuze -- en tekent
+    // alleen deze ene URL als dat mislukt.
+    const a = (localActor && localActor(uri))
+      || await fetchActor(uri, { asSlug: site.slug }).catch(() => null);
     if (!a || !(a.inbox || (a.endpoints && a.endpoints.sharedInbox))) continue;
     // FEP-633c §4.1: an escalation addressed to a "guardian" that carries
     // guardians of its own goes nowhere. There is no grand-guardian, so we
