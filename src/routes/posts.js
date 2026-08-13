@@ -1293,7 +1293,7 @@ router.get('/news/following.csv', requireSiteManager, async (req, res) => {
   const site = res.locals.site;
   const { followingCsv } = await import('../services/ArchiveExportService.js');
   const csv = site ? followingCsv(site.slug) : null;
-  if (!csv) return res.redirect('/following?error=' + encodeURIComponent('Je volgt nog niemand'));
+  if (!csv) return res.redirect('/connect?error=' + encodeURIComponent('Je volgt nog niemand'));
   res.set('Content-Type', 'text/csv; charset=utf-8');
   res.set('Content-Disposition', `attachment; filename="following-${site.slug}.csv"`);
   // Privé: dit is de lijst van wie jij volgt, niets voor een cache onderweg.
@@ -1301,10 +1301,22 @@ router.get('/news/following.csv', requireSiteManager, async (req, res) => {
   res.send(csv);
 });
 
-router.post('/news/following/import', requireSiteManager, express.urlencoded({ extended: false, limit: '256kb' }), async (req, res) => {
+// Een bestand OF geplakte tekst. Multer leest een multipart-formulier, en dat
+// bevat allebei: het bestandsveld en het tekstveld. In het geheugen, niet op
+// schijf: dit is een lijstje adressen van een paar kilobyte dat na het lezen
+// niets meer te zoeken heeft op de server.
+const followingCsvUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 512 * 1024, files: 1 },
+}).single('csvfile');
+
+router.post('/news/following/import', requireSiteManager, followingCsvUpload, async (req, res) => {
   const site = res.locals.site;
-  const csv = (req.body && req.body.csv) || '';
-  if (!site || !String(csv).trim()) return res.redirect('/following?error=' + encodeURIComponent('Geen lijst ontvangen'));
+  // Een geupload bestand wint van het plakveld: wie een bestand kiest bedoelt dat.
+  const csv = (req.file && req.file.buffer)
+    ? req.file.buffer.toString('utf8').replace(/^﻿/, '')   // BOM eraf; Excel zet die erin
+    : ((req.body && req.body.csv) || '');
+  if (!site || !String(csv).trim()) return res.redirect('/connect?error=' + encodeURIComponent('Geen lijst ontvangen'));
 
   const { importFollowing } = await import('../services/ArchiveImportService.js');
   // followActor als followFn: die doet de webfinger, stuurt de Follow en zet
@@ -1325,7 +1337,8 @@ router.post('/news/following/import', requireSiteManager, express.urlencoded({ e
     const namen = r.mislukt.slice(0, 3).map((m) => m.adres).join(', ');
     delen.push(`${r.mislukt.length} mislukt (${namen}${r.mislukt.length > 3 ? '…' : ''})`);
   }
-  res.redirect('/following?' + (r.mislukt.length ? 'error=' : 'success=') + encodeURIComponent(delen.join(', ')));
+  // Terug naar /connect: daar staat het blok, /following is de oude pagina.
+  res.redirect('/connect?' + (r.mislukt.length ? 'error=' : 'success=') + encodeURIComponent(delen.join(', ')));
 });
 
 router.post('/news/unfollow', requireSiteManager, async (req, res) => {

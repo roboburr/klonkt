@@ -140,3 +140,42 @@ test('buildArchive stopt following.csv er echt in, met hash in het manifest', as
   assert.ok(r.manifest.files['following.csv'], 'en hij hoort in het manifest, anders telt hij niet mee bij de controle');
   assert.match(String(r.files.get('following.csv')), /jason@a\.example,,,,true/);
 });
+
+// De uploadweg. De parser kan prima werken terwijl het formulier niets doorgeeft,
+// en dat merk je pas als je met een echt bestand voor de knop staat.
+test('een geupload bestand wordt gelezen, ook met de BOM die Excel ervoor zet', async () => {
+  const multer = (await import('multer')).default;
+  const express = (await import('express')).default;
+
+  const up = multer({ storage: multer.memoryStorage(), limits: { fileSize: 512 * 1024, files: 1 } }).single('csvfile');
+  const app = express();
+  app.post('/t', up, (req, res) => {
+    const csv = (req.file && req.file.buffer)
+      ? req.file.buffer.toString('utf8').replace(/^﻿/, '')
+      : ((req.body && req.body.csv) || '');
+    res.json({ bron: req.file ? 'bestand' : 'plakveld', rijen: parseFollowingCsv(csv) });
+  });
+
+  const srv = app.listen(0);
+  await new Promise((r) => srv.once('listening', r));
+  const url = `http://127.0.0.1:${srv.address().port}/t`;
+  const csv = 'Account address,Show boosts,Notify on new posts,Languages,Featured\n'
+            + 'jason@a.example,,,,true\n';
+  try {
+    const fd = new FormData();
+    fd.append('csvfile', new Blob([`﻿${csv}`], { type: 'text/csv' }), 'following.csv');
+    const a = await (await fetch(url, { method: 'POST', body: fd })).json();
+    assert.equal(a.bron, 'bestand');
+    assert.deepEqual(a.rijen, [{ address: 'jason@a.example', featured: true }],
+      'de BOM mag niet in het eerste adres blijven plakken');
+
+    // Het plakveld moet blijven werken naast de upload.
+    const fd2 = new FormData();
+    fd2.append('csv', csv);
+    const b = await (await fetch(url, { method: 'POST', body: fd2 })).json();
+    assert.equal(b.bron, 'plakveld');
+    assert.deepEqual(b.rijen, [{ address: 'jason@a.example', featured: true }]);
+  } finally {
+    srv.close();
+  }
+});

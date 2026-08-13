@@ -40,10 +40,14 @@
     <summary><%= t('tl.move_title') %></summary>
     <p class="tl-move-hint"><%= t('tl.move_hint') %></p>
     <p><a class="btn" href="/news/following.csv" download>&#11015; <%= t('tl.move_export') %></a></p>
-    <form method="post" action="/news/following/import">
+    <form method="post" action="/news/following/import" enctype="multipart/form-data">
+      <label class="tl-move-lbl" for="tl-move-file"><%= t('tl.move_import_file') %></label>
+      <input type="file" id="tl-move-file" name="csvfile" accept=".csv,text/csv,text/plain">
+
       <label class="tl-move-lbl" for="tl-move-csv"><%= t('tl.move_import_lbl') %></label>
       <textarea id="tl-move-csv" name="csv" rows="5" spellcheck="false"
                 placeholder="Account address,Show boosts,Notify on new posts,Languages,Featured"></textarea>
+
       <button type="submit" class="btn btn-primary"><%= t('tl.move_import') %></button>
     </form>
   </details>
