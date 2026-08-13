@@ -196,15 +196,21 @@ router.get('/ap/users/:slug/outbox', async (req, res) => {
   if (audience === 'blocked') {
     return AP.sendAP(res, AP.buildOutbox(baseUrl(req), site, [], [], { page: paginaNr(req) }), 'private, no-store');
   }
-  const fanClause = audience === 'friend' ? '' : "AND (fan_only IS NULL OR fan_only = 0)";
-  const posts = db.prepare(
-    `SELECT id, slug, title, content, cover_image_url, cover_video_url, nsfw, content_warning, c2s_attachments, quote_json, embed_json, published_at, created_at
-     FROM posts WHERE site_id = ? AND status = 'published' ${fanClause}
-     ORDER BY COALESCE(published_at, created_at) DESC LIMIT 20`
-  ).all(site.id);
+  // ECHT DOORBLADEREN (shaer-sk4). Hier stonden twintig posts uit SQL met een
+  // tweede kap van twintig eroverheen: alles daarvoor was niet op een volgende
+  // pagina maar helemaal onbereikbaar. outboxSlice pagineert over de UNION van
+  // posts en tracks, want die vlechten op datum en zijn met twee losse queries
+  // niet te offsetten.
+  //
   // De tracks gaan mee voor iedereen die de deur door mag; de blocked-tak
   // hierboven levert bewust een outbox ZONDER posts en zonder tracks.
-  const ob = AP.buildOutbox(baseUrl(req), site, posts, AP.siteOpenTracks(site.id), { page: paginaNr(req) });
+  const nr = paginaNr(req);
+  const { posts, tracks, totaal } = AP.outboxSlice(site.id, {
+    fanOnly: audience === 'friend',
+    offset: (Math.max(1, nr || 1) - 1) * AP.PAGINA_GROOTTE,
+    limit: AP.PAGINA_GROOTTE,
+  });
+  const ob = AP.buildOutbox(baseUrl(req), site, posts, tracks, { page: nr, totalItems: totaal, alGesneden: true });
   if (audience === 'friend') {
     // The owner's app builds its feed from this leg, and every note here is
     // by the site itself, so give it a byline too (avatar + name): de

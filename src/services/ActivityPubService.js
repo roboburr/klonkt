@@ -28,12 +28,12 @@ import Push from './PushService.js';
 import { t as i18nT } from './i18n.js';
 import Blocklist from './BlocklistService.js';
 import * as Guardianship from './guardianship/index.js';
-import { PUBLIC, AP_CONTEXT, safeUrl, actorId, noteId, guessMediaType, normalizeTags, tagParts, hashtagTags, buildHashtagList, pagedCollection } from './ap-core.js';
+import { PUBLIC, AP_CONTEXT, safeUrl, actorId, noteId, guessMediaType, normalizeTags, tagParts, hashtagTags, buildHashtagList, pagedCollection, PAGINA_GROOTTE } from './ap-core.js';
 // Doorgeven wat hier altijd vandaan kwam, zodat elke bestaande aanroep blijft werken.
 export { AP_CONTEXT, actorId, noteId, guessMediaType };
 // De muziekkant woont in music/ (shaer-drc). Doorgeven wat hier altijd
 // vandaan kwam, zodat elke bestaande aanroep blijft werken.
-import {
+import { TRACK_KOLOMMEN,
   playlistOpenTracks, siteOpenTracks, openTrack, trackHostPosts,
   buildTrackAudio, buildTrackCollection, buildTrackCreate,
   buildPlaylistCollection, listPlaylistsAP, playlistLinkTags,
@@ -1018,7 +1018,50 @@ export function buildCreate(base, site, post) {
  * geblokkeerde bezoeker krijgt daar een lege outbox, en een bouwer die stiekem
  * zijn eigen database bevraagt zou dwars door die deur heen leveren.
  */
-export function buildOutbox(base, site, posts, tracks = [], { page = false } = {}) {
+/**
+ * Een PAGINA van de outbox, in SQL (shaer-sk4).
+ *
+ * De outbox mengt twee bronnen: posts en open tracks, gevlochten op datum. Een
+ * offset over die twee kan niet met twee losse queries -- je weet niet hoeveel
+ * van elk er in pagina drie horen. Vandaar een UNION met de datum als sleutel,
+ * daar de LIMIT/OFFSET overheen, en pas dan de rijen zelf ophalen.
+ *
+ * Wat er stond was geen paginering maar een KAP: de route haalde twintig posts
+ * en hield daarvan twintig items over. Alles daarvoor was niet op een volgende
+ * pagina maar helemaal onbereikbaar.
+ *
+ * @param {boolean} fanOnly  mag de lezer ook de fans-only posts zien?
+ */
+export function outboxSlice(siteId, { fanOnly = false, offset = 0, limit = MAX_OUTBOX } = {}) {
+  const fanClause = fanOnly ? '' : 'AND (p.fan_only IS NULL OR p.fan_only = 0)';
+  const unie = `
+    SELECT 'post' AS soort, p.id AS id, COALESCE(p.published_at, p.created_at) AS wanneer
+      FROM posts p WHERE p.site_id = ? AND p.status = 'published' ${fanClause}
+    UNION ALL
+    SELECT 'track', t.id, t.created_at
+      FROM audio_tracks t WHERE t.site_id = ? AND t.fedi_open = 1`;
+  let rijen = [], totaal = 0;
+  try {
+    totaal = db.prepare(`SELECT COUNT(*) n FROM (${unie})`).get(siteId, siteId).n;
+    rijen = db.prepare(`SELECT soort, id FROM (${unie}) ORDER BY wanneer DESC LIMIT ? OFFSET ?`)
+      .all(siteId, siteId, limit, Math.max(0, offset));
+  } catch { return { posts: [], tracks: [], totaal: 0 }; }
+
+  const postIds = rijen.filter((r) => r.soort === 'post').map((r) => r.id);
+  const trackIds = rijen.filter((r) => r.soort === 'track').map((r) => r.id);
+  const gaten = (n) => Array.from({ length: n }, () => '?').join(',');
+  const posts = postIds.length ? db.prepare(
+    `SELECT id, slug, title, content, cover_image_url, cover_video_url, nsfw, content_warning,
+            c2s_attachments, quote_json, embed_json, published_at, created_at
+       FROM posts WHERE id IN (${gaten(postIds.length)})`).all(...postIds) : [];
+  const tracks = trackIds.length ? db.prepare(
+    `SELECT ${TRACK_KOLOMMEN}
+       FROM audio_tracks t JOIN media m ON m.id = t.media_id
+      WHERE t.id IN (${gaten(trackIds.length)})`).all(...trackIds) : [];
+  return { posts, tracks, totaal };
+}
+
+export function buildOutbox(base, site, posts, tracks = [], { page = false, totalItems, alGesneden = false } = {}) {
   const id = `${actorId(base, site.slug)}/outbox`;
   const wanneer = (x) => Date.parse(x && x.published ? x.published : 0) || 0;
   const items = [
@@ -1030,7 +1073,7 @@ export function buildOutbox(base, site, posts, tracks = [], { page = false } = {
     })(),
   ]
     .sort((a, b) => wanneer(b) - wanneer(a))
-    .slice(0, MAX_OUTBOX);
+    .slice(0, alGesneden ? Infinity : MAX_OUTBOX);
   // WAT HIER NOG NIET GEPAGINEERD IS, en dat hoort genoemd (shaer-sk4): deze
   // lijst is al door de route op twintig rijen afgekapt, dus pagina 2 is leeg.
   // Echt doorbladeren vraagt een LIMIT/OFFSET in SQL -- en dat is hier lastiger
@@ -1049,7 +1092,7 @@ export function buildOutbox(base, site, posts, tracks = [], { page = false } = {
   // De items blijven WEL inline op de wortel. Shaer bouwt zijn feed daaruit, en
   // wie hem vandaag leest hoort er morgen niet voor te hoeven pagineren. Er is
   // precies een pagina, dus first en last wijzen naar dezelfde.
-  return pagedCollection(id, items, { page });
+  return pagedCollection(id, items, { page, totalItems, alGesneden });
 }
 
 // Public callers get a count-only collection (privacy). The authenticated
@@ -6527,7 +6570,7 @@ Guardianship.wireAvailability({
 
 export default {
   AP_CONTEXT, getOrCreateKeys, apWants, sendAP, actorId, noteId, stripLeadingMentions, pagedCollection,
-  deriveHandle, localSlugOf,
+  deriveHandle, localSlugOf, outboxSlice, PAGINA_GROOTTE,
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers, buildFollowing, buildFeatured,
   channelUrls, channelCategory, timelineFields, guessMediaType,
   siteOpenTracks, openTrack, buildTrackAudio, buildTrackCollection, buildTrackCreate, trackHostPosts,

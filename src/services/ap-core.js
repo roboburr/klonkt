@@ -231,16 +231,20 @@ export const PAGINA_GROOTTE = 20;
  * en zonder `next`. Hem naar de laatste pagina terugbuigen zou opnieuw een
  * antwoord zijn dat over zichzelf liegt.
  */
-export function pagedCollection(id, items, { totalItems, page = false, perPage = PAGINA_GROOTTE, extra = {} } = {}) {
+export function pagedCollection(id, items, { totalItems, page = false, perPage = PAGINA_GROOTTE, alGesneden = false, extra = {} } = {}) {
   const lijst = items || [];
   const telling = totalItems === undefined ? lijst.length : totalItems;
   const grootte = Math.max(1, Number(perPage) || PAGINA_GROOTTE);
-  const paginas = Math.max(1, Math.ceil(lijst.length / grootte));
+  // `alGesneden` voor wie in SQL al gepagineerd heeft (de outbox): dan is `lijst`
+  // een PAGINA en zegt hij niets over het geheel, dus telt het aantal pagina's
+  // uit `totalItems`. Zonder dat zou een volle pagina zichzelf als de enige zien
+  // en nooit een `next` aanbieden.
+  const paginas = Math.max(1, Math.ceil((alGesneden ? telling : lijst.length) / grootte));
   const url = (n) => `${id}?page=${n}`;
 
   if (page) {
     const n = Math.max(1, Math.floor(Number(page)) || 1);
-    const deel = lijst.slice((n - 1) * grootte, n * grootte);
+    const deel = alGesneden ? lijst : lijst.slice((n - 1) * grootte, n * grootte);
     return {
       '@context': AP_CONTEXT,
       id: url(n),

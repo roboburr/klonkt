@@ -17,7 +17,7 @@ import { AP_CONTEXT, PUBLIC, actorId, noteId, safeUrl, guessMediaType, buildHash
 import { afleidenUitInsluitingen, ingeslotenPlaylists } from '../../assets/js/shared/post-music-type.js';
 
 // m.size hoort erbij voor de RSS-enclosure: die eist een lengte in bytes.
-const TRACK_KOLOMMEN = `t.id, t.title, t.artist, t.duration, t.cover_url, t.created_at,
+export const TRACK_KOLOMMEN = `t.id, t.title, t.artist, t.duration, t.cover_url, t.created_at,
      t.position, t.license,
      m.filename, m.storage_path, m.mime_type, m.size`;
 
