@@ -28,7 +28,7 @@ import Push from './PushService.js';
 import { t as i18nT } from './i18n.js';
 import Blocklist from './BlocklistService.js';
 import * as Guardianship from './guardianship/index.js';
-import { PUBLIC, AP_CONTEXT, safeUrl, actorId, noteId, guessMediaType, normalizeTags, tagParts, hashtagTags, buildHashtagList, pagedCollection, PAGINA_GROOTTE } from './ap-core.js';
+import { PUBLIC, AP_CONTEXT, safeUrl, actorId, noteId, guessMediaType, normalizeTags, tagParts, hashtagTags, buildHashtagList, pagedCollection, PAGINA_GROOTTE, artiestUrl } from './ap-core.js';
 // Doorgeven wat hier altijd vandaan kwam, zodat elke bestaande aanroep blijft werken.
 export { AP_CONTEXT, actorId, noteId, guessMediaType };
 // De muziekkant woont in music/ (shaer-drc). Doorgeven wat hier altijd
@@ -393,6 +393,15 @@ export function buildActor(base, site) {
   // fetching us. Per the FEP the moved actor "should be considered inactive",
   // and publishers should stop delivering here.
   if (site.moved_to && /^https?:\/\//i.test(String(site.moved_to))) actor.movedTo = String(site.moved_to);
+  // De MusicBrainz-koppeling van de artiest (shaer-mbz). Alleen als hij ZELF
+  // gekozen heeft -- er staat niets als er niets gekoppeld is, want een lege
+  // of geraden verwijzing is erger dan geen.
+  //
+  // schema:sameAs en niet alsoKnownAs: dat laatste is in AS2 voor vroegere
+  // identiteiten van dezelfde actor, en FEP-7628 leunt erop bij een verhuizing.
+  // Een MBID hier neerzetten zou een verhuizing kunnen laten mislukken.
+  const mbUrl = artiestUrl(site.mb_artist_id);
+  if (mbUrl) actor.sameAs = mbUrl;
   // Profile links → PropertyValue rows: Mastodon/PeerTube/WordPress-ActivityPub render these as
   // profile metadata (rel=me enables link-back verification). Additive; ignored by simpler receivers.
   try {

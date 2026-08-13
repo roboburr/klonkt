@@ -19,6 +19,10 @@
  *   - een echte User-Agent, met contactgegevens
  */
 import { safeFetch } from './ActivityPubService.js';
+// De twee pure vormcontroles wonen in ap-core: ActivityPubService heeft ze ook
+// nodig voor de actor, en zonder die verhuizing zou dat een KRINGLOOP zijn --
+// deze module leent immers safeFetch dáár.
+import { isMbid, artiestUrl } from './ap-core.js';
 
 const BASIS = 'https://musicbrainz.org/ws/2';
 
@@ -96,14 +100,7 @@ function kandidaat(a) {
   };
 }
 
-/** Is dit een MBID? Een UUID, en niets anders. */
-export function isMbid(s) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(s || '').trim());
-}
-
-/** De publieke pagina van een artiest, of null als het geen MBID is. */
-export function artiestUrl(mbid) {
-  return isMbid(mbid) ? `https://musicbrainz.org/artist/${String(mbid).trim().toLowerCase()}` : null;
-}
-
+// Her-geexporteerd zodat een aanroeper er niet over hoeft na te denken waar
+// ze precies wonen.
+export { isMbid, artiestUrl };
 export default { zoekArtiesten, isMbid, artiestUrl };

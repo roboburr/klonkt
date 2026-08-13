@@ -123,3 +123,41 @@ test('ontkoppelen maakt beide velden leeg', () => {
   assert.equal(s.mb_artist_id, null);
   assert.equal(s.mb_artist_name, null, 'anders blijft er een naam staan zonder koppeling');
 });
+
+// ── Stap 3: op de draad ───────────────────────────────────────────────────
+
+test('de actor draagt sameAs zodra er gekoppeld is -- en anders niets', async () => {
+  const db = dbMod.default;
+  const AP = await import('../src/services/ActivityPubService.js');
+  const BASE = 'https://ons.test';
+  const kaal = db.prepare("SELECT * FROM sites WHERE id = 's1'").get();
+  assert.equal(AP.buildActor(BASE, kaal).sameAs, undefined,
+    'zonder koppeling staat er niets -- een lege verwijzing is erger dan geen');
+
+  db.prepare('UPDATE sites SET mb_artist_id = ? WHERE id = ?')
+    .run('8be31978-1884-4773-beae-f73df35b92aa', 's1');
+  const gekoppeld = db.prepare("SELECT * FROM sites WHERE id = 's1'").get();
+  const actor = AP.buildActor(BASE, gekoppeld);
+  assert.equal(actor.sameAs, 'https://musicbrainz.org/artist/8be31978-1884-4773-beae-f73df35b92aa');
+});
+
+test('rommel in de kolom komt NIET op de draad', () => {
+  // Het scherm zeeft al, maar de actor is de laatste deur. Wat hier langskomt
+  // gaat naar iedereen, en een half adres is erger dan geen.
+  const db = dbMod.default;
+  db.prepare('UPDATE sites SET mb_artist_id = ? WHERE id = ?').run('nirvana', 's1');
+  const s = db.prepare("SELECT * FROM sites WHERE id = 's1'").get();
+  assert.equal(MB.artiestUrl(s.mb_artist_id), null);
+});
+
+test('sameAs is een eigen term en NIET alsoKnownAs', async () => {
+  // alsoKnownAs is in AS2 voor vroegere IDENTITEITEN van dezelfde actor, en
+  // FEP-7628 leunt erop bij een verhuizing: het oude adres controleert of het
+  // nieuwe hem daar noemt. Een MBID daar neerzetten zou een verhuizing kunnen
+  // laten mislukken.
+  const core = await import('../src/services/ap-core.js');
+  const term = core.AP_CONTEXT.find((x) => x && typeof x === 'object' && x.sameAs);
+  assert.ok(term, 'de term is gedeclareerd, anders laat een strikte lezer hem vallen');
+  assert.equal(term.sameAs['@id'], 'schema:sameAs');
+  assert.equal(term.sameAs['@type'], '@id', 'het is een URI en geen tekst');
+});

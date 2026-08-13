@@ -49,6 +49,13 @@ export const AP_CONTEXT = [
     // die van Funkwhale, want daar leest hij op; de BETEKENIS komt van
     // schema.org, dus we hoeven geen vreemd vocabulaire binnen te halen.
     license: { '@id': 'schema:license', '@type': '@id' },
+    // "Dit ding is ook bekend onder die URI" -- voor de MusicBrainz-koppeling
+    // van een artiest (shaer-mbz). Bewust NIET alsoKnownAs: dat is in AS2
+    // gereserveerd voor vroegere IDENTITEITEN van dezelfde actor, en een
+    // verhuizing leunt erop (FEP-7628). Een verwijzing naar een register is
+    // iets anders dan een oud account van jezelf, en die twee door elkaar halen
+    // zou een verhuizing kunnen laten mislukken.
+    sameAs: { '@id': 'schema:sameAs', '@type': '@id' },
     position: 'schema:position',
     bitrate: 'schema:bitrate',
     size: 'schema:contentSize',
@@ -266,4 +273,14 @@ export function pagedCollection(id, items, { totalItems, page = false, perPage =
     last: url(paginas),
     orderedItems: lijst,
   };
+}
+
+/** Is dit een MBID? Een UUID, en niets anders. */
+export function isMbid(s) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(s || '').trim());
+}
+
+/** De publieke pagina van een artiest, of null als het geen MBID is. */
+export function artiestUrl(mbid) {
+  return isMbid(mbid) ? `https://musicbrainz.org/artist/${String(mbid).trim().toLowerCase()}` : null;
 }
