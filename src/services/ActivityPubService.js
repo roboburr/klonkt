@@ -1099,8 +1099,15 @@ export function outboxSlice(siteId, { fanOnly = false, offset = 0, limit = MAX_O
   const trackIds = rijen.filter((r) => r.soort === 'track').map((r) => r.id);
   const gaten = (n) => Array.from({ length: n }, () => '?').join(',');
   const posts = postIds.length ? db.prepare(
+    // fan_only en ap_visibility MOETEN mee. buildNote adresseert hierop, en
+    // zonder deze twee kolommen is post.fan_only altijd undefined: elke
+    // fan-only post ging dan de outbox uit met to: as:Public, terwijl hij
+    // alleen aan vrienden geserveerd wordt. Een volger kreeg dus een
+    // vrienden-post met een publiek etiket erop, en die mag hij dan publiek
+    // boosten. Gevonden tijdens de FEP-1580 end-to-end test (shaer-fuyo).
     `SELECT id, slug, title, content, cover_image_url, cover_video_url, nsfw, content_warning,
-            c2s_attachments, quote_json, embed_json, published_at, created_at
+            c2s_attachments, quote_json, embed_json, published_at, created_at,
+            fan_only, ap_visibility
        FROM posts WHERE id IN (${gaten(postIds.length)})`).all(...postIds) : [];
   const tracks = trackIds.length ? db.prepare(
     `SELECT ${TRACK_KOLOMMEN}
