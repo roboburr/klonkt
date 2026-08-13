@@ -27,11 +27,23 @@
     </section>
   <% } %>
 
+  <% var _moved = (typeof movedTo !== 'undefined' && movedTo) ? movedTo : null; %>
+  <% if (_moved) { %>
+    <%# De uitgaande kant staat op slot (FEP-7628). Dat hoort te blijken voordat
+        je op een knop drukt, niet daarna uit een foutmelding. Lezen blijft wel
+        gewoon werken, dus de lijst hieronder staat er nog. %>
+    <div class="alert alert-error tl-moved">
+      <strong><%= t('tl.moved_title') %></strong>
+      <p><%= t('tl.moved_lead') %> <a href="<%= _moved %>"><%= _moved %></a></p>
+      <p class="form-hint"><%= t('tl.moved_hint') %></p>
+    </div>
+  <% } else { %>
   <form method="post" action="/news/follow" class="tl-follow">
     <input type="text" name="handle" placeholder="@naam@server.social of site.com" autocomplete="off" spellcheck="false" required>
     <button type="submit" class="btn btn-primary"><%= t('tl.follow_btn') %></button>
     <label class="tl-follow-ab" title="<%= t('tl.autoboost_hint') %>"><input type="checkbox" name="auto_boost" value="1"> &#10024; <%= t('tl.autoboost_follow') %></label>
   </form>
+  <% } %>
 
   <%# Je volglijst meenemen. Hoort HIER en niet op /following: de tabbalk stuurt
       'following' door naar Connect en er linkt niets meer naar die oude pagina.

@@ -430,6 +430,8 @@ export function buildActor(base, site) {
   // fetching us. Per the FEP the moved actor "should be considered inactive",
   // and publishers should stop delivering here.
   if (site.moved_to && /^https?:\/\//i.test(String(site.moved_to))) actor.movedTo = String(site.moved_to);
+  // Zie movedLock() verderop: het serveren van movedTo is de ENE helft, het
+  // stilzetten van de uitgaande kant de andere.
   // De MusicBrainz-koppeling van de artiest (shaer-mbz). Alleen als hij ZELF
   // gekozen heeft -- er staat niets als er niets gekoppeld is, want een lege
   // of geraden verwijzing is erger dan geen.
@@ -2815,9 +2817,51 @@ export async function handleInbox(req, slugParam, preVerified = null) {
   return 202;
 }
 
+// ── Op slot na een verhuizing (FEP-7628) ──────────────────────────
+//
+// Een verhuisd account serveert `movedTo` en is daarmee dood verklaard. Toch kon
+// je er gewoon op posten, volgen, liken en reageren, en dat federeerde vrolijk
+// de wereld in. Drie dingen gaan daar mis:
+//
+//   - Nieuwe posts krijgen een object-URI op een adres dat je hebt opgezegd. Die
+//     URI's overleven het domein niet, en de reacties erop ook niet.
+//   - Je volgers zijn al verhuisd, dus je post in het niets terwijl het lijkt of
+//     je post.
+//   - Een server die je movedTo ziet EN tegelijk verse activiteit van dat adres
+//     krijgt, krijgt tegenstrijdige signalen over de verhuizing.
+//
+// Daarom staat de poort op de UITGAANDE kant en niet op de knoppen: een
+// C2S-client (Shaer) praat rechtstreeks met deze functies en zou anders zo langs
+// een verborgen knop lopen. De UI volgt de poort, niet andersom.
+//
+// WAT DICHT GAAT: posten, reageren, volgen, liken, boosten, stemmen, en een
+// tweede verhuizing.
+// WAT OPEN BLIJFT: alles wat de wegwijzer draagt (de actor, webfinger, je
+// bestaande posts, de outbox), alles inkomend (reacties op oude posts blijven
+// binnenkomen en leesbaar), je eigen beheer (archief exporteren, volglijst
+// downloaden), en ontvolgen -- opruimen mag altijd.
+// Rapporteren blijft OOK open: dat is een veiligheidsklep, geen inhoud maken.
+//
+// OMKEERBAAR: `moved_to` leegmaken heft het slot op. Een verhuizing kan mislukken
+// en dan moet je terug kunnen.
+export function movedLock(site) {
+  const to = site && site.moved_to && /^https?:\/\//i.test(String(site.moved_to))
+    ? String(site.moved_to) : null;
+  return to ? { locked: true, movedTo: to } : { locked: false, movedTo: null };
+}
+
+/** Weigering in de vorm die de aanroepers al kennen: een object met `error`. */
+function movedRefusal(site, wat) {
+  const l = movedLock(site);
+  if (!l.locked) return null;
+  console.warn('[AP] geweigerd, dit account is verhuisd:', wat, '→', l.movedTo);
+  return { error: 'moved', movedTo: l.movedTo };
+}
+
 // Deliver a new post as Create(Note) to all followers' inboxes (fire-and-forget).
 // Needs PUBLIC_BASE_URL (absolute URLs); no-op without followers or base.
 export async function deliverCreate(site, post) {
+  if (movedLock(site).locked) { console.warn('[AP] Create niet bezorgd, account verhuisd:', site && site.slug); return; }
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   if (!base || !site || !site.slug) return;
   // Resolve inline @user@host mentions → link them in the note + collect their inboxes, so a
@@ -3591,6 +3635,7 @@ export function proposeGate(site, wardUri, feature, allow) {
 }
 
 export async function deliverReply(site, { postId, postSlug, parent, text, html, language, attachments, mentions, visibility }) {
+  const _mv = movedRefusal(site, 'reply'); if (_mv) return _mv;
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   // Rich replies: `html` is the reply editor's HTML (sanitized here); `text` is
   // the plain-text fallback (no-JS path, C2S `source`). Either may carry the reply.
@@ -4944,6 +4989,14 @@ export function getReactionsFor(slug, uris) {
 
 export function setReaction(slug, uri, kind, on, opts = {}) {
   if (!slug || !uri || (kind !== 'like' && kind !== 'boost')) return;
+  // Ook hier, en niet alleen bij sendInteraction. Deze functie schrijft ALLEEN de
+  // lokale vlag; het versturen gebeurt elders. Zonder deze poort zou je op een
+  // verhuisd account een like zien staan die nooit de deur uit is gegaan, en dat
+  // is de halve toestand die erger is dan een duidelijke weigering.
+  try {
+    const s = db.prepare('SELECT moved_to FROM sites WHERE slug = ?').get(slug);
+    if (movedLock(s).locked) { console.warn('[AP] reactie geweigerd, account verhuisd:', slug, kind); return; }
+  } catch { /* geen sites-tabel = geen verhuizing */ }
   // EEN sleutel voor beide bronnen. opts.flagUri is de opgeloste object-URI van
   // de aanroeper (het C2S-pad kent die uit resolveRemoteNote en dat is
   // betrouwbaarder dan onze cache); anders leiden we hem af. Vroeger kreeg de
@@ -5626,6 +5679,7 @@ export async function selfHealTimeline() {
 
 // Follow a fediverse account by @handle (WebFinger → actor → signed Follow).
 export async function followActor(site, handle, autoBoost = false, { approved = false } = {}) {
+  const _mv = movedRefusal(site, 'follow'); if (_mv) return _mv;
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   if (!base || !site || !site.slug) return { error: 'config' };
   // DE POORT STAAT HIER, en niet alleen in de C2S-outbox (shaer-p729, Barts
@@ -5845,8 +5899,11 @@ export async function handleMoveInbox(act, { verifiedActor = null, fetchActorFn 
  * Deps injecteerbaar voor tests (geen netwerk in node:test).
  */
 export async function moveAccount(site, targetRaw, { fetchActorFn = null, deliverFn = null } = {}) {
+  // Al verhuisd? Dan eerst het slot eraf (moved_to leegmaken). Anders stapel je
+  // wegwijzers op elkaar en weet niemand meer waar de keten eindigt.
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   if (!base || !site || !site.slug) return { error: 'config' };
+  if (movedLock(site).locked) return { error: 'already_moved', movedTo: movedLock(site).movedTo };
   try {
     // Was een harde weigering voor elk bewaakt account (shaer-tge); sinds 8-8
     // een GATE met dezelfde standaard: de automatiek weigert voor een ward,
@@ -6163,6 +6220,7 @@ export async function sendFollowDecision(guardianSite, review, decision) {
 
 // Send a Like or Announce (boost) on a remote note FROM this site.
 export async function sendInteraction(site, kind, targetNoteId, authorUri) {
+  const _mv = movedRefusal(site, `interaction:${kind}`); if (_mv) return _mv;
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   if (!base || !site || !site.slug || !targetNoteId) return { error: 'config' };
   const me = actorId(base, site.slug);
@@ -6346,6 +6404,7 @@ export async function voteOnPoll(site, questionId, choices) {
 // Create(Note) with `name` + inReplyTo) straight to the poll's author. Used for polls you find
 // by URL, not just ones from accounts you follow (which go through voteOnPoll via /news).
 export async function voteOnRemotePoll(site, questionUrl, choices) {
+  const _mv = movedRefusal(site, 'poll-vote'); if (_mv) return _mv;
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   if (!base || !site || !site.slug || !/^https?:\/\//i.test(String(questionUrl || ''))) return { error: 'config' };
   const q = await fetchActor(questionUrl).catch(() => null); // AP GET (SSRF-guarded)

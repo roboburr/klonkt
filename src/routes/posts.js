@@ -1248,6 +1248,9 @@ router.get('/connect', requireSiteManager, (req, res) => {
   renderPage(req, res, 'pages/connect', {
     pageTitle: 'Connect', bodyClass: 'on-special',
     connections, myGuardians,
+    // Na een verhuizing staat de uitgaande kant op slot. Dat hoort te blijken
+    // VOORDAT je op een knop drukt, niet daarna uit een foutmelding.
+    movedTo: ActivityPubService.movedLock(site).movedTo,
     success: req.query.success || null, error: req.query.error || null,
   });
 });
@@ -1271,7 +1274,11 @@ router.post('/news/follow', requireSiteManager, async (req, res) => {
   if (site && handle.trim()) {
     try {
       const r = await ActivityPubService.followActor(site, handle, !!req.body.auto_boost);
-      if (r && r.error) q = 'error=' + encodeURIComponent(r.error === 'not_found' ? 'Account niet gevonden' : (r.error === 'unreachable' ? 'Server onbereikbaar' : 'Volgen mislukt'));
+      // 'moved' is geen mislukking maar een weigering met een reden, en die reden
+      // hoort de gebruiker te lezen. "Volgen mislukt" laat hem zoeken naar een
+      // storing die er niet is.
+      if (r && r.error === 'moved') q = 'error=' + encodeURIComponent(`Dit account is verhuisd naar ${r.movedTo}. Volgen doe je daarvandaan.`);
+      else if (r && r.error) q = 'error=' + encodeURIComponent(r.error === 'not_found' ? 'Account niet gevonden' : (r.error === 'unreachable' ? 'Server onbereikbaar' : 'Volgen mislukt'));
       // Een DERDE uitkomst, niet gelukt en niet mislukt (shaer-p729). "Je volgt
       // nu X" zeggen terwijl het verzoek bij de guardians ligt is de leugen die
       // deze poort waardeloos maakt: het kind denkt dat het gebeurd is.
