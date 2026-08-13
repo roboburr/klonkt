@@ -22,6 +22,7 @@ import { requireGod } from '../middleware/auth.js';
 import { transcodeToMp3, retagMp3 } from '../services/AudioTranscoder.js';
 import { audioUrl } from '../services/AudioStreamService.js';
 import { mediaDir } from '../config/paths.js';
+import MusicBrainz from '../services/MusicBrainzService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Audio files live OUTSIDE storage/media so the public /media static
@@ -382,6 +383,36 @@ router.post('/cleanup', requireGod, (req, res) => {
 // or { error: '...' } with a 4xx status on failure.
 
 /** GET /admin/audio/api/albums — distinct list of album names (for datalist) */
+/**
+ * "Ben jij dit?" -- kandidaten uit MusicBrainz (shaer-mbz, stap 1).
+ *
+ * De zoekopdracht draait HIER en niet in de browser: MusicBrainz staat een
+ * verzoek per seconde toe per APPLICATIE, en dat is alleen af te dwingen als
+ * alles langs een plek gaat. Bovendien eisen ze een User-Agent met contact, en
+ * die kan een browser niet zetten.
+ *
+ * De keuze blijft van de artiest. Wij tonen kandidaten met hun toelichting; we
+ * kiezen er niet zelf een, ook niet als er maar een treffer is -- een verkeerd
+ * geraden MBID koppelt iemand aan het werk van een ander.
+ */
+router.get('/api/musicbrainz', requireGod, async (req, res) => {
+  const site = res.locals.site;
+  if (!site) return res.status(404).json({ error: 'no_site' });
+  // Standaard de artiestennaam die al in de site staat: negen van de tien keer
+  // is dat precies waar iemand op zou zoeken.
+  const q = String(req.query.q || site.author || site.title || '').trim();
+  if (!q) return res.json({ ok: true, q: '', kandidaten: [] });
+  const kandidaten = await MusicBrainz.zoekArtiesten(q);
+  res.json({
+    ok: true,
+    q,
+    gekoppeld: site.mb_artist_id
+      ? { mbid: site.mb_artist_id, naam: site.mb_artist_name || '', url: MusicBrainz.artiestUrl(site.mb_artist_id) }
+      : null,
+    kandidaten,
+  });
+});
+
 router.get('/api/albums', requireGod, (req, res) => {
   const site = res.locals.site;
   if (!site) return res.status(404).json({ error: 'Site required' });

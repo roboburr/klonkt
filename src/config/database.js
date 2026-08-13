@@ -133,6 +133,12 @@ export function initializeDatabase() {
   ensureColumn('ap_follow_reviews', 'target_uri', 'TEXT');
   ensureColumn('ap_follow_reviews', 'target_handle', 'TEXT');
   ensureColumn('sites', 'profile_photo', 'TEXT');
+  // De MusicBrainz-koppeling van de artiest (shaer-mbz). Een MBID is een
+  // verwijzing naar hun register, geen kopie ervan -- de naam staat erbij zodat
+  // het beheerscherm kan tonen WAT er gekoppeld is zonder ervoor te moeten
+  // netwerken, en zodat een verkeerde koppeling opvalt.
+  ensureColumn('sites', 'mb_artist_id', 'TEXT');
+  ensureColumn('sites', 'mb_artist_name', 'TEXT');
   ensureColumn('audio_tracks', 'cover_url', 'TEXT');
   ensureColumn('audio_tracks', 'album', 'TEXT');
   ensureColumn('users', 'reset_token', 'TEXT');
