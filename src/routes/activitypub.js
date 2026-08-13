@@ -27,6 +27,19 @@ import { randomUUID } from 'crypto';
 import { mediaDir } from '../config/paths.js';
 
 const router = express.Router();
+
+/**
+ * Welke pagina vraagt de lezer? (shaer-sk4)
+ *
+ * Hier stond `!!req.query.page` -- of de parameter er STAAT, niet welke. Daardoor
+ * gaf ?page=2 en ?page=99 allemaal pagina 1, en noemde het antwoord zichzelf ook
+ * nog pagina 1. Onleesbaar getal of geen parameter: dan de wortel.
+ */
+function paginaNr(req) {
+  if (req.query.page === undefined) return false;
+  const n = Math.floor(Number(req.query.page));
+  return Number.isFinite(n) && n > 0 ? n : 1;
+}
 // The whole fediverse layer can be turned off (solo "no federation" mode):
 // then /ap/*, WebFinger and NodeInfo are simply gone — the site is undiscoverable
 // and unfederatable. CRITICAL: this router is mounted at root (app.use(apRoutes)), so a
@@ -181,7 +194,7 @@ router.get('/ap/users/:slug/outbox', async (req, res) => {
     verifiedActor,
   });
   if (audience === 'blocked') {
-    return AP.sendAP(res, AP.buildOutbox(baseUrl(req), site, [], [], { page: !!req.query.page }), 'private, no-store');
+    return AP.sendAP(res, AP.buildOutbox(baseUrl(req), site, [], [], { page: paginaNr(req) }), 'private, no-store');
   }
   const fanClause = audience === 'friend' ? '' : "AND (fan_only IS NULL OR fan_only = 0)";
   const posts = db.prepare(
@@ -191,7 +204,7 @@ router.get('/ap/users/:slug/outbox', async (req, res) => {
   ).all(site.id);
   // De tracks gaan mee voor iedereen die de deur door mag; de blocked-tak
   // hierboven levert bewust een outbox ZONDER posts en zonder tracks.
-  const ob = AP.buildOutbox(baseUrl(req), site, posts, AP.siteOpenTracks(site.id), { page: !!req.query.page });
+  const ob = AP.buildOutbox(baseUrl(req), site, posts, AP.siteOpenTracks(site.id), { page: paginaNr(req) });
   if (audience === 'friend') {
     // The owner's app builds its feed from this leg, and every note here is
     // by the site itself, so give it a byline too (avatar + name): de
@@ -985,10 +998,10 @@ router.get('/ap/users/:slug/followers', (req, res) => {
     const uris = db.prepare('SELECT actor_uri FROM ap_followers WHERE slug = ? ORDER BY created_at').all(site.slug).map((r) => r.actor_uri);
     // Default = bare references; enrich only when the client asks (FEP-9876).
     const items = wantsEnriched(req, res) ? uris.map((u) => AP.buildActorRef(site.slug, u)) : uris;
-    return AP.sendAP(res, AP.buildFollowers(baseUrl(req), site, items.length, items));
+    return AP.sendAP(res, AP.buildFollowers(baseUrl(req), site, items.length, items, { page: paginaNr(req) }));
   }
   const n = db.prepare('SELECT COUNT(*) n FROM ap_followers WHERE slug = ?').get(site.slug).n;
-  AP.sendAP(res, AP.buildFollowers(baseUrl(req), site, n));
+  AP.sendAP(res, AP.buildFollowers(baseUrl(req), site, n, null, { page: paginaNr(req) }));
 });
 
 // ── Following (count-only public, full for the owner) ─────────────
@@ -1004,11 +1017,11 @@ router.get('/ap/users/:slug/following', (req, res) => {
       const uris = db.prepare("SELECT actor_uri FROM ap_following WHERE slug = ? AND status = 'accepted' ORDER BY created_at").all(site.slug).map((r) => r.actor_uri);
       items = enrich ? uris.map((u) => AP.buildActorRef(site.slug, u)) : uris;
     } catch { /* table may not exist */ }
-    return AP.sendAP(res, AP.buildFollowing(baseUrl(req), site, items.length, items));
+    return AP.sendAP(res, AP.buildFollowing(baseUrl(req), site, items.length, items, { page: paginaNr(req) }));
   }
   let n = 0;
   try { n = db.prepare("SELECT COUNT(*) n FROM ap_following WHERE slug = ? AND status = 'accepted'").get(site.slug).n; } catch { /* table may not exist */ }
-  AP.sendAP(res, AP.buildFollowing(baseUrl(req), site, n));
+  AP.sendAP(res, AP.buildFollowing(baseUrl(req), site, n, null, { page: paginaNr(req) }));
 });
 
 // ── Featured (pinned posts → Mastodon "Featured" tab) ─────────────

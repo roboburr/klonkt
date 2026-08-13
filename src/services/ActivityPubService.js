@@ -1031,6 +1031,13 @@ export function buildOutbox(base, site, posts, tracks = [], { page = false } = {
   ]
     .sort((a, b) => wanneer(b) - wanneer(a))
     .slice(0, MAX_OUTBOX);
+  // WAT HIER NOG NIET GEPAGINEERD IS, en dat hoort genoemd (shaer-sk4): deze
+  // lijst is al door de route op twintig rijen afgekapt, dus pagina 2 is leeg.
+  // Echt doorbladeren vraagt een LIMIT/OFFSET in SQL -- en dat is hier lastiger
+  // dan bij volgers, want posts en tracks worden op DATUM door elkaar gevlochten
+  // en komen uit twee tabellen. Dat vraagt een UNION met een offset erover, geen
+  // tweede slice. De vorm klopt nu wel: pagina 2 zegt eerlijk dat hij leeg is en
+  // biedt geen `next` aan, in plaats van pagina 1 nog eens te geven.
   // GEPAGINEERD, ook al past alles op een pagina (Funkwhale, 11-8).
   //
   // Hun serializer weigerde onze outbox met "first: This field is required" en
@@ -1048,18 +1055,18 @@ export function buildOutbox(base, site, posts, tracks = [], { page = false } = {
 // Public callers get a count-only collection (privacy). The authenticated
 // account owner (a C2S bearer scoped to this site) gets the real actor URIs via
 // `items`, so their own client can build a friends list.
-export function buildFollowers(base, site, count, items = null) {
+export function buildFollowers(base, site, count, items = null, { page = false } = {}) {
   const id = `${actorId(base, site.slug)}/followers`;
   // count-only for the public; full for the owner
-  return pagedCollection(id, items || [], { totalItems: items ? items.length : (count || 0) });
+  return pagedCollection(id, items || [], { totalItems: items ? items.length : (count || 0), page });
 }
 
 // The accounts this site follows — count only, mirroring buildFollowers. The spec lists
 // `following` as a standard actor property; Hubzilla/Friendica + crawlers expect it.
-export function buildFollowing(base, site, count, items = null) {
+export function buildFollowing(base, site, count, items = null, { page = false } = {}) {
   const id = `${actorId(base, site.slug)}/following`;
   // count-only for the public; full for the owner
-  return pagedCollection(id, items || [], { totalItems: items ? items.length : (count || 0) });
+  return pagedCollection(id, items || [], { totalItems: items ? items.length : (count || 0), page });
 }
 
 // Pinned posts → the actor's `featured` collection. Mastodon reads this and shows

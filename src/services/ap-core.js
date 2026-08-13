@@ -211,18 +211,45 @@ export function buildHashtagList(base, tagsField, content, opts = {}) {
  *   page        true -> een OrderedCollectionPage met partOf in plaats van de wortel
  *   extra       velden die op de wortel horen (attributedTo, shaer:*)
  */
-export function pagedCollection(id, items, { totalItems, page = false, extra = {} } = {}) {
+/** Hoeveel items op een pagina. Gelijk aan wat de outbox vroeger als KAP had. */
+export const PAGINA_GROOTTE = 20;
+
+/**
+ * Een collectie, met ECHTE paginering (shaer-sk4).
+ *
+ * Wat hier stond was een omhulsel: `page` veranderde alleen de VORM en er werd
+ * nooit gesneden. `first` en `last` wezen allebei naar ?page=1, elke ?page=N gaf
+ * dezelfde items, en pagina 99 noemde zichzelf pagina 1. Robin zag dat de
+ * pagina's identiek bleven; dit is waarom.
+ *
+ * DE WORTEL BLIJFT ZIJN ITEMS INLINE DRAGEN, en dat is geen slordigheid maar de
+ * hele reden dat dit veilig is. Shaer leest één document en volgt `next` niet;
+ * zou de wortel nu leeg worden, dan kreeg elke draaiende app nul items en geen
+ * foutmelding. Eerst de clients leren pagineren, dan pas de wortel afslanken.
+ *
+ * Een pagina VOORBIJ het einde is leeg en zegt dat ook -- met zijn eigen nummer
+ * en zonder `next`. Hem naar de laatste pagina terugbuigen zou opnieuw een
+ * antwoord zijn dat over zichzelf liegt.
+ */
+export function pagedCollection(id, items, { totalItems, page = false, perPage = PAGINA_GROOTTE, extra = {} } = {}) {
   const lijst = items || [];
   const telling = totalItems === undefined ? lijst.length : totalItems;
-  const eerste = `${id}?page=1`;
+  const grootte = Math.max(1, Number(perPage) || PAGINA_GROOTTE);
+  const paginas = Math.max(1, Math.ceil(lijst.length / grootte));
+  const url = (n) => `${id}?page=${n}`;
+
   if (page) {
+    const n = Math.max(1, Math.floor(Number(page)) || 1);
+    const deel = lijst.slice((n - 1) * grootte, n * grootte);
     return {
       '@context': AP_CONTEXT,
-      id: eerste,
+      id: url(n),
       type: 'OrderedCollectionPage',
       partOf: id,
       totalItems: telling,
-      orderedItems: lijst,
+      ...(n > 1 ? { prev: url(n - 1) } : {}),
+      ...(n < paginas ? { next: url(n + 1) } : {}),
+      orderedItems: deel,
     };
   }
   return {
@@ -231,8 +258,8 @@ export function pagedCollection(id, items, { totalItems, page = false, extra = {
     type: 'OrderedCollection',
     ...extra,
     totalItems: telling,
-    first: eerste,
-    last: eerste,
+    first: url(1),
+    last: url(paginas),
     orderedItems: lijst,
   };
 }
