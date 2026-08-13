@@ -18,6 +18,8 @@ import db from '../config/database.js';
 import { renderPage } from '../middleware/render.js';
 import { requireGod } from '../middleware/auth.js';
 import { getPrimarySite } from '../middleware/site.js';
+import { isMbid } from '../services/ap-core.js';
+import MusicBrainz from '../services/MusicBrainzService.js';
 
 const router = express.Router();
 
@@ -36,11 +38,30 @@ router.get('/', requireGod, (req, res) => {
 
   renderPage(req, res, 'pages/admin-seo', {
     pageTitleKey: 'admin.t_seo',
+    pageJs: 'admin-seo',
     bodyClass: 'on-admin',
     site,
     success: req.query.success || null,
     error: req.query.error || null,
   });
+});
+
+/**
+ * "Zoek jezelf op" -- kandidaten uit MusicBrainz (shaer-mbz).
+ *
+ * De zoekopdracht draait HIER en niet in de browser: MusicBrainz staat een
+ * verzoek per seconde toe per APPLICATIE, en dat is alleen af te dwingen als
+ * alles langs een plek gaat. Bovendien eisen ze een User-Agent met contact, en
+ * die kan een browser niet zetten.
+ *
+ * Wij kiezen NIET. Ook niet als er precies een treffer is: een verkeerd geraden
+ * MBID zet jouw naam onder andermans werk.
+ */
+router.get('/api/musicbrainz', requireGod, async (req, res) => {
+  const site = getPrimarySite(req);
+  const q = String(req.query.q || (site && (site.publisher_name || site.title)) || '').trim();
+  if (!q) return res.json({ ok: true, q: '', kandidaten: [] });
+  res.json({ ok: true, q, kandidaten: await MusicBrainz.zoekArtiesten(q) });
 });
 
 // ==================== SAVE ====================
@@ -71,8 +92,16 @@ router.post('/', requireGod, (req, res) => {
       publisher_name = ?,
       publisher_url = ?,
       publisher_logo = ?,
+      mb_artist_id = ?, mb_artist_name = ?,
       updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
+  // De MusicBrainz-koppeling (shaer-mbz). Alleen een echte MBID komt de kolom
+  // in: zonder deze zeef sluipt er een URL of een handle in het veld dat naar
+  // buiten gaat, en het gaat naar TWEE uitgangen -- de JSON-LD en de actor.
+  // Leeg is een geldige keuze; dat is ontkoppelen.
+  const mbRuw = String(f.mb_artist_id || '').trim().toLowerCase();
+  const mbArtistId = isMbid(mbRuw) ? mbRuw : null;
+
   `).run(
     f.robots_index ? 1 : 0,
     (f.title_template || '{title} — {site}').slice(0, 200),
@@ -92,6 +121,8 @@ router.post('/', requireGod, (req, res) => {
     trimOrNull(f.publisher_name, 200),
     trimOrNull(f.publisher_url, 200),
     trimOrNull(f.publisher_logo, 500),
+    mbArtistId,
+    mbArtistId ? (String(f.mb_artist_name || '').trim().slice(0, 200) || null) : null,
     primary.id,
   );
 

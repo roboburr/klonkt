@@ -90,6 +90,12 @@ const _publisher = {
 if (safeSite.publisher_logo) {
   _publisher.logo = { '@type': 'ImageObject', url: safeSite.publisher_logo };
 }
+// Dezelfde koppeling die de fediverse-actor draagt, hier in de JSON-LD
+// (shaer-mbz). sameAs is schema.org-eigen, dus dit is geen extra vocabulaire --
+// het is hetzelfde feit, verteld aan de andere lezer.
+if (safeSite.mb_artist_id) {
+  _publisher.sameAs = 'https://musicbrainz.org/artist/' + safeSite.mb_artist_id;
+}
 let _jsonLd = null;
 if (typeof post !== 'undefined' && post && post.slug) {
   _jsonLd = {

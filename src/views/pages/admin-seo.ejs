@@ -87,6 +87,37 @@
       </label>
     </fieldset>
 
+    <%# ── MUSICBRAINZ ─────────────────────────────────────────────
+        Direct onder Uitgever, en dat is geen willekeur: sameAs IS een
+        schema.org-eigenschap, en dat blok hierboven is waar ons schema.org
+        vandaan komt. Een koppeling hier voedt twee uitgangen tegelijk -- de
+        JSON-LD van de pagina en het fediverse-profiel (shaer-mbz). %>
+    <fieldset id="mb-veld">
+      <legend><%= t('aseo.mb_legend') %></legend>
+      <p class="form-hint"><%= t('aseo.mb_hint') %></p>
+
+      <input type="hidden" name="mb_artist_id" id="mb-id" value="<%= site.mb_artist_id || '' %>">
+      <input type="hidden" name="mb_artist_name" id="mb-naam" value="<%= site.mb_artist_name || '' %>">
+
+      <p class="mb-huidig" id="mb-huidig" <%= site.mb_artist_id ? '' : 'hidden' %>>
+        <%= t('aseo.mb_linked') %>
+        <strong id="mb-huidig-naam"><%= site.mb_artist_name || site.mb_artist_id || '' %></strong>
+        <a id="mb-huidig-link" target="_blank" rel="noopener"
+           href="https://musicbrainz.org/artist/<%= site.mb_artist_id || '' %>"><%= t('aseo.mb_open') %></a>
+        <button type="button" class="btn" id="mb-wis"><%= t('aseo.mb_unlink') %></button>
+      </p>
+
+      <label>
+        <span><%= t('aseo.mb_search_label') %> <small class="form-hint-inline">— <%= t('aseo.mb_search_hint') %></small></span>
+        <div class="mb-zoek">
+          <input type="text" id="mb-q" value="<%= site.publisher_name || site.title || '' %>"
+                 autocomplete="off" placeholder="<%= t('aseo.mb_placeholder') %>">
+          <button type="button" class="btn" id="mb-zoek-btn"><%= t('aseo.mb_search') %></button>
+        </div>
+      </label>
+      <div id="mb-uit" class="mb-uit" hidden></div>
+    </fieldset>
+
     <fieldset>
       <legend><%= t('aseo.verify_legend') %></legend>
       <label>
