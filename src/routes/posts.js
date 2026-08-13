@@ -1284,6 +1284,50 @@ router.post('/news/follow', requireSiteManager, async (req, res) => {
   res.redirect('/following?' + q);
 });
 
+// ── Je volglijst meenemen ─────────────────────────────────────────
+//
+// Zonder dit was verhuizen halfslachtig: de Move vertelt je VOLGERS waar je heen
+// ging, maar niets vertelde JOU wie jij volgde. Die lijst stond alleen in de
+// database die je achterlaat.
+router.get('/news/following.csv', requireSiteManager, async (req, res) => {
+  const site = res.locals.site;
+  const { followingCsv } = await import('../services/ArchiveExportService.js');
+  const csv = site ? followingCsv(site.slug) : null;
+  if (!csv) return res.redirect('/following?error=' + encodeURIComponent('Je volgt nog niemand'));
+  res.set('Content-Type', 'text/csv; charset=utf-8');
+  res.set('Content-Disposition', `attachment; filename="following-${site.slug}.csv"`);
+  // Privé: dit is de lijst van wie jij volgt, niets voor een cache onderweg.
+  res.set('Cache-Control', 'private, no-store');
+  res.send(csv);
+});
+
+router.post('/news/following/import', requireSiteManager, express.urlencoded({ extended: false, limit: '256kb' }), async (req, res) => {
+  const site = res.locals.site;
+  const csv = (req.body && req.body.csv) || '';
+  if (!site || !String(csv).trim()) return res.redirect('/following?error=' + encodeURIComponent('Geen lijst ontvangen'));
+
+  const { importFollowing } = await import('../services/ArchiveImportService.js');
+  // followActor als followFn: die doet de webfinger, stuurt de Follow en zet
+  // auto_boost meteen goed. Zo blijft er één pad naar een volgrelatie.
+  const r = await importFollowing(site, csv, {
+    followFn: async (s, adres, uitgelicht) => {
+      const uit = await ActivityPubService.followActor(s, adres, !!uitgelicht);
+      // followActor meldt een fout als VELD, niet als exception. Zonder deze
+      // vertaling telde een onvindbaar account gewoon als geslaagd mee.
+      if (uit && uit.error) throw new Error(uit.error);
+      return true;
+    },
+  });
+
+  const delen = [`${r.gevolgd} gevolgd`];
+  if (r.overgeslagen) delen.push(`${r.overgeslagen} overgeslagen`);
+  if (r.mislukt.length) {
+    const namen = r.mislukt.slice(0, 3).map((m) => m.adres).join(', ');
+    delen.push(`${r.mislukt.length} mislukt (${namen}${r.mislukt.length > 3 ? '…' : ''})`);
+  }
+  res.redirect('/following?' + (r.mislukt.length ? 'error=' : 'success=') + encodeURIComponent(delen.join(', ')));
+});
+
 router.post('/news/unfollow', requireSiteManager, async (req, res) => {
   const site = res.locals.site;
   const actorUri = (req.body.actor_uri || '').toString();

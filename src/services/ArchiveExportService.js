@@ -245,11 +245,15 @@ function readableMarkdown(post, obj) {
 //
 //   Account address,Show boosts,Notify on new posts,Languages,Featured
 //
-// De vijfde kolom is van ons. Mastodon leest de eerste vier en negeert de rest,
-// dus dit blijft daar gewoon importeerbaar. `Featured` is de kolom voor
-// `highlighted`: accounts die je op je profiel uitlicht. `Show boosts` is onze
-// `auto_boost`. `Notify` en `Languages` kent Klonkt niet en blijven leeg; ze
-// staan er alleen omdat Mastodon de posities telt.
+// `Featured` is onze kolom en draagt `auto_boost`: het vinkje dat in de UI
+// "Uitgelicht" heet (tl.autoboost) en hun posts in jouw Cirkel laat meelopen.
+//
+// `Show boosts` blijft LEEG. Dat is bij Mastodon "toon de reblogs van deze
+// persoon in mijn tijdlijn", en dat kent Klonkt niet. De verleiding is groot om
+// er auto_boost in te schrijven omdat in beide het woord boost zit, maar het is
+// een ander ding: dat van ons gaat over hun eigen posts in JOUW Cirkel, niet
+// over andermans posts die zij doorgeven. `Notify` en `Languages` kent Klonkt
+// evenmin. Die drie staan er omdat Mastodon de POSITIES telt.
 const CSV_KOP = 'Account address,Show boosts,Notify on new posts,Languages,Featured';
 
 /** Een veld dat een komma, aanhalingsteken of nieuwe regel bevat moet geciteerd. */
@@ -272,17 +276,17 @@ function csvVeld(v) {
 export function followingCsv(slug) {
   let rijen = [];
   try {
-    rijen = db.prepare(`SELECT actor_uri, handle, auto_boost, highlighted FROM ap_following
+    rijen = db.prepare(`SELECT actor_uri, handle, auto_boost FROM ap_following
                          WHERE slug = ? AND status = 'accepted'
                          ORDER BY handle IS NULL, handle, actor_uri`).all(slug);
   } catch { return null; }        // oude database zonder de kolom
   if (!rijen.length) return null;
   const regels = rijen.map((r) => [
     csvVeld((r.handle || r.actor_uri || '').replace(/^@/, '')),
-    r.auto_boost ? 'true' : 'false',
-    'false',
-    '',
-    r.highlighted ? 'true' : 'false',
+    '',                                    // Show boosts: niet van ons
+    '',                                    // Notify on new posts: idem
+    '',                                    // Languages: idem
+    r.auto_boost ? 'true' : 'false',       // Featured: het vinkje "Uitgelicht"
   ].join(','));
   return `${CSV_KOP}\n${regels.join('\n')}\n`;
 }
@@ -300,15 +304,17 @@ export function parseFollowingCsv(text) {
   const regels = String(text || '').split(/\r?\n/).filter((r) => r.trim());
   if (!regels.length) return uit;
   // Een kopregel herkennen we aan het eerste veld; anders is regel 1 al data.
-  const start = /^\s*"?account address"?\s*,/i.test(regels[0]) || /^\s*"?account address"?\s*$/i.test(regels[0]) ? 1 : 0;
+  const start = /^\s*"?account address"?\s*(,|$)/i.test(regels[0]) ? 1 : 0;
   for (const regel of regels.slice(start)) {
     const velden = splitsCsvRegel(regel);
     const adres = (velden[0] || '').trim().replace(/^@/, '');
     if (!adres) continue;
     uit.push({
       address: adres,
-      autoBoost: /^(true|1|yes)$/i.test((velden[1] || '').trim()),
-      highlighted: /^(true|1|yes)$/i.test((velden[4] || '').trim()),
+      // Alleen kolom 5. Een bestand uit Mastodon heeft die niet en levert dus
+      // `false`, en dat is juist: hun "Show boosts" in kolom 2 gaat over iets
+      // anders en mag hier niet als uitgelicht binnenkomen.
+      featured: /^(true|1|yes)$/i.test((velden[4] || '').trim()),
     });
   }
   return uit;

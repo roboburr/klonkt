@@ -736,16 +736,11 @@ export function initializeDatabase() {
     );
     CREATE INDEX IF NOT EXISTS idx_ap_reports_slug ON ap_reports(slug, created_at);
   `);
-  // "Feature" a followed account: its posts show in the local Cirkel.
+  // "Feature" a followed account: its posts show in the local Cirkel. Heet in de
+  // UI "Uitgelicht" / "Featured" (tl.autoboost), en zo heet de kolom ook in
+  // following.csv. Niet te verwarren met `featured` op de ACTOR: dat is de
+  // collectie vastgezette POSTS (toot:featured), iets heel anders.
   ensureColumn('ap_following', 'auto_boost', 'INTEGER DEFAULT 0');
-  // Uitgelicht: dit account tonen op je eigen profiel, als aanbeveling aan je
-  // bezoekers. NIET hetzelfde als de twee buren: `featured` op de actor is de
-  // collectie VASTGEZETTE POSTS (toot:featured), en `auto_boost` hierboven laat
-  // hun posts in JOUW Cirkel meelopen. Dit gaat over wie je aan ANDEREN laat
-  // zien. Vandaar een eigen naam; drie dingen die "featured" heten is er twee
-  // te veel. Lokale vlag: FEP-d471 (Endorsements) modelleert dit als een eigen
-  // object voor webs of trust, en dat is een zwaarder ding dan hier bedoeld.
-  ensureColumn('ap_following', 'highlighted', 'INTEGER DEFAULT 0');
   // A timeline post you boosted (🔁) — also shown in the Cirkel (mixed by date).
   ensureColumn('ap_timeline', 'boosted', 'INTEGER DEFAULT 0');
   ensureColumn('ap_timeline', 'liked', 'INTEGER DEFAULT 0'); // a feed post you liked (⭐) → toggle

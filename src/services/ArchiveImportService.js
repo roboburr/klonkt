@@ -140,17 +140,12 @@ export async function importFollowing(site, csvText, { followFn = null } = {}) {
     // archief van een instance die je onder een nieuwe naam opnieuw opzet.
     if (site && site.slug && r.address.startsWith(`${site.slug}@`)) { rapport.overgeslagen += 1; continue; }
     try {
-      const ok = await followFn(site, r.address, r.autoBoost);
+      // De uitgelicht-stand gaat MEE in de Follow zelf: followActor neemt hem
+      // als derde argument en zet auto_boost bij het aanmaken van de rij. Een
+      // aparte UPDATE erna zou een tweede pad zijn naar dezelfde vlag, en dan
+      // kan er precies een halve toestand ontstaan als die faalt.
+      const ok = await followFn(site, r.address, r.featured);
       if (ok === false) { rapport.mislukt.push({ adres: r.address, reden: 'geweigerd' }); continue; }
-      // De uitgelicht-vlag hangt aan de RELATIE, dus die zetten we pas als de
-      // rij bestaat. Mislukt de Follow, dan valt er niets te markeren, en dat
-      // is juist: iemand uitlichten die je niet volgt klopt niet.
-      if (r.highlighted) {
-        try {
-          db.prepare('UPDATE ap_following SET highlighted = 1 WHERE slug = ? AND (handle = ? OR handle = ?)')
-            .run(site.slug, r.address, `@${r.address}`);
-        } catch { /* oude database zonder de kolom */ }
-      }
       rapport.gevolgd += 1;
     } catch (e) {
       rapport.mislukt.push({ adres: r.address, reden: (e && e.message) || 'onbekend' });

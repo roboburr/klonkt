@@ -23,32 +23,32 @@ const db = dbMod.default;
 const { followingCsv, parseFollowingCsv } = await import('../src/services/ArchiveExportService.js');
 const { importFollowing } = await import('../src/services/ArchiveImportService.js');
 
-const volg = db.prepare(`INSERT INTO ap_following (slug, actor_uri, handle, status, auto_boost, highlighted)
-                         VALUES (?,?,?,?,?,?)`);
+const volg = db.prepare(`INSERT INTO ap_following (slug, actor_uri, handle, status, auto_boost)
+                         VALUES (?,?,?,?,?)`);
 
 beforeEach(() => {
   db.prepare('DELETE FROM ap_following').run();
 });
 
 test('de CSV heeft de Mastodon-koppen, met Featured erachter', () => {
-  volg.run('me', 'https://a.example/ap/users/jason', '@jason@a.example', 'accepted', 1, 1);
+  volg.run('me', 'https://a.example/ap/users/jason', '@jason@a.example', 'accepted', 1);
   const csv = followingCsv('me');
   const [kop, eerste] = csv.trim().split('\n');
   assert.equal(kop, 'Account address,Show boosts,Notify on new posts,Languages,Featured');
   // Zonder de leidende @, want zo schrijft Mastodon het adres.
-  assert.equal(eerste, 'jason@a.example,true,false,,true');
+  assert.equal(eerste, 'jason@a.example,,,,true');
 });
 
 test('een openstaand verzoek gaat NIET mee', () => {
-  volg.run('me', 'https://a.example/ap/users/wacht', '@wacht@a.example', 'pending', 0, 0);
-  volg.run('me', 'https://a.example/ap/users/ja', '@ja@a.example', 'accepted', 0, 0);
+  volg.run('me', 'https://a.example/ap/users/wacht', '@wacht@a.example', 'pending', 0);
+  volg.run('me', 'https://a.example/ap/users/ja', '@ja@a.example', 'accepted', 0);
   const regels = followingCsv('me').trim().split('\n').slice(1);
   assert.equal(regels.length, 1, 'een verzoek dat iemand bewust liet liggen mag niet opnieuw verstuurd worden');
   assert.match(regels[0], /^ja@a\.example/);
 });
 
 test('zonder handle valt hij terug op de actor-URI', () => {
-  volg.run('me', 'https://a.example/ap/users/naamloos', null, 'accepted', 0, 0);
+  volg.run('me', 'https://a.example/ap/users/naamloos', null, 'accepted', 0);
   assert.match(followingCsv('me'), /https:\/\/a\.example\/ap\/users\/naamloos/);
 });
 
@@ -57,12 +57,12 @@ test('een lege lijst levert geen bestand op', () => {
 });
 
 test('een export leest zichzelf terug', () => {
-  volg.run('me', 'https://a.example/ap/users/a', '@a@a.example', 'accepted', 1, 0);
-  volg.run('me', 'https://b.example/ap/users/b', '@b@b.example', 'accepted', 0, 1);
+  volg.run('me', 'https://a.example/ap/users/a', '@a@a.example', 'accepted', 1);
+  volg.run('me', 'https://b.example/ap/users/b', '@b@b.example', 'accepted', 0);
   const terug = parseFollowingCsv(followingCsv('me'));
   assert.deepEqual(terug, [
-    { address: 'a@a.example', autoBoost: true, highlighted: false },
-    { address: 'b@b.example', autoBoost: false, highlighted: true },
+    { address: 'a@a.example', featured: true },
+    { address: 'b@b.example', featured: false },
   ]);
 });
 
@@ -71,7 +71,8 @@ test('een bestand uit Mastodon werkt, ook zonder onze vijfde kolom', () => {
     'Account address,Show boosts,Notify on new posts,Languages\n'
     + 'iemand@mastodon.social,true,false,\n',
   );
-  assert.deepEqual(uit, [{ address: 'iemand@mastodon.social', autoBoost: true, highlighted: false }]);
+  // Hun "Show boosts" staat op true, en dat mag hier NIET als uitgelicht landen.
+  assert.deepEqual(uit, [{ address: 'iemand@mastodon.social', featured: false }]);
 });
 
 test('een kale lijst adressen werkt ook, zonder kopregel', () => {
@@ -82,18 +83,18 @@ test('een kale lijst adressen werkt ook, zonder kopregel', () => {
 test('een geciteerd veld met een komma erin blijft heel', () => {
   const uit = parseFollowingCsv('Account address,Show boosts\n"raar,naam@a.example",true\n');
   assert.equal(uit[0].address, 'raar,naam@a.example');
-  assert.equal(uit[0].autoBoost, true);
 });
 
 test('importFollowing volgt elke regel, met de boost-stand mee', async () => {
   const gezien = [];
   const r = await importFollowing({ slug: 'me' },
     'Account address,Show boosts,Notify on new posts,Languages,Featured\n'
-    + 'a@a.example,true,false,,false\n'
-    + 'b@b.example,false,false,,true\n',
+    + 'a@a.example,,,,true\n'
+    + 'b@b.example,,,,false\n',
     { followFn: async (site, adres, boost) => { gezien.push([adres, boost]); return true; } });
 
-  assert.deepEqual(gezien, [['a@a.example', true], ['b@b.example', false]]);
+  assert.deepEqual(gezien, [['a@a.example', true], ['b@b.example', false]],
+    'de uitgelicht-stand moet als derde argument mee de Follow in');
   assert.equal(r.gevolgd, 2);
   assert.equal(r.mislukt.length, 0);
 });
@@ -129,7 +130,7 @@ test('buildArchive stopt following.csv er echt in, met hash in het manifest', as
     .run('u1', 'u1', 'u1@test', 'x', 'god');
   db.prepare('INSERT OR IGNORE INTO sites (id, slug, title, owner_id) VALUES (?,?,?,?)')
     .run('s1', 'me', 'Mijn site', 'u1');
-  volg.run('me', 'https://a.example/ap/users/jason', '@jason@a.example', 'accepted', 1, 1);
+  volg.run('me', 'https://a.example/ap/users/jason', '@jason@a.example', 'accepted', 1);
 
   const { buildArchive } = await import('../src/services/ArchiveExportService.js');
   const r = buildArchive('me', { origin: 'https://oud.example' });
@@ -137,5 +138,5 @@ test('buildArchive stopt following.csv er echt in, met hash in het manifest', as
   assert.ok(r.files.has('following.csv'), 'het archief moet de volglijst dragen');
   assert.equal(r.counts.following, 1);
   assert.ok(r.manifest.files['following.csv'], 'en hij hoort in het manifest, anders telt hij niet mee bij de controle');
-  assert.match(String(r.files.get('following.csv')), /jason@a\.example,true,false,,true/);
+  assert.match(String(r.files.get('following.csv')), /jason@a\.example,,,,true/);
 });
