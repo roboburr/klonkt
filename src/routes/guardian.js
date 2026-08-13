@@ -261,7 +261,11 @@ router.get('/api/feed', requireAuth, (req, res) => {
       published: p.published || p.created_at,
       when_text: formatDateTime(p.published || p.created_at),
       cw: p.cw || null,
-      media: p.media_json ? JSON.parse(p.media_json) : [],
+      // Zelfde valkuil als in note-body.ejs: kapotte json gooit, maar geldige json
+      // van het verkeerde type niet. Zonder deze wacht neemt één vreemde note van
+      // een remote server het hele guardian-paneel mee, en dat is precies het
+      // scherm dat het moet doen als er iets aan de hand is.
+      media: (() => { try { const m = JSON.parse(p.media_json || '[]'); return Array.isArray(m) ? m : []; } catch { return []; } })(),
       // Een post van je ward hoort er hetzelfde uit te zien als in de Krant en
       // in Berichten: dezelfde partial, dus opmaak, media, quote-kaart en
       // embed. Tot nu toe kreeg de PWA alleen kale content -- een guardian zag

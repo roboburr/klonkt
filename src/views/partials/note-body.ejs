@@ -7,7 +7,14 @@
 
      Krant-only trimmings (the boost byline, polls, the audio player iframe, the
      action bar) stay in tl-item: they are about the feed, not about the post. */
+  // De catch vangt KAPOTTE json; hij vangt niet geldige json van het verkeerde
+  // TYPE. Drie posts van een remote server droegen media_json = "[]", dus een
+  // string met daarin [], en JSON.parse geeft dan netjes een string terug. Een
+  // string heeft geen .filter, en daarmee lag de hele Krant plat: één vreemde
+  // note nam de pagina mee. Wat er binnenkomt is niet van ons, dus de vorm moet
+  // hier afgedwongen worden en niet aangenomen.
   var _m = []; try { _m = JSON.parse(nb.media_json || '[]'); } catch (e) { _m = []; }
+  if (!Array.isArray(_m)) _m = [];
   var _imgs = _m.filter(function (m) { return m && m.url && (!m.type || /^image\//.test(m.type)); });
   var _vids = _m.filter(function (m) { return m && m.url && m.type && /^video\//.test(m.type); });
   var _auds = _m.filter(function (m) { return m && m.url && m.type && /^audio\//.test(m.type); });
