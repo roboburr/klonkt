@@ -193,3 +193,9 @@
 .seo-pointer a { color: var(--accent); font-weight: 600; }
 .site-form > button[type="submit"] { align-self: flex-start; }
 </style>
+
+<%# Servertekst naar mod/admin-seo.js. KORTE sleutels, zoals overal in dit
+    project -- de module leest T.mb_busy en niet T.aseo_mb_busy. Zonder dit
+    blok geeft pageData() een leeg object en valt alles terug op de
+    ingebakken Nederlandse tekst, ook voor een Engelse of Duitse lezer. %>
+<%- include('../partials/page-data', { pageData: { mb_busy: t('aseo.mb_busy'), mb_fail: t('aseo.mb_fail'), mb_none: t('aseo.mb_none'), mb_open: t('aseo.mb_open'), mb_pick: t('aseo.mb_pick'), mb_verified: t('aseo.mb_verified'), mb_unverified: t('aseo.mb_unverified'), mb_checking: t('aseo.mb_checking') } }) %>

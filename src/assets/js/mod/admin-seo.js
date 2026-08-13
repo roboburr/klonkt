@@ -79,14 +79,14 @@ function wireMusicBrainz() {
     if (!mbid) { terugweg.hidden = true; terugweg.textContent = ''; return; }
     terugweg.hidden = false;
     terugweg.className = 'mb-terugweg';
-    terugweg.textContent = T.aseo_mb_checking || 'Terug-weg controleren…';
+    terugweg.textContent = T.mb_checking || 'Terug-weg controleren…';
     try {
       const r = await fetch(`/admin/seo/api/musicbrainz/terugweg?mbid=${encodeURIComponent(mbid)}`, { credentials: 'same-origin' });
       const j = await r.json();
       terugweg.className = 'mb-terugweg ' + (j.verified ? 'is-ok' : 'is-eenzijdig');
       terugweg.textContent = j.verified
-        ? (T.aseo_mb_verified || 'Wederzijds.')
-        : (T.aseo_mb_unverified || 'Nog eenzijdig.');
+        ? (T.mb_verified || 'Wederzijds.')
+        : (T.mb_unverified || 'Nog eenzijdig.');
     } catch {
       terugweg.hidden = true;
     }
@@ -99,14 +99,14 @@ function wireMusicBrainz() {
     const q = (veld.value || '').trim();
     if (!q) return;
     uit.hidden = false;
-    uit.replaceChildren(el('p', 'form-hint', T.aseo_mb_busy || 'Zoeken…'));
+    uit.replaceChildren(el('p', 'form-hint', T.mb_busy || 'Zoeken…'));
     knop.disabled = true;
     try {
       const r = await fetch(`/admin/seo/api/musicbrainz?q=${encodeURIComponent(q)}`, { credentials: 'same-origin' });
       const j = await r.json();
       toon((j && j.kandidaten) || []);
     } catch {
-      uit.replaceChildren(el('p', 'form-hint', T.aseo_mb_fail || 'MusicBrainz is even niet bereikbaar.'));
+      uit.replaceChildren(el('p', 'form-hint', T.mb_fail || 'MusicBrainz is even niet bereikbaar.'));
     } finally {
       knop.disabled = false;
     }
@@ -114,7 +114,7 @@ function wireMusicBrainz() {
 
   function toon(kandidaten) {
     if (!kandidaten.length) {
-      uit.replaceChildren(el('p', 'form-hint', T.aseo_mb_none || 'Niets gevonden.'));
+      uit.replaceChildren(el('p', 'form-hint', T.mb_none || 'Niets gevonden.'));
       return;
     }
     const lijst = el('ul', 'mb-lijst');
@@ -125,10 +125,10 @@ function wireMusicBrainz() {
       // en zonder dit veld kiest iemand de verkeerde.
       const bij = [k.toelichting, k.soort, k.land, k.jaren].filter(Boolean).join(' · ');
       if (bij) li.appendChild(el('small', 'mb-bij', bij));
-      const open = el('a', 'mb-open', T.aseo_mb_open || 'Bekijk op MusicBrainz');
+      const open = el('a', 'mb-open', T.mb_open || 'Bekijk op MusicBrainz');
       open.href = k.url; open.target = '_blank'; open.rel = 'noopener';
       li.appendChild(open);
-      const b = el('button', 'btn', T.aseo_mb_pick || 'Dit ben ik');
+      const b = el('button', 'btn', T.mb_pick || 'Dit ben ik');
       b.type = 'button';
       b.addEventListener('click', () => zet(k.mbid, k.naam));
       li.appendChild(b);
