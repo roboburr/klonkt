@@ -6,6 +6,16 @@
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     </button>
   </div>
+  <% if (typeof movedTo !== 'undefined' && movedTo) { %>
+    <%# Eén uitleg bovenaan in plaats van een tooltip per knop: een tooltip op een
+        uitgeschakelde knop is toch onzichtbaar. Lezen blijft werken, dus de Krant
+        zelf staat er gewoon onder. %>
+    <div class="alert alert-error tl-moved">
+      <strong><%= t('tl.moved_title') %></strong>
+      <p><%= t('tl.moved_lead') %> <a href="<%= movedTo %>"><%= movedTo %></a></p>
+      <p class="form-hint"><%= t('tl.moved_hint') %></p>
+    </div>
+  <% } %>
   <p class="tl-lead"><%= t('tl.lead') %></p>
 
   <div class="tl-paste" id="tl-paste">
@@ -126,6 +136,10 @@
 
   /* Uniform circular action buttons with coloured icons (no emoji). */
   .tl-actions { display: flex; gap: .5rem; margin-top: .9rem; align-items: center; }
+  /* Verhuisd account: liken, boosten en reageren worden door de service toch
+     geweigerd, dus toon dat ook. Blokkeren blijft aanklikbaar (veiligheidsklep). */
+  .tl-act[disabled] { opacity: .35; cursor: not-allowed; }
+  .tl-actions.is-moved { position: relative; }
   .tl-act-form { margin: 0; display: inline-flex; }
   .tl-act { width: 36px; height: 36px; flex: 0 0 36px; border-radius: 50%; padding: 0; box-sizing: border-box;
     display: inline-flex; align-items: center; justify-content: center;

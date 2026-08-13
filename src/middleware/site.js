@@ -41,6 +41,13 @@ export function resolveSite(req, res, next) {
       const isWard = Guardianship.listGuardians(defaultSite.slug).length > 0;
       res.locals.mayReply = Guardianship.wardGateAllowed(defaultSite.gate_replies, isWard);
     } catch { res.locals.mayReply = true; }
+    // Verhuisd (FEP-7628)? Dan staat de uitgaande kant op slot. Om dezelfde reden
+    // hier en niet per route: elke view moet kunnen grijzen wat toch geweigerd
+    // wordt. Een knop die niets doet is erger dan geen knop, want je gaat zoeken
+    // naar een storing die er niet is. De poort zelf zit in de service; dit is
+    // alleen de deurbel die zegt dat er niet opengedaan wordt.
+    res.locals.movedTo = defaultSite.moved_to && /^https?:\/\//i.test(String(defaultSite.moved_to))
+      ? String(defaultSite.moved_to) : null;
   }
 
   next();

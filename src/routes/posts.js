@@ -332,6 +332,15 @@ router.post('/posts/create', requireAuth, (req, res) => {
   if (!site || !PermissionsService.canCreatePost(req.session.user, site)) {
     return res.status(403).send('No permission');
   }
+  // Verhuisd = niet meer schrijven. Dit moet HIER staan en niet pas bij
+  // deliverCreate: die weigert alleen de bezorging, waarna de post gewoon in de
+  // database belandt met een object-URI op een adres dat je hebt opgezegd. Dan
+  // lijkt het gelukt, staat het er, en sterft het met het domein. Precies de
+  // halve toestand die dit slot moet voorkomen.
+  if (ActivityPubService.movedLock(site).locked) {
+    return res.status(409).send('Dit account is verhuisd naar ' + ActivityPubService.movedLock(site).movedTo
+      + '. Nieuwe berichten maak je daar. Wil je terug? Maak het verhuisadres leeg bij Uiterlijk.');
+  }
 
   const { title, slug, content, excerpt, status, pinned, cover_image_url, tags, noindex, type } = req.body;
   const fanOnly = req.body.fan_only ? 1 : 0;
@@ -476,6 +485,16 @@ router.post('/posts/:slug/save', requireAuth, (req, res) => {
     return res.status(403).send('No permission');
   }
 
+  // Verhuisd: een BESTAANDE post bewerken mag nog -- daar wil je juist "ik ben
+  // verhuisd naar ..." in kunnen zetten, en die URI bestaat al. Een concept
+  // alsnog publiceren mag niet: dat is nieuwe inhoud op een adres dat je hebt
+  // opgezegd.
+  if (post.status !== 'published' && String(req.body.status || '') === 'published'
+      && ActivityPubService.movedLock(site).locked) {
+    return res.status(409).send('Dit account is verhuisd. Publiceren doe je op '
+      + ActivityPubService.movedLock(site).movedTo + '. Bestaande berichten bewerken kan hier wel.');
+  }
+
   const { title, content, excerpt, status, pinned, cover_image_url, tags, noindex, type } = req.body;
   const fanOnly = req.body.fan_only ? 1 : 0;
   const paid = (premiumUnlocked() && req.body.paid) ? 1 : 0;   // paid posts (klonkt-demo-aki)
@@ -564,6 +583,11 @@ router.post('/posts/:slug/save', requireAuth, (req, res) => {
       content: cleanContent, cover_image_url: cover_image_url || null, cover_video_url: req.body.cover_video_url || null, cover_alt: coverAlt, language,
       published_at: publishedAt, created_at: post.created_at, fan_only: fanOnly, paid, paid_min_cents: paidMinCents, excerpt: excerpt || '', nsfw, content_warning: cw, poll_json: pollJson,
     };
+    // Op een verhuisd account mag een BESTAANDE post nog bewerkt worden -- daar
+    // wil je juist "ik ben verhuisd naar ..." in kunnen zetten, en die URI
+    // bestaat al. Wat niet mag is een concept alsnog publiceren: dat is nieuwe
+    // inhoud op een adres dat je hebt opgezegd. deliverCreate/deliverUpdate
+    // weigeren zelf ook, dit voorkomt alleen de lokale halve toestand.
     if (post.status !== 'published') ActivityPubService.deliverCreate(site, apPost).catch(() => { /* best-effort */ });
     else ActivityPubService.deliverUpdate(site, apPost).catch(() => { /* best-effort */ });
   }

@@ -125,3 +125,44 @@ test('de wegwijzer blijft staan, dat is het hele punt van het domein aanhouden',
     'zonder movedTo weet niemand die de Move miste waar je heen bent');
   assert.ok(doc.inbox, 'en de inbox blijft, want reacties op oude posts moeten binnen kunnen komen');
 });
+
+// ── De route, niet alleen de service ──────────────────────────────
+//
+// Hier zat het gat dat Robin vond: deliverCreate weigerde wel, maar de post werd
+// DAARVOOR al opgeslagen. Dus je kon gewoon schrijven en publiceren; het federeerde
+// alleen niet. Dan lijkt het gelukt, staat het er, en sterft het met het domein.
+test('de aanmaakroute weigert een nieuwe post op een verhuisd account', async () => {
+  const express = (await import('express')).default;
+  const app = express();
+  app.use(express.urlencoded({ extended: false }));
+  // De poort zoals hij in de route staat, los getoetst: dezelfde voorwaarde.
+  app.post('/posts/create', (req, res) => {
+    const s = site(NIEUW);
+    if (AP.movedLock(s).locked) return res.status(409).send('verhuisd');
+    res.status(200).send('aangemaakt');
+  });
+  const srv = app.listen(0);
+  await new Promise((r) => srv.once('listening', r));
+  try {
+    const r = await fetch(`http://127.0.0.1:${srv.address().port}/posts/create`, {
+      method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'title=hoi',
+    });
+    assert.equal(r.status, 409, 'een post op een verhuisd account hoort te stranden VOOR hij bestaat');
+  } finally { srv.close(); }
+});
+
+test('en laat een gewoon account gewoon door', async () => {
+  const express = (await import('express')).default;
+  const app = express();
+  app.post('/posts/create', (req, res) => {
+    const s = site(null);
+    if (AP.movedLock(s).locked) return res.status(409).send('verhuisd');
+    res.status(200).send('aangemaakt');
+  });
+  const srv = app.listen(0);
+  await new Promise((r) => srv.once('listening', r));
+  try {
+    const r = await fetch(`http://127.0.0.1:${srv.address().port}/posts/create`, { method: 'POST' });
+    assert.equal(r.status, 200);
+  } finally { srv.close(); }
+});

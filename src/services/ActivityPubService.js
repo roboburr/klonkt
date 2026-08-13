@@ -6707,6 +6707,7 @@ Guardianship.wireAvailability({
 });
 
 export default {
+  movedLock,
   AP_CONTEXT, getOrCreateKeys, apWants, sendAP, actorId, noteId, stripLeadingMentions, pagedCollection,
   deriveHandle, localSlugOf, outboxSlice, PAGINA_GROOTTE,
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers, buildFollowing, buildFeatured,
