@@ -25,6 +25,7 @@ import { randomUUID } from 'crypto';
 import db from '../config/database.js';
 import { MEDIA_ROOT } from '../config/paths.js';
 import { FORMAT_VERSION, parseFollowingCsv } from './ArchiveExportService.js';
+import * as Migration from './MigrationService.js';
 
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
 // De tijdstempel gaat er ONGEWIJZIGD in. Omzetten naar SQL-notatie kostte de
@@ -254,7 +255,7 @@ export function importArchive(files, opts = {}) {
       rapport.media += 1;
     }
 
-    schrijf.push({ soort: 'post', id: nieuwId, oudId, obj: o });
+    schrijf.push({ soort: 'post', id: nieuwId, oudId, obj: o, oudeUri: o.id || null });
     rapport.posts += 1;
   }
 
@@ -357,6 +358,26 @@ export function importArchive(files, opts = {}) {
               mediaId, t.credit || null, t.license || null,
               ...['spotify', 'youtube', 'soundcloud'].map((k) => (t.url || []).find((u) => String(u).includes(k)) || null));
         } catch { /* geen audio-tabellen op deze installatie */ }
+      }
+    }
+
+    // FEP-1580: een import uit een export is GEEN apart geval. De spec zegt
+    // met zoveel woorden dat objecten uit een geëxporteerde collectie net zo
+    // behandeld moeten worden als objecten die van de bron zijn opgehaald.
+    // Dus vult ook deze weg de vertaaltabel, en werkt de reactie van een derde
+    // op een verhuisd bericht straks net zo goed bij als bij een live ingest.
+    //
+    // Alleen zinnig als de ids VERANDERD zijn: bleven ze gelijk, dan wijst de
+    // oude URI al naar het goede object en valt er niets te vertalen.
+    if (!idsBehouden && eigenOrigin) {
+      for (const s of schrijf) {
+        if (s.soort !== 'post' || !s.oudeUri) continue;
+        Migration.recordMigrated(site.slug, {
+          origin: s.oudeUri,
+          target: `${eigenOrigin}/ap/notes/${encodeURIComponent(s.id)}`,
+          sourceActor: manifest.actor || '',
+          isPublic: !(s.obj && (s.obj['shaer:fanOnly'] || s.obj['shaer:apVisibility'] === 'direct')),
+        });
       }
     }
   })();

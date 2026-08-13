@@ -31,6 +31,7 @@
         <a href="/admin/sites/new" class="btn"><%= t('admin.b_makesite') %></a>
       <% } %>
       <% if (primarySite) { %><a href="/admin/seo" class="btn"><%= t('admin.b_seo') %></a><% } %>
+      <% if (primarySite) { %><a href="/admin/migrate" class="btn"><%= t('admin.b_migrate') %></a><% } %>
       <a href="/admin/settings" class="btn"><%= t('admin.b_settings') %></a>
     <% if (typeof premiumUnlocked === 'undefined' || premiumUnlocked) { %>
       <a href="/admin/stats" class="btn"><%= t('admin.b_stats') %></a>

@@ -50,6 +50,7 @@ import adminPushRoutes from './routes/admin-push.js';
 import pushRoutes from './routes/push.js';
 import guardianRoutes from './routes/guardian.js';
 import adminMediaRoutes from './routes/admin-media.js';
+import adminMigrateRoutes from './routes/admin-migrate.js';
 import circleRoutes from './routes/circle.js';
 import epkRoutes from './routes/epk.js';
 import newsletterRoutes from './routes/newsletter.js';
@@ -396,6 +397,7 @@ if (audioEnabled()) {
   app.use('/admin/playlists', adminPlaylistsRoutes);
 }
 app.use('/admin/media', adminMediaRoutes); // image library + cleanup (works in lite mode too)
+app.use('/admin/migrate', adminMigrateRoutes); // posts + media naar/van een andere Klonkt
 app.use('/admin/sites', adminSitesRoutes);
 app.use('/admin/users', adminUsersRoutes);
 app.use('/admin/settings', adminSettingsRoutes);

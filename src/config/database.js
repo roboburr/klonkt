@@ -217,6 +217,11 @@ export function initializeDatabase() {
   // of its followers to this account — the claim must be visible on OUR side.
   ensureColumn('sites', 'ap_aliases', 'TEXT');
   ensureColumn('sites', 'moved_to', 'TEXT');   // FEP-7628 slice 2: waarheen dit account vertrok
+  // FEP-1580: staat de ingest-routine nog open? 1 = klaar (en dat is ook de
+  // stand van een site die nooit iets gemigreerd heeft, want er hangt niets).
+  // Derden pollen op deze vlag, dus hij moet ook "er valt niets te wachten"
+  // kunnen zeggen.
+  ensureColumn('sites', 'migration_complete', 'INTEGER DEFAULT 1');
 
   // Per-post noindex + type
   ensureColumn('posts', 'noindex', 'INTEGER DEFAULT 0');
@@ -549,6 +554,43 @@ export function initializeDatabase() {
     -- reactie-migratie erft het in haar re-key-join, die synchroon vóór listen draait:
     -- de opstartkosten waren reacties maal tijdlijnrijen.
     CREATE INDEX IF NOT EXISTS idx_ap_timeline_url ON ap_timeline(slug, url);
+    -- FEP-1580: de vertaaltabel van een verhuizing. Per gemigreerd object waar
+    -- het VANDAAN kwam en welke URI het HIER kreeg. Derden lezen deze mapping en
+    -- werken er hun eigen inReplyTo/Like-verwijzingen mee bij; zonder deze tabel
+    -- is "de berichten krijgen nieuwe adressen" een permanent kapotte draad.
+    --
+    -- De spec eist omgekeerd-chronologisch op het moment dat de kopie HIER is
+    -- aangemaakt (niet de oorspronkelijke publicatiedatum). Daarom sorteren we
+    -- op de autoincrement-id en niet op created_at: die heeft secondeprecisie,
+    -- en een ingest zet er tientallen per seconde in.
+    CREATE TABLE IF NOT EXISTS ap_migration (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug TEXT NOT NULL,          -- onze site, de DOELkant van de verhuizing
+      origin TEXT NOT NULL,        -- object-URI op de broninstantie
+      target TEXT NOT NULL,        -- de URI die het object hier kreeg
+      source_actor TEXT NOT NULL DEFAULT '',
+      is_public INTEGER NOT NULL DEFAULT 1,   -- niet-publieke items horen niet in een publieke pagina
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(slug, origin)
+    );
+    CREATE INDEX IF NOT EXISTS idx_ap_migration_slug ON ap_migration(slug, id DESC);
+    -- De Move-activities zelf, gededupliceerd. FEP-1580 wil dat deze collectie
+    -- een op zichzelf staand bewijs vormt voor de items in ap_migration, met een
+    -- FEP-8b32 integrity proof van de bron-actor plus een kopie van diens
+    -- actor-document. Wij bewaren allebei die stukken al (activity_json en
+    -- actor_json), maar Klonkt kent 8b32 nog niet: zie shaer-j1v0. Zolang dat
+    -- open staat is deze collectie structureel goed en niet verifieerbaar.
+    CREATE TABLE IF NOT EXISTS ap_moves (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug TEXT NOT NULL,
+      move_id TEXT NOT NULL,       -- id van de Move-activity, tevens dedup-sleutel
+      source_actor TEXT NOT NULL,
+      target_actor TEXT NOT NULL,
+      activity_json TEXT NOT NULL,
+      actor_json TEXT,             -- inline kopie van het bron-actordocument
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(slug, move_id)
+    );
     CREATE TABLE IF NOT EXISTS ap_blocks (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       slug TEXT NOT NULL,          -- our site that set the block

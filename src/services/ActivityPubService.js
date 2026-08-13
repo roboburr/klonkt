@@ -390,6 +390,12 @@ export function buildActor(base, site) {
     // list is the source of truth for Shaer's "in Orbit"; clients keep no
     // separate state.
     blocked: `${id}/blocked`,
+    // FEP-1580: de vertaaltabel van een verhuizing plus de Moves die hem
+    // rechtvaardigen. Deze twee staan er ALTIJD, ook leeg, en dat is met opzet:
+    // de FEP wijst er apart op dat "een verhuizing zonder objecten" en "een
+    // server die dit niet kent" anders niet uit elkaar te houden zijn.
+    migration: `${id}/migration`,
+    moves: `${id}/moves`,
     // FEP-633c §2: shaer:guardians / shaer:isGuardian / shaer:queues
     // (guardianship module owns these).
     ...Guardianship.guardianshipActorProps(id, site.slug),
@@ -1838,6 +1844,10 @@ export function mayReadNote(site, post, actorUri) {
   const aud = noteAudience(post);
   if (aud === 'public') return true;
   if (aud === 'direct' || !site || !actorUri) return false;
+  // FEP-1580: dezelfde regel als in outboxAudience, en hier net zo hard nodig.
+  // De outbox geeft de LIJST vrij; zonder deze tak strandt de doelinstantie
+  // alsnog op elke losse Note die niet publiek is.
+  if (isMoveTarget(site.slug, actorUri)) return true;
   try {
     const blocked = db.prepare("SELECT 1 FROM ap_blocks WHERE slug = ? AND kind = 'actor' AND target = ?").get(site.slug, actorUri);
     if (blocked) return false;
@@ -5405,7 +5415,7 @@ async function resolveCard(o) {
  * exactly like the guardian's authorized fetch. The signature covers
  * (request-target) host date, the set verifyRequest checks.
  */
-async function signedGetJson(slug, url, onStatus) {
+export async function signedGetJson(slug, url, onStatus) {
   try {
     const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
     if (!base || !slug) return apGetJson(url);
@@ -5981,11 +5991,39 @@ export function outboxAudience(slug, { bearerSlug = null, verifiedActor = null }
   if (bearerSlug && bearerSlug === slug) return 'friend';
   if (!verifiedActor) return 'public';
   if (isBlockedAny(verifiedActor)) return 'blocked';
+  // FEP-1580, Source Instance: wie ondertekend vraagt namens de actor waar wij
+  // NAARTOE verhuisd zijn, moet behandeld worden alsof wij het zelf vragen.
+  // Anders kan de nieuwe instantie alleen het publieke deel ophalen en verhuist
+  // je fan-only geschiedenis niet mee.
+  if (isMoveTarget(slug, verifiedActor)) return 'friend';
   try {
     if (db.prepare('SELECT 1 FROM ap_followers WHERE slug = ? AND actor_uri = ?').get(slug, verifiedActor)) return 'friend';
   } catch { /* table absent on fresh init */ }
   if (isWardGuardian(slug, verifiedActor)) return 'friend';
   return 'public';
+}
+
+/**
+ * FEP-1580, de hele autorisatie van de bronkant in één predicaat.
+ *
+ * De spec zegt: behandel een verzoek dat namens de DOEL-actor getekend is alsof
+ * de BRON-actor het deed, voor zichtbaarheid en toegang. Wij hangen dat aan
+ * `moved_to`, en dat mag omdat moveAccount() `no_backreference` weigert: het
+ * veld komt er alleen te staan als de doel-actor ons al in `alsoKnownAs` had.
+ * Dus staat er iets, dan heeft iemand met beheer op BEIDE kanten dat gewild.
+ * Een typefout kan hier niet binnenkomen, want die haalt de move zelf niet.
+ *
+ * Dat dit veilig is leunt op de keyId-binding in verifyRequest (shaer-xd8i):
+ * zonder die controle kon een actor tekenen met de sleutel van een buurman op
+ * dezelfde host, en dan is "wie tekende dit" te zacht om je hele geschiedenis
+ * aan af te geven.
+ */
+export function isMoveTarget(slug, actorUri) {
+  if (!slug || !actorUri) return false;
+  try {
+    const row = db.prepare('SELECT moved_to FROM sites WHERE slug = ?').get(slug);
+    return !!(row && row.moved_to && row.moved_to === actorUri);
+  } catch { return false; }
 }
 
 // guardian of the local ward `wardSlug` — so a signed GET from it may read the
@@ -6715,6 +6753,10 @@ Guardianship.wireAvailability({
 
 export default {
   movedLock,
+  // FEP-1580 bronkant. Vergeet je hem hier, dan werpt elke route die hem
+  // aanroept een 500 en lijkt het alsof de poort dicht staat terwijl hij
+  // ontbreekt (precies hoe movedLock zich een dag eerder verstopte).
+  isMoveTarget, signedGetJson,
   AP_CONTEXT, getOrCreateKeys, apWants, sendAP, actorId, noteId, stripLeadingMentions, pagedCollection,
   deriveHandle, localSlugOf, outboxSlice, PAGINA_GROOTTE,
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers, buildFollowing, buildFeatured,

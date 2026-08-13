@@ -19,6 +19,7 @@ import { apReadLimiter, apInboxLimiter } from '../middleware/rate-limit.js';
 import { apEnabled } from '../services/SettingsService.js';
 import OAuth from '../services/OAuthService.js';
 import * as Guardianship from '../services/guardianship/index.js';
+import * as Migration from '../services/MigrationService.js';
 import { getPrimarySite } from '../middleware/site.js';
 import multer from 'multer';
 import path from 'path';
@@ -654,20 +655,31 @@ router.get('/ap/users/:slug/messages', (req, res) => {
 // The server blocklist is the source of truth for Shaer's "in Orbit":
 // clients read it here instead of keeping their own state. Actor-kind
 // blocks only (domain blocks are instance policy, not an Orbit member).
-router.get('/ap/users/:slug/blocked', (req, res) => {
+//
+// FEP-1580 zet deze deur één spleet verder open: de bronkant MOET de blokkades
+// beschikbaar maken voor de instantie waar je NAARTOE verhuist, zodat je
+// zichtbaarheidsvoorkeuren meeverhuizen. De doelkant haalt ze als eerste op,
+// want ze bepalen wat de rest te zien krijgt. Geen nieuwe collectie: deze
+// bestond al en staat al op de actor, alleen de toegang verbreedt.
+router.get('/ap/users/:slug/blocked', async (req, res) => {
   const auth = OAuth.verifyBearer(req.headers.authorization);
-  if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
+  let slug = (auth && auth.site.slug === req.params.slug) ? auth.site.slug : null;
+  if (!slug && req.headers['signature']) {
+    const verified = await AP.verifyRequest(req).catch(() => null);
+    if (verified && verified.id && AP.isMoveTarget(req.params.slug, verified.id)) slug = req.params.slug;
+  }
+  if (!slug) return res.status(403).end();
   const base = baseUrl(req);
-  const items = AP.listBlocks(auth.site.slug)
+  const items = AP.listBlocks(slug)
     .filter((b) => b.kind === 'actor')
     .map((b) => b.target);
   AP.sendAP(res, {
     '@context': AP.AP_CONTEXT,
-    id: `${base}/ap/users/${auth.site.slug}/blocked`,
+    id: `${base}/ap/users/${slug}/blocked`,
     type: 'OrderedCollection',
     totalItems: items.length,
     orderedItems: items,
-  });
+  }, 'private, no-store');
 });
 
 // ── Guardian queues (owner only, FEP-633c, shaer:queues) ──────────
@@ -1028,6 +1040,44 @@ router.get('/ap/users/:slug/following', (req, res) => {
   let n = 0;
   try { n = db.prepare("SELECT COUNT(*) n FROM ap_following WHERE slug = ? AND status = 'accepted'").get(site.slug).n; } catch { /* table may not exist */ }
   AP.sendAP(res, AP.buildFollowing(baseUrl(req), site, n, null, { page: paginaNr(req) }));
+});
+
+// ── FEP-1580: de vertaaltabel van een verhuizing ──────────────────
+//
+// Publiek leesbaar, want dat is het hele doel: een derde die een oude URI in
+// zijn database heeft leest hier wat de nieuwe is. Zonder deze collectie blijft
+// elke reactie op een verhuisd bericht naar een dood adres wijzen.
+//
+// Niet-publieke items komen er alleen in voor een lezer die ze mocht zien. De
+// spec: Moves voor objecten die niet aan as:Public gericht zijn MOGEN NIET
+// publiek getoond worden. Een lijst met de URIs van je fan-only posts is een
+// lek, ook al staat de inhoud er niet bij.
+router.get('/ap/users/:slug/migration', async (req, res) => {
+  const site = publicSite(req.params.slug);
+  if (!site) return res.status(404).end();
+  let alles = false;
+  const auth = OAuth.verifyBearer(req.headers.authorization);
+  if (auth && auth.site.slug === site.slug) alles = true;
+  else if (req.headers['signature']) {
+    const v = await AP.verifyRequest(req).catch(() => null);
+    // Een geverifieerde volger zat in het publiek van de fan-only posts, dus
+    // die mag ook weten waar ze heen zijn.
+    if (v && v.id && AP.outboxAudience(site.slug, { verifiedActor: v.id }) === 'friend') alles = true;
+  }
+  AP.sendAP(res, Migration.buildMigration(baseUrl(req), site, { page: paginaNr(req), alles }),
+    alles ? 'private, no-store' : undefined);
+});
+
+// De Moves die de vertaaltabel rechtvaardigen. Altijd publiek: een bewijs dat
+// je moet kunnen nakijken heeft niets aan een slot.
+//
+// LET OP: zonder FEP-8b32 (shaer-j1v0) staat hier geen handtekening onder. De
+// collectie is structureel goed en niet verifieerbaar, en een derde die de spec
+// streng volgt mag hem daarom weigeren. Bewust geen leeg proof-veld erbij.
+router.get('/ap/users/:slug/moves', (req, res) => {
+  const site = publicSite(req.params.slug);
+  if (!site) return res.status(404).end();
+  AP.sendAP(res, Migration.buildMoves(baseUrl(req), site));
 });
 
 // ── Featured (pinned posts → Mastodon "Featured" tab) ─────────────

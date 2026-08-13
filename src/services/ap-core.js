@@ -63,6 +63,17 @@ export const AP_CONTEXT = [
     // per-poll unique-voter count is a Mastodon (toot) term — declare it so the emitted
     // Question stays valid JSON-LD (a strict processor would otherwise drop votersCount).
     votersCount: 'toot:votersCount',
+    // FEP-1580 (objectmigratie bij een Move). FEP-7628 verhuist je VOLGERS en
+    // zegt dat zelf met zoveel woorden: de objecten zijn een ander probleem, en
+    // dit is de FEP waar dat geregeld wordt. De namespace is die van de FEP zelf
+    // (aangemeld via FEP-888d). De CURIE van de collectie is `migration:migration`,
+    // door de auteur zelf "maybe unhelpfully" genoemd; wij emitteren de JSON-sleutel
+    // `migration`, want daar leest een consument op.
+    migration: { '@id': 'https://w3id.org/fep/1580/migration', '@type': '@id' },
+    moves: { '@id': 'https://w3id.org/fep/1580/moves', '@type': '@id' },
+    migrationComplete: 'https://w3id.org/fep/1580/migrationComplete',
+    migratedFrom: { '@id': 'https://w3id.org/fep/1580/migratedFrom', '@type': '@id' },
+    migratedAt: 'https://w3id.org/fep/1580/migratedAt',
     // Kanaal-vocabulaire (shaer-0nh). Funkwhale declareert `category` niet
     // inline maar via zijn eigen remote context https://funkwhale.audio/ns, en
     // die host is vanaf hier onbereikbaar -- de IRI hieronder is dus AFGELEID

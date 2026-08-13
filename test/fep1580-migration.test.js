@@ -1,0 +1,324 @@
+// FEP-1580: je objecten verhuizen mee met een Move.
+//
+// FEP-7628 verhuist je VOLGERS en zegt zelf dat de inhoud een ander probleem is.
+// Dit is dat probleem. Twee rollen, en ze horen bij elkaar: de BRON geeft de
+// nieuwe instantie zijn eigen kijkrechten, de DOELkant haalt op en publiceert
+// een vertaaltabel zodat derden hun verwijzingen kunnen bijwerken.
+//
+// Het hele vertrouwen hangt aan één ding: `moved_to` staat er alleen als
+// moveAccount() een terugverwijzing in alsoKnownAs zag. Dat is tweezijdig
+// bewijs, en daarom is er geen tweede mechanisme (geen token, geen code) nodig.
+// Deze tests leggen precies vast hoever die sleutel reikt, want een sleutel die
+// te ver reikt geeft je hele geschiedenis aan de verkeerde.
+import { test, beforeEach } from 'node:test';
+import assert from 'node:assert/strict';
+
+process.env.DATABASE_PATH = ':memory:';
+process.env.PUBLIC_BASE_URL = 'https://nieuw.example';
+
+const dbMod = await import('../src/config/database.js');
+const db = dbMod.default;
+{
+  const stil = console.log;
+  console.log = () => {};
+  try { dbMod.initializeDatabase(); } finally { console.log = stil; }
+}
+const AP = await import('../src/services/ActivityPubService.js');
+const Mig = await import('../src/services/MigrationService.js');
+
+const BRON = 'https://oud.example/ap/users/robo';
+const IK = 'https://nieuw.example/ap/users/ik';
+
+function site({ aliases = [], movedTo = null } = {}) {
+  db.prepare('INSERT OR IGNORE INTO users (id, username, email, password_hash, role) VALUES (?,?,?,?,?)')
+    .run('u1', 'u1', 'u1@test', 'x', 'god');
+  db.prepare('INSERT OR IGNORE INTO sites (id, slug, title, owner_id) VALUES (?,?,?,?)')
+    .run('s1', 'ik', 'Mijn site', 'u1');
+  db.prepare('UPDATE sites SET ap_aliases = ?, moved_to = ? WHERE slug = ?')
+    .run(JSON.stringify(aliases), movedTo, 'ik');
+  return db.prepare('SELECT * FROM sites WHERE slug = ?').get('ik');
+}
+
+async function stil(fn) {
+  const w = console.warn; const l = console.log;
+  console.warn = () => {}; console.log = () => {};
+  try { return await fn(); } finally { console.warn = w; console.log = l; }
+}
+
+beforeEach(() => {
+  for (const t of ['ap_migration', 'ap_moves', 'ap_blocks', 'posts', 'ap_followers']) {
+    try { db.prepare(`DELETE FROM ${t}`).run(); } catch { /* tabel bestaat niet in deze build */ }
+  }
+});
+
+// ── BRONKANT: hoever reikt de sleutel ─────────────────────────────
+
+test('isMoveTarget geldt alleen voor precies de actor waar we heen gingen', () => {
+  site({ movedTo: BRON });
+  assert.equal(AP.isMoveTarget('ik', BRON), true);
+  assert.equal(AP.isMoveTarget('ik', BRON + '2'), false, 'een prefix is geen match');
+  assert.equal(AP.isMoveTarget('ik', 'https://oud.example/ap/users/iemand'), false, 'zelfde host is niet genoeg');
+  assert.equal(AP.isMoveTarget('ik', ''), false);
+  assert.equal(AP.isMoveTarget('ik', null), false);
+});
+
+test('zonder verhuizing opent de sleutel niets', () => {
+  site({ movedTo: null });
+  assert.equal(AP.isMoveTarget('ik', BRON), false);
+  assert.equal(AP.outboxAudience('ik', { verifiedActor: BRON }), 'public');
+});
+
+test('de doelinstantie krijgt de fan-only geschiedenis te zien', () => {
+  // Dit is de kern van de bronkant. Zonder deze tak haalt de nieuwe Klonkt
+  // alleen je publieke berichten op en blijft de rest achter op een domein
+  // dat je gaat opzeggen.
+  site({ movedTo: BRON });
+  assert.equal(AP.outboxAudience('ik', { verifiedActor: BRON }), 'friend');
+  const post = { fan_only: 1 };
+  assert.equal(AP.mayReadNote({ slug: 'ik' }, post, BRON), true);
+  assert.equal(AP.mayReadNote({ slug: 'ik' }, post, 'https://elders.example/users/x'), false,
+    'een vreemde blijft buiten, ook tijdens een verhuizing');
+});
+
+test('een geblokkeerde actor wint van de verhuizing', () => {
+  // De volgorde in outboxAudience is niet toevallig: een block is een gesloten
+  // deur, en die gaat niet open omdat er toevallig een verhuizing loopt. Zou
+  // iemand ooit moved_to naar een geblokkeerd account zetten, dan hoort de
+  // blokkade te winnen en niet andersom.
+  site({ movedTo: BRON });
+  db.prepare("INSERT INTO ap_blocks (slug, target, kind) VALUES (?, ?, 'actor')").run('ik', BRON);
+  assert.equal(AP.outboxAudience('ik', { verifiedActor: BRON }), 'blocked');
+});
+
+test('direct-berichten gaan nooit over de lijn, ook niet bij een verhuizing', () => {
+  site({ movedTo: BRON });
+  const dm = { ap_visibility: 'direct' };
+  assert.equal(AP.mayReadNote({ slug: 'ik' }, dm, BRON), false,
+    'een DM is aan iemand gericht; die migreer je niet via een GET');
+});
+
+test('de outbox adresseert een fan-only post NIET als publiek', () => {
+  // Gevonden tijdens de end-to-end test van deze feature, maar het is een
+  // bestaande fout die er los van staat: outboxSlice haalde fan_only en
+  // ap_visibility niet op, dus buildNote zag post.fan_only === undefined en
+  // zette to: as:Public op ALLES. De post werd wel alleen aan vrienden
+  // geserveerd, maar met een publiek etiket erop, en dan mag een volger hem
+  // publiek boosten.
+  //
+  // Deze test hangt hier omdat de migratie erop leunt: de doelkant beslist aan
+  // de hand van dit adres of een bericht in de PUBLIEKE vertaaltabel mag.
+  const s = site();
+  db.prepare(`INSERT INTO posts (id, site_id, author_id, slug, title, content, status, fan_only, published_at)
+              VALUES ('pf', 's1', 'u1', 'fans', 'Fans', '<p>x</p>', 'published', 1, '2024-01-01T00:00:00Z')`).run();
+  db.prepare(`INSERT INTO posts (id, site_id, author_id, slug, title, content, status, published_at)
+              VALUES ('pp', 's1', 'u1', 'open', 'Open', '<p>y</p>', 'published', '2024-01-02T00:00:00Z')`).run();
+
+  const { posts } = AP.outboxSlice('s1', { fanOnly: true, page: 1 });
+  const rij = (id) => posts.find((p) => p.id === id);
+  assert.ok(rij('pf'), 'de fan-only post hoort in de vrienden-outbox te zitten');
+  assert.equal(rij('pf').fan_only, 1, 'en zijn zichtbaarheid moet MEE uit de database komen');
+
+  const fan = AP.buildNote('https://nieuw.example', s, rij('pf'));
+  assert.equal(AP.noteVisibility(fan), 'followers',
+    'een fan-only post die as:Public heet mag een volger publiek boosten');
+  const open = AP.buildNote('https://nieuw.example', s, rij('pp'));
+  assert.equal(AP.noteVisibility(open), 'public', 'en een gewone post blijft gewoon publiek');
+});
+
+// ── DOELKANT: de collecties ───────────────────────────────────────
+
+test('de actor adverteert migration en moves, ook als er niets verhuisd is', () => {
+  // De FEP wijst hier apart op: zonder deze twee is "een verhuizing zonder
+  // objecten" niet te onderscheiden van "een server die dit niet kent".
+  const doc = AP.buildActor('https://nieuw.example', site());
+  assert.equal(doc.migration, `${IK}/migration`);
+  assert.equal(doc.moves, `${IK}/moves`);
+});
+
+test('een lege migration-collectie is geldig en zegt dat hij klaar is', () => {
+  const coll = Mig.buildMigration('https://nieuw.example', site());
+  assert.equal(coll.type, 'OrderedCollection');
+  assert.equal(coll.totalItems, 0);
+  assert.equal(coll.migrationComplete, true, 'niets te doen is ook klaar; anders blijven derden pollen');
+  assert.equal(coll.moves, `${IK}/moves`, 'de spec eist de verwijzing naar de moves-collectie');
+});
+
+test('de vertaaltabel mapt oud naar nieuw, nieuwste kopie eerst', () => {
+  const s = site();
+  Mig.recordMigrated('ik', { origin: `${BRON}/notes/1`, target: `${IK}/notes/a`, sourceActor: BRON });
+  Mig.recordMigrated('ik', { origin: `${BRON}/notes/2`, target: `${IK}/notes/b`, sourceActor: BRON });
+  const coll = Mig.buildMigration('https://nieuw.example', s);
+  assert.equal(coll.totalItems, 2);
+  const items = coll.orderedItems || coll.items;
+  assert.equal(items[0].origin, `${BRON}/notes/2`, 'omgekeerd chronologisch op aanmaakmoment HIER');
+  assert.equal(items[0].type, 'Move');
+  assert.equal(items[0].target, `${IK}/notes/b`);
+});
+
+test('niet-publieke items staan niet in de publieke vertaaltabel', () => {
+  // Een lijst met de URIs van je fan-only posts is een lek, ook zonder inhoud:
+  // hij verraadt hoeveel er zijn en wanneer ze kwamen.
+  const s = site();
+  Mig.recordMigrated('ik', { origin: `${BRON}/notes/pub`, target: `${IK}/notes/a`, isPublic: true });
+  Mig.recordMigrated('ik', { origin: `${BRON}/notes/geheim`, target: `${IK}/notes/b`, isPublic: false });
+  assert.equal(Mig.buildMigration('https://nieuw.example', s).totalItems, 1);
+  assert.equal(Mig.buildMigration('https://nieuw.example', s, { alles: true }).totalItems, 2);
+  const publiek = JSON.stringify(Mig.buildMigration('https://nieuw.example', s));
+  assert.ok(!publiek.includes('geheim'), 'de URI zelf mag er ook niet in staan');
+});
+
+test('dezelfde origin twee keer levert een rij, geen dubbele', () => {
+  const s = site();
+  Mig.recordMigrated('ik', { origin: `${BRON}/notes/1`, target: `${IK}/notes/a` });
+  Mig.recordMigrated('ik', { origin: `${BRON}/notes/1`, target: `${IK}/notes/a` });
+  assert.equal(Mig.buildMigration('https://nieuw.example', s).totalItems, 1,
+    'een tweede ingest-ronde mag de tabel niet verdubbelen');
+});
+
+test('de moves-collectie bewaart het bron-actordocument erbij', () => {
+  // De spec: sluit de bron-actor in, zodat een lezer de herkomst kan nakijken
+  // ook als de bron onbereikbaar is. Dat is precies het geval waarvoor dit
+  // bestaat, dus een verwijzing naar de bron zou hier niets waard zijn.
+  const s = site();
+  const actorDoc = { id: BRON, type: 'Person', publicKey: { id: `${BRON}#main-key`, owner: BRON, publicKeyPem: 'x' } };
+  Mig.recordMove('ik', { moveId: `${BRON}#move`, sourceActor: BRON, targetActor: IK, activity: { type: 'Move' }, actorDoc });
+  const coll = Mig.buildMoves('https://nieuw.example', s);
+  assert.equal(coll.totalItems, 1);
+  assert.equal(coll.orderedItems[0].origin, BRON);
+  assert.equal(coll.orderedItems[0].target, IK);
+  assert.equal(coll.orderedItems[0].actor.publicKey.publicKeyPem, 'x', 'ingesloten, niet als verwijzing');
+});
+
+test('er staat GEEN handtekening onder de moves-collectie', () => {
+  // Bewuste keuze zolang shaer-j1v0 (FEP-8b32) open staat. Een leeg of nep
+  // proof-veld is erger dan geen veld: een derde die het controleert wordt dan
+  // misleid. Deze test valt om zodra we 8b32 bouwen, en dat is de bedoeling.
+  const s = site();
+  Mig.recordMove('ik', { moveId: `${BRON}#move`, sourceActor: BRON, targetActor: IK, activity: {} });
+  const coll = Mig.buildMoves('https://nieuw.example', s);
+  assert.equal(coll.proof, undefined,
+    'liever eerlijk niets dan een proof-veld dat niets bewijst (zie shaer-j1v0)');
+});
+
+// ── DOELKANT: de ingest ───────────────────────────────────────────
+
+// Een nep-bron, zodat dit zonder netwerk draait.
+function bronnetje({ movedTo = IK, items = [], blocked = null } = {}) {
+  const actor = {
+    id: BRON, type: 'Person', movedTo,
+    outbox: `${BRON}/outbox`,
+    ...(blocked ? { blocked: `${BRON}/blocked` } : {}),
+  };
+  const kaart = new Map([
+    [BRON, actor],
+    [`${BRON}/outbox`, { type: 'OrderedCollection', orderedItems: items }],
+    ...(blocked ? [[`${BRON}/blocked`, { type: 'OrderedCollection', orderedItems: blocked }]] : []),
+  ]);
+  // noteVisibility erbij: zonder deze telt alles als niet-publiek (fail-closed),
+  // en dan zou de test op de publieke vertaaltabel groen zijn om de verkeerde reden.
+  return {
+    getJson: async (_slug, url) => kaart.get(url) || null,
+    noteId: (b, id) => `${b}/ap/notes/${id}`,
+    noteVisibility: AP.noteVisibility,
+  };
+}
+
+function note(id, extra = {}) {
+  return {
+    type: 'Create',
+    object: {
+      id, type: 'Note', attributedTo: BRON, content: '<p>hallo</p>',
+      published: '2023-05-04T10:00:00Z', to: ['https://www.w3.org/ns/activitystreams#Public'],
+      ...extra,
+    },
+  };
+}
+
+test('de ingest weigert als de bron niet naar ONS wijst', async () => {
+  const s = site({ aliases: [BRON] });
+  const r = await stil(() => Mig.ingestFromSource(s, { deps: bronnetje({ movedTo: 'https://iemandanders.example/users/x' }) }));
+  assert.equal(r.error, 'not_moved_here',
+    'anders kon je de geschiedenis opeisen van iedereen die toevallig verhuisde');
+});
+
+test('de ingest weigert zonder onze eigen terugverwijzing', async () => {
+  // Eén kant is een bewering, twee kanten is een afspraak. Dit is de aanval:
+  // iemand laat je een bron-adres invullen, die bron roept movedTo naar ons,
+  // en zonder deze controle trekken we andermans geschiedenis binnen als de
+  // onze. De bron wordt hier EXPLICIET meegegeven, want anders strandt hij al
+  // eerder op no_source en test je niets.
+  const s = site({ aliases: ['https://ietsanders.example/users/ik'] });
+  const r = await stil(() => Mig.ingestFromSource(s, { sourceUri: BRON, deps: bronnetje({}) }));
+  assert.equal(r.error, 'no_backreference');
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM posts').get().n, 0, 'en er is niets binnengekomen');
+});
+
+test('zonder alias en zonder opgegeven bron valt er niets op te halen', async () => {
+  const s = site({ aliases: [] });
+  const r = await stil(() => Mig.ingestFromSource(s, { deps: bronnetje({}) }));
+  assert.equal(r.error, 'no_source');
+});
+
+test('de ingest haalt de berichten op en houdt de oorspronkelijke datum', async () => {
+  const s = site({ aliases: [BRON] });
+  const deps = bronnetje({ items: [note(`${BRON}/notes/1`), note(`${BRON}/notes/2`)] });
+  const r = await stil(() => Mig.ingestFromSource(s, { deps }));
+  assert.equal(r.posts, 2);
+  const rijen = db.prepare('SELECT slug, published_at, origin_server FROM posts WHERE site_id = ? ORDER BY slug').all('s1');
+  assert.equal(rijen.length, 2);
+  assert.equal(rijen[0].published_at, '2023-05-04T10:00:00Z',
+    'een verhuisd bericht is niet vandaag geschreven; de spec eist behoud van de timestamps');
+  assert.equal(rijen[0].origin_server, 'migrated');
+  // en de vertaaltabel is gevuld, want dat is het punt van de hele operatie
+  assert.equal(Mig.buildMigration('https://nieuw.example', s).totalItems, 2);
+});
+
+test('de ingest zet de vlag open tijdens en dicht na afloop', async () => {
+  const s = site({ aliases: [BRON] });
+  await stil(() => Mig.ingestFromSource(s, { deps: bronnetje({ items: [note(`${BRON}/notes/1`)] }) }));
+  assert.equal(Mig.migrationComplete('ik'), true, 'pas na afloop mag een derde stoppen met kijken');
+});
+
+test('een tweede ronde slaat over wat er al is', async () => {
+  const s = site({ aliases: [BRON] });
+  const deps = bronnetje({ items: [note(`${BRON}/notes/1`)] });
+  await stil(() => Mig.ingestFromSource(s, { deps }));
+  const r = await stil(() => Mig.ingestFromSource(s, { deps }));
+  assert.equal(r.posts, 0);
+  assert.equal(r.overgeslagen, 1);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM posts').get().n, 1, 'geen dubbele berichten');
+});
+
+test('blokkades komen eerst binnen', async () => {
+  // De spec zet dit expliciet vooraan: blokkades bepalen wie de rest te zien
+  // krijgt. Andersom importeer je je hele geschiedenis zichtbaar voor precies
+  // degene die je buiten wilde houden.
+  const s = site({ aliases: [BRON] });
+  const deps = bronnetje({ items: [note(`${BRON}/notes/1`)], blocked: ['https://elders.example/users/pest'] });
+  const r = await stil(() => Mig.ingestFromSource(s, { deps }));
+  assert.equal(r.blocks, 1);
+  const b = db.prepare("SELECT target FROM ap_blocks WHERE slug = 'ik' AND kind = 'actor'").all();
+  assert.deepEqual(b.map((x) => x.target), ['https://elders.example/users/pest']);
+});
+
+test('de ingest neemt geen antwoorden en niets van een ander mee', async () => {
+  const s = site({ aliases: [BRON] });
+  const deps = bronnetje({
+    items: [
+      note(`${BRON}/notes/1`),
+      note(`${BRON}/notes/2`, { inReplyTo: 'https://elders.example/notes/9' }),
+      note(`${BRON}/notes/3`, { attributedTo: 'https://elders.example/users/ander' }),
+    ],
+  });
+  const r = await stil(() => Mig.ingestFromSource(s, { deps }));
+  assert.equal(r.posts, 1, 'alleen je eigen toplevel-berichten verhuizen mee');
+});
+
+test('een niet-publiek bericht komt wel mee maar niet in de publieke tabel', async () => {
+  const s = site({ aliases: [BRON] });
+  const deps = bronnetje({ items: [note(`${BRON}/notes/priv`, { to: [`${BRON}/followers`] })] });
+  const r = await stil(() => Mig.ingestFromSource(s, { deps }));
+  assert.equal(r.posts, 1);
+  assert.equal(Mig.buildMigration('https://nieuw.example', s).totalItems, 0);
+  assert.equal(Mig.buildMigration('https://nieuw.example', s, { alles: true }).totalItems, 1);
+});
