@@ -24,7 +24,7 @@ import crypto from 'crypto';
 import { randomUUID } from 'crypto';
 import db from '../config/database.js';
 import { MEDIA_ROOT } from '../config/paths.js';
-import { FORMAT_VERSION } from './ArchiveExportService.js';
+import { FORMAT_VERSION, parseFollowingCsv } from './ArchiveExportService.js';
 
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
 // De tijdstempel gaat er ONGEWIJZIGD in. Omzetten naar SQL-notatie kostte de
@@ -115,6 +115,48 @@ function padVanOrigineel(u) {
  */
 function bestemming(a) {
   return padVanOrigineel(a && a['shaer:originalUrl']) || `/media/archief/${path.basename(String((a && a.url) || ''))}`;
+}
+
+/**
+ * Volg opnieuw wie je volgde, uit de `following.csv` van een archief.
+ *
+ * BEWUST BUITEN importArchive. Die draait in één transactie en raakt alleen de
+ * database; opnieuw volgen stuurt Follow-activiteiten de deur uit en wacht op
+ * het netwerk. Dat hoort niet in een transactie: een trage peer houdt hem open,
+ * en een rollback neemt verzonden activiteiten niet terug.
+ *
+ * Ook een aparte, expliciete stap omdat een archief inlezen stil is maar negen
+ * mensen aanschrijven niet. Dat mag geen bijwerking zijn van een import.
+ *
+ * `followFn` is injecteerbaar, zodat de test geen netwerk raakt en dit bestand
+ * ActivityPubService niet hoeft te importeren.
+ */
+export async function importFollowing(site, csvText, { followFn = null } = {}) {
+  const rijen = parseFollowingCsv(csvText);
+  const rapport = { totaal: rijen.length, gevolgd: 0, overgeslagen: 0, mislukt: [] };
+  if (!followFn) return { ...rapport, error: 'no_follow_fn' };
+  for (const r of rijen) {
+    // Jezelf volgen is geen relatie maar een lus. Kan echt gebeuren bij een
+    // archief van een instance die je onder een nieuwe naam opnieuw opzet.
+    if (site && site.slug && r.address.startsWith(`${site.slug}@`)) { rapport.overgeslagen += 1; continue; }
+    try {
+      const ok = await followFn(site, r.address, r.autoBoost);
+      if (ok === false) { rapport.mislukt.push({ adres: r.address, reden: 'geweigerd' }); continue; }
+      // De uitgelicht-vlag hangt aan de RELATIE, dus die zetten we pas als de
+      // rij bestaat. Mislukt de Follow, dan valt er niets te markeren, en dat
+      // is juist: iemand uitlichten die je niet volgt klopt niet.
+      if (r.highlighted) {
+        try {
+          db.prepare('UPDATE ap_following SET highlighted = 1 WHERE slug = ? AND (handle = ? OR handle = ?)')
+            .run(site.slug, r.address, `@${r.address}`);
+        } catch { /* oude database zonder de kolom */ }
+      }
+      rapport.gevolgd += 1;
+    } catch (e) {
+      rapport.mislukt.push({ adres: r.address, reden: (e && e.message) || 'onbekend' });
+    }
+  }
+  return rapport;
 }
 
 /**

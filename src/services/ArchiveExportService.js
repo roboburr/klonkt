@@ -237,6 +237,102 @@ function readableMarkdown(post, obj) {
   return `${fm}\n${post.content || ''}\n`;
 }
 
+// ── Wie je volgt, als CSV ─────────────────────────────────────────
+//
+// Kolomvorm van Mastodon, zodat deze lijst ook DAAR te importeren is en die van
+// daar hier. Dat is het hele punt van een verhuisformaat: het moet ook werken
+// als je naar iets anders vertrekt dan waar je vandaan kwam.
+//
+//   Account address,Show boosts,Notify on new posts,Languages,Featured
+//
+// De vijfde kolom is van ons. Mastodon leest de eerste vier en negeert de rest,
+// dus dit blijft daar gewoon importeerbaar. `Featured` is de kolom voor
+// `highlighted`: accounts die je op je profiel uitlicht. `Show boosts` is onze
+// `auto_boost`. `Notify` en `Languages` kent Klonkt niet en blijven leeg; ze
+// staan er alleen omdat Mastodon de posities telt.
+const CSV_KOP = 'Account address,Show boosts,Notify on new posts,Languages,Featured';
+
+/** Een veld dat een komma, aanhalingsteken of nieuwe regel bevat moet geciteerd. */
+function csvVeld(v) {
+  const s = String(v == null ? '' : v);
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/**
+ * De volglijst van een site als CSV, of null als er niets te melden valt.
+ *
+ * Alleen `accepted`: een openstaand verzoek is geen relatie, en het opnieuw
+ * versturen ervan op de nieuwe plek zou een tweede verzoek zijn bij iemand die
+ * de eerste misschien bewust liet liggen.
+ *
+ * Het adres is de handle zonder de leidende @, want zo schrijft Mastodon hem.
+ * Ontbreekt de handle, dan valt hij terug op de actor-URI: die is altijd te
+ * herleiden, ook als de webfinger-naam ooit verloren ging.
+ */
+export function followingCsv(slug) {
+  let rijen = [];
+  try {
+    rijen = db.prepare(`SELECT actor_uri, handle, auto_boost, highlighted FROM ap_following
+                         WHERE slug = ? AND status = 'accepted'
+                         ORDER BY handle IS NULL, handle, actor_uri`).all(slug);
+  } catch { return null; }        // oude database zonder de kolom
+  if (!rijen.length) return null;
+  const regels = rijen.map((r) => [
+    csvVeld((r.handle || r.actor_uri || '').replace(/^@/, '')),
+    r.auto_boost ? 'true' : 'false',
+    'false',
+    '',
+    r.highlighted ? 'true' : 'false',
+  ].join(','));
+  return `${CSV_KOP}\n${regels.join('\n')}\n`;
+}
+
+/**
+ * Lees zo'n CSV terug. Puur, zodat de vorm te toetsen is zonder database.
+ *
+ * Vergeeflijk met opzet: een bestand uit Mastodon heeft vier kolommen en geen
+ * `Featured`, een handgemaakt bestand heeft misschien alleen adressen. Beide
+ * moeten werken, want anders is het geen uitwisselformaat maar een eigen
+ * bestandje dat toevallig op een CSV lijkt.
+ */
+export function parseFollowingCsv(text) {
+  const uit = [];
+  const regels = String(text || '').split(/\r?\n/).filter((r) => r.trim());
+  if (!regels.length) return uit;
+  // Een kopregel herkennen we aan het eerste veld; anders is regel 1 al data.
+  const start = /^\s*"?account address"?\s*,/i.test(regels[0]) || /^\s*"?account address"?\s*$/i.test(regels[0]) ? 1 : 0;
+  for (const regel of regels.slice(start)) {
+    const velden = splitsCsvRegel(regel);
+    const adres = (velden[0] || '').trim().replace(/^@/, '');
+    if (!adres) continue;
+    uit.push({
+      address: adres,
+      autoBoost: /^(true|1|yes)$/i.test((velden[1] || '').trim()),
+      highlighted: /^(true|1|yes)$/i.test((velden[4] || '').trim()),
+    });
+  }
+  return uit;
+}
+
+/** Eén CSV-regel, met respect voor geciteerde velden en verdubbelde aanhalingstekens. */
+function splitsCsvRegel(regel) {
+  const velden = [];
+  let veld = '';
+  let inCitaat = false;
+  for (let i = 0; i < regel.length; i++) {
+    const c = regel[i];
+    if (inCitaat) {
+      if (c === '"') {
+        if (regel[i + 1] === '"') { veld += '"'; i++; } else inCitaat = false;
+      } else veld += c;
+    } else if (c === '"') inCitaat = true;
+    else if (c === ',') { velden.push(veld); veld = ''; }
+    else veld += c;
+  }
+  velden.push(veld);
+  return velden;
+}
+
 /**
  * Bouw het archief als een lijst bestanden: pad -> inhoud (Buffer).
  *
@@ -334,6 +430,12 @@ export function buildArchive(slug, opts = {}) {
       tellingen.replies += replies.length;
     }
   }
+
+  // Wie je volgt. Dit ontbrak, en daarmee was een "verhuizing" halfslachtig: de
+  // Move vertelt je VOLGERS waar je heen ging, maar niets vertelde JOU wie jij
+  // volgde. Die lijst stond alleen in de oude database, en die laat je achter.
+  const volgCsv = followingCsv(slug);
+  if (volgCsv) { bestanden.set('following.csv', Buffer.from(volgCsv, 'utf8')); tellingen.following = volgCsv.trim().split('\n').length - 1; }
 
   const files = {};
   for (const pad of [...bestanden.keys()].sort()) files[pad] = sha256(bestanden.get(pad));
