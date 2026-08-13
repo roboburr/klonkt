@@ -22,7 +22,6 @@ import { requireGod } from '../middleware/auth.js';
 import { transcodeToMp3, retagMp3 } from '../services/AudioTranscoder.js';
 import { audioUrl } from '../services/AudioStreamService.js';
 import { mediaDir } from '../config/paths.js';
-import MusicBrainz from '../services/MusicBrainzService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Audio files live OUTSIDE storage/media so the public /media static
@@ -383,59 +382,6 @@ router.post('/cleanup', requireGod, (req, res) => {
 // or { error: '...' } with a 4xx status on failure.
 
 /** GET /admin/audio/api/albums — distinct list of album names (for datalist) */
-/**
- * "Ben jij dit?" -- kandidaten uit MusicBrainz (shaer-mbz, stap 1).
- *
- * De zoekopdracht draait HIER en niet in de browser: MusicBrainz staat een
- * verzoek per seconde toe per APPLICATIE, en dat is alleen af te dwingen als
- * alles langs een plek gaat. Bovendien eisen ze een User-Agent met contact, en
- * die kan een browser niet zetten.
- *
- * De keuze blijft van de artiest. Wij tonen kandidaten met hun toelichting; we
- * kiezen er niet zelf een, ook niet als er maar een treffer is -- een verkeerd
- * geraden MBID koppelt iemand aan het werk van een ander.
- */
-router.get('/api/musicbrainz', requireGod, async (req, res) => {
-  const site = res.locals.site;
-  if (!site) return res.status(404).json({ error: 'no_site' });
-  // Standaard de artiestennaam die al in de site staat: negen van de tien keer
-  // is dat precies waar iemand op zou zoeken.
-  const q = String(req.query.q || site.author || site.title || '').trim();
-  if (!q) return res.json({ ok: true, q: '', kandidaten: [] });
-  const kandidaten = await MusicBrainz.zoekArtiesten(q);
-  res.json({
-    ok: true,
-    q,
-    gekoppeld: site.mb_artist_id
-      ? { mbid: site.mb_artist_id, naam: site.mb_artist_name || '', url: MusicBrainz.artiestUrl(site.mb_artist_id) }
-      : null,
-    kandidaten,
-  });
-});
-
-/**
- * De keuze vastleggen. Alleen een echte MBID komt de kolom in: de naam die we
- * ernaast bewaren is voor het scherm, de MBID is het enige dat naar buiten gaat.
- */
-router.post('/musicbrainz/link', requireGod, (req, res) => {
-  const site = res.locals.site;
-  if (!site) return res.status(404).end();
-  const mbid = String(req.body.mbid || '').trim().toLowerCase();
-  const naam = String(req.body.naam || '').trim().slice(0, 200);
-  const terug = (res.locals.siteUrlBase || '') + '/admin/audio';
-  if (!MusicBrainz.isMbid(mbid)) return res.redirect(`${terug}?error=` + encodeURIComponent('Geen geldige MusicBrainz-id.'));
-  db.prepare('UPDATE sites SET mb_artist_id = ?, mb_artist_name = ? WHERE id = ?').run(mbid, naam || null, site.id);
-  res.redirect(`${terug}?success=` + encodeURIComponent('Gekoppeld aan MusicBrainz.'));
-});
-
-/** Terugdraaien. Een verkeerde koppeling zet jouw naam onder andermans werk. */
-router.post('/musicbrainz/unlink', requireGod, (req, res) => {
-  const site = res.locals.site;
-  if (!site) return res.status(404).end();
-  db.prepare('UPDATE sites SET mb_artist_id = NULL, mb_artist_name = NULL WHERE id = ?').run(site.id);
-  res.redirect((res.locals.siteUrlBase || '') + '/admin/audio?success=' + encodeURIComponent('Ontkoppeld.'));
-});
-
 router.get('/api/albums', requireGod, (req, res) => {
   const site = res.locals.site;
   if (!site) return res.status(404).json({ error: 'Site required' });

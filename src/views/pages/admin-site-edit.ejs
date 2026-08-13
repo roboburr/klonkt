@@ -189,6 +189,38 @@
       </label>
     </fieldset>
 
+    <%# ── MUSICBRAINZ ─────────────────────────────────────────────
+        Naast de aliassen, want het is dezelfde vraag: wie ben jij elders?
+        Een MBID is geen vocabulaire maar een register -- eraan koppelen is als
+        je ISBN noemen, en muziekdiensten herkennen je eraan zonder dat wij hun
+        model hoeven over te nemen (shaer-mbz).
+
+        GEEN EIGEN FORMULIER: deze pagina IS er een, en een formulier in een
+        formulier bestaat niet in HTML. De keuze zet een verborgen veld en gaat
+        mee met de Opslaan-knop van de pagina, net als de profielfoto. %>
+    <fieldset id="mb-veld">
+      <legend><%= t('asite.mb_title') %></legend>
+      <p class="form-hint"><%= t('asite.mb_hint') %></p>
+
+      <input type="hidden" name="mb_artist_id" id="mb-id" value="<%= site.mb_artist_id || '' %>">
+      <input type="hidden" name="mb_artist_name" id="mb-naam" value="<%= site.mb_artist_name || '' %>">
+
+      <p class="mb-huidig" id="mb-huidig" <%= site.mb_artist_id ? '' : 'hidden' %>>
+        <%= t('asite.mb_linked') %>
+        <strong id="mb-huidig-naam"><%= site.mb_artist_name || site.mb_artist_id || '' %></strong>
+        <a id="mb-huidig-link" target="_blank" rel="noopener"
+           href="https://musicbrainz.org/artist/<%= site.mb_artist_id || '' %>"><%= t('asite.mb_open') %></a>
+        <button type="button" class="btn" id="mb-wis"><%= t('asite.mb_unlink') %></button>
+      </p>
+
+      <div class="mb-zoek">
+        <input type="text" id="mb-q" value="<%= site.title || '' %>" autocomplete="off"
+               placeholder="<%= t('asite.mb_placeholder') %>">
+        <button type="button" class="btn" id="mb-zoek-btn"><%= t('asite.mb_search') %></button>
+      </div>
+      <div id="mb-uit" class="mb-uit" hidden></div>
+    </fieldset>
+
     <fieldset>
       <legend><%= t('asite.feed_view') %></legend>
       <label>

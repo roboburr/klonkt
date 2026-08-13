@@ -26,6 +26,7 @@ import { listPlatforms, PLATFORMS } from '../services/PlatformIcons.js';
 import { toWebp } from '../services/ImageWebpService.js';
 import { mediaDir } from '../config/paths.js';
 import AP from '../services/ActivityPubService.js';
+import MusicBrainz from '../services/MusicBrainzService.js';
 
 
 // Profile photos share the avatar directory with user avatars — same physical
@@ -321,6 +322,25 @@ router.post('/:slug/move', requireSiteManagerBySlug, async (req, res) => {
 });
 
 // ==================== SAVE ====================
+/**
+ * "Ben jij dit?" -- kandidaten uit MusicBrainz (shaer-mbz).
+ *
+ * De zoekopdracht draait HIER en niet in de browser: MusicBrainz staat een
+ * verzoek per seconde toe per APPLICATIE, en dat is alleen af te dwingen als
+ * alles langs een plek gaat. Bovendien eisen ze een User-Agent met contact, en
+ * die kan een browser niet zetten.
+ *
+ * Wij kiezen NIET. Ook niet als er precies een treffer is: een verkeerd geraden
+ * MBID zet jouw naam onder andermans werk.
+ */
+router.get('/:slug/api/musicbrainz', requireSiteManagerBySlug, async (req, res) => {
+  const site = db.prepare('SELECT title, mb_artist_id, mb_artist_name FROM sites WHERE slug = ?').get(req.params.slug);
+  if (!site) return res.status(404).json({ error: 'no_site' });
+  const q = String(req.query.q || site.title || '').trim();
+  if (!q) return res.json({ ok: true, q: '', kandidaten: [] });
+  res.json({ ok: true, q, kandidaten: await MusicBrainz.zoekArtiesten(q) });
+});
+
 router.post('/:slug/save', requireSiteManagerBySlug, async (req, res) => {
   const site = db.prepare('SELECT id, ap_aliases FROM sites WHERE slug = ?').get(req.params.slug);
   if (!site) return res.redirect('/admin/sites?error=Not+found');
@@ -345,6 +365,12 @@ router.post('/:slug/save', requireSiteManagerBySlug, async (req, res) => {
 
   // accent: only accept colors from the curated ACCENTS list. Falls back to
   // the orange default if the submitted value isn't recognised.
+  // De MusicBrainz-koppeling (shaer-mbz). Alleen een echte MBID komt de kolom
+  // in: zonder deze zeef sluipt er een hele URL of een handle in het veld dat
+  // straks naar buiten gaat. Leeg is een geldige keuze -- dat is ontkoppelen.
+  const mbRuw = String(f.mb_artist_id || '').trim().toLowerCase();
+  const mbArtistId = MusicBrainz.isMbid(mbRuw) ? mbRuw : null;
+
   const accent = ThemeService.validateAccent(f.accent) || '#e8b04b';
 
   db.prepare(`
@@ -354,6 +380,7 @@ router.post('/:slug/save', requireSiteManagerBySlug, async (req, res) => {
       profile_enabled = ?,
       profile_links = ?,
       ap_aliases = ?,
+      mb_artist_id = ?, mb_artist_name = ?,
       is_public = ?, robots_index = ?, require_login_to_comment = ?,
       enable_audio_player = ?,
       feed_view_default = ?, feed_view_switch = ?,
@@ -373,6 +400,8 @@ router.post('/:slug/save', requireSiteManagerBySlug, async (req, res) => {
     f.profile_enabled ? 1 : 0,
     profileLinksJson,
     apAliasesJson,
+    mbArtistId,
+    mbArtistId ? (String(f.mb_artist_name || '').trim().slice(0, 200) || null) : null,
     f.is_public ? 1 : 0,
     f.robots_index ? 1 : 0,
     f.require_login_to_comment ? 1 : 0,
