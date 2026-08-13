@@ -279,6 +279,26 @@ const TIJDLIJN_SOORTEN = new Set(['Note', 'Article', 'Question', 'Audio']);
  * track komt vanzelf als echte speler binnen zonder dat de weergave iets van
  * Funkwhale hoeft te weten.
  */
+/**
+ * De waarschuwingstekst van een object, of niets.
+ *
+ * `summary` IS in AS2 een SAMENVATTING -- "a natural language summarization of
+ * the object". Dat Mastodon dat veld hergebruikt als waarschuwing is Mastodons
+ * conventie, en die zet er `sensitive` bij. Zonder `sensitive` is een summary
+ * dus gewoon een samenvatting.
+ *
+ * WordPress + ActivityPub stuurt daar de EXCERPT van een artikel in, netjes
+ * afgekapt voor Mastodon. Wij lazen dat als waarschuwing en verborgen de post
+ * daarmee achter zijn eigen eerste alinea (Barts melding, 13-8:
+ * europeanpirates.eu). Niemand krijgt dan te zien wat er staat, en de
+ * waarschuwing waarschuwt nergens voor.
+ */
+export function contentWarning(o) {
+  if (!o || !o.sensitive) return null;
+  const s = typeof o.summary === 'string' ? o.summary.trim() : '';
+  return s || null;
+}
+
 export function timelineFields(o) {
   // De hoes: een `image` op het object. Bij een Note alleen als terugval (daar
   // is het de kaart-afbeelding van een player-post), bij een Audio altijd,
@@ -307,7 +327,24 @@ export function timelineFields(o) {
     };
   }
 
-  // Note / Article / Question -- ongewijzigd gedrag.
+  // Een ARTIKEL heeft een titel, en die is het eerste wat je wilt zien. Zonder
+  // dit kwam een WordPress-post binnen als kale body: de titel zit in `name` en
+  // die gooiden we weg, terwijl de excerpt in `summary` ten onrechte als
+  // waarschuwing dienstdeed. Nu allebei goed -- en dit is dezelfde greep die
+  // resolveRemoteNote al doet voor niet-Note-objecten, dus de tijdlijn en het
+  // antwoordpad zeggen eindelijk hetzelfde.
+  if (o.type && o.type !== 'Note' && typeof o.name === 'string' && o.name.trim()) {
+    const kop = `<p><strong>${HtmlSanitizerService.escape ? HtmlSanitizerService.escape(o.name) : o.name}</strong></p>`;
+    const atts = mediaFromNote(o);
+    const pagina = pickLink(o.url, (mt) => !mt || /html/i.test(mt));
+    return {
+      html: HtmlSanitizerService.sanitize(kop + (o.content || '')),
+      atts,
+      url: pagina ? pagina.href : null,
+    };
+  }
+
+  // Note / Question -- ongewijzigd gedrag.
   const atts = (Array.isArray(o.attachment) ? o.attachment : [])
     .map((a) => ({ url: safeUrl(a && a.url), type: (a && a.mediaType) || '' }))
     .filter((m) => m.url);
@@ -2462,7 +2499,7 @@ export async function handleInbox(req, slugParam, preVerified = null) {
         // fediverse is only ever a deliberate, manual per-post action (the 🔁 on
         // the timeline).
         for (const s of subs) {
-          tlStmts().ins.run(o.id, s.slug, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, _url, o.published || null, media, o.sensitive ? 1 : 0, o.summary || null);
+          tlStmts().ins.run(o.id, s.slug, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, _url, o.published || null, media, o.sensitive ? 1 : 0, contentWarning(o));
           // FEP-633c §2.2: register the ward hint on the stored object (no action yet).
           if (Guardianship.objectHasGuardians(o)) { try { db.prepare('UPDATE ap_timeline SET has_guardians = 1 WHERE id = ? AND slug = ?').run(o.id, s.slug); } catch { /* ignore */ } }
           // FEP-9098: keep the note's custom-emoji tags so the C2S inbox read can serve them.
@@ -2614,7 +2651,7 @@ export async function handleInbox(req, slugParam, preVerified = null) {
         // rename keeps the same AP id but changes the human url, so without this the cached
         // post would keep linking to the old, now-dead URL.
         const r = db.prepare('UPDATE ap_timeline SET content = ?, media_json = ?, nsfw = ?, cw = ?, url = COALESCE(?, url) WHERE id = ? AND author_uri = ?')
-          .run(html, media, o.sensitive ? 1 : 0, o.summary || null, o.url || null, o.id, claimedActor);
+          .run(html, media, o.sensitive ? 1 : 0, contentWarning(o), o.url || null, o.id, claimedActor);
         if (r.changes) console.log('[AP] timeline update', claimedActor, '→', o.id);
         // A poll's Update carries the fresh vote counts / closed state. Refresh per-row so each
         // site keeps its own `voted` state while the counts/closed update to the new totals.
@@ -2678,7 +2715,7 @@ export async function handleInbox(req, slugParam, preVerified = null) {
             // reblogs at reblog-time, not the original's date). INSERT OR IGNORE: if we already
             // have the note (e.g. we also follow the author), keep it and DON'T relabel it.
             let inserted = false;
-            try { const r = tlStmts().ins.run(bn.id, s.slug, origUri || '', oai.name, oai.handle, oai.icon, oai.url, html, bn.url || null, new Date().toISOString(), media, bn.sensitive ? 1 : 0, bn.summary || null); inserted = r.changes > 0; } catch { /* ignore */ }
+            try { const r = tlStmts().ins.run(bn.id, s.slug, origUri || '', oai.name, oai.handle, oai.icon, oai.url, html, bn.url || null, new Date().toISOString(), media, bn.sensitive ? 1 : 0, contentWarning(bn)); inserted = r.changes > 0; } catch { /* ignore */ }
             if (inserted) { try { db.prepare('UPDATE ap_timeline SET reblog_name = ?, reblog_handle = ?, reblog_icon = ?, reblog_emoji_json = ? WHERE slug = ? AND id = ?').run(booster.name, booster.handle, booster.icon, (booster.emojis && Object.keys(booster.emojis).length) ? JSON.stringify(booster.emojis) : null, s.slug, bn.id); } catch { /* ignore */ } }
             storeAuthorEmoji(bn.id, s.slug, oai);   // custom-emoji display name for the byline
             // A boost carries the same renderable tags as a Create: capture the
@@ -3841,7 +3878,7 @@ export async function getThread(slug, objectUri) {
     url: safeUrl(typeof o.url === 'string' ? o.url : (o.url && o.url.href)) || undefined,
     published: typeof o.published === 'string' ? o.published : undefined,
     sensitive: !!o.sensitive,
-    summary: typeof o.summary === 'string' ? o.summary.slice(0, 500) : undefined,
+    summary: (contentWarning(o) || '').slice(0, 500) || undefined,
     attachment: (() => {
       const arr = Array.isArray(o.attachment) ? o.attachment : (o.attachment ? [o.attachment] : []);
       const out = arr.map((a) => ({ type: 'Document', mediaType: (a && a.mediaType) || undefined, url: safeUrl(a && a.url), name: (a && typeof a.name === 'string') ? a.name.slice(0, 1500) : undefined }))
@@ -3957,7 +3994,7 @@ export async function resolveRemoteNote(url, opts = {}) {
     url: note.url || url,
     content: HtmlSanitizerService.sanitize(rawHtml),       // full, sanitized
     sensitive: !!note.sensitive,                            // remote CW → blur in the Cirkel
-    cw: note.summary || '',
+    cw: contentWarning(note) || '',
     images,
     // Full typed media (incl. video/mp4) for the timeline cache. `images` above is
     // image-only for the interact page preview; a boosted video-only post (Loops)
@@ -4987,7 +5024,7 @@ async function resolveApActor(siteUrl) {
 // note and refreshes content + media (recovers covers/edits that were delivered
 // during a flux window, e.g. a fleet-wide update), and drops notes that are gone
 // (404/410). Bump SELFHEAL_VERSION only on a release that warrants a re-sync.
-const SELFHEAL_VERSION = 21; // v21: drop direct notes (🛟 help requests, waves) that were cached as timeline posts
+const SELFHEAL_VERSION = 22; // v22: summary is pas een waarschuwing MET sensitive, en een artikel houdt zijn titel
 async function fetchNoteAP(url) {
   try {
     const r = await fetch(url, { headers: { Accept: 'application/activity+json' } });
@@ -5374,7 +5411,7 @@ export async function backfillFromOutbox(slug, actorUri, limit = 20) {
       const html = HtmlSanitizerService.sanitize(o.content || '');
       const poll = parsePoll(o); // a Question (poll) → carry its options/counts on backfill too
       try {
-        const r = tlStmts().ins.run(o.id, slug, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.url || null, o.published || null, mediaFromNote(o), o.sensitive ? 1 : 0, o.summary || null);
+        const r = tlStmts().ins.run(o.id, slug, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.url || null, o.published || null, mediaFromNote(o), o.sensitive ? 1 : 0, contentWarning(o));
         if (r && r.changes > 0) added++;
         // FEP-9098: keep custom-emoji tags from backfilled posts too.
         { const ej = extractEmojiTags(o.tag); if (ej) { try { db.prepare('UPDATE ap_timeline SET emoji_json = ? WHERE id = ? AND slug = ?').run(ej, o.id, slug); } catch { /* ignore */ } } }
@@ -5533,10 +5570,16 @@ export async function selfHealTimeline() {
         const note = await fetchNoteAP(r.id);
         if (note === 404) { db.prepare('DELETE FROM ap_timeline WHERE id = ?').run(r.id); healed++; continue; }
         if (!note || typeof note !== 'object') { failed++; continue; } // origin unreachable right now
-        const html = HtmlSanitizerService.sanitize(note.content || '');
-        const media = mediaFromNote(note);
+        // Door DEZELFDE bouwer als de innamekant (v22). Hij bouwde de inhoud
+        // hier zelf op, en daardoor miste een gerepareerde rij precies wat de
+        // inname wel doet -- de titel van een artikel bijvoorbeeld. Een
+        // zelfherstel dat een andere vorm oplevert dan de inname repareert naar
+        // een derde toestand.
+        const velden = timelineFields(note);
+        const html = velden.html;
+        const media = velden.atts.length ? JSON.stringify(velden.atts) : mediaFromNote(note);
         const nsfw = note.sensitive ? 1 : 0;   // re-sync NSFW/sensitive + CW onto already-cached posts
-        const cw = note.summary || null;
+        const cw = contentWarning(note);
         const url = note.url || null;          // re-sync the human url (catches a remote slug rename)
         const emoji = extractEmojiTags(note.tag);   // FEP-9098: re-capture custom-emoji tags (v8)
         const link = extractLinkJson(note);   // FEP-e232 + FEP-044f: re-capture object-link/quote tags (v9)
@@ -6589,7 +6632,7 @@ export default {
   feedCursor, feedChangesSince, waitForFeedChange,
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, buildReplyNote, getOutboxNote, getSentNotes, deliverReply, resolveRemoteNote, noteAudience, mayReadNote,
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate, deliverDirectNote,
-  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, handleMoveInbox, moveAccount, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, timelineRowsByIds, getDirectMessages, readMarkers, markRead, unreadPerConversation, messageRowsByUri, replyRowsByUri, conversationHeads, conversationHistory, isoStamp, timelineAttachments, timelineEmojis, timelineObjectLinks, timelineQuote, timelineEmbed, applyQuoteProps, deliverToActor, sendInteraction, voteOnPoll, voteOnRemotePoll,
+  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, handleMoveInbox, moveAccount, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, timelineRowsByIds, contentWarning, getDirectMessages, readMarkers, markRead, unreadPerConversation, messageRowsByUri, replyRowsByUri, conversationHeads, conversationHistory, isoStamp, timelineAttachments, timelineEmojis, timelineObjectLinks, timelineQuote, timelineEmbed, applyQuoteProps, deliverToActor, sendInteraction, voteOnPoll, voteOnRemotePoll,
   acceptGatedFollow, rejectGatedFollow, isWardGuardian, outboxAudience, sendFollowDecision,
   gateOutgoingFollow, performApprovedFollow, recordGuardianEvent, listGuardianEvents, GUARDIAN_EVENT_KEEP,
   parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread, sendReport, localMentionSlugs, previewCard,
