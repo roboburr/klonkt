@@ -15,6 +15,18 @@
         <li><strong><%= telling.posts %></strong> <%= t('mig.c_posts') %></li>
         <li><strong><%= telling.replies %></strong> <%= t('mig.c_replies') %></li>
         <li><strong><%= telling.media %></strong> <%= t('mig.c_media') %></li>
+        <%# Muziek APART tellen, niet onder "media". Dit ontbrak, en juist daardoor
+            kon een export van 140 nummers er als 4,5 MB uitzien zonder dat iemand
+            het merkte: de teller zei "39 mediabestanden" en zweeg over de rest. %>
+        <% if (telling.tracks) { %>
+          <%# Wat er ECHT meegaat, niet hoeveel rijen er in de database staan.
+              "8 nummers" met daaronder "van 3 ontbreekt het bestand" telt niet
+              op; 5 plus die waarschuwing wel. %>
+          <li><strong><%= telling.tracks - (telling.audioMissing || 0) %></strong> <%= t('mig.c_tracks') %></li>
+        <% } %>
+        <% if (telling.playlists) { %>
+          <li><strong><%= telling.playlists %></strong> <%= t('mig.c_playlists') %></li>
+        <% } %>
         <% if (typeof telling.following === 'number') { %>
           <li><strong><%= telling.following %></strong> <%= t('mig.c_following') %></li>
         <% } %>
@@ -26,6 +38,13 @@
             een archief dat stilzwijgend minder bevat is erger dan een waarschuwing. %>
         <p class="alert alert-error"><%= t('mig.missing', { n: telling.ontbrekend }) %></p>
       <% } %>
+
+      <% if (telling.audioMissing) { %>
+        <%# Een eigen zin voor muziek. "N mediaverwijzingen" zei niets over de
+            vraag die er toe doet: gaat mijn bibliotheek mee. %>
+        <p class="alert alert-error"><%= t('mig.audio_missing', { n: telling.audioMissing }) %></p>
+      <% } %>
+
 
       <% if (telling.groot) { %>
         <p class="alert alert-error"><%= t('mig.too_big') %></p>
@@ -61,7 +80,11 @@
             <% if (haalVerslag.overgeslagen) { %><li><strong><%= haalVerslag.overgeslagen %></strong> <%= t('mig.r_skipped') %></li><% } %>
             <% if (haalVerslag.media) { %><li><strong><%= haalVerslag.media %></strong> <%= t('mig.r_media') %></li><% } %>
             <% if (haalVerslag.blocks) { %><li><strong><%= haalVerslag.blocks %></strong> <%= t('mig.r_blocks') %></li><% } %>
+            <% if (haalVerslag.tracksBinnen) { %><li><strong><%= haalVerslag.tracksBinnen %></strong> <%= t('mig.c_tracks') %></li><% } %>
           </ul>
+          <% if (haalVerslag.tracksMislukt) { %>
+            <p class="alert alert-error"><%= t('mig.r_tracks_missing', { n: haalVerslag.tracksMislukt }) %></p>
+          <% } %>
         <% } %>
         <% if (haalVerslag.waarschuwingen && haalVerslag.waarschuwingen.length) { %>
           <ul class="mig-warnlist">
@@ -102,7 +125,14 @@
           <% if (verslag.overschreven) { %><li><strong><%= verslag.overschreven %></strong> <%= t('mig.r_overwritten') %></li><% } %>
           <% if (verslag.mediaMissing) { %><li><strong><%= verslag.mediaMissing %></strong> <%= t('mig.r_media_missing') %></li><% } %>
           <% if (verslag.media) { %><li><strong><%= verslag.media %></strong> <%= t('mig.r_media') %></li><% } %>
+          <%# Ook hier: muziek apart. Zonder deze twee regels zie je aan de
+              ontvangende kant net zo min of je bibliotheek is aangekomen. %>
+          <% if (verslag.tracks) { %><li><strong><%= verslag.tracks %></strong> <%= t('mig.c_tracks') %></li><% } %>
+          <% if (verslag.playlists) { %><li><strong><%= verslag.playlists %></strong> <%= t('mig.c_playlists') %></li><% } %>
         </ul>
+        <% if (verslag.tracksMissing) { %>
+          <p class="alert alert-error"><%= t('mig.r_tracks_missing', { n: verslag.tracksMissing }) %></p>
+        <% } %>
         <% if (verslag.waarschuwingen && verslag.waarschuwingen.length) { %>
           <ul class="mig-warnlist">
             <% verslag.waarschuwingen.slice(0, 6).forEach(function (w) { %><li><%= w %></li><% }); %>

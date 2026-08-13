@@ -56,7 +56,18 @@ function tellen(site) {
     const r = buildArchive(site.slug);
     let bytes = 0;
     for (const buf of r.files.values()) bytes += buf.length;
-    return { telling: { ...r.counts, bytes, groot: bytes > MAX_EXPORT, ontbrekend: r.missing.length }, fout: null };
+    // ontbrekend telt alleen de MEDIA-verwijzingen; audioMissing komt uit
+    // buildArchive zelf. Ze door elkaar husselen was precies hoe "39
+    // mediabestanden, 14 ontbrekend" een bibliotheek van 140 nummers kon
+    // verzwijgen.
+    const mediaWeg = r.missing.filter((m) => !m.track).length;
+    return {
+      telling: {
+        ...r.counts, bytes, groot: bytes > MAX_EXPORT,
+        ontbrekend: mediaWeg, audioMissing: r.counts.audioMissing || 0,
+      },
+      fout: null,
+    };
   } catch (e) { return { telling: null, fout: e && e.message }; }
 }
 
