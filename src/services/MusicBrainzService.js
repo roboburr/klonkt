@@ -79,6 +79,60 @@ export async function zoekArtiesten(naam, { limit = 8 } = {}) {
   }
 }
 
+/**
+ * Een MBID rechtstreeks opzoeken. Wie zijn id al kent hoeft niet te zoeken --
+ * en een zoekopdracht op een UUID levert bij MusicBrainz niets op, dus zonder
+ * deze tak zou plakken juist het slechtste resultaat geven.
+ */
+export async function haalArtiest(mbid) {
+  if (!isMbid(mbid)) return null;
+  const url = `${BASIS}/artist/${encodeURIComponent(mbid)}?inc=url-rels&fmt=json`;
+  try {
+    await opDeBeurt();
+    const r = await safeFetch(url, { headers: { Accept: 'application/json', 'User-Agent': userAgent() } });
+    if (!r || !r.ok) return null;
+    return kandidaat(await r.json());
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * DE TERUG-WEG. Noemt de MusicBrainz-pagina van deze artiest ons domein?
+ *
+ * Een koppeling van onze kant is een bewering: iedereen kan een MBID in een
+ * veld typen. Pas als de artiestenpagina TERUGWIJST is het een paar, en dan
+ * weet een lezer dat dezelfde persoon aan allebei de kanten stond. Dat is
+ * dezelfde gedachte als rel="me" bij Mastodon.
+ *
+ * Wij zetten die terugwijzing NIET zelf: via hun API kan het niet, en het hoort
+ * ook niet -- de artiest doet dat op musicbrainz.org onder "social networking".
+ * Wij kijken alleen of hij er staat.
+ *
+ * Geeft { verified, urls } -- bij een storing verified:false en een lege lijst,
+ * want niet kunnen kijken is niet hetzelfde als niet gevonden.
+ */
+export async function controleerTerugweg(mbid, domein) {
+  const leeg = { verified: false, urls: [] };
+  if (!isMbid(mbid) || !domein) return leeg;
+  let host;
+  try { host = new URL(domein).host.toLowerCase(); } catch { return leeg; }
+  const url = `${BASIS}/artist/${encodeURIComponent(mbid)}?inc=url-rels&fmt=json`;
+  try {
+    await opDeBeurt();
+    const r = await safeFetch(url, { headers: { Accept: 'application/json', 'User-Agent': userAgent() } });
+    if (!r || !r.ok) return leeg;
+    const doc = await r.json();
+    const urls = (doc.relations || [])
+      .map((rel) => rel && rel.url && rel.url.resource)
+      .filter((u) => typeof u === 'string');
+    const wijst = urls.some((u) => { try { return new URL(u).host.toLowerCase() === host; } catch { return false; } });
+    return { verified: wijst, urls };
+  } catch {
+    return leeg;
+  }
+}
+
 /** Een kandidaat, teruggebracht tot wat een mens nodig heeft om te kiezen. */
 function kandidaat(a) {
   if (!a || !a.id || !a.name) return null;
@@ -103,4 +157,4 @@ function kandidaat(a) {
 // Her-geexporteerd zodat een aanroeper er niet over hoeft na te denken waar
 // ze precies wonen.
 export { isMbid, artiestUrl };
-export default { zoekArtiesten, isMbid, artiestUrl };
+export default { zoekArtiesten, haalArtiest, controleerTerugweg, isMbid, artiestUrl };

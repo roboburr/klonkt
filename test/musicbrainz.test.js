@@ -161,3 +161,43 @@ test('sameAs is een eigen term en NIET alsoKnownAs', async () => {
   assert.equal(term.sameAs['@id'], 'schema:sameAs');
   assert.equal(term.sameAs['@type'], '@id', 'het is een URI en geen tekst');
 });
+
+// ── De terug-weg (Robins "social networking"-validatie) ───────────────────
+
+test('een MBID in het zoekveld wordt rechtstreeks opgezocht', async () => {
+  // Zoeken op een UUID levert bij MusicBrainz niets op, dus zonder deze tak
+  // geeft plakken juist het slechtste resultaat.
+  globalThis.fetch = async (url) => {
+    verzoeken.push({ url: String(url) });
+    return { ok: true, json: async () => ({ id: '8be31978-1884-4773-beae-f73df35b92aa', name: 'robo-burr', disambiguation: 'AKA roboburr' }) };
+  };
+  verzoeken.length = 0;
+  const een = await MB.haalArtiest('8be31978-1884-4773-beae-f73df35b92aa');
+  assert.equal(een.naam, 'robo-burr');
+  assert.match(verzoeken[0].url, /\/artist\/8be31978-1884-4773-beae-f73df35b92aa\?/, 'de lookup, niet de zoekopdracht');
+  assert.equal(await MB.haalArtiest('nirvana'), null, 'geen MBID, geen lookup');
+});
+
+test('de terug-weg is pas waar als de pagina ONS domein noemt', async () => {
+  // Echt gemeten op 13-8: robo-burr heeft precies een url-relatie, type
+  // "social network", naar sound-fabrics.com. Dus voor dev.klonkt.com hoort
+  // hier false uit te komen -- en dat is de waarde van de controle.
+  globalThis.fetch = async () => ({
+    ok: true,
+    json: async () => ({ relations: [{ type: 'social network', url: { resource: 'https://sound-fabrics.com/' } }] }),
+  });
+  const mbid = '24abe2be-c0bc-4c63-9642-d6f89ec6a00a';
+  const mis = await MB.controleerTerugweg(mbid, 'https://dev.klonkt.com');
+  assert.equal(mis.verified, false, 'een andere site is geen terugweg');
+  assert.deepEqual(mis.urls, ['https://sound-fabrics.com/']);
+
+  const raak = await MB.controleerTerugweg(mbid, 'https://sound-fabrics.com');
+  assert.equal(raak.verified, true, 'dezelfde host telt, ongeacht pad of slash');
+});
+
+test('niet kunnen kijken is niet hetzelfde als niet gevonden', async () => {
+  // Bij een storing false EN een lege lijst -- nooit stilletjes "wederzijds".
+  globalThis.fetch = async () => { throw new Error('weg'); };
+  const uit = await MB.controleerTerugweg('24abe2be-c0bc-4c63-9642-d6f89ec6a00a', 'https://dev.klonkt.com');
+  assert.deepEqual(uit, { verified: false, urls: [] });
+});

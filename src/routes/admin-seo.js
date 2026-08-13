@@ -61,7 +61,29 @@ router.get('/api/musicbrainz', requireGod, async (req, res) => {
   const site = getPrimarySite(req);
   const q = String(req.query.q || (site && (site.publisher_name || site.title)) || '').trim();
   if (!q) return res.json({ ok: true, q: '', kandidaten: [] });
+  // Wie zijn id al kent plakt het hier. Een zoekopdracht op een UUID levert bij
+  // MusicBrainz niets op, dus zonder deze tak geeft plakken juist het slechtste
+  // resultaat.
+  if (isMbid(q)) {
+    const een = await MusicBrainz.haalArtiest(q);
+    return res.json({ ok: true, q, kandidaten: een ? [een] : [] });
+  }
   res.json({ ok: true, q, kandidaten: await MusicBrainz.zoekArtiesten(q) });
+});
+
+/**
+ * De terug-weg: noemt de MusicBrainz-pagina ons domein? (shaer-mbz)
+ *
+ * Een koppeling van onze kant is een bewering -- iedereen kan een id typen.
+ * Pas als de artiestenpagina TERUGWIJST is het een paar. Wij zetten die
+ * verwijzing niet zelf: dat kan niet via hun API en hoort ook niet, de artiest
+ * doet dat op musicbrainz.org onder "social networking".
+ */
+router.get('/api/musicbrainz/terugweg', requireGod, async (req, res) => {
+  const mbid = String(req.query.mbid || '').trim().toLowerCase();
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  if (!isMbid(mbid) || !base) return res.json({ ok: true, verified: false, urls: [] });
+  res.json({ ok: true, ...(await MusicBrainz.controleerTerugweg(mbid, base)) });
 });
 
 // ==================== SAVE ====================

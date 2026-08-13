@@ -63,10 +63,37 @@ function wireMusicBrainz() {
     }
     uit.hidden = true;
     uit.replaceChildren();
+    checkTerugweg(mbid);
   }
 
   const wis = document.getElementById('mb-wis');
   if (wis) wis.addEventListener('click', () => zet('', ''));
+
+  // DE TERUG-WEG. Wij zetten hem niet -- dat kan niet via hun API en hoort ook
+  // niet -- we kijken alleen of de artiestenpagina ons domein noemt. Zolang dat
+  // niet zo is staat er "nog eenzijdig", want een halve koppeling die als
+  // bevestigd leest is het soort stilte waar we vandaag al genoeg van zagen.
+  const terugweg = document.getElementById('mb-terugweg');
+  async function checkTerugweg(mbid) {
+    if (!terugweg) return;
+    if (!mbid) { terugweg.hidden = true; terugweg.textContent = ''; return; }
+    terugweg.hidden = false;
+    terugweg.className = 'mb-terugweg';
+    terugweg.textContent = T.aseo_mb_checking || 'Terug-weg controleren…';
+    try {
+      const r = await fetch(`/admin/seo/api/musicbrainz/terugweg?mbid=${encodeURIComponent(mbid)}`, { credentials: 'same-origin' });
+      const j = await r.json();
+      terugweg.className = 'mb-terugweg ' + (j.verified ? 'is-ok' : 'is-eenzijdig');
+      terugweg.textContent = j.verified
+        ? (T.aseo_mb_verified || 'Wederzijds.')
+        : (T.aseo_mb_unverified || 'Nog eenzijdig.');
+    } catch {
+      terugweg.hidden = true;
+    }
+  }
+  // Meteen bij het openen, want de artiest kan hem intussen op MusicBrainz
+  // hebben gezet en hoort dat hier te zien zonder opnieuw te koppelen.
+  if (idVeld.value) checkTerugweg(idVeld.value);
 
   async function zoek() {
     const q = (veld.value || '').trim();
