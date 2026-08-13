@@ -120,18 +120,34 @@ function wireMusicBrainz() {
     const lijst = el('ul', 'mb-lijst');
     for (const k of kandidaten) {
       const li = el('li', 'mb-kandidaat');
-      li.appendChild(el('strong', null, k.naam));
+
+      // Regel voor regel, want dit is een KEUZE en geen opsomming. Alles op een
+      // rij duwen maakt de toelichting -- juist het veld dat de bands uit
+      // elkaar houdt -- tot bijzin achter de naam.
+      li.appendChild(el('span', 'mb-naam', k.naam));
+
       // De toelichting is het hele punt: er zijn drie bands die Nirvana heten,
-      // en zonder dit veld kiest iemand de verkeerde.
-      const bij = [k.toelichting, k.soort, k.land, k.jaren].filter(Boolean).join(' · ');
-      if (bij) li.appendChild(el('small', 'mb-bij', bij));
+      // en zonder dit veld kiest iemand de verkeerde. Eigen regel dus.
+      if (k.toelichting) li.appendChild(el('span', 'mb-toelichting', k.toelichting));
+
+      // De feiten eronder, en alleen wat er IS. Een lege bullet tussen twee
+      // punten leest als ontbrekende informatie in plaats van als afwezige.
+      const feiten = [k.soort, k.land, k.jaren].filter(Boolean).join(' · ');
+      if (feiten) li.appendChild(el('span', 'mb-feiten', feiten));
+
+      const voet = el('div', 'mb-voet');
       const open = el('a', 'mb-open', T.mb_open || 'Bekijk op MusicBrainz');
       open.href = k.url; open.target = '_blank'; open.rel = 'noopener';
-      li.appendChild(open);
-      const b = el('button', 'btn', T.mb_pick || 'Dit ben ik');
+      voet.appendChild(open);
+      // Hun eigen score. Alleen tonen als hij ZWAK is: bij een goede treffer is
+      // een getal ruis, bij een zwakke is het een waarschuwing.
+      if (k.score && k.score < 70) voet.appendChild(el('span', 'mb-zwak', `${k.score}%`));
+      const b = el('button', 'btn mb-kies', T.mb_pick || 'Dit ben ik');
       b.type = 'button';
       b.addEventListener('click', () => zet(k.mbid, k.naam));
-      li.appendChild(b);
+      voet.appendChild(b);
+      li.appendChild(voet);
+
       lijst.appendChild(li);
     }
     uit.replaceChildren(lijst);

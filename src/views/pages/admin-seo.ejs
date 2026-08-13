@@ -148,6 +148,34 @@
 </div>
 
 <style>
+/* ── MusicBrainz-kandidaten: een kaartje per artiest ──────────────
+   Meerdere regels en geen opsomming op een rij: dit is een KEUZE, en de
+   toelichting die twee gelijknamige bands uit elkaar houdt hoort niet als
+   bijzin achter de naam weg te vallen. */
+.mb-uit { margin-top: 0.5rem; }
+.mb-lijst { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.6rem; }
+.mb-kandidaat {
+  display: flex; flex-direction: column; gap: 0.2rem;
+  border: 1px solid var(--rule); border-radius: 8px;
+  padding: 0.7rem 0.85rem; background: var(--paper);
+  min-width: 0;
+}
+.mb-naam { font-weight: 600; font-size: 0.95rem; color: var(--ink); }
+.mb-toelichting { font-size: 0.85rem; color: var(--ink); }
+.mb-feiten { font-size: 0.8rem; color: var(--ink-muted); }
+.mb-voet { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.35rem; flex-wrap: wrap; }
+.mb-open { font-size: 0.8rem; }
+/* Een zwakke treffer als zwak tonen; bij een goede is een getal ruis. */
+.mb-zwak { font-size: 0.75rem; color: var(--ink-muted); }
+.mb-kies { margin-left: auto; }
+.mb-huidig { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; font-size: 0.9rem; }
+.mb-zoek { display: flex; gap: 0.5rem; min-width: 0; }
+.mb-zoek input { flex: 1 1 auto; min-width: 0; }
+/* De terug-weg: eenzijdig is geen fout, maar het mag ook niet als klaar lezen. */
+.mb-terugweg { font-size: 0.82rem; margin: 0.2rem 0 0; }
+.mb-terugweg.is-ok { color: var(--ok, #2e7d32); }
+.mb-terugweg.is-eenzijdig { color: var(--ink-muted); }
+
 .admin-site-edit-page { max-width: 760px; margin: 3rem auto; padding: 0 1rem; }
 .admin-site-edit-page h1 { font-family: var(--font-display, serif); font-size: 1.8rem; margin: 0 0 0.4rem; }
 .admin-site-edit-page .admin-tagline { color: var(--ink-muted); margin: 0 0 1.75rem; }
