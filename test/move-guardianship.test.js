@@ -91,6 +91,32 @@ test('een relatie die nog niet geaccepteerd is blijft staan', async () => {
     'een verzoek dat nog loopt gaat over de OUDE actor; dat verhuizen zou een niet-bestaande relatie meenemen');
 });
 
+// De VOLGORDE, niet de uitkomst. De tests hierboven slagen ook als de relatie pas
+// na de follows wordt bijgewerkt, en juist dat ging mis bij Robins verhuizing:
+//
+//   [AP] outgoing Follow beta → .../robo (gated, awaiting guardians)
+//
+// Beta is zelf een ward, dus zijn uitgaande follow naar de verhuisde guardian werd
+// gepoort omdat het nieuwe adres nog niet in zijn guardian-lijst stond. Beide
+// richtingen bleven hangen op een goedkeuring die niemand hoefde te geven.
+test('de guardianship is al bijgewerkt VOORDAT de follow uitgaat', async () => {
+  let standTijdensFollow = null;
+  const stil = console.log; console.log = () => {};
+  try {
+    await AP.handleMoveInbox(move, {
+      ...stubs,
+      followFn: async () => {
+        // Op dit moment moet de gate aan de andere kant ons al kennen.
+        standTijdensFollow = db.prepare('SELECT other_uri FROM ap_guardianships').get().other_uri;
+        return true;
+      },
+    });
+  } finally { console.log = stil; }
+
+  assert.equal(standTijdensFollow, NIEUW,
+    'staat de relatie hier nog op het oude adres, dan gate\'t de ward de follow van zijn eigen guardian');
+});
+
 test('een Move naar een geblokkeerde bestemming verandert niets', async () => {
   db.prepare('INSERT INTO ap_blocks (slug, target, kind) VALUES (?,?,?)').run('voogd', NIEUW, 'actor');
   const stil = console.log; console.log = () => {};

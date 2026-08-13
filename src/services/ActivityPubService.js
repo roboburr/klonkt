@@ -5782,6 +5782,37 @@ export async function handleMoveInbox(act, { verifiedActor = null, fetchActorFn 
     console.warn('[AP] Move refused: target does not claim the old actor in alsoKnownAs', oldUri, '→', newUri);
     return 202; // decline to act; no 4xx, the sender may be a well-meaning retrying server
   }
+  // EERST de guardianship, DAARNA pas de follows. Die volgorde is geen netheid
+  // maar de hele werking, en hij is met bloed geschreven: bij Robins verhuizing
+  // op 13-8 stond het andersom en het log liet precies zien wat er dan gebeurt.
+  //
+  //   [AP] outgoing Follow beta → .../robo (gated, awaiting guardians)
+  //
+  // Beta is zelf een ward. Zijn UITGAANDE follow naar de verhuisde guardian werd
+  // gepoort (§5.3), want op dat moment stond het nieuwe adres nog niet in zijn
+  // guardian-lijst: de code hieronder had de relatie nog niet bijgewerkt. En de
+  // INKOMENDE kant heeft hetzelfde probleem, want de ward gate't een Follow van
+  // een onbekende. Dus beide richtingen bleven hangen op goedkeuring die niemand
+  // hoefde te geven, omdat het om een guardian ging die er al was.
+  //
+  // Met de relatie eerst is de verhuisde actor al een erkende guardian als de
+  // follows langskomen, en gaat de auto-acceptatie gewoon door.
+  //
+  // Een Move is een Move: de guardian is dezelfde guardian, het kind is hetzelfde
+  // kind, alleen het adres is nieuw. Zelfde bescherming als de re-follow: alleen
+  // na een geverifieerde Move, en niet naar een geblokkeerde bestemming (daar
+  // zijn we hierboven al uitgestapt). De twee harde randen van shaer-tge staan
+  // hier LOS van: weigeren te verhuizen naar een instance die shaer:guardians
+  // niet kan dragen is een controle aan de UITGAANDE kant, en het
+  // terugkeren-zonder-set is een alsoKnownAs-kwestie.
+  try {
+    const g = db.prepare('SELECT slug, role FROM ap_guardianships WHERE other_uri = ? AND status = ?').all(oldUri, 'accepted');
+    if (g.length) {
+      const r = db.prepare('UPDATE ap_guardianships SET other_uri = ? WHERE other_uri = ? AND status = ?').run(newUri, oldUri, 'accepted');
+      console.log('[AP] guardianship moved:', oldUri, '→', newUri, `(${r.changes}x)`, g.map((x) => `${x.role}:${x.slug}`).join(', '));
+    }
+  } catch (e) { console.warn('[AP] guardianship move failed:', e && e.message); }
+
   for (const row of rows) {
     const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(row.slug);
     if (!site) continue;
@@ -5794,26 +5825,6 @@ export async function handleMoveInbox(act, { verifiedActor = null, fetchActorFn 
       console.warn('[AP] move re-follow failed for', row.slug, e && e.message);
     }
   }
-  // Een Move is een Move: de guardian is dezelfde guardian, het kind is hetzelfde
-  // kind, alleen het adres is nieuw. Toezicht IS een gewone Follow (FEP-633c §5),
-  // en die is hierboven al meeverhuisd -- maar de relatie zelf hing nog aan de
-  // oude URI. Dat leverde de vervelendste toestand op: de guardian ziet de posts
-  // nog binnenkomen, terwijl alles dat op other_uri matcht omvalt (de gate op een
-  // nieuwe volger, het escalatiepad, listGuardians bij het kind). Half een
-  // vangnet ziet eruit als een heel vangnet.
-  //
-  // Zelfde bescherming als de re-follow hierboven: alleen na een geverifieerde
-  // Move, en niet als de bestemming geblokkeerd is (daar zijn we al uitgestapt).
-  // De twee harde randen van shaer-tge staan hier LOS van: weigeren te verhuizen
-  // naar een instance die shaer:guardians niet kan dragen is een controle aan de
-  // UITGAANDE kant, en het terugkeren-zonder-set is een alsoKnownAs-kwestie.
-  try {
-    const g = db.prepare('SELECT slug, role FROM ap_guardianships WHERE other_uri = ? AND status = ?').all(oldUri, 'accepted');
-    if (g.length) {
-      const r = db.prepare('UPDATE ap_guardianships SET other_uri = ? WHERE other_uri = ? AND status = ?').run(newUri, oldUri, 'accepted');
-      console.log('[AP] guardianship moved:', oldUri, '→', newUri, `(${r.changes}x)`, g.map((x) => `${x.role}:${x.slug}`).join(', '));
-    }
-  } catch (e) { console.warn('[AP] guardianship move failed:', e && e.message); }
   return 202;
 }
 
