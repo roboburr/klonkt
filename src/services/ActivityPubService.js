@@ -5794,10 +5794,26 @@ export async function handleMoveInbox(act, { verifiedActor = null, fetchActorFn 
       console.warn('[AP] move re-follow failed for', row.slug, e && e.message);
     }
   }
+  // Een Move is een Move: de guardian is dezelfde guardian, het kind is hetzelfde
+  // kind, alleen het adres is nieuw. Toezicht IS een gewone Follow (FEP-633c §5),
+  // en die is hierboven al meeverhuisd -- maar de relatie zelf hing nog aan de
+  // oude URI. Dat leverde de vervelendste toestand op: de guardian ziet de posts
+  // nog binnenkomen, terwijl alles dat op other_uri matcht omvalt (de gate op een
+  // nieuwe volger, het escalatiepad, listGuardians bij het kind). Half een
+  // vangnet ziet eruit als een heel vangnet.
+  //
+  // Zelfde bescherming als de re-follow hierboven: alleen na een geverifieerde
+  // Move, en niet als de bestemming geblokkeerd is (daar zijn we al uitgestapt).
+  // De twee harde randen van shaer-tge staan hier LOS van: weigeren te verhuizen
+  // naar een instance die shaer:guardians niet kan dragen is een controle aan de
+  // UITGAANDE kant, en het terugkeren-zonder-set is een alsoKnownAs-kwestie.
   try {
     const g = db.prepare('SELECT slug, role FROM ap_guardianships WHERE other_uri = ? AND status = ?').all(oldUri, 'accepted');
-    if (g.length) console.warn('[AP] Move touches a guardianship party — left untouched (shaer-tge):', oldUri, '→', g.map((r) => `${r.role}:${r.slug}`).join(', '));
-  } catch { /* table absent on fresh init */ }
+    if (g.length) {
+      const r = db.prepare('UPDATE ap_guardianships SET other_uri = ? WHERE other_uri = ? AND status = ?').run(newUri, oldUri, 'accepted');
+      console.log('[AP] guardianship moved:', oldUri, '→', newUri, `(${r.changes}x)`, g.map((x) => `${x.role}:${x.slug}`).join(', '));
+    }
+  } catch (e) { console.warn('[AP] guardianship move failed:', e && e.message); }
   return 202;
 }
 
