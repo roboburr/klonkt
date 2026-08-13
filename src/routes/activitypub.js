@@ -1042,6 +1042,21 @@ router.get('/ap/users/:slug/following', (req, res) => {
   AP.sendAP(res, AP.buildFollowing(baseUrl(req), site, n, null, { page: paginaNr(req) }));
 });
 
+/**
+ * Mag deze aanvrager alles van `slug` zien? Waar bij de eigenaar zelf, en waar
+ * voor de actor waar `slug` naartoe verhuisd is (FEP-1580, Source Instance).
+ *
+ * Eén plek voor die vraag, want hij komt op meerdere collecties terug en twee
+ * antwoorden op dezelfde vraag lopen vroeg of laat uiteen.
+ */
+async function magAlles(req, slug) {
+  const auth = OAuth.verifyBearer(req.headers.authorization);
+  if (auth && auth.site.slug === slug) return true;
+  if (!req.headers['signature']) return false;
+  const v = await AP.verifyRequest(req).catch(() => null);
+  return !!(v && v.id && AP.isMoveTarget(slug, v.id));
+}
+
 // ── FEP-1580: de vertaaltabel van een verhuizing ──────────────────
 //
 // Publiek leesbaar, want dat is het hele doel: een derde die een oude URI in
@@ -1114,10 +1129,10 @@ router.get('/ap/users/:slug/playlists', (req, res) => {
 // De tracks van deze site: de kanonieke plek voor onze muziek (shaer-0nh,
 // stap 3). Een playlist is een keuze hieruit; deze collectie is alles wat de
 // artiest heeft opengezet, ook wat in geen enkele playlist staat.
-router.get('/ap/users/:slug/tracks', (req, res) => {
+router.get('/ap/users/:slug/tracks', async (req, res) => {
   const site = publicSite(req.params.slug);
   if (!site) return res.status(404).end();
-  AP.sendAP(res, AP.buildTrackCollection(baseUrl(req), site, AP.siteOpenTracks(site.id)));
+  AP.sendAP(res, AP.buildTrackCollection(baseUrl(req), site, AP.siteOpenTracks(site.id, { alles: await magAlles(req, site.slug) })));
 });
 
 // Eén track, los op te halen. Een gesloten track is AFWEZIG, niet leeg: 404,

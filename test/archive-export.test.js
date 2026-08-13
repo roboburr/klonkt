@@ -133,8 +133,11 @@ test('antwoorden van anderen staan apart en zijn gemarkeerd als archief', () => 
 });
 
 test('een gehoste track reist mee, met de gegevens die alleen in de database staan', () => {
-  // [[track:]] verwijst naar een audio_tracks-rij met een media-rij eronder. Op
-  // beta staan nul tracks, dus dit pad raakt daar geen echte data -- vandaar hier.
+  // Sinds v2 gaat audio NIET meer als media-bijlage mee. Dat kon ook nooit:
+  // gehoste audio staat buiten MEDIA_ROOT, de exporter rekende er met
+  // path.relative een /media/../audio/x.mp3 van, en de importer weigerde dat
+  // terecht. Resultaat op soundfabrics.nl: 13 tracks in de lijst, nul bestanden.
+  // Nu heeft het archief een eigen audio/-gebied.
   fs.mkdirSync(path.join(MEDIA, 'audio'), { recursive: true });
   const WAV = Buffer.from('RIFF-nep-audio');
   fs.writeFileSync(path.join(MEDIA, 'audio', 't1.mp3'), WAV);
@@ -146,16 +149,89 @@ test('een gehoste track reist mee, met de gegevens die alleen in de database sta
 
   const uit = AX.buildArchive('me');
   const o = lees(uit, 'posts/metaudio.json');
-  const a = o.attachment[0];
-  assert.equal(a['shaer:availability'], 'included');
-  assert.equal(a.mediaType, 'audio/mpeg');
-  assert.deepEqual(uit.files.get(a.url), WAV);
-  assert.match(o.content, /\[\[track:tr1\]\]/, 'de shorthand blijft in de bron staan');
   const t = o['shaer:audio'][0];
+  assert.match(o.content, /\[\[track:tr1\]\]/, 'de shorthand blijft in de bron staan');
   assert.equal(t.name, 'Kanonnen');
   assert.equal(t.artist, 'Robin');
   assert.equal(t.license, 'CC BY');
   assert.deepEqual(t.url, ['https://open.spotify.com/track/x']);
+
+  // Dit is de assertie die er echt toe doet: de BYTES zitten in het archief.
+  assert.ok(String(t['shaer:media']).startsWith('audio/'), 'de track wijst naar het audio-gebied');
+  assert.deepEqual(uit.files.get(t['shaer:media']), WAV, 'en daar staat het geluid ook echt');
+
+  // En hij staat in de bibliotheek, los van de post.
+  const lib = JSON.parse(uit.files.get('tracks.json').toString('utf8'));
+  const rij = lib.orderedItems.find((x) => x.id === 'tr1');
+  assert.equal(rij['shaer:availability'], 'included');
+  assert.equal(rij['shaer:file'], t['shaer:media']);
+  assert.equal(uit.counts.tracks, 1);
+});
+
+test('de HELE bibliotheek gaat mee, ook wat in geen enkel bericht staat', () => {
+  // De reden dat dit bestaat: op sound-fabrics.com stonden 140 tracks en gingen
+  // er 14 mee, want alleen wat met [[track:]] in een bericht stond werd
+  // geexporteerd. Een verhuizing die je bibliotheek achterlaat is er geen.
+  fs.mkdirSync(path.join(MEDIA, 'audio'), { recursive: true });
+  const B = Buffer.from('RIFF-los-nummer');
+  fs.writeFileSync(path.join(MEDIA, 'audio', 'los.mp3'), B);
+  db.prepare('INSERT INTO media (id, site_id, filename, mime_type, size, storage_path) VALUES (?,?,?,?,?,?)')
+    .run('m9', 's1', 'los.mp3', 'audio/mpeg', B.length, path.join(MEDIA, 'audio', 'los.mp3'));
+  db.prepare("INSERT INTO audio_tracks (id, site_id, title, media_id) VALUES ('los','s1','Los nummer','m9')").run();
+
+  const uit = AX.buildArchive('me');
+  const lib = JSON.parse(uit.files.get('tracks.json').toString('utf8'));
+  const rij = lib.orderedItems.find((x) => x.id === 'los');
+  assert.ok(rij, 'een track zonder bericht hoort er gewoon in');
+  assert.deepEqual(uit.files.get(rij['shaer:file']), B);
+});
+
+test('een track waarvan het bestand zoek is wordt gemeld, niet stil weggelaten', () => {
+  db.prepare("INSERT INTO media (id, site_id, filename, mime_type, size, storage_path) VALUES ('mz','s1','zoek.mp3','audio/mpeg',1,'/bestaat/niet/zoek.mp3')").run();
+  db.prepare("INSERT INTO audio_tracks (id, site_id, title, media_id) VALUES ('zoek','s1','Zoek','mz')").run();
+  const uit = AX.buildArchive('me');
+  const rij = JSON.parse(uit.files.get('tracks.json').toString('utf8')).orderedItems.find((x) => x.id === 'zoek');
+  assert.equal(rij['shaer:availability'], 'missing');
+  assert.equal(rij['shaer:file'], undefined, 'geen verwijzing naar een bestand dat er niet is');
+  assert.ok(uit.counts.audioMissing >= 1);
+  assert.ok(uit.missing.some((m) => m.track === 'Zoek'), 'en de beller kan het aan de gebruiker melden');
+});
+
+test('audio wordt gezocht zoals de SPELER hem zoekt, niet zoals de database hem onthoudt', async () => {
+  // De stille moordenaar op sound-fabrics.com: na een dataverhuizing wees
+  // storage_path voor 124 van de 139 tracks nog naar /srv/prutfolio/storage/audio.
+  // De speler merkte er niets van, want die pakt AUDIO_ROOT + bestandsnaam en
+  // negeert storage_path. De exporter las wel storage_path, vond niets, en liet
+  // 124 nummers weg zonder dat iemand het zag.
+  //
+  // Deze test pint de VOLGORDE vast met een nep-fs, want dat is precies waar de
+  // twee uit elkaar liepen. AUDIO_ROOT ligt bij import van paths.js al vast, dus
+  // hem hier omzetten kan niet meer; de volgorde toetsen wel.
+  const { resolveAudioPath, AUDIO_ROOT } = await import('../src/config/paths.js');
+  const gevraagd = [];
+  const nepFs = {
+    statSync(p) {
+      gevraagd.push(p);
+      if (p === path.join(AUDIO_ROOT, 'x.mp3')) return { isFile: () => true };
+      throw new Error('ENOENT');
+    },
+  };
+  const uit = resolveAudioPath('/een/heel/oud/pad/x.mp3', nepFs);
+  assert.equal(uit, path.join(AUDIO_ROOT, 'x.mp3'), 'de speler-plek wint');
+  assert.equal(gevraagd[0], path.join(AUDIO_ROOT, 'x.mp3'), 'en wordt als EERSTE geprobeerd');
+
+  // Staat hij daar niet, dan telt het opgeslagen pad alsnog: installaties die
+  // hun audio ergens anders hebben mogen niet stuk.
+  const gevraagd2 = [];
+  const nepFs2 = {
+    statSync(p) {
+      gevraagd2.push(p);
+      if (p === path.resolve('/ergens/anders/y.mp3')) return { isFile: () => true };
+      throw new Error('ENOENT');
+    },
+  };
+  assert.equal(resolveAudioPath('/ergens/anders/y.mp3', nepFs2), path.resolve('/ergens/anders/y.mp3'));
+  assert.equal(resolveAudioPath('', nepFs2), null);
 });
 
 test('de poster van een audio-bijlage gaat mee', () => {
@@ -226,7 +302,7 @@ test('de zip is door unzip te lezen', async () => {
 test('het manifest draagt de origin, want daar hangt het behoud van AP-ids aan', () => {
   const m = AX.buildArchive('me').manifest;
   assert.equal(m.origin, 'https://klonkt.test');
-  assert.equal(m.formatVersion, 1);
+  assert.equal(m.formatVersion, 2, 'v2 = audio zit er echt in');
   assert.equal(m.actor, 'https://klonkt.test/ap/users/me');
 });
 

@@ -18,9 +18,16 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import db from '../config/database.js';
-import { MEDIA_ROOT } from '../config/paths.js';
+import { MEDIA_ROOT, resolveAudioPath } from '../config/paths.js';
 
-export const FORMAT_VERSION = 1;
+// v2: audio zit er eindelijk echt in. Tot v1 kon dat niet: gehoste audio staat
+// BUITEN MEDIA_ROOT (eigen gated route, zie routes/audio.js), en het archief
+// droeg alleen bestanden onder media/. De exporter rekende er met path.relative
+// een /media/../audio/x.mp3 van, en de importer weigerde dat pad terecht. Er
+// stond dus wel een track in de database van de nieuwe site, maar nooit een
+// bestand. v2 heeft een eigen audio/-gebied, exporteert de HELE bibliotheek in
+// plaats van alleen wat in een bericht staat, en neemt de playlists mee.
+export const FORMAT_VERSION = 2;
 
 /** JSON met gesorteerde sleutels: zonder vaste volgorde is byte-gelijkheid toeval. */
 export function stableJson(value) {
@@ -121,13 +128,10 @@ function mediaRefsOf(post, origin) {
       voegToe(a && a.poster, a && a.name ? `${a.name} (poster)` : null, 'poster', { posterFor: a && a.url });
     }
   } catch { /* kapotte kolom blokkeert de export niet */ }
-  // Gehoste audio: [[track:id]] verwijst naar een audio_tracks-rij met een media-rij eronder.
-  for (const m of String(post.content || '').matchAll(/\[\[track:([A-Za-z0-9_-]+)\]\]/g)) {
-    try {
-      const t = db.prepare('SELECT t.title, m.storage_path FROM audio_tracks t LEFT JOIN media m ON m.id = t.media_id WHERE t.id = ?').get(m[1]);
-      if (t && t.storage_path) voegToe(`/media/${path.relative(path.resolve(MEDIA_ROOT), path.resolve(t.storage_path))}`, t.title, 'track');
-    } catch { /* geen audio-tabellen: niets te doen */ }
-  }
+  // Gehoste audio staat hier NIET meer bij. Die leeft buiten MEDIA_ROOT en gaat
+  // sinds v2 via het audio/-gebied (zie audioBibliotheek). De oude regel rekende
+  // met path.relative een pad naar buiten MEDIA_ROOT uit, en dat kon nooit
+  // aankomen: de importer weigert zo'n pad, terecht.
   return uit;
 }
 
@@ -140,18 +144,16 @@ function mediaRefsOf(post, origin) {
  * niet wélk van de bijlagen erbij hoort -- en dan valt [[track:]] bij een
  * herstel op niets terug.
  */
-function audioOf(post, attachments) {
+function audioOf(post, audioKaart) {
   const uit = [];
   for (const m of String(post.content || '').matchAll(/\[\[track:([A-Za-z0-9_-]+)\]\]/g)) {
     try {
-      const t = db.prepare('SELECT t.*, md.storage_path FROM audio_tracks t LEFT JOIN media md ON md.id = t.media_id WHERE t.id = ?').get(m[1]);
+      const t = db.prepare('SELECT * FROM audio_tracks WHERE id = ?').get(m[1]);
       if (!t) continue;
-      let bestand;
-      if (t.storage_path) {
-        const rel = `/media/${path.relative(path.resolve(MEDIA_ROOT), path.resolve(t.storage_path))}`;
-        const bij = attachments.find((a) => String(a['shaer:originalUrl'] || '').endsWith(rel));
-        bestand = bij ? bij.url : undefined;
-      }
+      // Sinds v2 wijst dit naar het audio/-gebied. Staat de track er niet in
+      // (bestand onvindbaar), dan blijft het veld LEEG in plaats van naar een
+      // bijlage te wijzen die er niet is.
+      const bestand = audioKaart.get(t.id) || undefined;
       uit.push({
         'shaer:ref': `[[track:${t.id}]]`,
         'shaer:media': bestand,
@@ -164,8 +166,98 @@ function audioOf(post, attachments) {
   return uit.length ? uit : undefined;
 }
 
+/**
+ * De HELE audiobibliotheek, plus de playlists.
+ *
+ * Tot v1 ging alleen mee wat met [[track:]] in een bericht stond. Op
+ * sound-fabrics.com waren dat er 14 van de 140, en de 11 playlists gingen
+ * helemaal niet mee. Een verhuizing die je bibliotheek achterlaat is geen
+ * verhuizing.
+ *
+ * Het bestand wordt gezocht met resolveAudioPath, dus op DEZELFDE manier als de
+ * speler het zoekt. Dat verschil was de stille moordenaar: 124 van de 139
+ * storage_paths waren verouderd na een dataverhuizing, de site speelde gewoon
+ * door, en de export liet ze weg zonder dat iemand het merkte.
+ *
+ * @returns {Map<string,string>} trackId -> pad in het archief
+ */
+function audioBibliotheek(site, bestanden, tellingen, ontbrekend) {
+  const kaart = new Map();
+  let tracks = [];
+  try {
+    tracks = db.prepare(`SELECT t.*, m.storage_path, m.mime_type FROM audio_tracks t
+                          LEFT JOIN media m ON m.id = t.media_id
+                         WHERE t.site_id = ?
+                         ORDER BY COALESCE(t.position, 999999), t.created_at, t.id`).all(site.id);
+  } catch { return kaart; }              // installatie zonder audio-tabellen
+  if (!tracks.length) return kaart;
+
+  const items = [];
+  for (const t of tracks) {
+    const schijf = resolveAudioPath(t.storage_path, fs);
+    let naam = null;
+    let hash = null;
+    if (schijf) {
+      try {
+        const bytes = fs.readFileSync(schijf);
+        hash = sha256(bytes);
+        const ext = (path.extname(schijf).slice(1) || 'mp3').toLowerCase();
+        naam = `audio/${hash}.${ext}`;
+        if (!bestanden.has(naam)) { bestanden.set(naam, bytes); tellingen.audio += 1; }
+        kaart.set(t.id, naam);
+      } catch { naam = null; }           // onleesbaar telt als ontbrekend, niet als stilte
+    }
+    if (!naam) {
+      tellingen.audioMissing += 1;
+      ontbrekend.push({ track: t.title || t.id, url: t.storage_path || '(geen mediarij)' });
+    }
+    items.push({
+      id: t.id, name: t.title || '', artist: t.artist || undefined, album: t.album || undefined,
+      duration: t.duration || undefined, position: t.position ?? undefined,
+      credit: t.credit || undefined, license: t.license || undefined,
+      'shaer:coverUrl': t.cover_url || undefined,
+      'shaer:downloadable': t.downloadable ? 1 : 0,
+      'shaer:fediOpen': t.fedi_open ? 1 : 0,
+      'shaer:mediaType': t.mime_type || 'audio/mpeg',
+      'shaer:file': naam || undefined,
+      'shaer:sha256': hash || undefined,
+      // Derde staat, net als bij media: we weten DAT het bestond en waar het
+      // stond. Stil weglaten zou een leugen zijn, en de importer moet hierop
+      // kunnen weigeren in plaats van een track zonder bestand aan te maken.
+      'shaer:availability': naam ? 'included' : 'missing',
+      'shaer:originalPath': naam ? undefined : (t.storage_path || undefined),
+      url: [t.link_spotify, t.link_youtube, t.link_soundcloud].filter(Boolean),
+    });
+  }
+  bestanden.set('tracks.json', Buffer.from(stableJson({
+    '@context': ['https://www.w3.org/ns/activitystreams', { shaer: 'https://klonkt.com/ns#' }],
+    type: 'OrderedCollection', 'shaer:archive': true, totalItems: items.length, orderedItems: items,
+  }), 'utf8'));
+  tellingen.tracks = items.length;
+
+  // Playlists: de volgorde IS de playlist, dus die moet expliciet mee.
+  try {
+    const pls = db.prepare('SELECT * FROM playlists WHERE site_id = ? ORDER BY created_at, id').all(site.id);
+    if (pls.length) {
+      const lijst = pls.map((p) => ({
+        id: p.id, name: p.title || '', artist: p.artist || undefined, year: p.year || undefined,
+        'shaer:kind': p.kind || undefined, 'shaer:coverUrl': p.cover_url || undefined,
+        'shaer:tracks': db.prepare('SELECT track_id, position FROM playlist_tracks WHERE playlist_id = ? ORDER BY position')
+          .all(p.id).map((r) => ({ id: r.track_id, position: r.position })),
+      }));
+      bestanden.set('playlists.json', Buffer.from(stableJson({
+        '@context': ['https://www.w3.org/ns/activitystreams', { shaer: 'https://klonkt.com/ns#' }],
+        type: 'OrderedCollection', 'shaer:archive': true, totalItems: lijst.length, orderedItems: lijst,
+      }), 'utf8'));
+      tellingen.playlists = lijst.length;
+    }
+  } catch { /* geen playlist-tabellen */ }
+
+  return kaart;
+}
+
 /** Eén post als AS2-object volgens het formaat. Bijlagen komen van de beller. */
-function postObject(post, site, origin, attachments) {
+function postObject(post, site, origin, attachments, audioKaart) {
   const heeftTitel = !!(post.title && String(post.title).trim());
   const published = toISO(post.published_at || post.created_at) || toISO(post.created_at);
   const updated = toISO(post.updated_at);
@@ -219,7 +311,7 @@ function postObject(post, site, origin, attachments) {
     'shaer:publishAt': toISO(post.publish_at) || undefined,
     'shaer:coverAlt': post.cover_alt || undefined,
     'shaer:viewCount': post.view_count || undefined,
-    'shaer:audio': audioOf(post, attachments),
+    'shaer:audio': audioOf(post, audioKaart),
   };
 }
 
@@ -361,8 +453,12 @@ export function buildArchive(slug, opts = {}) {
   }
 
   const bestanden = new Map();       // pad -> Buffer
-  const tellingen = { posts: 0, replies: 0, media: 0, mediaMissing: 0 };
+  const tellingen = { posts: 0, replies: 0, media: 0, mediaMissing: 0, audio: 0, audioMissing: 0, tracks: 0, playlists: 0 };
   const ontbrekend = [];             // voor de rapportage van de beller
+
+  // De audiobibliotheek EERST. De posts verwijzen ernaar met [[track:]], dus de
+  // kaart moet klaar zijn voor de eerste post gebouwd wordt.
+  const audioKaart = audioBibliotheek(site, bestanden, tellingen, ontbrekend);
 
   // Vaste volgorde: eerst op publicatiedatum, dan op id. Zonder tweede sleutel
   // is de volgorde van twee posts op dezelfde seconde niet bepaald.
@@ -403,7 +499,7 @@ export function buildArchive(slug, opts = {}) {
       }
     }
 
-    const obj = postObject(post, site, origin, attachments);
+    const obj = postObject(post, site, origin, attachments, audioKaart);
     bestanden.set(`posts/${post.id}.json`, Buffer.from(stableJson(obj), 'utf8'));
     bestanden.set(`readable/${post.slug}.md`, Buffer.from(readableMarkdown(post, obj), 'utf8'));
     tellingen.posts += 1;

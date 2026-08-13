@@ -28,9 +28,9 @@ import path from 'path';
 import { renderPage } from '../middleware/render.js';
 import { requireGod } from '../middleware/auth.js';
 import ActivityPubService from '../services/ActivityPubService.js';
-import { safeFetch, signedGetJson, noteId, noteVisibility } from '../services/ActivityPubService.js';
+import { safeFetch, signedGetJson, signedGetHeaders, noteId, noteVisibility } from '../services/ActivityPubService.js';
 import HtmlSanitizerService from '../services/HtmlSanitizerService.js';
-import { MEDIA_ROOT } from '../config/paths.js';
+import { MEDIA_ROOT, AUDIO_ROOT } from '../config/paths.js';
 import * as Migration from '../services/MigrationService.js';
 import { buildArchive, zipArchive } from '../services/ArchiveExportService.js';
 import { readArchiveZip, importArchive } from '../services/ArchiveImportService.js';
@@ -110,7 +110,7 @@ router.post('/pull', requireGod, async (req, res) => {
     r = await Migration.ingestFromSource(site, {
       sourceUri: opgegeven || null,
       deps: {
-        getJson: signedGetJson, safeFetch, mediaRoot: MEDIA_ROOT, fs, path, noteId, noteVisibility,
+        getJson: signedGetJson, safeFetch, mediaRoot: MEDIA_ROOT, audioRoot: AUDIO_ROOT, fs, path, noteId, noteVisibility, signHeaders: signedGetHeaders,
         sanitize: (h) => HtmlSanitizerService.sanitize(h || ''),
       },
     });

@@ -39,11 +39,20 @@ export function playlistOpenTracks(playlistId) {
  * wat de artiest heeft uitgebracht. Een track die in geen enkele playlist zit
  * was tot nu toe onzichtbaar voor de federatie -- die staat hier wel.
  */
-export function siteOpenTracks(siteId) {
+/**
+ * `alles` bestaat voor FEP-1580. Bij een verhuizing behandelt de bron een
+ * ondertekend verzoek van de DOEL-actor als zichzelf, en dat geldt hier net zo
+ * goed als bij de outbox. Zonder deze tak neemt een verhuizing alleen je
+ * opengezette nummers mee en blijft je hele gesloten bibliotheek achter op een
+ * domein dat je gaat opzeggen. De poort blijft verder dicht: alleen die ene
+ * actor, en alleen omdat moveAccount() een terugverwijzing eiste voordat
+ * moved_to er kwam te staan.
+ */
+export function siteOpenTracks(siteId, { alles = false } = {}) {
   return db.prepare(
     `SELECT ${TRACK_KOLOMMEN}
      FROM audio_tracks t JOIN media m ON m.id = t.media_id
-     WHERE t.site_id = ? AND t.fedi_open = 1
+     WHERE t.site_id = ?${alles ? '' : ' AND t.fedi_open = 1'}
      ORDER BY t.position, t.created_at, t.id`
   ).all(siteId);
 }

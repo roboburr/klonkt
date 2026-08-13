@@ -12,6 +12,7 @@
 // te ver reikt geeft je hele geschiedenis aan de verkeerde.
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import path from 'node:path';
 
 process.env.DATABASE_PATH = ':memory:';
 process.env.PUBLIC_BASE_URL = 'https://nieuw.example';
@@ -46,7 +47,7 @@ async function stil(fn) {
 }
 
 beforeEach(() => {
-  for (const t of ['ap_migration', 'ap_moves', 'ap_blocks', 'posts', 'ap_followers']) {
+  for (const t of ['ap_migration', 'ap_moves', 'ap_blocks', 'posts', 'ap_followers', 'audio_tracks', 'media']) {
     try { db.prepare(`DELETE FROM ${t}`).run(); } catch { /* tabel bestaat niet in deze build */ }
   }
 });
@@ -312,6 +313,88 @@ test('de ingest neemt geen antwoorden en niets van een ander mee', async () => {
   });
   const r = await stil(() => Mig.ingestFromSource(s, { deps }));
   assert.equal(r.posts, 1, 'alleen je eigen toplevel-berichten verhuizen mee');
+});
+
+test('de muziekbibliotheek komt mee, ook wat niet fedi_open is', async () => {
+  // Losse nummers staan NIET in de outbox: die hangen aan de tracks-collectie
+  // waar de actor via AS2 `streams` naar wijst. Zonder deze tak verhuist een
+  // muzieksite zijn berichten en laat hij zijn bibliotheek achter, en dat is
+  // precies wat er op soundfabrics.nl gebeurde.
+  const s = site({ aliases: [BRON] });
+  const AUDIO = `${BRON}/audio/x.mp3`;
+  const bytes = Buffer.from('ID3-nep-geluid');
+  const kaart = new Map([
+    [BRON, {
+      id: BRON, type: 'Person', movedTo: IK, outbox: `${BRON}/outbox`,
+      streams: [`${BRON}/tracks`, `${BRON}/playlists`],
+    }],
+    [`${BRON}/outbox`, { type: 'OrderedCollection', orderedItems: [] }],
+    [`${BRON}/tracks`, {
+      type: 'OrderedCollection',
+      orderedItems: [{
+        id: `${BRON}/tracks/t1`, type: 'Audio', name: 'Gesloten nummer', artist: 'Robo',
+        url: [{ type: 'Link', href: AUDIO, mediaType: 'audio/mpeg' }],
+      }],
+    }],
+  ]);
+  const geschreven = new Map();
+  let getekend = false;
+  const r = await stil(() => Mig.ingestFromSource(s, {
+    deps: {
+      getJson: async (_slug, url) => kaart.get(url) || null,
+      noteId: (b, id) => `${b}/ap/notes/${id}`,
+      noteVisibility: AP.noteVisibility,
+      audioRoot: '/nep/audio',
+      // De handtekening is hier geen detail: de audio-route van de bron weigert
+      // een kale fetch, want die kan niet zien dat wij de doel-actor zijn.
+      signHeaders: () => { getekend = true; return { Signature: 'nep' }; },
+      safeFetch: async (url, opts) => {
+        assert.equal(url, AUDIO);
+        assert.ok(opts.headers && opts.headers.Signature, 'de bytes worden ONDERTEKEND opgehaald');
+        return { ok: true, arrayBuffer: async () => bytes, headers: { get: () => 'audio/mpeg' } };
+      },
+      fs: { mkdirSync() {}, writeFileSync: (p, b) => geschreven.set(p, b) },
+      path,
+    },
+  }));
+  assert.equal(r.tracksBinnen, 1);
+  assert.equal(r.tracksMislukt, 0);
+  assert.ok(getekend);
+  assert.equal(geschreven.size, 1, 'het bestand wordt echt weggeschreven');
+  const [pad] = [...geschreven.keys()];
+  assert.ok(pad.startsWith('/nep/audio/'), 'audio hoort in AUDIO_ROOT, niet in de mediamap');
+  assert.ok(!pad.slice('/nep/audio/'.length).includes('/'), 'en er direct in, want de speler zoekt op bestandsnaam');
+  const t = db.prepare('SELECT title, artist FROM audio_tracks').get();
+  assert.equal(t.title, 'Gesloten nummer');
+});
+
+test('een nummer waarvan de bytes niet komen levert GEEN track op', async () => {
+  // Dezelfde regel als bij de zip. Een nummer dat in de lijst staat en 404't is
+  // erger dan een nummer dat ontbreekt.
+  const s = site({ aliases: [BRON] });
+  const kaart = new Map([
+    [BRON, { id: BRON, type: 'Person', movedTo: IK, outbox: `${BRON}/outbox`, streams: [`${BRON}/tracks`] }],
+    [`${BRON}/outbox`, { type: 'OrderedCollection', orderedItems: [] }],
+    [`${BRON}/tracks`, {
+      type: 'OrderedCollection',
+      orderedItems: [{ id: `${BRON}/tracks/t1`, type: 'Audio', name: 'Weg', url: `${BRON}/audio/weg.mp3` }],
+    }],
+  ]);
+  const r = await stil(() => Mig.ingestFromSource(s, {
+    deps: {
+      getJson: async (_slug, url) => kaart.get(url) || null,
+      noteId: (b, id) => `${b}/ap/notes/${id}`,
+      noteVisibility: AP.noteVisibility,
+      audioRoot: '/nep/audio',
+      signHeaders: () => ({ Signature: 'nep' }),
+      safeFetch: async () => ({ ok: false, status: 403 }),
+      fs: { mkdirSync() {}, writeFileSync() { throw new Error('mag niet gebeuren'); } },
+      path,
+    },
+  }));
+  assert.equal(r.tracksBinnen, 0);
+  assert.equal(r.tracksMislukt, 1);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM audio_tracks').get().n, 0);
 });
 
 test('een niet-publiek bericht komt wel mee maar niet in de publieke tabel', async () => {

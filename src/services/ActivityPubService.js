@@ -5415,19 +5415,34 @@ async function resolveCard(o) {
  * exactly like the guardian's authorized fetch. The signature covers
  * (request-target) host date, the set verifyRequest checks.
  */
+/**
+ * De handtekening-headers voor een GET als `slug`. Losgetrokken uit
+ * signedGetJson omdat een verhuizing ook BYTES moet kunnen ophalen (FEP-1580:
+ * gehoste audio zit achter dezelfde poort als de rest, en een ongetekende fetch
+ * krijgt daar terecht een 403).
+ */
+export function signedGetHeaders(slug, url, accept = 'application/activity+json') {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  if (!base || !slug) return null;
+  const me = actorId(base, slug);
+  const keys = getOrCreateKeys(slug);
+  const u = new URL(url);
+  const date = new Date().toUTCString();
+  const target = `${u.pathname}${u.search || ''}`;
+  const signingString = `(request-target): get ${target}\nhost: ${u.host}\ndate: ${date}`;
+  const signature = crypto.sign('sha256', Buffer.from(signingString), keys.private_pem).toString('base64');
+  return {
+    Accept: accept,
+    Date: date,
+    Signature: `keyId="${me}#main-key",algorithm="rsa-sha256",headers="(request-target) host date",signature="${signature}"`,
+  };
+}
+
 export async function signedGetJson(slug, url, onStatus) {
   try {
-    const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
-    if (!base || !slug) return apGetJson(url);
-    const me = actorId(base, slug);
-    const keys = getOrCreateKeys(slug);
-    const u = new URL(url);
-    const date = new Date().toUTCString();
-    const target = `${u.pathname}${u.search || ''}`;
-    const signingString = `(request-target): get ${target}\nhost: ${u.host}\ndate: ${date}`;
-    const signature = crypto.sign('sha256', Buffer.from(signingString), keys.private_pem).toString('base64');
-    const sig = `keyId="${me}#main-key",algorithm="rsa-sha256",headers="(request-target) host date",signature="${signature}"`;
-    const r = await safeFetch(url, { headers: { Accept: 'application/activity+json', Date: date, Signature: sig } });
+    const headers = signedGetHeaders(slug, url);
+    if (!headers) return apGetJson(url);
+    const r = await safeFetch(url, { headers });
     // De status doorgeven aan wie erom vroeg: null alleen zegt "het lukte
     // niet", en dat is te weinig om een WEIGERING van een STORING te
     // onderscheiden. Wie geen callback meegeeft merkt hier niets van.
@@ -6756,7 +6771,7 @@ export default {
   // FEP-1580 bronkant. Vergeet je hem hier, dan werpt elke route die hem
   // aanroept een 500 en lijkt het alsof de poort dicht staat terwijl hij
   // ontbreekt (precies hoe movedLock zich een dag eerder verstopte).
-  isMoveTarget, signedGetJson,
+  isMoveTarget, signedGetJson, signedGetHeaders,
   AP_CONTEXT, getOrCreateKeys, apWants, sendAP, actorId, noteId, stripLeadingMentions, pagedCollection,
   deriveHandle, localSlugOf, outboxSlice, PAGINA_GROOTTE,
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers, buildFollowing, buildFeatured,

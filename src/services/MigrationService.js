@@ -247,8 +247,11 @@ function titelUitContent(html) {
  * want de URL komt van een andere server. Een bron die ons naar 127.0.0.1 wijst
  * moet stranden, ook als die bron "van onszelf" is.
  */
-async function haalBijlage(url, { safeFetch, mediaRoot, fs, path, maxBytes }) {
-  const r = await safeFetch(url, { headers: { accept: '*/*' } }).catch(() => null);
+async function haalBijlage(url, { safeFetch, mediaRoot, fs, path, maxBytes, submap = 'migrated', headers = null }) {
+  // Ondertekend als het moet. Gehoste audio zit achter dezelfde poort als de
+  // rest van de bron, en een kale fetch krijgt daar een 403: de bron kan dan
+  // niet zien dat wij de doel-actor van zijn Move zijn.
+  const r = await safeFetch(url, { headers: headers || { accept: '*/*' } }).catch(() => null);
   if (!r || !r.ok) return null;
   const buf = Buffer.from(await r.arrayBuffer());
   if (!buf.length || buf.length > maxBytes) return null;
@@ -260,8 +263,11 @@ async function haalBijlage(url, { safeFetch, mediaRoot, fs, path, maxBytes }) {
     return (type.split('/')[1] || 'bin').replace(/[^a-z0-9]/gi, '').slice(0, 5) || 'bin';
   })();
   const naam = `${crypto.randomUUID()}.${ext}`;
-  const rel = `migrated/${naam}`;
-  const abs = path.join(mediaRoot, 'migrated', naam);
+  // Zonder submap komt het bestand in de root zelf: dat is wat gehoste audio
+  // nodig heeft, want de speler zoekt AUDIO_ROOT + bestandsnaam en kijkt niet
+  // in mappen eronder.
+  const rel = submap ? `${submap}/${naam}` : naam;
+  const abs = submap ? path.join(mediaRoot, submap, naam) : path.join(mediaRoot, naam);
   fs.mkdirSync(path.dirname(abs), { recursive: true });
   fs.writeFileSync(abs, buf);
   return { url: `/media/${rel}`, mediaType: type, size: buf.length, filename: naam, storage_path: abs };
@@ -293,6 +299,7 @@ export async function ingestFromSource(site, {
     // hoort het niet in de publieke vertaaltabel. Fail-closed, want dit is een
     // privacygrens en niet een weergavedetail.
     noteVisibility = () => 'followers',
+    audioRoot = null, signHeaders = null,
   } = deps;
   const zichtbaarheid = noteVisibility;
   if (!getJson || !noteId) return { error: 'config' };
@@ -328,7 +335,7 @@ export async function ingestFromSource(site, {
 
   const rapport = {
     bron: bronActor.id, posts: 0, overgeslagen: 0, media: 0, mediaMislukt: 0,
-    blocks: 0, waarschuwingen: [],
+    blocks: 0, tracksBinnen: 0, tracksMislukt: 0, overgeslagenTracks: 0, waarschuwingen: [],
   };
 
   try {
@@ -440,6 +447,57 @@ export async function ingestFromSource(site, {
       pagina = await getJson(site.slug, typeof volgende === 'string' ? volgende : volgende.id);
     }
     if (gezien >= max) rapport.waarschuwingen.push(`gestopt bij ${max} berichten, draai het nog eens voor de rest`);
+
+    // ── De muziekbibliotheek ──────────────────────────────────────
+    //
+    // Losse nummers staan niet in de outbox: die hangen aan de tracks-collectie
+    // waar de actor via AS2 `streams` naar wijst. Zonder deze lus verhuist een
+    // muzieksite zijn berichten en laat hij zijn bibliotheek achter.
+    //
+    // De bron geeft ons hier alles, niet alleen de fedi_open-nummers, omdat we
+    // de doel-actor van zijn Move zijn (siteOpenTracks({alles})). Hetzelfde
+    // geldt voor de bestanden zelf, die anders achter de gated audio-route
+    // blijven.
+    const streams = [].concat(bronActor.streams || []).filter((u) => typeof u === 'string');
+    const tracksUrl = streams.find((u) => /\/tracks\/?$/.test(u));
+    if (tracksUrl && safeFetch && fs && path && audioRoot) {
+      const coll = await getJson(site.slug, tracksUrl);
+      const lijst = (coll && (coll.orderedItems || coll.items)) || [];
+      for (const it of (Array.isArray(lijst) ? lijst : []).slice(0, max)) {
+        const a = (it && typeof it.object === 'object' && it.object) ? it.object : it;
+        if (!a || !a.id) continue;
+        if (a.type && a.type !== 'Audio') continue;
+        if (alGemigreerd(site.slug, a.id)) { rapport.overgeslagenTracks++; continue; }
+        const bron = a.url && (typeof a.url === 'string' ? a.url : (Array.isArray(a.url) ? (a.url[0] && (a.url[0].href || a.url[0])) : a.url.href));
+        if (!bron || !/^https?:\/\//i.test(String(bron))) { rapport.tracksMislukt++; continue; }
+        const g = await haalBijlage(String(bron), {
+          safeFetch, mediaRoot: audioRoot, fs, path, maxBytes, submap: '',
+          headers: signHeaders ? signHeaders(site.slug, String(bron), '*/*') : null,
+        }).catch(() => null);
+        if (!g) {
+          rapport.tracksMislukt++;
+          rapport.waarschuwingen.push(`nummer niet opgehaald: ${a.name || bron}`);
+          continue;                       // dezelfde regel als bij de zip: geen bestand, geen track
+        }
+        const trackId = crypto.randomUUID();
+        const mediaId = crypto.randomUUID();
+        try {
+          db.prepare('INSERT INTO media (id, site_id, filename, mime_type, size, storage_path) VALUES (?,?,?,?,?,?)')
+            .run(mediaId, site.id, g.filename, g.mediaType, g.size, g.storage_path);
+          db.prepare(`INSERT INTO audio_tracks (id, site_id, title, artist, album, duration, media_id, fedi_open)
+                      VALUES (?,?,?,?,?,?,?,0)`)
+            .run(trackId, site.id, a.name || 'zonder titel', a.artist || null, a.album || null,
+              Number(a.duration) || null, mediaId);
+          recordMigrated(site.slug, { origin: a.id, target: `${me}/ap/tracks/${trackId}`, sourceActor: bronActor.id, isPublic: false });
+          rapport.tracksBinnen++;
+        } catch (e) {
+          rapport.tracksMislukt++;
+          rapport.waarschuwingen.push(`nummer niet opgeslagen: ${a.name || a.id} (${e && e.message})`);
+        }
+      }
+    } else if (tracksUrl) {
+      rapport.waarschuwingen.push('muziekbibliotheek overgeslagen: geen audiomap meegegeven');
+    }
   } catch (e) {
     // 9-bij-mislukking: de vlag blijft OPEN staan. Derden blijven dan kijken,
     // en dat is precies goed, want er is nog werk.

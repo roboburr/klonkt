@@ -29,6 +29,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import db from '../config/database.js';
 import { recordPlay } from '../services/StatsService.js';
+import AP from '../services/ActivityPubService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Audio files live OUTSIDE storage/media — the public /media static handler
@@ -70,10 +71,38 @@ function isAllowedAudioRequest(req, filename) {
   return false;
 }
 
-router.get('/stream/:filename', (req, res) => {
+/**
+ * FEP-1580: de instantie waar dit account naartoe verhuisd is mag ALLE audio
+ * ophalen, ook wat niet fedi_open is.
+ *
+ * Zonder deze tak ziet de nieuwe Klonkt de tracklijst wel en krijgt hij de
+ * bestanden niet, en dan verhuis je een bibliotheek met alleen titels. Dat is
+ * precies de halve waarheid die deze hele ronde moest opruimen.
+ *
+ * Smal gehouden: een geldige handtekening, van precies de actor in moved_to, en
+ * alleen voor een bestand dat van DIE site is. moved_to komt er alleen te staan
+ * als de doel-actor ons in alsoKnownAs had, dus er heeft iemand met beheer aan
+ * beide kanten ja gezegd.
+ */
+async function isMoveTargetAudio(req, filename) {
+  if (!req.headers['signature'] || !filename) return false;
+  let rij;
+  try {
+    rij = db.prepare(`SELECT s.slug FROM audio_tracks t
+                        JOIN media m ON t.media_id = m.id
+                        JOIN sites s ON s.id = t.site_id
+                       WHERE m.storage_path = ? OR m.storage_path LIKE ? LIMIT 1`)
+      .get(filename, `%${filename}`);
+  } catch { return false; }
+  if (!rij || !rij.slug) return false;
+  const v = await AP.verifyRequest(req).catch(() => null);
+  return !!(v && v.id && AP.isMoveTarget(rij.slug, v.id));
+}
+
+router.get('/stream/:filename', async (req, res) => {
   const { filename } = req.params;
 
-  if (!isAllowedAudioRequest(req, filename)) {
+  if (!isAllowedAudioRequest(req, filename) && !(await isMoveTargetAudio(req, filename))) {
     return res.status(403).send('Direct access not allowed');
   }
 

@@ -23,7 +23,7 @@ import zlib from 'zlib';
 import crypto from 'crypto';
 import { randomUUID } from 'crypto';
 import db from '../config/database.js';
-import { MEDIA_ROOT } from '../config/paths.js';
+import { MEDIA_ROOT, AUDIO_ROOT } from '../config/paths.js';
 import { FORMAT_VERSION, parseFollowingCsv } from './ArchiveExportService.js';
 import * as Migration from './MigrationService.js';
 
@@ -119,6 +119,75 @@ function bestemming(a) {
 }
 
 /**
+ * De audiobibliotheek terugzetten (formaat v2).
+ *
+ * EEN REGEL DIE HIER ALLES BEPAALT: geen bestand, geen track. Dat klinkt
+ * vanzelfsprekend en was het niet. De oude per-post-tak maakte een
+ * audio_tracks-rij aan zodra er metadata was, ook als de bytes ontbraken. Op
+ * soundfabrics.nl leverde dat 13 nummers op die in de lijst stonden en 404'den
+ * bij het afspelen. Dat is erger dan ontbreken: het ziet eruit alsof de
+ * verhuizing gelukt is, dus je gooit de oude instantie weg.
+ *
+ * De bestanden gaan naar AUDIO_ROOT en niet onder MEDIA_ROOT, want daar hoort
+ * gehoste audio: de publieke /media-handler mag er niet bij (routes/audio.js).
+ *
+ * @returns {Array} de schrijfopdrachten; de beller voert ze in zijn transactie uit
+ * (en bij een droogloop dus niet, maar het verslag klopt wel)
+ */
+function tracksTerug(files, site, rapport) {
+  const buf = files.get('tracks.json');
+  if (!buf) return [];
+  let coll;
+  try { coll = JSON.parse(buf.toString('utf8')); } catch { rapport.waarschuwingen.push('tracks.json is onleesbaar'); return []; }
+  if (coll['shaer:archive'] !== true) { rapport.waarschuwingen.push('tracks.json: niet gemarkeerd als archief, overgeslagen'); return []; }
+
+  const werk = [];
+  for (const t of (coll.orderedItems || [])) {
+    const id = String(t.id || '').trim();
+    if (!id) continue;
+    const bestand = t['shaer:file'];
+    const bytes = bestand ? files.get(bestand) : null;
+    if (!bytes || !bytes.length) {
+      rapport.tracksMissing += 1;
+      rapport.waarschuwingen.push(`${t.name || id}: geluidsbestand zit niet in het archief, track niet aangemaakt`);
+      continue;                       // de hele regel van deze functie
+    }
+    // Naam op de schijf: de hash uit het archief, met zijn extensie. De speler
+    // zoekt op bestandsnaam in AUDIO_ROOT, dus dit is meteen het pad dat werkt.
+    const naam = path.basename(String(bestand));
+    if (!naam || naam.includes('/') || naam.includes('\\') || naam.startsWith('.')) {
+      rapport.waarschuwingen.push(`${t.name || id}: onbruikbare bestandsnaam, overgeslagen`);
+      continue;
+    }
+    werk.push({ soort: 'track', doel: path.join(path.resolve(AUDIO_ROOT), naam), bytes, id, t, naam });
+    rapport.tracks += 1;
+  }
+  return werk;
+}
+
+/** De playlists terug, inclusief hun volgorde: die volgorde IS de playlist. */
+function playlistsTerug(files, site, rapport, bekendeTracks) {
+  const buf = files.get('playlists.json');
+  if (!buf) return [];
+  let coll;
+  try { coll = JSON.parse(buf.toString('utf8')); } catch { rapport.waarschuwingen.push('playlists.json is onleesbaar'); return []; }
+  if (coll['shaer:archive'] !== true) return [];
+  const werk = [];
+  for (const p of (coll.orderedItems || [])) {
+    const id = String(p.id || '').trim();
+    if (!id) continue;
+    // Alleen verwijzen naar tracks die er echt gekomen zijn, anders staat er
+    // straks een playlist vol gaten die niemand kan afspelen.
+    const items = (p['shaer:tracks'] || []).filter((x) => bekendeTracks.has(String(x && x.id)));
+    const kwijt = (p['shaer:tracks'] || []).length - items.length;
+    if (kwijt) rapport.waarschuwingen.push(`playlist ${p.name || id}: ${kwijt} nummer(s) ontbreken en zijn eruit gelaten`);
+    werk.push({ soort: 'playlist', p, id, items });
+    rapport.playlists += 1;
+  }
+  return werk;
+}
+
+/**
  * Volg opnieuw wie je volgde, uit de `following.csv` van een archief.
  *
  * BEWUST BUITEN importArchive. Die draait in één transactie en raakt alleen de
@@ -166,6 +235,7 @@ export function importArchive(files, opts = {}) {
     formatVersion: null, origin: null, idsBehouden: null,
     posts: 0, overgeslagen: 0, overschreven: 0,
     replies: 0, media: 0, mediaMissing: 0, gemist: [], waarschuwingen: [],
+    tracks: 0, tracksMissing: 0, playlists: 0,
   };
 
   const manifestBuf = files.get('manifest.json');
@@ -275,6 +345,12 @@ export function importArchive(files, opts = {}) {
     }
   }
 
+  // De audiobibliotheek. Telt ook in een droogloop mee in het verslag, want
+  // "hoeveel nummers komen er" is precies wat je wilt weten voor je besluit.
+  const trackWerk = tracksTerug(files, site, rapport);
+  const bekendeTracks = new Set(trackWerk.map((w) => w.id));
+  const playlistWerk = playlistsTerug(files, site, rapport, bekendeTracks);
+
   if (opts.dryRun) return rapport;
 
   // Schrijven pas nu, in EEN transactie: een half ingelezen archief is de ergste
@@ -291,7 +367,7 @@ export function importArchive(files, opts = {}) {
     VALUES ('reply', ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`);
 
   db.transaction(() => {
-    for (const s of schrijf) {
+    for (const s of [...schrijf, ...trackWerk, ...playlistWerk]) {
       if (s.soort === 'media') {
         fs.mkdirSync(path.dirname(s.doel), { recursive: true });
         fs.writeFileSync(s.doel, s.bytes);
@@ -300,6 +376,36 @@ export function importArchive(files, opts = {}) {
       if (s.soort === 'reply') {
         insReply.run(s.postId, s.it.id || '', s.it.attributedTo || '', s.it['shaer:actorName'] || null,
           s.it['shaer:actorHandle'] || null, s.it.content || '', s.it.published || null, s.it.inReplyTo || null);
+        continue;
+      }
+      if (s.soort === 'track') {
+        // Bestand eerst, dan pas de rijen. Faalt het schrijven, dan gooit dit en
+        // rolt de hele transactie terug: liever geen import dan een track zonder
+        // geluid, want dat is precies de val waar dit uit voortkomt.
+        fs.mkdirSync(path.dirname(s.doel), { recursive: true });
+        fs.writeFileSync(s.doel, s.bytes);
+        const mediaId = randomUUID();
+        db.prepare('INSERT INTO media (id, site_id, filename, mime_type, size, storage_path) VALUES (?,?,?,?,?,?)')
+          .run(mediaId, site.id, s.naam, s.t['shaer:mediaType'] || 'audio/mpeg', s.bytes.length, s.doel);
+        const link = (k) => (s.t.url || []).find((u) => String(u).includes(k)) || null;
+        db.prepare(`INSERT OR REPLACE INTO audio_tracks
+            (id, site_id, title, artist, album, duration, media_id, position, credit, license,
+             cover_url, downloadable, fedi_open, link_spotify, link_youtube, link_soundcloud)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+          .run(s.id, site.id, s.t.name || 'zonder titel', s.t.artist || null, s.t.album || null,
+            s.t.duration || null, mediaId, s.t.position ?? null, s.t.credit || null, s.t.license || null,
+            s.t['shaer:coverUrl'] || null, s.t['shaer:downloadable'] ? 1 : 0, s.t['shaer:fediOpen'] ? 1 : 0,
+            link('spotify'), link('youtube'), link('soundcloud'));
+        continue;
+      }
+      if (s.soort === 'playlist') {
+        db.prepare(`INSERT OR REPLACE INTO playlists (id, site_id, title, artist, year, cover_url, kind)
+                    VALUES (?,?,?,?,?,?,?)`)
+          .run(s.id, site.id, s.p.name || 'zonder titel', s.p.artist || null, s.p.year || null,
+            s.p['shaer:coverUrl'] || null, s.p['shaer:kind'] || null);
+        db.prepare('DELETE FROM playlist_tracks WHERE playlist_id = ?').run(s.id);
+        const insPT = db.prepare('INSERT OR IGNORE INTO playlist_tracks (playlist_id, track_id, position) VALUES (?,?,?)');
+        s.items.forEach((it, i) => insPT.run(s.id, String(it.id), it.position ?? i));
         continue;
       }
       const o = s.obj;
@@ -337,28 +443,12 @@ export function importArchive(files, opts = {}) {
         paid: o['shaer:paid'] ? 1 : 0, paid_min_cents: o['shaer:paidMinCents'] || null,
         view_count: o['shaer:viewCount'] || 0,
       });
-      // Gehoste audio terug: [[track:]] in de content valt anders op niets terug.
-      for (const t of (o['shaer:audio'] || [])) {
-        const trackId = String(t['shaer:ref'] || '').replace(/^\[\[track:|\]\]$/g, '');
-        if (!trackId) continue;
-        let mediaId = null;
-        const bij = (o.attachment || []).find((a) => a.url === t['shaer:media']);
-        const doel = bij && veiligMediaPad(bestemming(bij));
-        if (doel) {
-          mediaId = randomUUID();
-          try {
-            db.prepare('INSERT INTO media (id, site_id, filename, mime_type, size, storage_path) VALUES (?,?,?,?,?,?)')
-              .run(mediaId, site.id, path.basename(doel), bij.mediaType || 'audio/mpeg', (files.get(bij.url) || []).length || 0, doel);
-          } catch { mediaId = null; }
-        }
-        try {
-          db.prepare(`INSERT OR REPLACE INTO audio_tracks (id, site_id, title, artist, album, duration, media_id, credit, license, link_spotify, link_youtube, link_soundcloud)
-                      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
-            .run(trackId, site.id, t.name || 'zonder titel', t.artist || null, t.album || null, t.duration || null,
-              mediaId, t.credit || null, t.license || null,
-              ...['spotify', 'youtube', 'soundcloud'].map((k) => (t.url || []).find((u) => String(u).includes(k)) || null));
-        } catch { /* geen audio-tabellen op deze installatie */ }
-      }
+      // De per-post audio-tak is weg. Tracks komen sinds v2 uit tracks.json,
+      // dat de HELE bibliotheek draagt in plaats van alleen wat in een bericht
+      // stond. Hier stond bovendien de fout die soundfabrics.nl opleverde: deze
+      // lus maakte een audio_tracks-rij aan ZONDER te kijken of het bestand er
+      // wel was, dus je kreeg 13 nummers die bestonden, in de lijst stonden, en
+      // 404'den zodra je op play drukte. Zie tracksTerug hieronder.
     }
 
     // FEP-1580: een import uit een export is GEEN apart geval. De spec zegt
