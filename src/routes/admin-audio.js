@@ -413,6 +413,29 @@ router.get('/api/musicbrainz', requireGod, async (req, res) => {
   });
 });
 
+/**
+ * De keuze vastleggen. Alleen een echte MBID komt de kolom in: de naam die we
+ * ernaast bewaren is voor het scherm, de MBID is het enige dat naar buiten gaat.
+ */
+router.post('/musicbrainz/link', requireGod, (req, res) => {
+  const site = res.locals.site;
+  if (!site) return res.status(404).end();
+  const mbid = String(req.body.mbid || '').trim().toLowerCase();
+  const naam = String(req.body.naam || '').trim().slice(0, 200);
+  const terug = (res.locals.siteUrlBase || '') + '/admin/audio';
+  if (!MusicBrainz.isMbid(mbid)) return res.redirect(`${terug}?error=` + encodeURIComponent('Geen geldige MusicBrainz-id.'));
+  db.prepare('UPDATE sites SET mb_artist_id = ?, mb_artist_name = ? WHERE id = ?').run(mbid, naam || null, site.id);
+  res.redirect(`${terug}?success=` + encodeURIComponent('Gekoppeld aan MusicBrainz.'));
+});
+
+/** Terugdraaien. Een verkeerde koppeling zet jouw naam onder andermans werk. */
+router.post('/musicbrainz/unlink', requireGod, (req, res) => {
+  const site = res.locals.site;
+  if (!site) return res.status(404).end();
+  db.prepare('UPDATE sites SET mb_artist_id = NULL, mb_artist_name = NULL WHERE id = ?').run(site.id);
+  res.redirect((res.locals.siteUrlBase || '') + '/admin/audio?success=' + encodeURIComponent('Ontkoppeld.'));
+});
+
 router.get('/api/albums', requireGod, (req, res) => {
   const site = res.locals.site;
   if (!site) return res.status(404).json({ error: 'Site required' });

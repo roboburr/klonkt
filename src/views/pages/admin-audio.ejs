@@ -12,6 +12,38 @@
   <% if (success) { %><div class="ax-flash ax-flash-ok"><%= success %></div><% } %>
   <% if (error) { %><div class="ax-flash ax-flash-err"><%= error %></div><% } %>
 
+  <%# ── MUSICBRAINZ ─────────────────────────────────────────────
+      Wie ben jij, buiten Klonkt? Een MBID is geen vocabulaire maar een
+      register: eraan koppelen is als je ISBN noemen. Andere muziekdiensten
+      -- Funkwhale voorop -- herkennen je eraan zonder dat wij hun model
+      hoeven over te nemen (shaer-mbz). %>
+  <section class="ax-card" id="mb-card">
+    <div class="ax-card-title"><%= t('aaud.mb_title') %></div>
+    <p class="ax-hint"><%= t('aaud.mb_hint') %></p>
+
+    <% if (site.mb_artist_id) { %>
+      <p class="mb-linked">
+        <%= t('aaud.mb_linked') %>
+        <strong><%= site.mb_artist_name || site.mb_artist_id %></strong>
+        <a href="https://musicbrainz.org/artist/<%= site.mb_artist_id %>"
+           target="_blank" rel="noopener"><%= t('aaud.mb_open') %></a>
+      </p>
+      <%# Ontkoppelen moet kunnen: een verkeerde koppeling zet jouw naam onder
+          andermans werk, en dat hoort met een klik terug te draaien zijn. %>
+      <form method="POST" action="<%= (typeof siteUrlBase !== 'undefined' ? siteUrlBase : '') %>/admin/audio/musicbrainz/unlink">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="ax-btn ax-btn-quiet"><%= t('aaud.mb_unlink') %></button>
+      </form>
+    <% } %>
+
+    <div class="mb-zoek">
+      <input type="text" id="mb-q" value="<%= site.author || site.title || '' %>"
+             placeholder="<%= t('aaud.artist') %>" autocomplete="off">
+      <button type="button" class="ax-btn" id="mb-zoek-btn"><%= t('aaud.mb_search') %></button>
+    </div>
+    <div id="mb-uit" class="mb-uit" hidden></div>
+  </section>
+
   <%# ── UPLOAD ──────────────────────────────────────────────── %>
   <section class="ax-card">
     <div class="ax-card-title"><%= t('aaud.upload') %></div>

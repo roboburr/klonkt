@@ -96,3 +96,30 @@ test('twee zoekopdrachten liggen minstens een seconde uit elkaar', async () => {
 });
 
 test.after(() => { globalThis.fetch = echt; });
+
+// ── Stap 2: de keuze vastleggen ───────────────────────────────────────────
+
+test('alleen een echte MBID komt de kolom in', async () => {
+  // De route weigert alles wat geen UUID is. Zonder die zeef sluipt er een
+  // hele URL of een handle in het veld dat straks naar buiten gaat.
+  const db = dbMod.default;
+  db.prepare('INSERT INTO users (id, username, email, password_hash, role) VALUES (?,?,?,?,?)')
+    .run('u1', 'u1', 'u1@t', 'x', 'god');
+  db.prepare('INSERT INTO sites (id, slug, title, owner_id) VALUES (?,?,?,?)').run('s1', 'band', 'Band', 'u1');
+  for (const rommel of ['https://musicbrainz.org/artist/8be31978-1884-4773-beae-f73df35b92aa', 'nirvana', '']) {
+    assert.equal(MB.isMbid(rommel), false, `${rommel} hoort geweigerd te worden`);
+  }
+  db.prepare('UPDATE sites SET mb_artist_id = ?, mb_artist_name = ? WHERE id = ?')
+    .run('8be31978-1884-4773-beae-f73df35b92aa', 'Nirvana', 's1');
+  const s = db.prepare("SELECT mb_artist_id, mb_artist_name FROM sites WHERE id = 's1'").get();
+  assert.equal(s.mb_artist_id, '8be31978-1884-4773-beae-f73df35b92aa');
+  assert.equal(s.mb_artist_name, 'Nirvana', 'de naam ernaast, zodat het scherm kan tonen WAT er hangt');
+});
+
+test('ontkoppelen maakt beide velden leeg', () => {
+  const db = dbMod.default;
+  db.prepare('UPDATE sites SET mb_artist_id = NULL, mb_artist_name = NULL WHERE id = ?').run('s1');
+  const s = db.prepare("SELECT mb_artist_id, mb_artist_name FROM sites WHERE id = 's1'").get();
+  assert.equal(s.mb_artist_id, null);
+  assert.equal(s.mb_artist_name, null, 'anders blijft er een naam staan zonder koppeling');
+});

@@ -451,4 +451,93 @@ function run() {
     });
   });
 })();
+
+  // MusicBrainz-paneel (shaer-mbz). Binnen run(), niet op moduleniveau:
+  // deze modules krijgen bij elke paginawissel opnieuw init(), en een blok dat
+  // maar een keer per sessie draait is precies wat shaer-5s1 opleverde.
+  wireMusicBrainz();
+}
+
+// ── MusicBrainz: ben jij dit? (shaer-mbz, stap 2) ─────────────────
+//
+// De kandidaten komen van de server, want MusicBrainz eist een verzoek per
+// seconde per APPLICATIE en een User-Agent met contact -- allebei niet vanuit
+// een browser af te dwingen.
+//
+// WIJ KIEZEN NIET. Ook niet als er precies een treffer is: een verkeerd
+// geraden MBID zet jouw naam onder andermans werk. De knop staat er, de klik
+// is van de artiest.
+function wireMusicBrainz() {
+  const knop = document.getElementById('mb-zoek-btn');
+  const veld = document.getElementById('mb-q');
+  const uit = document.getElementById('mb-uit');
+  if (!knop || !veld || !uit || knop.__wired) return;
+  knop.__wired = true;
+
+  const el = (tag, cls, tekst) => {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (tekst != null) e.textContent = tekst;   // textContent: nooit HTML uit een vreemd register
+    return e;
+  };
+
+  async function zoek() {
+    const q = (veld.value || '').trim();
+    if (!q) return;
+    uit.hidden = false;
+    uit.replaceChildren(el('p', 'ax-hint', T.aaud_mb_busy || 'Zoeken…'));
+    knop.disabled = true;
+    try {
+      const r = await fetch(`api/musicbrainz?q=${encodeURIComponent(q)}`, { credentials: 'same-origin' });
+      const j = await r.json();
+      toon((j && j.kandidaten) || []);
+    } catch {
+      uit.replaceChildren(el('p', 'ax-hint', T.aaud_mb_fail || 'MusicBrainz is even niet bereikbaar.'));
+    } finally {
+      knop.disabled = false;
+    }
+  }
+
+  function toon(kandidaten) {
+    if (!kandidaten.length) {
+      uit.replaceChildren(el('p', 'ax-hint', T.aaud_mb_none || 'Niets gevonden.'));
+      return;
+    }
+    const lijst = el('ul', 'mb-lijst');
+    for (const k of kandidaten) {
+      const li = el('li', 'mb-kandidaat');
+      li.appendChild(el('strong', null, k.naam));
+      // De toelichting is het hele punt: er zijn drie bands die Nirvana heten,
+      // en zonder dit veld kiest iemand de verkeerde.
+      const bij = [k.toelichting, k.soort, k.land, k.jaren].filter(Boolean).join(' · ');
+      if (bij) li.appendChild(el('small', 'mb-bij', bij));
+      const open = el('a', 'mb-open', T.aaud_mb_open || 'Bekijk op MusicBrainz');
+      open.href = k.url; open.target = '_blank'; open.rel = 'noopener';
+      li.appendChild(open);
+      li.appendChild(kiesForm(k));
+      lijst.appendChild(li);
+    }
+    uit.replaceChildren(lijst);
+  }
+
+  function kiesForm(k) {
+    const f = document.createElement('form');
+    f.method = 'POST';
+    f.action = 'musicbrainz/link';
+    for (const [naam, waarde] of [['_csrf', csrf()], ['mbid', k.mbid], ['naam', k.naam]]) {
+      const i = document.createElement('input');
+      i.type = 'hidden'; i.name = naam; i.value = waarde || '';
+      f.appendChild(i);
+    }
+    const b = el('button', 'ax-btn', T.aaud_mb_pick || 'Dit ben ik');
+    b.type = 'submit';
+    f.appendChild(b);
+    return f;
+  }
+
+  // Het token staat al in elk formulier op deze pagina; er is er geen apart voor.
+  const csrf = () => (document.querySelector('input[name="_csrf"]') || {}).value || '';
+
+  knop.addEventListener('click', zoek);
+  veld.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); zoek(); } });
 }
