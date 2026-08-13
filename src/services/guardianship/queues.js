@@ -9,6 +9,7 @@
  *  - wards:   my committed wards
  */
 import * as offers from './offers.js';
+import { pagedCollection } from '../ap-core.js';
 import * as relations from './relations.js';
 import * as availability from './availability.js';
 import * as outgoing from './outgoing.js';
@@ -23,11 +24,17 @@ import * as handshake from './handshake.js';
 // pagedCollection uit ap-core -- die voegt hem toe en dan staat hij er twee
 // keer. Wel dezelfde paginavelden, om dezelfde reden: een lezer die de
 // paginaweg volgt hoort niet dood te lopen (Funkwhale, 11-8).
-const collection = (id, items) => ({
-  id, type: 'OrderedCollection', totalItems: items.length,
-  first: `${id}?page=1`, last: `${id}?page=1`,
-  orderedItems: items,
-});
+// Dezelfde bouwer als de rest (shaer-sk4). Hier stond een eigen kopie die
+// `first` en `last` allebei op ?page=1 zette en nooit sneed -- de vorm die
+// Robin op 13-8 aanwees, in het tweede exemplaar. Een tweede spelling van
+// dezelfde zaak loopt vanzelf uit elkaar; nu is er een.
+const collection = (id, items) => {
+  // ZONDER @context: de route zet hem erop, en twee keer maakt het document
+  // ongeldig. Vastgelegd in ap-outbox-paging.test.js, en die test ving dit ook
+  // meteen toen ik hem hier vergat.
+  const { '@context': _weg, ...rest } = pagedCollection(id, items);
+  return rest;
+};
 
 /** Pending offers where the local site is a party, each with its accept
  *  tally. The same collection carries the running lapses (§3.6.3) this
