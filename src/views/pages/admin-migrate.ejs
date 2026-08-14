@@ -64,7 +64,7 @@
     <form method="post" action="/admin/migrate/aliases">
       <label for="mig-alias"><%= t('mig.alias_label') %></label>
       <textarea id="mig-alias" name="ap_aliases" rows="3" class="mig-input"
-        placeholder="@oud@mastodon.social&#10;https://oude-klonkt.nl/ap/users/jij"><%= aliassen || '' %></textarea>
+        placeholder="@jij@mastodon.social&#10;@jij@oude-klonkt.nl"><%= aliassen || '' %></textarea>
       <p class="form-hint"><%= t('mig.alias_note') %></p>
       <button type="submit" class="btn"><%= t('mig.alias_btn') %></button>
     </form>
@@ -169,7 +169,7 @@
     <form method="post" action="/admin/migrate/pull">
       <label for="mig-bron"><%= t('mig.pull_source') %></label>
       <input type="url" id="mig-bron" name="bron" value="<%= bron || '' %>"
-             placeholder="https://oude-klonkt.nl/ap/users/jij" class="mig-input">
+             placeholder="@jij@oude-klonkt.nl" class="mig-input">
       <p class="form-hint"><%= t('mig.pull_source_hint') %></p>
       <button type="submit" class="btn"><%= t('mig.pull_btn') %></button>
     </form>

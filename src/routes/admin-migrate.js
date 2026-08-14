@@ -73,9 +73,26 @@ function tellen(site) {
   } catch (e) { return { telling: null, fout: e && e.message }; }
 }
 
-/** De aliassen als tekst, een per regel, zoals het invoerveld ze wil. */
+/**
+ * De gekoppelde accounts als tekst, een per regel.
+ *
+ * Als HANDLE, niet als de opgeslagen URL. Je typt @jij@mastodon.social, wij
+ * slaan de actor-URL op omdat de rest van het protocol daarop draait, en dan
+ * kreeg je een adres terug dat je nooit hebt ingetypt en niet herkent. Wat je
+ * hier ziet hoort te lijken op wat je gaf.
+ *
+ * Alleen als er echt een handle uit te halen valt; anders de URL, want een
+ * verkeerde handle is erger dan een lelijke URL. parseApAliases leest beide
+ * vormen, dus opslaan blijft werken wat er ook in het veld staat.
+ */
 function aliasTekst(site) {
-  try { return (JSON.parse((site && site.ap_aliases) || '[]') || []).join('\n'); } catch { return ''; }
+  try {
+    const lijst = JSON.parse((site && site.ap_aliases) || '[]') || [];
+    return lijst.map((u) => {
+      const h = ActivityPubService.deriveHandle(u);
+      return /^@[^@\s]+@[^@\s]+$/.test(h) ? h : u;
+    }).join('\n');
+  } catch { return ''; }
 }
 
 /**

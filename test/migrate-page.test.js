@@ -11,6 +11,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'fs';
+const i18nMod = await import('../src/services/i18n.js');
 
 process.env.DATABASE_PATH = ':memory:';
 process.env.PUBLIC_BASE_URL = 'https://ik.example';
@@ -106,8 +107,47 @@ test('stap 5 vertelt wat er moet gebeuren voor je het domein loslaat', async () 
   // Er is geen knop voor, en dat staat er ook bij. Een stappenplan dat een stap
   // beschrijft die niet bestaat is erger dan geen stappenplan.
   const i18n = await import('../src/services/i18n.js');
+  // Op BETEKENIS toetsen, niet op een woord. Deze test brak toen "alias" uit de
+  // teksten verdween, en dat is precies de verkeerde reden om rood te worden:
+  // het jargon weghalen was de bedoeling.
   const nl = i18n.t('nl', 'mig.plan_5_why');
-  assert.match(nl, /verwijder/i, 'de Delete-ronde');
-  assert.match(nl, /alias/i, 'en de alias weghalen');
+  assert.match(nl, /verwijder/i, 'de berichten opruimen');
+  assert.match(nl, /stap 1/i, 'en de koppeling met je vorige account weghalen');
   assert.match(nl, /nog geen knop/i, 'en eerlijk dat het handwerk is');
+});
+
+test('de teksten praten geen jargon', () => {
+  // Robin: er zijn miljoenen Klonkt-gebruikers, dus het moet gebruiksvriendelijk.
+  // Woorden als alias, actor, instantie en fediverse zeggen een ontwikkelaar
+  // alles en een gebruiker niets. Deze test bewaakt dat ze niet terugsluipen.
+  const jargon = /\b(alias(sen)?|claimen|actor|instantie|AP-id|origin|slug|URI)\b/i;
+  const sleutels = [
+    'lead', 'alias_title', 'alias_hint', 'alias_label', 'alias_note', 'alias_btn',
+    'import_hint', 'file_label', 'overwrite_label', 'overwrite_hint', 'r_new_ids',
+    'pull_hint', 'pull_source', 'pull_source_hint', 'move_hint', 'move_warn',
+    'plan_hint', 'plan_1', 'plan_1_why', 'plan_5_why',
+    'e_no_backreference', 'e_not_moved_here', 'e_no_source',
+  ];
+  const fout = [];
+  for (const l of ['nl', 'en', 'de']) {
+    for (const k of sleutels) {
+      const t = i18nMod.t(l, `mig.${k}`);
+      const m = jargon.exec(t);
+      if (m) fout.push(`${l}/${k}: "${m[0]}"`);
+    }
+  }
+  assert.deepEqual(fout, [], `jargon teruggeslopen: ${fout.join(', ')}`);
+});
+
+test('een gekoppeld account komt terug als handle, niet als URL', async () => {
+  // Je typt @jij@mastodon.social en wij slaan de actor-URL op, want daar draait
+  // het protocol op. Zonder deze vertaling terug kreeg je een adres te zien dat
+  // je nooit hebt ingetypt en niet herkent.
+  const AP = await import('../src/services/ActivityPubService.js');
+  assert.equal(AP.deriveHandle('https://oud.example/ap/users/robo'), '@robo@oud.example');
+  // En als er geen fatsoenlijke handle uit te halen valt blijft de URL staan:
+  // een verkeerde handle is erger dan een lelijke URL.
+  const raar = AP.deriveHandle('https://oud.example/');
+  assert.ok(!/^@[^@\s]+@[^@\s]+$/.test(raar) || raar === '@oud.example@oud.example',
+    `onverwachte handle uit een pad zonder naam: ${raar}`);
 });
