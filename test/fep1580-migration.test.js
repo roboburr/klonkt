@@ -457,6 +457,71 @@ test('een tweede ronde VULT AAN en slaat niet over', async () => {
   assert.equal(r3.overgeslagenTracks, 1);
 });
 
+test('een bericht dat je zelf hebt verwijderd komt bij een tweede ronde terug', async () => {
+  // Robin: "ik kan handmatig deze keer de posts verwijderen en opnieuw ophalen."
+  // Met de eerste opzet kon dat niet: de mapping in ap_migration zei "al gehad"
+  // en dan werd alles overgeslagen, hoe leeg je site ook was. Dezelfde val als
+  // bij de nummers, en juist deze zou hij als eerste tegenkomen.
+  const s = site({ aliases: [BRON] });
+  const deps = bronnetje({ items: [note(`${BRON}/notes/1`), note(`${BRON}/notes/2`)] });
+
+  const r1 = await stil(() => Mig.ingestFromSource(s, { deps }));
+  assert.equal(r1.posts, 2);
+
+  // Eentje weg, de mapping blijft staan.
+  const weg = db.prepare('SELECT id FROM posts LIMIT 1').get().id;
+  db.prepare('DELETE FROM posts WHERE id = ?').run(weg);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM posts').get().n, 1);
+
+  const r2 = await stil(() => Mig.ingestFromSource(s, { deps }));
+  assert.equal(r2.posts, 1, 'het verwijderde bericht hoort terug te komen');
+  assert.equal(r2.opnieuw, 1, 'en het verslag zegt dat het opnieuw is opgehaald');
+  assert.equal(r2.overgeslagen, 1, 'terwijl het bericht dat er nog stond met rust blijft');
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM posts').get().n, 2, 'geen dubbele');
+});
+
+test('de [[track:]]-verwijzing in een bericht wordt bijgetrokken', async () => {
+  // Wat Robin op TikTik zag: het bericht toonde de shorthand zelf in plaats van
+  // een speler. Zijn posts kwamen uit de ZIP (die bewaart posts.content
+  // letterlijk, inclusief [[track:<oud id>]]) en zijn nummers uit de PULL (die
+  // gaf ze een nieuw id). De tekst wees dus naar een nummer dat hier niet
+  // bestaat, en dan valt hij terug op de kale code.
+  const s = site({ aliases: [BRON] });
+  db.prepare(`INSERT INTO posts (id, site_id, author_id, slug, title, content, status, published_at)
+              VALUES ('pz','s1','u1','tiktik','TikTik','<p>[[track:t-oud]]</p>','published','2026-08-13T10:00:00Z')`).run();
+
+  const kaart = new Map([
+    [BRON, { id: BRON, type: 'Person', movedTo: IK, outbox: `${BRON}/outbox`, streams: [`${BRON}/tracks`] }],
+    [`${BRON}/outbox`, { type: 'OrderedCollection', orderedItems: [] }],
+    [`${BRON}/tracks`, {
+      type: 'OrderedCollection',
+      orderedItems: [{
+        id: `${BRON}/tracks/t-oud`, type: 'Audio', name: 'Nummer',
+        url: [{ type: 'Link', href: `${BRON}/audio/x.mp3`, mediaType: 'audio/mpeg' }],
+      }],
+    }],
+  ]);
+  await stil(() => Mig.ingestFromSource(s, {
+    deps: {
+      getJson: async (_slug, url) => kaart.get(url) || null,
+      noteId: (b, id) => `${b}/ap/notes/${id}`,
+      noteVisibility: AP.noteVisibility,
+      audioRoot: '/nep/audio', mediaRoot: '/nep/media',
+      signHeaders: () => ({ Signature: 'nep' }),
+      safeFetch: async () => ({ ok: true, arrayBuffer: async () => Buffer.from('x'), headers: { get: () => 'audio/mpeg' } }),
+      fs: { mkdirSync() {}, writeFileSync() {} },
+      path,
+    },
+  }));
+
+  const inhoud = db.prepare("SELECT content FROM posts WHERE id = 'pz'").get().content;
+  const m = /\[\[track:([^\]]+)\]\]/.exec(inhoud);
+  assert.ok(m, 'de shorthand blijft staan, alleen het id verandert');
+  assert.notEqual(m[1], 't-oud', 'het oude id wijst hier nergens heen');
+  const bestaat = db.prepare('SELECT 1 FROM audio_tracks WHERE id = ? AND site_id = ?').get(m[1], 's1');
+  assert.ok(bestaat, 'en het nieuwe id hoort bij een nummer dat er echt is');
+});
+
 test('een niet-publiek bericht komt wel mee maar niet in de publieke tabel', async () => {
   const s = site({ aliases: [BRON] });
   const deps = bronnetje({ items: [note(`${BRON}/notes/priv`, { to: [`${BRON}/followers`] })] });

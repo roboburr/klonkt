@@ -227,6 +227,11 @@ function vrijeSlug(siteId, basis) {
   return `${schoon}-${crypto.randomBytes(4).toString('hex')}`;
 }
 
+/** Het kale id uit een track-URI: .../tracks/t-een -> t-een. */
+function ruwId(uri) {
+  try { return decodeURIComponent(String(uri).split('/').filter(Boolean).pop() || ''); } catch { return ''; }
+}
+
 /** De laatste padcomponent van een URI, als beginpunt voor een slug. */
 function slugUitUri(uri) {
   try { return decodeURIComponent(new URL(uri).pathname.split('/').filter(Boolean).pop() || ''); } catch { return ''; }
@@ -360,7 +365,7 @@ export async function ingestFromSource(site, {
   setMigrationComplete(site.slug, false);
 
   const rapport = {
-    bron: bronActor.id, posts: 0, overgeslagen: 0, media: 0, mediaMislukt: 0,
+    bron: bronActor.id, posts: 0, overgeslagen: 0, opnieuw: 0, media: 0, mediaMislukt: 0,
     blocks: 0, tracksBinnen: 0, tracksMislukt: 0, tracksBijgewerkt: 0, overgeslagenTracks: 0,
     playlistsBinnen: 0, playlistsMislukt: 0, waarschuwingen: [],
   };
@@ -411,7 +416,19 @@ export async function ingestFromSource(site, {
         const auteur = typeof o.attributedTo === 'string' ? o.attributedTo : (o.attributedTo && o.attributedTo.id);
         if (auteur && auteur !== bronActor.id) continue;              // alleen wat van HEM was
         gezien++;
-        if (alGemigreerd(site.slug, o.id)) { rapport.overgeslagen++; continue; }
+        // Al binnen? Alleen overslaan als het bericht er OOK nog staat. Heb je
+        // het verwijderd, dan is opnieuw ophalen precies wat je bedoelt, en
+        // een mapping die dat blokkeert is een val: opruimen hielp dan niet,
+        // want de blokkade zat in ap_migration en niet in de posts.
+        const eerderPost = migrationTarget(site.slug, o.id);
+        if (eerderPost) {
+          const postId = String(eerderPost).split('/').pop();
+          if (db.prepare('SELECT 1 FROM posts WHERE id = ? AND site_id = ?').get(decodeURIComponent(postId), site.id)) {
+            rapport.overgeslagen++;
+            continue;
+          }
+          rapport.opnieuw++;   // weg hier, dus opnieuw binnenhalen
+        }
 
         // Media eerst, want een post die naar een plaatje wijst dat we niet
         // hebben opgehaald is een halve post. Mislukt een bijlage, dan gaat de
@@ -486,6 +503,11 @@ export async function ingestFromSource(site, {
     // geldt voor de bestanden zelf, die anders achter de gated audio-route
     // blijven.
     const trackKaart = new Map();   // bron-URI van een nummer -> ons nieuwe id
+    // En het RUWE id zoals het in de posttekst staat. Klonkt schrijft
+    // [[track:<id>]] in de content, en die tekst reist letterlijk mee over AP.
+    // Krijgt het nummer hier een ander id, dan wijst die shorthand nergens meer
+    // heen en zie je de code zelf in je bericht staan.
+    const ruwKaart = new Map();     // ruw bron-id -> ons id
     const streams = [].concat(bronActor.streams || []).filter((u) => typeof u === 'string');
     const tracksUrl = streams.find((u) => /\/tracks\/?$/.test(u));
     if (tracksUrl && safeFetch && fs && path && audioRoot) {
@@ -510,6 +532,7 @@ export async function ingestFromSource(site, {
             .get(lokaalId, site.id);
           if (rij) {
             trackKaart.set(String(a.id), rij.id);   // MOET, anders vinden de playlists hem niet
+            ruwKaart.set(ruwId(a.id), rij.id);
             const duur = rij.duration ? null : duurSeconden(a.duration);
             const artiest = rij.artist ? null : (a.summary || a.artist || null);
             let hoes = null;
@@ -570,6 +593,7 @@ export async function ingestFromSource(site, {
               duurSeconden(a.duration), mediaId, hoes);
           recordMigrated(site.slug, { origin: a.id, target: `${me}/ap/tracks/${trackId}`, sourceActor: bronActor.id, isPublic: false });
           trackKaart.set(String(a.id), trackId);
+          ruwKaart.set(ruwId(a.id), trackId);
           rapport.tracksBinnen++;
         } catch (e) {
           rapport.tracksMislukt++;
@@ -578,6 +602,28 @@ export async function ingestFromSource(site, {
       }
     } else if (tracksUrl) {
       rapport.waarschuwingen.push('muziekbibliotheek overgeslagen: geen audiomap meegegeven');
+    }
+
+    // ── De verwijzingen in de tekst bijtrekken ────────────────────
+    //
+    // Klonkt schrijft [[track:<id>]] in posts.content, en die tekst reist
+    // letterlijk mee. Krijgt het nummer hier een ander id, dan wijst de
+    // shorthand nergens heen en zie je de code zelf in je bericht staan in
+    // plaats van een speler. Precies wat Robin op TikTik zag.
+    //
+    // Pas NA de tracks, want daarvoor is de kaart nog leeg. En alleen waar het
+    // id echt veranderde: een gelijk id hoeft niet aangeraakt.
+    {
+      const paren = [...ruwKaart.entries()].filter(([oud, nieuwId]) => oud && oud !== nieuwId);
+      if (paren.length) {
+        const upd = db.prepare('UPDATE posts SET content = REPLACE(content, ?, ?) WHERE site_id = ? AND content LIKE ?');
+        let n = 0;
+        for (const [oud, nieuwId] of paren) {
+          const r = upd.run(`[[track:${oud}]]`, `[[track:${nieuwId}]]`, site.id, `%[[track:${oud}]]%`);
+          if (r && r.changes) n += r.changes;
+        }
+        if (n) { rapport.tekstBijgewerkt = n; console.log('[FEP-1580] track-verwijzingen bijgetrokken in', n, 'bericht(en)'); }
+      }
     }
 
     // ── De playlists ──────────────────────────────────────────────
@@ -607,6 +653,17 @@ export async function ingestFromSource(site, {
         // Bestond hij al? Dan dezelfde rij bijwerken. Zonder deze stap levert
         // elke tweede ronde een dubbele plaat op.
         const eerderPl = migrationTarget(site.slug, uri);
+        // De hoes van de plaat, net als bij een nummer.
+        let plHoes = null;
+        const plHoesUrl = (plc.icon && (plc.icon.url || plc.icon)) || (plc.image && (plc.image.url || plc.image)) || null;
+        if (plHoesUrl && /^https?:\/\//i.test(String(plHoesUrl)) && safeFetch && fs && path && mediaRoot) {
+          const h = await haalBijlage(String(plHoesUrl), {
+            safeFetch, mediaRoot, fs, path, maxBytes,
+            headers: signHeaders ? signHeaders(site.slug, String(plHoesUrl), '*/*') : null,
+          }).catch(() => null);
+          if (h) { plHoes = h.url; rapport.media++; }
+          else rapport.waarschuwingen.push(`hoes van playlist niet opgehaald: ${plc.name || uri}`);
+        }
         const plId = (() => {
           if (!eerderPl) return crypto.randomUUID();
           const bestaand = String(eerderPl).split('/').pop();
@@ -614,10 +671,13 @@ export async function ingestFromSource(site, {
             ? bestaand : crypto.randomUUID();
         })();
         try {
-          db.prepare(`INSERT INTO playlists (id, site_id, title, artist, year, kind) VALUES (?,?,?,?,?,?)
-                      ON CONFLICT(id) DO UPDATE SET title = excluded.title, artist = COALESCE(playlists.artist, excluded.artist)`)
+          db.prepare(`INSERT INTO playlists (id, site_id, title, artist, year, kind, cover_url) VALUES (?,?,?,?,?,?,?)
+                      ON CONFLICT(id) DO UPDATE SET
+                        title = excluded.title,
+                        artist = COALESCE(playlists.artist, excluded.artist),
+                        cover_url = COALESCE(playlists.cover_url, excluded.cover_url)`)
             .run(plId, site.id, plc.name || 'zonder titel', plc.artist || null,
-              plc.year || null, plc['shaer:kind'] || null);
+              plc.year || null, plc['shaer:kind'] || null, plHoes);
           // De volgorde opnieuw zetten: die IS de plaat, en een halve
           // bijgewerkte volgorde is erger dan een verse.
           db.prepare('DELETE FROM playlist_tracks WHERE playlist_id = ?').run(plId);
