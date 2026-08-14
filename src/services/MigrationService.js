@@ -85,6 +85,22 @@ export function alGemigreerd(slug, origin) {
   try { return !!db.prepare('SELECT 1 FROM ap_migration WHERE slug = ? AND origin = ?').get(slug, String(origin)); } catch { return false; }
 }
 
+/**
+ * Waar kwam deze bron-URI hier terecht? Null als hij nog niet gemigreerd is.
+ *
+ * Bestaat omdat "al gehad" en "overslaan" niet hetzelfde horen te zijn. Een
+ * tweede ronde na een uitgebreide ingest (hoezen, duur, playlists erbij) moet
+ * de bestaande nummers KUNNEN AANVULLEN in plaats van ze te passeren. Deed hij
+ * dat niet, dan zat je vast: opnieuw ophalen sloeg alles over, en opruimen hielp
+ * niet omdat deze tabel de blokkade in stand hield.
+ */
+export function migrationTarget(slug, origin) {
+  try {
+    const r = db.prepare('SELECT target FROM ap_migration WHERE slug = ? AND origin = ?').get(slug, String(origin));
+    return r ? r.target : null;
+  } catch { return null; }
+}
+
 // ── De Move-activities ────────────────────────────────────────────
 
 export function recordMove(slug, { moveId, sourceActor, targetActor, activity, actorDoc = null } = {}) {
@@ -345,7 +361,7 @@ export async function ingestFromSource(site, {
 
   const rapport = {
     bron: bronActor.id, posts: 0, overgeslagen: 0, media: 0, mediaMislukt: 0,
-    blocks: 0, tracksBinnen: 0, tracksMislukt: 0, overgeslagenTracks: 0,
+    blocks: 0, tracksBinnen: 0, tracksMislukt: 0, tracksBijgewerkt: 0, overgeslagenTracks: 0,
     playlistsBinnen: 0, playlistsMislukt: 0, waarschuwingen: [],
   };
 
@@ -479,7 +495,47 @@ export async function ingestFromSource(site, {
         const a = (it && typeof it.object === 'object' && it.object) ? it.object : it;
         if (!a || !a.id) continue;
         if (a.type && a.type !== 'Audio') continue;
-        if (alGemigreerd(site.slug, a.id)) { rapport.overgeslagenTracks++; continue; }
+        // AL BINNEN? Dan AANVULLEN, niet overslaan. Een tweede ronde bestaat
+        // juist omdat er iets bij is gekomen (hoezen, duur, playlists), en een
+        // pull die dan alles passeert laat je met een half resultaat zitten
+        // zonder uitweg: opruimen hielp niet, want deze tabel hield de blokkade
+        // in stand.
+        //
+        // Alleen LEGE velden worden gevuld. Wat jij zelf hebt aangepast blijft
+        // staan; een migratie hoort je correcties niet terug te draaien.
+        const eerder = migrationTarget(site.slug, a.id);
+        if (eerder) {
+          const lokaalId = String(eerder).split('/').pop();
+          const rij = db.prepare('SELECT id, cover_url, duration, artist FROM audio_tracks WHERE id = ? AND site_id = ?')
+            .get(lokaalId, site.id);
+          if (rij) {
+            trackKaart.set(String(a.id), rij.id);   // MOET, anders vinden de playlists hem niet
+            const duur = rij.duration ? null : duurSeconden(a.duration);
+            const artiest = rij.artist ? null : (a.summary || a.artist || null);
+            let hoes = null;
+            const hUrl = (a.icon && (a.icon.url || a.icon)) || (a.image && (a.image.url || a.image)) || null;
+            if (!rij.cover_url && hUrl && /^https?:\/\//i.test(String(hUrl)) && safeFetch && fs && path && mediaRoot) {
+              const h = await haalBijlage(String(hUrl), {
+                safeFetch, mediaRoot, fs, path, maxBytes,
+                headers: signHeaders ? signHeaders(site.slug, String(hUrl), '*/*') : null,
+              }).catch(() => null);
+              if (h) { hoes = h.url; rapport.media++; }
+            }
+            if (duur || artiest || hoes) {
+              db.prepare(`UPDATE audio_tracks SET
+                            duration = COALESCE(?, duration),
+                            artist = COALESCE(?, artist),
+                            cover_url = COALESCE(?, cover_url)
+                          WHERE id = ?`).run(duur, artiest, hoes, rij.id);
+              rapport.tracksBijgewerkt++;
+            } else {
+              rapport.overgeslagenTracks++;
+            }
+            continue;
+          }
+          // De rij is weg maar de mapping staat er nog. Dan is opnieuw ophalen
+          // precies wat je wilt, dus we vallen door naar de gewone tak.
+        }
         const bron = a.url && (typeof a.url === 'string' ? a.url : (Array.isArray(a.url) ? (a.url[0] && (a.url[0].href || a.url[0])) : a.url.href));
         if (!bron || !/^https?:\/\//i.test(String(bron))) { rapport.tracksMislukt++; continue; }
         const g = await haalBijlage(String(bron), {
@@ -548,13 +604,26 @@ export async function ingestFromSource(site, {
           rapport.waarschuwingen.push(`playlist ${plc.name || uri}: geen van de nummers is aangekomen, overgeslagen`);
           continue;
         }
-        const plId = crypto.randomUUID();
+        // Bestond hij al? Dan dezelfde rij bijwerken. Zonder deze stap levert
+        // elke tweede ronde een dubbele plaat op.
+        const eerderPl = migrationTarget(site.slug, uri);
+        const plId = (() => {
+          if (!eerderPl) return crypto.randomUUID();
+          const bestaand = String(eerderPl).split('/').pop();
+          return db.prepare('SELECT 1 FROM playlists WHERE id = ? AND site_id = ?').get(bestaand, site.id)
+            ? bestaand : crypto.randomUUID();
+        })();
         try {
-          db.prepare('INSERT INTO playlists (id, site_id, title, artist, year, kind) VALUES (?,?,?,?,?,?)')
-            .run(plId, site.id, plc.name || 'zonder titel', plc.attributedTo && plc.artist || plc.artist || null,
+          db.prepare(`INSERT INTO playlists (id, site_id, title, artist, year, kind) VALUES (?,?,?,?,?,?)
+                      ON CONFLICT(id) DO UPDATE SET title = excluded.title, artist = COALESCE(playlists.artist, excluded.artist)`)
+            .run(plId, site.id, plc.name || 'zonder titel', plc.artist || null,
               plc.year || null, plc['shaer:kind'] || null);
+          // De volgorde opnieuw zetten: die IS de plaat, en een halve
+          // bijgewerkte volgorde is erger dan een verse.
+          db.prepare('DELETE FROM playlist_tracks WHERE playlist_id = ?').run(plId);
           const ins = db.prepare('INSERT OR IGNORE INTO playlist_tracks (playlist_id, track_id, position) VALUES (?,?,?)');
           nummers.forEach((tid, i) => ins.run(plId, tid, i));
+          recordMigrated(site.slug, { origin: uri, target: `${me}/ap/playlists/${plId}`, sourceActor: bronActor.id, isPublic: false });
           rapport.playlistsBinnen++;
           const kwijt = (plc.orderedItems || plc.items || []).length - nummers.length;
           if (kwijt > 0) rapport.waarschuwingen.push(`playlist ${plc.name || uri}: ${kwijt} nummer(s) ontbraken en zijn eruit gelaten`);

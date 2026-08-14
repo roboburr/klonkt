@@ -81,6 +81,11 @@
             <% if (haalVerslag.media) { %><li><strong><%= haalVerslag.media %></strong> <%= t('mig.r_media') %></li><% } %>
             <% if (haalVerslag.blocks) { %><li><strong><%= haalVerslag.blocks %></strong> <%= t('mig.r_blocks') %></li><% } %>
             <% if (haalVerslag.tracksBinnen) { %><li><strong><%= haalVerslag.tracksBinnen %></strong> <%= t('mig.c_tracks') %></li><% } %>
+            <%# Aangevuld telt apart van nieuw. Een tweede ronde die "0 erbij"
+                meldt terwijl hij drie nummers compleet maakte, leest als niets
+                gedaan. %>
+            <% if (haalVerslag.tracksBijgewerkt) { %><li><strong><%= haalVerslag.tracksBijgewerkt %></strong> <%= t('mig.r_tracks_updated') %></li><% } %>
+            <% if (haalVerslag.playlistsBinnen) { %><li><strong><%= haalVerslag.playlistsBinnen %></strong> <%= t('mig.c_playlists') %></li><% } %>
           </ul>
           <% if (haalVerslag.tracksMislukt) { %>
             <p class="alert alert-error"><%= t('mig.r_tracks_missing', { n: haalVerslag.tracksMislukt }) %></p>

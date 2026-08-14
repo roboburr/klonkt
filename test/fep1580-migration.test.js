@@ -397,6 +397,66 @@ test('een nummer waarvan de bytes niet komen levert GEEN track op', async () => 
   assert.equal(db.prepare('SELECT COUNT(*) n FROM audio_tracks').get().n, 0);
 });
 
+test('een tweede ronde VULT AAN en slaat niet over', async () => {
+  // De val die Robin bijna in liep: de eerste versie van de ingest onthield per
+  // bron-URI "al gehad" en passeerde die daarna altijd. Kwam er later iets bij
+  // (hoezen, duur, playlists), dan kon je opnieuw drukken zoveel je wilde en
+  // gebeurde er niets. Opruimen hielp ook niet, want ap_migration hield de
+  // blokkade in stand. Dus: aanvullen, niet overslaan.
+  const s = site({ aliases: [BRON] });
+  const AUDIO = `${BRON}/audio/x.mp3`;
+  const HOES = `${BRON}/media/hoes.png`;
+  const maakKaart = (metHoes) => new Map([
+    [BRON, { id: BRON, type: 'Person', movedTo: IK, outbox: `${BRON}/outbox`, streams: [`${BRON}/tracks`] }],
+    [`${BRON}/outbox`, { type: 'OrderedCollection', orderedItems: [] }],
+    [`${BRON}/tracks`, {
+      type: 'OrderedCollection',
+      orderedItems: [{
+        id: `${BRON}/tracks/t1`, type: 'Audio', name: 'Nummer', summary: 'Robo', duration: 'PT212S',
+        url: [{ type: 'Link', href: AUDIO, mediaType: 'audio/mpeg' }],
+        ...(metHoes ? { icon: { type: 'Image', url: HOES } } : {}),
+      }],
+    }],
+  ]);
+  const gehaald = [];
+  const deps = (metHoes) => ({
+    getJson: async (_slug, url) => maakKaart(metHoes).get(url) || null,
+    noteId: (b, id) => `${b}/ap/notes/${id}`,
+    noteVisibility: AP.noteVisibility,
+    audioRoot: '/nep/audio', mediaRoot: '/nep/media',
+    signHeaders: () => ({ Signature: 'nep' }),
+    safeFetch: async (url) => {
+      gehaald.push(url);
+      return { ok: true, arrayBuffer: async () => Buffer.from('x'), headers: { get: () => 'audio/mpeg' } };
+    },
+    fs: { mkdirSync() {}, writeFileSync() {} },
+    path,
+  });
+
+  // Ronde 1: zonder hoes, zoals de eerste uitrol.
+  const r1 = await stil(() => Mig.ingestFromSource(s, { deps: deps(false) }));
+  assert.equal(r1.tracksBinnen, 1);
+  const na1 = db.prepare('SELECT id, cover_url, duration FROM audio_tracks').get();
+  assert.equal(na1.cover_url, null);
+  assert.equal(na1.duration, 212, 'PT212S hoort 212 seconden te worden');
+
+  // Ronde 2: nu MET hoes. Hij moet aanvullen, niet passeren en niet verdubbelen.
+  const voor = gehaald.length;
+  const r2 = await stil(() => Mig.ingestFromSource(s, { deps: deps(true) }));
+  assert.equal(r2.tracksBinnen, 0, 'er komt niets nieuws bij');
+  assert.equal(r2.tracksBijgewerkt, 1, 'maar het bestaande nummer wordt wel aangevuld');
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM audio_tracks').get().n, 1, 'geen dubbele');
+  const na2 = db.prepare('SELECT id, cover_url FROM audio_tracks').get();
+  assert.equal(na2.id, na1.id, 'dezelfde rij, niet een nieuwe');
+  assert.ok(na2.cover_url, 'en de hoes is er nu wel');
+  assert.ok(!gehaald.slice(voor).includes(AUDIO), 'het geluidsbestand wordt NIET opnieuw gedownload');
+
+  // Ronde 3: alles compleet, dus er valt niets meer aan te vullen.
+  const r3 = await stil(() => Mig.ingestFromSource(s, { deps: deps(true) }));
+  assert.equal(r3.tracksBijgewerkt, 0);
+  assert.equal(r3.overgeslagenTracks, 1);
+});
+
 test('een niet-publiek bericht komt wel mee maar niet in de publieke tabel', async () => {
   const s = site({ aliases: [BRON] });
   const deps = bronnetje({ items: [note(`${BRON}/notes/priv`, { to: [`${BRON}/followers`] })] });
