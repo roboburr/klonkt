@@ -368,6 +368,78 @@ test('de muziekbibliotheek komt mee, ook wat niet fedi_open is', async () => {
   assert.equal(t.title, 'Gesloten nummer');
 });
 
+test('een link-only nummer komt ook via de ophaalknop mee', async () => {
+  // Dezelfde regel als bij de zip. Over AP heeft zo'n track geen audio-link in
+  // zijn url-lijst, alleen de externe. De vorige versie viste blind de eerste
+  // url en strandde daarop.
+  const s = site({ aliases: [BRON] });
+  const kaart = new Map([
+    [BRON, { id: BRON, type: 'Person', movedTo: IK, outbox: `${BRON}/outbox`, streams: [`${BRON}/tracks`] }],
+    [`${BRON}/outbox`, { type: 'OrderedCollection', totalItems: 0, first: `${BRON}/outbox?page=1` }],
+    [`${BRON}/outbox?page=1`, { type: 'OrderedCollectionPage', orderedItems: [] }],
+    [`${BRON}/tracks`, { type: 'OrderedCollection', orderedItems: [{
+      id: `${BRON}/tracks/lo`, type: 'Audio', name: 'Alleen links', summary: 'Youngstown',
+      url: [
+        { type: 'Link', href: 'https://oud.example/eenpost', mediaType: 'text/html' },
+        { type: 'Link', href: 'https://open.spotify.com/track/abc' },
+        { type: 'Link', href: 'https://www.youtube.com/watch?v=xyz' },
+      ],
+    }] }],
+  ]);
+  const gehaald = [];
+  const r = await stil(() => Mig.ingestFromSource(s, { deps: {
+    getJson: async (_s, url) => kaart.get(url) || null,
+    noteId: (b, id) => `${b}/ap/notes/${id}`,
+    noteVisibility: AP.noteVisibility,
+    audioRoot: '/nep/audio', mediaRoot: '/nep/media',
+    signHeaders: () => ({ Signature: 'nep' }),
+    safeFetch: async (u) => { gehaald.push(u); return { ok: true, arrayBuffer: async () => Buffer.from('x'), headers: { get: () => 'audio/mpeg' } }; },
+    fs: { mkdirSync() {}, writeFileSync() {}, statSync() { throw new Error('ENOENT'); } },
+    path,
+  } }));
+  assert.equal(r.tracksBinnen, 1);
+  assert.equal(r.tracksMislukt, 0);
+  assert.equal(r.tracksLinks, 1);
+  assert.deepEqual(gehaald, [], 'er valt niets te downloaden, en dat hoort ook niet geprobeerd');
+  const t = db.prepare("SELECT title, artist, media_id, link_spotify, link_youtube FROM audio_tracks WHERE id = 'lo'").get();
+  assert.ok(t, 'de track staat er');
+  assert.equal(t.media_id, null);
+  assert.equal(t.artist, 'Youngstown', 'de artiest komt uit summary');
+  assert.equal(t.link_spotify, 'https://open.spotify.com/track/abc');
+  assert.equal(t.link_youtube, 'https://www.youtube.com/watch?v=xyz');
+});
+
+test('de audio-link wordt uit de lijst GEVIST, niet blind de eerste gepakt', async () => {
+  // buildTrackAudio zet een text/html-link naar de post VOOR het bestand. Wie
+  // element nul pakt downloadt een HTML-pagina en noemt dat een mp3.
+  const s = site({ aliases: [BRON] });
+  const MP3 = 'https://oud.example/audio/stream/x.mp3';
+  const kaart = new Map([
+    [BRON, { id: BRON, type: 'Person', movedTo: IK, outbox: `${BRON}/outbox`, streams: [`${BRON}/tracks`] }],
+    [`${BRON}/outbox`, { type: 'OrderedCollection', totalItems: 0, first: `${BRON}/outbox?page=1` }],
+    [`${BRON}/outbox?page=1`, { type: 'OrderedCollectionPage', orderedItems: [] }],
+    [`${BRON}/tracks`, { type: 'OrderedCollection', orderedItems: [{
+      id: `${BRON}/tracks/m1`, type: 'Audio', name: 'Met bestand',
+      url: [
+        { type: 'Link', href: 'https://oud.example/depost', mediaType: 'text/html' },
+        { type: 'Link', href: MP3, mediaType: 'audio/mpeg' },
+      ],
+    }] }],
+  ]);
+  const gehaald = [];
+  await stil(() => Mig.ingestFromSource(s, { deps: {
+    getJson: async (_s, url) => kaart.get(url) || null,
+    noteId: (b, id) => `${b}/ap/notes/${id}`,
+    noteVisibility: AP.noteVisibility,
+    audioRoot: '/nep/audio', mediaRoot: '/nep/media',
+    signHeaders: () => ({ Signature: 'nep' }),
+    safeFetch: async (u) => { gehaald.push(u); return { ok: true, arrayBuffer: async () => Buffer.from('x'), headers: { get: () => 'audio/mpeg' } }; },
+    fs: { mkdirSync() {}, writeFileSync() {}, statSync() { throw new Error('ENOENT'); } },
+    path,
+  } }));
+  assert.deepEqual(gehaald, [MP3], 'het bestand, niet de postpagina');
+});
+
 test('een nummer waarvan de bytes niet komen levert GEEN track op', async () => {
   // Dezelfde regel als bij de zip. Een nummer dat in de lijst staat en 404't is
   // erger dan een nummer dat ontbreekt.

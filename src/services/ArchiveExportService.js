@@ -227,10 +227,16 @@ function audioBibliotheek(site, origin, bestanden, tellingen, ontbrekend) {
         kaart.set(t.id, naam);
       } catch { naam = null; }           // onleesbaar telt als ontbrekend, niet als stilte
     }
-    if (!naam) {
+    // Een LINK-ONLY track is geen kapotte track. Klonkt kent dat type: geen
+    // gehost bestand, wel een Spotify- of YouTube-link, en buildNote maakt er
+    // een embed-kaart van (zie trackEmbedLinks). Die tellen dus niet als
+    // ontbrekend, anders meldt de export een probleem dat er niet is.
+    const alleenLinks = !t.media_id && [t.link_spotify, t.link_youtube, t.link_soundcloud].some(Boolean);
+    if (!naam && !alleenLinks) {
       tellingen.audioMissing += 1;
       ontbrekend.push({ track: t.title || t.id, url: t.storage_path || '(geen mediarij)' });
     }
+    if (alleenLinks) tellingen.audioLinks = (tellingen.audioLinks || 0) + 1;
     items.push({
       id: t.id, name: t.title || '', artist: t.artist || undefined, album: t.album || undefined,
       duration: t.duration || undefined, position: t.position ?? undefined,
@@ -246,7 +252,8 @@ function audioBibliotheek(site, origin, bestanden, tellingen, ontbrekend) {
       // Derde staat, net als bij media: we weten DAT het bestond en waar het
       // stond. Stil weglaten zou een leugen zijn, en de importer moet hierop
       // kunnen weigeren in plaats van een track zonder bestand aan te maken.
-      'shaer:availability': naam ? 'included' : 'missing',
+      // Drie staten in plaats van twee: erbij, weg, of bewust zonder bestand.
+      'shaer:availability': naam ? 'included' : (alleenLinks ? 'linkOnly' : 'missing'),
       'shaer:originalPath': naam ? undefined : (t.storage_path || undefined),
       url: [t.link_spotify, t.link_youtube, t.link_soundcloud].filter(Boolean),
     });

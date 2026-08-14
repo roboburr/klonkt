@@ -511,7 +511,7 @@ export async function ingestFromSource(site, {
 
   const rapport = {
     bron: bronActor.id, posts: 0, overgeslagen: 0, opnieuw: 0, postsBijgewerkt: 0, media: 0, mediaMislukt: 0,
-    blocks: 0, tracksBinnen: 0, tracksMislukt: 0, tracksBijgewerkt: 0, overgeslagenTracks: 0,
+    blocks: 0, tracksBinnen: 0, tracksMislukt: 0, tracksBijgewerkt: 0, tracksLinks: 0, overgeslagenTracks: 0,
     playlistsBinnen: 0, playlistsMislukt: 0, waarschuwingen: [],
   };
 
@@ -768,8 +768,41 @@ export async function ingestFromSource(site, {
             continue;
           }
         }
-        const bron = a.url && (typeof a.url === 'string' ? a.url : (Array.isArray(a.url) ? (a.url[0] && (a.url[0].href || a.url[0])) : a.url.href));
-        if (!bron || !/^https?:\/\//i.test(String(bron))) { rapport.tracksMislukt++; continue; }
+        // Uit de url-lijst de LINK NAAR HET BESTAND vissen, niet zomaar de eerste:
+        // buildTrackAudio zet er ook een text/html-link naar de post voor. En een
+        // LINK-ONLY track (alleen Spotify of YouTube, nooit een gehost bestand)
+        // heeft er helemaal geen. Die hoort gewoon mee, met media_id NULL.
+        // Weggooien kostte Robin een nummer dat het op de oude site prima deed.
+        const urls = [].concat(a.url || []).map((u) => (typeof u === 'string' ? { href: u } : u)).filter((u) => u && u.href);
+        const bestandLink = urls.find((u) => /^audio\//i.test(String(u.mediaType || '')))
+          || urls.find((u) => /\/audio\/stream\//.test(String(u.href)));
+        const externe = urls.map((u) => String(u.href)).filter((h) => /spotify|youtube|youtu\.be|soundcloud|bandcamp/i.test(h));
+        const bron = bestandLink && bestandLink.href;
+        if (!bron || !/^https?:\/\//i.test(String(bron))) {
+          if (externe.length) {
+            const trackIdL = ruwId(a.id) || crypto.randomUUID();
+            try {
+              db.prepare(`INSERT OR REPLACE INTO audio_tracks
+                  (id, site_id, title, artist, media_id, link_spotify, link_youtube, link_soundcloud, fedi_open)
+                VALUES (?,?,?,?,NULL,?,?,?,0)`)
+                .run(trackIdL, site.id, a.name || 'zonder titel', a.summary || a.artist || null,
+                  externe.find((u) => /spotify/i.test(u)) || null,
+                  externe.find((u) => /youtube|youtu\.be/i.test(u)) || null,
+                  externe.find((u) => /soundcloud/i.test(u)) || null);
+              recordMigrated(site.slug, { origin: a.id, target: `${me}/ap/tracks/${trackIdL}`, sourceActor: bronActor.id, isPublic: false });
+              trackKaart.set(String(a.id), trackIdL);
+              ruwKaart.set(ruwId(a.id), trackIdL);
+              rapport.tracksLinks++;
+              rapport.tracksBinnen++;
+            } catch (e) {
+              rapport.tracksMislukt++;
+              rapport.waarschuwingen.push(`nummer niet opgeslagen: ${a.name || a.id} (${e && e.message})`);
+            }
+            continue;
+          }
+          rapport.tracksMislukt++;
+          continue;
+        }
         const g = await haalBijlage(String(bron), {
           safeFetch, mediaRoot: audioRoot, fs, path, maxBytes, submap: '',
           headers: signHeaders ? signHeaders(site.slug, String(bron), '*/*') : null,

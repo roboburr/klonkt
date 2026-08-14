@@ -165,10 +165,24 @@ function tracksTerug(files, site, rapport) {
     if (!id) continue;
     const bestand = t['shaer:file'];
     const bytes = bestand ? files.get(bestand) : null;
-    if (!bytes || !bytes.length) {
+    // "Geen bestand" en "niets om te tonen" zijn niet hetzelfde. Een LINK-ONLY
+    // track heeft nooit een bestand gehad: hij bestaat uit een Spotify- of
+    // YouTube-link en Klonkt maakt daar een embed-kaart van. Die hoort gewoon
+    // mee. Mijn eerste regel gooide hem weg, en dat kostte Robin een nummer
+    // (Youngstown) dat op de oude site prima werkte.
+    const links = Array.isArray(t.url) ? t.url.filter(Boolean) : [];
+    const alleenLinks = t['shaer:availability'] === 'linkOnly' || (!bestand && links.length > 0);
+    if ((!bytes || !bytes.length) && !alleenLinks) {
       rapport.tracksMissing += 1;
       rapport.waarschuwingen.push(`${t.name || id}: geluidsbestand zit niet in het archief, track niet aangemaakt`);
-      continue;                       // de hele regel van deze functie
+      continue;
+    }
+    if (alleenLinks) {
+      // Geen bestand om weg te schrijven, geen mediarij: alleen de track zelf.
+      werk.push({ soort: 'track', id, t, naam: null, bytes: null, doel: null, hoes: hoesTerug(files, t['shaer:coverFile'], werk) });
+      rapport.tracks += 1;
+      rapport.tracksLinks = (rapport.tracksLinks || 0) + 1;
+      continue;
     }
     // Naam op de schijf: de hash uit het archief, met zijn extensie. De speler
     // zoekt op bestandsnaam in AUDIO_ROOT, dus dit is meteen het pad dat werkt.
@@ -255,7 +269,7 @@ export function importArchive(files, opts = {}) {
     formatVersion: null, origin: null, idsBehouden: null,
     posts: 0, overgeslagen: 0, overschreven: 0,
     replies: 0, media: 0, mediaMissing: 0, gemist: [], waarschuwingen: [],
-    tracks: 0, tracksMissing: 0, playlists: 0, linksBijgetrokken: 0,
+    tracks: 0, tracksMissing: 0, tracksLinks: 0, playlists: 0, linksBijgetrokken: 0,
   };
 
   const manifestBuf = files.get('manifest.json');
@@ -416,11 +430,17 @@ export function importArchive(files, opts = {}) {
         // Bestand eerst, dan pas de rijen. Faalt het schrijven, dan gooit dit en
         // rolt de hele transactie terug: liever geen import dan een track zonder
         // geluid, want dat is precies de val waar dit uit voortkomt.
-        fs.mkdirSync(path.dirname(s.doel), { recursive: true });
-        fs.writeFileSync(s.doel, s.bytes);
-        const mediaId = randomUUID();
-        db.prepare('INSERT INTO media (id, site_id, filename, mime_type, size, storage_path) VALUES (?,?,?,?,?,?)')
-          .run(mediaId, site.id, s.naam, s.t['shaer:mediaType'] || 'audio/mpeg', s.bytes.length, s.doel);
+        //
+        // Een link-only track heeft geen bestand en dus ook geen mediarij; die
+        // krijgt media_id NULL, precies zoals op de bron.
+        let mediaId = null;
+        if (s.doel && s.bytes) {
+          fs.mkdirSync(path.dirname(s.doel), { recursive: true });
+          fs.writeFileSync(s.doel, s.bytes);
+          mediaId = randomUUID();
+          db.prepare('INSERT INTO media (id, site_id, filename, mime_type, size, storage_path) VALUES (?,?,?,?,?,?)')
+            .run(mediaId, site.id, s.naam, s.t['shaer:mediaType'] || 'audio/mpeg', s.bytes.length, s.doel);
+        }
         const link = (k) => (s.t.url || []).find((u) => String(u).includes(k)) || null;
         db.prepare(`INSERT OR REPLACE INTO audio_tracks
             (id, site_id, title, artist, album, duration, media_id, position, credit, license,

@@ -257,4 +257,46 @@ test('ook een zip-import buigt links naar de bronpost om', () => {
   assert.equal(r.linksBijgetrokken, 1, 'en het verslag zegt het');
 });
 
+test('een track met alleen Spotify/YouTube-links reist gewoon mee', () => {
+  // Robins Youngstown-nummer. Klonkt kent link-only tracks: geen gehost
+  // bestand, wel externe links, en buildNote maakt daar een embed-kaart van.
+  // Mijn regel "geen bestand, geen track" gooide die weg, en dat was te grof:
+  // "geen bestand" en "niets om te tonen" zijn niet hetzelfde.
+  leeg();
+  db.prepare(`INSERT INTO audio_tracks (id, site_id, title, artist, media_id, link_spotify, link_youtube)
+              VALUES ('lo','s1','Alleen links','Youngstown',NULL,
+                      'https://open.spotify.com/track/abc','https://www.youtube.com/watch?v=xyz')`).run();
+
+  const uit = AX.buildArchive('me');
+  const rij = JSON.parse(uit.files.get('tracks.json').toString('utf8')).orderedItems.find((x) => x.id === 'lo');
+  assert.equal(rij['shaer:availability'], 'linkOnly', 'een eigen staat, niet "missing"');
+  assert.equal(uit.counts.audioMissing, 0, 'en hij telt niet als ontbrekend: er mist niets');
+  assert.deepEqual(rij.url, ['https://open.spotify.com/track/abc', 'https://www.youtube.com/watch?v=xyz']);
+
+  leeg();
+  const r = AI.importArchive(uit.files, { slug: 'me', origin: 'https://nieuw.test' });
+  assert.equal(r.tracks, 1);
+  assert.equal(r.tracksMissing, 0);
+  const t = db.prepare("SELECT title, artist, media_id, link_spotify, link_youtube FROM audio_tracks WHERE id = 'lo'").get();
+  assert.ok(t, 'de track hoort er te staan');
+  assert.equal(t.media_id, null, 'zonder mediarij, precies zoals op de bron');
+  assert.equal(t.title, 'Alleen links');
+  assert.equal(t.link_spotify, 'https://open.spotify.com/track/abc');
+  assert.equal(t.link_youtube, 'https://www.youtube.com/watch?v=xyz');
+});
+
+test('een track zonder bestand EN zonder links blijft wel geweigerd', () => {
+  // De oorspronkelijke regel blijft staan waar hij hoort: dit is een track die
+  // niets kan tonen en niets kan afspelen.
+  leeg();
+  track('kapot', 'Kapot', { padInDb: '/weg/kapot.mp3', schrijf: false });
+  const uit = AX.buildArchive('me');
+  assert.equal(uit.counts.audioMissing, 1);
+  leeg();
+  const r = AI.importArchive(uit.files, { slug: 'me', origin: 'https://nieuw.test' });
+  assert.equal(r.tracks, 0);
+  assert.equal(r.tracksMissing, 1);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM audio_tracks').get().n, 0);
+});
+
 test.after(() => { try { fs.rmSync(TMP, { recursive: true, force: true }); } catch { /* niets */ } });
