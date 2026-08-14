@@ -41,6 +41,69 @@ sent('mijn-1', TANTE, '2026-08-01T09:30:00Z');
 // Een PUBLIEK antwoord aan een vreemde is geen gesprek.
 sent('mijn-publiek', VREEMDE, '2026-08-09T12:00:00Z', 'public');
 
+// ── De vorm van een stempel ───────────────────────────────────────────────
+//
+// Barts melding (14-8): in Berichten stond een bericht van 00:30 boven een
+// antwoord van 20:22 de avond ervoor, op iOS en op Android. De oorzaak zat
+// niet in de clients maar hier: de twee poten van de unie leverden een ANDERE
+// VORM. SQLite's CURRENT_TIMESTAMP schrijft '2026-08-13 22:30:12', een object
+// draagt '2026-08-13T20:22:00Z', en soms met milliseconden erbij. Als tekst
+// vergeleken staat op plek 10 een spatie tegen een T, en een spatie is kleiner
+// -- dus stond binnen dezelfde dag alles wat jij stuurde vóór alles wat
+// binnenkwam.
+//
+// De toetsen hierboven gebruikten overal dezelfde ISO-vorm en konden hier dus
+// niet op falen. Deze zet ze door elkaar, precies zoals de echte database.
+//
+// Eigen site, want de toetsen hierboven tellen ALLE gesprekken van 'kind' en
+// een gezicht erbij zou ze laten vallen om een reden die er niets mee te maken
+// heeft.
+db.prepare('INSERT INTO sites (id, slug, title, owner_id) VALUES (?,?,?,?)').run('s2', 'buur', 'Buur', 'u1');
+const BUURMAN = 'https://elders/u/buurman';
+const kwam = (uri, stamp) =>
+  db.prepare(`INSERT INTO ap_mentions (slug, object_uri, actor_uri, actor_name, content, published)
+              VALUES ('buur', ?, ?, 'buurman', '<p>hoi</p>', ?)`).run(uri, BUURMAN, stamp);
+const ging = (id, stamp) =>
+  db.prepare(`INSERT INTO ap_outbox (id, site_slug, post_id, to_actor, to_actors, content, visibility, created_at)
+              VALUES (?, 'buur', 'p1', ?, ?, '<p>terug</p>', 'direct', ?)`)
+    .run(id, BUURMAN, JSON.stringify([BUURMAN]), stamp);
+
+kwam('https://elders/n/buur-mid', '2026-08-13T14:17:45.000Z');
+ging('mijn-buur-1', '2026-08-13 16:16:00');
+kwam('https://elders/n/buur-avond', '2026-08-13T20:22:00Z');
+ging('mijn-buur-2', '2026-08-13 22:30:12');
+
+test('vormen door elkaar sorteren op de KLOK, niet op hun schrijfwijze', () => {
+  const talk = AP.conversationHistory('buur', BUURMAN, { limit: 60 });
+  assert.deepEqual(talk.rows.map((r) => r.ref), [
+    'mijn-buur-2',                      // 22:30
+    'https://elders/n/buur-avond',      // 20:22
+    'mijn-buur-1',                      // 16:16
+    'https://elders/n/buur-mid',        // 14:17
+  ], 'nieuwste eerst, om en om -- niet eerst al het uitgaande');
+});
+
+test('de stempel komt er in EEN vorm uit, want de client rekent ermee', () => {
+  // new Date('2026-08-13 22:30:12') leest in JavaScript als LOKALE tijd en
+  // '...T22:30:12Z' als UTC. Dezelfde rij gaf dus een leeftijd die per vorm
+  // uren verschilde, en daar hangt in de hemel de afstand tot het midden aan.
+  const talk = AP.conversationHistory('buur', BUURMAN, { limit: 60 });
+  for (const r of talk.rows) {
+    assert.match(r.stamp, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/, `stempel ${r.stamp}`);
+  }
+});
+
+test('de cursor blijft werken over de vormen heen', () => {
+  const eerste = AP.conversationHistory('buur', BUURMAN, { limit: 2 });
+  assert.equal(eerste.more, true);
+  const tweede = AP.conversationHistory('buur', BUURMAN, { limit: 2, before: eerste.oldest });
+  assert.deepEqual(
+    [...eerste.rows, ...tweede.rows].map((r) => r.ref),
+    ['mijn-buur-2', 'https://elders/n/buur-avond', 'mijn-buur-1', 'https://elders/n/buur-mid'],
+    'twee pagina\'s samen zijn hetzelfde gesprek',
+  );
+});
+
 test('de oude lezing verliest tante achter een druk gesprek -- dat is de bug', () => {
   const oud = AP.getDirectMessages('kind', 60);
   assert.equal(oud.length, 60);
