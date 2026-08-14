@@ -21,13 +21,18 @@ export const TRACK_KOLOMMEN = `t.id, t.title, t.artist, t.duration, t.cover_url,
      t.position, t.license,
      m.filename, m.storage_path, m.mime_type, m.size`;
 
-export function playlistOpenTracks(playlistId) {
+/**
+ * `alles` net als bij siteOpenTracks (FEP-1580): zonder die tak krijgt de
+ * instantie waar je naartoe verhuist een playlist met gaten erin, want alleen
+ * de opengezette nummers zitten erin. Een halve plaat is geen plaat.
+ */
+export function playlistOpenTracks(playlistId, { alles = false } = {}) {
   return db.prepare(
     `SELECT ${TRACK_KOLOMMEN}
      FROM playlist_tracks pt
      JOIN audio_tracks t ON t.id = pt.track_id
      JOIN media m ON m.id = t.media_id
-     WHERE pt.playlist_id = ? AND t.fedi_open = 1
+     WHERE pt.playlist_id = ?${alles ? '' : ' AND t.fedi_open = 1'}
      ORDER BY pt.position`
   ).all(playlistId);
 }

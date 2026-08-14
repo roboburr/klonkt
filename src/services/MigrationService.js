@@ -218,6 +218,16 @@ function slugUitUri(uri) {
 
 const AFBEELDING = /^image\//i;
 
+/** AS2 geeft de duur als ISO-8601 ("PT212S"), de database wil seconden. */
+function duurSeconden(v) {
+  if (v == null) return null;
+  if (typeof v === 'number') return Math.round(v) || null;
+  const m = /^P(?:.*?T)?(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?$/.exec(String(v));
+  if (!m) { const n = Number(v); return Number.isFinite(n) && n > 0 ? Math.round(n) : null; }
+  const sec = (Number(m[1]) || 0) * 3600 + (Number(m[2]) || 0) * 60 + (Number(m[3]) || 0);
+  return sec > 0 ? Math.round(sec) : null;
+}
+
 /**
  * De titel terugwinnen uit de content.
  *
@@ -335,7 +345,8 @@ export async function ingestFromSource(site, {
 
   const rapport = {
     bron: bronActor.id, posts: 0, overgeslagen: 0, media: 0, mediaMislukt: 0,
-    blocks: 0, tracksBinnen: 0, tracksMislukt: 0, overgeslagenTracks: 0, waarschuwingen: [],
+    blocks: 0, tracksBinnen: 0, tracksMislukt: 0, overgeslagenTracks: 0,
+    playlistsBinnen: 0, playlistsMislukt: 0, waarschuwingen: [],
   };
 
   try {
@@ -458,6 +469,7 @@ export async function ingestFromSource(site, {
     // de doel-actor van zijn Move zijn (siteOpenTracks({alles})). Hetzelfde
     // geldt voor de bestanden zelf, die anders achter de gated audio-route
     // blijven.
+    const trackKaart = new Map();   // bron-URI van een nummer -> ons nieuwe id
     const streams = [].concat(bronActor.streams || []).filter((u) => typeof u === 'string');
     const tracksUrl = streams.find((u) => /\/tracks\/?$/.test(u));
     if (tracksUrl && safeFetch && fs && path && audioRoot) {
@@ -479,16 +491,29 @@ export async function ingestFromSource(site, {
           rapport.waarschuwingen.push(`nummer niet opgehaald: ${a.name || bron}`);
           continue;                       // dezelfde regel als bij de zip: geen bestand, geen track
         }
+        // De hoes. Die reisde als URL wel mee en als bestand niet, dus kwam een
+        // nummer aan met een verwijzing naar een plaatje dat er niet is.
+        let hoes = null;
+        const hoesUrl = (a.icon && (a.icon.url || a.icon)) || (a.image && (a.image.url || a.image)) || null;
+        if (hoesUrl && /^https?:\/\//i.test(String(hoesUrl))) {
+          const h = await haalBijlage(String(hoesUrl), {
+            safeFetch, mediaRoot, fs, path, maxBytes,
+            headers: signHeaders ? signHeaders(site.slug, String(hoesUrl), '*/*') : null,
+          }).catch(() => null);
+          if (h) { hoes = h.url; rapport.media++; }
+          else rapport.waarschuwingen.push(`hoes niet opgehaald: ${a.name || hoesUrl}`);
+        }
         const trackId = crypto.randomUUID();
         const mediaId = crypto.randomUUID();
         try {
           db.prepare('INSERT INTO media (id, site_id, filename, mime_type, size, storage_path) VALUES (?,?,?,?,?,?)')
             .run(mediaId, site.id, g.filename, g.mediaType, g.size, g.storage_path);
-          db.prepare(`INSERT INTO audio_tracks (id, site_id, title, artist, album, duration, media_id, fedi_open)
-                      VALUES (?,?,?,?,?,?,?,0)`)
-            .run(trackId, site.id, a.name || 'zonder titel', a.artist || null, a.album || null,
-              Number(a.duration) || null, mediaId);
+          db.prepare(`INSERT INTO audio_tracks (id, site_id, title, artist, album, duration, media_id, cover_url, fedi_open)
+                      VALUES (?,?,?,?,?,?,?,?,0)`)
+            .run(trackId, site.id, a.name || 'zonder titel', a.summary || a.artist || null, a.album || null,
+              duurSeconden(a.duration), mediaId, hoes);
           recordMigrated(site.slug, { origin: a.id, target: `${me}/ap/tracks/${trackId}`, sourceActor: bronActor.id, isPublic: false });
+          trackKaart.set(String(a.id), trackId);
           rapport.tracksBinnen++;
         } catch (e) {
           rapport.tracksMislukt++;
@@ -497,6 +522,47 @@ export async function ingestFromSource(site, {
       }
     } else if (tracksUrl) {
       rapport.waarschuwingen.push('muziekbibliotheek overgeslagen: geen audiomap meegegeven');
+    }
+
+    // ── De playlists ──────────────────────────────────────────────
+    //
+    // Los van de nummers, want de VOLGORDE is de playlist. Die staat nergens
+    // anders: haal je alleen de tracks op, dan heb je wel alle muziek en geen
+    // enkele plaat. De bron geeft ons de volledige lijst omdat we de doel-actor
+    // zijn; anders zaten er alleen de opengezette nummers in en kreeg je een
+    // plaat met gaten.
+    const plUrl = streams.find((u) => /\/playlists\/?$/.test(u));
+    if (plUrl && trackKaart.size) {
+      const coll = await getJson(site.slug, plUrl);
+      const lijst = (coll && (coll.orderedItems || coll.items)) || [];
+      for (const p of (Array.isArray(lijst) ? lijst : []).slice(0, 200)) {
+        const uri = typeof p === 'string' ? p : (p && p.id);
+        if (!uri) continue;
+        const plc = typeof p === 'object' && (p.orderedItems || p.items) ? p : await getJson(site.slug, uri);
+        if (!plc) { rapport.playlistsMislukt++; continue; }
+        const nummers = (plc.orderedItems || plc.items || [])
+          .map((x) => (x && typeof x === 'object' ? x.id : x))
+          .map((id) => trackKaart.get(String(id)))
+          .filter(Boolean);
+        if (!nummers.length) {
+          rapport.waarschuwingen.push(`playlist ${plc.name || uri}: geen van de nummers is aangekomen, overgeslagen`);
+          continue;
+        }
+        const plId = crypto.randomUUID();
+        try {
+          db.prepare('INSERT INTO playlists (id, site_id, title, artist, year, kind) VALUES (?,?,?,?,?,?)')
+            .run(plId, site.id, plc.name || 'zonder titel', plc.attributedTo && plc.artist || plc.artist || null,
+              plc.year || null, plc['shaer:kind'] || null);
+          const ins = db.prepare('INSERT OR IGNORE INTO playlist_tracks (playlist_id, track_id, position) VALUES (?,?,?)');
+          nummers.forEach((tid, i) => ins.run(plId, tid, i));
+          rapport.playlistsBinnen++;
+          const kwijt = (plc.orderedItems || plc.items || []).length - nummers.length;
+          if (kwijt > 0) rapport.waarschuwingen.push(`playlist ${plc.name || uri}: ${kwijt} nummer(s) ontbraken en zijn eruit gelaten`);
+        } catch (e) {
+          rapport.playlistsMislukt++;
+          rapport.waarschuwingen.push(`playlist niet opgeslagen: ${plc.name || uri} (${e && e.message})`);
+        }
+      }
     }
   } catch (e) {
     // 9-bij-mislukking: de vlag blijft OPEN staan. Derden blijven dan kijken,

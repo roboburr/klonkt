@@ -187,4 +187,50 @@ test('een droogloop telt de nummers maar schrijft niets', () => {
   assert.equal(fs.readdirSync(AUDIO).length, 0, 'en er is geen bestand geschreven');
 });
 
+
+test('de hoes van een nummer reist mee als BESTAND, niet als losse verwijzing', () => {
+  // Robin na de tweede ronde: "de audio tracks hadden images, die zijn niet
+  // meegegaan". cover_url ging wel mee als string en het bestand niet, dus kwam
+  // een nummer aan met een verwijzing naar een plaatje dat er niet was.
+  // Dezelfde fout als bij de audio zelf, een laag hoger.
+  leeg();
+  const hoesDir = path.join(MEDIA, 'hoes');
+  fs.mkdirSync(hoesDir, { recursive: true });
+  const PNG = Buffer.from('nep-png-bytes');
+  fs.writeFileSync(path.join(hoesDir, 'a.png'), PNG);
+  track('h1', 'Met hoes');
+  db.prepare("UPDATE audio_tracks SET cover_url = '/media/hoes/a.png' WHERE id = 'h1'").run();
+  db.prepare("INSERT INTO playlists (id, site_id, title, cover_url) VALUES ('plh','s1','Plaat','/media/hoes/a.png')").run();
+  db.prepare("INSERT INTO playlist_tracks (playlist_id, track_id, position) VALUES ('plh','h1',0)").run();
+
+  const uit = AX.buildArchive('me');
+  const rij = JSON.parse(uit.files.get('tracks.json').toString('utf8')).orderedItems[0];
+  assert.ok(rij['shaer:coverFile'], 'de hoes hoort een plek in het archief te hebben');
+  assert.deepEqual(uit.files.get(rij['shaer:coverFile']), PNG, 'met de echte bytes erin');
+  const pl = JSON.parse(uit.files.get('playlists.json').toString('utf8')).orderedItems[0];
+  assert.ok(pl['shaer:coverFile'], 'en de hoes van de plaat ook');
+
+  leeg();
+  AI.importArchive(uit.files, { slug: 'me', origin: 'https://nieuw.test' });
+  const t = db.prepare("SELECT cover_url FROM audio_tracks WHERE id = 'h1'").get();
+  assert.ok(t.cover_url, 'na de import wijst het nummer naar een hoes');
+  const opSchijf = path.join(MEDIA, t.cover_url.replace(/^\/media\//, ''));
+  assert.deepEqual(fs.readFileSync(opSchijf), PNG, 'en die staat er ook echt');
+});
+
+test('een hoes die niet in het archief zit levert GEEN kapotte verwijzing op', () => {
+  // Liever geen hoes dan een <img> die 404't. Dezelfde regel als bij de tracks.
+  leeg();
+  track('h2', 'Hoes zoek');
+  db.prepare("UPDATE audio_tracks SET cover_url = '/media/bestaat/niet.png' WHERE id = 'h2'").run();
+  const uit = AX.buildArchive('me');
+  const rij = JSON.parse(uit.files.get('tracks.json').toString('utf8')).orderedItems[0];
+  assert.equal(rij['shaer:coverFile'], undefined);
+
+  leeg();
+  AI.importArchive(uit.files, { slug: 'me', origin: 'https://nieuw.test' });
+  assert.equal(db.prepare("SELECT cover_url FROM audio_tracks WHERE id = 'h2'").get().cover_url, null,
+    'geen verwijzing naar een plaatje dat er niet is');
+});
+
 test.after(() => { try { fs.rmSync(TMP, { recursive: true, force: true }); } catch { /* niets */ } });

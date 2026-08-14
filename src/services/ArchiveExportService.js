@@ -181,7 +181,27 @@ function audioOf(post, audioKaart) {
  *
  * @returns {Map<string,string>} trackId -> pad in het archief
  */
-function audioBibliotheek(site, bestanden, tellingen, ontbrekend) {
+/**
+ * Een hoes in het archief leggen.
+ *
+ * cover_url reisde wel mee als STRING en het bestand niet, dus kwam een track
+ * aan met een verwijzing naar een plaatje dat er niet was. Precies dezelfde
+ * fout als bij de audio zelf, een laag hoger: een verwijzing zonder bytes.
+ *
+ * @returns {string|null} het pad in het archief, of null
+ */
+function hoesToevoegen(url, origin, bestanden, tellingen) {
+  const schijf = localMediaPath(url, origin);
+  if (!schijf) return null;
+  let bytes = null;
+  try { bytes = fs.readFileSync(schijf); } catch { return null; }
+  const hash = sha256(bytes);
+  const naam = `media/${hash}${extOf(url) ? `.${extOf(url)}` : ''}`;
+  if (!bestanden.has(naam)) { bestanden.set(naam, bytes); tellingen.media += 1; }
+  return naam;
+}
+
+function audioBibliotheek(site, origin, bestanden, tellingen, ontbrekend) {
   const kaart = new Map();
   let tracks = [];
   try {
@@ -216,6 +236,8 @@ function audioBibliotheek(site, bestanden, tellingen, ontbrekend) {
       duration: t.duration || undefined, position: t.position ?? undefined,
       credit: t.credit || undefined, license: t.license || undefined,
       'shaer:coverUrl': t.cover_url || undefined,
+      // De BYTES van de hoes, niet alleen de verwijzing.
+      'shaer:coverFile': hoesToevoegen(t.cover_url, origin, bestanden, tellingen) || undefined,
       'shaer:downloadable': t.downloadable ? 1 : 0,
       'shaer:fediOpen': t.fedi_open ? 1 : 0,
       'shaer:mediaType': t.mime_type || 'audio/mpeg',
@@ -242,6 +264,7 @@ function audioBibliotheek(site, bestanden, tellingen, ontbrekend) {
       const lijst = pls.map((p) => ({
         id: p.id, name: p.title || '', artist: p.artist || undefined, year: p.year || undefined,
         'shaer:kind': p.kind || undefined, 'shaer:coverUrl': p.cover_url || undefined,
+        'shaer:coverFile': hoesToevoegen(p.cover_url, origin, bestanden, tellingen) || undefined,
         'shaer:tracks': db.prepare('SELECT track_id, position FROM playlist_tracks WHERE playlist_id = ? ORDER BY position')
           .all(p.id).map((r) => ({ id: r.track_id, position: r.position })),
       }));
@@ -458,7 +481,7 @@ export function buildArchive(slug, opts = {}) {
 
   // De audiobibliotheek EERST. De posts verwijzen ernaar met [[track:]], dus de
   // kaart moet klaar zijn voor de eerste post gebouwd wordt.
-  const audioKaart = audioBibliotheek(site, bestanden, tellingen, ontbrekend);
+  const audioKaart = audioBibliotheek(site, origin, bestanden, tellingen, ontbrekend);
 
   // Vaste volgorde: eerst op publicatiedatum, dan op id. Zonder tweede sleutel
   // is de volgorde van twee posts op dezelfde seconde niet bepaald.

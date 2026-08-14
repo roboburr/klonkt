@@ -134,6 +134,24 @@ function bestemming(a) {
  * @returns {Array} de schrijfopdrachten; de beller voert ze in zijn transactie uit
  * (en bij een droogloop dus niet, maar het verslag klopt wel)
  */
+/**
+ * Een hoes uit het archief terugzetten. Geeft het nieuwe /media-pad terug, of
+ * null als het bestand er niet in zat: dan liever GEEN cover_url dan een
+ * verwijzing naar niets.
+ */
+function hoesTerug(files, bestand, werk) {
+  if (!bestand) return null;
+  const bytes = files.get(bestand);
+  if (!bytes || !bytes.length) return null;
+  const naam = path.basename(String(bestand));
+  if (!naam || naam.includes('/') || naam.includes('\\') || naam.startsWith('.')) return null;
+  const urlPad = `/media/archief/${naam}`;
+  const doel = veiligMediaPad(urlPad);
+  if (!doel) return null;
+  werk.push({ soort: 'media', doel, bytes });
+  return urlPad;
+}
+
 function tracksTerug(files, site, rapport) {
   const buf = files.get('tracks.json');
   if (!buf) return [];
@@ -159,7 +177,8 @@ function tracksTerug(files, site, rapport) {
       rapport.waarschuwingen.push(`${t.name || id}: onbruikbare bestandsnaam, overgeslagen`);
       continue;
     }
-    werk.push({ soort: 'track', doel: path.join(path.resolve(AUDIO_ROOT), naam), bytes, id, t, naam });
+    const hoes = hoesTerug(files, t['shaer:coverFile'], werk);
+    werk.push({ soort: 'track', doel: path.join(path.resolve(AUDIO_ROOT), naam), bytes, id, t, naam, hoes });
     rapport.tracks += 1;
   }
   return werk;
@@ -181,7 +200,8 @@ function playlistsTerug(files, site, rapport, bekendeTracks) {
     const items = (p['shaer:tracks'] || []).filter((x) => bekendeTracks.has(String(x && x.id)));
     const kwijt = (p['shaer:tracks'] || []).length - items.length;
     if (kwijt) rapport.waarschuwingen.push(`playlist ${p.name || id}: ${kwijt} nummer(s) ontbreken en zijn eruit gelaten`);
-    werk.push({ soort: 'playlist', p, id, items });
+    const hoes = hoesTerug(files, p['shaer:coverFile'], werk);
+    werk.push({ soort: 'playlist', p, id, items, hoes });
     rapport.playlists += 1;
   }
   return werk;
@@ -394,7 +414,7 @@ export function importArchive(files, opts = {}) {
           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
           .run(s.id, site.id, s.t.name || 'zonder titel', s.t.artist || null, s.t.album || null,
             s.t.duration || null, mediaId, s.t.position ?? null, s.t.credit || null, s.t.license || null,
-            s.t['shaer:coverUrl'] || null, s.t['shaer:downloadable'] ? 1 : 0, s.t['shaer:fediOpen'] ? 1 : 0,
+            s.hoes || null, s.t['shaer:downloadable'] ? 1 : 0, s.t['shaer:fediOpen'] ? 1 : 0,
             link('spotify'), link('youtube'), link('soundcloud'));
         continue;
       }
@@ -402,7 +422,7 @@ export function importArchive(files, opts = {}) {
         db.prepare(`INSERT OR REPLACE INTO playlists (id, site_id, title, artist, year, cover_url, kind)
                     VALUES (?,?,?,?,?,?,?)`)
           .run(s.id, site.id, s.p.name || 'zonder titel', s.p.artist || null, s.p.year || null,
-            s.p['shaer:coverUrl'] || null, s.p['shaer:kind'] || null);
+            s.hoes || null, s.p['shaer:kind'] || null);
         db.prepare('DELETE FROM playlist_tracks WHERE playlist_id = ?').run(s.id);
         const insPT = db.prepare('INSERT OR IGNORE INTO playlist_tracks (playlist_id, track_id, position) VALUES (?,?,?)');
         s.items.forEach((it, i) => insPT.run(s.id, String(it.id), it.position ?? i));

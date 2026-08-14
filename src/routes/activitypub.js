@@ -1164,13 +1164,16 @@ router.get('/ap/users/:slug/posts/:id/tracks', (req, res) => {
   AP.sendAP(res, col);
 });
 
-router.get('/ap/users/:slug/playlists/:id', (req, res) => {
+router.get('/ap/users/:slug/playlists/:id', async (req, res) => {
   const site = publicSite(req.params.slug);
   if (!site) return res.status(404).end();
   const pl = db.prepare('SELECT id, title, artist, year, cover_url, kind FROM playlists WHERE id = ? AND site_id = ?')
     .get(req.params.id, site.id);
   if (!pl) return res.status(404).end();
-  AP.sendAP(res, AP.buildPlaylistCollection(baseUrl(req), site, pl, AP.playlistOpenTracks(pl.id)));
+  // De doel-actor van een verhuizing krijgt de VOLLEDIGE plaat, niet alleen de
+  // nummers die voor de fediverse opengezet zijn (FEP-1580).
+  const alles = await magAlles(req, site.slug);
+  AP.sendAP(res, AP.buildPlaylistCollection(baseUrl(req), site, pl, AP.playlistOpenTracks(pl.id, { alles })));
 });
 
 // ── Note ──────────────────────────────────────────────────────────
