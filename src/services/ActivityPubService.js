@@ -4420,13 +4420,33 @@ export async function waitForFeedChange(slug, opts = {}) {
 // (die tabel IS de aan ons gerichte post), uitgaand zijn de eigen notes met
 // visibility 'direct'. Een publiek antwoord is geen gesprek en hoort niet als
 // gezicht in de hemel.
+/**
+ * EEN STEMPEL IN EEN VORM, en dat is hier geen netheid maar de volgorde zelf.
+ *
+ * Drie vormen kwamen samen in deze unie: `2026-08-13 19:26:17` van SQLite's
+ * CURRENT_TIMESTAMP, `2026-08-13T18:21:57Z` uit een object, en dezelfde met
+ * milliseconden. Als TEKST vergeleken staat op plek 10 een spatie tegen een
+ * T -- en een spatie is kleiner. Dus sorteerde binnen dezelfde dag alles wat
+ * JIJ stuurde vóór alles wat binnenkwam, ongeacht de klok (Barts melding 14-8:
+ * een bericht van 00:30 stond boven een antwoord van 20:22 de avond ervoor).
+ *
+ * strftime leest alle drie en geeft er een vorm voor terug, in UTC. Lukt het
+ * niet, dan blijft de rauwe waarde staan -- dan is die ene rij verkeerd
+ * gesorteerd in plaats van de hele lijst.
+ *
+ * Dit gaat ook de client aan: `new Date('2026-08-13 19:26:17')` leest in
+ * JavaScript als LOKALE tijd en `...T19:26:17Z` als UTC. Dezelfde rij gaf dus
+ * een leeftijd die twee uur verschilde per vorm.
+ */
+const STEMPEL = (rauw) => `COALESCE(strftime('%Y-%m-%dT%H:%M:%SZ', ${rauw}), ${rauw})`;
+
 const CONVERSATION_UNION = `
-  SELECT m.actor_uri AS other, COALESCE(m.published, m.created_at) AS stamp,
+  SELECT m.actor_uri AS other, ${STEMPEL('COALESCE(m.published, m.created_at)')} AS stamp,
          'in' AS direction, m.object_uri AS ref
     FROM ap_mentions m
    WHERE m.slug = @slug AND m.actor_uri IS NOT NULL AND m.actor_uri <> ''
   UNION ALL
-  SELECT j.value AS other, o.created_at AS stamp,
+  SELECT j.value AS other, ${STEMPEL('o.created_at')} AS stamp,
          'out' AS direction, o.id AS ref
     FROM ap_outbox o
     JOIN json_each(COALESCE(NULLIF(o.to_actors, ''), json_array(o.to_actor))) j
