@@ -1347,7 +1347,11 @@ router.post('/news/following/import', requireSiteManager, followingCsvUpload, as
   const csv = (req.file && req.file.buffer)
     ? req.file.buffer.toString('utf8').replace(/^﻿/, '')   // BOM eraf; Excel zet die erin
     : ((req.body && req.body.csv) || '');
-  if (!site || !String(csv).trim()) return res.redirect('/connect?error=' + encodeURIComponent('Geen lijst ontvangen'));
+  // Terug naar waar je vandaan kwam. Sinds 14-8 staat dit formulier op
+  // /admin/migrate (Robin: alle migratie-opties bij elkaar); terugspringen naar
+  // Connect is dan desorienterend. Alleen een eigen pad, geen open redirect.
+  const terug = /^\/[A-Za-z0-9/_-]*$/.test(String(req.body.next || '')) ? String(req.body.next) : '/connect';
+  if (!site || !String(csv).trim()) return res.redirect(terug + '?error=' + encodeURIComponent('Geen lijst ontvangen'));
 
   const { importFollowing } = await import('../services/ArchiveImportService.js');
   // followActor als followFn: die doet de webfinger, stuurt de Follow en zet
@@ -1369,7 +1373,7 @@ router.post('/news/following/import', requireSiteManager, followingCsvUpload, as
     delen.push(`${r.mislukt.length} mislukt (${namen}${r.mislukt.length > 3 ? '…' : ''})`);
   }
   // Terug naar /connect: daar staat het blok, /following is de oude pagina.
-  res.redirect('/connect?' + (r.mislukt.length ? 'error=' : 'success=') + encodeURIComponent(delen.join(', ')));
+  res.redirect(terug + '?' + (r.mislukt.length ? 'error=' : 'success=') + encodeURIComponent(delen.join(', ')));
 });
 
 router.post('/news/unfollow', requireSiteManager, async (req, res) => {

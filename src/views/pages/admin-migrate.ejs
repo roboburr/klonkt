@@ -221,10 +221,27 @@
   </section>
 
   <%# ── Wie je volgt ────────────────────────────────────────────── %>
+  <%# Stond op Connect, in een <details> zonder een greintje opmaak: labels als
+      losse tekst naast hun invoerveld, een textarea van vijf regels breed. Hier
+      krijgt hij de kaartopmaak van deze pagina, en hij hoort hier ook: je
+      volglijst meenemen is een migratie-optie. %>
   <section class="mig-card">
     <h2><%= t('mig.follows_title') %></h2>
-    <p class="form-hint"><%= t('mig.follows_hint') %></p>
-    <p><a class="btn" href="/connect"><%= t('mig.follows_btn') %></a></p>
+    <p class="form-hint"><%= t('tl.move_hint') %></p>
+    <p><a class="btn" href="/news/following.csv" download>&#11015; <%= t('tl.move_export') %></a></p>
+
+    <form method="post" action="/news/following/import" enctype="multipart/form-data">
+      <input type="hidden" name="next" value="/admin/migrate">
+      <label for="mig-volg-bestand"><%= t('tl.move_import_file') %></label>
+      <input type="file" id="mig-volg-bestand" name="csvfile" accept=".csv,text/csv,text/plain">
+
+      <label for="mig-volg-csv"><%= t('tl.move_import_lbl') %></label>
+      <textarea id="mig-volg-csv" name="csv" rows="5" spellcheck="false" class="mig-input"
+                placeholder="Account address,Show boosts,Notify on new posts,Languages,Featured"></textarea>
+      <p class="form-hint"><%= t('mig.follows_note') %></p>
+
+      <button type="submit" class="btn btn-primary"><%= t('tl.move_import') %></button>
+    </form>
   </section>
 </div>
 
