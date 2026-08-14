@@ -35,7 +35,7 @@
  */
 import crypto from 'crypto';
 import db from '../config/database.js';
-import { AP_CONTEXT, actorId, pagedCollection } from './ap-core.js';
+import { AP_CONTEXT, actorId, pagedCollection, PAGINA_GROOTTE } from './ap-core.js';
 
 // ── Vertaaltabel ──────────────────────────────────────────────────
 
@@ -65,11 +65,17 @@ export function recordMigrated(slug, { origin, target, sourceActor = '', isPubli
  * gericht zijn MOGEN NIET publiek getoond worden. Een migration-collectie die
  * de URIs van je fan-only posts opsomt is een lek, ook zonder de inhoud.
  */
-export function migrationItems(slug, { alles = false } = {}) {
+export function migrationItems(slug, { alles = false, limit = null, offset = 0 } = {}) {
   try {
+    // IN SQL pagineren, niet in geheugen. Dit is een PUBLIEK endpoint dat
+    // derden volgens FEP-1580 juist herhaaldelijk ophalen tot migrationComplete
+    // waar is. Alles laden om er twintig te tonen is dan geen inefficientie
+    // maar een hefboom: bij honderdduizend berichten bouwt elke poll
+    // honderdduizend objecten die meteen de prullenbak in gaan.
     const sql = `SELECT origin, target, source_actor FROM ap_migration
-                 WHERE slug = ?${alles ? '' : ' AND is_public = 1'} ORDER BY id DESC`;
-    return db.prepare(sql).all(slug);
+                 WHERE slug = ?${alles ? '' : ' AND is_public = 1'}
+                 ORDER BY id DESC${limit ? ' LIMIT ? OFFSET ?' : ''}`;
+    return limit ? db.prepare(sql).all(slug, limit, offset) : db.prepare(sql).all(slug);
   } catch { return []; }
 }
 
@@ -150,7 +156,12 @@ export function setMigrationComplete(slug, klaar) {
 export function buildMigration(base, site, { page = false, alles = false } = {}) {
   const me = actorId(base, site.slug);
   const id = `${me}/migration`;
-  const rows = migrationItems(site.slug, { alles });
+  const totaal = migrationCount(site.slug, { alles });
+  // Zonder pagina: alleen de omslag met eerste/laatste en de telling. Zo hoeft
+  // de kale collectie geen enkele rij aan te raken, en dat is precies wat een
+  // consument als eerste opvraagt.
+  const nr = page ? Math.max(1, Math.floor(Number(page)) || 1) : false;
+  const rows = nr ? migrationItems(site.slug, { alles, limit: PAGINA_GROOTTE, offset: (nr - 1) * PAGINA_GROOTTE }) : [];
   const items = rows.map((r) => ({
     type: 'Move',
     actor: r.source_actor || undefined,
@@ -158,7 +169,9 @@ export function buildMigration(base, site, { page = false, alles = false } = {})
     target: r.target,
   }));
   return pagedCollection(id, items, {
-    page,
+    page: nr,
+    totalItems: totaal,
+    alGesneden: true,
     extra: {
       attributedTo: me,
       moves: `${me}/moves`,

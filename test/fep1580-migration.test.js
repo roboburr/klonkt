@@ -148,12 +148,44 @@ test('de vertaaltabel mapt oud naar nieuw, nieuwste kopie eerst', () => {
   const s = site();
   Mig.recordMigrated('ik', { origin: `${BRON}/notes/1`, target: `${IK}/notes/a`, sourceActor: BRON });
   Mig.recordMigrated('ik', { origin: `${BRON}/notes/2`, target: `${IK}/notes/b`, sourceActor: BRON });
-  const coll = Mig.buildMigration('https://nieuw.example', s);
+  // De KALE collectie draagt alleen de telling en de wegwijzers. Bewust: dit is
+  // een publiek endpoint dat derden herhaaldelijk pollen, en alle rijen laden om
+  // er twintig te tonen is bij honderdduizend berichten een hefboom. Bovendien
+  // was een kale collectie MET items precies de valstrik waar onze eigen ingest
+  // in liep: hij zag items, sloeg `first` over en miste de helft.
+  const kaal = Mig.buildMigration('https://nieuw.example', s);
+  assert.equal(kaal.totalItems, 2, 'de telling staat er wel');
+  assert.equal((kaal.orderedItems || []).length, 0, 'maar de rijen niet');
+  assert.ok(kaal.first, 'wie ze wil volgt first');
+
+  const coll = Mig.buildMigration('https://nieuw.example', s, { page: 1 });
   assert.equal(coll.totalItems, 2);
   const items = coll.orderedItems || coll.items;
+  assert.equal(items.length, 2);
   assert.equal(items[0].origin, `${BRON}/notes/2`, 'omgekeerd chronologisch op aanmaakmoment HIER');
   assert.equal(items[0].type, 'Move');
   assert.equal(items[0].target, `${IK}/notes/b`);
+});
+
+test('de publieke vertaaltabel laadt niet alles om twintig te tonen', () => {
+  // Robins herinnering: honderd miljoen Klonkt-gebruikers. Dit endpoint is
+  // publiek en derden pollen het tot migrationComplete waar is, dus een query
+  // zonder LIMIT is hier geen inefficientie maar een hefboom.
+  const s = site();
+  for (let i = 0; i < 45; i++) {
+    Mig.recordMigrated('ik', { origin: `${BRON}/notes/n${i}`, target: `${IK}/notes/n${i}` });
+  }
+  const p1 = Mig.buildMigration('https://nieuw.example', s, { page: 1 });
+  assert.equal(p1.totalItems, 45, 'de telling klopt over het geheel');
+  assert.equal(p1.orderedItems.length, 20, 'maar er komt een PAGINA uit, geen bak van 45');
+  assert.ok(p1.next, 'en er is een volgende');
+  const p3 = Mig.buildMigration('https://nieuw.example', s, { page: 3 });
+  assert.equal(p3.orderedItems.length, 5, 'de laatste pagina is de rest');
+  assert.equal(p3.next, undefined, 'en die biedt geen volgende meer aan');
+  // De pagina's overlappen niet en samen zijn ze het geheel.
+  const p2 = Mig.buildMigration('https://nieuw.example', s, { page: 2 });
+  const alle = [...p1.orderedItems, ...p2.orderedItems, ...p3.orderedItems].map((x) => x.origin);
+  assert.equal(new Set(alle).size, 45, 'geen dubbele en niets kwijt');
 });
 
 test('niet-publieke items staan niet in de publieke vertaaltabel', () => {
