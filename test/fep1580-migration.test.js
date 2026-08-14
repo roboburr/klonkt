@@ -576,6 +576,41 @@ test('de omslag komt ook mee als hij in `image` zit in plaats van in attachment'
   assert.ok(covers.includes('/media/post-images/omslag.png'), 'op het pad van de bron');
 });
 
+test('links naar de bronpost buigen om naar hier, in dezelfde ronde', async () => {
+  // De gebakken "luister op"-links: buildNote zet
+  // https://oud/<slug>#track-<id> en ?fc=2 in de content. Die bleven naar de
+  // oude site wijzen, en dat is een tijdbom: zodra dat domein weg is staan er
+  // dode links in je eigen berichten. Slugs en track-ids blijven behouden, dus
+  // de fragmenten kloppen vanzelf zodra de host eraf is.
+  const s = site({ aliases: [BRON] });
+  const OUD = 'https://oud.example';
+  const kaart = new Map([
+    [BRON, { id: BRON, type: 'Person', movedTo: IK, outbox: `${BRON}/outbox` }],
+    [`${BRON}/outbox`, { type: 'OrderedCollection', totalItems: 2, first: `${BRON}/outbox?page=1` }],
+    [`${BRON}/outbox?page=1`, { type: 'OrderedCollectionPage', orderedItems: [
+      note(`${BRON}/notes/tiktik`, { url: `${OUD}/tiktik`, content:
+        `<p>🎵 <a href="${OUD}/tiktik#track-t1">TikTik</a> — <a href="${OUD}/tiktik?fc=2">luister</a></p>` }),
+      // een link naar iets dat we NIET hebben blijft met rust
+      note(`${BRON}/notes/ander`, { url: `${OUD}/ander`, content:
+        `<p>zie <a href="${OUD}/bestaat-hier-niet">daar</a></p>` }),
+    ] }],
+  ]);
+  const r = await stil(() => Mig.ingestFromSource(s, { deps: {
+    getJson: async (_s, url) => kaart.get(url) || null,
+    noteId: (b, id) => `${b}/ap/notes/${id}`,
+    noteVisibility: AP.noteVisibility,
+  } }));
+  assert.equal(r.posts, 2);
+  const tik = db.prepare("SELECT content FROM posts WHERE slug = 'tiktik'").get().content;
+  assert.ok(tik.includes('href="/tiktik#track-t1"'), `fragment blijft heel, kreeg: ${tik}`);
+  assert.ok(tik.includes('href="/tiktik?fc=2"'), 'en de querystring ook');
+  assert.ok(!tik.includes('oud.example'), 'er wijst niets meer naar de oude site');
+  const ander = db.prepare("SELECT content FROM posts WHERE slug = 'ander'").get().content;
+  assert.ok(ander.includes(`${OUD}/bestaat-hier-niet`),
+    'een link naar iets dat hier niet bestaat blijft staan: beter de oude site dan een 404 op de nieuwe');
+  assert.equal(r.linksBijgetrokken, 1);
+});
+
 test('een bericht dat je zelf hebt verwijderd komt bij een tweede ronde terug', async () => {
   // Robin: "ik kan handmatig deze keer de posts verwijderen en opnieuw ophalen."
   // Met de eerste opzet kon dat niet: de mapping in ap_migration zei "al gehad"

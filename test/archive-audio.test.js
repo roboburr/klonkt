@@ -233,4 +233,28 @@ test('een hoes die niet in het archief zit levert GEEN kapotte verwijzing op', (
     'geen verwijzing naar een plaatje dat er niet is');
 });
 
+test('ook een zip-import buigt links naar de bronpost om', () => {
+  // Robin: "het moet wel gebeuren bij migratie direct ook". Een zip-import is
+  // net zo goed een verhuizing, dus dezelfde regel.
+  leeg();
+  try { db.prepare('DELETE FROM posts').run(); } catch { /* leeg */ }
+  db.prepare(`INSERT INTO posts (id, site_id, author_id, slug, title, content, status, published_at)
+              VALUES ('pl1','s1','u1','tiktik','TikTik','<p><a href="https://oud.test/tiktik?fc=2">luister</a></p>','published','2026-01-01T10:00:00Z')`).run();
+  const uit = AX.buildArchive('me');
+
+  db.prepare('DELETE FROM posts').run();
+  // De import doet alsof het archief van oud.test komt; deze site is oud.test
+  // niet, dus de links moeten om.
+  const files = new Map(uit.files);
+  const man = JSON.parse(files.get('manifest.json').toString('utf8'));
+  man.origin = 'https://oud.test';
+  files.set('manifest.json', Buffer.from(JSON.stringify(man)));
+
+  const r = AI.importArchive(files, { slug: 'me', origin: 'https://nieuw.test' });
+  const c = db.prepare("SELECT content FROM posts WHERE slug = 'tiktik'").get().content;
+  assert.ok(c.includes('href="/tiktik?fc=2"'), `omgebogen naar hier, kreeg: ${c}`);
+  assert.ok(!c.includes('oud.test'), 'niets wijst meer naar de bron');
+  assert.equal(r.linksBijgetrokken, 1, 'en het verslag zegt het');
+});
+
 test.after(() => { try { fs.rmSync(TMP, { recursive: true, force: true }); } catch { /* niets */ } });

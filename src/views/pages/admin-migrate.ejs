@@ -86,6 +86,7 @@
                 gedaan. %>
             <% if (haalVerslag.tracksBijgewerkt) { %><li><strong><%= haalVerslag.tracksBijgewerkt %></strong> <%= t('mig.r_tracks_updated') %></li><% } %>
             <% if (haalVerslag.postsBijgewerkt) { %><li><strong><%= haalVerslag.postsBijgewerkt %></strong> <%= t('mig.r_posts_updated') %></li><% } %>
+            <% if (haalVerslag.linksBijgetrokken) { %><li><strong><%= haalVerslag.linksBijgetrokken %></strong> <%= t('mig.r_links_fixed') %></li><% } %>
             <% if (haalVerslag.playlistsBinnen) { %><li><strong><%= haalVerslag.playlistsBinnen %></strong> <%= t('mig.c_playlists') %></li><% } %>
           </ul>
           <% if (haalVerslag.tracksMislukt) { %>
@@ -135,6 +136,7 @@
               ontvangende kant net zo min of je bibliotheek is aangekomen. %>
           <% if (verslag.tracks) { %><li><strong><%= verslag.tracks %></strong> <%= t('mig.c_tracks') %></li><% } %>
           <% if (verslag.playlists) { %><li><strong><%= verslag.playlists %></strong> <%= t('mig.c_playlists') %></li><% } %>
+          <% if (verslag.linksBijgetrokken) { %><li><strong><%= verslag.linksBijgetrokken %></strong> <%= t('mig.r_links_fixed') %></li><% } %>
         </ul>
         <% if (verslag.tracksMissing) { %>
           <p class="alert alert-error"><%= t('mig.r_tracks_missing', { n: verslag.tracksMissing }) %></p>

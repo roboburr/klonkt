@@ -255,7 +255,7 @@ export function importArchive(files, opts = {}) {
     formatVersion: null, origin: null, idsBehouden: null,
     posts: 0, overgeslagen: 0, overschreven: 0,
     replies: 0, media: 0, mediaMissing: 0, gemist: [], waarschuwingen: [],
-    tracks: 0, tracksMissing: 0, playlists: 0,
+    tracks: 0, tracksMissing: 0, playlists: 0, linksBijgetrokken: 0,
   };
 
   const manifestBuf = files.get('manifest.json');
@@ -503,6 +503,17 @@ export function importArchive(files, opts = {}) {
           isPublic: !(s.obj && (s.obj['shaer:fanOnly'] || s.obj['shaer:apVisibility'] === 'direct')),
         });
       }
+    }
+
+    // Links naar de BRONPOSTS ombuigen naar hier. Ook bij een zip-import: een
+    // verhuizing is een verhuizing, en een bericht dat naar het oude domein
+    // linkt wordt een dode link zodra dat domein opgezegd wordt. Binnen dezelfde
+    // transactie, want half bijgetrokken is erger dan niet.
+    //
+    // Pas hier, aan het eind: nu staan alle berichten er, dus nu weten we welke
+    // slugs bestaan. Een link naar iets dat we niet hebben blijft met rust.
+    if (manifest.origin && manifest.origin !== eigenOrigin) {
+      Migration.postLinksBijtrekken(site, String(manifest.origin).replace(/\/+$/, ''), rapport);
     }
   })();
 

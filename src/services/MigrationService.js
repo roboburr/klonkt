@@ -240,6 +240,49 @@ function slugUitUri(uri) {
 const AFBEELDING = /^image\//i;
 
 /**
+ * Links naar de BRONPOSTS ombuigen naar hier.
+ *
+ * De gebakken content zit vol met https://oud/<slug>#track-<id> en
+ * https://oud/<slug>?fc=2: de "luister op"-links die buildNote maakt. Die
+ * blijven naar de oude site wijzen, en dat is een tijdbom, want zodra dat
+ * domein opgezegd wordt zijn het dode links in je eigen berichten.
+ *
+ * Kan pas als ALLE posts binnen zijn, en alleen voor een slug die hier echt
+ * bestaat. Een link naar iets dat we niet hebben laten we met rust: dan is een
+ * verwijzing naar de oude site nog altijd beter dan een 404 op de nieuwe.
+ *
+ * De #track-<id>-fragmenten kloppen vanzelf, want sinds "altijd behouden" is
+ * dat id hier hetzelfde.
+ */
+export function postLinksBijtrekken(site, bronOrigin, rapport = {}) {
+  if (!bronOrigin) return 0;
+  let n = 0;
+  const rijen = db.prepare('SELECT id, content FROM posts WHERE site_id = ? AND content LIKE ?')
+    .all(site.id, `%${bronOrigin}/%`);
+  if (!rijen.length) return 0;
+  const heeftSlug = db.prepare('SELECT 1 FROM posts WHERE site_id = ? AND slug = ?');
+  const upd = db.prepare('UPDATE posts SET content = ? WHERE id = ?');
+  const patroon = new RegExp(`${bronOrigin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/([A-Za-z0-9._~-]+)`, 'g');
+  for (const r of rijen) {
+    let inhoud = String(r.content || '');
+    let raak = false;
+    for (const m of [...new Set([...inhoud.matchAll(patroon)].map((x) => x[1]))]) {
+      // media en audio lopen via hun eigen weg; hier gaat het om postpagina's
+      if (m === 'media' || m === 'audio' || m === 'ap') continue;
+      if (!heeftSlug.get(site.id, m)) continue;
+      inhoud = inhoud.split(`${bronOrigin}/${m}`).join(`/${m}`);
+      raak = true;
+    }
+    if (raak) { upd.run(inhoud, r.id); n++; }
+  }
+  if (n) {
+    rapport.linksBijgetrokken = n;
+    console.log('[FEP-1580] postlinks bijgetrokken in', n, 'bericht(en)');
+  }
+  return n;
+}
+
+/**
  * Waar kan de omslag van een bericht zitten?
  *
  * Niet alleen in `attachment`. Klonkt onderdrukt de beeldbijlage met opzet
@@ -768,6 +811,10 @@ export async function ingestFromSource(site, {
     } else if (tracksUrl) {
       rapport.waarschuwingen.push('muziekbibliotheek overgeslagen: geen audiomap meegegeven');
     }
+
+    // Postlinks eerst: pas nu zijn ALLE berichten binnen, dus pas nu weten we
+    // welke slugs hier bestaan.
+    postLinksBijtrekken(site, bronOrigin, rapport);
 
     // ── De verwijzingen in de tekst bijtrekken ────────────────────
     //
