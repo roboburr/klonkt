@@ -125,20 +125,26 @@ test('een nieuwere formaatversie wordt in zijn GEHEEL geweigerd', () => {
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM posts').get().n, 0, 'en er is niets geschreven');
 });
 
-test('een andere origin levert NIEUWE ids op, met een waarschuwing', () => {
-  // Oude ids houden op een ander domein zou objecten publiceren onder een id dat
-  // je niet beheert -- andere servers halen dat daar op, en het is bovendien een
-  // vervalsingsoppervlak.
+test('een andere origin geeft een nieuw AP-adres, maar het interne id BLIJFT', () => {
+  // Omgedraaid op 14-8 (Robin: "altijd behouden"). Het interne id is niet
+  // hetzelfde als de AP-URI: https://nieuw/ap/notes/<id> is een ander adres dan
+  // https://oud/ap/notes/<id>, dus je claimt niets van een ander door het GUID
+  // te hergebruiken. Wat je wint is dat elke INTERNE verwijzing blijft kloppen.
+  //
+  // Het oude gedrag brak precies dat: een post uit de zip hield
+  // [[track:<oud id>]] in zijn tekst terwijl het nummer een nieuw id kreeg, en
+  // dan zie je de shorthand als kale tekst in je bericht staan.
   leeg();
   const files = new Map(ARCHIEF.files);
   const m = JSON.parse(files.get('manifest.json').toString());
   m.origin = 'https://ergens-anders.test';
   files.set('manifest.json', Buffer.from(JSON.stringify(m)));
   const r = AI.importArchive(files, { slug: 'me' });
-  assert.equal(r.idsBehouden, false);
+  assert.equal(r.idsBehouden, false, 'de AP-URI verandert wel, en dat blijft gemeld');
   assert.match(r.waarschuwingen.join(' '), /origin verschilt/);
-  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM posts WHERE id = 'zwaar'").get().n, 0);
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM posts').get().n, 1, 'wel geimporteerd, met een nieuw id');
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM posts WHERE id = 'zwaar'").get().n, 1,
+    'het interne id komt ongewijzigd terug');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM posts').get().n, 1);
 });
 
 test('ontbrekende media worden geteld en gemeld', () => {

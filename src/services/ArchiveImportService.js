@@ -284,15 +284,27 @@ export function importArchive(files, opts = {}) {
   const eigenOrigin = (opts.origin || process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   rapport.origin = manifest.origin || null;
 
-  // IDENTITEIT. Gelijke origin -> de AP-ids blijven, en daarmee vinden de boosts
-  // en antwoorden die er al naar wijzen hun post terug. Anders nieuwe ids, want
-  // een id op andermans domein publiceren is een vervalsingsoppervlak en andere
-  // servers halen het daar toch op.
+  // IDENTITEIT. Het INTERNE id blijft altijd (Robins besluit, 14-8).
+  //
+  // Dat is iets anders dan de AP-URI. Die is domeingebonden en wordt hoe dan
+  // ook nieuw: https://nieuw/ap/notes/<id> is een ander adres dan
+  // https://oud/ap/notes/<id>. Je claimt dus niets van een ander door het GUID
+  // te hergebruiken, en je wint dat elke INTERNE verwijzing blijft kloppen:
+  // [[track:]], [[playlist:]] en [[album:]] wijzen na een verhuizing nog naar
+  // het goede ding.
+  //
+  // Voorheen hing dit aan de origin, en alleen voor posts; tracks en playlists
+  // hielden hun id al wel. Die scheve tabel was precies waarom een post uit de
+  // zip met [[track:oud]] naast een nummer uit de pull met een nieuw id kwam te
+  // staan, en je de shorthand als kale tekst in je bericht zag.
+  //
+  // `idsBehouden` gaat hieronder alleen nog over de AP-URI: gelijke origin
+  // betekent dat ook die identiek blijft, en dan valt er niets te vertalen.
   const idsBehouden = !!(manifest.origin && eigenOrigin && manifest.origin === eigenOrigin);
   rapport.idsBehouden = idsBehouden;
   if (!idsBehouden) {
     rapport.waarschuwingen.push(
-      `origin verschilt (archief ${manifest.origin || '?'} vs deze site ${eigenOrigin || '?'}): nieuwe AP-ids, de oude blijven als verwijzing staan`,
+      `origin verschilt (archief ${manifest.origin || '?'} vs deze site ${eigenOrigin || '?'}): de berichten krijgen een nieuw AP-adres. Hun interne id blijft, dus verwijzingen binnen je site blijven kloppen.`,
     );
   }
 
@@ -306,7 +318,9 @@ export function importArchive(files, opts = {}) {
   for (const pad of postPaden) {
     const o = JSON.parse(files.get(pad).toString('utf8'));
     const oudId = decodeURIComponent(String(o.id || '').split('/ap/notes/')[1] || path.basename(pad, '.json'));
-    const nieuwId = idsBehouden ? oudId : randomUUID();
+    // Altijd het id uit het archief. Staat er hier al iets met dat id, dan is
+    // dat hetzelfde object, en dat handelt de botsingscontrole hieronder af.
+    const nieuwId = oudId;
     idKaart.set(oudId, nieuwId);
 
     const botsing = !!bestaatId.get(nieuwId) || !!bestaatSlug.get(site.id, o['shaer:slug']);

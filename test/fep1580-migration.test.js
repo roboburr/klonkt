@@ -480,7 +480,7 @@ test('een bericht dat je zelf hebt verwijderd komt bij een tweede ronde terug', 
   assert.equal(db.prepare('SELECT COUNT(*) n FROM posts').get().n, 2, 'geen dubbele');
 });
 
-test('de [[track:]]-verwijzing in een bericht wordt bijgetrokken', async () => {
+test('de [[track:]]-verwijzing in een bericht blijft naar een bestaand nummer wijzen', async () => {
   // Wat Robin op TikTik zag: het bericht toonde de shorthand zelf in plaats van
   // een speler. Zijn posts kwamen uit de ZIP (die bewaart posts.content
   // letterlijk, inclusief [[track:<oud id>]]) en zijn nummers uit de PULL (die
@@ -514,12 +514,57 @@ test('de [[track:]]-verwijzing in een bericht wordt bijgetrokken', async () => {
     },
   }));
 
+  // DE EIS, ongeacht hoe: na een verhuizing wijst de shorthand naar een nummer
+  // dat hier bestaat. Sinds "altijd behouden" (14-8) klopt dat meestal vanzelf,
+  // want het id verandert niet meer. Botst het id wel, dan trekt de ingest de
+  // tekst bij. Deze test toetst de UITKOMST en niet de route ernaartoe.
   const inhoud = db.prepare("SELECT content FROM posts WHERE id = 'pz'").get().content;
   const m = /\[\[track:([^\]]+)\]\]/.exec(inhoud);
-  assert.ok(m, 'de shorthand blijft staan, alleen het id verandert');
-  assert.notEqual(m[1], 't-oud', 'het oude id wijst hier nergens heen');
+  assert.ok(m, 'de shorthand blijft staan');
   const bestaat = db.prepare('SELECT 1 FROM audio_tracks WHERE id = ? AND site_id = ?').get(m[1], 's1');
-  assert.ok(bestaat, 'en het nieuwe id hoort bij een nummer dat er echt is');
+  assert.ok(bestaat, `[[track:${m[1]}]] hoort bij een nummer dat er echt is`);
+  assert.equal(m[1], 't-oud', 'en omdat het id behouden blijft, hoefde er niets herschreven');
+});
+
+test('botst het track-id wel, dan wordt de tekst bijgetrokken', async () => {
+  // Het vangnet. "Altijd behouden" kan niet als er hier al iets anders met dat
+  // id staat; dan krijgt het nummer een ander id en moet de shorthand mee.
+  const s2 = site({ aliases: [BRON] });
+  db.prepare(`INSERT INTO posts (id, site_id, author_id, slug, title, content, status, published_at)
+              VALUES ('pb','s1','u1','botsing','Botsing','<p>[[track:t-bots]]</p>','published','2026-08-13T10:00:00Z')`).run();
+  // Een nummer dat hier AL bestaat onder datzelfde id, van iets anders.
+  db.prepare("INSERT INTO media (id, site_id, filename, mime_type, size, storage_path) VALUES ('mx','s1','x.mp3','audio/mpeg',1,'/x')").run();
+  db.prepare("INSERT INTO audio_tracks (id, site_id, title, media_id) VALUES ('t-bots','s1','Al van mij','mx')").run();
+
+  const kaart2 = new Map([
+    [BRON, { id: BRON, type: 'Person', movedTo: IK, outbox: `${BRON}/outbox`, streams: [`${BRON}/tracks`] }],
+    [`${BRON}/outbox`, { type: 'OrderedCollection', orderedItems: [] }],
+    [`${BRON}/tracks`, {
+      type: 'OrderedCollection',
+      orderedItems: [{
+        id: `${BRON}/tracks/t-bots`, type: 'Audio', name: 'Van de bron',
+        url: [{ type: 'Link', href: `${BRON}/audio/y.mp3`, mediaType: 'audio/mpeg' }],
+      }],
+    }],
+  ]);
+  await stil(() => Mig.ingestFromSource(s2, {
+    deps: {
+      getJson: async (_slug, url) => kaart2.get(url) || null,
+      noteId: (b, id) => `${b}/ap/notes/${id}`,
+      noteVisibility: AP.noteVisibility,
+      audioRoot: '/nep/audio', mediaRoot: '/nep/media',
+      signHeaders: () => ({ Signature: 'nep' }),
+      safeFetch: async () => ({ ok: true, arrayBuffer: async () => Buffer.from('y'), headers: { get: () => 'audio/mpeg' } }),
+      fs: { mkdirSync() {}, writeFileSync() {} },
+      path,
+    },
+  }));
+  // Het bestaande nummer blijft van jou; de tekst wijst naar iets dat bestaat.
+  const inhoud = db.prepare("SELECT content FROM posts WHERE id = 'pb'").get().content;
+  const m = /\[\[track:([^\]]+)\]\]/.exec(inhoud);
+  assert.ok(m);
+  assert.ok(db.prepare('SELECT 1 FROM audio_tracks WHERE id = ? AND site_id = ?').get(m[1], 's1'),
+    'wat er ook gebeurde met het id, de verwijzing wijst naar een bestaand nummer');
 });
 
 test('een niet-publiek bericht komt wel mee maar niet in de publieke tabel', async () => {

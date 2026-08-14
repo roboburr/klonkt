@@ -416,19 +416,16 @@ export async function ingestFromSource(site, {
         const auteur = typeof o.attributedTo === 'string' ? o.attributedTo : (o.attributedTo && o.attributedTo.id);
         if (auteur && auteur !== bronActor.id) continue;              // alleen wat van HEM was
         gezien++;
-        // Al binnen? Alleen overslaan als het bericht er OOK nog staat. Heb je
-        // het verwijderd, dan is opnieuw ophalen precies wat je bedoelt, en
-        // een mapping die dat blokkeert is een val: opruimen hielp dan niet,
-        // want de blokkade zat in ap_migration en niet in de posts.
-        const eerderPost = migrationTarget(site.slug, o.id);
-        if (eerderPost) {
-          const postId = String(eerderPost).split('/').pop();
-          if (db.prepare('SELECT 1 FROM posts WHERE id = ? AND site_id = ?').get(decodeURIComponent(postId), site.id)) {
-            rapport.overgeslagen++;
-            continue;
-          }
-          rapport.opnieuw++;   // weg hier, dus opnieuw binnenhalen
+        // Het interne id BLIJFT (Robins besluit, 14-8). Daarmee is "staat hij
+        // hier al" gewoon een blik in de tabel, en niet iets dat je uit een
+        // aparte mapping moet afleiden. Verwijder je een bericht en haal je
+        // opnieuw op, dan komt het gewoon terug: er staat immers niets meer.
+        const id = ruwId(o.id) || crypto.randomUUID();
+        if (db.prepare('SELECT 1 FROM posts WHERE id = ? AND site_id = ?').get(id, site.id)) {
+          rapport.overgeslagen++;
+          continue;
         }
+        if (migrationTarget(site.slug, o.id)) rapport.opnieuw++;   // was er, is weg, komt terug
 
         // Media eerst, want een post die naar een plaatje wijst dat we niet
         // hebben opgehaald is een halve post. Mislukt een bijlage, dan gaat de
@@ -450,7 +447,6 @@ export async function ingestFromSource(site, {
           }
         }
 
-        const id = crypto.randomUUID();
         const cover = binnen.find((b) => AFBEELDING.test(b.type || ''));
         const rest = binnen.filter((b) => b !== cover);
         // De titel zit in de content, niet in een veld (zie titelUitContent).
@@ -525,11 +521,10 @@ export async function ingestFromSource(site, {
         //
         // Alleen LEGE velden worden gevuld. Wat jij zelf hebt aangepast blijft
         // staan; een migratie hoort je correcties niet terug te draaien.
-        const eerder = migrationTarget(site.slug, a.id);
-        if (eerder) {
-          const lokaalId = String(eerder).split('/').pop();
+        const trackId = ruwId(a.id) || crypto.randomUUID();
+        {
           const rij = db.prepare('SELECT id, cover_url, duration, artist FROM audio_tracks WHERE id = ? AND site_id = ?')
-            .get(lokaalId, site.id);
+            .get(trackId, site.id);
           if (rij) {
             trackKaart.set(String(a.id), rij.id);   // MOET, anders vinden de playlists hem niet
             ruwKaart.set(ruwId(a.id), rij.id);
@@ -556,8 +551,6 @@ export async function ingestFromSource(site, {
             }
             continue;
           }
-          // De rij is weg maar de mapping staat er nog. Dan is opnieuw ophalen
-          // precies wat je wilt, dus we vallen door naar de gewone tak.
         }
         const bron = a.url && (typeof a.url === 'string' ? a.url : (Array.isArray(a.url) ? (a.url[0] && (a.url[0].href || a.url[0])) : a.url.href));
         if (!bron || !/^https?:\/\//i.test(String(bron))) { rapport.tracksMislukt++; continue; }
@@ -582,7 +575,6 @@ export async function ingestFromSource(site, {
           if (h) { hoes = h.url; rapport.media++; }
           else rapport.waarschuwingen.push(`hoes niet opgehaald: ${a.name || hoesUrl}`);
         }
-        const trackId = crypto.randomUUID();
         const mediaId = crypto.randomUUID();
         try {
           db.prepare('INSERT INTO media (id, site_id, filename, mime_type, size, storage_path) VALUES (?,?,?,?,?,?)')
@@ -650,9 +642,6 @@ export async function ingestFromSource(site, {
           rapport.waarschuwingen.push(`playlist ${plc.name || uri}: geen van de nummers is aangekomen, overgeslagen`);
           continue;
         }
-        // Bestond hij al? Dan dezelfde rij bijwerken. Zonder deze stap levert
-        // elke tweede ronde een dubbele plaat op.
-        const eerderPl = migrationTarget(site.slug, uri);
         // De hoes van de plaat, net als bij een nummer.
         let plHoes = null;
         const plHoesUrl = (plc.icon && (plc.icon.url || plc.icon)) || (plc.image && (plc.image.url || plc.image)) || null;
@@ -664,12 +653,9 @@ export async function ingestFromSource(site, {
           if (h) { plHoes = h.url; rapport.media++; }
           else rapport.waarschuwingen.push(`hoes van playlist niet opgehaald: ${plc.name || uri}`);
         }
-        const plId = (() => {
-          if (!eerderPl) return crypto.randomUUID();
-          const bestaand = String(eerderPl).split('/').pop();
-          return db.prepare('SELECT 1 FROM playlists WHERE id = ? AND site_id = ?').get(bestaand, site.id)
-            ? bestaand : crypto.randomUUID();
-        })();
+        // Ook hier het id van de bron. Dan blijft [[playlist:<id>]] in een
+        // bericht wijzen, en is een tweede ronde vanzelf dezelfde rij.
+        const plId = ruwId(uri) || crypto.randomUUID();
         try {
           db.prepare(`INSERT INTO playlists (id, site_id, title, artist, year, kind, cover_url) VALUES (?,?,?,?,?,?,?)
                       ON CONFLICT(id) DO UPDATE SET
