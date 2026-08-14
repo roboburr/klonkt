@@ -239,6 +239,33 @@ function slugUitUri(uri) {
 
 const AFBEELDING = /^image\//i;
 
+/**
+ * Hoort deze URL bij de bron, en wijst hij onder /media/?
+ *
+ * Dan behouden we het PAD. Drie redenen tegelijk:
+ *   - de gebakken content verwijst relatief of absoluut naar dat pad, en met
+ *     hetzelfde pad hier klopt elke verwijzing zonder herschrijf-acrobatiek;
+ *   - de media-bibliotheek (Beheer, Media) scant de MAP post-images, niet de
+ *     databasetabel. Een bestand onder migrated/<uuid> bestaat wel en is
+ *     onzichtbaar: Robins lege images-tab;
+ *   - de zip-import bewaart originele paden al, dus zo convergeren beide
+ *     routes op dezelfde bestanden.
+ *
+ * De ../-bewaking is geen formaliteit: het pad komt van een andere server.
+ */
+function bronMediaPad(url, bronOrigin, { mediaRoot, path }) {
+  try {
+    const u = new URL(String(url));
+    if (`${u.protocol}//${u.host}` !== bronOrigin) return null;
+    if (!u.pathname.startsWith('/media/')) return null;
+    const rel = decodeURIComponent(u.pathname.slice('/media/'.length));
+    const abs = path.resolve(mediaRoot, rel);
+    const root = path.resolve(mediaRoot);
+    if (abs === root || !abs.startsWith(`${root}${path.sep}`)) return null;
+    return { rel: `/media/${rel}`, abs };
+  } catch { return null; }
+}
+
 /** AS2 geeft de duur als ISO-8601 ("PT212S"), de database wil seconden. */
 function duurSeconden(v) {
   if (v == null) return null;
@@ -278,7 +305,7 @@ function titelUitContent(html) {
  * want de URL komt van een andere server. Een bron die ons naar 127.0.0.1 wijst
  * moet stranden, ook als die bron "van onszelf" is.
  */
-async function haalBijlage(url, { safeFetch, mediaRoot, fs, path, maxBytes, submap = 'migrated', headers = null }) {
+async function haalBijlage(url, { safeFetch, mediaRoot, fs, path, maxBytes, submap = 'migrated', headers = null, doel = null }) {
   // Ondertekend als het moet. Gehoste audio zit achter dezelfde poort als de
   // rest van de bron, en een kale fetch krijgt daar een 403: de bron kan dan
   // niet zien dat wij de doel-actor van zijn Move zijn.
@@ -294,14 +321,61 @@ async function haalBijlage(url, { safeFetch, mediaRoot, fs, path, maxBytes, subm
     return (type.split('/')[1] || 'bin').replace(/[^a-z0-9]/gi, '').slice(0, 5) || 'bin';
   })();
   const naam = `${crypto.randomUUID()}.${ext}`;
+  // `doel` wint: dan behouden we het pad van de bron (zie bronMediaPad).
   // Zonder submap komt het bestand in de root zelf: dat is wat gehoste audio
   // nodig heeft, want de speler zoekt AUDIO_ROOT + bestandsnaam en kijkt niet
   // in mappen eronder.
-  const rel = submap ? `${submap}/${naam}` : naam;
-  const abs = submap ? path.join(mediaRoot, submap, naam) : path.join(mediaRoot, naam);
+  const rel = doel ? doel.rel : (submap ? `${submap}/${naam}` : naam);
+  const abs = doel ? doel.abs : (submap ? path.join(mediaRoot, submap, naam) : path.join(mediaRoot, naam));
   fs.mkdirSync(path.dirname(abs), { recursive: true });
   fs.writeFileSync(abs, buf);
-  return { url: `/media/${rel}`, mediaType: type, size: buf.length, filename: naam, storage_path: abs };
+  // doel.rel is al een volledig /media/-pad; de submap-variant is dat nog niet.
+  return { url: doel ? doel.rel : `/media/${rel}`, mediaType: type, size: buf.length, filename: naam, storage_path: abs };
+}
+
+/**
+ * Alle bron-media in een lap HTML binnenhalen en de verwijzingen relatief maken.
+ *
+ * Werkt op ALLE https://bron/media/...-voorkomens, niet alleen op <img src>:
+ * de gebakken content zet dezelfde URL ook in een href om het plaatje groot te
+ * openen, en een half herschreven paar (lokaal plaatje, hotlink eromheen) is
+ * verwarrender dan geen herschrijving.
+ *
+ * Idempotent: wat al gedownload is wordt niet opnieuw gehaald, en een tweede
+ * ronde over dezelfde tekst vindt gewoon niets meer te doen.
+ */
+async function inhoudMediaBinnen(html, bronOrigin, site, rapport, { safeFetch, mediaRoot, fs, path, maxBytes }) {
+  let inhoud = String(html || '');
+  if (!inhoud || !bronOrigin) return { inhoud, n: 0 };
+  // LET OP de dubbele backslash: dit is een STRING die een RegExp wordt. Met een
+  // enkele \s eet de template literal de backslash op en sluit de klasse de
+  // LETTER s uit; "post-images" knapte dan af op de s en elke URL met een s
+  // erin werd half herschreven. Gevonden doordat de waarschuwing ".../media/po"
+  // meldde, afgekapt precies voor de s.
+  const patroon = new RegExp(`${bronOrigin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(/media/[^"'\\s)<>]+)`, 'g');
+  const gezien = new Set();
+  let n = 0;
+  for (const m of [...inhoud.matchAll(patroon)]) {
+    const vol = m[0];
+    if (gezien.has(vol)) continue;
+    gezien.add(vol);
+    const doel = bronMediaPad(vol, bronOrigin, { mediaRoot, path });
+    if (!doel) { rapport.waarschuwingen.push(`onbruikbaar mediapad in tekst: ${vol}`); continue; }
+    let ok = false;
+    try { fs.statSync(doel.abs); ok = true; } catch { /* nog niet binnen */ }
+    if (!ok) {
+      const g = await haalBijlage(vol, { safeFetch, mediaRoot, fs, path, maxBytes, doel }).catch(() => null);
+      if (!g) { rapport.mediaMislukt++; rapport.waarschuwingen.push(`plaatje in tekst niet opgehaald: ${vol}`); continue; }
+      rapport.media++;
+      try {
+        db.prepare('INSERT INTO media (id, site_id, filename, mime_type, size, storage_path) VALUES (?, ?, ?, ?, ?, ?)')
+          .run(crypto.randomUUID(), site.id, path.basename(doel.abs), g.mediaType, g.size, doel.abs);
+      } catch { /* administratie */ }
+    }
+    inhoud = inhoud.split(vol).join(doel.rel);
+    n++;
+  }
+  return { inhoud, n };
 }
 
 /**
@@ -348,6 +422,9 @@ export async function ingestFromSource(site, {
   // 2 + 3. Het bron-actordocument, en de wegwijzer die naar ONS moet wijzen.
   const bronActor = await getJson(site.slug, bron);
   if (!bronActor || !bronActor.id) return { error: 'unreachable' };
+  // De origin van de bron: alles op deze host onder /media/ is van hem en mag
+  // naar hetzelfde pad hier. Uit de actor-id, niet uit de invoer.
+  const bronOrigin = (() => { try { const u = new URL(bronActor.id); return `${u.protocol}//${u.host}`; } catch { return null; } })();
   if (bronActor.movedTo !== me) return { error: 'not_moved_here', movedTo: bronActor.movedTo || null };
 
   // 4. En de terugverwijzing van onze kant, zodat het een afspraak is.
@@ -365,7 +442,7 @@ export async function ingestFromSource(site, {
   setMigrationComplete(site.slug, false);
 
   const rapport = {
-    bron: bronActor.id, posts: 0, overgeslagen: 0, opnieuw: 0, media: 0, mediaMislukt: 0,
+    bron: bronActor.id, posts: 0, overgeslagen: 0, opnieuw: 0, postsBijgewerkt: 0, media: 0, mediaMislukt: 0,
     blocks: 0, tracksBinnen: 0, tracksMislukt: 0, tracksBijgewerkt: 0, overgeslagenTracks: 0,
     playlistsBinnen: 0, playlistsMislukt: 0, waarschuwingen: [],
   };
@@ -392,7 +469,14 @@ export async function ingestFromSource(site, {
     // 8. De outbox aflopen. Pagineren zoals de rest van Klonkt dat doet.
     if (!bronActor.outbox) return { ...rapport, error: 'no_outbox' };
     let pagina = await getJson(site.slug, typeof bronActor.outbox === 'string' ? bronActor.outbox : bronActor.outbox.id);
-    if (pagina && pagina.first && !(pagina.orderedItems || pagina.items)) {
+    const verwacht = pagina && Number(pagina.totalItems) || null;
+    // Is er een `first`, dan ALTIJD de paginaketen volgen, ook als de kale
+    // collectie zelf items draagt. Klonkt zet daar een kopie van pagina 1 in
+    // (Pleroma eiste een first, en sindsdien staan ze er allebei), maar alleen
+    // echte pagina's dragen een `next`. Wie op de kale collectie blijft hangen
+    // verwerkt pagina 1 en denkt dan klaar te zijn: precies 18 van Robins 35
+    // berichten, zonder één waarschuwing.
+    if (pagina && pagina.first) {
       pagina = await getJson(site.slug, typeof pagina.first === 'string' ? pagina.first : pagina.first.id);
     }
 
@@ -421,7 +505,35 @@ export async function ingestFromSource(site, {
         // aparte mapping moet afleiden. Verwijder je een bericht en haal je
         // opnieuw op, dan komt het gewoon terug: er staat immers niets meer.
         const id = ruwId(o.id) || crypto.randomUUID();
-        if (db.prepare('SELECT 1 FROM posts WHERE id = ? AND site_id = ?').get(id, site.id)) {
+        const bestaand = db.prepare('SELECT id, content, cover_image_url FROM posts WHERE id = ? AND site_id = ?').get(id, site.id);
+        if (bestaand) {
+          // Niet alleen overslaan: REPAREREN wat een eerdere ronde liet liggen.
+          // Robins 18 posts stonden er al, met hotlinks naar de bron in de
+          // tekst en zonder cover. Een tweede ronde die dat ziet en passeert
+          // laat je met een site vol verwijzingen naar een domein dat
+          // opgezegd wordt.
+          if (safeFetch && fs && path && mediaRoot && bronOrigin && String(bestaand.content || '').includes(bronOrigin)) {
+            const r2 = await inhoudMediaBinnen(bestaand.content, bronOrigin, site, rapport, { safeFetch, mediaRoot, fs, path, maxBytes });
+            if (r2.n) {
+              db.prepare('UPDATE posts SET content = ? WHERE id = ?').run(r2.inhoud, bestaand.id);
+              rapport.postsBijgewerkt++;
+            }
+          }
+          if (!bestaand.cover_image_url && safeFetch && fs && path && mediaRoot) {
+            // De cover alsnog: hij zit als bijlage op de Note.
+            for (const a of (Array.isArray(o.attachment) ? o.attachment : []).slice(0, 20)) {
+              const u = a && (typeof a === 'string' ? a : (a.url && (typeof a.url === 'string' ? a.url : a.url.href)));
+              if (!u || !AFBEELDING.test(String((a && a.mediaType) || ''))) continue;
+              const doel = bronMediaPad(u, bronOrigin, { mediaRoot, path });
+              const g = await haalBijlage(String(u), { safeFetch, mediaRoot, fs, path, maxBytes, doel }).catch(() => null);
+              if (g) {
+                db.prepare('UPDATE posts SET cover_image_url = ? WHERE id = ?').run(g.url, bestaand.id);
+                rapport.media++;
+                rapport.postsBijgewerkt++;
+              }
+              break;
+            }
+          }
           rapport.overgeslagen++;
           continue;
         }
@@ -432,11 +544,13 @@ export async function ingestFromSource(site, {
         // post wel door en staat het in het verslag.
         const bijlagen = Array.isArray(o.attachment) ? o.attachment : [];
         const binnen = [];
+        let inhoud = o.content || '';
         if (safeFetch && fs && path && mediaRoot) {
           for (const a of bijlagen.slice(0, 20)) {
             const u = a && (typeof a === 'string' ? a : (a.url && (typeof a.url === 'string' ? a.url : a.url.href)));
             if (!u || !/^https?:\/\//i.test(String(u))) continue;
-            const g = await haalBijlage(String(u), { safeFetch, mediaRoot, fs, path, maxBytes }).catch(() => null);
+            const doel = bronMediaPad(u, bronOrigin, { mediaRoot, path });
+            const g = await haalBijlage(String(u), { safeFetch, mediaRoot, fs, path, maxBytes, doel }).catch(() => null);
             if (!g) { rapport.mediaMislukt++; rapport.waarschuwingen.push(`bijlage niet opgehaald: ${u}`); continue; }
             binnen.push({ ...g, naam: (a && a.name) || null, type: (a && a.mediaType) || g.mediaType });
             rapport.media++;
@@ -445,12 +559,21 @@ export async function ingestFromSource(site, {
                 .run(crypto.randomUUID(), site.id, g.filename, g.mediaType, g.size, g.storage_path);
             } catch { /* media-rij is administratie, het bestand staat er */ }
           }
+          // De PLAATJES IN DE TEKST. De gebakken content draagt absolute
+          // verwijzingen naar de bron (https://oud/media/...), en die bleven
+          // gewoon staan: elke afbeelding hotlinkte naar een domein dat je gaat
+          // opzeggen, en je eigen mediamap bleef leeg. Downloaden naar
+          // HETZELFDE pad en de verwijzing relatief maken; wat niet lukt blijft
+          // absoluut staan en wordt gemeld, want een lokale 404 is erger dan
+          // een hotlink.
+          const r2 = await inhoudMediaBinnen(inhoud, bronOrigin, site, rapport, { safeFetch, mediaRoot, fs, path, maxBytes });
+          inhoud = r2.inhoud;
         }
 
         const cover = binnen.find((b) => AFBEELDING.test(b.type || ''));
         const rest = binnen.filter((b) => b !== cover);
         // De titel zit in de content, niet in een veld (zie titelUitContent).
-        const { titel, rest: body } = o.name ? { titel: o.name, rest: o.content || '' } : titelUitContent(o.content || '');
+        const { titel, rest: body } = o.name ? { titel: o.name, rest: inhoud } : titelUitContent(inhoud);
         // De slug uit de MENSELIJKE url, niet uit de AP-id. Zo houdt het bericht
         // hetzelfde webadres als op de oude instantie, en blijft een link die
         // iemand ergens plakte kloppen op het nieuwe domein.
@@ -487,6 +610,11 @@ export async function ingestFromSource(site, {
       pagina = await getJson(site.slug, typeof volgende === 'string' ? volgende : volgende.id);
     }
     if (gezien >= max) rapport.waarschuwingen.push(`gestopt bij ${max} berichten, draai het nog eens voor de rest`);
+    // Silently minder ophalen dan de bron zegt te hebben is precies hoe 18 van
+    // de 35 wekenlang op "klaar" had kunnen staan. Tel na en zeg het.
+    if (verwacht && gezien < verwacht && gezien < max) {
+      rapport.waarschuwingen.push(`de bron meldt ${verwacht} items en er zijn er ${gezien} verwerkt; een pagina is mogelijk niet opgehaald, probeer het nog eens`);
+    }
 
     // ── De muziekbibliotheek ──────────────────────────────────────
     //

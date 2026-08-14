@@ -457,6 +457,84 @@ test('een tweede ronde VULT AAN en slaat niet over', async () => {
   assert.equal(r3.overgeslagenTracks, 1);
 });
 
+test('de outbox-keten wordt gevolgd, ook als de kale collectie zelf items draagt', async () => {
+  // Robins 18 van 35. Klonkts kale outbox draagt first EN een kopie van
+  // pagina 1 (Pleroma eiste ooit een first, sindsdien staan ze er allebei).
+  // De ingest zag items, sloeg first over, vond daarna geen next (dat veld
+  // bestaat alleen op echte pagina's) en dacht klaar te zijn. Zonder een
+  // waarschuwing, en dat was het ergste deel.
+  const s = site({ aliases: [BRON] });
+  const maak = (i) => note(`${BRON}/notes/n${i}`);
+  const p1 = Array.from({ length: 20 }, (_, i) => maak(i + 1));
+  const p2 = Array.from({ length: 8 }, (_, i) => maak(i + 21));
+  const kaart = new Map([
+    [BRON, { id: BRON, type: 'Person', movedTo: IK, outbox: `${BRON}/outbox` }],
+    // de valstrik: totalItems, first, EN de eerste twintig inline
+    [`${BRON}/outbox`, { type: 'OrderedCollection', totalItems: 28, first: `${BRON}/outbox?page=1`, orderedItems: p1 }],
+    [`${BRON}/outbox?page=1`, { type: 'OrderedCollectionPage', next: `${BRON}/outbox?page=2`, orderedItems: p1 }],
+    [`${BRON}/outbox?page=2`, { type: 'OrderedCollectionPage', orderedItems: p2 }],
+  ]);
+  const r = await stil(() => Mig.ingestFromSource(s, { deps: {
+    getJson: async (_s, url) => kaart.get(url) || null,
+    noteId: (b, id) => `${b}/ap/notes/${id}`,
+    noteVisibility: AP.noteVisibility,
+  } }));
+  assert.equal(r.posts, 28, 'alle pagina\'s, niet alleen de kopie op de kale collectie');
+});
+
+test('een niet opgehaalde pagina wordt GEMELD, niet verzwegen', async () => {
+  const s = site({ aliases: [BRON] });
+  const p1 = Array.from({ length: 20 }, (_, i) => note(`${BRON}/notes/n${i + 1}`));
+  const kaart = new Map([
+    [BRON, { id: BRON, type: 'Person', movedTo: IK, outbox: `${BRON}/outbox` }],
+    [`${BRON}/outbox`, { type: 'OrderedCollection', totalItems: 28, first: `${BRON}/outbox?page=1` }],
+    [`${BRON}/outbox?page=1`, { type: 'OrderedCollectionPage', next: `${BRON}/outbox?page=2`, orderedItems: p1 }],
+    // pagina 2 antwoordt niet (rate limit, netwerkstoring, wat dan ook)
+  ]);
+  const r = await stil(() => Mig.ingestFromSource(s, { deps: {
+    getJson: async (_s, url) => kaart.get(url) || null,
+    noteId: (b, id) => `${b}/ap/notes/${id}`,
+    noteVisibility: AP.noteVisibility,
+  } }));
+  assert.equal(r.posts, 20);
+  assert.ok(r.waarschuwingen.some((w) => /28 items en er zijn er 20/.test(w)),
+    'stil minder ophalen dan de bron meldt is hoe 18 van 35 wekenlang op klaar had gestaan');
+});
+
+test('een plaatje in de tekst wordt gedownload en de verwijzing wordt relatief', async () => {
+  // Robins hotlinks. En de valkuil die de eerste versie half liet werken: de
+  // regex stond als STRING in een template literal, \s werd een kale s, en
+  // elke URL met een s erin (post-images!) knapte af. Vandaar de assert op de
+  // VOLLEDIGE url, letter voor letter.
+  const s = site({ aliases: [BRON] });
+  const IMG = `${BRON.replace('/ap/users/robo', '')}/media/post-images/plaatje-strak.png`;
+  const kaart = new Map([
+    [BRON, { id: BRON, type: 'Person', movedTo: IK, outbox: `${BRON}/outbox` }],
+    [`${BRON}/outbox`, { type: 'OrderedCollection', totalItems: 1, first: `${BRON}/outbox?page=1` }],
+    [`${BRON}/outbox?page=1`, { type: 'OrderedCollectionPage', orderedItems: [
+      note(`${BRON}/notes/pi`, { content: `<p>kijk</p><a href="${IMG}"><img src="${IMG}"></a>` }),
+    ] }],
+  ]);
+  const opgehaald = [];
+  const geschreven = [];
+  const r = await stil(() => Mig.ingestFromSource(s, { deps: {
+    getJson: async (_s, url) => kaart.get(url) || null,
+    noteId: (b, id) => `${b}/ap/notes/${id}`,
+    noteVisibility: AP.noteVisibility,
+    mediaRoot: '/nep/media', audioRoot: '/nep/audio',
+    signHeaders: () => ({ Signature: 'nep' }),
+    safeFetch: async (url) => { opgehaald.push(url); return { ok: true, arrayBuffer: async () => Buffer.from('png'), headers: { get: () => 'image/png' } }; },
+    fs: { mkdirSync() {}, writeFileSync: (pad) => geschreven.push(pad), statSync() { throw new Error('ENOENT'); } },
+    path,
+  } }));
+  assert.equal(r.posts, 1);
+  assert.deepEqual(opgehaald, [IMG], 'de VOLLEDIGE url, niet een afgekapt stuk');
+  assert.deepEqual(geschreven, ['/nep/media/post-images/plaatje-strak.png'], 'op het pad van de bron');
+  const c = db.prepare("SELECT content FROM posts WHERE site_id = 's1'").get().content;
+  assert.ok(c.includes('src="/media/post-images/plaatje-strak.png"'), `relatief herschreven, kreeg: ${c}`);
+  assert.ok(!c.includes('oud.example'), 'en er hotlinkt niets meer naar de bron');
+});
+
 test('een bericht dat je zelf hebt verwijderd komt bij een tweede ronde terug', async () => {
   // Robin: "ik kan handmatig deze keer de posts verwijderen en opnieuw ophalen."
   // Met de eerste opzet kon dat niet: de mapping in ap_migration zei "al gehad"

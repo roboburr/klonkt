@@ -85,6 +85,7 @@
                 meldt terwijl hij drie nummers compleet maakte, leest als niets
                 gedaan. %>
             <% if (haalVerslag.tracksBijgewerkt) { %><li><strong><%= haalVerslag.tracksBijgewerkt %></strong> <%= t('mig.r_tracks_updated') %></li><% } %>
+            <% if (haalVerslag.postsBijgewerkt) { %><li><strong><%= haalVerslag.postsBijgewerkt %></strong> <%= t('mig.r_posts_updated') %></li><% } %>
             <% if (haalVerslag.playlistsBinnen) { %><li><strong><%= haalVerslag.playlistsBinnen %></strong> <%= t('mig.c_playlists') %></li><% } %>
           </ul>
           <% if (haalVerslag.tracksMislukt) { %>
