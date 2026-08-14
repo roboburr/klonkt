@@ -705,7 +705,16 @@ export function buildNote(base, site, post, opts = {}) {
       for (const mm of (post.content || '').matchAll(/\[\[playlist:([A-Za-z0-9_-]+)\]\]/g)) for (const r of db.prepare('SELECT t.title, t.cover_url, m.filename, m.storage_path, m.mime_type FROM playlist_tracks pt JOIN audio_tracks t ON t.id = pt.track_id JOIN media m ON m.id = t.media_id WHERE t.fedi_open = 1 AND pt.playlist_id = ? ORDER BY pt.position').all(mm[1])) addRow(r);
     } catch { /* non-fatal */ }
   }
-  body = body.replace(/\[\[(track|album|playlist):[^\]]+\]\]/gi, '');
+  // ONVERTAALD voor een verhuizing (FEP-1580). De doelinstantie IS een Klonkt:
+  // die rendert [[track:]], [[album:]] en [[playlist:]] zelf en maakt er een
+  // speler van. Bakken we ze eerst om, dan komt er een tekstlink aan en is de
+  // speler weg. Onherstelbaar bovendien: het bakken STRIPT de shorthand en
+  // plakt achteraan hooguit VIER titels, dus een album van tien nummers
+  // overleeft het niet.
+  //
+  // Dezelfde regel als bij de outbox en de tracks: wie ondertekend vraagt
+  // namens de actor waar wij naartoe verhuisd zijn, krijgt onze eigen kijk.
+  if (!opts.rauweInhoud) body = body.replace(/\[\[(track|album|playlist):[^\]]+\]\]/gi, '');
   // External embeds ([[embed:url]]) → emit the bare URL as a link so Mastodon
   // renders its OWN preview/player card (YouTube/Spotify/SoundCloud/etc) instead
   // of federating the raw shortcode text.
@@ -713,7 +722,7 @@ export function buildNote(base, site, post, opts = {}) {
     const u = esc(raw.trim().replace(/&amp;/g, '&'));
     return `<p><a href="${u}">${u}</a></p>`;
   });
-  if (hadAudio) {
+  if (hadAudio && !opts.rauweInhoud) {
     // Elke titel als eigen link naar zijn anker; een titel zonder id (een
     // albumnaam zonder tracks) blijft gewone tekst.
     const lbl = audioLabels.slice(0, 4)
@@ -1038,8 +1047,8 @@ export function groupConversations(items) {
   return out;
 }
 
-export function buildCreate(base, site, post) {
-  const note = buildNote(base, site, post);
+export function buildCreate(base, site, post, opts = {}) {
+  const note = buildNote(base, site, post, opts);
   return {
     '@context': AP_CONTEXT,
     id: note.id + '#create',
@@ -1122,11 +1131,11 @@ export function outboxSlice(siteId, { fanOnly = false, offset = 0, limit = MAX_O
   return { posts, tracks, totaal };
 }
 
-export function buildOutbox(base, site, posts, tracks = [], { page = false, totalItems, alGesneden = false } = {}) {
+export function buildOutbox(base, site, posts, tracks = [], { page = false, totalItems, alGesneden = false, rauweInhoud = false } = {}) {
   const id = `${actorId(base, site.slug)}/outbox`;
   const wanneer = (x) => Date.parse(x && x.published ? x.published : 0) || 0;
   const items = [
-    ...(posts || []).map((p) => buildCreate(base, site, p)),
+    ...(posts || []).map((p) => buildCreate(base, site, p, { rauweInhoud })),
     // Eén zoekopdracht voor alle tracks samen, niet per stuk.
     ...(() => {
       const posts = (tracks || []).length && site.id ? trackHostPosts(site.id) : null;

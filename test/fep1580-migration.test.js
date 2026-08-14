@@ -611,6 +611,30 @@ test('links naar de bronpost buigen om naar hier, in dezelfde ronde', async () =
   assert.equal(r.linksBijgetrokken, 1);
 });
 
+test('de doelinstantie krijgt de RAUWE inhoud, met de shorthand er nog in', () => {
+  // Robins laatste klacht: de post kwam aan met "🎵 TikTik — listen on
+  // soundfabrics" en zonder speler. De bron BAKT de shorthand namelijk om voor
+  // de fediverse: [[track:]] wordt gestript en er komt achteraan een blok met
+  // hooguit VIER titels. Onherstelbaar dus: een album van tien nummers is weg.
+  //
+  // Voor een verhuizing hoort dat bakken niet te gebeuren. De doelinstantie is
+  // zelf een Klonkt en maakt van [[track:]] gewoon weer een speler.
+  const s = site();
+  db.prepare("INSERT INTO media (id, site_id, filename, mime_type, size, storage_path) VALUES ('m1','s1','a.mp3','audio/mpeg',1,'/x/a.mp3')").run();
+  db.prepare("INSERT INTO audio_tracks (id, site_id, title, media_id) VALUES ('t1','s1','Nummer A','m1')").run();
+  db.prepare(`INSERT INTO posts (id, site_id, author_id, slug, title, content, status, published_at)
+              VALUES ('pa','s1','u1','plaat','Plaat','<p>hoor dit</p>[[track:t1]]','published','2026-01-01T10:00:00Z')`).run();
+  const post = db.prepare("SELECT * FROM posts WHERE id = 'pa'").get();
+
+  const gebakken = AP.buildNote('https://oud.example', s, post);
+  assert.ok(!gebakken.content.includes('[[track:t1]]'), 'de gewone federatie bakt hem om');
+  assert.match(gebakken.content, /listen on/, 'en plakt er een tekstlink aan');
+
+  const rauw = AP.buildNote('https://oud.example', s, post, { rauweInhoud: true });
+  assert.ok(rauw.content.includes('[[track:t1]]'), 'voor een verhuizing blijft de shorthand staan');
+  assert.ok(!/listen on/.test(rauw.content), 'en er wordt geen tekstlink aangeplakt');
+});
+
 test('een bericht dat je zelf hebt verwijderd komt bij een tweede ronde terug', async () => {
   // Robin: "ik kan handmatig deze keer de posts verwijderen en opnieuw ophalen."
   // Met de eerste opzet kon dat niet: de mapping in ap_migration zei "al gehad"

@@ -211,7 +211,13 @@ router.get('/ap/users/:slug/outbox', async (req, res) => {
     offset: (Math.max(1, nr || 1) - 1) * AP.PAGINA_GROOTTE,
     limit: AP.PAGINA_GROOTTE,
   });
-  const ob = AP.buildOutbox(baseUrl(req), site, posts, tracks, { page: nr, totalItems: totaal, alGesneden: true });
+  // FEP-1580: de instantie waar dit account naartoe verhuisd is krijgt de
+  // RAUWE inhoud, met [[track:]] en [[playlist:]] er nog in. Zij is een
+  // Klonkt en rendert die zelf tot een speler. De gebakken variant komt
+  // daar aan als tekstlink, en is bovendien onherstelbaar afgeknot: het
+  // bakken plakt hooguit vier titels aan.
+  const rauweInhoud = verifiedActor ? AP.isMoveTarget(site.slug, verifiedActor) : false;
+  const ob = AP.buildOutbox(baseUrl(req), site, posts, tracks, { page: nr, totalItems: totaal, alGesneden: true, rauweInhoud });
   if (audience === 'friend') {
     // The owner's app builds its feed from this leg, and every note here is
     // by the site itself, so give it a byline too (avatar + name): de
