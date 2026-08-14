@@ -21,6 +21,25 @@ wire, following [FEP-67ff](https://codeberg.org/fediverse/fep/src/branch/main/fe
 
 - [FEP-67ff: FEDERATION.md](https://codeberg.org/fediverse/fep/src/branch/main/fep/67ff/fep-67ff.md) (FINAL): this file.
 - [FEP-f1d5: NodeInfo in Fediverse Software](https://codeberg.org/fediverse/fep/src/branch/main/fep/f1d5/fep-f1d5.md) (FINAL): `/.well-known/nodeinfo` links to a NodeInfo 2.1 document advertising software, version and the `activitypub` protocol.
+- [FEP-e232: Object Links](https://codeberg.org/fediverse/fep/src/branch/main/fep/e232/fep-e232.md) (FINAL): `Link` tags with `mediaType` `application/ld+json; profile="https://www.w3.org/ns/activitystreams"` for object references inside content.
+- [FEP-044f: Consent-respecting quote posts](https://codeberg.org/fediverse/fep/src/branch/main/fep/044f/fep-044f.md) (DRAFT): a quoted fediverse object carries real quote semantics — the `quote` property plus an FEP-e232 `Link` tag — and renders as a quote card rather than a bare link.
+- [FEP-9098: Custom emojis](https://codeberg.org/fediverse/fep/src/branch/main/fep/9098/fep-9098.md) (DRAFT): `:shortcode:` emoji tags on content and display names, preserved on the wire so connected apps can render them.
+- [FEP-c648: Blocked Collection](https://codeberg.org/fediverse/fep/src/branch/main/fep/c648/fep-c648.md) (DRAFT): inbound `Block` and `Undo(Block)` are honoured.
+- [FEP-7628: Move actor](https://codeberg.org/fediverse/fep/src/branch/main/fep/7628/fep-7628.md) (DRAFT): account migration — `alsoKnownAs`, `movedTo` and the `Move` activity, sent and received. See "Account migration".
+- [FEP-1580: Move Actor Objects with a `migration` Collection](https://codeberg.org/fediverse/fep/src/branch/main/fep/1580/fep-1580.md) (DRAFT): the objects a `Move` leaves behind, exposed as a `migration` collection alongside `moves`.
+- [FEP-888d: Using `https://w3id.org/fep` as a base for FEP-specific namespaces](https://codeberg.org/fediverse/fep/src/branch/main/fep/888d/fep-888d.md) (DRAFT): the FEP-1580 terms are declared under `https://w3id.org/fep/1580/`, as that FEP registers them.
+
+Two further proposals are our own and are not (yet) part of the FEP index:
+
+- **FEP-633c: Guardians** — guardian-gated actors: wards, gated follows and
+  replies, the call-in flow, and a multi-party handshake. Implemented here and
+  submitted upstream as pull request
+  [#889](https://codeberg.org/fediverse/fep/pulls/889); the vocabulary is served
+  at [`https://ns.klonkt.com/shaer`](https://ns.klonkt.com/shaer).
+- **FEP-9876: enriched actor references** — collection members are bare URIs by
+  default and embedded objects on request, opt-in through
+  `Prefer: return=representation` ([RFC 7240](https://www.rfc-editor.org/rfc/rfc7240)).
+  Implemented; not yet submitted.
 
 Beyond these, Klonkt aims for de-facto Mastodon compatibility (the
 `http://joinmastodon.org/ns#` extension terms below). See "Under consideration"
@@ -44,16 +63,17 @@ content-negotiated: `application/activity+json` returns the AP document, other
 
 `Create`, `Update`, `Delete` (as `Tombstone`), `Follow`, `Accept`, `Like`,
 `Announce`, `Undo` (of `Follow` / `Like` / `Announce`), `Add` / `Remove`
-(featured-pin sync), and `Flag` (moderation reports). Posts, replies, boosts,
+(featured-pin sync), `Flag` (moderation reports), `Move` (account migration),
+and `Offer` (the FEP-633c guardianship handshake). Posts, replies, boosts,
 likes and follows are delivered to remote inboxes with a signed HTTP request and
 a retrying delivery queue.
 
 ### Activities received
 
 `Create`, `Update`, `Delete`, `Follow`, `Accept`, `Reject`, `Like`, `Announce`,
-`Undo` and `Flag`. Inbound follows are answered with `Accept` and backfilled with
-recent posts. Every inbound activity must carry a valid HTTP signature; unsigned
-or unverifiable requests are rejected.
+`Undo`, `Flag`, `Block`, `Move` and `Offer`. Inbound follows are answered with
+`Accept` and backfilled with recent posts. Every inbound activity must carry a
+valid HTTP signature; unsigned or unverifiable requests are rejected.
 
 ### Object types
 
@@ -90,6 +110,36 @@ security/v1, Klonkt declares and uses:
   `Add` / `Remove`, serialized per site to keep Mastodon's pin order.
 - A note's `replies` collection is served, and inbound threads are crawled one
   level at a time (stale-while-revalidate, SSRF-guarded, budget-limited).
+
+## Account migration
+
+Klonkt implements account moves in both directions, following
+[FEP-7628](https://codeberg.org/fediverse/fep/src/branch/main/fep/7628/fep-7628.md)
+for the actor and
+[FEP-1580](https://codeberg.org/fediverse/fep/src/branch/main/fep/1580/fep-1580.md)
+for the objects the actor leaves behind.
+
+- **Actor terms.** `alsoKnownAs` and `movedTo` are declared with the same term
+  definitions Mastodon ships, so an existing implementation reads them without
+  special-casing. `alsoKnownAs` is reserved for former identities of the same
+  actor; a reference to an external register (a MusicBrainz artist, say) uses
+  `schema:sameAs` instead, precisely so that a move cannot be confused by it.
+- **The `Move` activity** is both sent and received. FEP-7628 moves *followers*
+  and says so explicitly; the objects are a separate problem, which is what
+  FEP-1580 addresses.
+- **Object migration.** A migrated site exposes a `migration` collection and a
+  `moves` collection, plus `migrationComplete`, `migratedFrom` and `migratedAt`.
+  The terms live under `https://w3id.org/fep/1580/`, the namespace that FEP
+  registers by way of FEP-888d. The FEP's own CURIE for the collection is
+  `migration:migration`; Klonkt emits the JSON key `migration`, because that is
+  what a consumer reads on.
+- **Importing.** An import from an export is not treated as a separate case: the
+  same path ingests from a source actor.
+
+One gap is worth stating plainly: the `moves` collection carries **no integrity
+proof**. Without [FEP-8b32](https://codeberg.org/fediverse/fep/src/branch/main/fep/8b32/fep-8b32.md)
+there is no signature under it, so a consumer has to trust the serving host
+rather than the claim itself. This is tracked and not yet resolved.
 
 ## Client-to-Server (C2S)
 
@@ -143,12 +193,9 @@ with a note in the changelog.
 - Search-indexing consent: FEP-5feb (DRAFT). No `indexable` flag is emitted yet.
 - Actor public keys as Multikey: FEP-521a (FINAL). Klonkt still uses the legacy
   `publicKey` representation.
-- Object Integrity Proofs: FEP-8b32 (DRAFT). Not used.
+- Object Integrity Proofs: FEP-8b32 (DRAFT). Not used. This is also what leaves
+  the `moves` collection unsigned; see "Account migration".
 - Followers collection synchronization: FEP-8fcf (FINAL). Not implemented.
-- Quote posts: FEP-044f (DRAFT). Quotes appear as replies with an inline link.
-
-A guardian-gated actor model (guardianship for wards, gated follows and replies)
-is being drafted separately as a candidate FEP.
 
 ## Additional documentation
 
