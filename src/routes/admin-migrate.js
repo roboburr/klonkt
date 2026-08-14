@@ -79,6 +79,26 @@ function aliasTekst(site) {
 }
 
 /**
+ * Waar sta je in de verhuizing?
+ *
+ * Deze pagina draait op BEIDE instanties en elke stap hoort maar op een van de
+ * twee. Zonder dat onderscheid leest de lijst als onzin op de helft van de
+ * schermen. Vandaar: afleiden wat we kunnen zien, en verder eerlijk zeggen
+ * waar iets thuishoort in plaats van het te raden.
+ */
+function stappen(site, mig) {
+  const alias = aliasTekst(site).trim();
+  return {
+    // moved_to gezet betekent: DIT is de instantie die vertrokken is.
+    isOud: !!(site && site.moved_to),
+    geclaimd: !!alias,
+    // Een Move in onze moves-collectie betekent dat de bron hierheen verhuisd is.
+    aangekondigd: !!(site && site.moved_to) || !!(mig && mig.moves > 0),
+    opgehaald: !!(mig && mig.total > 0),
+  };
+}
+
+/**
  * Waar zouden we vandaan kunnen halen? De alias die we zelf claimen (FEP-7628
  * alsoKnownAs). Dat is niet toevallig hetzelfde veld als waar de ingest op
  * controleert: het is de helft van de afspraak die je hier al gezet hebt.
@@ -96,12 +116,13 @@ router.get('/', requireGod, (req, res) => {
   // dus hier meteen de grens bewaken in plaats van pas bij de download.
   const site = res.locals.site;
   const { telling, fout } = tellen(site);
+  const _mig = site ? Migration.migrationStatus(site.slug) : null;
   renderPage(req, res, 'pages/admin-migrate', {
     pageTitle: 'Migreren', bodyClass: 'on-special',
     telling, fout, mb,
     verslag: null,
     bron: bronKandidaat(site), aliassen: aliasTekst(site), movedTo: (site && site.moved_to) || null,
-    mig: site ? Migration.migrationStatus(site.slug) : null,
+    mig: _mig, stap: stappen(site, _mig),
     haalVerslag: null,
     success: req.query.success || null, error: req.query.error || fout || null,
   });
@@ -136,11 +157,12 @@ router.post('/pull', requireGod, async (req, res) => {
     r = { error: 'crash', melding: e && e.message };
   }
   const { telling } = tellen(site);
+  const _mig2 = Migration.migrationStatus(site.slug);
   renderPage(req, res, 'pages/admin-migrate', {
     pageTitle: 'Migreren', bodyClass: 'on-special',
     telling, fout: null, mb, verslag: null,
     bron: opgegeven || bronKandidaat(site), aliassen: aliasTekst(site), movedTo: site.moved_to || null,
-    mig: Migration.migrationStatus(site.slug),
+    mig: _mig2, stap: stappen(site, _mig2),
     haalVerslag: r,
     success: (r && !r.error) ? 'Opgehaald' : null,
     error: null,
@@ -226,7 +248,7 @@ router.post('/import', requireGod, upload, async (req, res) => {
     pageTitle: 'Migreren', bodyClass: 'on-special',
     telling: tellen(site).telling, fout: null, mb,
     bron: bronKandidaat(site), aliassen: aliasTekst(site), movedTo: site.moved_to || null,
-    mig: Migration.migrationStatus(site.slug), haalVerslag: null,
+    mig: Migration.migrationStatus(site.slug), stap: stappen(site, Migration.migrationStatus(site.slug)), haalVerslag: null,
     verslag: verslag ? { ...verslag, echt, overschrijf, bestand: req.file.originalname, bytes: req.file.buffer.length } : null,
     success: (echt && verslag && !fout) ? 'Archief geïmporteerd' : null,
     error: fout ? `Importeren mislukt: ${fout}` : null,

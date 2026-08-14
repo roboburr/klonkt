@@ -63,3 +63,51 @@ test('een alias overleeft het opslaan van je uiterlijk', async () => {
   assert.deepEqual(JSON.parse(na.ap_aliases), ['https://oud.example/ap/users/robo'],
     'je claim op je oude account mag niet sneuvelen op een kleurwijziging');
 });
+
+// ── Het stappenplan ───────────────────────────────────────────────
+
+test('het stappenplan zet de volgorde vast die niemand raadt', () => {
+  const ejs = fs.readFileSync('src/views/pages/admin-migrate.ejs', 'utf8');
+  const plan = ejs.indexOf('mig-steps');
+  const alias = ejs.indexOf('name="ap_aliases"');
+  assert.ok(plan > -1, 'er hoort een stappenplan te staan');
+  assert.ok(plan < alias, 'en bovenaan, voor de knoppen die het beschrijft');
+});
+
+test('"hier" draait om als je vanaf de vertrekkende kant kijkt', async () => {
+  // Deze pagina draait op BEIDE instanties. Stap 1, 3 en 4 horen op de nieuwe,
+  // stap 2 en 5 op de oude. Een vaste tekst is dus op de helft van de schermen
+  // onzin. Ik had ze bij het bouwen precies verkeerd om: beide labels werden
+  // "hier", en dat zag ik pas door het te renderen.
+  const ejs = fs.readFileSync('src/views/pages/admin-migrate.ejs', 'utf8');
+  const m = /var _hier = stap\.isOud \? t\('([a-z.\_]+)'\)\s*:\s*t\('([a-z.\_]+)'\)/.exec(ejs);
+  const d = /var _daar = stap\.isOud \? t\('([a-z.\_]+)'\)\s*:\s*t\('([a-z.\_]+)'\)/.exec(ejs);
+  assert.ok(m && d, 'de perspectief-variabelen horen er te zijn');
+  assert.equal(m[1], 'mig.plan_new',  'op de oude kant wijst stap 1/3/4 naar de NIEUWE');
+  assert.equal(m[2], 'mig.plan_here', 'op de nieuwe kant is dat gewoon hier');
+  assert.equal(d[1], 'mig.plan_here', 'en het aankondigen gebeurt dan HIER');
+  assert.equal(d[2], 'mig.plan_old',  'terwijl je vanaf de nieuwe kant naar de oude wijst');
+  assert.notEqual(m[1], d[1], 'de twee mogen nooit hetzelfde label krijgen');
+});
+
+test('het aankondigen heet geen "laatste stap" meer', async () => {
+  // Het was er wel een in mijn hoofd, maar niet in de code: de ophaalknop
+  // weigert met not_moved_here zolang de Move niet gedaan is. Aankondigen is
+  // dus stap 2, niet de afsluiter.
+  const i18n = await import('../src/services/i18n.js');
+  for (const l of ['nl', 'en', 'de']) {
+    const t = i18n.t(l, 'mig.move_title');
+    assert.doesNotMatch(t, /laatste|last step|letzter/i, `${l}: ${t}`);
+    assert.match(t, /2/, `${l}: het is stap 2, en dat hoort er te staan`);
+  }
+});
+
+test('stap 5 vertelt wat er moet gebeuren voor je het domein loslaat', async () => {
+  // Er is geen knop voor, en dat staat er ook bij. Een stappenplan dat een stap
+  // beschrijft die niet bestaat is erger dan geen stappenplan.
+  const i18n = await import('../src/services/i18n.js');
+  const nl = i18n.t('nl', 'mig.plan_5_why');
+  assert.match(nl, /verwijder/i, 'de Delete-ronde');
+  assert.match(nl, /alias/i, 'en de alias weghalen');
+  assert.match(nl, /nog geen knop/i, 'en eerlijk dat het handwerk is');
+});

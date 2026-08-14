@@ -5,6 +5,54 @@
   <% if (typeof success !== 'undefined' && success) { %><div class="alert alert-success"><%= success %></div><% } %>
   <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
 
+  <%# ── Het stappenplan ────────────────────────────────────────── %>
+  <%# Bestaat omdat de VOLGORDE niet vanzelfsprekend is en een fout erin je
+      halverwege vastzet. Twee dingen die niemand raadt:
+        - de ophaalknop werkt PAS nadat de verhuizing is aangekondigd; de bron
+          geeft niets af aan een instantie die niet in zijn movedTo staat;
+        - met een zip kan het juist andersom, want een zip vraagt niemand iets.
+      En stap 5 staat erbij omdat hij bestaat, niet omdat er een knop voor is. %>
+  <section class="mig-card mig-plan">
+    <h2><%= t('mig.plan_title') %></h2>
+    <p class="form-hint"><%= t('mig.plan_hint') %></p>
+    <%# "hier" hangt af van WELKE kant je bekijkt. Deze pagina draait op allebei
+        de instanties, en een vaste tekst is dus op de helft van de schermen
+        onzin. Heeft deze site een moved_to, dan is dit de vertrekkende kant. %>
+    <%# Stap 1, 3 en 4 horen op de NIEUWE kant; stap 2 en 5 op de oude. Vanaf
+        welke instantie je kijkt bepaalt dus welk van de twee "hier" is. %>
+    <% var _hier = stap.isOud ? t('mig.plan_new')  : t('mig.plan_here');
+       var _daar = stap.isOud ? t('mig.plan_here') : t('mig.plan_old'); %>
+    <% if (stap.isOud) { %>
+      <p class="form-hint mig-warn"><%= t('mig.plan_from_old') %></p>
+    <% } %>
+    <ol class="mig-steps">
+      <li class="<%= stap.geclaimd ? 'is-done' : '' %>">
+        <strong><%= t('mig.plan_1') %></strong>
+        <span class="mig-waar"><%= _hier %></span>
+        <em><%= t('mig.plan_1_why') %></em>
+      </li>
+      <li class="<%= stap.aangekondigd ? 'is-done' : '' %>">
+        <strong><%= t('mig.plan_2') %></strong>
+        <span class="mig-waar"><%= _daar %></span>
+        <em><%= t('mig.plan_2_why') %></em>
+      </li>
+      <li class="<%= stap.opgehaald ? 'is-done' : '' %>">
+        <strong><%= t('mig.plan_3') %></strong>
+        <span class="mig-waar"><%= _hier %></span>
+        <em><%= t('mig.plan_3_why') %></em>
+      </li>
+      <li>
+        <strong><%= t('mig.plan_4') %></strong>
+        <span class="mig-waar"><%= _hier %></span>
+      </li>
+      <li class="mig-step-later">
+        <strong><%= t('mig.plan_5') %></strong>
+        <span class="mig-waar"><%= _daar %></span>
+        <em><%= t('mig.plan_5_why') %></em>
+      </li>
+    </ol>
+  </section>
+
   <%# ── Je oude account claimen (FEP-7628 alsoKnownAs) ─────────── %>
   <%# Bewust als EERSTE: zonder deze claim weigert de oude instantie de Move
       met no_backreference, en kan de ophaalknop hieronder ook niets. Dit stond
@@ -261,6 +309,15 @@
   .mig-state { margin-top: .9rem; }
   .mig-report code { word-break: break-all; font-size: .88rem; }
   .mig-warn { color: var(--accent); }
+  .mig-plan { background: color-mix(in srgb, var(--ink, #000) 3%, transparent); }
+  .mig-steps { margin: 1rem 0 0; padding-left: 1.4rem; display: flex; flex-direction: column; gap: .7rem; }
+  .mig-steps li { color: var(--ink); }
+  .mig-steps li em { display: block; color: var(--sub); font-style: normal; font-size: .9rem; margin-top: .15rem; }
+  .mig-steps li.is-done > strong { text-decoration: line-through; opacity: .6; }
+  .mig-steps li.is-done::marker { content: '✓ '; }
+  .mig-steps li.mig-step-later { opacity: .8; }
+  .mig-waar { font-size: .8rem; padding: .05rem .4rem; border: 1px solid var(--rule); border-radius: 999px;
+              color: var(--sub); margin-left: .4rem; white-space: nowrap; }
   .mig-card-danger { border-color: color-mix(in srgb, var(--accent, #c33) 45%, var(--rule)); }
   textarea.mig-input { font-family: inherit; resize: vertical; }
   .mig-report { border-left: 3px solid var(--accent); padding: .8rem 1rem; margin-bottom: 1.2rem;
