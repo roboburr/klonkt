@@ -240,6 +240,31 @@ function slugUitUri(uri) {
 const AFBEELDING = /^image\//i;
 
 /**
+ * Waar kan de omslag van een bericht zitten?
+ *
+ * Niet alleen in `attachment`. Klonkt onderdrukt de beeldbijlage met opzet
+ * zodra een post een speler of embed heeft (zie noImages in buildNote), en zet
+ * de cover dan in `image` zodat Mastodon zijn spelerkaart toont en een Klonkt
+ * hem alsnog vindt. Dat is precies wat er bij Robin misging: 18 van de 20
+ * berichten op pagina 1 hadden geen enkele bijlage, en toch een cover, en die
+ * viel er stil tussenuit.
+ *
+ * En een Audio-bijlage draagt zijn eigen hoes in `icon`; die telt ook mee.
+ */
+function coverKandidaten(o) {
+  const uit = [];
+  const pak = (v) => {
+    if (!v) return;
+    const u = typeof v === 'string' ? v : (v.url && (typeof v.url === 'string' ? v.url : v.url.href)) || v.href;
+    if (u && /^https?:\/\//i.test(String(u))) uit.push(String(u));
+  };
+  pak(o.image);
+  pak(o.icon);
+  for (const a of (Array.isArray(o.attachment) ? o.attachment : [])) pak(a && a.icon);
+  return [...new Set(uit)];
+}
+
+/**
  * Hoort deze URL bij de bron, en wijst hij onder /media/?
  *
  * Dan behouden we het PAD. Drie redenen tegelijk:
@@ -520,17 +545,22 @@ export async function ingestFromSource(site, {
             }
           }
           if (!bestaand.cover_image_url && safeFetch && fs && path && mediaRoot) {
-            // De cover alsnog: hij zit als bijlage op de Note.
-            for (const a of (Array.isArray(o.attachment) ? o.attachment : []).slice(0, 20)) {
-              const u = a && (typeof a === 'string' ? a : (a.url && (typeof a.url === 'string' ? a.url : a.url.href)));
-              if (!u || !AFBEELDING.test(String((a && a.mediaType) || ''))) continue;
+            // De omslag alsnog. Uit de beeldbijlage als die er is, anders uit
+            // image/icon: bij een post met een speler staat hij daar.
+            const uit = [
+              ...(Array.isArray(o.attachment) ? o.attachment : [])
+                .filter((a) => AFBEELDING.test(String((a && a.mediaType) || '')))
+                .map((a) => (typeof a.url === 'string' ? a.url : (a.url && a.url.href)))
+                .filter(Boolean),
+              ...coverKandidaten(o),
+            ];
+            for (const u of uit) {
               const doel = bronMediaPad(u, bronOrigin, { mediaRoot, path });
               const g = await haalBijlage(String(u), { safeFetch, mediaRoot, fs, path, maxBytes, doel }).catch(() => null);
-              if (g) {
-                db.prepare('UPDATE posts SET cover_image_url = ? WHERE id = ?').run(g.url, bestaand.id);
-                rapport.media++;
-                rapport.postsBijgewerkt++;
-              }
+              if (!g) continue;
+              db.prepare('UPDATE posts SET cover_image_url = ? WHERE id = ?').run(g.url, bestaand.id);
+              rapport.media++;
+              rapport.postsBijgewerkt++;
               break;
             }
           }
@@ -568,6 +598,21 @@ export async function ingestFromSource(site, {
           // een hotlink.
           const r2 = await inhoudMediaBinnen(inhoud, bronOrigin, site, rapport, { safeFetch, mediaRoot, fs, path, maxBytes });
           inhoud = r2.inhoud;
+          // De omslag zit lang niet altijd in attachment (zie coverKandidaten).
+          if (!binnen.some((b) => AFBEELDING.test(b.type || ''))) {
+            for (const u of coverKandidaten(o)) {
+              const doel = bronMediaPad(u, bronOrigin, { mediaRoot, path });
+              const g = await haalBijlage(u, { safeFetch, mediaRoot, fs, path, maxBytes, doel }).catch(() => null);
+              if (!g) { rapport.mediaMislukt++; rapport.waarschuwingen.push(`omslag niet opgehaald: ${u}`); continue; }
+              binnen.unshift({ ...g, naam: null, type: g.mediaType });
+              rapport.media++;
+              try {
+                db.prepare('INSERT INTO media (id, site_id, filename, mime_type, size, storage_path) VALUES (?, ?, ?, ?, ?, ?)')
+                  .run(crypto.randomUUID(), site.id, g.filename, g.mediaType, g.size, g.storage_path);
+              } catch { /* administratie */ }
+              break;                       // een omslag is genoeg
+            }
+          }
         }
 
         const cover = binnen.find((b) => AFBEELDING.test(b.type || ''));

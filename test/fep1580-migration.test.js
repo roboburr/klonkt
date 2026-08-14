@@ -535,6 +535,47 @@ test('een plaatje in de tekst wordt gedownload en de verwijzing wordt relatief',
   assert.ok(!c.includes('oud.example'), 'en er hotlinkt niets meer naar de bron');
 });
 
+test('de omslag komt ook mee als hij in `image` zit in plaats van in attachment', async () => {
+  // Robins 9 covers van de 36. Klonkt onderdrukt de beeldbijlage met opzet
+  // zodra een post een speler of embed heeft (noImages in buildNote), en zet
+  // de omslag dan in `image` zodat Mastodon zijn spelerkaart toont. 18 van de
+  // 20 berichten op pagina 1 hadden daardoor geen enkele bijlage, en toch een
+  // cover. Mijn ingest keek alleen naar attachment.
+  const s = site({ aliases: [BRON] });
+  const OMSLAG = 'https://oud.example/media/post-images/omslag.png';
+  const HOES = 'https://oud.example/media/audio-covers/hoes.webp';
+  const kaart = new Map([
+    [BRON, { id: BRON, type: 'Person', movedTo: IK, outbox: `${BRON}/outbox` }],
+    [`${BRON}/outbox`, { type: 'OrderedCollection', totalItems: 2, first: `${BRON}/outbox?page=1` }],
+    [`${BRON}/outbox?page=1`, { type: 'OrderedCollectionPage', orderedItems: [
+      // een speler-post: GEEN attachment, omslag in image
+      note(`${BRON}/notes/speler`, { content: '<p>muziek</p>', image: { type: 'Image', url: OMSLAG } }),
+      // een audio-bijlage draagt zijn eigen hoes in icon
+      note(`${BRON}/notes/audio`, { content: '<p>track</p>', attachment: [
+        { type: 'Audio', mediaType: 'audio/mpeg', url: 'https://oud.example/audio/stream/x.mp3',
+          icon: { type: 'Image', mediaType: 'image/webp', url: HOES } },
+      ] }),
+    ] }],
+  ]);
+  const opgehaald = [];
+  const r = await stil(() => Mig.ingestFromSource(s, { deps: {
+    getJson: async (_s, url) => kaart.get(url) || null,
+    noteId: (b, id) => `${b}/ap/notes/${id}`,
+    noteVisibility: AP.noteVisibility,
+    mediaRoot: '/nep/media', audioRoot: '/nep/audio',
+    signHeaders: () => ({ Signature: 'nep' }),
+    safeFetch: async (url) => { opgehaald.push(url); return { ok: true, arrayBuffer: async () => Buffer.from('x'), headers: { get: () => 'image/png' } }; },
+    fs: { mkdirSync() {}, writeFileSync() {}, statSync() { throw new Error('ENOENT'); } },
+    path,
+  } }));
+  assert.equal(r.posts, 2);
+  assert.ok(opgehaald.includes(OMSLAG), 'de omslag uit `image` hoort opgehaald te worden');
+  assert.ok(opgehaald.includes(HOES), 'en de hoes uit de icon van een Audio-bijlage ook');
+  const covers = db.prepare('SELECT cover_image_url c FROM posts WHERE site_id = ?').all('s1').map((x) => x.c);
+  assert.equal(covers.filter(Boolean).length, 2, 'beide berichten krijgen hun omslag');
+  assert.ok(covers.includes('/media/post-images/omslag.png'), 'op het pad van de bron');
+});
+
 test('een bericht dat je zelf hebt verwijderd komt bij een tweede ronde terug', async () => {
   // Robin: "ik kan handmatig deze keer de posts verwijderen en opnieuw ophalen."
   // Met de eerste opzet kon dat niet: de mapping in ap_migration zei "al gehad"
