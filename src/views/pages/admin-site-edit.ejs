@@ -178,15 +178,15 @@
       <button type="button" id="profile-link-add" class="btn"><%= t('asite.link_add') %></button>
     </fieldset>
 
+    <%# Aliassen en verhuizen staan sinds 14-8 op /admin/migrate, bij elkaar met
+        exporteren, importeren en ophalen (Robin: alle migratie-opties op de
+        migrate-pagina). Ze hoorden hier ook niet thuis: dit scherm gaat over hoe
+        je site eruitziet, en een verhuizing is geen uiterlijk. Alleen de
+        wegwijzer blijft, want wie ze hier zocht moet ze kunnen vinden. %>
     <fieldset>
       <legend><%= t('asite.aliases') %></legend>
-      <p class="form-hint"><%= t('asite.aliases_hint') %></p>
-      <label>
-<%# typeof-guard on purpose: during a deploy an old route can render this new
-    template for one request (view cache fills on first hit). A missing local
-    must degrade to an empty field, not take the whole page down with a 500. %>
-        <textarea name="ap_aliases" rows="3" placeholder="@oud@mastodon.social&#10;https://andere-klonkt.example/ap/users/naam"><%= typeof apAliases !== 'undefined' ? apAliases : '' %></textarea>
-      </label>
+      <p class="form-hint"><%= t('asite.moved_to_migrate') %></p>
+      <p><a href="/admin/migrate" class="btn"><%= t('admin.b_migrate') %></a></p>
     </fieldset>
 
     <fieldset>
@@ -236,22 +236,6 @@
     <button type="submit" class="btn btn-primary"><%= isNew ? t('asite.submit_create') : t('asite.submit_save') %></button>
   </form>
 
-<% if (!isNew) { %>
-  <form method="post" action="/admin/sites/<%= site.slug %>/move" class="admin-form"
-        onsubmit="return confirm('<%= t('asite.move_confirm') %>');">
-    <fieldset>
-      <legend><%= t('asite.move') %></legend>
-      <p class="form-hint"><%= t('asite.move_hint') %></p>
-      <% if (typeof site.moved_to === 'string' && site.moved_to) { %>
-        <p class="form-hint"><strong><%= t('asite.moved_to') %>:</strong> <%= site.moved_to %></p>
-      <% } %>
-      <label>
-        <input type="text" name="move_target" placeholder="@nieuw@andere-server.example" required>
-      </label>
-      <button type="submit" class="btn btn-danger"><%= t('asite.move_btn') %></button>
-    </fieldset>
-  </form>
-<% } %>
 </div>
 
 

@@ -79,7 +79,7 @@ function buildProfileLinks(body) {
  * purpose — a typo'd alias that silently lands on the actor would make a later
  * Move fail at the old server with no hint why. Throws the offending line.
  */
-async function parseApAliases(raw, ownActorUri) {
+export async function parseApAliases(raw, ownActorUri) {
   const lines = String(raw || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
   if (lines.length > 5) throw new Error(lines[5] + ' (max 5)');
   const out = [];
@@ -331,12 +331,20 @@ router.post('/:slug/save', requireSiteManagerBySlug, async (req, res) => {
 
   // FEP-7628 aliases — validated/resolved before anything is written.
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
-  let apAliasesJson = null;
-  try {
-    const arr = await parseApAliases(f.ap_aliases, AP.actorId(base, req.params.slug));
-    apAliasesJson = arr.length ? JSON.stringify(arr) : null;
-  } catch (e) {
-    return res.redirect(`/admin/sites/${req.params.slug}/edit?error=` + encodeURIComponent(`Alias niet herkend of niet vindbaar: ${e.message}`));
+  // Het INVOERVELD staat hier sinds 14-8 niet meer: aliassen horen bij
+  // Migreren. Dit formulier mag ze dus niet aanraken, en al helemaal niet
+  // leegmaken omdat het veld ontbreekt. Anders verlies je je claim op je oude
+  // account door je kleuren aan te passen, en weigert de Move daarna met
+  // no_backreference. Alleen verwerken als het veld ECHT is meegestuurd, zodat
+  // een oude gecachte pagina die hem nog wel heeft blijft werken.
+  let apAliasesJson = site.ap_aliases || null;
+  if (Object.prototype.hasOwnProperty.call(f, 'ap_aliases')) {
+    try {
+      const arr = await parseApAliases(f.ap_aliases, AP.actorId(base, req.params.slug));
+      apAliasesJson = arr.length ? JSON.stringify(arr) : null;
+    } catch (e) {
+      return res.redirect(`/admin/sites/${req.params.slug}/edit?error=` + encodeURIComponent(`Alias niet herkend of niet vindbaar: ${e.message}`));
+    }
   }
 
   // theme_override: only accept the three legal values. Empty string means

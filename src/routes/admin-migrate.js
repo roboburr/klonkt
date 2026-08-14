@@ -34,6 +34,8 @@ import { MEDIA_ROOT, AUDIO_ROOT } from '../config/paths.js';
 import * as Migration from '../services/MigrationService.js';
 import { buildArchive, zipArchive } from '../services/ArchiveExportService.js';
 import { readArchiveZip, importArchive } from '../services/ArchiveImportService.js';
+import { parseApAliases } from './admin-sites.js';
+import db from '../config/database.js';
 
 const router = express.Router();
 
@@ -71,6 +73,11 @@ function tellen(site) {
   } catch (e) { return { telling: null, fout: e && e.message }; }
 }
 
+/** De aliassen als tekst, een per regel, zoals het invoerveld ze wil. */
+function aliasTekst(site) {
+  try { return (JSON.parse((site && site.ap_aliases) || '[]') || []).join('\n'); } catch { return ''; }
+}
+
 /**
  * Waar zouden we vandaan kunnen halen? De alias die we zelf claimen (FEP-7628
  * alsoKnownAs). Dat is niet toevallig hetzelfde veld als waar de ingest op
@@ -93,7 +100,7 @@ router.get('/', requireGod, (req, res) => {
     pageTitle: 'Migreren', bodyClass: 'on-special',
     telling, fout, mb,
     verslag: null,
-    bron: bronKandidaat(site),
+    bron: bronKandidaat(site), aliassen: aliasTekst(site), movedTo: (site && site.moved_to) || null,
     mig: site ? Migration.migrationStatus(site.slug) : null,
     haalVerslag: null,
     success: req.query.success || null, error: req.query.error || fout || null,
@@ -132,12 +139,36 @@ router.post('/pull', requireGod, async (req, res) => {
   renderPage(req, res, 'pages/admin-migrate', {
     pageTitle: 'Migreren', bodyClass: 'on-special',
     telling, fout: null, mb, verslag: null,
-    bron: opgegeven || bronKandidaat(site),
+    bron: opgegeven || bronKandidaat(site), aliassen: aliasTekst(site), movedTo: site.moved_to || null,
     mig: Migration.migrationStatus(site.slug),
     haalVerslag: r,
     success: (r && !r.error) ? 'Opgehaald' : null,
     error: null,
   });
+});
+
+/**
+ * Je oude account claimen (FEP-7628 alsoKnownAs).
+ *
+ * Stond op de site-bewerkpagina, tussen de kleuren en de feedinstellingen. Maar
+ * dit is stap EEN van een verhuizing, en zonder deze claim weigert de oude
+ * instantie de Move met `no_backreference`. Het hoort dus hier, boven de knop
+ * die hem nodig heeft.
+ */
+router.post('/aliases', requireGod, async (req, res) => {
+  const site = res.locals.site;
+  if (!site) return res.redirect('/admin/migrate?error=' + encodeURIComponent('Geen site'));
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  let lijst;
+  try {
+    lijst = await parseApAliases(req.body.ap_aliases, ActivityPubService.actorId(base, site.slug));
+  } catch (e) {
+    // Welke regel niet deugde, niet alleen DAT er iets niet deugde.
+    return res.redirect('/admin/migrate?error=' + encodeURIComponent(`Onbruikbaar adres: ${e && e.message}`));
+  }
+  db.prepare('UPDATE sites SET ap_aliases = ? WHERE slug = ?').run(JSON.stringify(lijst), site.slug);
+  res.redirect('/admin/migrate?success=' + encodeURIComponent(
+    lijst.length ? `${lijst.length} adres(sen) opgeslagen als jouw vorige account.` : 'Aliassen leeggemaakt.'));
 });
 
 /** Download het archief als zip. */
@@ -194,7 +225,8 @@ router.post('/import', requireGod, upload, async (req, res) => {
   renderPage(req, res, 'pages/admin-migrate', {
     pageTitle: 'Migreren', bodyClass: 'on-special',
     telling: tellen(site).telling, fout: null, mb,
-    bron: bronKandidaat(site), mig: Migration.migrationStatus(site.slug), haalVerslag: null,
+    bron: bronKandidaat(site), aliassen: aliasTekst(site), movedTo: site.moved_to || null,
+    mig: Migration.migrationStatus(site.slug), haalVerslag: null,
     verslag: verslag ? { ...verslag, echt, overschrijf, bestand: req.file.originalname, bytes: req.file.buffer.length } : null,
     success: (echt && verslag && !fout) ? 'Archief geïmporteerd' : null,
     error: fout ? `Importeren mislukt: ${fout}` : null,
