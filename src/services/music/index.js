@@ -15,6 +15,9 @@
 import db from '../../config/database.js';
 import { AP_CONTEXT, PUBLIC, actorId, noteId, safeUrl, guessMediaType, buildHashtagList, pagedCollection } from '../ap-core.js';
 import { afleidenUitInsluitingen, ingeslotenPlaylists } from '../../assets/js/shared/post-music-type.js';
+// De luisteraars horen bij de muziekkant; hier doorgegeven zodat
+// ActivityPubService niet in een submap hoeft te grijpen.
+export * as luisteraars from './luisteraars.js';
 
 // m.size hoort erbij voor de RSS-enclosure: die eist een lengte in bytes.
 export const TRACK_KOLOMMEN = `t.id, t.title, t.artist, t.duration, t.cover_url, t.created_at,

@@ -385,7 +385,28 @@ export function initializeDatabase() {
       public_pem TEXT NOT NULL,
       private_pem TEXT NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );    -- LUISTERAARS (shaer-0nh). Wie de BIBLIOTHEEK volgt, niet de actor.
+    --
+    -- Een eigen tabel en niet een vlag op ap_followers, en dat is met opzet:
+    -- deze accounts horen onze gewone posts NIET te krijgen. Zolang ze in een
+    -- andere tabel staan kan een bezorging ze niet per ongeluk meenemen -- een
+    -- vlag die iemand vergeet te filteren zou dat wel doen, en dan komt de
+    -- Krant van een site bij mensen die alleen muziek wilden.
+    CREATE TABLE IF NOT EXISTS ap_library_followers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug TEXT NOT NULL,
+      actor_uri TEXT NOT NULL,
+      inbox TEXT,
+      shared_inbox TEXT,
+      name TEXT,
+      handle TEXT,
+      icon TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      last_delivery_at DATETIME,
+      last_error_at DATETIME,
+      UNIQUE (slug, actor_uri)
     );
+
     CREATE TABLE IF NOT EXISTS ap_followers (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       slug TEXT NOT NULL,

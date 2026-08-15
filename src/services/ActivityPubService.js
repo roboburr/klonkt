@@ -33,6 +33,7 @@ import { PUBLIC, AP_CONTEXT, safeUrl, actorId, noteId, guessMediaType, normalize
 export { AP_CONTEXT, actorId, noteId, guessMediaType };
 // De muziekkant woont in music/ (shaer-drc). Doorgeven wat hier altijd
 // vandaan kwam, zodat elke bestaande aanroep blijft werken.
+import { luisteraars } from './music/index.js';
 import { TRACK_KOLOMMEN,
   playlistOpenTracks, siteOpenTracks, openTrack, trackHostPosts,
   buildTrackAudio, buildTrackCollection, buildTrackCreate,
@@ -355,6 +356,17 @@ export function timelineFields(o) {
   }
   const pagina = pickLink(o.url, () => true);
   return { html: HtmlSanitizerService.sanitize(o.content || ''), atts, url: pagina ? pagina.href : null };
+}
+
+/**
+ * De site achter een library-uri, of null. Zelfde strengheid als localSlugOf:
+ * de uri moet met ONZE basis beginnen en de site moet bestaan -- anders levert
+ * andermans /library met dezelfde padstaart hier een volger op onze naam op.
+ */
+function libraryOwnerSlug(uri) {
+  const u = String(uri || '');
+  if (!u.endsWith('/library')) return null;
+  return localSlugOf(u.slice(0, -'/library'.length));
 }
 
 export function buildActor(base, site) {
@@ -2355,6 +2367,36 @@ export async function handleInbox(req, slugParam, preVerified = null) {
 
   if (type === 'Follow') {
     const who = typeof act.actor === 'string' ? act.actor : (act.actor && act.actor.id);
+    // EERST: volgt iemand onze BIBLIOTHEEK in plaats van onze actor? (shaer-0nh)
+    //
+    // Een luisteraar krijgt de muziek en NIET de gewone posts -- wie zich
+    // abonneert op een platenkast heeft niet om de Krant gevraagd. Vandaar een
+    // eigen tabel: zolang ze daar staan kan een postbezorging ze niet per
+    // ongeluk meenemen.
+    //
+    // De bibliotheek is openbaar (alles erin is fedi_open), dus dit accepteert
+    // meteen. Er valt niets goed te keuren, en dan is wachten oneerlijk.
+    const libSlug = libraryOwnerSlug(typeof act.object === 'string' ? act.object : (act.object && act.object.id));
+    if (who && libSlug) {
+      const remote = await fetchActor(who);
+      if (!remote || !remote.inbox) return 202;
+      const fi = actorInfo(remote, who);
+      luisteraars.voegToe(libSlug, {
+        actorUri: who, inbox: remote.inbox,
+        sharedInbox: (remote.endpoints && remote.endpoints.sharedInbox) || null,
+        name: fi.name, handle: fi.handle, icon: fi.icon,
+      });
+      const keys = getOrCreateKeys(libSlug);
+      const accept = {
+        '@context': AP_CONTEXT,
+        id: `${actorId(base, libSlug)}#accept-library-${Date.now()}-${rid()}`,
+        type: 'Accept', actor: actorId(base, libSlug), object: act,
+      };
+      deliver(remote.inbox, accept, `${actorId(base, libSlug)}#main-key`, keys.privatePem)
+        .catch(() => { /* de volger staat er; een mislukte Accept mag dat niet omgooien */ });
+      console.log('[AP] library follow from', who, '->', libSlug);
+      return 202;
+    }
     // slugParam is de eigenaar van een per-actor inbox; op de GEDEELDE inbox is
     // die er niet en werd de slug uit act.object geraden. Zonder hostcontrole
     // kon een Follow op andermans actor met dezelfde padstaart hier een volger
@@ -2438,6 +2480,17 @@ export async function handleInbox(req, slugParam, preVerified = null) {
     console.log('[AP] Follow', who, '→', slug, verified ? '(sig ok)' : '(sig unverified)');
     return 202;
   }
+  // Een luisteraar die weggaat, hoort meteen weg te zijn.
+  if (type === 'Undo' && act.object && act.object.type === 'Follow') {
+    const doel = typeof act.object.object === 'string' ? act.object.object : (act.object.object && act.object.object.id);
+    const libSlug = libraryOwnerSlug(doel);
+    const wie = typeof act.actor === 'string' ? act.actor : (act.actor && act.actor.id);
+    if (libSlug && wie && luisteraars.verwijder(libSlug, wie)) {
+      console.log('[AP] library unfollow from', wie, '->', libSlug);
+      return 202;
+    }
+  }
+
   if (type === 'Undo' && act.object) {
     const who = typeof act.actor === 'string' ? act.actor : (act.actor && act.actor.id);
     const ot = act.object.type;
