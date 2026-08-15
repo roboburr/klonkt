@@ -167,6 +167,10 @@ export function buildTrackAudio(base, site, r, opts = {}) {
     // horen, en dat is wat zo'n link betekent.
     url: [...(post ? [{ type: 'Link', href: `${base}/${post.slug}`, mediaType: 'text/html' }] : []), bestand],
   };
+  // De bak waar dit bestand in hangt (shaer-0nh). Voor Funkwhale is dit het
+  // haakje waaraan een upload komt te zitten; zonder dit veld blijft een track
+  // daar een naam zonder geluid.
+  a.library = libraryId(base, site);
   if (r.artist) a.summary = r.artist;              // artiest als summary: kaal AS2, geen eigen vocab
   // AS2-kern `context`: "de context waarbinnen dit object bestaat". Voor een
   // track is dat de post die hem uitbrengt. Daarmee is de relatie die tot nu
@@ -210,6 +214,50 @@ export function licentieUri(waarde) {
   if (!s) return null;
   if (/^https?:\/\//i.test(s)) return safeUrl(s);   // iemand vulde al een URI in
   return LICENTIES[s.toLowerCase()] || null;        // "Alle rechten voorbehouden" heeft er geen
+}
+
+/** Het AS2-id van de bibliotheek van een site. */
+export function libraryId(base, site) {
+  return `${actorId(base, site.slug)}/library`;
+}
+
+/**
+ * De site als Funkwhale-LIBRARY (skelet).
+ *
+ * WAAROM DIT GEEN DIALECT IS ZOALS track EN ArtistCredit DAT WEL ZIJN. Die twee
+ * vragen entiteiten waar wij tekst hebben; hiervoor hoeven we niets te
+ * verzinnen. Een library is precies wat er al staat: onze open tracks, met een
+ * echte telling en een echt id.
+ *
+ * WAAROM HET NODIG IS, gemeten op 13-8. open.audio heeft onze vier tracks
+ * binnengehaald langs de AP-weg -- met ONZE track-id's, en met een artist_credit
+ * dat Funkwhale zelf uit onze attributedTo afleidde. Maar `uploads` is leeg en
+ * `is_playable` false. Bij hen hangt een upload aan een library; zonder library
+ * is er geen bak om het bestand in te hangen. Het audiobestand zelf is wel
+ * gewoon op te halen (200, audio/mpeg, ook anoniem) -- ze hebben het niet
+ * geprobeerd.
+ *
+ * SKELET, en dat woord is letterlijk bedoeld. Dit is de vorm uit hun docs:
+ * type, id, name, followers, totalItems, first, last, plus attributedTo en
+ * summary. Wat er NIET is: de volg-afhandeling. Onze bibliotheek is openbaar --
+ * elke track erin heeft fedi_open -- dus er valt niets goed te keuren. Komt er
+ * ooit een besloten variant, dan hoort daar het Follow/Accept-werk bij.
+ */
+export function buildLibrary(base, site, rows) {
+  const id = libraryId(base, site);
+  const hostPosts = site.id ? trackHostPosts(site.id) : null;
+  const items = (rows || []).map((r) => buildTrackAudio(base, site, r, { hostPosts }));
+  return pagedCollection(id, items, {
+    extra: {
+      type: 'Library',
+      name: site.title || site.slug,
+      attributedTo: actorId(base, site.slug),
+      // Vereist volgens hun docs. Openbaar, dus de telling is eerlijk en de
+      // lijst blijft leeg -- wie ons volgt volgt de ACTOR, niet de bak.
+      followers: `${id}/followers`,
+      ...(site.description ? { summary: String(site.description).slice(0, 500) } : {}),
+    },
+  });
 }
 
 /** De collectie van alle open tracks van een site (shaer-0nh, stap 3). */

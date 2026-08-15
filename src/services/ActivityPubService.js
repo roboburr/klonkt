@@ -38,6 +38,7 @@ import { TRACK_KOLOMMEN,
   buildTrackAudio, buildTrackCollection, buildTrackCreate,
   buildPlaylistCollection, listPlaylistsAP, playlistLinkTags,
   buildPostTrackCollection, uitgavePost,
+  buildLibrary, libraryId,
   licentieUri, channelCategory,
 } from './music/index.js';
 export {
@@ -45,6 +46,7 @@ export {
   buildTrackAudio, buildTrackCollection, buildTrackCreate,
   buildPlaylistCollection, listPlaylistsAP, playlistLinkTags, licentieUri,
   buildPostTrackCollection, uitgavePost,
+  buildLibrary, libraryId,
 };
 
 
@@ -6808,6 +6810,7 @@ export default {
   siteOpenTracks, openTrack, buildTrackAudio, buildTrackCollection, buildTrackCreate, trackHostPosts,
   buildPlaylistCollection, playlistOpenTracks, listPlaylistsAP, playlistLinkTags,
   buildPostTrackCollection, uitgavePost,
+  buildLibrary, libraryId,
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
   feedCursor, feedChangesSince, waitForFeedChange,
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, buildReplyNote, getOutboxNote, getSentNotes, deliverReply, resolveRemoteNote, noteAudience, mayReadNote,

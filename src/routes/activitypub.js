@@ -1141,6 +1141,28 @@ router.get('/ap/users/:slug/tracks', async (req, res) => {
   AP.sendAP(res, AP.buildTrackCollection(baseUrl(req), site, AP.siteOpenTracks(site.id, { alles: await magAlles(req, site.slug) })));
 });
 
+// De bibliotheek van deze site (shaer-0nh). Funkwhale's Audio draagt een
+// `library`, en dat is bij hen het haakje waar een UPLOAD aan komt te hangen --
+// zonder die bak blijft een binnengehaalde track daar een naam zonder geluid.
+// Gemeten op 13-8: open.audio had onze vier tracks wel, met onze eigen AP-id's,
+// maar uploads leeg en is_playable false.
+//
+// Openbaar, want alles erin is fedi_open. Er valt dus niets goed te keuren en de
+// volgerslijst blijft leeg: wie ons volgt volgt de ACTOR, niet de bak.
+router.get('/ap/users/:slug/library', (req, res) => {
+  const site = publicSite(req.params.slug);
+  if (!site) return res.status(404).end();
+  AP.sendAP(res, AP.buildLibrary(baseUrl(req), site, AP.siteOpenTracks(site.id)));
+});
+
+// De volgerscollectie die hun docs als vereist noemen. Leeg en eerlijk: er is
+// geen goedkeuringspad omdat de bibliotheek openbaar is.
+router.get('/ap/users/:slug/library/followers', (req, res) => {
+  const site = publicSite(req.params.slug);
+  if (!site) return res.status(404).end();
+  AP.sendAP(res, AP.pagedCollection(`${AP.libraryId(baseUrl(req), site)}/followers`, []));
+});
+
 // Eén track, los op te halen. Een gesloten track is AFWEZIG, niet leeg: 404,
 // dezelfde regel als in de collectie, zodat het bestaan van een gated nummer
 // niet uit een ander antwoord af te leiden is.

@@ -56,6 +56,22 @@ export const AP_CONTEXT = [
     // iets anders dan een oud account van jezelf, en die twee door elkaar halen
     // zou een verhuizing kunnen laten mislukken.
     sameAs: { '@id': 'schema:sameAs', '@type': '@id' },
+    // ── De ENIGE term die we uit Funkwhale's eigen vocabulaire overnemen ──
+    //
+    // Waarom deze wel en track/ArtistCredit niet (shaer-0nh): die twee vragen
+    // ENTITEITEN waar wij tekst hebben -- een artiest en een album zijn bij ons
+    // kolommen, en er een id voor verzinnen zou beloven wat we niet kunnen
+    // waarmaken. Een Library is iets anders: het is precies wat we AL hebben,
+    // een verzameling van onze eigen open tracks met een echte telling.
+    //
+    // En hij doet iets. Gemeten op 13-8: open.audio heeft onze vier tracks
+    // binnengehaald via hun AP-id, met artist_credit dat het zelf uit onze
+    // attributedTo afleidde -- maar uploads is LEEG en is_playable false. Bij
+    // Funkwhale hangt een upload aan een library; zonder library is er geen bak
+    // om het bestand in te hangen, en blijft een track een naam zonder geluid.
+    fw: 'https://funkwhale.audio/ns#',
+    Library: 'fw:Library',
+    library: { '@id': 'fw:library', '@type': '@id' },
     position: 'schema:position',
     bitrate: 'schema:bitrate',
     size: 'schema:contentSize',
