@@ -1114,7 +1114,7 @@ router.get('/ap/users/:slug/featured', (req, res) => {
        AND pinned IS NOT NULL AND pinned > 0
      ORDER BY pinned DESC, COALESCE(published_at, created_at) ASC LIMIT 20`
   ).all(site.id);
-  AP.sendAP(res, AP.buildFeatured(baseUrl(req), site, posts));
+  AP.sendAP(res, AP.buildFeatured(baseUrl(req), site, posts, { page: paginaNr(req) }));
 });
 
 // ── Playlist als dereferenceerbare AP-collectie (shaer-ayc) ───────
@@ -1129,7 +1129,7 @@ router.get('/ap/users/:slug/featured', (req, res) => {
 router.get('/ap/users/:slug/playlists', (req, res) => {
   const site = publicSite(req.params.slug);
   if (!site) return res.status(404).end();
-  AP.sendAP(res, AP.listPlaylistsAP(baseUrl(req), site, wantsEnriched(req, res)));
+  AP.sendAP(res, AP.listPlaylistsAP(baseUrl(req), site, wantsEnriched(req, res), { page: paginaNr(req) }));
 });
 
 // De tracks van deze site: de kanonieke plek voor onze muziek (shaer-0nh,
@@ -1138,7 +1138,7 @@ router.get('/ap/users/:slug/playlists', (req, res) => {
 router.get('/ap/users/:slug/tracks', async (req, res) => {
   const site = publicSite(req.params.slug);
   if (!site) return res.status(404).end();
-  AP.sendAP(res, AP.buildTrackCollection(baseUrl(req), site, AP.siteOpenTracks(site.id, { alles: await magAlles(req, site.slug) })));
+  AP.sendAP(res, AP.buildTrackCollection(baseUrl(req), site, AP.siteOpenTracks(site.id, { alles: await magAlles(req, site.slug) }), { page: paginaNr(req) }));
 });
 
 // De bibliotheek van deze site (shaer-0nh). Funkwhale's Audio draagt een
@@ -1149,10 +1149,16 @@ router.get('/ap/users/:slug/tracks', async (req, res) => {
 //
 // Openbaar, want alles erin is fedi_open. Er valt dus niets goed te keuren en de
 // volgerslijst blijft leeg: wie ons volgt volgt de ACTOR, niet de bak.
+//
+// `?page=` MOET hier doorgegeven worden. Zonder dat adverteert de wortel een
+// `first` die op zichzelf uitkomt: de lezer volgt hem, krijgt weer een `Library`
+// in plaats van een pagina, en klapt eruit -- open.audio gaf op 15-8 een 500 op
+// precies deze URL. Dezelfde les als bij de outbox (shaer-sk4): een `first`
+// beloven is een pagina beloven.
 router.get('/ap/users/:slug/library', (req, res) => {
   const site = publicSite(req.params.slug);
   if (!site) return res.status(404).end();
-  AP.sendAP(res, AP.buildLibrary(baseUrl(req), site, AP.siteOpenTracks(site.id)));
+  AP.sendAP(res, AP.buildLibrary(baseUrl(req), site, AP.siteOpenTracks(site.id), { page: paginaNr(req) }));
 });
 
 // De volgerscollectie die hun docs als vereist noemen. Leeg en eerlijk: er is
@@ -1160,7 +1166,7 @@ router.get('/ap/users/:slug/library', (req, res) => {
 router.get('/ap/users/:slug/library/followers', (req, res) => {
   const site = publicSite(req.params.slug);
   if (!site) return res.status(404).end();
-  AP.sendAP(res, AP.pagedCollection(`${AP.libraryId(baseUrl(req), site)}/followers`, []));
+  AP.sendAP(res, AP.pagedCollection(`${AP.libraryId(baseUrl(req), site)}/followers`, [], { page: paginaNr(req) }));
 });
 
 // Eén track, los op te halen. Een gesloten track is AFWEZIG, niet leeg: 404,

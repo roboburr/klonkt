@@ -246,11 +246,12 @@ export function libraryId(base, site) {
  * elke track erin heeft fedi_open -- dus er valt niets goed te keuren. Komt er
  * ooit een besloten variant, dan hoort daar het Follow/Accept-werk bij.
  */
-export function buildLibrary(base, site, rows) {
+export function buildLibrary(base, site, rows, { page = false } = {}) {
   const id = libraryId(base, site);
   const hostPosts = site.id ? trackHostPosts(site.id) : null;
   const items = (rows || []).map((r) => buildTrackAudio(base, site, r, { hostPosts }));
   return pagedCollection(id, items, {
+    page,
     extra: {
       type: 'Library',
       name: site.title || site.slug,
@@ -264,11 +265,11 @@ export function buildLibrary(base, site, rows) {
 }
 
 /** De collectie van alle open tracks van een site (shaer-0nh, stap 3). */
-export function buildTrackCollection(base, site, rows) {
+export function buildTrackCollection(base, site, rows, { page = false } = {}) {
   // Eén zoekopdracht voor alle rijen samen; zie trackHostPosts.
   const posts = site.id ? trackHostPosts(site.id) : null;
   const items = (rows || []).map((r) => buildTrackAudio(base, site, r, { hostPosts: posts }));
-  return pagedCollection(`${actorId(base, site.slug)}/tracks`, items, { extra: { attributedTo: actorId(base, site.slug) } });
+  return pagedCollection(`${actorId(base, site.slug)}/tracks`, items, { page, extra: { attributedTo: actorId(base, site.slug) } });
 }
 
 // Een post die een playlist insluit wijst in zijn AS2 ook naar de collectie
@@ -313,7 +314,7 @@ export function playlistLinkTags(base, site, content, post = null) {
 // telling -- totalItems van de stub telt het open deel, dezelfde regel als de
 // collectie zelf, want ook een lijst mag niet verklappen wat er achter de
 // poort staat.
-export function listPlaylistsAP(base, site, enriched) {
+export function listPlaylistsAP(base, site, enriched, { page = false } = {}) {
   const rows = db.prepare(
     'SELECT id, title, artist, year, cover_url FROM playlists WHERE site_id = ? ORDER BY created_at, id'
   ).all(site.id);
@@ -326,7 +327,7 @@ export function listPlaylistsAP(base, site, enriched) {
     delete stub.orderedItems;      // stub: wie de tracks wil, haalt de collectie op
     return stub;
   });
-  return pagedCollection(colId, items, { extra: { attributedTo: actorId(base, site.slug) } });
+  return pagedCollection(colId, items, { page, extra: { attributedTo: actorId(base, site.slug) } });
 }
 
 export function buildPlaylistCollection(base, site, playlist, rows) {

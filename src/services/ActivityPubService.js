@@ -1199,10 +1199,10 @@ export function buildFollowing(base, site, count, items = null, { page = false }
 // Pinned posts → the actor's `featured` collection. Mastodon reads this and shows
 // these as the "Featured" tab (pinned to the profile). Posts come ordered by pin
 // rank; embedded as full Notes so a remote server doesn't need extra fetches.
-export function buildFeatured(base, site, posts) {
+export function buildFeatured(base, site, posts, { page = false } = {}) {
   const id = `${actorId(base, site.slug)}/featured`;
   const items = (posts || []).map((p) => buildNote(base, site, p));
-  return pagedCollection(id, items);
+  return pagedCollection(id, items, { page });
 }
 
 // ── Playlist als AP-collectie (shaer-ayc, stap 1 van het Funkwhale-spoor) ──
