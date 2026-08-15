@@ -252,10 +252,25 @@ export function buildLibrary(base, site, rows, { page = false } = {}) {
   const items = (rows || []).map((r) => buildTrackAudio(base, site, r, { hostPosts }));
   return pagedCollection(id, items, {
     page,
+    // Een platenkast is geen tijdlijn: `Collection`, niet `OrderedCollection`.
+    // Funkwhale's LibrarySerializer accepteert ook alleen die twee typen
+    // (as:Collection of fw:Library) en zijn CollectionPageSerializer alleen
+    // `CollectionPage` met `items`.
+    ongeordend: true,
     extra: {
       type: 'Library',
       name: site.title || site.slug,
       attributedTo: actorId(base, site.slug),
+      // WAAROM DIT VELD ER MOET STAAN. Funkwhale's LibrarySerializer noemt
+      // `audience` optioneel, maar zijn create() doet er meteen
+      // `privacy[validated_data["audience"]]` mee -- zonder de sleutel is dat
+      // een KeyError en geeft hun server een 500. Dat is wat open.audio op 15-8
+      // teruggaf toen Robin onze library-URI daar opzocht.
+      //
+      // Het is bovendien gewoon waar: alles hierin is fedi_open, dus openbaar.
+      // Bij hen is dit precies het verschil tussen privacy_level 'everyone' en
+      // 'me' -- oftewel of onze nummers daar afspeelbaar zijn.
+      audience: 'https://www.w3.org/ns/activitystreams#Public',
       // Vereist volgens hun docs. Openbaar, dus de telling is eerlijk en de
       // lijst blijft leeg -- wie ons volgt volgt de ACTOR, niet de bak.
       followers: `${id}/followers`,

@@ -83,9 +83,16 @@ for (const pad of COLLECTIES) {
     assert.equal(pagina.body.partOf, wortel.body.id, `${pad}: pagina hoort niet bij de collectie`);
     assert.notEqual(pagina.body.id, wortel.body.id, `${pad}: pagina deelt zijn id met de collectie`);
 
-    // En hij mag niet zelf weer een `first` dragen -- dat is de lus waar
-    // open.audio in liep.
-    assert.equal(pagina.body.first, undefined, `${pad}: de pagina draagt zelf een first`);
+    // Een pagina MAG `first` dragen (AS2: CollectionPage erft van Collection,
+    // en Funkwhale eist het zelfs op library-pagina's). Wat niet mag is een
+    // `next` naar zichzelf: dat is de lus, en die zit in de verwijzing die een
+    // lezer volgt, niet in de aanwezigheid van het veld.
+    assert.notEqual(pagina.body.next, eerste, `${pad}: next wijst naar de pagina zelf`);
+
+    // De items horen bij het type: geordend -> orderedItems, ongeordend ->
+    // items. Een `Collection` met `orderedItems` is voor een strikte lezer leeg.
+    const sleutel = pagina.body.type === 'CollectionPage' ? 'items' : 'orderedItems';
+    assert.ok(Array.isArray(pagina.body[sleutel]), `${pad}: ${pagina.body.type} zonder ${sleutel}`);
   });
 }
 

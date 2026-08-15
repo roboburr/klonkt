@@ -52,17 +52,57 @@ test('een gesloten track hoort er NIET in -- dicht is dicht', () => {
   // niet is. Zou een gated track hier binnenglippen, dan zou de openbaarheid
   // van de bak zijn poort overrulen.
   const lib = AP.buildLibrary(BASE, site, AP.siteOpenTracks('s1'));
-  assert.deepEqual(lib.orderedItems.map((a) => a.name), ['Het open nummer']);
+  assert.deepEqual(lib.items.map((a) => a.name), ['Het open nummer']);
 });
 
 test('elke Audio wijst naar de bibliotheek', () => {
   // Dit is het veld waar het om begonnen was: het haakje waar een upload aan komt.
   const lib = AP.buildLibrary(BASE, site, AP.siteOpenTracks('s1'));
-  for (const a of lib.orderedItems) assert.equal(a.library, LIB);
+  for (const a of lib.items) assert.equal(a.library, LIB);
   // Ook als de track ergens anders vandaan komt -- de losse ophaal, de
   // trackcollectie, de playlist. Anders hangt het er maar op een plek.
   const los = AP.buildTrackAudio(BASE, site, AP.openTrack('s1', 't1'), { standalone: true });
   assert.equal(los.library, LIB);
+});
+
+// Wat hun serializers WERKELIJK eisen, uit de bron en niet uit de docs.
+// api/funkwhale_api/federation/serializers.py op develop, gelezen 15-8:
+//
+//   LibrarySerializer(PaginatedCollectionSerializer)   regel 1071
+//     type in [as:Collection, fw:Library] · name · id · first · last · totalItems
+//     audience: ChoiceField(required=False) MAAR create() doet
+//       privacy[validated_data["audience"]]  -- ontbreekt de sleutel, dan een
+//       KeyError en dus een 500. Zo gaf open.audio op 15-8 een 500 op onze URL.
+//     en het is de schakel naar privacy_level 'everyone' == afspeelbaar.
+//
+//   CollectionPageSerializer                            regel 1157
+//     type == as:CollectionPage (NIET OrderedCollectionPage) · items (NIET
+//     orderedItems) · id · first · last · partOf · totalItems
+//
+// Deze test staat er omdat die eisen nergens anders bij ons zijn opgeschreven.
+// Zonder hem is het volgende dat iemand de bibliotheek 'opruimt' naar de
+// gewone OrderedCollection-vorm, en dan is hij daar stil weer leeg.
+test('de bibliotheek voldoet aan Funkwhale LibrarySerializer', () => {
+  const lib = AP.buildLibrary(BASE, site, AP.siteOpenTracks('s1'));
+  assert.equal(lib.audience, 'https://www.w3.org/ns/activitystreams#Public',
+    'zonder audience een KeyError in hun create() -- 500');
+  assert.ok(Array.isArray(lib.items), 'Collection draagt items, geen orderedItems');
+  assert.equal(lib.orderedItems, undefined);
+  for (const veld of ['id', 'name', 'first', 'last', 'totalItems', 'attributedTo']) {
+    assert.ok(lib[veld] !== undefined, `${veld} ontbreekt`);
+  }
+});
+
+test('een bibliotheekpagina voldoet aan Funkwhale CollectionPageSerializer', () => {
+  const p = AP.buildLibrary(BASE, site, AP.siteOpenTracks('s1'), { page: 1 });
+  assert.equal(p.type, 'CollectionPage', 'OrderedCollectionPage wijzen ze af');
+  assert.ok(Array.isArray(p.items), 'items, niet orderedItems');
+  assert.equal(p.orderedItems, undefined);
+  assert.equal(p.partOf, LIB);
+  assert.equal(p.id, `${LIB}?page=1`);
+  for (const veld of ['first', 'last', 'totalItems']) {
+    assert.ok(p[veld] !== undefined, `${veld} ontbreekt op de pagina`);
+  }
 });
 
 test('de term is gedeclareerd, anders laat een strikte lezer hem vallen', async () => {

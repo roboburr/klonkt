@@ -264,8 +264,20 @@ export const PAGINA_GROOTTE = 20;
  * Een pagina VOORBIJ het einde is leeg en zegt dat ook -- met zijn eigen nummer
  * en zonder `next`. Hem naar de laatste pagina terugbuigen zou opnieuw een
  * antwoord zijn dat over zichzelf liegt.
+ *
+ * `ongeordend` maakt er de NIET-geordende vorm van: `Collection` met
+ * `CollectionPage` en `items`, in plaats van `OrderedCollection` met
+ * `OrderedCollectionPage` en `orderedItems`. Dat is geen dialect maar de andere
+ * helft van AS2 -- en de bibliotheek hoort daar: een platenkast heeft geen
+ * volgorde die iets betekent, en `Library` is bij Funkwhale expliciet een
+ * `Collection`. Onze outbox is wél geordend (chronologie is daar de inhoud) en
+ * blijft dus zoals hij was.
+ *
+ * De pagina draagt in die vorm ook `first` en `last`. AS2 staat dat toe --
+ * CollectionPage erft van Collection -- en een lezer die halverwege binnenkomt
+ * kan zo terug naar het begin zonder eerst de wortel op te halen.
  */
-export function pagedCollection(id, items, { totalItems, page = false, perPage = PAGINA_GROOTTE, alGesneden = false, extra = {} } = {}) {
+export function pagedCollection(id, items, { totalItems, page = false, perPage = PAGINA_GROOTTE, alGesneden = false, ongeordend = false, extra = {} } = {}) {
   const lijst = items || [];
   const telling = totalItems === undefined ? lijst.length : totalItems;
   const grootte = Math.max(1, Number(perPage) || PAGINA_GROOTTE);
@@ -282,23 +294,25 @@ export function pagedCollection(id, items, { totalItems, page = false, perPage =
     return {
       '@context': AP_CONTEXT,
       id: url(n),
-      type: 'OrderedCollectionPage',
+      type: ongeordend ? 'CollectionPage' : 'OrderedCollectionPage',
       partOf: id,
       totalItems: telling,
+      ...(ongeordend ? { first: url(1), last: url(paginas) } : {}),
+      ...(extra.attributedTo ? { attributedTo: extra.attributedTo } : {}),
       ...(n > 1 ? { prev: url(n - 1) } : {}),
       ...(n < paginas ? { next: url(n + 1) } : {}),
-      orderedItems: deel,
+      ...(ongeordend ? { items: deel } : { orderedItems: deel }),
     };
   }
   return {
     '@context': AP_CONTEXT,
     id,
-    type: 'OrderedCollection',
+    type: ongeordend ? 'Collection' : 'OrderedCollection',
     ...extra,
     totalItems: telling,
     first: url(1),
     last: url(paginas),
-    orderedItems: lijst,
+    ...(ongeordend ? { items: lijst } : { orderedItems: lijst }),
   };
 }
 
