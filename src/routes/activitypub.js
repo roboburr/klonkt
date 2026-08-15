@@ -1388,7 +1388,17 @@ const apJson = express.json({
 });
 router.post(['/ap/users/:slug/inbox', '/ap/inbox'], apInboxLimiter, apJson, async (req, res) => {
   try { return res.status(await AP.handleInbox(req, req.params.slug || null) || 202).end(); }
-  catch (e) { console.warn('[AP inbox] error:', e.message); return res.status(202).end(); }
+  // Met de STACK erbij. Hier stond alleen `e.message`, en op 15-8 leverde dat
+  // zes keer "[AP inbox] error: slug is not defined" op zonder één aanwijzing
+  // waar -- een ReferenceError in een handler van duizenden regels, met een
+  // naam die overal voorkomt. Een fout die je niet kunt plaatsen is niet
+  // gemeld. Het type en de activiteit erbij, want dat zegt welke tak liep.
+  catch (e) {
+    const soort = req.body && req.body.type;
+    console.warn('[AP inbox] error:', e.message, '| type:', soort, '| slug:', req.params.slug || '(gedeeld)');
+    console.warn(e.stack);
+    return res.status(202).end();
+  }
 });
 
 // ── Outbox POST: ActivityPub Client-to-Server ─────────────────────
