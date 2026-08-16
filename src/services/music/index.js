@@ -181,6 +181,25 @@ export function buildTrackAudio(base, site, r, opts = {}) {
   // die de post al heeft dit nummer overslaan in plaats van er een lege kaart
   // van te maken.
   if (post) a.context = noteId(base, post.id);
+  // Het NUMMER, los van dit bestand (shaer-3f8a, spoor B). Funkwhale en
+  // Emissary lezen allebei `fw:track`, en petitminion noemde het ontbreken
+  // ervan als eerste wat hem opviel aan onze objecten.
+  //
+  // EIGEN ID MET #track, en niet hetzelfde id als de Audio. Emissary hergebruikt
+  // daar het object-id, maar dan zijn in JSON-LD de Audio en de Track EEN knoop
+  // met twee typen -- en een bestand is geen werk. Dat verschil moeten we straks
+  // toch maken, want een album verzamelt nummers en geen mp3's. Een fragment is
+  // een geldige IRI en wijst naar hetzelfde document.
+  //
+  // GEEN `album`. Dat veld is bij hen een URI naar een Album-object en bij ons
+  // een tekstkolom; er hier een adres van maken zou een ding beloven dat niet
+  // bestaat. Zie shaer-k37k -- dat is de keuze die daarvoor eerst moet vallen.
+  a.track = {
+    type: 'Track',
+    id: `${a.id}#track`,
+    name: a.name,
+    ...(Number(r.position) ? { position: Number(r.position) } : {}),
+  };
   if (r.duration) a.duration = `PT${Math.round(r.duration)}S`;
   if (r.created_at) a.published = new Date(r.created_at).toISOString();
   if (Number(r.position)) a.position = Number(r.position);

@@ -56,22 +56,37 @@ export const AP_CONTEXT = [
     // iets anders dan een oud account van jezelf, en die twee door elkaar halen
     // zou een verhuizing kunnen laten mislukken.
     sameAs: { '@id': 'schema:sameAs', '@type': '@id' },
-    // ── De ENIGE term die we uit Funkwhale's eigen vocabulaire overnemen ──
+    // ── Wat we uit Funkwhale's vocabulaire overnemen, en waarom ──
     //
-    // Waarom deze wel en track/ArtistCredit niet (shaer-0nh): die twee vragen
-    // ENTITEITEN waar wij tekst hebben -- een artiest en een album zijn bij ons
-    // kolommen, en er een id voor verzinnen zou beloven wat we niet kunnen
-    // waarmaken. Een Library is iets anders: het is precies wat we AL hebben,
-    // een verzameling van onze eigen open tracks met een echte telling.
+    // LIBRARY. Gemeten op 13-8: open.audio had onze vier tracks binnengehaald
+    // via hun AP-id, met een artist_credit dat het zelf uit onze attributedTo
+    // afleidde -- maar uploads LEEG en is_playable false. Bij Funkwhale hangt
+    // een upload aan een library; zonder die bak blijft een track een naam
+    // zonder geluid.
     //
-    // En hij doet iets. Gemeten op 13-8: open.audio heeft onze vier tracks
-    // binnengehaald via hun AP-id, met artist_credit dat het zelf uit onze
-    // attributedTo afleidde -- maar uploads is LEEG en is_playable false. Bij
-    // Funkwhale hangt een upload aan een library; zonder library is er geen bak
-    // om het bestand in te hangen, en blijft een track een naam zonder geluid.
+    // TRACK. Hier stond dat we deze NIET namen, met als reden: hij vraagt een
+    // entiteit waar wij tekst hebben, en er een id voor verzinnen belooft wat
+    // we niet waarmaken. Die redenering klopte half, en de Emissary-meting van
+    // 16-8 (shaer-3f8a) laat zien welke helft. Een TRACK heeft bij ons wel
+    // degelijk een eigen identiteit -- het is een rij met een titel en een
+    // plaats in een uitgave. Wat wij niet hebben is een ALBUM als entiteit, en
+    // dat is een andere vraag (shaer-k37k). Emissary stuurt precies die kleine
+    // vorm: type, id, name, position. Wij ook, en album blijft eruit tot het
+    // een echt object is -- een verzonnen album-URI is nu juist wel de belofte
+    // die we niet kunnen waarmaken.
+    //
+    // Twee onafhankelijke implementaties zenden dit nu, en het is de kant waar
+    // FEP-be68 heen beweegt. ArtistCredit blijft eruit: dat is nog steeds een
+    // entiteit die wij niet hebben.
+    //
+    // De vorm van de termen is letterlijk die van hun contexts.py (regel
+    // 293-306), zodat een lezer die hun context laadt en een lezer die de onze
+    // leest op dezelfde IRI's uitkomen.
     fw: 'https://funkwhale.audio/ns#',
     Library: 'fw:Library',
     library: { '@id': 'fw:library', '@type': '@id' },
+    Track: 'fw:Track',
+    track: { '@id': 'fw:track', '@type': '@id' },
     position: 'schema:position',
     bitrate: 'schema:bitrate',
     size: 'schema:contentSize',
