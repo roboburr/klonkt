@@ -51,21 +51,27 @@ const lib = await haal(BRON);
 const pagina = lib.first ? await haal(lib.first) : lib;
 const items = pagina.items || pagina.orderedItems || [];
 if (!items.length) { console.log('geen items in de bibliotheek'); process.exit(1); }
-const a = items[0];
 
-console.log(`bron: ${BRON}\nitem: ${a.name}\n`);
+// ALLE items, niet het eerste. De eerste versie keek naar items[0] en gaf
+// daarover een oordeel alsof het over de bibliotheek ging -- op 16-8 meldde hij
+// zo `track.album` als GAT terwijl drie van de vier tracks hem wel hadden: het
+// ene nummer dat hij toevallig pakte stond niet op een plaat. Een steekproef
+// van een is geen meting, en een meting die je vertrouwt moet zeggen hoeveel.
+console.log(`bron: ${BRON}\nitems: ${items.length}\n`);
+
 let gaten = 0;
-const toon = (lijst, waarde) => {
+const toon = (kop, lijst, kies) => {
+  console.log(kop);
   for (const [naam, test] of lijst) {
-    let ok = false;
-    try { ok = !!test(waarde); } catch { ok = false; }
-    if (!ok) gaten++;
-    console.log(`  ${ok ? 'OK ' : 'GAT'}  ${naam}`);
+    let ok = 0;
+    for (const a of items) { try { if (test(kies(a))) ok++; } catch { /* telt als niet ok */ } }
+    const staat = ok === items.length ? 'OK ' : (ok === 0 ? 'GAT' : 'DEELS');
+    if (ok !== items.length) gaten++;
+    console.log(`  ${staat.padEnd(5)} ${naam}${ok !== items.length ? `  (${ok}/${items.length})` : ''}`);
   }
 };
-console.log('UploadSerializer (regel 1741):');
-toon(UPLOAD, a);
-console.log('\nTrackSerializer (regel 1569 + MusicEntity 1278):');
-toon(TRACK, a.track);
+toon('UploadSerializer (regel 1741):', UPLOAD, (a) => a);
+console.log();
+toon('TrackSerializer (regel 1569 + MusicEntity 1278):', TRACK, (a) => a.track);
 
-console.log(`\n${gaten === 0 ? 'niets meer nodig voor hun ingest' : gaten + ' veld(en) te gaan'}`);
+console.log(`\n${gaten === 0 ? 'niets meer nodig voor hun ingest' : gaten + ' veld(en) nog niet op ELK item'}`);

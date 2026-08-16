@@ -154,6 +154,10 @@ class PlaylistService {
       year: p.year || 0,
       cover: p.cover_url || fallbackCover,
       kind: (p.kind === 'playlist') ? 'playlist' : 'album',
+      // created_at hoort erbij omdat de AP-kant er `published` van maakt. Zonder
+      // dit veld viel buildAlbumObject terug op 1970, en dat stond op 16-8
+      // gewoon op de federatie.
+      created_at: p.created_at,
       // Leeg als het een afspeellijst is -- de opslag houdt ze daar al leeg,
       // maar dit is de plek waar de editor leest en die mag niet afhangen van
       // wat er toevallig in de kolom stond.

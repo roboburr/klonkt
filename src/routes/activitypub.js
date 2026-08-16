@@ -1201,7 +1201,7 @@ router.get('/ap/users/:slug/posts/:id/tracks', (req, res) => {
 router.get('/ap/users/:slug/playlists/:id', async (req, res) => {
   const site = publicSite(req.params.slug);
   if (!site) return res.status(404).end();
-  const pl = db.prepare('SELECT id, title, artist, year, cover_url, kind FROM playlists WHERE id = ? AND site_id = ?')
+  const pl = db.prepare('SELECT id, title, artist, year, cover_url, kind, release_date, mb_release_id, created_at FROM playlists WHERE id = ? AND site_id = ?')
     .get(req.params.id, site.id);
   if (!pl) return res.status(404).end();
   // De doel-actor van een verhuizing krijgt de VOLLEDIGE plaat, niet alleen de

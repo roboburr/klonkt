@@ -450,6 +450,21 @@ export function trackAlbums(siteId) {
   `).all(siteId);
   const uit = new Map();
   for (const r of rijen) if (!uit.has(r.tid)) uit.set(r.tid, r);
+  // De post die deze plaat uitbrengt, EEN keer per album opgezocht en niet per
+  // track: uitgavePost() doet er echt werk voor (hij leest de typering van de
+  // post) en een site heeft veel meer nummers dan platen.
+  //
+  // WAAROM DIT ERBIJ MOET: buildPlaylistCollection laat leenVanPost de naam van
+  // de post overnemen -- de post IS de uitgave. Zonder dezelfde lening hier zou
+  // het ingesloten Album "Cartoon Epic" heten en zijn eigen URI "Geen koffie,
+  // wel thee!". Een id met twee namen, en dat is precies wat op 16-8 uit de
+  // meting rolde.
+  const perAlbum = new Map();
+  for (const r of uit.values()) {
+    if (perAlbum.has(r.id)) continue;
+    perAlbum.set(r.id, uitgavePost(siteId, r.id));
+  }
+  for (const r of uit.values()) r._post = perAlbum.get(r.id) || null;
   return uit;
 }
 
@@ -469,15 +484,25 @@ export function trackAlbums(siteId) {
 export function buildAlbumObject(base, site, pl) {
   if (!pl) return null;
   const abs = (u) => !u ? null : (/^https?:/i.test(u) ? u : `${base}${u.startsWith('/') ? '' : '/'}${u}`);
-  const wanneer = pl.created_at ? new Date(pl.created_at).toISOString() : new Date(0).toISOString();
+  // GEEN epoch als terugval. `published` is bij hen verplicht, maar 1970 is een
+  // ANTWOORD en geen ontbrekend veld -- en dat is erger: een lezer kan een gat
+  // opmerken, een leugen niet. playlists.created_at heeft een default, dus als
+  // hij hier ontbreekt is er een leespad dat de kolom laat vallen. Dat willen we
+  // zien, niet maskeren. (Zo kwam op 16-8 de route boven water die id, title,
+  // artist, year, cover_url en kind selecteerde en de rest niet.)
+  const wanneer = pl.created_at ? new Date(pl.created_at).toISOString() : null;
+  // Dezelfde lening als in buildPlaylistCollection: de post die de plaat
+  // uitbrengt geeft zijn titel, en de eigen titel blijft als alsoKnownAs staan.
+  const titel = (pl._post && pl._post.title) || pl.title;
   const album = {
     type: 'Album',
     id: `${actorId(base, site.slug)}/playlists/${pl.id}`,
-    name: pl.title,
-    published: wanneer,
+    name: titel,
+    ...(wanneer ? { published: wanneer } : {}),
     attributedTo: actorId(base, site.slug),
-    artist_credit: artistCredit(base, site, pl.artist, wanneer),
+    artist_credit: artistCredit(base, site, pl.artist, wanneer || new Date().toISOString()),
   };
+  if (titel !== pl.title) album.alsoKnownAs = pl.title;
   // `released` alleen als er een ECHTE datum is. `year` vult hem niet aan: een
   // jaartal is geen dag, en dat is de reden dat release_date bestaat.
   if (pl.release_date) album.released = pl.release_date;
