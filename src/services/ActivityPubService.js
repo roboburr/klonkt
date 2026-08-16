@@ -580,6 +580,13 @@ export function buildNote(base, site, post, opts = {}) {
       cc: [`${aId}/followers`],
       tag: [...hashtagTags(base, post.content)],
       replies: `${id}/replies`,
+      // DE WAARSCHUWING REIST MEE (Barts melding, 15-8). Deze vroege return liet
+      // `sensitive` en `summary` vallen, want die worden pas na de gewone tak
+      // gezet. Gevolg: een betaalde post met een waarschuwing ging ZONDER die
+      // waarschuwing de deur uit -- en de teaser is publiek, dus juist die had
+      // hem nodig. Een gevoelige teaser zonder vlag is erger dan geen teaser.
+      sensitive: !!post.nsfw,
+      ...(post.nsfw ? { summary: post.content_warning || 'Gevoelige inhoud' } : {}),
       ...Guardianship.hasGuardiansProps(site.slug),
     };
   }
