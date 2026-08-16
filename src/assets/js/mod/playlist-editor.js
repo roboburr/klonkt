@@ -6,6 +6,28 @@
 
 import { pageData } from './lib.js';
 
+/**
+ * De teksten van deze modal, uit het gegevensblok van partials/playlist-editor.ejs.
+ *
+ * EIGEN BLOK en niet pageData(): die pakt met querySelector er EEN, en deze
+ * modal hangt onder pagina's die er zelf al een hebben. Een tweede blok zou
+ * daar genegeerd worden.
+ *
+ * De terugval is bewust de sleutelnaam en niet de Nederlandse tekst: ontbreekt
+ * er iets, dan zie je DAT er iets ontbreekt in plaats van een pagina die er
+ * half vertaald uitziet en waarvan niemand merkt welke helft.
+ */
+let _T = null;
+function T(sleutel) {
+  if (_T === null) {
+    try {
+      const el = document.querySelector('script[type="application/json"][data-playlist-editor-i18n]');
+      _T = el ? (JSON.parse(el.textContent) || {}) : {};
+    } catch (e) { _T = {}; }
+  }
+  return _T[sleutel] != null ? _T[sleutel] : sleutel;
+}
+
 (function() {
   // Idempotency: if window.openPlaylistEditor already defined (multiple
   // partial includes on a single page), skip re-binding.
@@ -53,11 +75,11 @@ import { pageData } from './lib.js';
       const j = await api('GET', '/admin/playlists/api/tracks');
       if (Array.isArray(j.tracks)) tracks = j.tracks;
     } catch (e) {
-      alert('Tracks ophalen mislukt');
+      alert(T('e_tracks'));
       return;
     }
     if (!tracks.length) {
-      alert('Geen audio-tracks beschikbaar. Upload eerst tracks via Admin → Audio.');
+      alert(T('e_geen_tracks'));
       return;
     }
 
@@ -74,78 +96,78 @@ import { pageData } from './lib.js';
     const backdrop = document.createElement('div');
     backdrop.className = 'pl-modal-backdrop';
     backdrop.innerHTML = `
-      <div class="pl-modal" role="dialog" aria-label="Playlist editor">
+      <div class="pl-modal" role="dialog" aria-label="${T('dialoog')}">
         <div class="pl-modal-header">
-          <h3>${isEdit ? '✎ Playlist bewerken' : '+ Nieuwe playlist'}</h3>
-          <button type="button" class="pl-modal-close" aria-label="Sluiten">×</button>
+          <h3>${isEdit ? '✎ ' + T('t_edit') : '+ ' + T('t_new')}</h3>
+          <button type="button" class="pl-modal-close" aria-label="${T('sluiten')}">×</button>
         </div>
         <div class="pl-modal-body">
           <div class="pl-editor-cols">
             <div class="pl-editor-left">
               <div class="pl-meta-grid">
                 <label class="pl-field pl-field-full">
-                  <span>Titel *</span>
+                  <span>${T('titel')}</span>
                   <input type="text" id="pli-title" maxlength="200" autofocus value="${esc(initial.title)}">
                 </label>
                 <label class="pl-field">
-                  <span>Artiest</span>
+                  <span>${T('artiest')}</span>
                   <input type="text" id="pli-artist" maxlength="200" value="${esc(initial.artist)}">
                 </label>
                 <label class="pl-field">
-                  <span>Jaar</span>
+                  <span>${T('jaar')}</span>
                   <input type="number" id="pli-year" min="1900" max="2099" value="${initial.year || ''}">
                 </label>
                 <label class="pl-field">
-                  <span>Type</span>
+                  <span>${T('type')}</span>
                   <select id="pli-kind">
-                    <option value="album"    ${initial.kind === 'album' ? 'selected' : ''}>💿 Album (genummerd)</option>
-                    <option value="playlist" ${initial.kind === 'playlist' ? 'selected' : ''}>📃 Playlist (track-covers)</option>
+                    <option value="album"    ${initial.kind === 'album' ? 'selected' : ''}>💿 ${T('k_album')}</option>
+                    <option value="playlist" ${initial.kind === 'playlist' ? 'selected' : ''}>📃 ${T('k_playlist')}</option>
                   </select>
                 </label>
                 <label class="pl-field pl-uitgave">
-                  <span>Uitgavedatum</span>
+                  <span>${T('uitgave')}</span>
                   <input type="date" id="pli-release-date" value="${esc(initial.release_date || '')}">
                 </label>
                 <label class="pl-field pl-uitgave">
-                  <span>MusicBrainz release-id</span>
+                  <span>${T('mb_release')}</span>
                   <input type="text" id="pli-mb-release" maxlength="36" spellcheck="false"
                          placeholder="00000000-0000-0000-0000-000000000000"
                          value="${esc(initial.mb_release_id || '')}">
                 </label>
                 <div class="pl-field pl-field-full">
-                  <span>Cover</span>
+                  <span>${T('cover')}</span>
                   <div class="pl-cover-row">
                     <span class="pl-cover-thumb" id="pli-cover-thumb">
                       ${initial.cover
                         ? `<img src="${esc(initial.cover)}" alt="">`
                         : `<span class="pl-cover-empty">🎨</span>`}
                     </span>
-                    <input type="text" id="pli-cover" placeholder="https://… of upload" value="${esc(initial.cover)}" style="flex:1">
+                    <input type="text" id="pli-cover" placeholder="${T('cover_url')}" value="${esc(initial.cover)}" style="flex:1">
                   </div>
                   <div class="pl-cover-upload-row">
                     <input type="file" id="pli-cover-file" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
-                    <button type="button" class="pl-btn-small" id="pli-cover-pick">📷 Foto kiezen…</button>
+                    <button type="button" class="pl-btn-small" id="pli-cover-pick">📷 ${T('cover_kies')}</button>
                     <span class="pl-cover-status" id="pli-cover-status"></span>
                   </div>
                 </div>
               </div>
               <div class="pl-section-title">
-                Tracks in playlist <span class="pl-track-count" id="pli-count">0</span>
-                <small>(sleep ⠿ om te ordenen)</small>
+                ${T('tracks_in')} <span class="pl-track-count" id="pli-count">0</span>
+                <small>${T('sleep_hint')}</small>
               </div>
               <div id="pli-selected" class="pl-selected-list"></div>
             </div>
             <div class="pl-editor-right">
-              <div class="pl-section-title">Beschikbare tracks</div>
-              <input type="search" id="pli-search" placeholder="Zoek..." class="pl-search-input">
+              <div class="pl-section-title">${T('beschikbaar')}</div>
+              <input type="search" id="pli-search" placeholder="${T('zoek')}" class="pl-search-input">
               <div id="pli-available" class="pl-available-list"></div>
             </div>
           </div>
         </div>
         <div class="pl-modal-footer">
-          <button type="button" class="btn" id="pli-cancel">Annuleren</button>
+          <button type="button" class="btn" id="pli-cancel">${T('annuleren')}</button>
           <button type="button" class="btn btn-primary" id="pli-save" disabled>
-            ${isEdit ? 'Opslaan' : 'Aanmaken'}
+            ${isEdit ? T('opslaan') : T('aanmaken')}
           </button>
         </div>
       </div>
@@ -198,7 +220,7 @@ import { pageData } from './lib.js';
     // We uploaden naar het generieke image-endpoint (/posts/upload-image,
     // requireAuth) dat een /media/-URL teruggeeft — dat heeft GEEN playlist-id
     // nodig, dus uploaden kan ook al vóór het aanmaken. De URL belandt in het
-    // cover-veld en wordt bij 'Aanmaken'/'Opslaan' met de playlist meegestuurd.
+    // cover-veld en wordt bij het opslaan met de playlist meegestuurd.
     const coverFileInput = $('#pli-cover-file');
     const coverPickBtn   = $('#pli-cover-pick');
     const coverStatus    = $('#pli-cover-status');
@@ -209,11 +231,11 @@ import { pageData } from './lib.js';
         coverFileInput.value = '';
         if (!file) return;
         if (!/^image\//.test(file.type)) {
-          coverStatus.textContent = 'Alleen afbeeldingen';
+          coverStatus.textContent = T('e_alleen_afb');
           coverStatus.className = 'pl-cover-status is-error';
           return;
         }
-        coverStatus.textContent = 'Uploaden…';
+        coverStatus.textContent = T('bezig');
         coverStatus.className = 'pl-cover-status';
         const fd = new FormData();
         fd.append('image', file);
@@ -222,7 +244,7 @@ import { pageData } from './lib.js';
             { method: 'POST', body: fd, credentials: 'same-origin' }
           );
           const j = await r.json();
-          if (!r.ok || !j.url) throw new Error(j.error || 'Upload mislukt');
+          if (!r.ok || !j.url) throw new Error(j.error || T('e_upload'));
           const url = j.url || '';
           coverEl.value = url;
           coverThumb.innerHTML = url
@@ -231,7 +253,7 @@ import { pageData } from './lib.js';
           coverStatus.textContent = '✓ Geüpload';
           coverStatus.className = 'pl-cover-status is-ok';
         } catch (err) {
-          coverStatus.textContent = 'Mislukt: ' + err.message;
+          coverStatus.textContent = T('e_mislukt') + err.message;
           coverStatus.className = 'pl-cover-status is-error';
         }
       });
@@ -244,7 +266,7 @@ import { pageData } from './lib.js';
     function renderSelected() {
       countEl.textContent = selected.length;
       if (selected.length === 0) {
-        selectedEl.innerHTML = '<div class="pl-empty">Klik tracks rechts om toe te voegen.</div>';
+        selectedEl.innerHTML = '<div class="pl-empty">' + T('leeg_sel') + '</div>';
         updateSaveBtn();
         return;
       }
@@ -255,14 +277,14 @@ import { pageData } from './lib.js';
           ? `<span class="pl-row-cover"><img src="${esc(t.cover)}" alt=""></span>`
           : `<span class="pl-row-cover pl-row-cover-empty">♪</span>`;
         return `<div class="pl-row" data-id="${esc(id)}" data-pos="${i}">
-          <span class="pl-row-handle" aria-label="Verslepen">⠿</span>
+          <span class="pl-row-handle" aria-label="${T('versleep')}">⠿</span>
           <span class="pl-row-num">${i + 1}</span>
           ${cover}
           <span class="pl-row-info">
             <span class="pl-row-title">${esc(t.title)}</span>
             ${t.artist ? `<span class="pl-row-artist">${esc(t.artist)}</span>` : ''}
           </span>
-          <button type="button" class="pl-row-x" data-id="${esc(id)}" aria-label="Verwijderen">×</button>
+          <button type="button" class="pl-row-x" data-id="${esc(id)}" aria-label="${T('verwijder')}">×</button>
         </div>`;
       }).join('');
 
@@ -285,7 +307,7 @@ import { pageData } from './lib.js';
             || (t.artist || '').toLowerCase().includes(q);
       });
       if (matches.length === 0) {
-        availEl.innerHTML = '<div class="pl-empty">Geen resultaten.</div>';
+        availEl.innerHTML = '<div class="pl-empty">' + T('geen_res') + '</div>';
         return;
       }
       availEl.innerHTML = matches.map(t => {
@@ -296,7 +318,7 @@ import { pageData } from './lib.js';
         const cover = t.cover
           ? `<span class="pl-row-cover"><img src="${esc(t.cover)}" alt=""></span>`
           : `<span class="pl-row-cover pl-row-cover-empty">♪</span>`;
-        return `<div class="${cls.join(' ')}" data-id="${esc(t.id)}" ${t.playable ? '' : 'title="Track heeft geen audio-bestand"'}>
+        return `<div class="${cls.join(' ')}" data-id="${esc(t.id)}" ${t.playable ? '' : `title="${T('geen_audio')}"`}>
           ${cover}
           <span class="pl-row-info">
             <span class="pl-row-title">${esc(t.title)}</span>
@@ -390,7 +412,7 @@ import { pageData } from './lib.js';
       if (saveBtn.disabled) return;
       const orig = saveBtn.textContent;
       saveBtn.disabled = true;
-      saveBtn.textContent = 'Opslaan...';
+      saveBtn.textContent = T('bezig_opslaan');
 
       const payload = {
         title:  titleEl.value.trim(),
@@ -409,7 +431,7 @@ import { pageData } from './lib.js';
           : '/admin/playlists/api';
         const j = await api('POST', url, payload);
         if (!j.ok) {
-          alert('Opslaan mislukt: ' + (j.error || 'onbekend'));
+          alert(T('e_opslaan') + (j.error || 'onbekend'));
           saveBtn.disabled = false;
           saveBtn.textContent = orig;
           return;
@@ -420,7 +442,7 @@ import { pageData } from './lib.js';
           opts.onSaved({ id: savedId, playlist: payload });
         }
       } catch (err) {
-        alert('Opslaan mislukt: ' + err.message);
+        alert(T('e_opslaan') + err.message);
         saveBtn.disabled = false;
         saveBtn.textContent = orig;
       }

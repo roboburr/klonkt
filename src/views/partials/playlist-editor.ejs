@@ -283,4 +283,31 @@ const _csrf = (typeof csrfToken !== 'undefined' && csrfToken) || '';
 .pl-cover-picker-grid img { width: 100%; height: 100%; object-fit: cover; display: block; }
 </style>
 
-<%# Het script staat in assets/js/mod/playlist-editor.js; de gegevens via partials/page-data.ejs (shaer-bqr). %>
+<%# Het script staat in assets/js/mod/playlist-editor.js.
+
+    EIGEN GEGEVENSBLOK, niet dat van partials/page-data.ejs. pageData() pakt met
+    querySelector EEN blok, en deze modal wordt ingesloten op pagina's die er al
+    zelf een hebben (admin-playlists, post-edit) -- een tweede blok zou daar
+    stilzwijgend genegeerd worden en dan stond de hele modal weer in het
+    Nederlands. Eigen kenmerk, eigen lezer.
+
+    De teksten stonden hier tot 16-8 hard in het script. Dat viel niet op omdat
+    het toevallig de brontaal was: een Engelse of Duitse beheerder kreeg een
+    Nederlandse modal midden in een vertaalde pagina. %>
+<script type="application/json" data-playlist-editor-i18n><%- JSON.stringify({
+  titel: t('ple.titel'), artiest: t('ple.artiest'), jaar: t('ple.jaar'), type: t('ple.type'),
+  k_album: t('ple.k_album'), k_playlist: t('ple.k_playlist'),
+  uitgave: t('ple.uitgave'), mb_release: t('ple.mb_release'),
+  cover: t('ple.cover'), cover_kies: t('ple.cover_kies'), cover_url: t('ple.cover_url'),
+  tracks_in: t('ple.tracks_in'), sleep_hint: t('ple.sleep_hint'),
+  beschikbaar: t('ple.beschikbaar'), zoek: t('ple.zoek'), geen_res: t('ple.geen_res'),
+  leeg_sel: t('ple.leeg_sel'),
+  t_edit: t('ple.t_edit'), t_new: t('ple.t_new'), dialoog: t('ple.dialoog'),
+  sluiten: t('ple.sluiten'), annuleren: t('ple.annuleren'),
+  opslaan: t('ple.opslaan'), aanmaken: t('ple.aanmaken'),
+  bezig_opslaan: t('ple.bezig_opslaan'),
+  versleep: t('ple.versleep'), verwijder: t('ple.verwijder'),
+  geen_audio: t('ple.geen_audio'), e_geen_tracks: t('ple.e_geen_tracks'),
+  e_tracks: t('ple.e_tracks'), e_opslaan: t('ple.e_opslaan'), e_mislukt: t('ple.e_mislukt'),
+  e_alleen_afb: t('ple.e_alleen_afb'), bezig: t('ple.bezig'), e_upload: t('ple.e_upload'),
+}).replace(/</g, '\\u003c') %></script>
