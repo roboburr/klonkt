@@ -203,3 +203,67 @@ test('een mixtape-collectie krijgt GEEN albumvelden', () => {
   assert.equal(col.released, undefined);
   assert.equal(col.artist_credit, undefined);
 });
+
+test('published EN released lenen de datum van de uitgavepost', () => {
+  // De post is het moment van uitbrengen. Geen datum is slechter dan een datum
+  // die op het gewone geval klopt; voor een heruitgave vul je het veld in.
+  db.prepare(`INSERT INTO posts (id, site_id, author_id, slug, title, content, status, published_at)
+              VALUES ('p-uit','s1','u1','de-plaat-uit','De Plaat Is Er','<p>[[playlist:de-plaat]]</p>','published','2026-05-04T12:00:00Z')`).run();
+  // De fixture zette hierboven al een release_date; die wint terecht, dus voor
+  // DEZE test moet hij weg. (Dat de eerste versie hier omviel is het bewijs dat
+  // de voorrang werkt.)
+  db.prepare("UPDATE playlists SET release_date = NULL WHERE id = 'de-plaat'").run();
+  const al = audio('t1').track.album;
+  assert.equal(al.published, '2026-05-04T12:00:00.000Z');
+  assert.equal(al.released, '2026-05-04', 'released is een DAG, geen tijdstip');
+});
+
+test('een ingevulde uitgavedatum wint van de postdatum', () => {
+  // Dit is het geval waarvoor het veld bestaat: oud werk dat je vandaag post.
+  db.prepare("UPDATE playlists SET release_date = '2018-09-01' WHERE id = 'de-plaat'").run();
+  const al = audio('t1').track.album;
+  assert.equal(al.released, '2018-09-01', 'de postdatum overschreef het ingevulde veld');
+  db.prepare("UPDATE playlists SET release_date = NULL WHERE id = 'de-plaat'").run();
+});
+
+test('geen post en geen veld: dan geen released', () => {
+  // Afwezig is afwezig -- we leiden af waar er iets af te leiden valt, en
+  // verzinnen niets waar dat niet zo is.
+  db.prepare("INSERT INTO playlists (id, site_id, title, kind) VALUES ('kaal','s1','Kale Plaat','album')").run();
+  db.prepare("INSERT INTO playlist_tracks (playlist_id, track_id, position) VALUES ('kaal','t9',1)").run();
+  const al = audio('t9').track.album;
+  assert.equal(al.name, 'Kale Plaat');
+  assert.equal(al.released, undefined);
+});
+
+test('een GEPLANDE post: de geplande dag telt, niet wanneer de worker draaide', () => {
+  // Robins vraag (16-8). Drie schakels moeten kloppen:
+  //
+  //   1. zolang de post 'scheduled' is vindt uitgavePost hem NIET (die filtert
+  //      op status='published'), dus de plaat heeft nog geen uitgavedatum --
+  //      hij is immers nog niet uit;
+  //   2. de Scheduler zet published_at op COALESCE(published_at, publish_at,
+  //      CURRENT_TIMESTAMP), dus op de GEPLANDE tijd;
+  //   3. wij lezen COALESCE(published_at, created_at) en komen daar dus op uit.
+  //
+  // Dat derde punt is waarom created_at hier nooit wint: bij een gepubliceerde
+  // post staat published_at altijd gevuld. En punt 2 is waarom een server die
+  // een uur plat lag geen uur te late uitgavedatum oplevert.
+  db.prepare("INSERT INTO playlists (id, site_id, title, kind) VALUES ('gepland','s1','Geplande Plaat','album')").run();
+  db.prepare("INSERT INTO playlist_tracks (playlist_id, track_id, position) VALUES ('gepland','t2',1)").run();
+  db.prepare(`INSERT INTO posts (id, site_id, author_id, slug, title, content, status, publish_at, created_at, published_at)
+              VALUES ('p-gepland','s1','u1','komt-nog','Komt Nog','<p>[[playlist:gepland]]</p>','scheduled',
+                      '2026-12-24T09:00:00Z','2026-06-01T08:00:00Z',NULL)`).run();
+
+  // Nog gepland: geen datum, want de plaat is nog niet uit.
+  assert.equal(audio('t2').track.album.released, undefined, 'een geplande post bracht al iets uit');
+
+  // De Scheduler doet zijn werk -- en draait expres LATER dan gepland.
+  db.prepare(`UPDATE posts SET status = 'published',
+              published_at = COALESCE(published_at, publish_at, CURRENT_TIMESTAMP) WHERE id = 'p-gepland'`).run();
+
+  const al = audio('t2').track.album;
+  assert.equal(al.released, '2026-12-24', 'niet de geplande dag');
+  assert.equal(al.published, '2026-12-24T09:00:00.000Z');
+  assert.notEqual(al.released, '2026-06-01', 'de creatiedatum lekte door');
+});

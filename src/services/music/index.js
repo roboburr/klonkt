@@ -484,13 +484,26 @@ export function trackAlbums(siteId) {
 export function buildAlbumObject(base, site, pl) {
   if (!pl) return null;
   const abs = (u) => !u ? null : (/^https?:/i.test(u) ? u : `${base}${u.startsWith('/') ? '' : '/'}${u}`);
-  // GEEN epoch als terugval. `published` is bij hen verplicht, maar 1970 is een
-  // ANTWOORD en geen ontbrekend veld -- en dat is erger: een lezer kan een gat
-  // opmerken, een leugen niet. playlists.created_at heeft een default, dus als
-  // hij hier ontbreekt is er een leespad dat de kolom laat vallen. Dat willen we
-  // zien, niet maskeren. (Zo kwam op 16-8 de route boven water die id, title,
-  // artist, year, cover_url en kind selecteerde en de rest niet.)
-  const wanneer = pl.created_at ? new Date(pl.created_at).toISOString() : null;
+  // WANNEER IS DEZE PLAAT GEPUBLICEERD. De post die hem uitbrengt gaat voor, en
+  // niet als noodgreep maar omdat hij het beter weet: playlists.created_at is
+  // het moment waarop de RIJ is aangemaakt, en dat kan weken eerder zijn terwijl
+  // je nog aan het samenstellen was. AS2 `published` vraagt wanneer het object
+  // openbaar werd, en dat is de post.
+  //
+  // GEEN epoch als laatste terugval. `published` is bij hen verplicht, maar 1970
+  // is een ANTWOORD en geen ontbrekend veld -- en dat is erger: een lezer kan een
+  // gat opmerken, een leugen niet. Zo kwam op 16-8 de route boven water die id,
+  // title, artist, year, cover_url en kind selecteerde en de rest niet.
+  //
+  // OOK VOOR `released`, en daar had ik het eerst mis (Robin, 16-8). Mijn
+  // bezwaar was: post je vandaag een plaat uit 2018, dan beweert dit dat hij
+  // vandaag uitkwam. Dat gebeurt ook -- maar bij de meeste Klonkt-sites IS de
+  // post het uitbrengen, en GEEN datum is slechter dan een datum die op het
+  // gewone geval klopt. Het handmatige veld is precies het gereedschap voor de
+  // uitzondering: bij een heruitgave vul je hem in en die wint.
+  const postDatum = (pl._post && pl._post.uit_wanneer) ? new Date(pl._post.uit_wanneer) : null;
+  const wanneer = postDatum ? postDatum.toISOString()
+    : (pl.created_at ? new Date(pl.created_at).toISOString() : null);
   // Dezelfde lening als in buildPlaylistCollection: de post die de plaat
   // uitbrengt geeft zijn titel, en de eigen titel blijft als alsoKnownAs staan.
   const titel = (pl._post && pl._post.title) || pl.title;
@@ -503,9 +516,12 @@ export function buildAlbumObject(base, site, pl) {
     artist_credit: artistCredit(base, site, pl.artist, wanneer || new Date().toISOString()),
   };
   if (titel !== pl.title) album.alsoKnownAs = pl.title;
-  // `released` alleen als er een ECHTE datum is. `year` vult hem niet aan: een
-  // jaartal is geen dag, en dat is de reden dat release_date bestaat.
+  // Het ingevulde veld wint altijd; anders de DAG waarop de post verscheen.
+  // `year` vult hem nog steeds niet aan, en dat is geen inconsequentie: een
+  // jaartal is geen dag, terwijl de postdatum een gebeurtenis is die werkelijk
+  // heeft plaatsgevonden. Het verschil is verzinnen versus afleiden.
   if (pl.release_date) album.released = pl.release_date;
+  else if (postDatum) album.released = postDatum.toISOString().slice(0, 10);
   if (pl.mb_release_id) album.musicbrainzId = pl.mb_release_id;
   const hoes = abs(pl.cover_url || null);
   if (hoes) album.image = { type: 'Image', mediaType: guessMediaType(hoes), url: hoes };
@@ -521,6 +537,11 @@ export function buildPlaylistCollection(base, site, playlist, rows) {
   // De hoes van de playlist dient als terugval voor een track zonder eigen hoes.
   const hostPosts = site.id ? trackHostPosts(site.id) : null;
   const albums = site.id ? trackAlbums(site.id) : null;
+  // EEN keer opzoeken en twee keer gebruiken: het Album leent er zijn datums en
+  // titel van, leenVanPost onderaan zijn tekst en tags. Twee losse aanroepen
+  // zouden niet alleen dubbel werk zijn maar ook uiteen kunnen lopen -- en dan
+  // staat er weer iets anders op het ingesloten object dan op zijn eigen URI.
+  const post = site.id ? uitgavePost(site.id, playlist.id) : null;
   const items = (rows || []).map((r) => buildTrackAudio(base, site, r, { coverFallback: playlist.cover_url || null, hostPosts, albums }));
   const out = pagedCollection(`${actorId(base, site.slug)}/playlists/${playlist.id}`, items, {
     extra: { name: playlist.title, attributedTo: actorId(base, site.slug) },
@@ -546,12 +567,12 @@ export function buildPlaylistCollection(base, site, playlist, rows) {
   // album, dan leest hij deze velden gewoon. En het object dat hij echt gebruikt
   // staat toch al ingesloten op de track.
   if ((playlist.kind || 'album') === 'album') {
-    const album = buildAlbumObject(base, site, playlist);
+    const album = buildAlbumObject(base, site, { ...playlist, _post: post });
     for (const veld of ['published', 'released', 'musicbrainzId', 'artist_credit', 'image']) {
       if (album[veld] !== undefined) out[veld] = album[veld];
     }
   }
-  return leenVanPost(base, site, out, uitgavePost(site.id, playlist.id));
+  return leenVanPost(base, site, out, post);
 }
 
 // ── De post als uitgave (shaer-38y) ───────────────────────────────────────
@@ -576,7 +597,8 @@ export function uitgavePost(siteId, playlistId) {
   if (!siteId || !playlistId) return null;
   try {
     const rijen = db.prepare(`
-      SELECT id, slug, title, excerpt, content, cover_image_url, tags
+      SELECT id, slug, title, excerpt, content, cover_image_url, tags,
+             COALESCE(published_at, created_at) AS uit_wanneer
       FROM posts
       WHERE site_id = ? AND status = 'published'
         AND content LIKE '%[[playlist:' || ? || ']]%'
