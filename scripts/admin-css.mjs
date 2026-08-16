@@ -98,6 +98,11 @@ function styleBlok(bestand) {
 const PARTIAL = 'src/views/partials/admin-styles.ejs';
 const PAGINAS = process.argv.filter((a) => a.endsWith('.ejs') && a !== PARTIAL);
 const doen = process.argv.includes('--doen');
+// --forceer haalt OOK de regels weg die dezelfde selector hebben maar een
+// andere waarde: de pagina neemt dan de vorm van de partial over. Apart van
+// --doen omdat het iets anders is -- --doen verplaatst, dit VERANDERT hoe de
+// pagina eruitziet, en dat hoort een expliciete keuze te zijn.
+const forceer = process.argv.includes('--forceer');
 
 const gedeeld = new Map();
 for (const r of ontleed(styleBlok(PARTIAL).css)) {
@@ -119,19 +124,32 @@ for (const pad of PAGINAS) {
   console.log(`${pad}`);
   console.log(`  ${dubbel.length} identiek aan de partial  ->  weg`);
   console.log(`  ${anders.length} zelfde selector, ANDERE waarde  ->  blijft staan`);
-  for (const r of anders) console.log(`      ${r.context ? r.context + ' ' : ''}${r.selector}`);
+  for (const r of anders) {
+    console.log(`      ${r.context ? r.context + ' ' : ''}${r.selector}`);
+    if (process.argv.includes('--toon')) {
+      const g = gedeeld.get(`${r.context}||${r.selector}`);
+      // Alleen de eigenschappen die ECHT verschillen, anders verzuipt het
+      // verschil in twintig regels die identiek zijn.
+      const kaart = (v) => new Map(v.split('; ').map((d) => [d.split(':')[0].trim(), d]));
+      const [ga, ra] = [kaart(g), kaart(r.verklaringen)];
+      for (const k of new Set([...ga.keys(), ...ra.keys()])) {
+        if (ga.get(k) !== ra.get(k)) console.log(`          partial: ${ga.get(k) || '(niets)'}\n          pagina : ${ra.get(k) || '(niets)'}`);
+      }
+    }
+  }
   console.log(`  ${eigen.length} alleen op deze pagina  ->  blijft staan`);
 
-  if (doen && dubbel.length) {
+  const weg = forceer ? [...dubbel, ...anders] : dubbel;
+  if (doen && weg.length) {
     // Van achter naar voren knippen, anders schuiven de posities.
     let css = blok.css;
-    for (const r of [...dubbel].sort((a, b) => b.van - a.van)) {
+    for (const r of [...weg].sort((a, b) => b.van - a.van)) {
       css = css.slice(0, r.van) + css.slice(r.tot);
     }
     css = css.replace(/\n{3,}/g, '\n\n');
     const nieuw = blok.tekst.slice(0, blok.van) + css + blok.tekst.slice(blok.van + blok.css.length);
     fs.writeFileSync(pad, nieuw);
-    console.log('  geschreven');
+    console.log(`  geschreven (${weg.length} regels weg${forceer ? ', waarvan ' + anders.length + ' afwijkend' : ''})`);
   }
   console.log();
 }
