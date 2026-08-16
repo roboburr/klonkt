@@ -1,49 +1,53 @@
-<div class="container admin-listeners-page">
-  <p><a href="/admin" class="btn">&larr; <%= t('aaud.back') %></a></p>
-  <h1><%= t('alis.lis_title') %></h1>
+<%# Beheer -> Media -> Luisteraars (shaer-0nh).
 
+    Deze pagina had zijn eigen <style>-blok met eigen klassen (.lis-*) en week
+    daarmee af van de vier tabs ernaast -- andere breedte, andere kop, andere
+    rij. Nu op dezelfde ax-*-romp; wat overblijft is een lijst zoals audio en
+    playlists er ook een hebben. %>
+<%- include('../partials/admin-styles') %>
+<div class="container ax-page">
+
+  <p><a href="/admin" class="ax-btn">&larr; <%= t('nav.admin') %></a></p>
   <%- include('../partials/media-tabs', { active: 'listeners', audioOn: audioOn }) %>
-
-  <%# Waarom dit een eigen tab is en niet een lijstje bij de volgers: dit zijn
-      accounts die aan de BIBLIOTHEEK hangen. Ze krijgen de muziek en met opzet
-      niet de gewone posts, en dat verschil hoort zichtbaar te zijn -- ook voor
-      wie later moet begrijpen waarom ze niet in de volgerslijst staan. %>
-  <p class="admin-tagline"><%= t('alis.lis_intro') %></p>
+  <header class="ax-header">
+    <div>
+      <h1><%= t('alis.lis_title') %></h1>
+      <%# Waarom dit een eigen tab is en niet een lijstje bij de volgers: dit
+          zijn accounts die aan de BIBLIOTHEEK hangen. Ze krijgen de muziek en
+          met opzet niet de gewone posts, en dat verschil hoort zichtbaar te
+          zijn -- ook voor wie later moet begrijpen waarom ze niet in de
+          volgerslijst staan. %>
+      <p class="ax-tagline"><%= t('alis.lis_intro') %></p>
+    </div>
+  </header>
 
   <% if (!luisteraars.length) { %>
-    <p class="lis-leeg"><%= t('alis.lis_empty') %></p>
+    <div class="ax-empty">
+      <div class="ax-empty-icon">&#127911;</div>
+      <p><%= t('alis.lis_empty') %></p>
+    </div>
   <% } else { %>
-    <p class="lis-telling"><strong><%= luisteraars.length %></strong> <%= t('alis.lis_count') %></p>
-    <ul class="lis-lijst">
+    <p class="ax-tagline" style="margin-bottom:.75rem;"><strong><%= luisteraars.length %></strong> <%= t('alis.lis_count') %></p>
+    <ul class="ax-list">
       <% luisteraars.forEach(function (l) { %>
-        <li class="lis-rij">
-          <span class="lis-naam"><%= l.name || l.handle || l.actor_uri %></span>
-          <% if (l.handle) { %><span class="lis-handle"><%= l.handle %></span><% } %>
-          <span class="lis-meta">
-            <%= t('alis.lis_since') %> <%= formatDate(l.created_at) %>
-            ·
-            <%= t('alis.lis_last') %>:
-            <%= l.last_delivery_at ? formatDate(l.last_delivery_at) : t('alis.lis_never') %>
-          </span>
+        <li class="ax-track">
+          <div class="ax-track-cover">
+            <% if (l.icon) { %><img src="<%= l.icon %>" alt="" loading="lazy" decoding="async"><% } else { %>&#9835;<% } %>
+          </div>
+          <div class="ax-track-meta">
+            <div class="ax-track-title">
+              <%= l.name || l.handle || l.actor_uri %>
+              <% if (l.last_error_at) { %><span class="ax-pill"><%= t('alis.lis_error') %></span><% } %>
+            </div>
+            <div class="ax-track-sub">
+              <% if (l.handle) { %><span><%= l.handle %></span><span class="ax-track-sep">&middot;</span><% } %>
+              <span><%= t('alis.lis_since') %> <%= formatDate(l.created_at) %></span>
+              <span class="ax-track-sep">&middot;</span>
+              <span><%= t('alis.lis_last') %>: <%= l.last_delivery_at ? formatDate(l.last_delivery_at) : t('alis.lis_never') %></span>
+            </div>
+          </div>
         </li>
       <% }); %>
     </ul>
   <% } %>
 </div>
-
-<style>
-.admin-listeners-page { max-width: 760px; margin: 3rem auto; padding: 0 1rem; }
-.admin-listeners-page h1 { font-family: var(--font-display, serif); font-size: 1.8rem; margin: 0 0 0.4rem; }
-.admin-listeners-page .admin-tagline { color: var(--ink-muted); margin: 0 0 1.5rem; }
-.lis-telling { color: var(--ink-muted); font-size: 0.9rem; }
-.lis-lijst { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
-.lis-rij {
-  display: flex; flex-direction: column; gap: 0.15rem;
-  border: 1px solid var(--rule); border-radius: 8px;
-  padding: 0.7rem 0.85rem; background: var(--paper-2);
-}
-.lis-naam { font-weight: 600; }
-.lis-handle { font-size: 0.85rem; color: var(--ink); }
-.lis-meta { font-size: 0.78rem; color: var(--ink-muted); }
-.lis-leeg { color: var(--ink-muted); }
-</style>

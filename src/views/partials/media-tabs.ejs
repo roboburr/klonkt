@@ -1,11 +1,24 @@
-<%# Shared Media tab bar (Afbeeldingen / Audio / Playlists). Params: active = 'images'|'videos'|'audio'|'playlists'|'listeners'; audioOn (bool, default true). %>
+<%# Gedeelde tabbalk voor Media (Afbeeldingen / Video's / Audio / Playlists /
+    Luisteraars).
+
+    Params: active = 'images'|'videos'|'audio'|'playlists'|'listeners';
+            audioOn (bool, standaard true).
+
+    De opmaak stond hier volledig inline en zit nu in partials/admin-styles.ejs
+    bij de rest van de ax-*-primitieven. Een gedeeld element dat zijn eigen
+    opmaak meedroeg kon niet meebewegen met de pagina's eromheen -- en dat was
+    zichtbaar: de balk zag er hetzelfde uit op vijf pagina's die verder van
+    twee verschillende ontwerpen waren.
+
+    De actieve tab is `aria-current="page"` en niet een klasse: dat is wat een
+    schermlezer nodig heeft, en de opmaak kan er net zo goed op haken. %>
 <% var _a = (typeof audioOn === 'undefined') ? true : audioOn; %>
-<nav class="media-tabs" aria-label="Media" style="display:flex;gap:.4rem;margin:0 0 1.25rem;border-bottom:1px solid var(--rule,rgba(128,128,128,.3));flex-wrap:wrap;">
-  <a href="/admin/media" class="btn" style="border-radius:8px 8px 0 0;<%= active === 'images' ? 'border-bottom:2px solid var(--accent,#e8b04b);font-weight:600;' : 'opacity:.8;' %>"><%= t('admin.media_images') %></a>
-  <a href="/admin/media/videos" class="btn" style="border-radius:8px 8px 0 0;<%= active === 'videos' ? 'border-bottom:2px solid var(--accent,#e8b04b);font-weight:600;' : 'opacity:.8;' %>"><%= t('admin.media_videos') %></a>
+<nav class="ax-tabs" aria-label="Media">
+  <a href="/admin/media" class="ax-tab"<%- active === 'images' ? ' aria-current="page"' : '' %>><%= t('admin.media_images') %></a>
+  <a href="/admin/media/videos" class="ax-tab"<%- active === 'videos' ? ' aria-current="page"' : '' %>><%= t('admin.media_videos') %></a>
   <% if (_a) { %>
-  <a href="/admin/audio" class="btn" style="border-radius:8px 8px 0 0;<%= active === 'audio' ? 'border-bottom:2px solid var(--accent,#e8b04b);font-weight:600;' : 'opacity:.8;' %>"><%= t('admin.b_audio') %></a>
-  <a href="/admin/playlists" class="btn" style="border-radius:8px 8px 0 0;<%= active === 'playlists' ? 'border-bottom:2px solid var(--accent,#e8b04b);font-weight:600;' : 'opacity:.8;' %>"><%= t('admin.b_playlists') %></a>
-  <a href="/admin/listeners" class="btn" style="border-radius:8px 8px 0 0;<%= active === 'listeners' ? 'border-bottom:2px solid var(--accent,#e8b04b);font-weight:600;' : 'opacity:.8;' %>"><%= t('admin.b_listeners') %></a>
+  <a href="/admin/audio" class="ax-tab"<%- active === 'audio' ? ' aria-current="page"' : '' %>><%= t('admin.b_audio') %></a>
+  <a href="/admin/playlists" class="ax-tab"<%- active === 'playlists' ? ' aria-current="page"' : '' %>><%= t('admin.b_playlists') %></a>
+  <a href="/admin/listeners" class="ax-tab"<%- active === 'listeners' ? ' aria-current="page"' : '' %>><%= t('admin.b_listeners') %></a>
   <% } %>
 </nav>
