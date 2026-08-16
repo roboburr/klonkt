@@ -78,3 +78,37 @@ test('een NIET-betaalde post lekt niets extra: die hoort gewoon leesbaar', () =>
   const note = AP.buildNote('https://ons.test', site(), maak({ id: 'p5', slug: 'gewoon' }));
   assert.ok(alleTekst(note).includes(GEHEIM), 'een gewone post draagt zijn inhoud wel');
 });
+
+
+// ── De reparatie van 15 augustus 2026 ──────────────────────────────
+// De test hierboven ('ook niet via de OUTBOX') gaf buildOutbox een rij uit
+// `SELECT *` en was dus groen TERWIJL DE OUTBOX LEKTE. De echte route haalt een
+// kolommenlijst op, en `paid` stond daar niet in -- dus post.paid was undefined
+// en de redactie viel stil weg. Een test die de echte weg niet neemt, bewijst
+// de echte weg niet.
+test('via outboxSlice, de echte weg, komt paid mee', () => {
+  maak({ id: 'p9', slug: 'betaald-slice', paid: 1 });
+  const rij = AP.outboxSlice('s1', { offset: 0, limit: 50 }).posts.find((x) => x.id === 'p9');
+  assert.ok(rij, 'de post hoort in de slice te zitten');
+  assert.equal(rij.paid, 1, 'paid MOET uit de query komen; undefined IS de lek');
+  const note = AP.buildNote('https://ons.test', site(), rij);
+  assert.ok(!alleTekst(note).includes(GEHEIM), 'de volledige tekst mag de outbox niet uit');
+  assert.match(note.content, /Een teaser/);
+});
+
+// Klasse-wacht. Het lekte op twee plekken met dezelfde fout (outboxSlice en
+// backfillNewFollower), en zo'n kolommenlijst faalt STIL: een vergeten veld is
+// `undefined`, niet een fout. Deze test kijkt daarom naar de bron, zodat een
+// derde plek niet opnieuw ongemerkt gaat lekken.
+test('elke kolommenlijst die post-tekst ophaalt, haalt ook paid op', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const bron = await readFile(new URL('../src/services/ActivityPubService.js', import.meta.url), 'utf8');
+  const fout = [];
+  for (const m of bron.matchAll(/SELECT\s+([^;`']*?)\s+FROM\s+posts\b/gis)) {
+    const kol = m[1].replace(/\s+/g, ' ').trim();
+    if (kol === '*' || kol.includes('(')) continue;   // SELECT * is veilig
+    if (!/\bcontent\b/.test(kol)) continue;           // levert geen post-tekst
+    if (!/\bpaid\b/.test(kol)) fout.push(`regel ${bron.slice(0, m.index).split('\n').length}: ${kol.slice(0, 80)}`);
+  }
+  assert.deepEqual(fout, [], 'deze SELECTs leveren post.content zonder post.paid:\n  ' + fout.join('\n  '));
+});

@@ -1141,9 +1141,19 @@ export function outboxSlice(siteId, { fanOnly = false, offset = 0, limit = MAX_O
     // alleen aan vrienden geserveerd wordt. Een volger kreeg dus een
     // vrienden-post met een publiek etiket erop, en die mag hij dan publiek
     // boosten. Gevonden tijdens de FEP-1580 end-to-end test (shaer-fuyo).
-    `SELECT id, slug, title, content, cover_image_url, cover_video_url, nsfw, content_warning,
+    // EN paid + excerpt, om exact dezelfde reden (Barts melding, 15-8). Zonder
+    // `paid` is post.paid hier `undefined`, dan slaat buildNote zijn redactie
+    // over en gaat de VOLLEDIGE tekst van een betaalde post de outbox uit. Zo
+    // kwam een post via een hub-actor gewoon te lezen. `excerpt` moet mee omdat
+    // de teaser daaruit komt; zonder dat veld valt hij terug op de eerste
+    // alinea van precies de tekst die verborgen hoort te blijven.
+    //
+    // Dit is een KOLOMMENLIJST, en die faalt stil: een vergeten kolom is
+    // `undefined` en niet een fout. Wie hier een veld toevoegt waar buildNote
+    // op beslist, moet het HIER ook toevoegen.
+    `SELECT id, slug, title, excerpt, content, cover_image_url, cover_video_url, nsfw, content_warning,
             c2s_attachments, quote_json, embed_json, published_at, created_at,
-            fan_only, ap_visibility
+            fan_only, ap_visibility, paid, paid_min_cents
        FROM posts WHERE id IN (${gaten(postIds.length)})`).all(...postIds) : [];
   const tracks = trackIds.length ? db.prepare(
     `SELECT ${TRACK_KOLOMMEN}
@@ -3013,9 +3023,18 @@ async function backfillNewFollower(base, slug, inbox) {
   if (!base || !slug || !inbox) return;
   const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(slug);
   if (!site) return;
+  // Deze lijst filterde op fan_only maar NIET op paid, en haalde `paid` ook niet
+  // op -- dus stond post.paid op undefined, sloeg buildNote zijn redactie over,
+  // en duwden we bij ELKE nieuwe volger twintig posts de deur uit met de
+  // volledige tekst van de betaalde erbij. Een push, dus onherroepelijk: het
+  // staat daarna in hun inbox. Zelfde reden voor ap_visibility, dat hier
+  // helemaal ontbrak: een friends- of direct-post hoort niet in een backfill.
+  // (Barts melding, 15 augustus 2026.)
   const recent = db.prepare(
-    `SELECT id, slug, title, content, cover_image_url, cover_video_url, nsfw, content_warning, c2s_attachments, published_at, created_at
+    `SELECT id, slug, title, excerpt, content, cover_image_url, cover_video_url, nsfw, content_warning,
+            c2s_attachments, published_at, created_at, fan_only, ap_visibility, paid, paid_min_cents
      FROM posts WHERE site_id = ? AND status = 'published' AND (fan_only IS NULL OR fan_only = 0)
+       AND IFNULL(ap_visibility, 'public') = 'public'
      ORDER BY COALESCE(published_at, created_at) DESC LIMIT 20`
   ).all(site.id).reverse();
   if (!recent.length) return;
