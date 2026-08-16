@@ -54,9 +54,16 @@ test('de track heeft een EIGEN id, niet dat van het bestand', () => {
   assert.notEqual(a.track.id, a.id, 'een bestand is geen werk');
 });
 
-test('geen album zolang het bij ons geen object is', () => {
-  // Een tekstkolom als URI meesturen is een adres beloven dat niet bestaat.
-  assert.equal(audio('t1').track.album, undefined);
+test('een track zonder uitgave draagt GEEN album', () => {
+  // Dit stond er in stap 1 als "nog geen album, want we hebben er geen object
+  // voor". Sinds stap 2 hebben we dat wel -- de album-playlist -- en is de regel
+  // scherper: geen uitgave, geen veld. De tekstkolom `album` op de track blijft
+  // buiten de draad, want dat is een label en geen adres.
+  db.prepare("INSERT INTO media (id, site_id, filename, storage_path, mime_type, size) VALUES ('m9','s1','los.mp3','a/los.mp3','audio/mpeg',10)").run();
+  db.prepare("INSERT INTO audio_tracks (id, site_id, title, album, media_id, fedi_open) VALUES ('t9','s1','Losse track','Een Albumnaam','m9',1)").run();
+  const a = audio('t9');
+  assert.equal(a.track.album, undefined, 'een albumNAAM is geen album');
+  assert.equal(a.album, undefined);
 });
 
 test('geen verzonnen positie', () => {
@@ -134,4 +141,65 @@ test('musicbrainzId komt mee zodra de site gekoppeld is', () => {
   const a = AP.buildTrackAudio(BASE, s2, AP.openTrack('s1', 't1'), { hostPosts: null });
   assert.equal(a.track.artist_credit[0].artist.musicbrainzId, '5441c29d-3602-4898-b1a1-b77fa23b8e50');
   db.prepare("UPDATE sites SET mb_artist_id = NULL WHERE id = 's1'").run();
+});
+
+// ── het album ingesloten (shaer-756s, stap 2) ────────────────────────
+//
+// Hun TrackSerializer heeft `album = AlbumSerializer()`: een OBJECT met name,
+// published en een eigen artist_credit. Een kale URI expandeert naar een knoop
+// met alleen een @id en valt daar af -- dat is precies waarom Emissary's tracks
+// bij Funkwhale ook stranden.
+
+db.prepare(`INSERT INTO playlists (id, site_id, title, artist, year, cover_url, kind, release_date, mb_release_id, created_at)
+            VALUES ('de-plaat','s1','De Plaat','De Band',2024,'/media/hoes.jpg','album','2024-03-15','7c5a9b2e-1111-4222-8333-944455556666','2026-01-01T00:00:00Z')`).run();
+db.prepare("INSERT INTO playlist_tracks (playlist_id, track_id, position) VALUES ('de-plaat','t1',1)").run();
+// t2 zit in een MIXTAPE en hoort dus geen album te krijgen.
+db.prepare("INSERT INTO playlists (id, site_id, title, kind) VALUES ('de-mix','s1','De Mix','playlist')").run();
+db.prepare("INSERT INTO playlist_tracks (playlist_id, track_id, position) VALUES ('de-mix','t2',1)").run();
+
+test('een track op een uitgave draagt het album als OBJECT', () => {
+  const a = audio('t1');
+  const al = a.track.album;
+  assert.ok(al && typeof al === 'object', 'album is geen object');
+  assert.equal(al.type, 'Album');
+  assert.equal(al.id, `${BASE}/ap/users/band/playlists/de-plaat`, 'het id is de bestaande collectie');
+  assert.equal(al.name, 'De Plaat');
+  assert.ok(al.published, 'MusicEntitySerializer eist published');
+  assert.equal(al.released, '2024-03-15');
+  assert.equal(al.musicbrainzId, '7c5a9b2e-1111-4222-8333-944455556666');
+  assert.ok(Array.isArray(al.artist_credit) && al.artist_credit.length >= 1, 'album zonder artist_credit');
+  assert.equal(al.image.type, 'Image');
+  // Ook als URI op de Audio zelf -- Funkwhale 2.0 en Emissary doen dat allebei.
+  assert.equal(a.album, al.id);
+});
+
+test('een track in een MIXTAPE krijgt geen album', () => {
+  // Een afspeellijst is geen uitgave. Zou hij hier een album krijgen, dan was
+  // het onderscheid album/playlist decoratie.
+  const a = audio('t2');
+  assert.equal(a.track.album, undefined);
+  assert.equal(a.album, undefined);
+});
+
+test('track en album delen dezelfde artiest', () => {
+  // Twee keer los bouwen is hoe ze uit elkaar gaan lopen; er is een functie.
+  const a = audio('t1');
+  assert.deepEqual(a.track.artist_credit[0].artist, a.track.album.artist_credit[0].artist);
+});
+
+test('de playlist-collectie draagt de albumvelden, met type als STRING', () => {
+  const pl = db.prepare("SELECT * FROM playlists WHERE id = 'de-plaat'").get();
+  const col = AP.buildPlaylistCollection(BASE, site, pl, AP.playlistOpenTracks('de-plaat'));
+  assert.equal(typeof col.type, 'string', 'een array breekt lezers die type als tekst uitpakken');
+  assert.equal(col.type, 'OrderedCollection');
+  assert.equal(col.released, '2024-03-15');
+  assert.equal(col.musicbrainzId, '7c5a9b2e-1111-4222-8333-944455556666');
+  assert.ok(col.artist_credit);
+});
+
+test('een mixtape-collectie krijgt GEEN albumvelden', () => {
+  const pl = db.prepare("SELECT * FROM playlists WHERE id = 'de-mix'").get();
+  const col = AP.buildPlaylistCollection(BASE, site, pl, AP.playlistOpenTracks('de-mix'));
+  assert.equal(col.released, undefined);
+  assert.equal(col.artist_credit, undefined);
 });
