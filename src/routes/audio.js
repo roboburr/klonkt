@@ -146,6 +146,12 @@ router.get('/stream/:filename', async (req, res) => {
   // Common headers
   res.setHeader('Content-Type', mime);
   res.setHeader('Accept-Ranges', 'bytes');
+  // Same lesson /media already learned: Helmet's default CORP is same-origin,
+  // and the browser then refuses to hand a cross-origin <audio> the bytes —
+  // the file arrives, the player stays silent. These URLs are precisely what
+  // we advertise in federated Audio objects (Funkwhale, the hub) to be played
+  // elsewhere; WHO may fetch is decided by the gate above, not by CORP.
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   // Allow the browser to cache the file for a day so play/pause/replay
   // doesn't re-fetch the whole stream every time. `private` keeps it out of
   // shared proxies/CDNs (only the user's own browser cache), preserving the
