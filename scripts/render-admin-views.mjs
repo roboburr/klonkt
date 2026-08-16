@@ -26,11 +26,15 @@ const basis = {
 };
 
 const gevuld = {
+  'admin-audio': { tracks: [], playlists: [], maxBytesMb: 20, maxWavMb: 100 },
+  'admin-playlists': { playlists: [] },
   'admin-media': { items: [{ file: 'a.jpg', url: '/m/a.jpg', kb: 12, usedCount: 0, hasVideo: true }], unusedCount: 1 },
   'admin-videos': { items: [{ file: 'b.mp4', url: '/m/b.mp4', kb: 99, usedCount: 2 }] },
   'admin-listeners': { luisteraars: [{ actor_uri: 'https://x/y', name: 'Zoe', handle: '@zoe@x', icon: '/i.png', created_at: '2026-08-01', last_delivery_at: null, last_error_at: '2026-08-02' }] },
 };
 const leeg = {
+  'admin-audio': { tracks: [], playlists: [], maxBytesMb: 20, maxWavMb: 100 },
+  'admin-playlists': { playlists: [] },
   'admin-media': { items: [], unusedCount: 0 },
   'admin-videos': { items: [] },
   'admin-listeners': { luisteraars: [] },
@@ -53,6 +57,14 @@ for (const naam of Object.keys(gevuld)) {
       // De gedeelde opmaak moet mee zijn gekomen.
       if (!html.includes('.ax-tab[aria-current')) fouten.push('admin-styles ontbreekt');
       if (!html.includes('class="container ax-page"')) fouten.push('ax-page-romp ontbreekt');
+      // De terugknop, met NAAM en al. Robin zag op 16-8 dat hij van grootte
+      // verschilde: drie pagina's hadden ax-btn en twee de globale btn, en dat
+      // scheelt 10px hoogte en een andere radius. Dit is de regel die dat
+      // vasthoudt -- de klasse staat er letterlijk in, want juist zo'n verschil
+      // ziet er in de bron uit als hetzelfde.
+      const terug = /<a href="\/admin" class="([^"]+)">/.exec(markup);
+      if (!terug) fouten.push('geen terugknop naar /admin');
+      else if (terug[1] !== 'ax-btn') fouten.push('terugknop heeft class="' + terug[1] + '" i.p.v. ax-btn');
       // Twee vormen van stille schade die er goed uitzien in de bron.
       if (markup.includes("[object Promise]")) fouten.push('onopgeloste include');
       if (html.includes('aria-current=&quot;')) fouten.push('aria-current is ge-escaped');

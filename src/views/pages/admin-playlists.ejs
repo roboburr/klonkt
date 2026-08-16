@@ -10,7 +10,7 @@ const _csrf = (typeof csrfToken !== 'undefined' && csrfToken) || '';
 <%- include('../partials/admin-styles') %>
 <div class="container ax-page">
 
-  <p><a href="/admin" class="btn">&larr; <%= t('nav.admin') %></a></p>
+  <%- include('../partials/admin-back') %>
   <%- include('../partials/media-tabs', { active: 'playlists', audioOn: true }) %>
   <header class="ax-header">
     <div>

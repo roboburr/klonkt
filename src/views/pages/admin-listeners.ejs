@@ -7,7 +7,7 @@
 <%- include('../partials/admin-styles') %>
 <div class="container ax-page">
 
-  <p><a href="/admin" class="ax-btn">&larr; <%= t('nav.admin') %></a></p>
+  <%- include('../partials/admin-back') %>
   <%- include('../partials/media-tabs', { active: 'listeners', audioOn: audioOn }) %>
   <header class="ax-header">
     <div>
