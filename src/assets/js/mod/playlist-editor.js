@@ -62,7 +62,7 @@ import { pageData } from './lib.js';
     }
 
     // Existing playlist data when editing
-    let initial = { title: '', artist: '', year: '', cover: '', kind: 'album', track_ids: [] };
+    let initial = { title: '', artist: '', year: '', cover: '', kind: 'album', release_date: '', mb_release_id: '', track_ids: [] };
     if (isEdit && opts.id) {
       try {
         const j = await api('GET', '/admin/playlists/api/' + encodeURIComponent(opts.id));
@@ -101,6 +101,16 @@ import { pageData } from './lib.js';
                     <option value="album"    ${initial.kind === 'album' ? 'selected' : ''}>💿 Album (genummerd)</option>
                     <option value="playlist" ${initial.kind === 'playlist' ? 'selected' : ''}>📃 Playlist (track-covers)</option>
                   </select>
+                </label>
+                <label class="pl-field pl-uitgave">
+                  <span>Uitgavedatum</span>
+                  <input type="date" id="pli-release-date" value="${esc(initial.release_date || '')}">
+                </label>
+                <label class="pl-field pl-uitgave">
+                  <span>MusicBrainz release-id</span>
+                  <input type="text" id="pli-mb-release" maxlength="36" spellcheck="false"
+                         placeholder="00000000-0000-0000-0000-000000000000"
+                         value="${esc(initial.mb_release_id || '')}">
                 </label>
                 <div class="pl-field pl-field-full">
                   <span>Cover</span>
@@ -156,7 +166,20 @@ import { pageData } from './lib.js';
     const artistEl = $('#pli-artist');
     const yearEl = $('#pli-year');
     const kindEl = $('#pli-kind');
+    const releaseEl = $('#pli-release-date');
+    const mbReleaseEl = $('#pli-mb-release');
     const coverEl = $('#pli-cover');
+
+    // Uitgavedatum en release-id horen bij een ALBUM, niet bij een
+    // afspeellijst -- dat is wat de keuze album/playlist betekent. Ze
+    // verdwijnen dus als je omschakelt, en de server maakt ze dan ook leeg;
+    // dit scherm is de uitleg, niet de bewaking.
+    const toonUitgave = () => {
+      const album = kindEl.value !== 'playlist';
+      for (const el of backdrop.querySelectorAll('.pl-uitgave')) el.hidden = !album;
+    };
+    kindEl.addEventListener('change', toonUitgave);
+    toonUitgave();
     const coverThumb = $('#pli-cover-thumb');
     const saveBtn = $('#pli-save');
     const selectedEl = $('#pli-selected');
@@ -375,6 +398,8 @@ import { pageData } from './lib.js';
         year:   parseInt(yearEl.value, 10) || 0,
         cover:  coverEl.value.trim(),
         kind:   kindEl.value === 'playlist' ? 'playlist' : 'album',
+        release_date:  releaseEl.value.trim(),
+        mb_release_id: mbReleaseEl.value.trim(),
         tracks: selected.slice(),
       };
 

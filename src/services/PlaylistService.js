@@ -14,6 +14,33 @@
 import db from '../config/database.js';
 import { v4 as uuid } from 'uuid';
 
+/**
+ * Een volledige datum of niets (shaer-756s).
+ *
+ * STRIKT, en dat is de hele functie. `year` bestaat al en blijft; dit veld
+ * bestaat juist omdat een jaartal geen uitgavedatum is. Zou hij "2024"
+ * doorlaten en er 2024-01-01 van maken, dan stond er straks een dag op de
+ * federatie die niemand ooit heeft ingevoerd -- en dan hadden we het veld net
+ * zo goed niet kunnen toevoegen.
+ *
+ * Ook 2024-02-31 valt af: dat is geen strengheid om de strengheid, Date rolt
+ * hem stilletjes door naar 2 maart en dan slaan we iets anders op dan er
+ * ingetypt is.
+ */
+function normDatum(v) {
+  const s = String(v == null ? '' : v).trim();
+  if (!s) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const d = new Date(`${s}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== s ? null : s;
+}
+
+/** Een MusicBrainz-id of niets. Zelfde vorm als sites.mb_artist_id. */
+function normMbid(v) {
+  const s = String(v == null ? '' : v).trim().toLowerCase();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(s) ? s : null;
+}
+
 class PlaylistService {
 
   // ─── ID NORMALIZATION ─────────────────────────────────────────────
@@ -51,6 +78,7 @@ class PlaylistService {
   static list(siteId) {
     const rows = db.prepare(`
       SELECT p.id, p.title, p.artist, p.year, p.cover_url, p.kind,
+             p.release_date, p.mb_release_id,
              p.created_at, p.updated_at,
              (SELECT COUNT(*) FROM playlist_tracks WHERE playlist_id = p.id) AS track_count
       FROM playlists p
@@ -64,6 +92,8 @@ class PlaylistService {
       year: r.year || 0,
       cover: r.cover_url || '',
       kind: r.kind || 'album',
+      release_date: r.release_date || '',
+      mb_release_id: r.mb_release_id || '',
       track_count: r.track_count,
       created_at: r.created_at,
       updated_at: r.updated_at,
@@ -85,7 +115,7 @@ class PlaylistService {
     id = this.normalizeId(id);
     if (!id) return null;
     const p = db.prepare(`
-      SELECT id, title, artist, year, cover_url, kind, created_at, updated_at
+      SELECT id, title, artist, year, cover_url, kind, release_date, mb_release_id, created_at, updated_at
       FROM playlists WHERE site_id = ? AND id = ?
     `).get(siteId, id);
     if (!p) return null;
@@ -124,6 +154,11 @@ class PlaylistService {
       year: p.year || 0,
       cover: p.cover_url || fallbackCover,
       kind: (p.kind === 'playlist') ? 'playlist' : 'album',
+      // Leeg als het een afspeellijst is -- de opslag houdt ze daar al leeg,
+      // maar dit is de plek waar de editor leest en die mag niet afhangen van
+      // wat er toevallig in de kolom stond.
+      release_date: p.kind === 'playlist' ? '' : (p.release_date || ''),
+      mb_release_id: p.kind === 'playlist' ? '' : (p.mb_release_id || ''),
       tracks: mappedTracks,
     };
   }
@@ -140,16 +175,26 @@ class PlaylistService {
     const now = new Date().toISOString();
     const kind = data.kind === 'playlist' ? 'playlist' : 'album';
 
+    // Alleen een UITGAVE draagt deze twee. Een afspeellijst heeft geen
+    // uitgavedatum en geen release-id, en dat onderscheid is precies wat de
+    // keuze album/playlist betekent (shaer-cyg). Het afdwingen gebeurt HIER en
+    // niet alleen in het scherm: een scherm kun je omzeilen -- de API ligt open
+    // voor de post-editor -- en dan staat er stille rommel op een mixtape die
+    // later als Album de deur uit gaat.
+    const uitgave = kind === 'album';
+    const releaseDate = uitgave ? normDatum(data.release_date) : null;
+    const mbRelease = uitgave ? normMbid(data.mb_release_id) : null;
+
     const tx = db.transaction(() => {
       db.prepare(`
-        INSERT INTO playlists (id, site_id, title, artist, year, cover_url, kind, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO playlists (id, site_id, title, artist, year, cover_url, kind, release_date, mb_release_id, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         id, siteId, title,
         String(data.artist || '').trim() || null,
         Number.isFinite(+data.year) && +data.year > 0 ? +data.year : null,
         String(data.cover || '').trim() || null,
-        kind, now, now,
+        kind, releaseDate, mbRelease, now, now,
       );
       this._writeTracks(id, siteId, data.tracks);
     });
@@ -170,12 +215,17 @@ class PlaylistService {
     id = this.normalizeId(id);
     if (!id) return false;
     const existing = db.prepare(
-      'SELECT id FROM playlists WHERE site_id = ? AND id = ?'
+      'SELECT id, kind FROM playlists WHERE site_id = ? AND id = ?'
     ).get(siteId, id);
     if (!existing) return false;
 
     const fields = [];
     const values = [];
+    // Wat wordt het NA deze wijziging? `kind` hoeft niet in data te staan, dus
+    // val terug op wat er ligt.
+    const nieuwKind = Object.prototype.hasOwnProperty.call(data, 'kind')
+      ? (data.kind === 'playlist' ? 'playlist' : 'album')
+      : (existing.kind || 'album');
     if (Object.prototype.hasOwnProperty.call(data, 'title')) {
       const v = String(data.title || '').trim();
       if (!v) return false;  // title is required, can't blank it
@@ -192,7 +242,23 @@ class PlaylistService {
       fields.push('cover_url = ?'); values.push(String(data.cover || '').trim() || null);
     }
     if (Object.prototype.hasOwnProperty.call(data, 'kind')) {
-      fields.push('kind = ?'); values.push(data.kind === 'playlist' ? 'playlist' : 'album');
+      fields.push('kind = ?'); values.push(nieuwKind);
+    }
+    // De uitgavevelden. Wordt dit een afspeellijst, dan gaan ze ALTIJD leeg --
+    // ook als de aanroeper er niets over zei. Anders houdt een album dat je tot
+    // mixtape ombouwt zijn uitgavedatum en zijn release-id, en die duiken dan
+    // weer op zodra iemand hem terugzet. Een veld dat niet meer mag bestaan
+    // hoort weg te zijn, niet te wachten.
+    if (nieuwKind !== 'album') {
+      fields.push('release_date = ?'); values.push(null);
+      fields.push('mb_release_id = ?'); values.push(null);
+    } else {
+      if (Object.prototype.hasOwnProperty.call(data, 'release_date')) {
+        fields.push('release_date = ?'); values.push(normDatum(data.release_date));
+      }
+      if (Object.prototype.hasOwnProperty.call(data, 'mb_release_id')) {
+        fields.push('mb_release_id = ?'); values.push(normMbid(data.mb_release_id));
+      }
     }
     fields.push('updated_at = ?'); values.push(new Date().toISOString());
 

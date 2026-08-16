@@ -98,6 +98,10 @@ const _csrf = (typeof csrfToken !== 'undefined' && csrfToken) || '';
   margin-bottom: 1rem;
 }
 .pl-field { display: flex; flex-direction: column; gap: .25rem; }
+/* `display: flex` wint van het hidden-attribuut, dus zonder deze regel doet
+   [hidden] op een .pl-field NIETS -- het veld blijft gewoon staan. De
+   uitgavevelden schakelen daarop (album versus afspeellijst). */
+.pl-field[hidden] { display: none; }
 .pl-field-full { grid-column: 1 / -1; }
 .pl-field > span {
   font-size: .8rem; color: var(--ink-soft); font-weight: 500;

@@ -139,6 +139,20 @@ export function initializeDatabase() {
   // netwerken, en zodat een verkeerde koppeling opvalt.
   ensureColumn('sites', 'mb_artist_id', 'TEXT');
   ensureColumn('sites', 'mb_artist_name', 'TEXT');
+  // Een UITGAVE heeft twee dingen die een afspeellijst niet heeft (shaer-756s).
+  //
+  // release_date en niet `year`: die kolom bestaat al en blijft, maar hun
+  // AlbumSerializer leest `released` als een DateField. Een jaartal als
+  // 2024-01-01 versturen is een dag verzinnen, en dat is precies wat we bij
+  // artiesten en albums niet doen. Volledige datum of niets.
+  //
+  // mb_release_id is de tegenhanger van sites.mb_artist_id: dezelfde soort
+  // verwijzing naar MusicBrainz, een niveau lager.
+  //
+  // Ze horen ALLEEN bij kind='album'. PlaylistService dwingt dat af bij het
+  // opslaan -- zie daar waarom dat niet alleen in het scherm mag zitten.
+  ensureColumn('playlists', 'release_date', 'TEXT');
+  ensureColumn('playlists', 'mb_release_id', 'TEXT');
   ensureColumn('audio_tracks', 'cover_url', 'TEXT');
   ensureColumn('audio_tracks', 'album', 'TEXT');
   ensureColumn('users', 'reset_token', 'TEXT');
