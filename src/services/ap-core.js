@@ -87,6 +87,24 @@ export const AP_CONTEXT = [
     library: { '@id': 'fw:library', '@type': '@id' },
     Track: 'fw:Track',
     track: { '@id': 'fw:track', '@type': '@id' },
+    // ARTIEST-CREDIT. Hun TrackSerializer eist minstens een artist_credit, en
+    // dat leek lang onmogelijk: het vraagt een Artist met een eigen id, en bij
+    // ons was een artiest tekst. Sinds de MusicBrainz-koppeling (shaer-mbz) is
+    // dat niet meer waar -- de site-ACTOR is de artiest. Een echte, opvraagbare
+    // URI, met de sitetitel als naam en een musicbrainzId als hij gekoppeld is.
+    // Er valt hier niets te verzinnen; open.audio leidde dit zelfs al zelf af
+    // uit onze attributedTo (gemeten 13-8).
+    //
+    // `@container: @list` is GEEN opsmuk. Ze lezen dit veld met
+    // first_attr(FW.artist_credit, "@list"), en zonder die declaratie expandeert
+    // onze array niet naar een @list -- dan staat er iets dat er goed uitziet en
+    // door hun lezer niet gevonden wordt. Letterlijk hun contexts.py regel 311.
+    Artist: 'fw:Artist',
+    ArtistCredit: 'fw:ArtistCredit',
+    artist: { '@id': 'fw:artist', '@type': '@id' },
+    artist_credit: { '@id': 'fw:artist_credit', '@type': '@id', '@container': '@list' },
+    credit: 'fw:credit',
+    musicbrainzId: 'fw:musicbrainzId',
     position: 'schema:position',
     bitrate: 'schema:bitrate',
     size: 'schema:contentSize',

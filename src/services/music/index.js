@@ -13,7 +13,7 @@
  */
 
 import db from '../../config/database.js';
-import { AP_CONTEXT, PUBLIC, actorId, noteId, safeUrl, guessMediaType, buildHashtagList, pagedCollection } from '../ap-core.js';
+import { AP_CONTEXT, PUBLIC, actorId, noteId, safeUrl, guessMediaType, buildHashtagList, pagedCollection, isMbid } from '../ap-core.js';
 import { afleidenUitInsluitingen, ingeslotenPlaylists } from '../../assets/js/shared/post-music-type.js';
 // De luisteraars horen bij de muziekkant; hier doorgegeven zodat
 // ActivityPubService niet in een submap hoeft te grijpen.
@@ -194,11 +194,45 @@ export function buildTrackAudio(base, site, r, opts = {}) {
   // GEEN `album`. Dat veld is bij hen een URI naar een Album-object en bij ons
   // een tekstkolom; er hier een adres van maken zou een ding beloven dat niet
   // bestaat. Zie shaer-k37k -- dat is de keuze die daarvoor eerst moet vallen.
+  //
+  // WIE IS DE ARTIEST. Hun Artist is een ENTITEIT met een id, en bij ons is een
+  // artiest een tekstkolom op de track. Die twee verzoenen we zo: de entiteit
+  // is de site-ACTOR -- een echt, opvraagbaar adres, het account dat dit
+  // uitbrengt -- en de tekst uit de kolom gaat naar `credit`, want dat is
+  // precies waar hun model de credittekst verwacht.
+  //
+  // Dat is eerlijk en het is niet nieuw: open.audio leidde op 13-8 al zelf een
+  // artist_credit af uit onze attributedTo. We maken alleen expliciet wat daar
+  // toch al gebeurde.
+  //
+  // DE GRENS ERVAN: brengt een site werk van iemand anders uit, dan zegt dit
+  // dat de site de artiest is. Dat stond al in attributedTo, dus we maken het
+  // niet erger -- maar het is wel de reden dat we hier geen id per artiestnaam
+  // verzinnen. Identiteit uit een string is dezelfde fout als bij het album
+  // (shaer-756s).
+  const wanneer = r.created_at ? new Date(r.created_at).toISOString()
+    : (site.created_at ? new Date(site.created_at).toISOString() : new Date(0).toISOString());
+  const artiest = {
+    type: 'Artist',
+    id: actorId(base, site.slug),
+    name: site.title || site.slug,
+    published: site.created_at ? new Date(site.created_at).toISOString() : wanneer,
+  };
+  if (isMbid(site.mb_artist_id)) artiest.musicbrainzId = String(site.mb_artist_id).trim().toLowerCase();
+
   a.track = {
     type: 'Track',
     id: `${a.id}#track`,
     name: a.name,
+    published: wanneer,
     ...(Number(r.position) ? { position: Number(r.position) } : {}),
+    artist_credit: [{
+      type: 'ArtistCredit',
+      id: `${a.id}#artist-credit`,
+      published: wanneer,
+      artist: artiest,
+      ...(r.artist ? { credit: r.artist } : {}),
+    }],
   };
   if (r.duration) a.duration = `PT${Math.round(r.duration)}S`;
   if (r.created_at) a.published = new Date(r.created_at).toISOString();
