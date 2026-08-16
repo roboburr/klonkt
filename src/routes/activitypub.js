@@ -1114,7 +1114,7 @@ router.get('/ap/users/:slug/featured', (req, res) => {
        AND pinned IS NOT NULL AND pinned > 0
      ORDER BY pinned DESC, COALESCE(published_at, created_at) ASC LIMIT 20`
   ).all(site.id);
-  AP.sendAP(res, AP.buildFeatured(baseUrl(req), site, posts));
+  AP.sendAP(res, AP.buildFeatured(baseUrl(req), site, posts, { page: paginaNr(req) }));
 });
 
 // ── Playlist als dereferenceerbare AP-collectie (shaer-ayc) ───────
@@ -1129,7 +1129,7 @@ router.get('/ap/users/:slug/featured', (req, res) => {
 router.get('/ap/users/:slug/playlists', (req, res) => {
   const site = publicSite(req.params.slug);
   if (!site) return res.status(404).end();
-  AP.sendAP(res, AP.listPlaylistsAP(baseUrl(req), site, wantsEnriched(req, res)));
+  AP.sendAP(res, AP.listPlaylistsAP(baseUrl(req), site, wantsEnriched(req, res), { page: paginaNr(req) }));
 });
 
 // De tracks van deze site: de kanonieke plek voor onze muziek (shaer-0nh,
@@ -1138,7 +1138,35 @@ router.get('/ap/users/:slug/playlists', (req, res) => {
 router.get('/ap/users/:slug/tracks', async (req, res) => {
   const site = publicSite(req.params.slug);
   if (!site) return res.status(404).end();
-  AP.sendAP(res, AP.buildTrackCollection(baseUrl(req), site, AP.siteOpenTracks(site.id, { alles: await magAlles(req, site.slug) })));
+  AP.sendAP(res, AP.buildTrackCollection(baseUrl(req), site, AP.siteOpenTracks(site.id, { alles: await magAlles(req, site.slug) }), { page: paginaNr(req) }));
+});
+
+// De bibliotheek van deze site (shaer-0nh). Funkwhale's Audio draagt een
+// `library`, en dat is bij hen het haakje waar een UPLOAD aan komt te hangen --
+// zonder die bak blijft een binnengehaalde track daar een naam zonder geluid.
+// Gemeten op 13-8: open.audio had onze vier tracks wel, met onze eigen AP-id's,
+// maar uploads leeg en is_playable false.
+//
+// Openbaar, want alles erin is fedi_open. Er valt dus niets goed te keuren en de
+// volgerslijst blijft leeg: wie ons volgt volgt de ACTOR, niet de bak.
+//
+// `?page=` MOET hier doorgegeven worden. Zonder dat adverteert de wortel een
+// `first` die op zichzelf uitkomt: de lezer volgt hem, krijgt weer een `Library`
+// in plaats van een pagina, en klapt eruit -- open.audio gaf op 15-8 een 500 op
+// precies deze URL. Dezelfde les als bij de outbox (shaer-sk4): een `first`
+// beloven is een pagina beloven.
+router.get('/ap/users/:slug/library', (req, res) => {
+  const site = publicSite(req.params.slug);
+  if (!site) return res.status(404).end();
+  AP.sendAP(res, AP.buildLibrary(baseUrl(req), site, AP.siteOpenTracks(site.id), { page: paginaNr(req) }));
+});
+
+// De volgerscollectie die hun docs als vereist noemen. Leeg en eerlijk: er is
+// geen goedkeuringspad omdat de bibliotheek openbaar is.
+router.get('/ap/users/:slug/library/followers', (req, res) => {
+  const site = publicSite(req.params.slug);
+  if (!site) return res.status(404).end();
+  AP.sendAP(res, AP.pagedCollection(`${AP.libraryId(baseUrl(req), site)}/followers`, [], { page: paginaNr(req) }));
 });
 
 // Eén track, los op te halen. Een gesloten track is AFWEZIG, niet leeg: 404,
@@ -1173,7 +1201,7 @@ router.get('/ap/users/:slug/posts/:id/tracks', (req, res) => {
 router.get('/ap/users/:slug/playlists/:id', async (req, res) => {
   const site = publicSite(req.params.slug);
   if (!site) return res.status(404).end();
-  const pl = db.prepare('SELECT id, title, artist, year, cover_url, kind FROM playlists WHERE id = ? AND site_id = ?')
+  const pl = db.prepare('SELECT id, title, artist, year, cover_url, kind, release_date, mb_release_id, created_at FROM playlists WHERE id = ? AND site_id = ?')
     .get(req.params.id, site.id);
   if (!pl) return res.status(404).end();
   // De doel-actor van een verhuizing krijgt de VOLLEDIGE plaat, niet alleen de
@@ -1360,7 +1388,17 @@ const apJson = express.json({
 });
 router.post(['/ap/users/:slug/inbox', '/ap/inbox'], apInboxLimiter, apJson, async (req, res) => {
   try { return res.status(await AP.handleInbox(req, req.params.slug || null) || 202).end(); }
-  catch (e) { console.warn('[AP inbox] error:', e.message); return res.status(202).end(); }
+  // Met de STACK erbij. Hier stond alleen `e.message`, en op 15-8 leverde dat
+  // zes keer "[AP inbox] error: slug is not defined" op zonder één aanwijzing
+  // waar -- een ReferenceError in een handler van duizenden regels, met een
+  // naam die overal voorkomt. Een fout die je niet kunt plaatsen is niet
+  // gemeld. Het type en de activiteit erbij, want dat zegt welke tak liep.
+  catch (e) {
+    const soort = req.body && req.body.type;
+    console.warn('[AP inbox] error:', e.message, '| type:', soort, '| slug:', req.params.slug || '(gedeeld)');
+    console.warn(e.stack);
+    return res.status(202).end();
+  }
 });
 
 // ── Outbox POST: ActivityPub Client-to-Server ─────────────────────

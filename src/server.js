@@ -29,6 +29,7 @@ import accountRoutes from './routes/account.js';
 import adminRoutes from './routes/admin.js';
 import adminAudioRoutes from './routes/admin-audio.js';
 import adminPlaylistsRoutes from './routes/admin-playlists.js';
+import adminListenersRoutes from './routes/admin-listeners.js';
 import adminSitesRoutes from './routes/admin-sites.js';
 import adminUsersRoutes from './routes/admin-users.js';
 import adminSettingsRoutes from './routes/admin-settings.js';
@@ -395,6 +396,7 @@ app.use('/account', accountRoutes);
 if (audioEnabled()) {
   app.use('/admin/audio', adminAudioRoutes);
   app.use('/admin/playlists', adminPlaylistsRoutes);
+  app.use('/admin/listeners', adminListenersRoutes);
 }
 app.use('/admin/media', adminMediaRoutes); // image library + cleanup (works in lite mode too)
 app.use('/admin/migrate', adminMigrateRoutes); // posts + media naar/van een andere Klonkt

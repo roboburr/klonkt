@@ -56,6 +56,55 @@ export const AP_CONTEXT = [
     // iets anders dan een oud account van jezelf, en die twee door elkaar halen
     // zou een verhuizing kunnen laten mislukken.
     sameAs: { '@id': 'schema:sameAs', '@type': '@id' },
+    // ── Wat we uit Funkwhale's vocabulaire overnemen, en waarom ──
+    //
+    // LIBRARY. Gemeten op 13-8: open.audio had onze vier tracks binnengehaald
+    // via hun AP-id, met een artist_credit dat het zelf uit onze attributedTo
+    // afleidde -- maar uploads LEEG en is_playable false. Bij Funkwhale hangt
+    // een upload aan een library; zonder die bak blijft een track een naam
+    // zonder geluid.
+    //
+    // TRACK. Hier stond dat we deze NIET namen, met als reden: hij vraagt een
+    // entiteit waar wij tekst hebben, en er een id voor verzinnen belooft wat
+    // we niet waarmaken. Die redenering klopte half, en de Emissary-meting van
+    // 16-8 (shaer-3f8a) laat zien welke helft. Een TRACK heeft bij ons wel
+    // degelijk een eigen identiteit -- het is een rij met een titel en een
+    // plaats in een uitgave. Wat wij niet hebben is een ALBUM als entiteit, en
+    // dat is een andere vraag (shaer-k37k). Emissary stuurt precies die kleine
+    // vorm: type, id, name, position. Wij ook, en album blijft eruit tot het
+    // een echt object is -- een verzonnen album-URI is nu juist wel de belofte
+    // die we niet kunnen waarmaken.
+    //
+    // Twee onafhankelijke implementaties zenden dit nu, en het is de kant waar
+    // FEP-be68 heen beweegt. ArtistCredit blijft eruit: dat is nog steeds een
+    // entiteit die wij niet hebben.
+    //
+    // De vorm van de termen is letterlijk die van hun contexts.py (regel
+    // 293-306), zodat een lezer die hun context laadt en een lezer die de onze
+    // leest op dezelfde IRI's uitkomen.
+    fw: 'https://funkwhale.audio/ns#',
+    Library: 'fw:Library',
+    library: { '@id': 'fw:library', '@type': '@id' },
+    Track: 'fw:Track',
+    track: { '@id': 'fw:track', '@type': '@id' },
+    // ARTIEST-CREDIT. Hun TrackSerializer eist minstens een artist_credit, en
+    // dat leek lang onmogelijk: het vraagt een Artist met een eigen id, en bij
+    // ons was een artiest tekst. Sinds de MusicBrainz-koppeling (shaer-mbz) is
+    // dat niet meer waar -- de site-ACTOR is de artiest. Een echte, opvraagbare
+    // URI, met de sitetitel als naam en een musicbrainzId als hij gekoppeld is.
+    // Er valt hier niets te verzinnen; open.audio leidde dit zelfs al zelf af
+    // uit onze attributedTo (gemeten 13-8).
+    //
+    // `@container: @list` is GEEN opsmuk. Ze lezen dit veld met
+    // first_attr(FW.artist_credit, "@list"), en zonder die declaratie expandeert
+    // onze array niet naar een @list -- dan staat er iets dat er goed uitziet en
+    // door hun lezer niet gevonden wordt. Letterlijk hun contexts.py regel 311.
+    Artist: 'fw:Artist',
+    ArtistCredit: 'fw:ArtistCredit',
+    artist: { '@id': 'fw:artist', '@type': '@id' },
+    artist_credit: { '@id': 'fw:artist_credit', '@type': '@id', '@container': '@list' },
+    credit: 'fw:credit',
+    musicbrainzId: 'fw:musicbrainzId',
     position: 'schema:position',
     bitrate: 'schema:bitrate',
     size: 'schema:contentSize',
@@ -248,8 +297,20 @@ export const PAGINA_GROOTTE = 20;
  * Een pagina VOORBIJ het einde is leeg en zegt dat ook -- met zijn eigen nummer
  * en zonder `next`. Hem naar de laatste pagina terugbuigen zou opnieuw een
  * antwoord zijn dat over zichzelf liegt.
+ *
+ * `ongeordend` maakt er de NIET-geordende vorm van: `Collection` met
+ * `CollectionPage` en `items`, in plaats van `OrderedCollection` met
+ * `OrderedCollectionPage` en `orderedItems`. Dat is geen dialect maar de andere
+ * helft van AS2 -- en de bibliotheek hoort daar: een platenkast heeft geen
+ * volgorde die iets betekent, en `Library` is bij Funkwhale expliciet een
+ * `Collection`. Onze outbox is wél geordend (chronologie is daar de inhoud) en
+ * blijft dus zoals hij was.
+ *
+ * De pagina draagt in die vorm ook `first` en `last`. AS2 staat dat toe --
+ * CollectionPage erft van Collection -- en een lezer die halverwege binnenkomt
+ * kan zo terug naar het begin zonder eerst de wortel op te halen.
  */
-export function pagedCollection(id, items, { totalItems, page = false, perPage = PAGINA_GROOTTE, alGesneden = false, extra = {} } = {}) {
+export function pagedCollection(id, items, { totalItems, page = false, perPage = PAGINA_GROOTTE, alGesneden = false, ongeordend = false, extra = {} } = {}) {
   const lijst = items || [];
   const telling = totalItems === undefined ? lijst.length : totalItems;
   const grootte = Math.max(1, Number(perPage) || PAGINA_GROOTTE);
@@ -266,23 +327,25 @@ export function pagedCollection(id, items, { totalItems, page = false, perPage =
     return {
       '@context': AP_CONTEXT,
       id: url(n),
-      type: 'OrderedCollectionPage',
+      type: ongeordend ? 'CollectionPage' : 'OrderedCollectionPage',
       partOf: id,
       totalItems: telling,
+      ...(ongeordend ? { first: url(1), last: url(paginas) } : {}),
+      ...(extra.attributedTo ? { attributedTo: extra.attributedTo } : {}),
       ...(n > 1 ? { prev: url(n - 1) } : {}),
       ...(n < paginas ? { next: url(n + 1) } : {}),
-      orderedItems: deel,
+      ...(ongeordend ? { items: deel } : { orderedItems: deel }),
     };
   }
   return {
     '@context': AP_CONTEXT,
     id,
-    type: 'OrderedCollection',
+    type: ongeordend ? 'Collection' : 'OrderedCollection',
     ...extra,
     totalItems: telling,
     first: url(1),
     last: url(paginas),
-    orderedItems: lijst,
+    ...(ongeordend ? { items: lijst } : { orderedItems: lijst }),
   };
 }
 

@@ -1,37 +1,50 @@
-<%# Beheer → Media: image library + cleanup (the Audio half links out to /admin/audio). %>
-<div class="admin-wrap" style="max-width:980px;margin:0 auto;padding:1.5rem 1rem;">
-  <a href="/admin" class="btn" style="margin-bottom:1rem;display:inline-block;">← <%= t('nav.admin') %></a>
-  <h1 style="font-family:var(--display,serif);margin:.2rem 0 1rem;"><%= t('admin.t_media') %></h1>
+<%# Beheer -> Media: de afbeeldingenbibliotheek met opruiming.
+    De audio-helft zit onder /admin/audio, als eigen tab.
 
+    Deze pagina stond volledig op inline styles en viel daarmee buiten het
+    ax-*-systeem waar audio en playlists al op zaten. Nu op dezelfde romp:
+    zelfde breedte, zelfde kop, tabs op dezelfde plek. %>
+<%- include('../partials/admin-styles') %>
+<div class="container ax-page">
+
+  <%- include('../partials/admin-back') %>
   <%- include('../partials/media-tabs', { active: 'images', audioOn: audioOn }) %>
+  <header class="ax-header">
+    <div>
+      <h1><%= t('admin.t_media') %></h1>
+      <p class="ax-tagline">
+        <%= items.length %> <%= t('admin.media_count') %><% if (unusedCount) { %> &middot; <strong><%= unusedCount %></strong> <%= t('admin.media_unused') %><% } %>
+      </p>
+    </div>
+  </header>
 
-  <% if (success) { %><p style="background:rgba(60,160,90,.15);border:1px solid rgba(60,160,90,.4);padding:.5rem .8rem;border-radius:8px;"><%= success %></p><% } %>
+  <% if (success) { %><div class="ax-flash ax-flash-ok"><%= success %></div><% } %>
 
-  <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:1rem;">
-    <p style="margin:0;opacity:.75;">
-      <%= items.length %> <%= t('admin.media_count') %><% if (unusedCount) { %> · <strong><%= unusedCount %></strong> <%= t('admin.media_unused') %><% } %>
-    </p>
-    <% if (unusedCount) { %>
-    <button type="button" id="media-cleanup" class="btn" style="background:#b4452e;color:#fff;border-color:#b4452e;">🗑 <%= t('admin.media_cleanup') %> (<%= unusedCount %>)</button>
-    <% } %>
+  <% if (unusedCount) { %>
+  <div class="ax-actions-bar">
+    <button type="button" id="media-cleanup" class="ax-btn ax-btn-danger">&#128465; <%= t('admin.media_cleanup') %> (<%= unusedCount %>)</button>
   </div>
+  <% } %>
 
   <% if (!items.length) { %>
-    <p style="opacity:.7;"><%= t('admin.media_empty') %></p>
+    <div class="ax-empty">
+      <div class="ax-empty-icon">&#128247;</div>
+      <p><%= t('admin.media_empty') %></p>
+    </div>
   <% } else { %>
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:1rem;">
+  <div class="ax-grid">
     <% items.forEach(function(it){ %>
-      <div class="media-card" data-file="<%= it.file %>" style="border:1px solid var(--rule,rgba(128,128,128,.25));border-radius:10px;overflow:hidden;background:var(--paper-2,rgba(128,128,128,.06));">
-        <div style="position:relative;aspect-ratio:1;background:#0a0e1a;">
-          <img src="<%= thumb(it.url, 320) %>" alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;display:block;">
-          <% if (it.hasVideo) { %><span title="animated cover" style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,.6);border-radius:6px;padding:0 6px;font-size:13px;">🎬</span><% } %>
-          <% if (!it.usedCount) { %><span style="position:absolute;top:6px;left:6px;background:#b4452e;color:#fff;border-radius:6px;padding:1px 6px;font-size:11px;"><%= t('admin.media_unused') %></span><% } %>
+      <div class="ax-tile media-card" data-file="<%= it.file %>">
+        <div class="ax-tile-media" style="aspect-ratio:1;">
+          <img src="<%= thumb(it.url, 320) %>" alt="" loading="lazy" decoding="async" style="object-fit:cover;height:100%;">
+          <% if (it.hasVideo) { %><span class="ax-tile-badge ax-tile-badge-r" title="animated cover">&#127916;</span><% } %>
+          <% if (!it.usedCount) { %><span class="ax-tile-badge"><%= t('admin.media_unused') %></span><% } %>
         </div>
-        <div style="padding:.5rem .6rem;font-size:13px;">
-          <div style="opacity:.7;"><%= it.kb %> KB · <%= it.usedCount %>×</div>
-          <div style="display:flex;gap:.4rem;margin-top:.45rem;">
-            <button type="button" class="btn" style="padding:3px 8px;font-size:12px;" data-copy="<%= it.url %>"><%= t('admin.media_copy') %></button>
-            <button type="button" class="btn" style="padding:3px 8px;font-size:12px;background:transparent;border-color:#b4452e;color:#b4452e;" data-del="<%= it.file %>">🗑</button>
+        <div class="ax-tile-body">
+          <div class="ax-tile-meta"><%= it.kb %> KB &middot; <%= it.usedCount %>&times;</div>
+          <div class="ax-tile-actions">
+            <button type="button" class="ax-btn ax-btn-sm" data-copy="<%= it.url %>"><%= t('admin.media_copy') %></button>
+            <button type="button" class="ax-btn ax-btn-sm ax-btn-danger" data-del="<%= it.file %>">&#128465;</button>
           </div>
         </div>
       </div>

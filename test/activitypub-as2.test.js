@@ -21,7 +21,12 @@ const BASE = 'https://test.example';
 // AS2-core + security/v1 vocabulary Klonkt uses (stable — only extend when AS2/security itself
 // adds a term we adopt). JSON-LD keywords included.
 const AS2 = new Set([
-  '@context', '@id', '@type',
+  // `@container` hoort in dit rijtje omdat de verzamelaar hieronder OOK door
+  // @context zelf loopt, en een termdefinitie mag naast @id en @type ook een
+  // container dragen (artist_credit is bij Funkwhale een @list). Het is een
+  // JSON-LD-sleutelwoord, geen vocabulaire -- die laatste is wat deze test moet
+  // vangen. Zonder deze regel faalde hij op een correcte declaratie.
+  '@context', '@id', '@type', '@container',
   'id', 'type', 'actor', 'object', 'target', 'to', 'cc',
   'content', 'name', 'summary', 'url', 'href', 'mediaType',
   'published', 'updated', 'attributedTo', 'inReplyTo', 'replies',

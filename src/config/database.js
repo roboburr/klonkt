@@ -139,6 +139,20 @@ export function initializeDatabase() {
   // netwerken, en zodat een verkeerde koppeling opvalt.
   ensureColumn('sites', 'mb_artist_id', 'TEXT');
   ensureColumn('sites', 'mb_artist_name', 'TEXT');
+  // Een UITGAVE heeft twee dingen die een afspeellijst niet heeft (shaer-756s).
+  //
+  // release_date en niet `year`: die kolom bestaat al en blijft, maar hun
+  // AlbumSerializer leest `released` als een DateField. Een jaartal als
+  // 2024-01-01 versturen is een dag verzinnen, en dat is precies wat we bij
+  // artiesten en albums niet doen. Volledige datum of niets.
+  //
+  // mb_release_id is de tegenhanger van sites.mb_artist_id: dezelfde soort
+  // verwijzing naar MusicBrainz, een niveau lager.
+  //
+  // Ze horen ALLEEN bij kind='album'. PlaylistService dwingt dat af bij het
+  // opslaan -- zie daar waarom dat niet alleen in het scherm mag zitten.
+  ensureColumn('playlists', 'release_date', 'TEXT');
+  ensureColumn('playlists', 'mb_release_id', 'TEXT');
   ensureColumn('audio_tracks', 'cover_url', 'TEXT');
   ensureColumn('audio_tracks', 'album', 'TEXT');
   ensureColumn('users', 'reset_token', 'TEXT');
@@ -385,7 +399,28 @@ export function initializeDatabase() {
       public_pem TEXT NOT NULL,
       private_pem TEXT NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );    -- LUISTERAARS (shaer-0nh). Wie de BIBLIOTHEEK volgt, niet de actor.
+    --
+    -- Een eigen tabel en niet een vlag op ap_followers, en dat is met opzet:
+    -- deze accounts horen onze gewone posts NIET te krijgen. Zolang ze in een
+    -- andere tabel staan kan een bezorging ze niet per ongeluk meenemen -- een
+    -- vlag die iemand vergeet te filteren zou dat wel doen, en dan komt de
+    -- Krant van een site bij mensen die alleen muziek wilden.
+    CREATE TABLE IF NOT EXISTS ap_library_followers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug TEXT NOT NULL,
+      actor_uri TEXT NOT NULL,
+      inbox TEXT,
+      shared_inbox TEXT,
+      name TEXT,
+      handle TEXT,
+      icon TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      last_delivery_at DATETIME,
+      last_error_at DATETIME,
+      UNIQUE (slug, actor_uri)
     );
+
     CREATE TABLE IF NOT EXISTS ap_followers (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       slug TEXT NOT NULL,

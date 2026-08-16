@@ -4,9 +4,13 @@
 // The editor itself is the same modal that's used from the post-editor.
 const _csrf = (typeof csrfToken !== 'undefined' && csrfToken) || '';
 %>
+<%# De gedeelde ax-*-primitieven. MOET boven het eigen style-blok van deze
+    pagina staan: wat hieronder blijft staan wijkt bewust af en hoort dus
+    later te komen, anders wint de partial ervan. %>
+<%- include('../partials/admin-styles') %>
 <div class="container ax-page">
 
-  <p><a href="/admin" class="btn">&larr; <%= t('nav.admin') %></a></p>
+  <%- include('../partials/admin-back') %>
   <%- include('../partials/media-tabs', { active: 'playlists', audioOn: true }) %>
   <header class="ax-header">
     <div>
@@ -82,142 +86,9 @@ const _csrf = (typeof csrfToken !== 'undefined' && csrfToken) || '';
    page is self-contained — both pages get refreshed independently. */
 
 .ax-page { max-width: 880px; margin: 1.5rem auto 4rem; padding: 0 1rem; }
-.ax-header { display: flex; align-items: flex-start; gap: 0.75rem; margin-bottom: 1.5rem; }
-.ax-header h1 { font-family: var(--font-display, serif); font-size: 1.75rem; margin: 0 0 0.25rem; }
-.ax-tagline { color: var(--ink-muted, var(--ink-soft)); margin: 0; font-size: 0.9rem; line-height: 1.5; }
-.ax-tagline code { background: var(--paper-2); padding: 0.1em 0.4em; border-radius: 4px; font-size: 0.9em; }
-.ax-back {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 40px; height: 40px;
-  border: 1px solid var(--rule); border-radius: 8px;
-  background: var(--paper); color: var(--ink); text-decoration: none;
-  font-size: 1.1rem; flex-shrink: 0; transition: border-color 120ms;
-}
-.ax-back:hover { border-color: var(--accent); }
-
-.ax-actions-bar {
-  display: flex;
-  margin-bottom: 1rem;
-}
-
-.ax-card {
-  background: var(--paper);
-  border: 1px solid var(--rule);
-  border-radius: 12px;
-  padding: 1.25rem;
-  margin-bottom: 1rem;
-}
-
-/* ─── Buttons (same primitives as admin-audio) ─────────────────── */
-.ax-btn {
-  display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
-  padding: 0.6rem 1.1rem;
-  border: 1px solid var(--rule); background: var(--paper-2);
-  color: var(--ink);
-  font-family: var(--font-ui, system-ui), sans-serif;
-  font-size: 0.95rem; font-weight: 500;
-  text-decoration: none; border-radius: 8px; cursor: pointer;
-  min-height: 44px;
-  transition: background 120ms, border-color 120ms;
-  -webkit-tap-highlight-color: transparent;
-}
-.ax-btn:hover { border-color: var(--accent); }
-.ax-btn-primary { background: var(--accent); color: white; border-color: var(--accent); }
-.ax-btn-primary:hover { opacity: 0.92; }
-
-.ax-icon-btn {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 40px; height: 40px;
-  border: 1px solid var(--rule); border-radius: 8px;
-  background: var(--paper-2); color: var(--ink);
-  cursor: pointer; font-size: 1rem;
-  transition: background 120ms, border-color 120ms, color 120ms;
-}
-.ax-icon-btn:hover { border-color: var(--accent); }
-.ax-icon-btn-danger:hover { color: #dc2626; border-color: #dc2626; }
-
-/* ─── Empty state ──────────────────────────────────────────────── */
-.ax-empty { text-align: center; padding: 2rem 1rem; color: var(--ink-muted, var(--ink-soft)); }
-.ax-empty-icon { font-size: 2.5rem; margin-bottom: 0.5rem; opacity: 0.5; }
-.ax-empty p { margin: 0; }
-.ax-empty-sub { font-size: 0.85rem; margin-top: 0.5rem !important; }
-
-/* ─── List items (same as audio tracks) ───────────────────────── */
-.ax-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.6rem; }
-.ax-track {
-  display: grid;
-  grid-template-columns: 64px 1fr auto;
-  gap: 0.85rem; align-items: center;
-  padding: 0.85rem;
-  background: var(--paper);
-  border: 1px solid var(--rule);
-  border-radius: 12px;
-  transition: border-color 120ms;
-}
-.ax-track:hover { border-color: var(--accent); }
-.ax-track-cover {
-  width: 64px; height: 64px; border-radius: 8px;
-  background: var(--paper-2);
-  display: flex; align-items: center; justify-content: center;
-  font-family: var(--font-display, serif);
-  font-size: 1.5rem; color: var(--accent);
-  flex-shrink: 0;
-}
-.ax-track-meta { min-width: 0; display: flex; flex-direction: column; gap: 0.25rem; }
-.ax-track-title {
-  font-family: var(--font-display, serif);
-  font-weight: 600; font-size: 1.05rem; color: var(--ink);
-  display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;
-}
-.ax-pill {
-  font-family: var(--font-ui);
-  font-size: 0.7rem; font-weight: 500;
-  color: var(--ink-soft);
-  background: var(--paper-2);
-  padding: 0.15em 0.55em; border-radius: 999px;
-  letter-spacing: 0;
-}
-.ax-track-sub {
-  font-size: 0.85rem;
-  color: var(--ink-muted, var(--ink-soft));
-  display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center;
-}
-.ax-track-sep { opacity: 0.5; }
-.ax-embed {
-  display: inline-block;
-  background: var(--paper-2);
-  padding: 0.15rem 0.5rem;
-  border-radius: 4px;
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 0.75rem;
-  color: var(--ink-soft);
-  cursor: pointer; user-select: all;
-  margin-top: 0.15rem;
-  word-break: break-all;
-  align-self: flex-start;
-  transition: background 120ms;
-}
-.ax-embed:hover { background: var(--rule); }
-.ax-embed.is-copied { background: rgba(40,160,90,0.2); color: #2a9d5e; }
-
-.ax-track-actions { display: flex; gap: 0.4rem; flex-shrink: 0; }
 
 /* ─── Mobile ──────────────────────────────────────────────────── */
 @media (max-width: 480px) {
-  .ax-track {
-    grid-template-columns: 56px 1fr;
-    grid-template-areas: "cover meta" "actions actions";
-    gap: 0.6rem;
-  }
-  .ax-track-cover { grid-area: cover; width: 56px; height: 56px; }
-  .ax-track-meta  { grid-area: meta; }
-  .ax-track-actions {
-    grid-area: actions;
-    justify-content: flex-end;
-    border-top: 1px solid var(--rule);
-    padding-top: 0.5rem;
-    margin-top: 0.25rem;
-  }
 }
 </style>
 

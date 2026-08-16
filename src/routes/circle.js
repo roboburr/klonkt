@@ -15,8 +15,25 @@ const router = express.Router();
 function safeUrl(u) {
   return typeof u === 'string' && /^https?:\/\//i.test(u) ? u : null;
 }
+/**
+ * media_json als ARRAY, of leeg.
+ *
+ * De catch vangt KAPOTTE json; hij ving niet geldige json van het verkeerde
+ * TYPE. Een remote server stuurde media_json = "[]" -- een string MET daarin
+ * `[]` -- en JSON.parse geeft dan netjes een string terug. Een string heeft
+ * geen .map, en daarmee lag /cirkel op boiert.eu plat: een 500 op de hele
+ * pagina door een enkele post (rij 19 van 72).
+ *
+ * Precies dezelfde fout stond al beschreven en gerepareerd in
+ * views/partials/note-body.ejs, waar drie vreemde notes de Krant meenamen.
+ * Die reparatie is hier nooit gekomen -- zelfde data, andere route. Wat er
+ * binnenkomt is niet van ons, dus de vorm hoort afgedwongen en niet aangenomen.
+ */
 function safeJson(s) {
-  try { return s ? JSON.parse(s) : []; } catch { return []; }
+  try {
+    const v = s ? JSON.parse(s) : [];
+    return Array.isArray(v) ? v : [];
+  } catch { return []; }
 }
 // The cover image + (separately) a cover video from a remote note's media. NEVER use a video/audio
 // item as the cover image — that produced a broken <img> for an animated cover that federated as an

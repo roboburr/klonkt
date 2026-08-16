@@ -13,8 +13,11 @@
  */
 
 import db from '../../config/database.js';
-import { AP_CONTEXT, PUBLIC, actorId, noteId, safeUrl, guessMediaType, buildHashtagList, pagedCollection } from '../ap-core.js';
+import { AP_CONTEXT, PUBLIC, actorId, noteId, safeUrl, guessMediaType, buildHashtagList, pagedCollection, isMbid } from '../ap-core.js';
 import { afleidenUitInsluitingen, ingeslotenPlaylists } from '../../assets/js/shared/post-music-type.js';
+// De luisteraars horen bij de muziekkant; hier doorgegeven zodat
+// ActivityPubService niet in een submap hoeft te grijpen.
+export * as luisteraars from './luisteraars.js';
 
 // m.size hoort erbij voor de RSS-enclosure: die eist een lengte in bytes.
 export const TRACK_KOLOMMEN = `t.id, t.title, t.artist, t.duration, t.cover_url, t.created_at,
@@ -132,6 +135,35 @@ export function trackHostPosts(siteId) {
   return uit;
 }
 
+/**
+ * De artiest-credit, gedeeld door track en album (shaer-3f8a / shaer-756s).
+ *
+ * De ENTITEIT is de site-actor: een echt, opvraagbaar adres. De credittekst --
+ * de artiestkolom van de track of van de uitgave -- gaat naar `credit`, want
+ * daar verwacht hun model hem. Er een id per artiestnaam van maken zou
+ * identiteit uit een string zijn, en dat is de fout die we bij albums juist
+ * vermijden.
+ *
+ * Eén functie voor beide, zodat een track en het album waar hij op staat nooit
+ * een verschillende artiest kunnen krijgen door twee keer hetzelfde te bouwen.
+ */
+function artistCredit(base, site, creditTekst, wanneer) {
+  const artiest = {
+    type: 'Artist',
+    id: actorId(base, site.slug),
+    name: site.title || site.slug,
+    published: site.created_at ? new Date(site.created_at).toISOString() : wanneer,
+  };
+  if (isMbid(site.mb_artist_id)) artiest.musicbrainzId = String(site.mb_artist_id).trim().toLowerCase();
+  return [{
+    type: 'ArtistCredit',
+    id: `${actorId(base, site.slug)}#artist-credit`,
+    published: artiest.published,
+    artist: artiest,
+    ...(creditTekst ? { credit: creditTekst } : {}),
+  }];
+}
+
 export function buildTrackAudio(base, site, r, opts = {}) {
   const abs = (u) => !u ? null : (/^https?:/i.test(u) ? u : `${base}${u.startsWith('/') ? '' : '/'}${u}`);
   const fn = r.filename || (r.storage_path || '').split('/').pop();
@@ -167,6 +199,10 @@ export function buildTrackAudio(base, site, r, opts = {}) {
     // horen, en dat is wat zo'n link betekent.
     url: [...(post ? [{ type: 'Link', href: `${base}/${post.slug}`, mediaType: 'text/html' }] : []), bestand],
   };
+  // De bak waar dit bestand in hangt (shaer-0nh). Voor Funkwhale is dit het
+  // haakje waaraan een upload komt te zitten; zonder dit veld blijft een track
+  // daar een naam zonder geluid.
+  a.library = libraryId(base, site);
   if (r.artist) a.summary = r.artist;              // artiest als summary: kaal AS2, geen eigen vocab
   // AS2-kern `context`: "de context waarbinnen dit object bestaat". Voor een
   // track is dat de post die hem uitbrengt. Daarmee is de relatie die tot nu
@@ -174,6 +210,57 @@ export function buildTrackAudio(base, site, r, opts = {}) {
   // die de post al heeft dit nummer overslaan in plaats van er een lege kaart
   // van te maken.
   if (post) a.context = noteId(base, post.id);
+  // Het NUMMER, los van dit bestand (shaer-3f8a, spoor B). Funkwhale en
+  // Emissary lezen allebei `fw:track`, en petitminion noemde het ontbreken
+  // ervan als eerste wat hem opviel aan onze objecten.
+  //
+  // EIGEN ID MET #track, en niet hetzelfde id als de Audio. Emissary hergebruikt
+  // daar het object-id, maar dan zijn in JSON-LD de Audio en de Track EEN knoop
+  // met twee typen -- en een bestand is geen werk. Dat verschil moeten we straks
+  // toch maken, want een album verzamelt nummers en geen mp3's. Een fragment is
+  // een geldige IRI en wijst naar hetzelfde document.
+  //
+  // GEEN `album`. Dat veld is bij hen een URI naar een Album-object en bij ons
+  // een tekstkolom; er hier een adres van maken zou een ding beloven dat niet
+  // bestaat. Zie shaer-k37k -- dat is de keuze die daarvoor eerst moet vallen.
+  //
+  // WIE IS DE ARTIEST. Hun Artist is een ENTITEIT met een id, en bij ons is een
+  // artiest een tekstkolom op de track. Die twee verzoenen we zo: de entiteit
+  // is de site-ACTOR -- een echt, opvraagbaar adres, het account dat dit
+  // uitbrengt -- en de tekst uit de kolom gaat naar `credit`, want dat is
+  // precies waar hun model de credittekst verwacht.
+  //
+  // Dat is eerlijk en het is niet nieuw: open.audio leidde op 13-8 al zelf een
+  // artist_credit af uit onze attributedTo. We maken alleen expliciet wat daar
+  // toch al gebeurde.
+  //
+  // DE GRENS ERVAN: brengt een site werk van iemand anders uit, dan zegt dit
+  // dat de site de artiest is. Dat stond al in attributedTo, dus we maken het
+  // niet erger -- maar het is wel de reden dat we hier geen id per artiestnaam
+  // verzinnen. Identiteit uit een string is dezelfde fout als bij het album
+  // (shaer-756s).
+  const wanneer = r.created_at ? new Date(r.created_at).toISOString()
+    : (site.created_at ? new Date(site.created_at).toISOString() : new Date(0).toISOString());
+
+  a.track = {
+    type: 'Track',
+    id: `${a.id}#track`,
+    name: a.name,
+    published: wanneer,
+    ...(Number(r.position) ? { position: Number(r.position) } : {}),
+    artist_credit: artistCredit(base, site, r.artist, wanneer),
+  };
+  // De uitgave waar dit nummer op staat, INGESLOTEN (shaer-756s, stap 2).
+  // `albums` mag expliciet null zijn: dan is er niets op te zoeken.
+  const uitgave = opts.albums !== undefined
+    ? (opts.albums && opts.albums.get(r.id)) || null
+    : ((site.id && trackAlbums(site.id).get(r.id)) || null);
+  if (uitgave) {
+    a.track.album = buildAlbumObject(base, site, uitgave);
+    // Ook op het Audio-object zelf, als URI. Funkwhale 2.0 en Emissary doen dat
+    // allebei, en het scheelt een lezer het uitpakken van de track.
+    a.album = a.track.album.id;
+  }
   if (r.duration) a.duration = `PT${Math.round(r.duration)}S`;
   if (r.created_at) a.published = new Date(r.created_at).toISOString();
   if (Number(r.position)) a.position = Number(r.position);
@@ -212,12 +299,74 @@ export function licentieUri(waarde) {
   return LICENTIES[s.toLowerCase()] || null;        // "Alle rechten voorbehouden" heeft er geen
 }
 
+/** Het AS2-id van de bibliotheek van een site. */
+export function libraryId(base, site) {
+  return `${actorId(base, site.slug)}/library`;
+}
+
+/**
+ * De site als Funkwhale-LIBRARY (skelet).
+ *
+ * WAAROM DIT GEEN DIALECT IS ZOALS track EN ArtistCredit DAT WEL ZIJN. Die twee
+ * vragen entiteiten waar wij tekst hebben; hiervoor hoeven we niets te
+ * verzinnen. Een library is precies wat er al staat: onze open tracks, met een
+ * echte telling en een echt id.
+ *
+ * WAAROM HET NODIG IS, gemeten op 13-8. open.audio heeft onze vier tracks
+ * binnengehaald langs de AP-weg -- met ONZE track-id's, en met een artist_credit
+ * dat Funkwhale zelf uit onze attributedTo afleidde. Maar `uploads` is leeg en
+ * `is_playable` false. Bij hen hangt een upload aan een library; zonder library
+ * is er geen bak om het bestand in te hangen. Het audiobestand zelf is wel
+ * gewoon op te halen (200, audio/mpeg, ook anoniem) -- ze hebben het niet
+ * geprobeerd.
+ *
+ * SKELET, en dat woord is letterlijk bedoeld. Dit is de vorm uit hun docs:
+ * type, id, name, followers, totalItems, first, last, plus attributedTo en
+ * summary. Wat er NIET is: de volg-afhandeling. Onze bibliotheek is openbaar --
+ * elke track erin heeft fedi_open -- dus er valt niets goed te keuren. Komt er
+ * ooit een besloten variant, dan hoort daar het Follow/Accept-werk bij.
+ */
+export function buildLibrary(base, site, rows, { page = false } = {}) {
+  const id = libraryId(base, site);
+  const hostPosts = site.id ? trackHostPosts(site.id) : null;
+  const albums = site.id ? trackAlbums(site.id) : null;
+  const items = (rows || []).map((r) => buildTrackAudio(base, site, r, { hostPosts, albums }));
+  return pagedCollection(id, items, {
+    page,
+    // Een platenkast is geen tijdlijn: `Collection`, niet `OrderedCollection`.
+    // Funkwhale's LibrarySerializer accepteert ook alleen die twee typen
+    // (as:Collection of fw:Library) en zijn CollectionPageSerializer alleen
+    // `CollectionPage` met `items`.
+    ongeordend: true,
+    extra: {
+      type: 'Library',
+      name: site.title || site.slug,
+      attributedTo: actorId(base, site.slug),
+      // WAAROM DIT VELD ER MOET STAAN. Funkwhale's LibrarySerializer noemt
+      // `audience` optioneel, maar zijn create() doet er meteen
+      // `privacy[validated_data["audience"]]` mee -- zonder de sleutel is dat
+      // een KeyError en geeft hun server een 500. Dat is wat open.audio op 15-8
+      // teruggaf toen Robin onze library-URI daar opzocht.
+      //
+      // Het is bovendien gewoon waar: alles hierin is fedi_open, dus openbaar.
+      // Bij hen is dit precies het verschil tussen privacy_level 'everyone' en
+      // 'me' -- oftewel of onze nummers daar afspeelbaar zijn.
+      audience: 'https://www.w3.org/ns/activitystreams#Public',
+      // Vereist volgens hun docs. Openbaar, dus de telling is eerlijk en de
+      // lijst blijft leeg -- wie ons volgt volgt de ACTOR, niet de bak.
+      followers: `${id}/followers`,
+      ...(site.description ? { summary: String(site.description).slice(0, 500) } : {}),
+    },
+  });
+}
+
 /** De collectie van alle open tracks van een site (shaer-0nh, stap 3). */
-export function buildTrackCollection(base, site, rows) {
+export function buildTrackCollection(base, site, rows, { page = false } = {}) {
   // Eén zoekopdracht voor alle rijen samen; zie trackHostPosts.
   const posts = site.id ? trackHostPosts(site.id) : null;
-  const items = (rows || []).map((r) => buildTrackAudio(base, site, r, { hostPosts: posts }));
-  return pagedCollection(`${actorId(base, site.slug)}/tracks`, items, { extra: { attributedTo: actorId(base, site.slug) } });
+  const albums = site.id ? trackAlbums(site.id) : null;
+  const items = (rows || []).map((r) => buildTrackAudio(base, site, r, { hostPosts: posts, albums }));
+  return pagedCollection(`${actorId(base, site.slug)}/tracks`, items, { page, extra: { attributedTo: actorId(base, site.slug) } });
 }
 
 // Een post die een playlist insluit wijst in zijn AS2 ook naar de collectie
@@ -262,7 +411,7 @@ export function playlistLinkTags(base, site, content, post = null) {
 // telling -- totalItems van de stub telt het open deel, dezelfde regel als de
 // collectie zelf, want ook een lijst mag niet verklappen wat er achter de
 // poort staat.
-export function listPlaylistsAP(base, site, enriched) {
+export function listPlaylistsAP(base, site, enriched, { page = false } = {}) {
   const rows = db.prepare(
     'SELECT id, title, artist, year, cover_url FROM playlists WHERE site_id = ? ORDER BY created_at, id'
   ).all(site.id);
@@ -275,7 +424,108 @@ export function listPlaylistsAP(base, site, enriched) {
     delete stub.orderedItems;      // stub: wie de tracks wil, haalt de collectie op
     return stub;
   });
-  return pagedCollection(colId, items, { extra: { attributedTo: actorId(base, site.slug) } });
+  return pagedCollection(colId, items, { page, extra: { attributedTo: actorId(base, site.slug) } });
+}
+
+/**
+ * Bij welke UITGAVE hoort een track? (shaer-756s, stap 2)
+ *
+ * Alleen playlists met kind='album' tellen: een mixtape is geen uitgave, en dat
+ * onderscheid is precies wat de keuze album/playlist betekent. Zit een track in
+ * twee albums, dan wint de oudste -- willekeurig maar STABIEL, en dat is wat
+ * telt: een id dat per ophaalactie verspringt is erger dan een id dat niet de
+ * mooiste keuze is.
+ *
+ * Eén zoekopdracht voor alle rijen samen, zoals trackHostPosts. Per track
+ * vragen wordt bij tweehonderd nummers tweehonderd zoekopdrachten.
+ */
+export function trackAlbums(siteId) {
+  const rijen = db.prepare(`
+    SELECT pt.track_id AS tid, p.id, p.title, p.artist, p.year, p.cover_url,
+           p.release_date, p.mb_release_id, p.created_at
+      FROM playlist_tracks pt
+      JOIN playlists p ON p.id = pt.playlist_id
+     WHERE p.site_id = ? AND p.kind = 'album'
+     ORDER BY p.created_at, p.id
+  `).all(siteId);
+  const uit = new Map();
+  for (const r of rijen) if (!uit.has(r.tid)) uit.set(r.tid, r);
+  // De post die deze plaat uitbrengt, EEN keer per album opgezocht en niet per
+  // track: uitgavePost() doet er echt werk voor (hij leest de typering van de
+  // post) en een site heeft veel meer nummers dan platen.
+  //
+  // WAAROM DIT ERBIJ MOET: buildPlaylistCollection laat leenVanPost de naam van
+  // de post overnemen -- de post IS de uitgave. Zonder dezelfde lening hier zou
+  // het ingesloten Album "Cartoon Epic" heten en zijn eigen URI "Geen koffie,
+  // wel thee!". Een id met twee namen, en dat is precies wat op 16-8 uit de
+  // meting rolde.
+  const perAlbum = new Map();
+  for (const r of uit.values()) {
+    if (perAlbum.has(r.id)) continue;
+    perAlbum.set(r.id, uitgavePost(siteId, r.id));
+  }
+  for (const r of uit.values()) r._post = perAlbum.get(r.id) || null;
+  return uit;
+}
+
+/**
+ * Een uitgave als `fw:Album`.
+ *
+ * INGESLOTEN EN NIET ALS URI, en dat is het hele punt van deze stap. Funkwhale's
+ * TrackSerializer heeft `album = AlbumSerializer()` -- een object met name,
+ * published en een eigen artist_credit. Een kale URI expandeert naar een knoop
+ * met alleen een @id en valt daar dus af. Emissary stuurt precies zo'n kale URI,
+ * en dat is waarom hun tracks bij Funkwhale net zo goed stranden.
+ *
+ * Het `id` is de bestaande playlist-collectie: dereferenceerbaar, en het is
+ * werkelijk hetzelfde ding. We verzinnen geen tweede adres voor iets dat er al
+ * een heeft.
+ */
+export function buildAlbumObject(base, site, pl) {
+  if (!pl) return null;
+  const abs = (u) => !u ? null : (/^https?:/i.test(u) ? u : `${base}${u.startsWith('/') ? '' : '/'}${u}`);
+  // WANNEER IS DEZE PLAAT GEPUBLICEERD. De post die hem uitbrengt gaat voor, en
+  // niet als noodgreep maar omdat hij het beter weet: playlists.created_at is
+  // het moment waarop de RIJ is aangemaakt, en dat kan weken eerder zijn terwijl
+  // je nog aan het samenstellen was. AS2 `published` vraagt wanneer het object
+  // openbaar werd, en dat is de post.
+  //
+  // GEEN epoch als laatste terugval. `published` is bij hen verplicht, maar 1970
+  // is een ANTWOORD en geen ontbrekend veld -- en dat is erger: een lezer kan een
+  // gat opmerken, een leugen niet. Zo kwam op 16-8 de route boven water die id,
+  // title, artist, year, cover_url en kind selecteerde en de rest niet.
+  //
+  // OOK VOOR `released`, en daar had ik het eerst mis (Robin, 16-8). Mijn
+  // bezwaar was: post je vandaag een plaat uit 2018, dan beweert dit dat hij
+  // vandaag uitkwam. Dat gebeurt ook -- maar bij de meeste Klonkt-sites IS de
+  // post het uitbrengen, en GEEN datum is slechter dan een datum die op het
+  // gewone geval klopt. Het handmatige veld is precies het gereedschap voor de
+  // uitzondering: bij een heruitgave vul je hem in en die wint.
+  const postDatum = (pl._post && pl._post.uit_wanneer) ? new Date(pl._post.uit_wanneer) : null;
+  const wanneer = postDatum ? postDatum.toISOString()
+    : (pl.created_at ? new Date(pl.created_at).toISOString() : null);
+  // Dezelfde lening als in buildPlaylistCollection: de post die de plaat
+  // uitbrengt geeft zijn titel, en de eigen titel blijft als alsoKnownAs staan.
+  const titel = (pl._post && pl._post.title) || pl.title;
+  const album = {
+    type: 'Album',
+    id: `${actorId(base, site.slug)}/playlists/${pl.id}`,
+    name: titel,
+    ...(wanneer ? { published: wanneer } : {}),
+    attributedTo: actorId(base, site.slug),
+    artist_credit: artistCredit(base, site, pl.artist, wanneer || new Date().toISOString()),
+  };
+  if (titel !== pl.title) album.alsoKnownAs = pl.title;
+  // Het ingevulde veld wint altijd; anders de DAG waarop de post verscheen.
+  // `year` vult hem nog steeds niet aan, en dat is geen inconsequentie: een
+  // jaartal is geen dag, terwijl de postdatum een gebeurtenis is die werkelijk
+  // heeft plaatsgevonden. Het verschil is verzinnen versus afleiden.
+  if (pl.release_date) album.released = pl.release_date;
+  else if (postDatum) album.released = postDatum.toISOString().slice(0, 10);
+  if (pl.mb_release_id) album.musicbrainzId = pl.mb_release_id;
+  const hoes = abs(pl.cover_url || null);
+  if (hoes) album.image = { type: 'Image', mediaType: guessMediaType(hoes), url: hoes };
+  return album;
 }
 
 export function buildPlaylistCollection(base, site, playlist, rows) {
@@ -286,7 +536,13 @@ export function buildPlaylistCollection(base, site, playlist, rows) {
   // twee keer hetzelfde ding en niet twee dingen die toevallig gelijk klinken.
   // De hoes van de playlist dient als terugval voor een track zonder eigen hoes.
   const hostPosts = site.id ? trackHostPosts(site.id) : null;
-  const items = (rows || []).map((r) => buildTrackAudio(base, site, r, { coverFallback: playlist.cover_url || null, hostPosts }));
+  const albums = site.id ? trackAlbums(site.id) : null;
+  // EEN keer opzoeken en twee keer gebruiken: het Album leent er zijn datums en
+  // titel van, leenVanPost onderaan zijn tekst en tags. Twee losse aanroepen
+  // zouden niet alleen dubbel werk zijn maar ook uiteen kunnen lopen -- en dan
+  // staat er weer iets anders op het ingesloten object dan op zijn eigen URI.
+  const post = site.id ? uitgavePost(site.id, playlist.id) : null;
+  const items = (rows || []).map((r) => buildTrackAudio(base, site, r, { coverFallback: playlist.cover_url || null, hostPosts, albums }));
   const out = pagedCollection(`${actorId(base, site.slug)}/playlists/${playlist.id}`, items, {
     extra: { name: playlist.title, attributedTo: actorId(base, site.slug) },
   });
@@ -297,7 +553,26 @@ export function buildPlaylistCollection(base, site, playlist, rows) {
   if (parts.length) out.summary = parts.join(' · ');
   const cover = abs(playlist.cover_url || null);
   if (cover) out.icon = { type: 'Image', mediaType: guessMediaType(cover), url: cover };
-  return leenVanPost(base, site, out, uitgavePost(site.id, playlist.id));
+
+  // Is dit een UITGAVE, dan draagt deze collectie ook de albumvelden
+  // (shaer-756s, stap 2): het is het adres waar track.album naar wijst, en dan
+  // hoort hier hetzelfde te staan als in het ingesloten object.
+  //
+  // `type` blijft OrderedCollection, EN BLIJFT EEN STRING. Er stond hier even
+  // ['OrderedCollection', 'Album'] -- geldig AS2, en het is ook werkelijk
+  // allebei -- maar een bestaande test viel erover, en die test had gelijk: een
+  // lezer die `type` als tekst uitpakt (Shaer doet dat) verliest dan in stilte
+  // de hele playlist. Het kost ons niets, want hun AlbumSerializer declareert
+  // geen type-veld en valideert het dus niet: haalt Funkwhale dit adres op als
+  // album, dan leest hij deze velden gewoon. En het object dat hij echt gebruikt
+  // staat toch al ingesloten op de track.
+  if ((playlist.kind || 'album') === 'album') {
+    const album = buildAlbumObject(base, site, { ...playlist, _post: post });
+    for (const veld of ['published', 'released', 'musicbrainzId', 'artist_credit', 'image']) {
+      if (album[veld] !== undefined) out[veld] = album[veld];
+    }
+  }
+  return leenVanPost(base, site, out, post);
 }
 
 // ── De post als uitgave (shaer-38y) ───────────────────────────────────────
@@ -322,7 +597,8 @@ export function uitgavePost(siteId, playlistId) {
   if (!siteId || !playlistId) return null;
   try {
     const rijen = db.prepare(`
-      SELECT id, slug, title, excerpt, content, cover_image_url, tags
+      SELECT id, slug, title, excerpt, content, cover_image_url, tags,
+             COALESCE(published_at, created_at) AS uit_wanneer
       FROM posts
       WHERE site_id = ? AND status = 'published'
         AND content LIKE '%[[playlist:' || ? || ']]%'
