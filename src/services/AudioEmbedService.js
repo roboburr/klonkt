@@ -238,7 +238,17 @@ class AudioEmbedService {
   }
 
   static applemusicIframe({ url }) {
-    const match = url.match(/music\.apple\.com\/([a-z]{2}\/(?:album|playlist|song)\/[^/?#]+\/[0-9]+)/i);
+    // Een album of nummer heeft een NUMMER als id, een afspeellijst niet: die
+    // heet `pl.u-LdbqzVvI3go5g`. Met alleen [0-9]+ viel elke playlist hier af
+    // en gaf deze functie null -- waarna de shortcode zelf op de pagina kwam.
+    // Barts melding (17-8): het concept "The Mixtape" toonde in preview
+    // letterlijk [[embed:https://music.apple.com/nl/playlist/...]].
+    //
+    // Bewust krap: geen slash, vraagteken of hekje in het id, want wat hier
+    // gevangen wordt gaat rechtstreeks achter https://embed.music.apple.com/ aan.
+    const match = url.match(
+      /music\.apple\.com\/([a-z]{2}\/(?:album|playlist|song)\/[^/?#]+\/(?:[0-9]+|pl\.[A-Za-z0-9_-]+))/i,
+    );
     if (!match) return null;
     const src = `https://embed.music.apple.com/${match[1]}`;
     return `
@@ -340,7 +350,13 @@ class AudioEmbedService {
         if (media) return media;
         return `<div class="post-embed-missing"><em>Embed: niet-ondersteunde of ongeldige URL.</em></div>`;
       }
-      return this.generateIframe(detected.provider, detected) || match;
+      // HERKEND maar niet te bouwen is geen reden om de shortcode zelf te
+      // tonen. Dat deed het wel, en dan leest een bezoeker "[[embed:https://...]]"
+      // op de pagina en denkt hij dat er iets stuk is. Onherkend gaf hierboven
+      // al een nette melding; herkend-maar-mislukt hoort dezelfde te geven,
+      // want voor de lezer is het hetzelfde geval.
+      return this.generateIframe(detected.provider, detected)
+        || `<div class="post-embed-missing"><em>Embed: niet-ondersteunde of ongeldige URL.</em></div>`;
     });
   }
 
