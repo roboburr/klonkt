@@ -67,11 +67,37 @@ class AudioEmbedService {
       return { provider: 'applemusic', url };
     }
 
-    // YouTube — video id is always exactly 11 characters (aligns with the client-side
-    // ytId() in embed-player.js, which also expects {11}).
-    if (/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/|youtube\.com\/live\/)([A-Za-z0-9_-]{11})/i.test(url)) {
-      const match = url.match(/(?:v=|youtu\.be\/|embed\/|shorts\/|live\/)([A-Za-z0-9_-]{11})/i);
-      return { provider: 'youtube', id: match[1], url };
+    // YouTube — a video id is always exactly 11 characters (aligns with the
+    // client-side ytId() in embed-player.js, which also expects {11}).
+    //
+    // A link may carry a video, a playlist, or both, and until now we kept only
+    // the video and threw `list=` away -- so a link to an album played its first
+    // song and stopped. The ref now keeps whichever is there, in the same three
+    // shapes the Klonkt hub uses, so one ref travels between the two unchanged:
+    //
+    //   "<video>"           one video
+    //   "<video>?list=<L>"  that video, and on through the list
+    //   "list:<L>"          the whole playlist (YouTube's `videoseries`)
+    //
+    // `list` may sit before or after `v=` and is often entity-encoded (&amp;)
+    // in a baked href, hence the scan over the whole URL rather than a fixed
+    // order. A list id is 10-60 chars: longer and looser than a video id.
+    if (/(?:youtube(?:-nocookie)?\.com\/(?:watch\?|playlist\?|embed\/|shorts\/|live\/)|youtu\.be\/)/i.test(url)) {
+      const vm = url.match(/(?:[?&](?:amp;)?v=|youtu\.be\/|\/embed\/|\/shorts\/|\/live\/)([A-Za-z0-9_-]{11})(?![A-Za-z0-9_-])/i);
+      const lm = url.match(/[?&](?:amp;)?list=([A-Za-z0-9_-]{10,60})/i);
+      // `videoseries` is a marker, not a video: a bare playlist embed URL reads
+      // /embed/videoseries?list=..., and taking that for an id gives a dead
+      // frame. It is EXACTLY eleven characters, so no length rule catches it --
+      // it has to be named. (Measured, not assumed: it slipped through a
+      // boundary check that looked like it covered this.)
+      const id = vm && vm[1] !== 'videoseries' ? vm[1] : null;
+      const list = lm ? lm[1] : null;
+      if (id || list) {
+        const ref = id ? (list ? `${id}?list=${list}` : id) : `list:${list}`;
+        // `id` stays exactly what it was for every caller that only wants a
+        // video; `list` and `ref` are additions.
+        return { provider: 'youtube', id, list, ref, url };
+      }
     }
 
     // Vimeo
@@ -121,8 +147,11 @@ class AudioEmbedService {
       // We render a placeholder with data attributes instead of the bare platform
       // iframe, so the embed appears in OUR brand style.
       case 'youtube':
-        return this.embedPlaceholder('youtube', config.id, 'video',
-          config.url || `https://youtu.be/${config.id}`);
+        // The ref carries the list when there is one; `id` alone would drop it
+        // and play a single song out of an album.
+        return this.embedPlaceholder('youtube', config.ref || config.id, 'video',
+          config.url || (config.id ? `https://youtu.be/${config.id}`
+                                   : `https://www.youtube.com/playlist?list=${config.list}`));
       case 'soundcloud':
         return this.embedPlaceholder('soundcloud', config.url, 'track', config.url);
       case 'spotify':
@@ -223,8 +252,25 @@ class AudioEmbedService {
     `.trim();
   }
 
-  static youtubeIframe({ id }) {
-    const src = `https://www.youtube-nocookie.com/embed/${id}`;
+  /**
+   * The plain provider iframe. Takes the same ref shapes as the placeholder:
+   * "<video>", "<video>?list=<L>" and "list:<L>" -- a bare playlist embeds as
+   * `videoseries`. Kept in step with the placeholder path on purpose: this is
+   * the fallback, and a fallback that silently drops the playlist is the worst
+   * kind, because it looks like it worked.
+   */
+  static youtubeIframe({ id, ref }) {
+    const r = ref || id || '';
+    const base = 'https://www.youtube-nocookie.com/embed/';
+    let src;
+    if (r.startsWith('list:')) {
+      src = `${base}videoseries?list=${encodeURIComponent(r.slice(5))}`;
+    } else if (r.includes('?list=')) {
+      const [v, l] = r.split('?list=');
+      src = `${base}${encodeURIComponent(v)}?list=${encodeURIComponent(l)}`;
+    } else {
+      src = base + encodeURIComponent(r);
+    }
     return `
       <figure class="folio-embed folio-embed--youtube">
         <iframe src="${this.escape(src)}"
