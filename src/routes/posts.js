@@ -23,6 +23,7 @@ import * as Guardianship from '../services/guardianship/index.js';
 import { premiumUnlocked } from '../services/PatreonService.js';
 import { defaultMinCents as paidDefaultMinCents, patreonUrl as paidPatronUrl } from '../services/PaidPatreonService.js';
 import { verifyBlob } from '../services/CryptoBox.js';
+import { postEntry } from '../services/PostAccessService.js';
 import MusicMeta from '../services/MusicMeta.js';
 import { mediaDir } from '../config/paths.js';
 
@@ -147,6 +148,9 @@ const RESERVED_SLUGS = new Set([
   'manifest.webmanifest', 'sw.js', 'favicon.ico', 'favicon.svg', 'assets',
   'authorize_interaction', 'fediverse', 'news', 'following', 'notifications', 'blocking',
   'paid', 'push', 'guardian',
+  // De meeslepende tijdlijn (Barts idee, naar bartoverkamp.nl). Gereserveerd
+  // omdat een bericht met deze slug de route anders zou overschaduwen.
+  'lees',
 ]);
 
 /**
@@ -245,6 +249,55 @@ router.get('/', (req, res) => {
     socialDescr: site.description || site.tagline || '',
     bodyClass: 'on-home',
   });
+});
+
+// ==================== LEES (meeslepende tijdlijn) ====================
+//
+// Eén bericht vult het scherm, de chrome schuift weg, en je scrollt voorbij de
+// rand naar het vorige of volgende. Naar bartoverkamp.nl, waar prev/next
+// schildwachten boven en onder het artikel staan en het overscrollen zelf de
+// navigatie is.
+//
+// De buren komen uit postNeighbors(), dezelfde die de gewone postpagina al
+// gebruikt -- dus "vorige" en "volgende" betekenen hier precies hetzelfde als
+// daar, ook voor gepinde berichten.
+//
+// ?partial=1 levert alleen het artikel, want dat is wat de schildwacht inruilt.
+router.get('/lees/:slug?', (req, res, next) => {
+  const site = res.locals.site;
+  if (!site) return next();
+
+  // Zonder slug: het nieuwste bericht, zodat /lees een ingang is en niet een
+  // fout. Gepind eerst, net als op de voorpagina.
+  const post = req.params.slug
+    ? db.prepare(`SELECT p.*, u.username as author_username FROM posts p JOIN users u ON p.author_id = u.id
+                  WHERE p.site_id = ? AND p.slug = ?`).get(site.id, req.params.slug)
+    : db.prepare(`SELECT p.*, u.username as author_username FROM posts p JOIN users u ON p.author_id = u.id
+                  WHERE p.site_id = ? AND p.status = 'published'
+                  ORDER BY (p.pinned = 0) ASC, p.pinned ASC, p.published_at DESC LIMIT 1`).get(site.id);
+  if (!post) return next();
+
+  // Het besluit en het lijf komen uit één plek (PostAccessService). Een dichte
+  // poort levert hier GEEN tekst op: die wordt niet eens gerenderd.
+  const _u = req.query.u ? verifyBlob(String(req.query.u)) : null;
+  const unlockedSlug = (_u && _u.purpose === 'unlocked' && _u.siteId === site.id) ? String(_u.post) : null;
+  const entry = postEntry(post, { user: req.session?.user || null, site, unlockedSlug },
+    { renderBody: (p) => renderPostBodyHtml(site, p, req) });
+
+  if (entry.access === 'forbidden') return next();
+
+  const { newerPost, olderPost } = postNeighbors(site, post);
+  const model = {
+    post, entry, newerPost, olderPost,
+    pageTitle: post.title || site.title,
+    // on-lees zet de chrome weg; de mini-topnav blijft (chrome.ejs, _headerless).
+    bodyClass: 'on-lees on-special',
+  };
+  if (req.query.partial === '1' || req.headers['hx-request'] === 'true') {
+    return renderPage(req, res, 'partials/lees-article', model);
+  }
+  recordPageview(site.id, req);
+  return renderPage(req, res, 'pages/lees', model);
 });
 
 // ==================== NEW POST FORM ====================

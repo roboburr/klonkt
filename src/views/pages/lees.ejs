@@ -1,0 +1,35 @@
+<%
+// De meeslepende tijdlijn: één bericht vult het scherm, de chrome gaat weg.
+//
+// Barts idee, naar bartoverkamp.nl: lezen zonder balken, en voorbij de rand
+// scrollen brengt je bij de buurman. De ⏫/⏬ verschijnen bij de rand en worden
+// 🔄 als je ver genoeg doortrekt; de 👋 blijft staan als weg terug, want een
+// scherm zonder uitgang is geen scherm maar een val.
+//
+// Alles wat beweegt zit in de client (pageJs 'lees'). Zonder JavaScript blijft
+// dit een leesbaar artikel met twee gewone links -- dat is met opzet: een
+// tijdlijn die alleen met script bestaat, bestaat niet voor wie hem uitzet.
+var _b = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '';
+%>
+
+<div class="lees-shell" id="lees-shell">
+  <%- include('../partials/lees-article', {
+        post: post, entry: entry, newerPost: newerPost, olderPost: olderPost,
+      }) %>
+
+  <%# De weg terug. Blijft zichtbaar als de chrome weg is -- op bartoverkamp.nl
+      is de 👋 de sessieknop in het zwevende menu, en hier doet hij hetzelfde
+      werk: hij brengt je uit het leesscherm terug naar de site. %>
+  <nav class="lees-exit" aria-label="<%= t('lees.exit_label') %>">
+    <a class="lees-hand" href="<%= _b %>/" title="<%= t('lees.exit') %>" aria-label="<%= t('lees.exit') %>">👋</a>
+  </nav>
+
+  <%# Zonder script geen overscroll: dan zijn dit gewoon twee links, en kom je
+      er nog steeds doorheen. %>
+  <noscript>
+    <nav class="lees-fallback">
+      <% if (newerPost) { %><a href="<%= _b %>/lees/<%= newerPost.slug %>">⏫ <%= newerPost.title %></a><% } %>
+      <% if (olderPost) { %><a href="<%= _b %>/lees/<%= olderPost.slug %>">⏬ <%= olderPost.title %></a><% } %>
+    </nav>
+  </noscript>
+</div>
