@@ -95,3 +95,45 @@ test('de teaser lekt nooit voorbij de eerste alinea', () => {
 test('een expliciete excerpt gaat voor', () => {
   assert.equal(paidTeaser(post({ excerpt: 'zelf geschreven' })), 'zelf geschreven');
 });
+
+// ── Wat de tijdlijn krijgt ────────────────────────────────────────────────
+// De tijdlijn toont hele berichten, dus een gesloten bericht moet zijn plek
+// houden ZONDER dat de tekst meereist. Dat is geen sjabloonkwestie: wat niet
+// gerenderd wordt, kan ook niet per ongeluk getoond worden.
+
+const { postEntry } = await import('../src/services/PostAccessService.js');
+const renderBody = (p) => `<div>GEHEIM: ${p.content}</div>`;
+
+test('een open bericht krijgt zijn lijf', () => {
+  const e = postEntry(post(), { user: VREEMDE, site: SITE }, { renderBody });
+  assert.equal(e.access, 'full');
+  assert.match(e.content_html, /GEHEIM/);
+  assert.equal(e.teaser, null, 'geen teaser NAAST het lijf');
+});
+
+test('een betaald bericht reist zonder tekst', () => {
+  const e = postEntry(post({ paid: 1 }), { user: VREEMDE, site: SITE }, { renderBody });
+  assert.equal(e.access, 'paid');
+  assert.equal(e.content_html, null, 'het lijf wordt niet eens gerenderd');
+  assert.match(e.teaser, /eerste alinea/);
+  assert.ok(!JSON.stringify(e).includes('tweede alinea'), 'en niets erachter lekt mee');
+});
+
+test('een fan-bericht ook niet', () => {
+  const e = postEntry(post({ fan_only: 1 }), { user: VREEMDE, site: SITE }, { renderBody });
+  assert.equal(e.access, 'fan');
+  assert.equal(e.content_html, null);
+});
+
+test('een concept levert helemaal niets op', () => {
+  const e = postEntry(post({ status: 'draft' }), { user: VREEMDE, site: SITE }, { renderBody });
+  assert.equal(e.access, 'forbidden');
+  assert.equal(e.content_html, null);
+  assert.equal(e.teaser, null, 'ook geen teaser: over een concept valt niets te zeggen');
+});
+
+test('zonder renderer nog steeds geen lijf, en geen fout', () => {
+  const e = postEntry(post(), { user: VREEMDE, site: SITE });
+  assert.equal(e.access, 'full');
+  assert.equal(e.content_html, null);
+});

@@ -68,4 +68,30 @@ export function postAccess(post, { user = null, site = null, unlockedSlug = null
 /** Handig voor sjablonen: mag de bezoeker de echte inhoud zien? */
 export function canReadBody(post, viewer) { return postAccess(post, viewer) === 'full'; }
 
-export default { postAccess, canReadBody, paidTeaser };
+/**
+ * Eén bericht, klaar voor de tijdlijn.
+ *
+ * DE HELE REDEN DAT DIT EEN FUNCTIE IS: het lijf wordt alleen GERENDERD als het
+ * ook getoond mag worden. Een sjabloon dat zelf `<% if (access === 'full') %>`
+ * doet krijgt de volledige tekst tóch mee in het model, en dan is het één
+ * vergeten conditie -- of één `?partial=1` die net iets anders samenstelt --
+ * tussen een betaalmuur en de tekst erachter. Hier komt hij niet eens mee.
+ *
+ * `renderBody` wordt ingespoten (posts.js levert renderPostBodyHtml), zodat
+ * deze module niets van routes of sjablonen hoeft te weten.
+ */
+export function postEntry(post, viewer, { renderBody } = {}) {
+  const access = postAccess(post, viewer);
+  const full = access === 'full';
+  return {
+    slug: post && post.slug,
+    title: (post && post.title) || '',
+    access,
+    // Alleen bij een gesloten poort een teaser, en nooit allebei: de teaser is
+    // de vervanging van het lijf, niet een voorproefje ernaast.
+    teaser: full || access === 'forbidden' ? null : paidTeaser(post),
+    content_html: full && typeof renderBody === 'function' ? renderBody(post) : null,
+  };
+}
+
+export default { postAccess, canReadBody, paidTeaser, postEntry };
