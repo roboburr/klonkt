@@ -9,6 +9,11 @@
   // + Tijdlijn/Grid grijs). Alleen Agenda krijgt z'n eigen is-active op de agenda.
   var _neutral = ['on-shows','on-downloads','on-post','on-epk','on-linkbio','on-newsletter','on-archive']
                    .some(function(c){ return _bc.indexOf(c) >= 0; });
+  // Lezen bestaat alleen waar een leessectie is, en dat is de eigen feed. De
+  // cirkel toont berichten van ANDEREN, opgehaald van hun servers -- daar is
+  // "het hele stuk" niet iets wat wij in handen hebben. Dus daar geen knop:
+  // een knop die niets doet is erger dan een knop die er niet is.
+  var _leesbaar = _bc.indexOf('on-cirkel') < 0;
 %>
 <div class="view-switcher-wrap">
   <div class="container">
@@ -44,6 +49,7 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
         <span><%= t('switch.grid') %></span>
       </button>
+      <% if (_leesbaar) { %>
       <%# Lezen is een gewone derde weergave: dezelfde berichten, andere vorm.
           Dus een <button> met data-view, net als de andere twee -- dan doen de
           gedelegeerde klik, localStorage en syncAria in shell.ejs hun werk al. %>
@@ -52,6 +58,7 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
         <span><%= t('switch.reader') %></span>
       </button>
+      <% } %>
     </div>
     <% if (!_neutral) { %>
     <div class="grid-cols-picker" aria-label="Aantal kolommen">

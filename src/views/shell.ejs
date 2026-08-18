@@ -560,8 +560,17 @@ const _embedUrl = _postAudio
     // staat verderop, maar deze functie draait al bij init).
     var _feedC = ['on-home','on-tag','on-type','on-user','on-cirkel'];
     var _onFeed = _feedC.some(function(c){ return body.classList.contains(c); });
+    // Een weergave die op DEZE pagina niet bestaat, kan ook niet actief zijn.
+    // Lezen ontbreekt in de cirkel (daar staan berichten van anderen), en wie
+    // op de eigen feed Lezen koos houdt die voorkeur in localStorage. Zonder
+    // terugval staat de hele pil dan grijs terwijl de tijdlijn gewoon te zien
+    // is -- de lezer ziet nergens meer waar hij is. De VOORKEUR blijft staan:
+    // terug op de eigen feed is Lezen weer actief.
+    var _view = String(body.dataset.feedView || 'timeline');
+    if (!/^[a-z]+$/.test(_view)) _view = 'timeline';
+    if (!document.querySelector('.view-switch-btn[data-view="' + _view + '"]')) _view = 'timeline';
     document.querySelectorAll('.view-switch-btn').forEach(function(b) {
-      b.setAttribute('aria-selected', (_onFeed && b.dataset.view === body.dataset.feedView) ? 'true' : 'false');
+      b.setAttribute('aria-selected', (_onFeed && b.dataset.view === _view) ? 'true' : 'false');
     });
     document.querySelectorAll('.grid-cols-btn').forEach(function(b) {
       b.classList.toggle('is-active', b.dataset.cols === body.dataset.gridCols);
