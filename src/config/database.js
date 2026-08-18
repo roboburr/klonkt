@@ -39,7 +39,9 @@ export function initializeDatabase() {
   ensureColumn('sites', 'enable_audio_player', 'INTEGER DEFAULT 1');
   // Eigenaarspoort (Robins wens, 18-8-2026): volgers niet automatisch
   // accepteren maar door de eigenaar laten beslissen, op z'n fediverse.
-  ensureColumn('sites', 'approve_followers', 'INTEGER DEFAULT 0');
+  // STANDAARD AAN (ook Robins wens, zelfde dag): een nieuwe of bijgewerkte
+  // klonkt beschermt zijn eigenaar meteen; uitzetten is de bewuste keuze.
+  ensureColumn('sites', 'approve_followers', 'INTEGER DEFAULT 1');
   // (Verwijderd 31-7-2026: sites.guardian_only en ap_guardian_invites hoorden
   // bij de guardian-lite accounts. Bestaande installaties houden kolom en tabel
   // ongebruikt; nieuwe krijgen ze niet meer.)

@@ -1277,6 +1277,7 @@ router.get('/connect', requireSiteManager, (req, res) => {
   renderPage(req, res, 'pages/connect', {
     pageTitle: 'Connect', bodyClass: 'on-special',
     connections, myGuardians, followRequests,
+    approveFollowers: !!(site && site.approve_followers),
     // Na een verhuizing staat de uitgaande kant op slot. Dat hoort te blijken
     // VOORDAT je op een knop drukt, niet daarna uit een foutmelding.
     movedTo: ActivityPubService.movedLock(site).movedTo,
@@ -1294,6 +1295,18 @@ router.post('/followers/:id/remove', requireSiteManager, (req, res) => {
   return res.redirect(`${base}/connect?` + (ok
     ? 'success=' + encodeURIComponent('Volger verwijderd')
     : 'error=' + encodeURIComponent('Volger niet gevonden')));
+});
+
+// De poort zelf aan- of uitzetten, op de plek waar de verzoeken toch al
+// staan (Robins wens, 18-8: "op de connect is logischer").
+router.post('/connect/approve-followers', requireSiteManager, (req, res) => {
+  const site = res.locals.site;
+  const base = res.locals.siteUrlBase || '';
+  if (site) {
+    db.prepare('UPDATE sites SET approve_followers = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+      .run(req.body.on ? 1 : 0, site.id);
+  }
+  return res.redirect(`${base}/connect`);
 });
 
 // De eigenaarspoort beslist (Robins wens, 18-8): accepteer of weiger een

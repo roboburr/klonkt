@@ -52,7 +52,13 @@
 
   <%# De eigenaarspoort (Robins wens, 18-8): volgverzoeken die wachten op
       een beslissing van de eigenaar. Alleen buiten voogdij — een ward ziet
-      dit nooit, want daar beslissen de guardians. %>
+      dit nooit, want daar beslissen de guardians. De poort zelf zit hier
+      ook: aan/uit op de plek waar de verzoeken staan. %>
+  <% if (!(myGuardians && myGuardians.length)) { %>
+    <form method="post" action="/connect/approve-followers" class="tl-foll-ab" title="<%= t('tl.approve_toggle_hint') %>">
+      <label><input type="checkbox" name="on" value="1" <%= (typeof approveFollowers !== 'undefined' && approveFollowers) ? 'checked' : '' %> data-autosubmit> &#128737; <%= t('tl.approve_toggle') %></label>
+    </form>
+  <% } %>
   <% var folreqs = (typeof followRequests !== 'undefined' && followRequests) || []; %>
   <% if (folreqs.length) { %>
     <h2 class="conn-h"><%= t('tl.folreq_title') %></h2>

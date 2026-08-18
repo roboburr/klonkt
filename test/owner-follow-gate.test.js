@@ -63,6 +63,11 @@ test('zonder de instelling blijft auto-accept gewoon werken', async () => {
   assert.equal(volgers('open'), 1);
 });
 
+test('standaard staat de poort AAN — uitzetten is de bewuste keuze', () => {
+  db.prepare("INSERT INTO sites (id, slug, title, owner_id, is_public) VALUES ('s3','vers','Vers','u1',1)").run();
+  assert.equal(db.prepare("SELECT approve_followers FROM sites WHERE slug = 'vers'").get().approve_followers, 1);
+});
+
 test('de actor adverteert manuallyApprovesFollowers eerlijk', () => {
   const dicht = db.prepare("SELECT * FROM sites WHERE slug = 'dev'").get();
   const open = db.prepare("SELECT * FROM sites WHERE slug = 'open'").get();
