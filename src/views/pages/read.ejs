@@ -13,7 +13,11 @@
 var _b = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '';
 %>
 
-<div class="read-stream" id="read-stream" data-base="<%= _b %>">
+<%# De teksten die het script zelf plaatst, komen van hier -- zoals de
+    zoekteksten van de topnav (zie mod/chrome.js). Een zin die in het
+    script staat, staat in één taal, en dat is nooit de taal van de lezer. %>
+<div class="read-stream" id="read-stream" data-base="<%= _b %>"
+     data-i18n="<%= JSON.stringify({ end: t('read.end'), load_error: t('read.load_error') }) %>">
   <%- include('../partials/read-article', {
         post: post, entry: entry, newerPost: newerPost, olderPost: olderPost,
       }) %>
@@ -43,8 +47,8 @@ var _b = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '';
   transition: transform .28s ease, opacity .28s ease;
   will-change: transform;
 }
-.on-read.read-chrome-weg #pcms-chrome { transform: translateY(-100%); opacity: 0; }
-.on-read.read-chrome-weg .bottom-tab  { transform: translateY(100%);  opacity: 0; }
+.on-read.read-chrome-hidden #pcms-chrome { transform: translateY(-100%); opacity: 0; }
+.on-read.read-chrome-hidden .bottom-tab  { transform: translateY(100%);  opacity: 0; }
 
 /* De vrije ruimte onder de laatste post moet weg: anders eindigt het document
    ver onder het laatste bericht en klopt "bij de rand" niet meer. */
@@ -72,8 +76,8 @@ var _b = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '';
 
 /* Bezig / mislukt: de lezer hoort te merken dat er iets gebeurt, en vooral dat
    er NIETS gebeurde als het misging. */
-.on-read .read-laden { text-align: center; padding: 1.2rem; opacity: .6; font-size: .9rem; }
-.on-read .read-eind  { text-align: center; padding: 2rem 1rem 3rem; opacity: .5; font-size: .9rem; }
+.on-read .read-loading { text-align: center; padding: 1.2rem; opacity: .6; font-size: .9rem; }
+.on-read .read-end  { text-align: center; padding: 2rem 1rem 3rem; opacity: .5; font-size: .9rem; }
 
 .on-read .read-exit { position: fixed; right: 1rem; bottom: 1rem; z-index: 60; }
 .on-read .read-hand {

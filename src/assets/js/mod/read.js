@@ -17,6 +17,12 @@
 // sneller dan je scrolt, en meer betekent alleen meer verkeer.
 const MARGE = '1px 0px 100% 0px';
 
+// De teksten die dit script plaatst. Ze staan in data-i18n op de stroom, want
+// een zin die hier staat, staat in één taal -- en dat is nooit de taal van de
+// lezer. Zelfde afspraak als de topnav (mod/chrome.js).
+let woorden = {};
+function woord(sleutel) { return woorden[sleutel] || ''; }
+
 const stroom = () => document.getElementById('read-stream');
 const geladen = new Set();      // slugs die al in de stroom staan
 let bezigOnder = false;
@@ -25,7 +31,7 @@ let waarnemer = null;
 let laatsteY = 0;
 
 function chrome(verbergen) {
-  document.body.classList.toggle('read-chrome-weg', !!verbergen);
+  document.body.classList.toggle('read-chrome-hidden', !!verbergen);
 }
 
 /** Het artikel dat nu het meest in beeld is; die bepaalt titel en URL. */
@@ -71,7 +77,7 @@ async function vulAan() {
   if (!slug) return klaar(s);
   if (geladen.has(slug)) return;
   bezigOnder = true;
-  const wacht = melding(s, 'read-laden', '…');
+  const wacht = melding(s, 'read-loading', '…');
   try {
     const art = await haal(slug, laatste.dataset.base || '');
     geladen.add(slug);
@@ -79,7 +85,7 @@ async function vulAan() {
     s.appendChild(art);
     kijk();
   } catch (e) {
-    wacht.textContent = 'Kon het volgende bericht niet laden.';
+    wacht.textContent = woord('load_error');
     console.warn('[read] onderaan:', e && e.message);
   } finally { bezigOnder = false; }
 }
@@ -119,8 +125,8 @@ function melding(s, klasse, tekst) {
 }
 
 function klaar(s) {
-  if (s.querySelector('.read-eind')) return;
-  melding(s, 'read-eind', 'Je bent bij het begin van het archief.');
+  if (s.querySelector('.read-end')) return;
+  melding(s, 'read-end', woord('end'));
 }
 
 /** (Her)richt de waarnemer op de huidige eerste en laatste post. */
@@ -151,6 +157,7 @@ function bijScroll() {
 export function init() {
   const s = stroom();
   if (!s) return;
+  try { woorden = JSON.parse(s.getAttribute('data-i18n') || '{}'); } catch (e) { woorden = {}; }
   s.querySelectorAll('.read-post').forEach((p) => geladen.add(p.dataset.slug));
   laatsteY = window.scrollY || 0;
   window.addEventListener('scroll', bijScroll, { passive: true });
