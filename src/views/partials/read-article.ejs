@@ -35,8 +35,14 @@ var _older = (typeof olderPost !== 'undefined' && olderPost) ? olderPost : null;
       }) %>
 
   <%# Zegt waar je heen gaat, in plaats van te vertrouwen op een tik die niemand
-      ziet. De tik-afhandelaar in mod/read.js is het gemak; dit is de aankondiging. %>
+      ziet. De tik-afhandelaar in mod/read.js is het gemak; dit is de aankondiging.
+
+      #fediverse is de sectie op de berichtpagina met de ⭐/🔁/💬-tellers en de
+      reacties (post.ejs). Alleen DEZE link springt daarheen: de titel en de tik
+      openen het bericht bovenaan, want die zeggen "lees dit", niet "laat het
+      gesprek zien". Staat de sectie er niet -- AP uit, of een concept -- dan
+      negeert de browser de anker en beland je gewoon bovenaan. %>
   <footer class="read-foot">
-    <a class="read-open" href="<%= _b %>/<%= post.slug %>"><%= t('read.open') %> &rarr;</a>
+    <a class="read-open" href="<%= _b %>/<%= post.slug %>#fediverse"><%= t('read.open') %> &rarr;</a>
   </footer>
 </article>
