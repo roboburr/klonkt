@@ -165,6 +165,37 @@ function watch() {
   if (last && last !== first) observer.observe(last);
 }
 
+/**
+ * Tikken op een bericht opent dat bericht.
+ *
+ * De stroom toont de tekst; het gesprek -- reacties, waarderingen, boosts --
+ * staat op de berichtpagina. De titel en de voetlink zijn echte <a>'s en doen
+ * het werk voor toetsenbord en schermlezer; dit hier is het gemak voor een duim.
+ *
+ * Daarom vier uitzonderingen, want een tik die je niet bedoelde is erger dan
+ * geen tik: iets dat zelf al een doel heeft (link, knop, veld) houdt zijn eigen
+ * werking, een geselecteerde tekst is geen tik, een verschoven vinger is
+ * scrollen, en cmd/ctrl-klik hoort de browser zelf af te handelen.
+ */
+let tapX = 0, tapY = 0;
+function onPointerDown(e) { tapX = e.clientX; tapY = e.clientY; }
+
+function onTap(e) {
+  if (e.defaultPrevented || e.button !== 0) return;
+  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  const t = e.target;
+  if (!t || typeof t.closest !== 'function') return;
+  const art = t.closest('.read-post');
+  if (!art) return;
+  if (t.closest('a, button, input, textarea, select, label, summary, [role="button"]')) return;
+  if (Math.abs(e.clientX - tapX) > 10 || Math.abs(e.clientY - tapY) > 10) return;
+  const sel = window.getSelection && window.getSelection();
+  if (sel && String(sel).trim()) return;
+  const slug = art.dataset.slug;
+  if (!slug) return;
+  location.href = (art.dataset.base || '') + '/' + encodeURIComponent(slug);
+}
+
 function onScroll() {
   const y = window.scrollY || 0;
   if (y < 8) toggleChrome(false);
@@ -182,6 +213,9 @@ export function init() {
   lastY = window.scrollY || 0;
   window.addEventListener('scroll', onScroll, { passive: true });
   window.addEventListener('resize', watch, { passive: true });
+  // Op de stroom, niet per artikel: aangevulde berichten doen zo vanzelf mee.
+  s.addEventListener('pointerdown', onPointerDown, { passive: true });
+  s.addEventListener('click', onTap);
   watch();
 }
 

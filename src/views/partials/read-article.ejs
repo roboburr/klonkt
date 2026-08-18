@@ -19,8 +19,13 @@ var _older = (typeof olderPost !== 'undefined' && olderPost) ? olderPost : null;
          data-base="<%= _b %>"
          data-title="<%= post.title || '' %>"
          aria-label="<%= post.title || '' %>">
+  <%# De titel is een echte link naar het bericht zelf. De leesstroom toont de
+      TEKST, maar reacties, waarderingen en boosts staan op de berichtpagina --
+      en een stroom waar je niet uit kunt naar het gesprek is een doodlopende weg.
+      Een <a> en niet alleen een tik-afhandelaar: dat werkt ook met een
+      toetsenbord, met een schermlezer, en met cmd-klik. %>
   <header class="read-head">
-    <h1 class="read-title"><%= post.title || '' %></h1>
+    <h1 class="read-title"><a href="<%= _b %>/<%= post.slug %>"><%= post.title || '' %></a></h1>
     <% if (post.published_at) { %><p class="read-when"><%= formatDateTime(post.published_at) %></p><% } %>
   </header>
 
@@ -28,4 +33,10 @@ var _older = (typeof olderPost !== 'undefined' && olderPost) ? olderPost : null;
         post: post, access: entry.access, teaser: entry.teaser,
         content_html: entry.content_html, _base: _b,
       }) %>
+
+  <%# Zegt waar je heen gaat, in plaats van te vertrouwen op een tik die niemand
+      ziet. De tik-afhandelaar in mod/read.js is het gemak; dit is de aankondiging. %>
+  <footer class="read-foot">
+    <a class="read-open" href="<%= _b %>/<%= post.slug %>"><%= t('read.open') %> &rarr;</a>
+  </footer>
 </article>
