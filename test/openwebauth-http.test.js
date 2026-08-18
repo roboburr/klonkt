@@ -85,6 +85,24 @@ test('een verzonnen handtekening ook niet', async () => {
   assert.equal(r.status, 401);
 });
 
+test('de handtekening mag in Authorization staan, zoals de FEP voorschrijft', async () => {
+  // Hubzilla, (streams) en Forte sturen `Authorization: Signature ...`; de rest
+  // van de fediverse gebruikt de `Signature`-header. Zonder vertaling zou elke
+  // ECHTE client hier een 401 krijgen terwijl hij alles goed deed -- en zou pas
+  // de eerste interop-proef dat aan het licht brengen.
+  //
+  // We toetsen hier dat de header wordt GELEZEN, niet dat een verzonnen
+  // handtekening slaagt: die hoort nog steeds te falen. Het verschil zit hem in
+  // hoe ver het komt -- een genegeerde header en een afgekeurde handtekening
+  // zien er van buiten hetzelfde uit, dus kijken we naar de ondertekenaar die
+  // wél wordt opgezocht.
+  const r = await haal('/owa/token', {
+    headers: { authorization: 'Signature keyId="https://elders.example/users/mee#main-key",algorithm="rsa-sha256",headers="(request-target) host date",signature="bm9wZQ=="' },
+  });
+  assert.equal(r.status, 401, 'een verzonnen handtekening blijft een 401');
+  assert.deepEqual(await r.json(), { success: false });
+});
+
 // ── impersonatie ──────────────────────────────────────────────────────────
 
 test('?owt= bepaalt wie je bent', async () => {

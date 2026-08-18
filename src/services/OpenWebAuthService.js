@@ -158,6 +158,105 @@ export function buildRedirect(endpoint, returnUrl) {
   return u.toString();
 }
 
+// ── de HOME-kant: onze gebruiker bewijst zich elders ──────────────────────
+//
+// Hier zijn de rollen omgedraaid. Wij hebben nu de prive-sleutel nodig -- om te
+// ondertekenen en om het token te ontsleutelen -- en dat is precies waarom
+// alleen een echte instance deze kant kan spelen.
+
+/** `bdest` terug naar een URL. Hex in, URL uit; ongeldig = null. */
+export function fromBdest(hex) {
+  const h = String(hex || '');
+  if (!/^[0-9a-f]+$/i.test(h) || h.length % 2) return null;
+  try {
+    const u = new URL(Buffer.from(h, 'hex').toString('utf8'));
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
+    return u;
+  } catch { return null; }
+}
+
+/**
+ * Het token-endpoint van de doelsite, gevonden via webfinger op zijn WORTEL.
+ *
+ * En meteen de open-redirect-verdediging van deze kant: het gevonden endpoint
+ * moet dezelfde origin hebben als `bdest`. De FEP zegt het met zoveel woorden --
+ * lukt de ontdekking niet, of wijst hij ergens anders heen, dan sturen we de
+ * browser NIET naar bdest maar geven we een fout. Anders is /magic het
+ * doorgeefluik.
+ */
+export async function discoverTokenEndpoint(bdestUrl, { fetchImpl = fetch } = {}) {
+  let origin;
+  try { origin = new URL(bdestUrl).origin; } catch { return null; }
+  const url = `${origin}/.well-known/webfinger?resource=${encodeURIComponent(origin + '/')}`;
+  try {
+    const r = await fetchImpl(url, { headers: { accept: 'application/jrd+json, application/json' } });
+    if (!r.ok) return null;
+    const jrd = await r.json();
+    const link = (jrd.links || []).find((l) => l && l.rel === REL_TOKEN && l.href);
+    if (!link) return null;
+    if (new URL(link.href).origin !== origin) return null;   // open redirect
+    return link.href;
+  } catch { return null; }
+}
+
+/**
+ * Het token ophalen bij de doelsite, ondertekend namens onze actor.
+ *
+ * De handtekening gaat in `Authorization: Signature ...` -- zo schrijft de FEP
+ * het voor, en niet in de `Signature`-header die de rest van de fediverse
+ * gebruikt. Plus `X-Open-Web-Auth` met willekeur erin: de doelsite doet er
+ * niets mee, het voegt alleen entropie toe aan wat we ondertekenen.
+ */
+export async function requestToken(endpoint, { keyId, privatePem, fetchImpl = fetch } = {}) {
+  const u = new URL(endpoint);
+  const date = new Date().toUTCString();
+  const nonce = crypto.randomBytes(16).toString('hex');
+  const target = `${u.pathname}${u.search || ''}`;
+  const signingString = [
+    `(request-target): get ${target}`,
+    `host: ${u.host}`,
+    `date: ${date}`,
+    `x-open-web-auth: ${nonce}`,
+  ].join('\n');
+  const signature = crypto.sign('sha256', Buffer.from(signingString), privatePem).toString('base64');
+  const headers = {
+    Accept: 'application/json',
+    Date: date,
+    'X-Open-Web-Auth': nonce,
+    Authorization: `Signature keyId="${keyId}",algorithm="rsa-sha256",headers="(request-target) host date x-open-web-auth",signature="${signature}"`,
+  };
+  const r = await fetchImpl(endpoint, { headers });
+  if (!r.ok) return null;
+  const j = await r.json();
+  if (!j || j.success !== true || !j.encrypted_token) return null;
+  return String(j.encrypted_token);
+}
+
+/** Het token uitpakken met onze eigen prive-sleutel. */
+export function decryptToken(encrypted, privatePem) {
+  const b64 = String(encrypted || '').replace(/-/g, '+').replace(/_/g, '/');
+  const buf = crypto.privateDecrypt(
+    { key: privatePem, padding: crypto.constants.RSA_PKCS1_PADDING },
+    Buffer.from(b64, 'base64'),
+  );
+  const t = buf.toString('utf8');
+  // Een token is URL-veilige tekst. Bij een verkeerde sleutel geeft PKCS#1 v1.5
+  // geen fout maar afgeleide onzin terug (implicit rejection, zie de toelichting
+  // bij encryptTokenFor), en die onzin hoort hier te stranden in plaats van als
+  // token de wereld in te gaan.
+  //
+  // ALLEBEI de voorwaarden doen werk, en dat is gemeten met 300 vreemde sleutels:
+  //  - de TEKENSET vangt vrijwel alles. Van die 300 was er geen enkele die
+  //    volledig uit URL-veilige tekens bestond.
+  //  - de ONDERGRENS vangt de rest. De onzin heeft een willekeurige lengte (5
+  //    tot 209 bytes gezien), en 18 van de 300 was korter dan 16 bytes. Bij zo'n
+  //    kort stukje is "toevallig allemaal URL-veilig" niet meer verwaarloosbaar:
+  //    per byte is die kans ruwweg een kwart.
+  // Zestien is daarmee geen rond getal maar een grens die iets doet. Een echte
+  // implementatie zit er ruim boven (de onze: 43 tekens).
+  return /^[A-Za-z0-9._~-]{16,512}$/.test(t) ? t : null;
+}
+
 // ── wie is er binnen ──────────────────────────────────────────────────────
 
 /** De actor die deze sessie bewees te zijn, of null. */
@@ -196,4 +295,5 @@ export default {
   sweepTokens, issueToken, redeemToken, encryptTokenFor,
   parseHandle, discoverRedirectEndpoint, toBdest, buildRedirect,
   guestActor, isFollowerOf, viewerFor,
+  fromBdest, discoverTokenEndpoint, requestToken, decryptToken,
 };

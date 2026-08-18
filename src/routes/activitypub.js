@@ -188,6 +188,10 @@ router.get('/.well-known/webfinger', (req, res) => {
     links: [
       { rel: 'self', type: 'application/activity+json', href: actorUri },
       { rel: 'http://webfinger.net/rel/profile-page', type: 'text/html', href: profileUrl },
+      // FEP-61cf: hier stuurt een doelsite deze gebruiker heen om zich te
+      // bewijzen. Zonder deze regel valt zo'n site terug op /magic geraden --
+      // wat toevallig klopt, maar raden is geen afspraak.
+      { rel: 'http://purl.org/openwebauth/v1#redirect', href: baseUrl(req) + '/magic' },
     ],
   }));
 });

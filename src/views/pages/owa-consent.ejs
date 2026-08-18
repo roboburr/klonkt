@@ -1,0 +1,69 @@
+<%
+// Het toestemmingsscherm van /magic.
+//
+// Dit scherm bestaat omdat de FEP er onder "Information leakage" om vraagt:
+// OpenWebAuth geeft een STERKE identiteitsclaim af aan elke site die erom
+// vraagt, en desnoods zonder dat je het merkt. De omweg langs je eigen server is
+// het enige moment waarop je nog kunt zeggen: deze site niet.
+//
+// Daarom staat de doelhost groot en apart. Niet als versiering: wie hier
+// doorklikt vertelt die host wie hij is, en dat hoort de zin te zijn die hij
+// gelezen heeft.
+var _sites = (typeof owaSites !== 'undefined' && owaSites) ? owaSites : [];
+%>
+
+<section class="owa">
+  <div class="owa-card">
+    <h1 class="owa-h1"><%= t('owa.title') %></h1>
+
+    <p class="owa-host"><%= owaHost %></p>
+    <p class="owa-sub"><%= t('owa.sub') %></p>
+
+    <form method="post" action="/magic">
+      <input type="hidden" name="bdest" value="<%= owaBdest %>">
+
+      <% if (_sites.length === 1) { %>
+        <input type="hidden" name="slug" value="<%= _sites[0].slug %>">
+        <p class="owa-as"><%= t('owa.as') %> <strong><%= _sites[0].title || _sites[0].slug %></strong></p>
+      <% } else { %>
+        <%# Meer dan één site: kiezen is hier geen luxe. Ondertekenen en
+            ontsleutelen kan alleen met een sleutel die hij ook echt beheert. %>
+        <p class="owa-as"><%= t('owa.choose') %></p>
+        <ul class="owa-list">
+          <% _sites.forEach(function(s, i) { %>
+            <li>
+              <label>
+                <input type="radio" name="slug" value="<%= s.slug %>"<%= i === 0 ? ' checked' : '' %>>
+                <span><%= s.title || s.slug %></span>
+              </label>
+            </li>
+          <% }); %>
+        </ul>
+      <% } %>
+
+      <div class="owa-actions">
+        <button class="owa-btn" type="submit"><%= t('owa.go') %></button>
+        <a class="owa-no" href="/"><%= t('owa.cancel') %></a>
+      </div>
+    </form>
+
+    <p class="owa-fine"><%= t('owa.fine') %></p>
+  </div>
+</section>
+
+<style>
+  .owa { max-width: 480px; margin: 0 auto; padding: 56px 18px; text-align: center; }
+  .owa-card { border: 1px solid rgba(128,128,128,.2); border-radius: 18px; padding: 36px 28px; }
+  .owa-h1 { font-size: 22px; margin: 0 0 14px; }
+  .owa-host { font-size: 20px; font-weight: 600; margin: 0 0 6px; word-break: break-all; }
+  .owa-sub { opacity: .85; line-height: 1.6; margin: 0 0 20px; }
+  .owa-as { font-size: .95rem; margin: 0 0 10px; }
+  .owa-list { list-style: none; padding: 0; margin: 0 0 18px; text-align: left; }
+  .owa-list li { padding: 6px 0; }
+  .owa-list label { display: flex; gap: 10px; align-items: center; cursor: pointer; }
+  .owa-actions { display: flex; gap: 14px; align-items: center; justify-content: center; flex-wrap: wrap; }
+  .owa-btn { padding: 12px 22px; border-radius: 10px; border: 0; background: var(--accent,#6b8f71);
+             color: #fff; font-weight: 600; font-family: inherit; font-size: 1rem; cursor: pointer; }
+  .owa-no { font-size: .9rem; opacity: .7; }
+  .owa-fine { font-size: .8rem; opacity: .6; line-height: 1.5; margin: 18px 0 0; }
+</style>
