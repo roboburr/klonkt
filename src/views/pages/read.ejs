@@ -1,0 +1,90 @@
+<%
+// De leesweergave: berichten achter elkaar, één per beeld, en de balken gaan weg.
+//
+// Barts idee, naar bartoverkamp.nl -- maar NIET met de truc die daar staat.
+// Daar wordt bij de rand naar de andere kant gesprongen en het artikel
+// "vloeiend" in beeld gezet; dat is een naad die je verbergt. Hier groeit de
+// stroom gewoon: bij de onderrand hangt de client de oudere buur eronder, bij de
+// bovenrand de nieuwere erboven, en de browser snapt naar de berichtgrenzen.
+// Dan is er geen naad om te verbergen.
+//
+// Zonder JavaScript blijft dit één leesbaar bericht met twee gewone links. Een
+// leesweergave die alleen met script bestaat, bestaat niet voor wie het uitzet.
+var _b = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '';
+%>
+
+<div class="read-stream" id="read-stream" data-base="<%= _b %>">
+  <%- include('../partials/read-article', {
+        post: post, entry: entry, newerPost: newerPost, olderPost: olderPost,
+      }) %>
+</div>
+
+<%# De weg terug. Blijft staan als de balken weg zijn -- een scherm zonder
+    uitgang is geen scherm maar een val. %>
+<nav class="read-exit" aria-label="<%= t('read.exit_label') %>">
+  <a class="read-hand" href="<%= _b %>/" title="<%= t('read.exit') %>" aria-label="<%= t('read.exit') %>">👋</a>
+</nav>
+
+<noscript>
+  <nav class="read-fallback">
+    <% if (newerPost) { %><a href="<%= _b %>/read/<%= newerPost.slug %>">← <%= newerPost.title %></a><% } %>
+    <% if (olderPost) { %><a href="<%= _b %>/read/<%= olderPost.slug %>"><%= olderPost.title %> →</a><% } %>
+  </nav>
+</noscript>
+
+<style>
+/* Alles onder .on-read: dit is een nieuw scherm op een LIVE site, dus niets
+   hiervan mag daarbuiten iets aanraken. */
+
+/* De balken schuiven weg zodra je leest. Transform en niet display: een
+   schuivende balk laat zien dat hij terugkomt, een verdwijnende niet. */
+.on-read #pcms-chrome,
+.on-read .bottom-tab {
+  transition: transform .28s ease, opacity .28s ease;
+  will-change: transform;
+}
+.on-read.read-chrome-weg #pcms-chrome { transform: translateY(-100%); opacity: 0; }
+.on-read.read-chrome-weg .bottom-tab  { transform: translateY(100%);  opacity: 0; }
+
+/* De vrije ruimte onder de laatste post moet weg: anders eindigt het document
+   ver onder het laatste bericht en klopt "bij de rand" niet meer. */
+.on-read #pcms-main { padding-bottom: 0; }
+
+/* PROXIMITY, geen mandatory. Een bericht dat langer is dan het scherm moet je
+   rustig kunnen doorlezen; mandatory zou je bij elke pauze terugtrekken naar
+   een grens. Zo snapt hij alleen als je in de buurt van een grens bent. */
+.on-read .read-stream { scroll-snap-type: y proximity; }
+.on-read .read-post {
+  scroll-snap-align: start;
+  scroll-snap-stop: normal;
+  min-height: 100svh;
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 2rem 1.2rem 4rem;
+  box-sizing: border-box;
+}
+/* Een lijn tussen twee berichten: zonder grens is een stroom een lange brij. */
+.on-read .read-post + .read-post { border-top: 1px solid color-mix(in srgb, currentColor 12%, transparent); }
+
+.on-read .read-head { padding-bottom: .5rem; }
+.on-read .read-title { font-size: clamp(1.6rem, 4vw, 2.4rem); line-height: 1.15; margin: 0 0 .3rem; }
+.on-read .read-when { font-size: .85rem; opacity: .6; margin: 0; }
+
+/* Bezig / mislukt: de lezer hoort te merken dat er iets gebeurt, en vooral dat
+   er NIETS gebeurde als het misging. */
+.on-read .read-laden { text-align: center; padding: 1.2rem; opacity: .6; font-size: .9rem; }
+.on-read .read-eind  { text-align: center; padding: 2rem 1rem 3rem; opacity: .5; font-size: .9rem; }
+
+.on-read .read-exit { position: fixed; right: 1rem; bottom: 1rem; z-index: 60; }
+.on-read .read-hand {
+  display: grid; place-items: center; width: 3rem; height: 3rem;
+  font-size: 1.5rem; text-decoration: none; border-radius: 50%;
+  background: var(--paper, #fff); box-shadow: 0 2px 10px rgba(0,0,0,.18);
+}
+.on-read .read-fallback { display: flex; gap: 1rem; padding: 1rem 1.2rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .on-read #pcms-chrome, .on-read .bottom-tab { transition: none; }
+  .on-read .read-stream { scroll-snap-type: none; }
+}
+</style>

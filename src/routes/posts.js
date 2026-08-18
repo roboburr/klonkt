@@ -148,9 +148,9 @@ const RESERVED_SLUGS = new Set([
   'manifest.webmanifest', 'sw.js', 'favicon.ico', 'favicon.svg', 'assets',
   'authorize_interaction', 'fediverse', 'news', 'following', 'notifications', 'blocking',
   'paid', 'push', 'guardian',
-  // De meeslepende tijdlijn (Barts idee, naar bartoverkamp.nl). Gereserveerd
+  // De meeslepende leesweergave. Gereserveerd
   // omdat een bericht met deze slug de route anders zou overschaduwen.
-  'lees',
+  'read',
 ]);
 
 /**
@@ -263,11 +263,11 @@ router.get('/', (req, res) => {
 // daar, ook voor gepinde berichten.
 //
 // ?partial=1 levert alleen het artikel, want dat is wat de schildwacht inruilt.
-router.get('/lees/:slug?', (req, res, next) => {
+router.get('/read/:slug?', (req, res, next) => {
   const site = res.locals.site;
   if (!site) return next();
 
-  // Zonder slug: het nieuwste bericht, zodat /lees een ingang is en niet een
+  // Zonder slug: het nieuwste bericht, zodat /read een ingang is en niet een
   // fout. Gepind eerst, net als op de voorpagina.
   const post = req.params.slug
     ? db.prepare(`SELECT p.*, u.username as author_username FROM posts p JOIN users u ON p.author_id = u.id
@@ -290,14 +290,15 @@ router.get('/lees/:slug?', (req, res, next) => {
   const model = {
     post, entry, newerPost, olderPost,
     pageTitle: post.title || site.title,
-    // on-lees zet de chrome weg; de mini-topnav blijft (chrome.ejs, _headerless).
-    bodyClass: 'on-lees on-special',
+    // on-read zet de chrome weg; de mini-topnav blijft (chrome.ejs, _headerless).
+    bodyClass: 'on-read on-special',
+    pageJs: 'read',
   };
   if (req.query.partial === '1' || req.headers['hx-request'] === 'true') {
-    return renderPage(req, res, 'partials/lees-article', model);
+    return renderPage(req, res, 'partials/read-article', model);
   }
   recordPageview(site.id, req);
-  return renderPage(req, res, 'pages/lees', model);
+  return renderPage(req, res, 'pages/read', model);
 });
 
 // ==================== NEW POST FORM ====================
