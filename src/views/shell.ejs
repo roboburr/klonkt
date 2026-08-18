@@ -495,6 +495,15 @@ const _embedUrl = _postAudio
   if (window.__modBoot) return;
   window.__modBoot = true;
 
+  // ?v=N — cache-buster voor ALLE modules in assets/js/mod, net als bij
+  // audio-player.js hierboven. BUMP BIJ ELKE WIJZIGING IN DIE MAP. Zonder
+  // query staat /assets op max-age=1y, en dan blijft een browser die de
+  // pagina eerder bezocht een jaar lang de oude module draaien: een
+  // reparatie bereikt precies de bezoekers die hem al hebben.
+  // Eén nummer voor de hele map. Te vaak bumpen kost één download; te weinig
+  // bumpen kost een bugfix die nooit aankomt.
+  var MOD_V = 1;
+
   // name -> 1 (aan het laden) of de module-namespace (geladen). Een module
   // die `init` exporteert draait die bij ELKE paginawissel waarop hij actief
   // is -- dat is het gedrag van de oude inline scripts, die per render
@@ -513,7 +522,7 @@ const _embedUrl = _postAudio
       if (!name || !/^[a-z0-9-]+$/.test(name)) return;
       if (loaded[name]) { start(name, loaded[name]); return; }
       loaded[name] = 1;
-      import('/assets/js/mod/' + name + '.js').then(function (m) {
+      import('/assets/js/mod/' + name + '.js?v=' + MOD_V).then(function (m) {
         loaded[name] = m;
         start(name, m);
       }).catch(function (e) {
