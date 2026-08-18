@@ -221,7 +221,7 @@ const _embedUrl = _postAudio
 <link rel="preload" href="/assets/fonts/fraunces-latin-full-normal.woff2" as="font" type="font/woff2" crossorigin>
 
 <!-- v9 stylesheet (full palette system) -->
-<link rel="stylesheet" href="/assets/css/style.css?v=68">
+<link rel="stylesheet" href="/assets/css/style.css?v=70">
 <script>
 /* iOS safe-area, built by hand. env(safe-area-inset-top) resolves to 0 on this iOS in
    BOTH Safari and the installed PWA (standalone), even with viewport-fit=cover, so the
@@ -434,14 +434,10 @@ const _embedUrl = _postAudio
   // we opnieuw wat de server stuurde. 'on-auth' staat erbij zodat het login-
   // focusscherm óók via htmx z'n styling krijgt (geen chrome, geen tab, audio op 0).
   // ALLES wat de server als page-class kan sturen moet hier staan: wat er niet in
-  // staat wordt bij een htmx-navigatie stilletjes weggefilterd. 'on-read' ontbrak,
-  // en dan kwam je via de Lezen-knop op een leesweergave waarvan ELKE regel
-  // (.on-read ...) niet aansloeg: geen schermhoge berichten, geen snappen, geen
-  // wegschuivende balken. Bij intikken van /read ging het wel goed, want dan
-  // rendert de shell de class zelf -- vandaar dat het lang onzichtbaar bleef.
+  // staat wordt bij een htmx-navigatie stilletjes weggefilterd.
   var PAGE_CLASSES = ['on-home','on-post','on-special','on-archive','on-search','on-admin','on-auth',
     'on-shows','on-downloads','on-download','on-epk','on-linkbio','on-newsletter',
-    'on-tag','on-type','on-user','on-cirkel','on-hub','on-chat','on-read'];
+    'on-tag','on-type','on-user','on-cirkel','on-hub','on-chat'];
 
   document.body.addEventListener('pcmsNav', function(ev) {
     var d = ev.detail || {};
@@ -508,7 +504,7 @@ const _embedUrl = _postAudio
   // reparatie bereikt precies de bezoekers die hem al hebben.
   // Eén nummer voor de hele map. Te vaak bumpen kost één download; te weinig
   // bumpen kost een bugfix die nooit aankomt.
-  var MOD_V = 3;
+  var MOD_V = 4;
 
   // name -> 1 (aan het laden) of de module-namespace (geladen). Een module
   // die `init` exporteert draait die bij ELKE paginawissel waarop hij actief
@@ -553,7 +549,7 @@ const _embedUrl = _postAudio
   // Restore feed view + grid cols from localStorage (overrides server default)
   try {
     var v = localStorage.getItem('pcms-feed-view');
-    if (v === 'timeline' || v === 'grid') body.dataset.feedView = v;
+    if (v === 'timeline' || v === 'grid' || v === 'reader') body.dataset.feedView = v;
     var c = parseInt(localStorage.getItem('pcms-grid-cols'), 10);
     if (c === 2 || c === 3 || c === 4) body.dataset.gridCols = String(c);
   } catch (e) {}

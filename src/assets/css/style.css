@@ -2352,8 +2352,7 @@ body.search-open { overflow: hidden; }
        rather than a row of weight equal to the header. */
     padding: .35rem 0;
 }
-.view-switch-btn,
-.view-switch-link {
+.view-switch-btn {
     display: inline-flex;
     align-items: center;
     gap: .4rem;
@@ -2368,8 +2367,7 @@ body.search-open { overflow: hidden; }
     cursor: pointer;
     transition: all .15s;
 }
-.view-switch-btn:hover,
-.view-switch-link:hover {
+.view-switch-btn:hover {
     color: var(--ink);
     border-color: var(--ink-muted);
 }
@@ -2399,6 +2397,73 @@ body.on-cirkel[data-feed-view="grid"]  .feed-timeline {
 .feed-grid { display: none; }
 body.on-home[data-feed-view="grid"]    .feed-grid,
 body.on-cirkel[data-feed-view="grid"]  .feed-grid { display: block; }
+
+/* -------- LEESWEERGAVE (data-feed-view="reader") --------
+   Dezelfde berichten als de tijdlijn, maar heel: één per scherm, grenzen door
+   scroll-snapping. GEEN eigen route en geen eigen shell -- de balken blijven
+   staan, want je bent nog op de feed en moet terug kunnen schakelen.
+   Pagina's zonder .feed-reader (cirkel, archief, post) negeren de keuze en
+   houden hun tijdlijn: er is hieronder simpelweg geen regel die die daar
+   verbergt. Zo is Lezen nooit een leeg scherm. */
+.feed-reader { display: none; }
+body.on-home[data-feed-view="reader"] .feed-reader { display: block; }
+/* :has(.feed-reader) is hier de LEGE STAAT, niet een truc. Zonder berichten
+   rendert de leessectie niet, en dan mag de tijdlijn niet verborgen worden --
+   want dáár staat "nog niets geschreven" met de knop om te beginnen. Zonder deze
+   voorwaarde is Lezen op een verse site een wit scherm. Hetzelfde geldt voor
+   feeds die (nog) geen leessectie hebben. */
+body.on-home[data-feed-view="reader"]:has(.feed-reader) .feed-timeline,
+body.on-home[data-feed-view="reader"]:has(.feed-reader) .feed-grid,
+body.on-home[data-feed-view="reader"]:has(.feed-reader) .pagination,
+body.on-home[data-feed-view="reader"]:has(.feed-reader) .related-posts,
+body.on-home[data-feed-view="reader"]:has(.feed-reader) .article-footer {
+    display: none !important;
+}
+
+/* Snappen doet de SCROLLCONTAINER, en dat is het document -- niet .read-stream,
+   die heeft overflow: visible en scrollt zelf niet. Proximity en geen mandatory:
+   in een bericht dat langer is dan het scherm moet je rustig door kunnen lezen. */
+html:has(body.on-home[data-feed-view="reader"]) { scroll-snap-type: y proximity; }
+/* En de browser niet óók laten compenseren als Load more er berichten bij zet:
+   Chrome en Firefox schuiven bij invoegen zelf mee (scroll anchoring), en dat
+   vecht met het snappen. */
+html:has(body.on-home[data-feed-view="reader"]),
+.feed-reader .read-stream { overflow-anchor: none; }
+
+.feed-reader .read-post {
+    scroll-snap-align: start;
+    scroll-snap-stop: normal;
+    min-height: 100svh;
+    max-width: 46rem;
+    margin: 0 auto;
+    /* De onderrand loopt achter de vaste tabbalk door; deze padding houdt de
+       TEKST erboven. */
+    padding: 2rem 1.2rem 4rem;
+    box-sizing: border-box;
+}
+/* Een lijn tussen twee berichten: zonder grens is een stroom een lange brij. */
+.feed-reader .read-post + .read-post { border-top: 1px solid color-mix(in srgb, currentColor 12%, transparent); }
+
+.feed-reader .read-head { padding-bottom: .5rem; }
+.feed-reader .read-title { font-size: clamp(1.6rem, 4vw, 2.4rem); line-height: 1.15; margin: 0 0 .3rem; }
+/* De titel is een link, maar mag er niet als een link uitzien: dit is een
+   leesscherm, geen index. */
+.feed-reader .read-title a { color: inherit; text-decoration: none; }
+.feed-reader .read-title a:hover,
+.feed-reader .read-title a:focus-visible { text-decoration: underline; }
+.feed-reader .read-when { font-size: .85rem; opacity: .6; margin: 0; }
+
+.feed-reader .read-foot { margin-top: 2rem; }
+.feed-reader .read-open {
+    display: inline-block; font-size: .9rem; opacity: .75;
+    text-decoration: none; border-bottom: 1px solid currentColor; padding-bottom: 1px;
+}
+.feed-reader .read-open:hover,
+.feed-reader .read-open:focus-visible { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+    html:has(body.on-home[data-feed-view="reader"]) { scroll-snap-type: none; }
+}
 
 /* -------- GRID VIEW TILES (Instagram-stijl) -------- */
 .feed-grid {

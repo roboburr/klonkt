@@ -58,6 +58,22 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
 
 </div>
 
+<!-- ========== LEZEN (alleen zichtbaar bij body[data-feed-view="reader"]) ==========
+     Hetzelfde stel berichten, maar heel: één per scherm, met de grenzen door
+     CSS-snapping. Geen eigen route en geen eigen shell -- de balken blijven
+     staan, want je bent nog gewoon op de feed en moet terug kunnen schakelen.
+     Leeg? Dan valt de lege staat van de tijdlijn hierboven in beeld; deze
+     sectie rendert dan niet. -->
+<% if (typeof readerItems !== 'undefined' && readerItems && readerItems.length) { %>
+<section class="feed-reader" aria-label="<%= t('switch.reader') %>">
+  <div class="read-stream" id="read-stream" data-base="<%= _base %>">
+    <% readerItems.forEach(function(it) { %>
+      <%- include('../partials/read-article', { post: it.post, entry: it.entry }) %>
+    <% }); %>
+  </div>
+</section>
+<% } %>
+
 <!-- ========== GRID (only visible when body[data-feed-view="grid"]) ========== -->
 <% if (allPosts.length > 0) { %>
 <section class="feed-grid container" aria-label="<%= t('phome.grid_view') %>">

@@ -231,7 +231,10 @@ router.get('/', (req, res) => {
   const moreBase = res.locals.siteUrlBase || '';
 
   if (append) {
-    return renderPage(req, res, 'partials/home-append', { posts, hasMore, nextOffset: offset + FEED_PAGE, moreBase });
+    return renderPage(req, res, 'partials/home-append', {
+      posts, hasMore, nextOffset: offset + FEED_PAGE, moreBase,
+      readerItems: readerItems(site, posts, req),
+    });
   }
 
   recordPageview(site.id, req);
@@ -242,74 +245,16 @@ router.get('/', (req, res) => {
   renderPage(req, res, 'pages/home', {
     pinnedPosts,
     posts,
+    readerItems: readerItems(site, [...pinnedPosts, ...posts], req),
     hasMore, nextOffset: offset + FEED_PAGE, moreBase,
     movedTo,
     movedToLabel: movedTo ? (ActivityPubService.actorDisplay(site.slug, movedTo).handle || movedTo) : null,
     pageTitle: site.title,
     socialDescr: site.description || site.tagline || '',
     bodyClass: 'on-home',
-  });
-});
-
-// ==================== LEES (meeslepende tijdlijn) ====================
-//
-// Eén bericht vult het scherm, de chrome schuift weg, en je scrollt voorbij de
-// rand naar het vorige of volgende. Naar bartoverkamp.nl, waar prev/next
-// schildwachten boven en onder het artikel staan en het overscrollen zelf de
-// navigatie is.
-//
-// De buren komen uit postNeighbors(), dezelfde die de gewone postpagina al
-// gebruikt -- dus "vorige" en "volgende" betekenen hier precies hetzelfde als
-// daar, ook voor gepinde berichten.
-//
-// ?partial=1 levert alleen het artikel, want dat is wat de schildwacht inruilt.
-router.get('/read/:slug?', (req, res, next) => {
-  const site = res.locals.site;
-  if (!site) return next();
-
-  // Zonder slug: het nieuwste bericht, zodat /read een ingang is en niet een
-  // fout. Gepind eerst, net als op de voorpagina.
-  const post = req.params.slug
-    ? db.prepare(`SELECT p.*, u.username as author_username FROM posts p JOIN users u ON p.author_id = u.id
-                  WHERE p.site_id = ? AND p.slug = ?`).get(site.id, req.params.slug)
-    : db.prepare(`SELECT p.*, u.username as author_username FROM posts p JOIN users u ON p.author_id = u.id
-                  WHERE p.site_id = ? AND p.status = 'published'
-                  ORDER BY (p.pinned = 0) ASC, p.pinned ASC, p.published_at DESC LIMIT 1`).get(site.id);
-  if (!post) return next();
-
-  // Het besluit en het lijf komen uit één plek (PostAccessService). Een dichte
-  // poort levert hier GEEN tekst op: die wordt niet eens gerenderd.
-  const _u = req.query.u ? verifyBlob(String(req.query.u)) : null;
-  const unlockedSlug = (_u && _u.purpose === 'unlocked' && _u.siteId === site.id) ? String(_u.post) : null;
-  const entry = postEntry(post, { user: req.session?.user || null, site, unlockedSlug },
-    { renderBody: (p) => renderPostBodyHtml(site, p, req) });
-
-  if (entry.access === 'forbidden') return next();
-
-  const { newerPost, olderPost } = postNeighbors(site, post);
-  const model = {
-    post, entry, newerPost, olderPost,
-    pageTitle: post.title || site.title,
-    // on-read zet de chrome weg; de mini-topnav blijft (chrome.ejs, _headerless).
-    bodyClass: 'on-read on-special',
+    // mod/read.js: alleen nog de tik-op-een-bericht in de leesweergave.
     pageJs: 'read',
-  };
-  // ALLEEN de leesmodule krijgt één artikel; ?fragment=1 is haar eigen teken.
-  //
-  // Hier stond `?partial=1 || hx-request`, en dat waren twee dingen door elkaar.
-  // Op deze site betekent ?partial=1 al iets anders -- "de pagina zonder de
-  // schil", voor htmx -- dus een gebooste link naar /read kreeg één kaal
-  // artikel in #pcms-main geschoven: geen stroom, geen on-read, geen script.
-  // Onzichtbaar zolang je /read alleen intikt; zichtbaar zodra er een link naar
-  // toe bestaat (de Lezen-knop in de view-switcher).
-  //
-  // Alles wat GEEN fragment vraagt gaat naar pages/read, en renderPage bepaalt
-  // daar zelf of de schil eromheen moet -- net als bij elke andere pagina.
-  if (req.query.fragment === '1') {
-    return renderPage(req, res, 'partials/read-article', model);
-  }
-  recordPageview(site.id, req);
-  return renderPage(req, res, 'pages/read', model);
+  });
 });
 
 // ==================== NEW POST FORM ====================
@@ -747,6 +692,22 @@ router.get('/archive', (req, res) => {
 // everywhere. Solo: within the site (pinned first, then date). Hub: globally by date.
 // Renders a post's display HTML: baked content + the dynamic audio/embed layer.
 // Extracted so the paid unlock (slice 4) serves the exact same body as the page.
+// Dezelfde berichten, klaar voor de leesweergave.
+//
+// Tijdlijn en Grid tonen kaartjes; Lezen toont het hele stuk. Het is dus geen
+// andere PAGINA maar een andere vorm van dezelfde rijen -- vandaar dat de feed
+// ze alledrie meestuurt en CSS kiest, precies zoals timeline/grid dat al deden.
+//
+// Het lijf loopt door PostAccessService: een gesloten poort levert hier GEEN
+// tekst op, want wat niet gerenderd wordt kan ook niet lekken.
+function readerItems(site, rows, req) {
+  const viewer = { user: req.session?.user || null, site, unlockedSlug: null };
+  return rows.map((post) => ({
+    post,
+    entry: postEntry(post, viewer, { renderBody: (p) => renderPostBodyHtml(site, p, req) }),
+  }));
+}
+
 export function renderPostBodyHtml(site, post, req) {
   let html = (post.content_rendered != null && post.content_rendered !== '')
     ? post.content_rendered
