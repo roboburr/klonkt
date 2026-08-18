@@ -143,6 +143,10 @@
         <span><%= t('asite.enable_audio') %></span>
       </label>
       <% } %>
+      <label class="cb">
+        <input type="checkbox" name="approve_followers" value="1" <%= site.approve_followers ? 'checked' : '' %>>
+        <span><%= t('asite.approve_followers') %></span>
+      </label>
     </fieldset>
 
     <fieldset class="profile-links-fieldset">

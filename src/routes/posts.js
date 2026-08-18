@@ -1269,9 +1269,14 @@ router.get('/connect', requireSiteManager, (req, res) => {
       availability: (gStatus[g.other_uri] || {})['shaer:availability'] || 'active',
       awayUntil: (gStatus[g.other_uri] || {})['shaer:awayUntil'] || null,
     }));
+  // De eigenaarspoort: openstaande volgverzoeken, alleen buiten voogdij.
+  // Een ward-follow beslissen de guardians — die tonen we hier dus NIET,
+  // anders is deze pagina een deur naast hun poort.
+  const followRequests = (site && !myGuardians.length)
+    ? Guardianship.follows.listForWard(site.slug) : [];
   renderPage(req, res, 'pages/connect', {
     pageTitle: 'Connect', bodyClass: 'on-special',
-    connections, myGuardians,
+    connections, myGuardians, followRequests,
     // Na een verhuizing staat de uitgaande kant op slot. Dat hoort te blijken
     // VOORDAT je op een knop drukt, niet daarna uit een foutmelding.
     movedTo: ActivityPubService.movedLock(site).movedTo,
@@ -1289,6 +1294,29 @@ router.post('/followers/:id/remove', requireSiteManager, (req, res) => {
   return res.redirect(`${base}/connect?` + (ok
     ? 'success=' + encodeURIComponent('Volger verwijderd')
     : 'error=' + encodeURIComponent('Volger niet gevonden')));
+});
+
+// De eigenaarspoort beslist (Robins wens, 18-8): accepteer of weiger een
+// volgverzoek dat door approve_followers is vastgehouden. Bewust NIET voor
+// wards — daar beslissen de guardians, en deze route weigert dan hard, zodat
+// hij geen sluiproute naast die poort wordt.
+router.post('/follow-requests/:decision', requireSiteManager, async (req, res) => {
+  const site = res.locals.site;
+  const base = res.locals.siteUrlBase || '';
+  const { decision } = req.params;
+  if (!site || !['approve', 'deny'].includes(decision)) return res.redirect(`${base}/connect`);
+  if (Guardianship.listGuardians(site.slug).length) {
+    return res.redirect(`${base}/connect?error=` + encodeURIComponent('Volgverzoeken lopen via je guardians'));
+  }
+  const pending = Guardianship.follows.getPending(String(req.body.id || ''));
+  if (!pending || pending.ward_slug !== site.slug || pending.status !== 'pending') {
+    return res.redirect(`${base}/connect?error=` + encodeURIComponent('Verzoek niet gevonden'));
+  }
+  if (decision === 'approve') await ActivityPubService.acceptGatedFollow(pending);
+  else await ActivityPubService.rejectGatedFollow(pending);
+  Guardianship.follows.remove(pending.id);
+  return res.redirect(`${base}/connect?success=` + encodeURIComponent(
+    decision === 'approve' ? 'Volger geaccepteerd' : 'Verzoek geweigerd'));
 });
 
 router.post('/news/follow', requireSiteManager, async (req, res) => {

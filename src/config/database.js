@@ -37,6 +37,9 @@ export function initializeDatabase() {
   // Additive column migrations — safe to run every boot.
   // SQLite throws if the column already exists; we swallow that.
   ensureColumn('sites', 'enable_audio_player', 'INTEGER DEFAULT 1');
+  // Eigenaarspoort (Robins wens, 18-8-2026): volgers niet automatisch
+  // accepteren maar door de eigenaar laten beslissen, op z'n fediverse.
+  ensureColumn('sites', 'approve_followers', 'INTEGER DEFAULT 0');
   // (Verwijderd 31-7-2026: sites.guardian_only en ap_guardian_invites hoorden
   // bij de guardian-lite accounts. Bestaande installaties houden kolom en tabel
   // ongebruikt; nieuwe krijgen ze niet meer.)

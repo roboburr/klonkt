@@ -389,7 +389,9 @@ export function buildActor(base, site) {
     // dezelfde vorm die Funkwhale in productie met Mastodon uitwisselt.
     url: channelUrls(base, site),
     ...(channelCategory(site) ? { category: channelCategory(site) } : {}),
-    manuallyApprovesFollowers: isWard,
+    // …and the same honesty for the OWNER gate (Robins wens, 18-8): a site
+    // with approve_followers on holds follows pending until the owner decides.
+    manuallyApprovesFollowers: isWard || !!site.approve_followers,
     discoverable: true,
     inbox: `${id}/inbox`,
     outbox: `${id}/outbox`,
@@ -2473,6 +2475,29 @@ export async function handleInbox(req, slugParam, preVerified = null) {
         }
       }
       console.log('[AP] Follow', who, '→ ward', slug, '(gated, awaiting guardians)');
+      return 202;
+    }
+    // De eigenaarspoort (Robins wens, 18-8): met approve_followers aan wordt
+    // een Follow niet automatisch geaccepteerd — hij wacht in dezelfde
+    // wachtrij als een ward-follow, maar hier beslist de EIGENAAR, op
+    // /connect. Zo kan niemand een klonkt zomaar aan een hub of ander
+    // verzamelplatform hangen zonder dat de eigenaar ja heeft gezegd.
+    // Wards vallen hier nooit: de guardianpoort hierboven gaat vóór.
+    const ownerGate = db.prepare('SELECT approve_followers FROM sites WHERE slug = ?').get(slug);
+    if (ownerGate && ownerGate.approve_followers) {
+      const followId = (typeof act.id === 'string' && act.id) || `${who}#follow-${Date.now()}-${rid()}`;
+      Guardianship.follows.recordPending(slug, {
+        id: followId, follower: who, inbox: remote.inbox, sharedInbox,
+        name: fi.name, handle: fi.handle, icon: fi.icon, activity: act, quorum: 'owner',
+      });
+      const L = pushLang(slug);
+      pushEvent(slug, {
+        type: 'follow',
+        title: i18nT(L, 'push.n_folreq_t'),
+        body: i18nT(L, 'push.n_folreq_b', { who: fi.name || fi.handle || i18nT(L, 'notif.someone') }),
+        url: `${pushPrefix(slug)}/connect`,
+      });
+      console.log('[AP] Follow', who, '→', slug, '(awaiting owner approval)');
       return 202;
     }
     fStmts().ins.run(slug, who, remote.inbox, sharedInbox, fi.name, fi.handle, fi.icon);
