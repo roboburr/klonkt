@@ -23,11 +23,9 @@ var _b = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '';
       }) %>
 </div>
 
-<%# De weg terug. Blijft staan als de balken weg zijn -- een scherm zonder
-    uitgang is geen scherm maar een val. %>
-<nav class="read-exit" aria-label="<%= t('read.exit_label') %>">
-  <a class="read-hand" href="<%= _b %>/" title="<%= t('read.exit') %>" aria-label="<%= t('read.exit') %>">👋</a>
-</nav>
+<%# Geen eigen uitgangsknop. De balken schuiven terug zodra je omhoog scrolt
+    (en staan er sowieso bovenaan), dus de weg terug is altijd één veeg weg. Een
+    zwevende knop erbij zou een tweede uitgang zijn die hetzelfde doet. %>
 
 <noscript>
   <nav class="read-fallback">
@@ -90,16 +88,10 @@ html:has(body.on-read), .on-read .read-stream, .on-read .read-post { overflow-an
 .on-read .read-loading { text-align: center; padding: 1.2rem; opacity: .6; font-size: .9rem; }
 .on-read .read-end  { text-align: center; padding: 2rem 1rem 3rem; opacity: .5; font-size: .9rem; }
 
-.on-read .read-exit { position: fixed; right: 1rem; bottom: 1rem; z-index: 60; }
-.on-read .read-hand {
-  display: grid; place-items: center; width: 3rem; height: 3rem;
-  font-size: 1.5rem; text-decoration: none; border-radius: 50%;
-  background: var(--paper, #fff); box-shadow: 0 2px 10px rgba(0,0,0,.18);
-}
 .on-read .read-fallback { display: flex; gap: 1rem; padding: 1rem 1.2rem; }
 
 @media (prefers-reduced-motion: reduce) {
   .on-read #pcms-chrome, .on-read .bottom-tab { transition: none; }
-  .on-read .read-stream { scroll-snap-type: none; }
+  html:has(body.on-read) { scroll-snap-type: none; }
 }
 </style>
