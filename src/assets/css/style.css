@@ -2352,7 +2352,8 @@ body.search-open { overflow: hidden; }
        rather than a row of weight equal to the header. */
     padding: .35rem 0;
 }
-.view-switch-btn {
+.view-switch-btn,
+.view-switch-link {
     display: inline-flex;
     align-items: center;
     gap: .4rem;
@@ -2367,7 +2368,8 @@ body.search-open { overflow: hidden; }
     cursor: pointer;
     transition: all .15s;
 }
-.view-switch-btn:hover {
+.view-switch-btn:hover,
+.view-switch-link:hover {
     color: var(--ink);
     border-color: var(--ink-muted);
 }

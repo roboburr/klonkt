@@ -26,7 +26,8 @@
   border-radius: 999px;
   padding: 0.15rem;
 }
-.view-switch-btn {
+.view-switch-btn,
+.view-switch-link {
   display: inline-flex; align-items: center; gap: 0.35rem;
   padding: 0.35rem 0.85rem;
   border: 0; background: transparent; color: var(--ink-muted, var(--ink-soft));
@@ -34,11 +35,14 @@
   font-size: 0.85rem; font-family: inherit;
   transition: background 120ms, color 120ms;
 }
-.view-switch-btn:hover { color: var(--ink); }
+.view-switch-btn:hover,
+.view-switch-link:hover { color: var(--ink); }
+.view-switch-link { text-decoration: none; }
 /* Active = white (light background, dark text). Via aria-selected (element
    attribute, set by syncAria + on htmx:afterSettle) → htmx-robust. On non-
    feed pages syncAria sets aria-selected=false → both grey. */
-.view-switch-btn[aria-selected="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.view-switch-btn[aria-selected="true"],
+.view-switch-link[aria-selected="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
 
 /* Agenda = its OWN pill (separate from Timeline/Grid, so the feed-toggle is never
    disturbed). Same look as the view-switcher pill. Visible in all modes. */

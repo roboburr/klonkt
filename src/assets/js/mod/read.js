@@ -61,7 +61,7 @@ function syncAddress() {
 }
 
 async function fetchArticle(slug, base) {
-  const r = await fetch(`${base}/read/${encodeURIComponent(slug)}?partial=1`, {
+  const r = await fetch(`${base}/read/${encodeURIComponent(slug)}?fragment=1`, {
     headers: { 'HX-Request': 'true' },
     credentials: 'same-origin',
   });

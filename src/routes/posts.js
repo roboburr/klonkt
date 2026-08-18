@@ -294,7 +294,18 @@ router.get('/read/:slug?', (req, res, next) => {
     bodyClass: 'on-read on-special',
     pageJs: 'read',
   };
-  if (req.query.partial === '1' || req.headers['hx-request'] === 'true') {
+  // ALLEEN de leesmodule krijgt één artikel; ?fragment=1 is haar eigen teken.
+  //
+  // Hier stond `?partial=1 || hx-request`, en dat waren twee dingen door elkaar.
+  // Op deze site betekent ?partial=1 al iets anders -- "de pagina zonder de
+  // schil", voor htmx -- dus een gebooste link naar /read kreeg één kaal
+  // artikel in #pcms-main geschoven: geen stroom, geen on-read, geen script.
+  // Onzichtbaar zolang je /read alleen intikt; zichtbaar zodra er een link naar
+  // toe bestaat (de Lezen-knop in de view-switcher).
+  //
+  // Alles wat GEEN fragment vraagt gaat naar pages/read, en renderPage bepaalt
+  // daar zelf of de schil eromheen moet -- net als bij elke andere pagina.
+  if (req.query.fragment === '1') {
     return renderPage(req, res, 'partials/read-article', model);
   }
   recordPageview(site.id, req);

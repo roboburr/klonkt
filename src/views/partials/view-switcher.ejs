@@ -7,8 +7,10 @@
   var _onShows = _bc.indexOf('on-shows') >= 0;
   // Pagina's zonder actieve feed-weergave → niets in de pill is 'actief' (Solo/Cirkel
   // + Tijdlijn/Grid grijs). Alleen Agenda krijgt z'n eigen is-active op de agenda.
-  var _neutral = ['on-shows','on-downloads','on-post','on-epk','on-linkbio','on-newsletter','on-archive']
+  var _neutral = ['on-shows','on-downloads','on-post','on-epk','on-linkbio','on-newsletter','on-archive','on-read']
                    .some(function(c){ return _bc.indexOf(c) >= 0; });
+  var _onRead = _bc.indexOf('on-read') >= 0;
+  var _sbR = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '';
 %>
 <div class="view-switcher-wrap">
   <div class="container">
@@ -44,6 +46,18 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
         <span><%= t('switch.grid') %></span>
       </button>
+      <%# Lezen is GEEN in-place omschakeling maar een andere route (/read), dus
+          een <a> en niet een <button>. En bewust NIET de klasse view-switch-btn:
+          de gedelegeerde klik in shell.ejs pakt alles met die klasse op, zet
+          body[data-feed-view] erop en springt op niet-feedpagina's terug naar
+          home -- dat zou deze link opeten. Andere klasse, zelfde uiterlijk.
+          aria-selected staat hier vast: syncAria() raakt alleen .view-switch-btn
+          aan, dus de actieve staat op /read blijft staan na een htmx-navigatie. %>
+      <a class="view-switch-link" href="<%= _sbR %>/read" role="tab"
+         aria-selected="<%= _onRead ? 'true' : 'false' %>">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        <span><%= t('switch.reader') %></span>
+      </a>
     </div>
     <% if (!_neutral) { %>
     <div class="grid-cols-picker" aria-label="Aantal kolommen">
