@@ -24,6 +24,7 @@ import { premiumUnlocked } from '../services/PatreonService.js';
 import { defaultMinCents as paidDefaultMinCents, patreonUrl as paidPatronUrl } from '../services/PaidPatreonService.js';
 import { verifyBlob } from '../services/CryptoBox.js';
 import { postEntry } from '../services/PostAccessService.js';
+import * as OWA from '../services/OpenWebAuthService.js';
 import MusicMeta from '../services/MusicMeta.js';
 import { mediaDir } from '../config/paths.js';
 
@@ -701,7 +702,7 @@ router.get('/archive', (req, res) => {
 // Het lijf loopt door PostAccessService: een gesloten poort levert hier GEEN
 // tekst op, want wat niet gerenderd wordt kan ook niet lekken.
 function readerItems(site, rows, req) {
-  const viewer = { user: req.session?.user || null, site, unlockedSlug: null };
+  const viewer = OWA.viewerFor(req, site, { unlockedSlug: null });
   return rows.map((post) => ({
     post,
     entry: postEntry(post, viewer, { renderBody: (p) => renderPostBodyHtml(site, p, req) }),
@@ -1588,7 +1589,10 @@ router.get('/:slug', (req, res, next) => {
   // Fan-only preview (premium #3): full content only for logged-in fans.
   // Anonymous visitors get a clean login gate instead of the content (the title/
   // teaser may still appear elsewhere as a teaser).
-  if (post.fan_only && !(req.session && req.session.user)) {
+  // Een bezoeker die via OpenWebAuth bewees @iemand@ergens te zijn EN deze site
+  // volgt, is precies wie fan_only bedoelde. Die hoeft geen poort te zien.
+  const _fediVolger = OWA.isFollowerOf(site.slug, OWA.guestActor(req));
+  if (post.fan_only && !(req.session && req.session.user) && !_fediVolger) {
     // Same Newer/Older navigation as on a normal post, so the visitor doesn't get
     // stuck on the fan gate but can keep browsing.
     const { newerPost, olderPost } = postNeighbors(site, post);
@@ -1597,6 +1601,7 @@ router.get('/:slug', (req, res, next) => {
       bodyClass: 'on-special',
       fgTitle: post.title || '',
       fgNext: (res.locals.siteUrlBase || '') + '/' + post.slug,
+      owaError: !!(req.query && req.query.owa_error),
       newerPost,
       olderPost,
     });

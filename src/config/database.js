@@ -426,6 +426,22 @@ export function initializeDatabase() {
       UNIQUE (slug, actor_uri)
     );
 
+    -- OpenWebAuth (FEP-61cf): eenmalige tokens waarmee een BEZOEKER van elders
+    -- bewijst wie hij is. Klonkt is hier de 'target instance': we hebben nooit
+    -- iemands prive-sleutel nodig, alleen zijn publieke -- dus staat hier ook
+    -- geen geheim van een ander in.
+    --
+    -- Het token is kort houdbaar (minuten, zie OpenWebAuthService) en gaat na
+    -- inwisselen meteen weg: eenmalig is de hele bedoeling. De FEP noemt de
+    -- opruiming expliciet als DoS-verdediging -- zonder vervaltijd vult iemand
+    -- deze tabel met tokens die hij nooit inwisselt.
+    CREATE TABLE IF NOT EXISTS owa_tokens (
+      token TEXT PRIMARY KEY,
+      actor_uri TEXT NOT NULL,
+      created_at INTEGER NOT NULL          -- ms sinds epoch
+    );
+    CREATE INDEX IF NOT EXISTS idx_owa_tokens_created ON owa_tokens(created_at);
+
     CREATE TABLE IF NOT EXISTS ap_followers (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       slug TEXT NOT NULL,

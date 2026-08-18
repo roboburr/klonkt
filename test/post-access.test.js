@@ -76,6 +76,30 @@ test('betaald WINT van fan-only, en die volgorde is geen detail', () => {
   assert.equal(postAccess(beide, { user: INGELOGD, site: SITE, unlockedSlug: 'hallo' }), 'full');
 });
 
+// ── de fanpoort stelt eindelijk de juiste vraag ───────────────────────────
+// fan_only betekende altijd al "mijn volgers op de fediverse", maar de poort
+// vroeg om een lokaal account. isFollower komt uit OpenWebAuthService: een
+// bezoeker die via FEP-61cf bewees @iemand@ergens te zijn en die deze site volgt.
+
+test('een bewezen volger komt door de fanpoort', () => {
+  const f = post({ fan_only: 1 });
+  assert.equal(postAccess(f, { user: VREEMDE, site: SITE }), 'fan', 'zonder bewijs nog steeds dicht');
+  assert.equal(postAccess(f, { user: VREEMDE, site: SITE, isFollower: true }), 'full',
+    'mét bewijs open -- geen account, geen wachtwoord, wel een volger');
+});
+
+test('maar volgen koopt geen betaald bericht', () => {
+  // De volgorde blijft: betaald wint van fan-only, en volgerschap is geen geld.
+  const b = post({ paid: 1, fan_only: 1 });
+  assert.equal(postAccess(b, { user: VREEMDE, site: SITE, isFollower: true }), 'paid');
+  assert.equal(postAccess(b, { user: VREEMDE, site: SITE, isFollower: true, unlockedSlug: 'hallo' }), 'full',
+    'betaald EN volger komt er wel doorheen');
+});
+
+test('volgen doet niets bij een concept', () => {
+  assert.equal(postAccess(post({ status: 'draft' }), { user: VREEMDE, site: SITE, isFollower: true }), 'forbidden');
+});
+
 test('de eigenaar loopt niet tegen zijn eigen muur op', () => {
   assert.equal(postAccess(post({ paid: 1, fan_only: 1 }), { user: OWNER, site: SITE }), 'full');
 });

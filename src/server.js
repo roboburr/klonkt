@@ -65,6 +65,7 @@ import adminEpkRoutes from './routes/admin-epk.js';
 import changelogRoutes from './routes/changelog.js';
 import ogRoutes from './routes/og.js';
 import apRoutes from './routes/activitypub.js';
+import owaRoutes, { owaMiddleware } from './routes/openwebauth.js';
 import oauthRoutes from './routes/oauth.js';
 import { apWants, startDeliveryWorker, selfHealTimeline, migrateReactions } from './services/ActivityPubService.js';
 
@@ -310,6 +311,12 @@ app.use('/media', express.static(process.env.MEDIA_PATH || './storage/media', {
 
 // ActivityPub: WebFinger + /ap/* (site-agnostic, resolves the site by slug).
 app.use(apRoutes);
+// OpenWebAuth (FEP-61cf): het token-endpoint en het inlogformulier.
+app.use(owaRoutes);
+// En op elk GET-verzoek kijken of er een token wordt ingewisseld (?owt=) of een
+// stroom gestart (?zid=). Na de sessie, want het resultaat gaat IN de sessie;
+// voor de pagina's, want een poort verderop moet de uitkomst al kunnen zien.
+app.use(owaMiddleware);
 // ActivityPub C2S: OAuth 2.0 (native/web clients). Site-agnostic; the consent
 // screen picks which site the token can post as.
 app.use(oauthRoutes);

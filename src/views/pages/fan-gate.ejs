@@ -11,7 +11,29 @@
     <h1 class="fg-h1"><%= t('fgate.title') %></h1>
     <% if (typeof fgTitle !== 'undefined' && fgTitle) { %><p class="fg-which">"<%= fgTitle %>"</p><% } %>
     <p class="fg-sub"><%= t('fgate.sub') %></p>
-    <p><a class="fg-btn" href="/auth/login?next=<%= encodeURIComponent(fgNext || '/') %>"><%= t('fgate.login') %></a></p>
+
+    <%# De hoofdweg: bewijs bij je EIGEN server wie je bent (OpenWebAuth,
+        FEP-61cf). Dit is de vraag die fan_only altijd al stelde -- volg je deze
+        site? -- in plaats van "heb je hier een account", wat juist de mensen
+        buitensloot voor wie de poort openstond. Geen account hier, geen
+        wachtwoord hier, geen cookie van een derde. %>
+    <form class="fg-owa" method="post" action="/owa/login">
+      <input type="hidden" name="next" value="<%= fgNext || '/' %>">
+      <label class="fg-label" for="fg-handle"><%= t('fgate.owa_label') %></label>
+      <div class="fg-row">
+        <input class="fg-input" id="fg-handle" name="handle" type="text" inputmode="email"
+               autocomplete="username" spellcheck="false" placeholder="@jij@jouwserver.nl" required>
+        <button class="fg-btn" type="submit"><%= t('fgate.owa_go') %></button>
+      </div>
+      <p class="fg-hint"><%= t('fgate.owa_hint') %></p>
+      <% if (typeof owaError !== 'undefined' && owaError) { %>
+        <p class="fg-error"><%= t('fgate.owa_failed') %></p>
+      <% } %>
+    </form>
+
+    <%# De lokale inlog blijft, maar als tweede: die is voor wie hier echt een
+        account heeft, en dat is de uitzondering. %>
+    <p class="fg-alt"><a href="/auth/login?next=<%= encodeURIComponent(fgNext || '/') %>"><%= t('fgate.login') %></a></p>
   </div>
 </section>
 
@@ -25,5 +47,14 @@
   .fg-h1 { font-size: 26px; margin: 0 0 6px; }
   .fg-which { font-style: italic; opacity: .8; margin: 0 0 12px; }
   .fg-sub { opacity: .85; line-height: 1.6; margin: 0 0 20px; }
-  .fg-btn { display: inline-block; padding: 12px 22px; border-radius: 10px; background: var(--accent,#6b8f71); color: #fff; text-decoration: none; font-weight: 600; }
+  .fg-btn { display: inline-block; padding: 12px 22px; border-radius: 10px; background: var(--accent,#6b8f71); color: #fff; text-decoration: none; font-weight: 600; border: 0; font-family: inherit; font-size: 1rem; cursor: pointer; }
+  .fg-owa { margin: 0 0 18px; text-align: left; }
+  .fg-label { display: block; font-size: .85rem; opacity: .8; margin-bottom: 6px; }
+  .fg-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .fg-input { flex: 1 1 12rem; min-width: 0; padding: 12px 14px; border-radius: 10px;
+              border: 1px solid rgba(128,128,128,.35); background: transparent; color: inherit;
+              font-family: inherit; font-size: 1rem; }
+  .fg-hint { font-size: .8rem; opacity: .65; margin: 8px 0 0; line-height: 1.5; }
+  .fg-error { font-size: .85rem; margin: 8px 0 0; color: #d66; }
+  .fg-alt { margin: 0; font-size: .85rem; opacity: .7; }
 </style>

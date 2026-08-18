@@ -43,11 +43,14 @@ export function paidTeaser(post, max = 280) {
  * en verhuist hier mee, want hij hoort bij het besluit en niet bij de pagina.
  *
  * @param post     de rij uit `posts`
- * @param viewer   { user, site, unlockedSlug } -- unlockedSlug is de slug uit
- *                 een vers ?u=-bewijs van /paid/unlock, al geverifieerd door de
- *                 aanroeper. Deze module doet geen crypto.
+ * @param viewer   { user, site, unlockedSlug, isFollower } -- unlockedSlug is de
+ *                 slug uit een vers ?u=-bewijs van /paid/unlock, al geverifieerd
+ *                 door de aanroeper; isFollower komt uit OpenWebAuthService en
+ *                 zegt dat een bewezen fedi-actor deze site volgt. Deze module
+ *                 doet geen crypto en raakt de database niet aan: ophalen doet
+ *                 de aanroeper, beslissen doet deze.
  */
-export function postAccess(post, { user = null, site = null, unlockedSlug = null } = {}) {
+export function postAccess(post, { user = null, site = null, unlockedSlug = null, isFollower = false } = {}) {
   if (!post) return 'forbidden';
 
   const canEdit = !!(user && PermissionsService.canEditPost(user, post, site));
@@ -61,7 +64,15 @@ export function postAccess(post, { user = null, site = null, unlockedSlug = null
   if (canEdit) return 'full';
 
   if (post.paid && String(unlockedSlug || '') !== String(post.slug)) return 'paid';
-  if (post.fan_only && !user) return 'fan';
+  // `fan_only` betekende altijd al "mijn volgers op de fediverse", maar de poort
+  // vroeg om een lokaal account -- de verkeerde vraag, die juist de mensen
+  // buitensloot voor wie hij openstond. `isFollower` is het antwoord op de
+  // ECHTE vraag: een bezoeker die via OpenWebAuth bewees @iemand@ergens te zijn
+  // en die deze site volgt. Wie dat bewijs levert, komt binnen.
+  //
+  // Het lokale account blijft er ook door, zoals het altijd deed: dat is een
+  // andere manier om te weten wie iemand is, niet een mindere.
+  if (post.fan_only && !user && !isFollower) return 'fan';
   return 'full';
 }
 

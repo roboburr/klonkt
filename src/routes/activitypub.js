@@ -129,7 +129,41 @@ function webfingerGebruiker(resource) {
   return acct ? acct[1] : null;
 }
 
+/**
+ * Is dit een vraag naar de WORTEL van deze server?
+ *
+ * FEP-61cf laat de home instance webfingeren op "the root URL of the destination
+ * site" om ons token-endpoint te vinden. Dat is een URL en geen `acct:`, dus hij
+ * strandde hierboven op de 400 -- terwijl een ACTOR-URI met een pad wel degelijk
+ * een 400 hoort te blijven (dat legt test/webfinger-bare-host.test.js vast, en
+ * dat is een uitgesproken keuze van eerder). Vandaar: alleen origin + '/' telt,
+ * alles met een pad niet.
+ */
+function isEigenWortel(resource, req) {
+  const r = String(resource || '').trim();
+  if (!/^https?:\/\//i.test(r)) return false;
+  try {
+    const u = new URL(r);
+    if (u.pathname && u.pathname !== '/') return false;
+    if (u.search || u.hash) return false;
+    return asciiHost(u.host) === asciiHost(hostOf(req));
+  } catch { return false; }
+}
+
 router.get('/.well-known/webfinger', (req, res) => {
+  if (isEigenWortel(req.query.resource, req)) {
+    res.type('application/jrd+json; charset=utf-8');
+    res.set('Cache-Control', 'public, max-age=300');
+    return res.send(JSON.stringify({
+      subject: baseUrl(req) + '/',
+      links: [
+        // Waar een home instance ondertekend een token mag ophalen (FEP-61cf
+        // stap 2/3). Host-niveau en niet per site: het token zegt WIE er binnen
+        // is, niet waar hij binnen mag -- dat besluit valt bij de poort.
+        { rel: 'http://purl.org/openwebauth/v1', href: baseUrl(req) + '/owa/token' },
+      ],
+    }));
+  }
   const user = webfingerGebruiker(req.query.resource);
   if (!user) return res.status(400).type('text/plain').send('bad resource');
   let site = publicSite(user);
