@@ -170,6 +170,24 @@ test('volgerschap is de vraag die fan_only stelt', () => {
   assert.equal(OWA.isFollowerOf('andere-site', ACTOR), false, 'volgen doe je een SITE, niet de server');
 });
 
+test('een WACHTEND volgverzoek opent de fanpoort niet', () => {
+  // Waar twee functies elkaar raken, en geen van beide dat wist.
+  //
+  // Met approve_followers aan (Robins eigenaarspoort) wordt een Follow niet meer
+  // automatisch geaccepteerd: hij wacht in ap_pending_follows tot de eigenaar op
+  // /connect ja zegt, en pas dan komt hij in ap_followers. Onze fanpoort leest
+  // ap_followers, dus een verzoek dat nog wacht hoort NIETS te openen.
+  //
+  // Dat klopt vandaag vanzelf, en juist daarom staat het hier vast: wie de poort
+  // ooit "soepeler" maakt door ook wachtende verzoeken mee te tellen, geeft
+  // daarmee iedereen toegang die op Volgen heeft geklikt -- precies wat de
+  // eigenaarspoort moest voorkomen.
+  const WACHTEND = 'https://elders.example/users/wachtend';
+  db.prepare("INSERT INTO ap_pending_follows (id, ward_slug, follower_uri, quorum, status) VALUES (?,?,?,'owner','pending')")
+    .run('pf-1', 'kid', WACHTEND);
+  assert.equal(OWA.isFollowerOf('kid', WACHTEND), false, 'wachten is niet volgen');
+});
+
 test('een sessie zonder bewijs levert geen actor', () => {
   assert.equal(OWA.guestActor(null), null);
   assert.equal(OWA.guestActor({ session: {} }), null);
