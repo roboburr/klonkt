@@ -56,8 +56,19 @@ var _b = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '';
 
 /* PROXIMITY, geen mandatory. Een bericht dat langer is dan het scherm moet je
    rustig kunnen doorlezen; mandatory zou je bij elke pauze terugtrekken naar
-   een grens. Zo snapt hij alleen als je in de buurt van een grens bent. */
-.on-read .read-stream { scroll-snap-type: y proximity; }
+   een grens. Zo snapt hij alleen als je in de buurt van een grens bent.
+
+   OP <html>, en dat is geen smaakkwestie: snappen doet de SCROLLCONTAINER, en
+   dat is hier het document -- .read-stream heeft overflow: visible en scrollt
+   zelf niet. Op .read-stream stond de regel er wel, maar deed hij niets. */
+html:has(body.on-read) { scroll-snap-type: y proximity; }
+
+/* De browser NIET ook laten compenseren. Chrome en Firefox schuiven bij
+   invoegen bóven het beeld de scrollpositie zelf mee (scroll anchoring); samen
+   met onze eigen correctie in mod/read.js is dat twee keer, en dan springt de
+   tekst precies één bericht weg. Onze eigen correctie moet blijven, want Safari
+   (en dus iOS) kent scroll anchoring helemaal niet. */
+html:has(body.on-read), .on-read .read-stream, .on-read .read-post { overflow-anchor: none; }
 .on-read .read-post {
   scroll-snap-align: start;
   scroll-snap-stop: normal;

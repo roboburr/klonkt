@@ -11,83 +11,88 @@
  * Elk artikel draagt zijn eigen buren in data-attributen. Wat er nog te halen
  * valt staat dus altijd op het stuk dat er al is, en deze module hoeft geen
  * lijst bij te houden die uit de pas kan lopen.
+ *
+ * De namen hieronder zijn Engels, zoals overal in assets/js/mod. Het commentaar
+ * blijft Nederlands, zoals overal in deze repo.
  */
 
 // Hoeveel schermen vooruit we alvast halen. Eén is genoeg: je leest niet
 // sneller dan je scrolt, en meer betekent alleen meer verkeer.
-const MARGE = '1px 0px 100% 0px';
+const ROOT_MARGIN = '1px 0px 100% 0px';
 
 // De teksten die dit script plaatst. Ze staan in data-i18n op de stroom, want
 // een zin die hier staat, staat in één taal -- en dat is nooit de taal van de
 // lezer. Zelfde afspraak als de topnav (mod/chrome.js).
-let woorden = {};
-function woord(sleutel) { return woorden[sleutel] || ''; }
+let strings = {};
+function str(key) { return strings[key] || ''; }
 
-const stroom = () => document.getElementById('read-stream');
-const geladen = new Set();      // slugs die al in de stroom staan
-let bezigOnder = false;
-let bezigBoven = false;
-let waarnemer = null;
-let laatsteY = 0;
+const stream = () => document.getElementById('read-stream');
+const loaded = new Set();       // slugs die al in de stroom staan
+let busyBelow = false;
+let busyAbove = false;
+let observer = null;
+let lastY = 0;
 
-function chrome(verbergen) {
-  document.body.classList.toggle('read-chrome-hidden', !!verbergen);
+// Niet `chrome`: dat is in deze browser ook een global, en een module-scope die
+// window.chrome overschaduwt is een val voor de volgende lezer.
+function toggleChrome(hide) {
+  document.body.classList.toggle('read-chrome-hidden', !!hide);
 }
 
 /** Het artikel dat nu het meest in beeld is; die bepaalt titel en URL. */
-function inBeeld() {
+function inView() {
   const posts = [...document.querySelectorAll('.read-post')];
-  const midden = window.innerHeight / 2;
+  const middle = window.innerHeight / 2;
   return posts.find((p) => {
     const r = p.getBoundingClientRect();
-    return r.top <= midden && r.bottom >= midden;
+    return r.top <= middle && r.bottom >= middle;
   }) || posts[0];
 }
 
 /** Titel en adres volgen wat je leest. replaceState: je bladert, je stapelt niet. */
-function volgAdres() {
-  const p = inBeeld();
+function syncAddress() {
+  const p = inView();
   if (!p) return;
   const slug = p.dataset.slug;
-  const basis = p.dataset.base || '';
-  if (location.pathname === `${basis}/read/${slug}`) return;
-  history.replaceState(null, '', `${basis}/read/${slug}`);
+  const base = p.dataset.base || '';
+  if (location.pathname === `${base}/read/${slug}`) return;
+  history.replaceState(null, '', `${base}/read/${slug}`);
   if (p.dataset.title) document.title = p.dataset.title;
 }
 
-async function haal(slug, basis) {
-  const r = await fetch(`${basis}/read/${encodeURIComponent(slug)}?partial=1`, {
+async function fetchArticle(slug, base) {
+  const r = await fetch(`${base}/read/${encodeURIComponent(slug)}?partial=1`, {
     headers: { 'HX-Request': 'true' },
     credentials: 'same-origin',
   });
   if (!r.ok) throw new Error('HTTP ' + r.status);
-  const doos = document.createElement('div');
-  doos.innerHTML = await r.text();
-  const art = doos.querySelector('.read-post');
-  if (!art) throw new Error('geen bericht in het antwoord');
+  const box = document.createElement('div');
+  box.innerHTML = await r.text();
+  const art = box.querySelector('.read-post');
+  if (!art) throw new Error('no post in the response');
   return art;
 }
 
 /** Onderaan aanvullen: gewoon erbij zetten, de scrollpositie verandert niet. */
-async function vulAan() {
-  const s = stroom();
-  if (!s || bezigOnder) return;
-  const laatste = s.querySelector('.read-post:last-of-type');
-  const slug = laatste && laatste.dataset.older;
-  if (!slug) return klaar(s);
-  if (geladen.has(slug)) return;
-  bezigOnder = true;
-  const wacht = melding(s, 'read-loading', '…');
+async function appendOlder() {
+  const s = stream();
+  if (!s || busyBelow) return;
+  const last = s.querySelector('.read-post:last-of-type');
+  const slug = last && last.dataset.older;
+  if (!slug) return markEnd(s);
+  if (loaded.has(slug)) return;
+  busyBelow = true;
+  const pending = notice(s, 'read-loading', '…');
   try {
-    const art = await haal(slug, laatste.dataset.base || '');
-    geladen.add(slug);
-    wacht.remove();
+    const art = await fetchArticle(slug, last.dataset.base || '');
+    loaded.add(slug);
+    pending.remove();
     s.appendChild(art);
-    kijk();
+    watch();
   } catch (e) {
-    wacht.textContent = woord('load_error');
-    console.warn('[read] onderaan:', e && e.message);
-  } finally { bezigOnder = false; }
+    pending.textContent = str('load_error');
+    console.warn('[read] below:', e && e.message);
+  } finally { busyBelow = false; }
 }
 
 /**
@@ -96,73 +101,88 @@ async function vulAan() {
  * schuift alles wat je las naar beneden weg. We meten de hoogte na het invoegen
  * en tellen die bij de scrollpositie op -- geen animatie, geen sprong.
  */
-async function vulAanBoven() {
-  const s = stroom();
-  if (!s || bezigBoven) return;
-  const eerste = s.querySelector('.read-post');
-  const slug = eerste && eerste.dataset.newer;
-  if (!slug || geladen.has(slug)) return;
-  bezigBoven = true;
+async function prependNewer() {
+  const s = stream();
+  if (!s || busyAbove) return;
+  const first = s.querySelector('.read-post');
+  const slug = first && first.dataset.newer;
+  if (!slug || loaded.has(slug)) return;
+  busyAbove = true;
+  const root = document.documentElement;
   try {
-    const art = await haal(slug, eerste.dataset.base || '');
-    geladen.add(slug);
-    const voor = s.scrollHeight;
-    s.insertBefore(art, eerste);
-    const erbij = s.scrollHeight - voor;
-    window.scrollBy(0, erbij);
-    kijk();
+    const art = await fetchArticle(slug, first.dataset.base || '');
+    loaded.add(slug);
+    // Snappen even UIT. De correctie hieronder zet de scrollpositie precies
+    // goed, maar een proximity-snap trekt hem daarna alsnog naar de grens van
+    // het bericht dat er net bij kwam -- gemeten: een sprong ter grootte van
+    // dat hele bericht, precies de ruk die deze opzet moet vermijden.
+    root.style.scrollSnapType = 'none';
+    const before = s.scrollHeight;
+    s.insertBefore(art, first);
+    const added = s.scrollHeight - before;
+    window.scrollBy(0, added);
+    watch();
+    // Twee frames: één om de correctie te laten landen, één om te snappen pas
+    // weer toe te staan als de browser klaar is met deze scroll.
+    requestAnimationFrame(() => requestAnimationFrame(() => { root.style.scrollSnapType = ''; }));
   } catch (e) {
-    console.warn('[read] bovenaan:', e && e.message);
-  } finally { bezigBoven = false; }
+    root.style.scrollSnapType = '';
+    console.warn('[read] above:', e && e.message);
+  } finally { busyAbove = false; }
 }
 
-function melding(s, klasse, tekst) {
+function notice(s, className, text) {
   const d = document.createElement('div');
-  d.className = klasse;
-  d.textContent = tekst;
+  d.className = className;
+  d.textContent = text;
   s.appendChild(d);
   return d;
 }
 
-function klaar(s) {
+function markEnd(s) {
   if (s.querySelector('.read-end')) return;
-  melding(s, 'read-end', woord('end'));
+  notice(s, 'read-end', str('end'));
 }
 
 /** (Her)richt de waarnemer op de huidige eerste en laatste post. */
-function kijk() {
-  if (waarnemer) waarnemer.disconnect();
-  waarnemer = new IntersectionObserver((entries) => {
+function watch() {
+  if (observer) observer.disconnect();
+  observer = new IntersectionObserver((entries) => {
     for (const e of entries) {
       if (!e.isIntersecting) continue;
-      if (e.target.matches('.read-post:last-of-type')) vulAan();
-      else if (e.target.matches('.read-post:first-of-type')) vulAanBoven();
+      // GEEN else-if. Bij het laden staat er één artikel in de stroom, en dat is
+      // tegelijk het eerste én het laatste. Met een else-if wint de eerste tak
+      // altijd, en dan draait prependNewer() nooit: wie op het OUDSTE bericht
+      // binnenkomt, krijgt "einde archief" te zien terwijl er zes nieuwere
+      // boven hem staan die hij nooit te pakken krijgt.
+      if (e.target.matches('.read-post:last-of-type')) appendOlder();
+      if (e.target.matches('.read-post:first-of-type')) prependNewer();
     }
-  }, { rootMargin: MARGE });
-  const eerste = stroom() && stroom().querySelector('.read-post');
-  const laatste = stroom() && stroom().querySelector('.read-post:last-of-type');
-  if (eerste) waarnemer.observe(eerste);
-  if (laatste && laatste !== eerste) waarnemer.observe(laatste);
+  }, { rootMargin: ROOT_MARGIN });
+  const first = stream() && stream().querySelector('.read-post');
+  const last = stream() && stream().querySelector('.read-post:last-of-type');
+  if (first) observer.observe(first);
+  if (last && last !== first) observer.observe(last);
 }
 
-function bijScroll() {
+function onScroll() {
   const y = window.scrollY || 0;
-  if (y < 8) chrome(false);
-  else if (y > laatsteY + 4) chrome(true);
-  else if (y < laatsteY - 24) chrome(false);
-  laatsteY = y;
-  volgAdres();
+  if (y < 8) toggleChrome(false);
+  else if (y > lastY + 4) toggleChrome(true);
+  else if (y < lastY - 24) toggleChrome(false);
+  lastY = y;
+  syncAddress();
 }
 
 export function init() {
-  const s = stroom();
+  const s = stream();
   if (!s) return;
-  try { woorden = JSON.parse(s.getAttribute('data-i18n') || '{}'); } catch (e) { woorden = {}; }
-  s.querySelectorAll('.read-post').forEach((p) => geladen.add(p.dataset.slug));
-  laatsteY = window.scrollY || 0;
-  window.addEventListener('scroll', bijScroll, { passive: true });
-  window.addEventListener('resize', kijk, { passive: true });
-  kijk();
+  try { strings = JSON.parse(s.getAttribute('data-i18n') || '{}'); } catch (e) { strings = {}; }
+  s.querySelectorAll('.read-post').forEach((p) => loaded.add(p.dataset.slug));
+  lastY = window.scrollY || 0;
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', watch, { passive: true });
+  watch();
 }
 
 export default { init };
