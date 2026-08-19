@@ -546,15 +546,37 @@ const _embedUrl = _postAudio
 <script>
 (function() {
   var body = document.body;
-  // Restore feed view + grid cols from localStorage (overrides server default)
+
+  // DE CIRKEL HEEFT EEN EIGEN KEUZE, met een eigen standaard: Grid.
+  //
+  // Twee redenen om die apart te houden van de gewone voorkeur. Ten eerste is
+  // Lezen daar geen optie (dat zijn berichten van anderen, van hun servers), dus
+  // "reader" betekent er iets anders dan hier: de gewone lijst. Ten tweede zou
+  // een tuimeling op de cirkel anders je SOLO-weergave veranderen -- je zet daar
+  // Grid uit en komt thuis in een andere feed terug dan je achterliet.
+  var CIRKEL_SLEUTEL = 'pcms-cirkel-view';
+  function opCirkel() { return body.classList.contains('on-cirkel'); }
+
+  /** Zet de weergave die bij DEZE pagina hoort. Draait bij init en bij elke nav. */
+  function pasWeergaveToe() {
+    try {
+      if (opCirkel()) {
+        // Alles behalve een uitdrukkelijke 'list' is grid: dat is de standaard.
+        body.dataset.feedView = (localStorage.getItem(CIRKEL_SLEUTEL) === 'list') ? 'reader' : 'grid';
+        return;
+      }
+      var v = localStorage.getItem('pcms-feed-view');
+      // 'timeline' bestaat niet meer als keuze, maar staat nog in de localStorage
+      // van iedereen die hier eerder was. Zonder deze vertaling zou zo iemand een
+      // weergave houden die nergens meer een knop heeft: de pil helemaal grijs, en
+      // een feed die niet is wat hij koos. Lezen is waar Tijdlijn in opging.
+      if (v === 'timeline') v = 'reader';
+      if (v === 'grid' || v === 'reader') body.dataset.feedView = v;
+    } catch (e) { /* geen opslag: de server-standaard blijft staan */ }
+  }
+  pasWeergaveToe();
+
   try {
-    var v = localStorage.getItem('pcms-feed-view');
-    // 'timeline' bestaat niet meer als keuze, maar staat nog in de localStorage
-    // van iedereen die hier eerder was. Zonder deze vertaling zou zo iemand een
-    // weergave houden die nergens meer een knop heeft: de pil helemaal grijs, en
-    // een feed die niet is wat hij koos. Lezen is waar Tijdlijn in opging.
-    if (v === 'timeline') v = 'reader';
-    if (v === 'grid' || v === 'reader') body.dataset.feedView = v;
     var c = parseInt(localStorage.getItem('pcms-grid-cols'), 10);
     if (c === 2 || c === 3 || c === 4) body.dataset.gridCols = String(c);
   } catch (e) {}
@@ -586,8 +608,11 @@ const _embedUrl = _postAudio
   // pcmsNav vuurt ná de body-class-update (zie de pcmsNav-listener hierboven), dus
   // dáár weet syncAria de juiste pagina-class — los van de afterSettle-timing.
   // Een vertraagde herhaling wint eventuele resterende races (OOB-chrome-swap).
-  document.body.addEventListener('htmx:afterSettle', function(){ syncAria(); setTimeout(syncAria, 60); });
-  document.body.addEventListener('pcmsNav', function(){ syncAria(); setTimeout(syncAria, 60); });
+  // Eerst de weergave die bij de NIEUWE pagina hoort, dan pas de pil bijwerken:
+  // van de cirkel naar huis en terug wisselt niet alleen de knop maar ook welke
+  // onthouden keuze telt.
+  document.body.addEventListener('htmx:afterSettle', function(){ pasWeergaveToe(); syncAria(); setTimeout(syncAria, 60); });
+  document.body.addEventListener('pcmsNav', function(){ pasWeergaveToe(); syncAria(); setTimeout(syncAria, 60); });
 
   // Pages where the body actually has a feed to toggle. On these the
   // click stays put — it just flips body[data-feed-view] and CSS does
@@ -620,7 +645,12 @@ const _embedUrl = _postAudio
         view = 'reader';
       }
       body.dataset.feedView = view;
-      try { localStorage.setItem('pcms-feed-view', view); } catch(_) {}
+      // Op de cirkel onthouden we los, want daar betekent 'reader' de gewone
+      // lijst en hoort het je thuisweergave niet aan te raken.
+      try {
+        if (opCirkel()) localStorage.setItem(CIRKEL_SLEUTEL, view === 'grid' ? 'grid' : 'list');
+        else localStorage.setItem('pcms-feed-view', view);
+      } catch(_) {}
       syncAria();
       // On non-feed pages the switcher acts as a navigation: take the
       // user back to home in the chosen view. Use HTMX if available so
