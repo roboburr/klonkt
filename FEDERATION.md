@@ -13,6 +13,7 @@ wire, following [FEP-67ff](https://codeberg.org/fediverse/fep/src/branch/main/fe
 - [WebFinger](https://webfinger.net/) ([RFC 7033](https://www.rfc-editor.org/rfc/rfc7033))
 - [HTTP Signatures](https://datatracker.ietf.org/doc/html/draft-cavage-http-signatures) (draft-cavage), `rsa-sha256`
 - [NodeInfo](https://nodeinfo.diaspora.software/) 2.1
+- [OpenWebAuth](https://codeberg.org/fediverse/fep/src/branch/main/fep/61cf/fep-61cf.md) single sign-on, both roles (see "Authentication")
 - [OAuth 2.0](https://www.rfc-editor.org/rfc/rfc6749) public clients with PKCE ([RFC 7636](https://www.rfc-editor.org/rfc/rfc7636), S256 only)
 - [OAuth 2.0 Authorization Server Metadata](https://www.rfc-editor.org/rfc/rfc8414) ([RFC 8414](https://www.rfc-editor.org/rfc/rfc8414))
 - [OAuth 2.0 Dynamic Client Registration](https://www.rfc-editor.org/rfc/rfc7591) ([RFC 7591](https://www.rfc-editor.org/rfc/rfc7591))
@@ -27,6 +28,7 @@ wire, following [FEP-67ff](https://codeberg.org/fediverse/fep/src/branch/main/fe
 - [FEP-c648: Blocked Collection](https://codeberg.org/fediverse/fep/src/branch/main/fep/c648/fep-c648.md) (DRAFT): inbound `Block` and `Undo(Block)` are honoured.
 - [FEP-7628: Move actor](https://codeberg.org/fediverse/fep/src/branch/main/fep/7628/fep-7628.md) (DRAFT): account migration — `alsoKnownAs`, `movedTo` and the `Move` activity, sent and received. See "Account migration".
 - [FEP-1580: Move Actor Objects with a `migration` Collection](https://codeberg.org/fediverse/fep/src/branch/main/fep/1580/fep-1580.md) (DRAFT): the objects a `Move` leaves behind, exposed as a `migration` collection alongside `moves`.
+- [FEP-61cf: The OpenWebAuth Protocol](https://codeberg.org/fediverse/fep/src/branch/main/fep/61cf/fep-61cf.md) (DRAFT): federated single sign-on, implemented in **both** roles. As a *target*, Klonkt lets a visitor from another server prove who they are and read follower-only posts without an account here. As a *home instance*, a site owner can sign in to another OpenWebAuth site using their own actor. See "Authentication".
 - [FEP-888d: Using `https://w3id.org/fep` as a base for FEP-specific namespaces](https://codeberg.org/fediverse/fep/src/branch/main/fep/888d/fep-888d.md) (DRAFT): the FEP-1580 terms are declared under `https://w3id.org/fep/1580/`, as that FEP registers them.
 
 Two further proposals are our own and are not (yet) part of the FEP index:
@@ -53,7 +55,8 @@ Each site exposes a `Person` actor at `/ap/users/:slug` with `inbox`, `outbox`,
 `followers`, `following` and `featured` collections, and an RSA-2048 public key
 under the legacy `publicKey` / `publicKeyPem` field
 ([w3id security/v1](https://w3id.org/security/v1)). The actor advertises
-`discoverable`, `manuallyApprovesFollowers` (currently always `false`),
+`discoverable`, `manuallyApprovesFollowers` (true for a ward, and for any site
+with owner approval switched on — see "Follow approval"),
 `featured`, and profile metadata as `schema:PropertyValue` links (including
 `rel="me"` verification links). Actor and object requests are
 content-negotiated: `application/activity+json` returns the AP document, other
@@ -167,6 +170,63 @@ Mastodon client API: Mastodon apps (Ivory and the like) are not supported here.
   and reverse-proxy-aware host matching. Object Integrity Proofs
   (FEP-8b32) are not used.
 - C2S: OAuth 2.0 bearer tokens, public clients with PKCE (S256), scope `c2s`.
+- Visitors: OpenWebAuth (FEP-61cf), described below.
+
+### OpenWebAuth (FEP-61cf)
+
+Klonkt implements both roles.
+
+**As a target instance.** A visitor enters their fediverse address; we WebFinger
+it for a `http://purl.org/openwebauth/v1#redirect` link (falling back to `/magic`
+on the same host, as Hubzilla and (streams) do) and send them there. Their server
+then makes a signed request to our token endpoint at `/owa/token`, which accepts
+both `GET` and `POST`. We verify the HTTP Signature with the same code path that
+verifies inbox deliveries — the key is pinned to the origin the actor document
+was fetched from, the signed `Date` must be recent, and a body requires a signed
+digest — then return a single-use token encrypted to the actor's public key
+(PKCS #1 v1.5, URL-safe Base64, unpadded). The visitor returns with `?owt=`, we
+redeem the token once and know who they are.
+
+Discovery for the other side: a WebFinger query for this server's root URL
+returns a `http://purl.org/openwebauth/v1` link pointing at `/owa/token`. An
+actor's WebFinger response carries the `#redirect` link pointing at `/magic`.
+
+**As a home instance.** `/magic` takes an OpenWebAuth request for a logged-in
+owner, discovers the target's token endpoint, requests a token over a signed
+request, decrypts it with the site's private key and returns the visitor with
+`?owt=`. On Klonkt the fediverse identity is the *site* actor, so an owner with
+several sites picks which one to present. There is a consent screen: FEP-61cf
+warns under "Information leakage" that OpenWebAuth hands a strong identity claim
+to any site that asks, so the detour through the home instance is where the user
+can decline.
+
+Notes for implementers:
+
+- The signature travels in `Authorization: Signature …`, as FEP-61cf requires,
+  not in the `Signature` header the rest of the fediverse uses. Our token
+  endpoint accepts either.
+- Signed requests we send also carry a signed `X-Open-Web-Auth` header with
+  random content, per the FEP.
+- `?zid=` may start the flow but never establishes identity; only a redeemed
+  `?owt=` does. `?owt=` is stripped from the URL after redemption.
+- Tokens are single-use and expire after three minutes; expired ones are swept
+  on every issue and redemption.
+- A discovered endpoint must share the origin it was discovered for. If
+  discovery fails, `/magic` returns an error rather than redirecting, so it
+  cannot be used as an open redirector.
+
+What this unlocks: `fan_only` posts. That gate used to ask for a local account,
+which is the wrong question — it excluded exactly the followers it was meant to
+admit. It now asks whether the proven actor follows this site.
+
+### Follow approval
+
+A site can require the owner to approve followers. With it on, the actor
+advertises `manuallyApprovesFollowers: true`, an inbound `Follow` is held
+pending instead of auto-accepted, and the owner accepts (sending `Accept` plus a
+backfill) or rejects (sending `Reject`). Ward actors always gate this way
+through their guardians, which takes precedence. A pending request is not a
+follower, and so does not open follower-only posts.
 
 ## Moderation and safety
 
@@ -202,5 +262,7 @@ with a note in the changelog.
 - Client-to-Server API for apps (the Shaer contract): `docs/shaer-c2s-api.md`.
 - Source code: `src/services/ActivityPubService.js` (core AP logic),
   `src/routes/activitypub.js` (S2S, WebFinger, NodeInfo),
-  `src/routes/oauth.js` (C2S / OAuth).
+  `src/routes/oauth.js` (C2S / OAuth),
+  `src/services/OpenWebAuthService.js` and `src/routes/openwebauth.js`
+  (OpenWebAuth, both roles).
 - Changelog: `CHANGELOG.md` (and `CHANGELOG.nl.md`, `CHANGELOG.de.md`).
