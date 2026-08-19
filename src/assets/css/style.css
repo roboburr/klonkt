@@ -2460,17 +2460,32 @@ html:has(body.on-home[data-feed-view="reader"]),
    de vouw duwen -- dan begint elk bericht met een plaat waar je langs moet
    scrollen om te zien wat het IS. */
 .feed-reader .read-cover {
-    margin: 0 0 1.2rem;
+    /* Krimpt om het beeld heen en staat gecentreerd, in plaats van de kolom vol
+       te trekken. Anders staat een klein plaatje in een veel te grote lijst. */
+    width: fit-content;
+    max-width: 100%;
+    margin: 0 auto 1.2rem;
     border-radius: 10px;
     overflow: hidden;
 }
 .feed-reader .read-cover img,
 .feed-reader .read-cover video {
     display: block;
-    width: 100%;
+    /* GEEN width:100%. Dat blies een cover van 221x165 op tot 505x378 -- ruim
+       twee keer zo groot als hij is, en dus wazig. De tijdlijn deed dat nooit:
+       daar zat een cover in een vakje van 120px, dus klein bleef klein. Met
+       auto + max-width vult een grote afbeelding de kolom en blijft een kleine
+       op ware grootte staan.
+       En GEEN object-fit:cover: samen met de hoogtegrens sneed dat de onderkant
+       eraf (553x464 kwam er als 505x400 uit). Met max-width en max-height houdt
+       de browser de verhouding zelf en past het beeld HEEL in het vak. */
+    width: auto;
     height: auto;
+    max-width: 100%;
     max-height: 45svh;
-    object-fit: cover;
+    /* Een logo met doorzichtige achtergrond zweeft anders op de paginakleur;
+       dezelfde keuze als bij .post-list-cover in de tijdlijn. */
+    background-color: #fff;
 }
 
 .feed-reader .read-head { padding-bottom: .5rem; }
