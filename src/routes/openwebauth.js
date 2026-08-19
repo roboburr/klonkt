@@ -15,6 +15,7 @@ import * as AP from '../services/ActivityPubService.js';
 import * as OWA from '../services/OpenWebAuthService.js';
 import db from '../config/database.js';
 import { renderPage } from '../middleware/render.js';
+import { owaMagicLimiter } from '../middleware/rate-limit.js';
 
 const router = express.Router();
 
@@ -165,7 +166,7 @@ router.get('/magic', (req, res) => {
  * want dan is /magic het doorgeefluik. Vandaar dat elke fout hieronder een
  * foutpagina geeft en geen redirect.
  */
-router.post('/magic', async (req, res) => {
+router.post('/magic', owaMagicLimiter, async (req, res) => {
   const bdest = OWA.fromBdest(req.body && req.body.bdest);
   if (!bdest) return res.status(400).type('text/plain').send('bad bdest');
   if (!(req.session && req.session.user)) return res.status(401).type('text/plain').send('niet ingelogd');

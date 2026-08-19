@@ -232,26 +232,99 @@ export async function requestToken(endpoint, { keyId, privatePem, fetchImpl = fe
   return String(j.encrypted_token);
 }
 
+/**
+ * Een deterministische nep-uitkomst, afgeleid uit de ciphertext en onze eigen
+ * sleutel. Dit is de kern van implicit rejection: bij ongeldige padding geven we
+ * GEEN fout maar een waarde, zodat "klopte de padding" nergens af te lezen is.
+ *
+ * DETERMINISTISCH, en dat is geen detail. Zou dit verse willekeur zijn, dan
+ * geeft dezelfde ciphertext twee keer aanbieden twee verschillende antwoorden --
+ * en juist dat verschil is het onderscheid dat we wilden verbergen. Zo doen TLS
+ * en OpenSSL 3.2 het ook: afgeleid uit sleutel + ciphertext, dus stabiel bij
+ * herhaling en onvoorspelbaar voor wie de sleutel niet heeft.
+ *
+ * Geëxporteerd omdat die eigenschap toetsbaar moet zijn; buiten de tests heeft
+ * niemand hem nodig.
+ *
+ * EERLIJK OVER WAT DIT WEL EN NIET DRAAGT (gemeten 19-8): haal je hem weg, dan
+ * blijft de suite groen. De andere tak geeft dan een LEGE string terug, en die
+ * sneuvelt net zo goed op de tekenset-controle hieronder -- "werpt niet" en
+ * "levert geen token" zijn dus al gedekt zonder deze functie. Wat hij toevoegt
+ * is dat ALLE faalwegen dezelfde vorm teruggeven: verkeerde sleutel, verkeerde
+ * lengte, kapotte base64, ongeldige padding. Een lege string is een verklikker
+ * voor wie ooit naar de rauwe waarde kijkt in plaats van naar het eindoordeel;
+ * afgeleide bytes zijn dat niet. Zo doen TLS en OpenSSL 3.2 het ook.
+ */
+export function _nepUitkomst(privatePem, ct) {
+  const geheim = crypto.createHash('sha256').update(String(privatePem)).digest();
+  return crypto.createHmac('sha256', geheim).update(ct).digest().toString('latin1');
+}
+
+/**
+ * PKCS#1 v1.5 zelf uitpakken (EME-PKCS1-v1_5: 00 02 PS 00 M).
+ *
+ * WAAROM ZELF: Node weigert `privateDecrypt` met RSA_PKCS1_PADDING sinds de
+ * mitigatie voor CVE-2023-46809 (Marvin). De revert-vlag bestaat alleen op de
+ * lijnen 18/20/21 -- Node 22+ heeft hem nooit gehad, en 20 is sinds 30 april
+ * 2026 EOL. Er is dus geen weg terug; zie shaer-r15.
+ *
+ * OpenWebAuth (FEP-61cf) schrijft v1.5 voor, dus overstappen op OAEP repareert
+ * de fout en breekt de interop met Hubzilla. Blijft over: `RSA_NO_PADDING` en
+ * het omhulsel er zelf afhalen -- precies het stuk dat de CVE veroorzaakte, dus
+ * met de zorg die daarbij hoort.
+ *
+ * GEEN VROEGE UITGANG EN GEEN WORP. De scan loopt altijd het hele blok af en
+ * beide takken doen hetzelfde werk. Dat is geen echte constant-time -- die
+ * krijg je in JavaScript met JIT en GC niet -- maar het haalt wel het
+ * waarneembare verschil weg. Wat de aanval hier echt begrenst is de teller op
+ * /magic: een orakel heeft honderdduizenden pogingen nodig.
+ */
+function pakUit(blok, privatePem, ct) {
+  const k = blok.length;
+  // Kop: 00 02. Als getal uitrekenen, niet als vertakking.
+  let goed = ((blok[0] === 0x00) & (blok[1] === 0x02));
+  // Eerste nulbyte vanaf 2 zoeken ZONDER de lus te verlaten.
+  let sep = -1;
+  for (let i = 2; i < k; i++) {
+    const isNul = blok[i] === 0x00 ? 1 : 0;
+    const nogNiet = sep === -1 ? 1 : 0;
+    sep = sep + (isNul & nogNiet) * (i - sep);
+  }
+  // PS moet minstens 8 bytes zijn (RFC 8017), dus de scheider ligt op >= 10.
+  goed = goed & (sep >= 10 ? 1 : 0) & (sep < k ? 1 : 0);
+  const echt = blok.subarray(goed ? sep + 1 : k).toString('utf8');
+  const nep = _nepUitkomst(privatePem, ct);
+  return goed ? echt : nep;
+}
+
 /** Het token uitpakken met onze eigen prive-sleutel. */
 export function decryptToken(encrypted, privatePem) {
   const b64 = String(encrypted || '').replace(/-/g, '+').replace(/_/g, '/');
-  const buf = crypto.privateDecrypt(
-    { key: privatePem, padding: crypto.constants.RSA_PKCS1_PADDING },
-    Buffer.from(b64, 'base64'),
-  );
-  const t = buf.toString('utf8');
-  // Een token is URL-veilige tekst. Bij een verkeerde sleutel geeft PKCS#1 v1.5
-  // geen fout maar afgeleide onzin terug (implicit rejection, zie de toelichting
-  // bij encryptTokenFor), en die onzin hoort hier te stranden in plaats van als
-  // token de wereld in te gaan.
+  const ct = Buffer.from(b64, 'base64');
+  let k = 0;
+  try { k = crypto.createPublicKey(privatePem).asymmetricKeyDetails.modulusLength / 8; } catch { k = 0; }
+
+  // Een blok van de verkeerde lengte zegt niets over de sleutel, maar het zou
+  // wel werpen -- en een worp is precies het signaal dat we kwijt willen. Dus
+  // dezelfde weg als een ongeldige padding.
+  let blok = null;
+  if (k && ct.length === k) {
+    try {
+      blok = crypto.privateDecrypt({ key: privatePem, padding: crypto.constants.RSA_NO_PADDING }, ct);
+    } catch { blok = null; }
+  }
+  const t = (blok && blok.length === k) ? pakUit(blok, privatePem, ct) : _nepUitkomst(privatePem, ct);
+
+  // Een token is URL-veilige tekst. Wat hierboven uit een mislukking komt is
+  // afgeleide onzin, en die hoort hier te stranden in plaats van als token de
+  // wereld in te gaan.
   //
   // ALLEBEI de voorwaarden doen werk, en dat is gemeten met 300 vreemde sleutels:
   //  - de TEKENSET vangt vrijwel alles. Van die 300 was er geen enkele die
   //    volledig uit URL-veilige tekens bestond.
-  //  - de ONDERGRENS vangt de rest. De onzin heeft een willekeurige lengte (5
-  //    tot 209 bytes gezien), en 18 van de 300 was korter dan 16 bytes. Bij zo'n
-  //    kort stukje is "toevallig allemaal URL-veilig" niet meer verwaarloosbaar:
-  //    per byte is die kans ruwweg een kwart.
+  //  - de ONDERGRENS vangt de rest. De onzin heeft een willekeurige lengte, en
+  //    bij een kort stukje is "toevallig allemaal URL-veilig" niet meer
+  //    verwaarloosbaar: per byte is die kans ruwweg een kwart.
   // Zestien is daarmee geen rond getal maar een grens die iets doet. Een echte
   // implementatie zit er ruim boven (de onze: 43 tekens).
   return /^[A-Za-z0-9._~-]{16,512}$/.test(t) ? t : null;

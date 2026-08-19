@@ -100,6 +100,35 @@ export const apReadLimiter = rateLimit({
   validate: { ip: false },
 });
 
+// ─── OpenWebAuth /magic ───────────────────────────────────────────
+// Elke poging doet EEN RSA-ontsleuteling met de actorsleutel van een site. Dat
+// is precies de vorm waar een Bleichenbacher/Marvin-orakel op draait: veel
+// aangepaste ciphertexts, en uit de antwoorden de sleutel afleiden. De
+// ontsleuteling zelf is daartegen gehard (implicit rejection in
+// OpenWebAuthService.decryptToken), maar echte constant-time code bestaat niet
+// in JavaScript. Een grens op het AANTAL pogingen doet daarom het zware werk:
+// een orakel heeft er honderdduizenden nodig.
+//
+// TELT ALLE POGINGEN, niet alleen de mislukte. Een teller die alleen faalt
+// meetelt is zelf weer een orakel -- dan leest een aanvaller aan het knijpen af
+// of zijn padding klopte, en is de vertakking die we bij de ontsleuteling
+// weghaalden aan de achterdeur terug.
+//
+// Per SITE-SLUG, want dat is wat een sleutelpaar heeft (getOrCreateKeys(slug)):
+// de grens hoort bij de sleutel die beschermd wordt, niet bij het IP van de
+// eigenaar of bij de doel-host die de aanvaller zelf kiest.
+//
+// Twintig per uur is voor een mens onzichtbaar -- je klikt een handvol keer per
+// dag naar een andere site -- en voor een orakel dodelijk.
+export const owaMagicLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => 'owa:' + String((req.body && req.body.slug) || (req.session && req.session.user && req.session.user.id) || 'onbekend'),
+  validate: { ip: false },
+});
+
 // Inbox POSTs each trigger an outbound actor fetch (signature verify) → cap the
 // amplification/queue-inflation a single source can drive. 120/min/IP is still
 // generous for a small site's inbound federation; bump if a busy instance trips it.

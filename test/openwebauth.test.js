@@ -73,31 +73,36 @@ test('het token is alleen leesbaar voor wie de privésleutel heeft', () => {
   assert.ok(!versleuteld.includes('='), 'base64url zonder padding, zoals de FEP zegt');
   assert.ok(!/[+/]/.test(versleuteld), 'en URL-veilig');
 
-  const terug = crypto.privateDecrypt(
-    { key: privateKey, padding: crypto.constants.RSA_PKCS1_PADDING },
-    Buffer.from(versleuteld.replace(/-/g, '+').replace(/_/g, '/'), 'base64'),
-  ).toString('utf8');
+  // Door ONZE eigen uitpakker, niet rechtstreeks door crypto.privateDecrypt:
+  // die weigert PKCS#1 v1.5 sinds de mitigatie voor CVE-2023-46809, en de
+  // revert-vlag bestaat alleen op Node 18/20/21 -- allemaal EOL. decryptToken
+  // haalt het omhulsel zelf af en werkt dus op een Node die nog leeft.
+  const terug = OWA.decryptToken(versleuteld, privateKey.export({ type: 'pkcs8', format: 'pem' }));
   assert.equal(terug, token);
 
   // Een ANDERE sleutel komt er niet bij -- maar LET OP HOE dat eruitziet, want
   // de voor de hand liggende toets (assert.throws) is hier fout.
   //
-  // PKCS#1 v1.5 gooit bij een verkeerde sleutel geen fout: OpenSSL 3 doet aan
-  // "implicit rejection" en geeft afgeleide onzin terug in plaats van te falen,
-  // juist zodat een aanvaller niet aan het foutgedrag kan aflezen of zijn gok
-  // klopte (Bleichenbacher/Marvin). Gemeten: 200 vreemde sleutels, 0 fouten,
-  // 200 keer bytes -- en 0 keer het token.
+  // Bij een verkeerde sleutel hoort er geen FOUT te komen maar afgeleide onzin:
+  // implicit rejection. Anders leest een aanvaller aan het foutgedrag af of zijn
+  // gok klopte (Bleichenbacher/Marvin).
+  //
+  // LET OP waar dat vandaan komt. OpenSSL doet dit pas zelf vanaf 3.2; op 3.0.19
+  // -- wat Node 20 meebrengt en wat wij draaien -- WERPT hij gewoon. Gemeten op
+  // 19-8-2026. Een eerdere versie van deze test ging uit van OpenSSL's gedrag en
+  // was daarmee afhankelijk van welke Node de meting toevallig deed. Nu maakt
+  // decryptToken de implicit rejection ZELF, dus de eigenschap staat vast
+  // ongeacht de OpenSSL eronder.
   //
   // De eigenschap die telt is dus niet "het knalt" maar "er komt iets anders
   // uit". Wat de home instance daarna terugstuurt matcht geen enkel opgeslagen
   // token, en de inlog mislukt gewoon.
-  const ruw = Buffer.from(versleuteld.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
   for (let i = 0; i < 5; i++) {
-    const vreemde = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey;
+    const vreemde = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 })
+      .privateKey.export({ type: 'pkcs8', format: 'pem' });
     let uit = null;
-    try {
-      uit = crypto.privateDecrypt({ key: vreemde, padding: crypto.constants.RSA_PKCS1_PADDING }, ruw).toString('utf8');
-    } catch { uit = null; }                     // een fout mag, maar is niet de regel
+    assert.doesNotThrow(() => { uit = OWA.decryptToken(versleuteld, vreemde); },
+      'werpen is het signaal waar Bleichenbacher op draait');
     assert.notEqual(uit, token, 'andermans sleutel levert nooit het token');
   }
 });
