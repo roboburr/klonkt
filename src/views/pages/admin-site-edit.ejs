@@ -198,7 +198,7 @@
       <label>
         <span><%= t('asite.feed_default') %></span>
         <select name="feed_view_default">
-          <option value="timeline" <%= (site.feed_view_default || 'timeline') === 'timeline' ? 'selected' : '' %>><%= t('asite.feed_timeline') %></option>
+          <option value="reader" <%= site.feed_view_default !== 'grid' ? 'selected' : '' %>><%= t('asite.feed_reader') %></option>
           <option value="grid"     <%= site.feed_view_default === 'grid' ? 'selected' : '' %>><%= t('asite.feed_grid') %></option>
         </select>
       </label>

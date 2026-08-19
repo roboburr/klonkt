@@ -344,7 +344,7 @@ const _embedUrl = _postAudio
 <% } %>
 </head>
 
-<body class="<%= bodyClass || 'on-home' %> has-bottom-tab" data-js="chrome<%= (typeof pageJs !== 'undefined' && pageJs) ? ' ' + pageJs : '' %>" data-feed-view="<%- _e(safeSite.feed_view_default || 'timeline') %>" data-grid-cols="3" data-site-base="<%- _e((typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '') %>">
+<body class="<%= bodyClass || 'on-home' %> has-bottom-tab" data-js="chrome<%= (typeof pageJs !== 'undefined' && pageJs) ? ' ' + pageJs : '' %>" data-feed-view="<%- _e(safeSite.feed_view_default === 'grid' ? 'grid' : 'reader') %>" data-grid-cols="3" data-site-base="<%- _e((typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '') %>">
 
 <% if (typeof isViewer !== 'undefined' && isViewer) { %>
   <div class="viewer-banner" role="status">
@@ -549,7 +549,12 @@ const _embedUrl = _postAudio
   // Restore feed view + grid cols from localStorage (overrides server default)
   try {
     var v = localStorage.getItem('pcms-feed-view');
-    if (v === 'timeline' || v === 'grid' || v === 'reader') body.dataset.feedView = v;
+    // 'timeline' bestaat niet meer als keuze, maar staat nog in de localStorage
+    // van iedereen die hier eerder was. Zonder deze vertaling zou zo iemand een
+    // weergave houden die nergens meer een knop heeft: de pil helemaal grijs, en
+    // een feed die niet is wat hij koos. Lezen is waar Tijdlijn in opging.
+    if (v === 'timeline') v = 'reader';
+    if (v === 'grid' || v === 'reader') body.dataset.feedView = v;
     var c = parseInt(localStorage.getItem('pcms-grid-cols'), 10);
     if (c === 2 || c === 3 || c === 4) body.dataset.gridCols = String(c);
   } catch (e) {}
@@ -566,9 +571,9 @@ const _embedUrl = _postAudio
     // terugval staat de hele pil dan grijs terwijl de tijdlijn gewoon te zien
     // is -- de lezer ziet nergens meer waar hij is. De VOORKEUR blijft staan:
     // terug op de eigen feed is Lezen weer actief.
-    var _view = String(body.dataset.feedView || 'timeline');
-    if (!/^[a-z]+$/.test(_view)) _view = 'timeline';
-    if (!document.querySelector('.view-switch-btn[data-view="' + _view + '"]')) _view = 'timeline';
+    var _view = String(body.dataset.feedView || 'reader');
+    if (!/^[a-z]+$/.test(_view)) _view = 'reader';
+    if (!document.querySelector('.view-switch-btn[data-view="' + _view + '"]')) _view = 'reader';
     document.querySelectorAll('.view-switch-btn').forEach(function(b) {
       b.setAttribute('aria-selected', (_onFeed && b.dataset.view === _view) ? 'true' : 'false');
     });
@@ -605,6 +610,15 @@ const _embedUrl = _postAudio
     var sw = e.target.closest('.view-switch-btn');
     if (sw) {
       var view = sw.dataset.view;
+      // EEN KEUZE MOET TERUG KUNNEN. Op de cirkel is Grid de enige knop (Lezen
+      // bestaat daar niet, want dat zijn berichten van anderen), en een knop die
+      // al actief is doet normaal niets -- dan zit je in Grid zonder weg terug.
+      // Is dit de enige knop op deze pagina en staat hij al aan, dan brengt hij
+      // je terug naar de standaard, en dat is daar de gewone lijst.
+      if (document.querySelectorAll('.view-switch-btn').length === 1
+          && sw.getAttribute('aria-selected') === 'true') {
+        view = 'reader';
+      }
       body.dataset.feedView = view;
       try { localStorage.setItem('pcms-feed-view', view); } catch(_) {}
       syncAria();

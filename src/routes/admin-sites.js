@@ -259,7 +259,7 @@ router.post('/create', requireGod, (req, res) => {
     f.robots_index ? 1 : 0,
     f.require_login_to_comment ? 1 : 0,
     (f.enable_audio_player !== undefined ? (f.enable_audio_player ? 1 : 0) : 1),
-    f.feed_view_default === 'timeline' ? 'timeline' : 'grid',
+    f.feed_view_default === 'grid' ? 'grid' : 'reader',
   );
 
   // The OWNER (not necessarily the creator) gets a site_members admin row → this
