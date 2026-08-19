@@ -24,6 +24,39 @@ var _older = (typeof olderPost !== 'undefined' && olderPost) ? olderPost : null;
       en een stroom waar je niet uit kunt naar het gesprek is een doodlopende weg.
       Een <a> en niet alleen een tik-afhandelaar: dat werkt ook met een
       toetsenbord, met een schermlezer, en met cmd-klik. %>
+  <%# De cover hoort hier net zo goed als op de berichtpagina: het is het beeld
+      van het stuk, en zonder hem begint elk bericht in de stroom met kale tekst.
+      Boven de titel, in dezelfde volgorde als post.ejs.
+
+      Twee dingen komen hier van post-card en NIET van post.ejs:
+
+      - De SLUIER. Op de berichtpagina hangt de waarschuwing als banner boven de
+        hele pagina, want daar staat een bericht. In een stroom kan dat niet: de
+        buren rollen gewoon voorbij, dus het beeld moet zijn eigen sluier dragen
+        of het is onderweg al te zien. De afhandelaar zit gedelegeerd op
+        document (shell.ejs), dus hij werkt ook op wat de client later aanschuift.
+      - thumb(). De bron kan het volle bestand zijn en hier staan er meerdere
+        onder elkaar in een stroom die dooraanvult.
+
+      cover_image_url en cover_video_url komen mee: beide voedingen van
+      readerItems() halen `SELECT p.*` op (routes/posts.js, de pinned- en de
+      gewone feed-query). Nagekeken, want een versmalde lijst zou hier niets
+      opleveren zonder ergens te klagen. %>
+  <% if (post.cover_image_url || post.cover_video_url) { %>
+    <figure class="read-cover<%= post.nsfw ? ' nsfw-media' : '' %>">
+      <% if (post.cover_image_url) { %>
+        <img src="<%= thumb(post.cover_image_url, 1280) %>"
+             srcset="<%= thumb(post.cover_image_url, 640) %> 640w, <%= thumb(post.cover_image_url, 1280) %> 1280w"
+             sizes="(min-width: 768px) 46rem, 100vw"
+             alt="<%= post.cover_alt || '' %>" loading="lazy" decoding="async"<% if (post.cover_video_url) { %> data-ios-mp4="<%= post.cover_video_url %>"<% } %>>
+      <% } else { %>
+        <video src="<%= post.cover_video_url %>" poster="<%= thumb(post.cover_video_url, 1280) %>"
+               controls loop muted playsinline preload="metadata"></video>
+      <% } %>
+      <% if (post.nsfw) { %><span class="nsfw-veil"><%- include('nsfw-veil', { cw: post.content_warning }) %></span><% } %>
+    </figure>
+  <% } %>
+
   <header class="read-head">
     <h1 class="read-title"><a href="<%= _b %>/<%= post.slug %>"><%= post.title || '' %></a></h1>
     <% if (post.published_at) { %><p class="read-when"><%= formatDateTime(post.published_at) %></p><% } %>

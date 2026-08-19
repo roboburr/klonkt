@@ -2453,6 +2453,26 @@ html:has(body.on-home[data-feed-view="reader"]),
 /* Een lijn tussen twee berichten: zonder grens is een stroom een lange brij. */
 .feed-reader .read-post + .read-post { border-top: 1px solid color-mix(in srgb, currentColor 12%, transparent); }
 
+/* De cover vult de leeskolom. Eigen regel, niet .post-cover hergebruikt: die
+   heeft een marge van 2rem die hier tegen de scroll-snap aan duwt.
+   De hoogtebegrenzing is er met opzet. Een paneel is min-height:100svh en snapt,
+   dus een staande foto op volle breedte zou de titel en de eerste alinea onder
+   de vouw duwen -- dan begint elk bericht met een plaat waar je langs moet
+   scrollen om te zien wat het IS. */
+.feed-reader .read-cover {
+    margin: 0 0 1.2rem;
+    border-radius: 10px;
+    overflow: hidden;
+}
+.feed-reader .read-cover img,
+.feed-reader .read-cover video {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: 45svh;
+    object-fit: cover;
+}
+
 .feed-reader .read-head { padding-bottom: .5rem; }
 .feed-reader .read-title { font-size: clamp(1.6rem, 4vw, 2.4rem); line-height: 1.15; margin: 0 0 .3rem; }
 /* De titel is een link, maar mag er niet als een link uitzien: dit is een
