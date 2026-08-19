@@ -547,22 +547,24 @@ const _embedUrl = _postAudio
 (function() {
   var body = document.body;
 
-  // DE CIRKEL HEEFT EEN EIGEN KEUZE, met een eigen standaard: Grid.
+  // DE CIRKEL HEEFT MAAR EEN WEERGAVE: Grid.
   //
-  // Twee redenen om die apart te houden van de gewone voorkeur. Ten eerste is
-  // Lezen daar geen optie (dat zijn berichten van anderen, van hun servers), dus
-  // "reader" betekent er iets anders dan hier: de gewone lijst. Ten tweede zou
-  // een tuimeling op de cirkel anders je SOLO-weergave veranderen -- je zet daar
-  // Grid uit en komt thuis in een andere feed terug dan je achterliet.
-  var CIRKEL_SLEUTEL = 'pcms-cirkel-view';
+  // Lezen is daar geen optie -- dat zijn berichten van ANDEREN, van hun servers,
+  // en "het hele stuk" hebben wij daar niet in handen. De knop staat er wel,
+  // maar dood (zie view-switcher.ejs). Er valt dus niets te kiezen en dus ook
+  // niets te onthouden: de eigen cirkel-voorkeur die hier stond
+  // ('pcms-cirkel-view') is vervallen, want hij kon nog maar een waarde hebben.
+  //
+  // Wat WEL blijft: de cirkel raakt je solo-keuze niet aan. Die staat in
+  // 'pcms-feed-view' en wordt hier nergens geschreven, zodat je thuiskomt in de
+  // weergave die je achterliet.
   function opCirkel() { return body.classList.contains('on-cirkel'); }
 
   /** Zet de weergave die bij DEZE pagina hoort. Draait bij init en bij elke nav. */
   function pasWeergaveToe() {
     try {
       if (opCirkel()) {
-        // Alles behalve een uitdrukkelijke 'list' is grid: dat is de standaard.
-        body.dataset.feedView = (localStorage.getItem(CIRKEL_SLEUTEL) === 'list') ? 'reader' : 'grid';
+        body.dataset.feedView = 'grid';   // de enige mogelijkheid daar
         return;
       }
       var v = localStorage.getItem('pcms-feed-view');
@@ -587,17 +589,17 @@ const _embedUrl = _postAudio
     // staat verderop, maar deze functie draait al bij init).
     var _feedC = ['on-home','on-tag','on-type','on-user','on-cirkel'];
     var _onFeed = _feedC.some(function(c){ return body.classList.contains(c); });
-    // Een weergave die op DEZE pagina niet bestaat, kan ook niet actief zijn.
-    // Lezen ontbreekt in de cirkel (daar staan berichten van anderen), en wie
-    // op de eigen feed Lezen koos houdt die voorkeur in localStorage. Zonder
-    // terugval staat de hele pil dan grijs terwijl de tijdlijn gewoon te zien
-    // is -- de lezer ziet nergens meer waar hij is. De VOORKEUR blijft staan:
-    // terug op de eigen feed is Lezen weer actief.
+    // Een weergave die op DEZE pagina niet KAN, kan ook niet actief zijn. In de
+    // cirkel staat Lezen er wel maar uitgeschakeld; pasWeergaveToe() heeft
+    // feedView daar al op 'grid' gezet, dus de terugval hieronder vuurt er niet.
+    // Hij blijft staan voor het geval een pagina een knop mist: zonder terugval
+    // staat de hele pil grijs terwijl er wel degelijk iets te zien is, en dan
+    // ziet de lezer nergens meer waar hij is. De solo-VOORKEUR blijft intact.
     var _view = String(body.dataset.feedView || 'reader');
     if (!/^[a-z]+$/.test(_view)) _view = 'reader';
     if (!document.querySelector('.view-switch-btn[data-view="' + _view + '"]')) _view = 'reader';
     document.querySelectorAll('.view-switch-btn').forEach(function(b) {
-      b.setAttribute('aria-selected', (_onFeed && b.dataset.view === _view) ? 'true' : 'false');
+      b.setAttribute('aria-selected', (_onFeed && !b.disabled && b.dataset.view === _view) ? 'true' : 'false');
     });
     document.querySelectorAll('.grid-cols-btn').forEach(function(b) {
       b.classList.toggle('is-active', b.dataset.cols === body.dataset.gridCols);
@@ -634,22 +636,17 @@ const _embedUrl = _postAudio
   document.addEventListener('click', function(e) {
     var sw = e.target.closest('.view-switch-btn');
     if (sw) {
+      // Een dode knop doet niets. Een <button disabled> vuurt in de meeste
+      // browsers geen click, maar deze listener hangt op document en vangt ook
+      // wat er langs de randen komt -- dus expliciet, niet op goed vertrouwen.
+      if (sw.disabled) return;
       var view = sw.dataset.view;
-      // EEN KEUZE MOET TERUG KUNNEN. Op de cirkel is Grid de enige knop (Lezen
-      // bestaat daar niet, want dat zijn berichten van anderen), en een knop die
-      // al actief is doet normaal niets -- dan zit je in Grid zonder weg terug.
-      // Is dit de enige knop op deze pagina en staat hij al aan, dan brengt hij
-      // je terug naar de standaard, en dat is daar de gewone lijst.
-      if (document.querySelectorAll('.view-switch-btn').length === 1
-          && sw.getAttribute('aria-selected') === 'true') {
-        view = 'reader';
-      }
       body.dataset.feedView = view;
-      // Op de cirkel onthouden we los, want daar betekent 'reader' de gewone
-      // lijst en hoort het je thuisweergave niet aan te raken.
+      // Op de cirkel schrijven we NIETS. Daar is Grid de enige mogelijkheid, dus
+      // er valt niets te onthouden -- en je solo-keuze mag er zeker niet door
+      // veranderen: die moet je terugvinden zoals je hem achterliet.
       try {
-        if (opCirkel()) localStorage.setItem(CIRKEL_SLEUTEL, view === 'grid' ? 'grid' : 'list');
-        else localStorage.setItem('pcms-feed-view', view);
+        if (!opCirkel()) localStorage.setItem('pcms-feed-view', view);
       } catch(_) {}
       syncAria();
       // On non-feed pages the switcher acts as a navigation: take the

@@ -39,6 +39,11 @@
    attribute, set by syncAria + on htmx:afterSettle) → htmx-robust. On non-
    feed pages syncAria sets aria-selected=false → both grey. */
 .view-switch-btn[aria-selected="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+/* Lezen in de cirkel: zichtbaar maar dood. Niet weggelaten, want dan springt de
+   pil van breedte tussen Solo en Cirkel, en juist DAT verbergt dat er een
+   tweede weergave bestaat. Grijs + not-allowed zegt "bestaat, kan hier niet". */
+.view-switch-btn[disabled] { opacity: .38; cursor: not-allowed; }
+.view-switch-btn[disabled]:hover { color: var(--ink-muted, var(--ink-soft)); background: transparent; }
 
 /* Agenda = its OWN pill (separate from Timeline/Grid, so the feed-toggle is never
    disturbed). Same look as the view-switcher pill. Visible in all modes. */

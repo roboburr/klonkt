@@ -2371,6 +2371,15 @@ body.search-open { overflow: hidden; }
     color: var(--ink);
     border-color: var(--ink-muted);
 }
+/* Uitgeschakeld (Lezen in de cirkel) wint van :hover -- anders licht een knop
+   op die je niet kunt indrukken, en dat is precies de verkeerde belofte. */
+.view-switch-btn[disabled],
+.view-switch-btn[disabled]:hover {
+    opacity: .38;
+    cursor: not-allowed;
+    color: var(--ink-muted);
+    border-color: var(--rule);
+}
 /* Actieve state: puur afgeleid van body[data-feed-view]. Geen .is-active class meer.
    Niet op de Archive-pagina: daar is geen "huidige" timeline/grid-keuze, dus beide
    knoppen blijven neutraal (grijs). */
