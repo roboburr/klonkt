@@ -2491,7 +2491,10 @@ html:has(body.on-home[data-feed-view="reader"]),
        je er nog niet voorbij bent. Eenmaal in een bericht snapt er niets meer,
        ook niet naar zijn eigen bovenrand -- anders trekt proximity je terug
        zodra je een paar regels verder leest. */
-    scroll-snap-align: start;
+    /* Het snappunt zit op .read-anker hierna, niet hier. Zie de toelichting
+       daar: een snapgebied groter dan het scherm heeft een BEREIK aan geldige
+       posities, en de bovenste daarvan zet het volgende bericht op de onderrand. */
+    scroll-snap-align: none;
     scroll-snap-stop: normal;
     /* GEEN min-height meer. Die rekte elk bericht tot een vol scherm, en bij een
        kort bericht leverde dat een halve pagina leegte op onder "Replies and
@@ -2510,6 +2513,41 @@ html:has(body.on-home[data-feed-view="reader"]),
     padding: 2rem 1.2rem 4rem;
     box-sizing: border-box;
 }
+/* ONDERIN GEBEURT ER NIETS (Robin, 20-8: "enkel de bovenkant mag snappen, niet
+   de onderkant; onderin mag er niks met de zone gebeuren").
+   Het laatste bericht heeft een snappunt dat de browser NIET KAN BEREIKEN: er
+   zit niet genoeg pagina onder om zijn bovenkant naar de bovenrand te brengen.
+   Gemeten op dev: snappunt 2548, maar de scroll gaat maar tot 2356. De spec
+   laat de browser dan naar de dichtstbijzijnde BEREIKBARE positie snappen, en
+   dat is de bodem -- waardoor het laatste bericht ergens middenin het scherm
+   blijft hangen en het lijkt of er aan de onderkant wordt uitgelijnd.
+   Zonder snappunt scrolt dat laatste stuk gewoon vrij uit tot het einde. */
+/* HET SNAPPUNT. Nul hoog, dus precies EEN geldige positie: deze bovenrand aan de
+   bovenrand van het scherm. Zat de uitlijning op het artikel zelf, dan gold voor
+   elk bericht dat hoger is dan het scherm een heel BEREIK aan geldige posities
+   (spec: een snapgebied groter dan de snapport mag overal staan waar het de
+   snapport nog vult). Gemeten op dev: bericht van 1009px op een scherm van 812
+   -> geldig van 700 tot 897, en op 867 bleef hij dus gewoon staan. Die bovenste
+   stand, 897, is de onderkant van dat bericht op de onderrand -- oftewel de
+   bovenkant van het VOLGENDE bericht op de onderrand. Dat is wat er onderin
+   leek te snappen, en het kwam van de browser en niet uit onze code. */
+.feed-reader .read-anker {
+    display: block;
+    height: 0;
+    scroll-snap-align: start;
+    /* Het anker staat BINNEN de padding van het artikel, dus 2rem onder de
+       streep. Zonder deze correctie landt de snap 32px te laag en staat de
+       scheidingslijn net boven beeld -- gemeten: 733 waar 700 hoort.
+       scroll-margin verschuift alleen het SNAPPUNT en niet de opmaak, dus het
+       anker blijft waar het staat en de uitlijning klopt met de lijn.
+       Blijft in de pas met de padding-top van .read-post hierboven. */
+    scroll-margin-top: 2rem;
+}
+/* Het laatste bericht krijgt geen snappunt: zijn bovenkant is niet te bereiken
+   (er zit te weinig pagina onder), en de browser snapt dan naar de dichtstbij-
+   zijnde bereikbare positie -- de bodem. Gemeten: snappunt 2548, maxScroll 2356. */
+.feed-reader .read-post:last-child .read-anker { scroll-snap-align: none; }
+
 /* Een lijn tussen twee berichten: zonder grens is een stroom een lange brij. */
 .feed-reader .read-post + .read-post { border-top: 1px solid color-mix(in srgb, currentColor 12%, transparent); }
 

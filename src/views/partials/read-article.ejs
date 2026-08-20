@@ -19,6 +19,15 @@ var _older = (typeof olderPost !== 'undefined' && olderPost) ? olderPost : null;
          data-base="<%= _b %>"
          data-title="<%= post.title || '' %>"
          aria-label="<%= post.title || '' %>">
+  <%# Het SNAPPUNT, en met opzet een leeg element van nul hoog in plaats van het
+      artikel zelf. Een snapgebied dat GROTER is dan het scherm mag van de spec
+      overal blijven staan waar het het scherm nog vult -- dus bij een bericht
+      van 1009px op een scherm van 812 accepteert de browser elke positie tussen
+      de bovenkant en "onderkant op de onderrand". Die tweede stand zet de
+      bovenkant van het VOLGENDE bericht op de onderrand van het scherm, en dat
+      is wat Robin zag (20-8). Een anker van nul hoog heeft maar een geldige
+      positie: zijn bovenkant op de bovenrand. %>
+  <span class="read-anker" aria-hidden="true"></span>
   <%# De titel is een echte link naar het bericht zelf. De leesstroom toont de
       TEKST, maar reacties, waarderingen en boosts staan op de berichtpagina --
       en een stroom waar je niet uit kunt naar het gesprek is een doodlopende weg.
