@@ -391,10 +391,11 @@ async function startLenis() {
     // zo lang na dat het lijkt of hij niet afmaakt.
     easing: (t) => 1 - Math.pow(1 - t, 4),
   });
-  // Het snappunt is de bovenkant van elk bericht. Het laatste doet niet mee:
-  // zijn bovenkant is niet te bereiken, er zit te weinig pagina onder.
+  // Het snappunt is de bovenkant van elk bericht -- ook van het laatste. Dat
+  // deed eerder niet mee omdat zijn bovenkant onbereikbaar was; sinds het
+  // laatste bericht in CSS een volle schermhoogte krijgt, kan hij wel.
   const berichten = [...document.querySelectorAll('.feed-reader .read-post')];
-  berichten.slice(0, -1).forEach((a) => snap.addElement(a, { align: 'start' }));
+  berichten.forEach((a) => snap.addElement(a, { align: 'start' }));
 
   // ALLEEN VOORUIT VANGEN. Dit hoort bij de ruime zone hierboven en is niet
   // optioneel: lenis/snap kiest het DICHTSTBIJZIJNDE punt en zijn drempel geldt

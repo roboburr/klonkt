@@ -2543,10 +2543,20 @@ html:has(body.on-home[data-feed-view="reader"]),
        Blijft in de pas met de padding-top van .read-post hierboven. */
     scroll-margin-top: 2rem;
 }
-/* Het laatste bericht krijgt geen snappunt: zijn bovenkant is niet te bereiken
-   (er zit te weinig pagina onder), en de browser snapt dan naar de dichtstbij-
-   zijnde bereikbare positie -- de bodem. Gemeten: snappunt 2548, maxScroll 2356. */
-.feed-reader .read-post:last-child .read-anker { scroll-snap-align: none; }
+/* HET LAATSTE BERICHT SNAPT OOK (Robin, 21-8). Dat kon eerst niet: zijn
+   bovenkant was onbereikbaar -- er zat te weinig pagina onder om hem naar de
+   bovenrand te brengen (gemeten: snappunt 2548, maxScroll 2356), en de browser
+   viel dan terug op de dichtstbijzijnde bereikbare positie: de bodem. Het
+   snappunt weghalen was de vorige oplossing; dit is de echte.
+   Een volle schermhoogte op het LAATSTE bericht maakt die bovenkant precies
+   bereikbaar. Korter dan het scherm: het bericht wordt even hoog en het snappunt
+   valt exact op maxScroll. Langer dan het scherm: dan was het al haalbaar en
+   doet min-height niets.
+   100lvh en niet 100svh: op een telefoon met een verdwijnende adresbalk is het
+   zichtbare scherm soms de GROTE viewport, en dan komt svh net tekort.
+   Zichtbaar kost dit niets: berichten hebben geen kader, alleen een scheidings-
+   lijn erboven, dus het laatste bericht krijgt hooguit witruimte eronder. */
+.feed-reader .read-post:last-child { min-height: 100lvh; }
 
 /* ELK BERICHT EEN EIGEN SCHERM, als de site dat wil (Instellingen -> Weergave).
    Aan: een kort bericht vult het scherm en je ziet het volgende pas na een snap.
