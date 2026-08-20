@@ -2509,7 +2509,7 @@ html:has(body.on-home[data-feed-view="reader"]),
     max-width: 46rem;
     margin: 0 auto;
     /* De onderrand loopt achter de vaste tabbalk door; deze padding houdt de
-       TEKST erboven. De BOVENmarge is verdubbeld (Robin, 21-8: 2rem -> 4rem):
+       TEKST erboven. De BOVENmarge is verdubbeld (Robin, 20-8: 2rem -> 4rem):
        na een snap staat de scheidingslijn op de bovenrand, en de tekst
        daaronder krijgt meer lucht. MOET GELIJK BLIJVEN aan scroll-margin-top
        op .read-anker hieronder -- lopen die uit elkaar, dan landt de lijn niet
@@ -2544,11 +2544,11 @@ html:has(body.on-home[data-feed-view="reader"]),
        en staat de scheidingslijn boven beeld -- gemeten: 733 waar 700 hoort.
        scroll-margin verschuift alleen het SNAPPUNT en niet de opmaak, dus het
        anker blijft waar het staat en de uitlijning klopt met de lijn.
-       GELIJK aan de padding-top van .read-post hierboven; die ging 21-8 van
+       GELIJK aan de padding-top van .read-post hierboven; die ging 20-8 van
        2rem naar 4rem, dus deze ook. */
     scroll-margin-top: 4rem;
 }
-/* HET LAATSTE BERICHT SNAPT OOK (Robin, 21-8). Dat kon eerst niet: zijn
+/* HET LAATSTE BERICHT SNAPT OOK (Robin, 20-8). Dat kon eerst niet: zijn
    bovenkant was onbereikbaar -- er zat te weinig pagina onder om hem naar de
    bovenrand te brengen (gemeten: snappunt 2548, maxScroll 2356), en de browser
    viel dan terug op de dichtstbijzijnde bereikbare positie: de bodem. Het

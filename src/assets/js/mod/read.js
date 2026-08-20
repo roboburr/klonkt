@@ -359,7 +359,7 @@ async function startLenis() {
   snap = new S.default(lenis, {
     type: 'proximity',
     // DE VANGZONE, en dit is HET getal om aan te draaien. Ooit 12%, toen 55%
-    // (20-8: eerder vangen, boven de reacties), en 21-8 terug naar 12% -- want
+    // (20-8: eerder vangen, boven de reacties), en 20-8 terug naar 12% -- want
     // sinds het snappen alleen nog vooruit werkt, voelde die brede zone als
     // trekken tijdens het lezen. 12% is ~110 pixels op een venster van 910: hij
     // vangt pas vlak vóór de lijn.
@@ -415,7 +415,7 @@ async function startLenis() {
   // kandidaat beoordeelt: zonder deze omleiding houdt de zone vooruit op bij de
   // helft van de afstand tussen twee berichten, hoe groot je de drempel ook zet.
   //
-  // DE REGEL, in Robins woorden (21-8): "enkel bij downscrollen, aan de
+  // DE REGEL, in Robins woorden (20-8): "enkel bij downscrollen, aan de
   // onderkant van elke post, snappen naar de lijn tussen de posts" -- en geen
   // snap op een bericht dat al voorbij is gescrold. Drie voorwaarden dus:
   //   1. de laatste echte beweging ging omlaag,
