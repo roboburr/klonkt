@@ -349,10 +349,9 @@ async function startLenis() {
     // onbekende opties zonder fout, dus zo'n regel lijkt te werken en doet niets.
     // Controleer een optienaam in src/assets/vendor/lenis.mjs voor je hem zet.
     //
-    // Robin wilde langer en sneller uitrollen zonder remgevoel, dus de exponent
-    // gaat omhoog (een stevige flick draagt daarmee ruim vier tot zes keer zo
-    // ver) en de lerp gaat juist boven de standaard: hij legt die afstand vlot
-    // af in plaats van er stroperig naartoe te kruipen.
+    // DIT ZIJN NU STARTWAARDEN, geen vaste stand meer: stemTraagheidAf()
+    // verderop verzet ze bij elk gebaar, klein gebaar meer naijlen dan groot
+    // (Robin, 21-8). Wat hier staat geldt dus alleen tot de eerste veeg.
     ...(OP_TOUCH.matches ? { syncTouchLerp: 0.09, touchInertiaExponent: 2.2 } : {}),
     autoRaf: true,
   });
@@ -490,7 +489,50 @@ function planRust() {
   rustTimer = setTimeout(rustNu, RUST_MS);
 }
 
-function opWiel(e) { if (Math.abs(e.deltaY) > 1) nieuwGebaar(e.deltaY > 0); }
+/**
+ * TRAAGHEID NAAR DE MAAT VAN HET GEBAAR (Robin, 21-8: "bij een korte scroll wat
+ * meer inertia, bij een snelle juist wat minder").
+ *
+ * Dit kan omdat Lenis deze drie opties op het moment van de GEBEURTENIS leest,
+ * niet bij het opstarten (gecontroleerd in vendor/lenis.mjs):
+ *   options.lerp                 bij een wiel -- lager = langer naijlen
+ *   options.touchInertiaExponent bij touchend -- afstand = |snelheid| ** exponent
+ *   options.syncTouchLerp        bij touchend -- hoe hard hij daarna remt
+ * Ze zijn dus per gebaar te verzetten, en dat is precies wat hier gebeurt.
+ *
+ * De omkering zit in de exponent. Bij een snelheid boven de 1 draagt een HOGERE
+ * exponent veel verder: met 2.2 vliegt een harde veeg er ruim vanuit, terwijl
+ * een zachte veeg er juist door verschrompelt. Vandaar dat een klein gebaar nu
+ * de hoge exponent en de zachte rem krijgt, en een groot gebaar de lage
+ * exponent en een stevigere rem.
+ *
+ * Draaien doe je aan deze zes getallen; de grenzen eronder zeggen wat "klein"
+ * en "groot" is.
+ */
+const WIEL_KLEIN = 40, WIEL_GROOT = 240;   // |deltaY| van een wielstap
+const RAAK_KLEIN = 4, RAAK_GROOT = 26;     // |snelheid| van Lenis bij een veeg
+const WIEL_LERP_KLEIN = 0.12, WIEL_LERP_GROOT = 0.30;
+const RAAK_LERP_KLEIN = 0.06, RAAK_LERP_GROOT = 0.13;
+const RAAK_EXP_KLEIN = 2.4, RAAK_EXP_GROOT = 1.4;
+
+const meng = (a, b, t) => a + (b - a) * Math.min(1, Math.max(0, t));
+
+function stemTraagheidAf(sterkte, klein, groot, opTouch) {
+  if (!lenis) return;
+  const t = (sterkte - klein) / (groot - klein);
+  if (opTouch) {
+    lenis.options.syncTouchLerp = meng(RAAK_LERP_KLEIN, RAAK_LERP_GROOT, t);
+    lenis.options.touchInertiaExponent = meng(RAAK_EXP_KLEIN, RAAK_EXP_GROOT, t);
+  } else {
+    lenis.options.lerp = meng(WIEL_LERP_KLEIN, WIEL_LERP_GROOT, t);
+  }
+}
+
+function opWiel(e) {
+  if (Math.abs(e.deltaY) <= 1) return;
+  stemTraagheidAf(Math.abs(e.deltaY), WIEL_KLEIN, WIEL_GROOT, false);
+  nieuwGebaar(e.deltaY > 0);
+}
 let raakY = 0;
 function opRaakStart(e) { if (e.touches && e.touches[0]) raakY = e.touches[0].clientY; }
 function opRaakBeweeg(e) {
@@ -499,6 +541,10 @@ function opRaakBeweeg(e) {
   // Vinger omhoog = inhoud omlaag. Drie pixels speling tegen de trilling van een
   // duim die stilstaat.
   if (Math.abs(y - raakY) > 3) { nieuwGebaar(y < raakY); raakY = y; }
+  // De snelheid van NU is die van het laatste stukje veeg, en dat is de
+  // snelheid waarmee de vinger straks loslaat. Lenis leest de exponent pas bij
+  // touchend, dus wat we hier zetten geldt voor precies deze flick.
+  if (lenis) stemTraagheidAf(Math.abs(lenis.velocity), RAAK_KLEIN, RAAK_GROOT, true);
 }
 function opToets(e) {
   if (['ArrowDown', 'PageDown', 'End', ' ', 'Spacebar'].indexOf(e.key) >= 0) nieuwGebaar(true);
