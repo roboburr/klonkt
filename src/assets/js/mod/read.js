@@ -412,18 +412,38 @@ async function startLenis() {
   // Waarom niet gewoon de drempel? Omdat lenis/snap alleen de dichtstbijzijnde
   // kandidaat beoordeelt: zonder deze omleiding houdt de zone vooruit op bij de
   // helft van de afstand tussen twee berichten, hoe groot je de drempel ook zet.
+  //
+  // DE REGEL, in Robins woorden (21-8): "enkel bij downscrollen, aan de
+  // onderkant van elke post, snappen naar de lijn tussen de posts" -- en geen
+  // snap op een bericht dat al voorbij is gescrold. Drie voorwaarden dus:
+  //   1. de laatste echte beweging ging omlaag,
+  //   2. het doel ligt VOOR je (een punt achter je slaan we over),
+  //   3. het ligt binnen de vangzone -- die begint rond de voet van het bericht.
+  // Het doel zelf blijft de bovenkant van het volgende bericht: dat IS de lijn
+  // ertussen, en dat is het essentiële.
+  //
+  // DE ZONE IS EEN GETAL, geen '55%'. Die string kwam ongewijzigd uit de opties
+  // en werd hier met een getal vergeleken -- altijd onwaar, dus deze terugval
+  // heeft nooit gewerkt en alleen het doel dat lenis zelf koos kwam erdoor.
+  const vangZone = () => 0.55 * window.innerHeight;
+  // Lenis' eigen `direction` is het teken van de snelheid, en die is bij het
+  // afvuren van de (gedebouncede) snap alweer nul. Daarom onthouden we de
+  // laatste richting die er echt was.
+  let laatsteRichtingOmlaag = true;
+  lenis.on('scroll', () => {
+    if (Math.abs(lenis.velocity) > 0.05) laatsteRichtingOmlaag = lenis.velocity > 0;
+  });
   const echtGaNaar = snap.goTo.bind(snap);
   snap.goTo = (index) => {
+    if (!laatsteRichtingOmlaag) return;   // omhoog: nooit vangen
     const punten = snap.computeSnaps();   // zelfde volgorde als goTo intern gebruikt
     const nu = lenis.scroll;
-    const doel = punten[index];
-    if (doel && doel.value > nu + 2) { echtGaNaar(index); return; }
     let vooruit = -1;
     punten.forEach((punt, i) => {
       if (punt.value > nu + 2 && (vooruit < 0 || punt.value < punten[vooruit].value)) vooruit = i;
     });
-    if (vooruit < 0) return;
-    if (punten[vooruit].value - nu <= snap.distanceThreshold) echtGaNaar(vooruit);
+    if (vooruit < 0) return;              // niets meer voor je: vrij uitscrollen
+    if (punten[vooruit].value - nu <= vangZone()) echtGaNaar(vooruit);
   };
   // Native snappen uit: twee mechanismen op dezelfde scroller vechten.
   document.documentElement.style.scrollSnapType = 'none';

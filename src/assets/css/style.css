@@ -2509,8 +2509,12 @@ html:has(body.on-home[data-feed-view="reader"]),
     max-width: 46rem;
     margin: 0 auto;
     /* De onderrand loopt achter de vaste tabbalk door; deze padding houdt de
-       TEKST erboven. */
-    padding: 2rem 1.2rem 4rem;
+       TEKST erboven. De BOVENmarge is verdubbeld (Robin, 21-8: 2rem -> 4rem):
+       na een snap staat de scheidingslijn op de bovenrand, en de tekst
+       daaronder krijgt meer lucht. MOET GELIJK BLIJVEN aan scroll-margin-top
+       op .read-anker hieronder -- lopen die uit elkaar, dan landt de lijn niet
+       meer precies op de bovenrand. */
+    padding: 4rem 1.2rem 4rem;
     box-sizing: border-box;
 }
 /* ONDERIN GEBEURT ER NIETS (Robin, 20-8: "enkel de bovenkant mag snappen, niet
@@ -2535,13 +2539,14 @@ html:has(body.on-home[data-feed-view="reader"]),
     display: block;
     height: 0;
     scroll-snap-align: start;
-    /* Het anker staat BINNEN de padding van het artikel, dus 2rem onder de
-       streep. Zonder deze correctie landt de snap 32px te laag en staat de
-       scheidingslijn net boven beeld -- gemeten: 733 waar 700 hoort.
+    /* Het anker staat BINNEN de padding van het artikel, dus een padding-top
+       onder de streep. Zonder deze correctie landt de snap net zoveel te laag
+       en staat de scheidingslijn boven beeld -- gemeten: 733 waar 700 hoort.
        scroll-margin verschuift alleen het SNAPPUNT en niet de opmaak, dus het
        anker blijft waar het staat en de uitlijning klopt met de lijn.
-       Blijft in de pas met de padding-top van .read-post hierboven. */
-    scroll-margin-top: 2rem;
+       GELIJK aan de padding-top van .read-post hierboven; die ging 21-8 van
+       2rem naar 4rem, dus deze ook. */
+    scroll-margin-top: 4rem;
 }
 /* HET LAATSTE BERICHT SNAPT OOK (Robin, 21-8). Dat kon eerst niet: zijn
    bovenkant was onbereikbaar -- er zat te weinig pagina onder om hem naar de
