@@ -116,7 +116,88 @@ const RUST_MS = 120;
 let bezig = false;          // loopt er een gebaar of een uitloop?
 let rustTimer = null;
 
+/**
+ * LENIS, en alleen op desktop.
+ *
+ * Op touch doet Lenis van zichzelf niets (syncTouch staat standaard uit) en is
+ * het systeem-scrollen al soepel -- daar blijft de native CSS-snap staan die
+ * hierboven beschreven is. Robins keuze (20-8): "enkel voor desktop, dat is
+ * prima, logisch dat het niet op mobiel kan".
+ *
+ * WAAROM LENIS HIER STAAT, en dat is niet het vloeiende scrollen: de DUUR van
+ * een snap is met native scroll-snap niet in te stellen -- die zit in de browser.
+ * Lenis' snap-pakket wel: duration, easing, distanceThreshold en debounce zijn
+ * allemaal van ons. Dat was de aanleiding.
+ *
+ * Het vloeiende scrollen (smoothWheel) kwam er daarna bij, en dat is de kant die
+ * OPPASSEN vraagt. Een Mac-trackpad heeft zijn EIGEN momentum, en Lenis'
+ * demping komt daar bovenop -- dubbel gedempt voelt drijverig. Vandaar lerp 0.2
+ * in plaats van de standaard 0.1. Robin vond dat op 20-8 nog steeds te zweverig,
+ * dus dat getal is nog niet uit; zie de opmerking bij de instellingen.
+ *
+ * De stand met `smoothWheel: false` werkte ook, en dan doet Lenis alleen de
+ * snap. Dat is de terugvalpositie als het vloeiende scrollen niet bevalt.
+ *
+ * lenis/snap haakt alleen in op lenis.on('scroll') en roept lenis.scrollTo aan
+ * (nagekeken in de dist), dus die opzet werkt.
+ */
+const OP_DESKTOP = window.matchMedia('(hover: hover) and (pointer: fine)');
+const VENDOR_V = 1;   // ophogen als de bestanden in /assets/js/vendor wijzigen
+
+let lenis = null;
+let snap = null;
+
+async function startLenis() {
+  if (lenis || !OP_DESKTOP.matches) return;
+  const [L, S] = await Promise.all([
+    import(`/assets/js/vendor/lenis.mjs?v=${VENDOR_V}`),
+    import(`/assets/js/vendor/lenis-snap.mjs?v=${VENDOR_V}`),
+  ]);
+  lenis = new L.default({
+    // Lenis tekent de scrollbeweging zelf, maar STEVIG GEDEMPT (lerp 0.2 in
+    // plaats van de standaard 0.1). Reden: een muiswiel scrollt in schokken en
+    // heeft die demping nodig; een Mac-trackpad heeft zijn EIGEN momentum en
+    // krijgt er dan een tweede overheen -- dat is precies het drijverige gevoel
+    // waar Robin voor waarschuwde. Hoger betekent korter naijlen, dus dit is de
+    // middenweg: de schokjes weg, de nasleep kort.
+    // Staat het toch te zweven, dan is lerp omhoog (richting 1) of terug naar
+    // smoothWheel:false de knop -- die stand werkte ook, met alleen de snap.
+    smoothWheel: true,
+    lerp: 0.2,
+    syncTouch: false,   // op touch blijft alles van het systeem
+    autoRaf: true,
+  });
+  snap = new S.default(lenis, {
+    type: 'proximity',
+    distanceThreshold: '12%',   // de vangzone, hier WEL instelbaar
+    debounce: 60,               // niet de standaard 500: dat voelt als te laat
+    duration: 0.4,              // in totaal onder de halve seconde
+    // Vlot weg, dan steeds langzamer aankomen (Robin, 20-8). easeOutQuart: op de
+    // helft van de tijd is 94% van de weg af, en de rest dempt zacht uit.
+    // Bewust NIET Lenis' standaard easeOutExpo -- die schiet weg en kruipt dan
+    // zo lang na dat het lijkt of hij niet afmaakt.
+    easing: (t) => 1 - Math.pow(1 - t, 4),
+  });
+  // Het snappunt is de bovenkant van elk bericht. Het laatste doet niet mee:
+  // zijn bovenkant is niet te bereiken, er zit te weinig pagina onder.
+  const berichten = [...document.querySelectorAll('.feed-reader .read-post')];
+  berichten.slice(0, -1).forEach((a) => snap.addElement(a, { align: 'start' }));
+  // Native snappen uit: twee mechanismen op dezelfde scroller vechten.
+  document.documentElement.style.scrollSnapType = 'none';
+}
+
+function stopLenis() {
+  if (snap) { snap.destroy(); snap = null; }
+  if (lenis) { lenis.destroy(); lenis = null; }
+  document.documentElement.style.scrollSnapType = '';
+}
+
+/**
+ * Omhoog niet snappen. Met Lenis is dat snap.stop()/start(); zonder Lenis (dus
+ * op touch) zetten we de CSS-eigenschap om, precies zoals hiervoor.
+ */
 function zetSnappen(aan) {
+  if (snap) { if (aan) snap.start(); else snap.stop(); return; }
   const el = document.documentElement;
   const wil = aan ? '' : 'none';
   if (el.style.scrollSnapType !== wil) el.style.scrollSnapType = wil;
@@ -196,6 +277,12 @@ export function init() {
   window.addEventListener('touchstart', opRaakStart, { passive: true });
   window.addEventListener('touchmove', opRaakBeweeg, { passive: true });
   window.addEventListener('keydown', opToets);
+
+  // Alleen in de leesweergave, en alleen op desktop. Bij elke init() opnieuw
+  // beoordelen: van Grid naar Lezen schakelen hoort hem aan te zetten, en
+  // wegnavigeren hoort hem op te ruimen.
+  stopLenis();
+  if (document.body.dataset.feedView === 'reader') startLenis();
 }
 
 export default { init };
