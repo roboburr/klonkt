@@ -217,6 +217,11 @@
         <input type="checkbox" name="feed_view_switch" value="1" <%= site.feed_view_switch ? 'checked' : '' %>>
         <span><%= t('asite.feed_switch') %></span>
       </label>
+      <%# Alleen van toepassing op Lezen: geeft elk bericht daar een eigen scherm. %>
+      <label class="cb">
+        <input type="checkbox" name="reader_full_page" value="1" <%= site.reader_full_page ? 'checked' : '' %>>
+        <span><%= t('asite.reader_full_page') %></span>
+      </label>
       <label class="cb">
         <input type="checkbox" name="show_search" value="1" <%= site.show_search ? 'checked' : '' %>>
         <span><%= t('asite.show_search') %></span>

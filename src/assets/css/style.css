@@ -2548,6 +2548,14 @@ html:has(body.on-home[data-feed-view="reader"]),
    zijnde bereikbare positie -- de bodem. Gemeten: snappunt 2548, maxScroll 2356. */
 .feed-reader .read-post:last-child .read-anker { scroll-snap-align: none; }
 
+/* ELK BERICHT EEN EIGEN SCHERM, als de site dat wil (Instellingen -> Weergave).
+   Aan: een kort bericht vult het scherm en je ziet het volgende pas na een snap.
+   Uit (standaard): de stroom is bericht na bericht, zonder lege ruimte eronder.
+   Dit stond eerst vast op AAN, is toen vast op UIT gezet omdat een kort bericht
+   een halve pagina leegte gaf onder "Replies and reactions", en is nu een keuze
+   -- want welke van de twee prettiger leest hangt af van wat je schrijft. */
+body[data-reader-pages="1"] .feed-reader .read-post { min-height: 100svh; }
+
 /* Een lijn tussen twee berichten: zonder grens is een stroom een lange brij. */
 .feed-reader .read-post + .read-post { border-top: 1px solid color-mix(in srgb, currentColor 12%, transparent); }
 

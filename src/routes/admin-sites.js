@@ -370,7 +370,7 @@ router.post('/:slug/save', requireSiteManagerBySlug, async (req, res) => {
       is_public = ?, robots_index = ?, require_login_to_comment = ?,
       enable_audio_player = ?,
       approve_followers = ?,
-      feed_view_default = ?, feed_view_switch = ?, feed_alt_view = ?,
+      feed_view_default = ?, feed_view_switch = ?, feed_alt_view = ?, reader_full_page = ?,
       show_search = ?, show_archive_link = ?,
       custom_css = ?, custom_head_html = ?, custom_foot_html = ?,
       updated_at = CURRENT_TIMESTAMP
@@ -395,6 +395,7 @@ router.post('/:slug/save', requireSiteManagerBySlug, async (req, res) => {
     feedViewDef,
     f.feed_view_switch ? 1 : 0,
     feedAlt,
+    f.reader_full_page ? 1 : 0,
     f.show_search ? 1 : 0,
     f.show_archive_link ? 1 : 0,
     f.custom_css      || null,

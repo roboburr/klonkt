@@ -208,6 +208,12 @@ export function initializeDatabase() {
   // van in plaats van een besluit voor iedereen. 'auto' kost geen JavaScript:
   // het is een mediaquery, dus geen resize-afhandeling en geen flikkering.
   ensureColumn('sites', 'feed_alt_view', "TEXT DEFAULT 'reader'");   // reader | timeline | auto
+  // Krijgt elk bericht in Lezen zijn EIGEN scherm? Aan betekent min-height:100svh
+  // per bericht: een kort bericht vult dan het scherm en je ziet het volgende
+  // pas na een snap. Uit is de stroom zoals hij nu is, bericht na bericht zonder
+  // lege ruimte. Stond eerst vast op AAN, is toen vast op UIT gezet omdat een
+  // kort bericht een halve pagina leegte gaf; nu is het een keuze.
+  ensureColumn('sites', 'reader_full_page', 'INTEGER DEFAULT 0');
   ensureColumn('sites', 'show_search',     'INTEGER DEFAULT 1');
   ensureColumn('sites', 'show_archive_link', 'INTEGER DEFAULT 1');
   // Gated feature (FEP-633c): may external (non-fediverse) embeds be shown to

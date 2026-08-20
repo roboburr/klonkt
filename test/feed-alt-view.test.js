@@ -101,4 +101,33 @@ test('onzin in het formulier valt terug op Lezen', async () => {
 // wacht server.close() tot in de eeuwigheid. Bij een geslaagde run valt dat niet
 // op; valt er een test om, dan hangt de hele suite. Zo overkwam het me bij de
 // controleproef -- de test die de fout moest aantonen, hing erop.
+// ── Elk bericht een eigen scherm in Lezen (Robin, 20-8) ─────────────────────
+// Zelfde reden als hierboven om door de ECHTE route te gaan: dit voegt een
+// kolom toe aan dezelfde UPDATE, en juist daar ging het eerder mis.
+test('de nieuwe kolom staat standaard uit', () => {
+  const s = siteVan('proef');
+  assert.equal(s.reader_full_page, 0, 'bestaande sites veranderen niet van gedrag');
+});
+
+test('aanzetten werkt, en de buren schuiven niet mee', async () => {
+  await post('/admin/sites/proef/save', {
+    title: 'Proef', feed_alt_view: 'timeline', feed_view_default: 'grid',
+    feed_view_switch: '1', reader_full_page: '1', show_search: '1', show_archive_link: '1',
+  });
+  const s = siteVan('proef');
+  assert.equal(s.reader_full_page, 1);
+  // De kolommen rond de nieuwe in de UPDATE. Zet je de kolom er wel bij en de
+  // waarde niet, dan schuift alles erna een plek op en is dit het eerste dat
+  // omvalt.
+  assert.equal(s.feed_alt_view, 'timeline', 'de kolom ervoor');
+  assert.equal(s.show_search, 1, 'de kolom erna');
+  assert.equal(s.show_archive_link, 1, 'en die daarachter');
+  assert.equal(s.feed_view_switch, 1);
+});
+
+test('en weer uit', async () => {
+  await post('/admin/sites/proef/save', { title: 'Proef', feed_alt_view: 'reader', feed_view_default: 'reader' });
+  assert.equal(siteVan('proef').reader_full_page, 0, 'een niet-aangevinkt vakje zet hem uit');
+});
+
 test.after(() => { server.closeAllConnections?.(); server.close(); });
