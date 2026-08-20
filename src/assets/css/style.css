@@ -2560,8 +2560,117 @@ body[data-reader-pages="1"] .feed-reader .read-post { min-height: 100svh; }
    Op desktop blijft het een keuze, want daar lees je in een kolom naast veel
    witruimte en is een doorlopende stroom vaak prettiger. */
 @media (hover: none) and (pointer: coarse) {
+    /* Op mobiel draait Lezen in paginamodus (body.is-paged), en die zet hieronder
+       een vaste hoogte. Deze regel is de terugval voor het moment vóór de module
+       geladen is, zodat de berichten niet eerst als losse stroom in beeld
+       springen. */
     .feed-reader .read-post { min-height: 100svh; }
+/* Geen native snap op mobiel: dat doet lenis/snap, met een instelbare vangzone
+       en duur. Twee snapsystemen op dezelfde scroller vechten. */
+    html:has(body.on-home[data-feed-view="reader"]) { scroll-snap-type: none; }
 }
+
+/* -------- PAGINAMODUS --------
+   Elk bericht is een paneel van precies een scherm dat ZELF scrollt; tussen
+   berichten ga je met knoppen. Daarmee doet het scrollgevoel er niet meer toe:
+   geen momentum om na te bouwen en geen snap die vangt.
+   De stroom zelf vangt geen vingers meer -- dat regelt lenis.stop() in
+   mod/read.js -- en data-lenis-prevent op het paneel houdt de scroll BINNEN een
+   bericht ongemoeid (die controle staat in Lenis vóór de gestopt-controle).
+   Geldt waar een bericht een eigen scherm heeft: op mobiel altijd, op desktop
+   als de site dat zo instelt. */
+body.is-paged .feed-reader .read-post {
+    height: 100svh;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;   /* raakt het einde, dan niet doorschuiven */
+    scroll-snap-align: none;
+    /* Ruimte voor de twee balken, zodat er nooit tekst onder een knop verdwijnt.
+       Het verloop laat een regel wel zacht wegvagen, maar wat je moet KUNNEN
+       lezen hoort er niet achter te komen -- vandaar padding en niet alleen die
+       fade. --read-balk staat hieronder bij .read-nav, zodat de twee niet uit
+       elkaar kunnen lopen. */
+    padding-top: calc(var(--read-balk) + .5rem);
+    padding-bottom: calc(var(--read-balk) + .5rem);
+    /* BOVENAAN beginnen, niet gecentreerd. Ik had de inhoud een ronde lang
+       verticaal gecentreerd om het gat onder een kort bericht te verdelen, maar
+       dan hangt zo'n bericht halverwege het scherm en begint niet elk paneel op
+       dezelfde plek -- dat leest onrustig. Robin ving het (20-8). Elk bericht
+       begint nu bovenaan, en de ruimte die overblijft valt onderaan. */
+}
+body.is-paged .feed-reader .read-anker { scroll-snap-align: none; }
+
+/* DE DYNAMIC ISLAND, en met opzet alleen op iOS (Robin, 20-8: "op android is het
+   een ander verhaal").
+   In paginamodus vult een bericht precies het scherm, dus de eerste regel komt
+   bovenaan -- en op een iPhone ligt daar de island of de notch overheen.
+   env(safe-area-inset-top) geeft daar de vrije ruimte; viewport-fit=cover staat
+   al in de viewport-meta, dus die waarde is echt.
+   De @supports-regel is de iOS-Safari-toets: -webkit-touch-callout bestaat alleen
+   daar. Op Android is env() vaak 0 of betekent het iets anders (camera-uitsparing,
+   statusbalk die al meegerekend is), en dan zou dit een gat bovenin maken dat er
+   niet hoort. Vandaar afgeschermd in plaats van env() overal toepassen.
+   De hoogte krimpt mee, anders duwt de padding het paneel groter dan het scherm
+   en krijg je alsnog scroll tussen de berichten. */
+@supports (-webkit-touch-callout: none) {
+    body.is-paged .feed-reader .read-post {
+        padding-top: calc(var(--read-balk) + .5rem + env(safe-area-inset-top, 0px));
+        height: calc(100svh - env(safe-area-inset-top, 0px));
+    }
+    /* De bovenbalk houdt zijn knop al vrij van de island via padding-top
+       hierboven; hier hoeft niets extra's meer. */
+}
+
+/* De knop onderaan een bericht: naar het volgende. */
+
+
+/* Omhoog en omlaag: twee balken, boven en onder, die BLIJVEN staan terwijl je in
+   een bericht scrolt (Robin, 20-8). Het verloop van paginakleur naar doorzichtig
+   laat de tekst eronderdoor wegvagen -- zonder dat zou een regel halverwege hard
+   achter de knop verdwijnen en oogt het als een afgeknipte pagina.
+   De BALK vangt geen aanrakingen (pointer-events: none), alleen de knop zelf --
+   anders zou een strook van 5rem boven- en onderaan je scroll opeten. */
+/* TWEE BALKEN over de volle breedte, boven en onder. Eerder waren dit losse
+   cirkels (te rommelig naast de tabbalk en de speler) en daarna onzichtbare
+   tikzones -- maar die werkten niet, omdat de onderste strook onder de
+   mini-speler en de tabbalk ligt en die de tik opvangen. Een balk met een eigen
+   z-index kan daar wel overheen.
+   Slank gehouden: ze eten hooguit 2.6rem aan elke kant, en het paneel houdt daar
+   al ruimte voor vrij. */
+:root { --read-balk: 2.6rem; }
+.read-bar {
+    position: fixed; left: 0; right: 0; z-index: 1060;   /* boven tabbalk (1050) */
+    display: flex; align-items: center;
+    /* Pijlen LINKS in de balk, niet gecentreerd (Robin, 20-8). */
+    justify-content: flex-start;
+    padding-left: max(1.1rem, env(safe-area-inset-left, 0px));
+    box-sizing: border-box;
+    height: var(--read-balk);
+    border: 0;
+    border-top: 1px solid transparent;
+    background: color-mix(in srgb, var(--paper) 90%, var(--ink));
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    color: var(--ink);
+    cursor: pointer;
+    transition: opacity .15s ease;
+}
+.read-bar--top {
+    top: 0;
+    height: calc(var(--read-balk) + env(safe-area-inset-top, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
+    border-bottom: 1px solid color-mix(in srgb, var(--ink) 14%, transparent);
+}
+.read-bar--bottom {
+    /* De waarde komt uit mod/read.js: die meet hoe hoog de tabbalk en de
+       mini-speler werkelijk staan. Geraden rem-waarden lieten hem zweven -- een
+       kier boven de speler, of er half achter. Dit is de terugval voor de eerste
+       frame en voor als de module niet laadt. */
+    bottom: 0;
+    border-top: 1px solid color-mix(in srgb, var(--ink) 14%, transparent);
+}
+.read-bar:active { background: color-mix(in srgb, var(--paper) 78%, var(--ink)); }
+.read-bar[hidden], body:not(.is-paged) .read-bar { display: none; }
 
 /* Een lijn tussen twee berichten: zonder grens is een stroom een lange brij. */
 .feed-reader .read-post + .read-post { border-top: 1px solid color-mix(in srgb, currentColor 12%, transparent); }

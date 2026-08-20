@@ -30,6 +30,143 @@
  * scrollen, en cmd/ctrl-klik hoort de browser zelf af te handelen.
  */
 
+// ── Paginamodus ─────────────────────────────────────────────────────────────
+/**
+ * Elk bericht een paneel dat zelf scrollt; tussen berichten ga je met knoppen.
+ *
+ * Robins voorstel (20-8) nadat het namaken van iOS-momentum niet lukte, en dat
+ * is de winst: in dit model DOET het scrollgevoel er niet toe. Er is geen
+ * momentum om na te bouwen en geen snap die vangt.
+ *
+ * Hoe het werkt:
+ *  - lenis.stop() zet het scrollen van de STROOM stil. Lenis vangt dan wiel en
+ *    vinger af (hij preventDefault't in onVirtualScroll), dus je kunt niet meer
+ *    tussen berichten door scrollen.
+ *  - data-lenis-prevent op elk paneel houdt de scroll BINNEN een bericht
+ *    ongemoeid. Dat werkt ook terwijl Lenis gestopt is, want die controle staat
+ *    in zijn bron vóór de gestopt-controle. Nagekeken in de dist, niet gehoopt.
+ *  - Bewegen tussen panelen gaat met lenis.scrollTo(..., { force: true }), want
+ *    force is precies de uitzondering die een gestopte Lenis toch laat scrollen.
+ *
+ * Geldt waar een bericht een eigen scherm heeft: op mobiel altijd, op desktop
+ * als de site dat instelt (reader_full_page). Buiten die modus verandert er
+ * niets -- dan is Lenis gewoon aan en scrol je vrij.
+ */
+/**
+ * PAGINAMODUS STAAT UIT -- maar de code blijft staan (Robin, 20-8: "weghalen
+ * maar bewaren, voor als ik het later weer wil").
+ *
+ * Wat het is: elk bericht een paneel van een scherm dat zelf scrolt, met twee
+ * balken om ertussen te navigeren en de stroomscroll vastgezet. Gebouwd omdat
+ * het namaken van iOS-momentum niet lukte; in dit model doet het scrollgevoel er
+ * namelijk niet toe. Mobiel is nu terug op systeemscroll met snap, en dat is wat
+ * er ook stond voordat we dit probeerden.
+ *
+ * Aanzetten: deze constante op true. Dan komen de balken terug (CSS hangt aan
+ * body.is-paged), stopt Lenis de stroomscroll en scrollen de panelen zelf.
+ */
+const PAGINAMODUS = false;
+
+function paginaModus() {
+  return PAGINAMODUS && OP_TOUCH.matches && document.body.dataset.feedView === 'reader';
+}
+
+function panelen() {
+  return [...document.querySelectorAll('.feed-reader .read-post')];
+}
+
+/** Welk paneel vult nu het scherm? Het eerste waarvan de bovenkant niet voorbij is. */
+function huidigIndex() {
+  const P = panelen();
+  for (let i = 0; i < P.length; i++) {
+    if (P[i].getBoundingClientRect().top > 8) return Math.max(0, i - 1);
+  }
+  return Math.max(0, P.length - 1);
+}
+
+function gaNaar(i) {
+  const P = panelen();
+  const doel = P[Math.max(0, Math.min(P.length - 1, i))];
+  if (!doel) return;
+  if (lenis) lenis.scrollTo(doel, { force: true });
+  else doel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  setTimeout(zetBalken, 80);
+}
+
+/**
+ * Omhoog vanaf het EERSTE bericht brengt je naar de header.
+ *
+ * In paginamodus staat Lenis stil, dus de pagina scrolt niet meer met je vinger
+ * -- en dan is alles boven het eerste bericht onbereikbaar. Robin liep daar
+ * tegenaan (20-8): "ik kan niet meer terug scrollen naar de header". De
+ * omhoog-knop is daar de enige weg naartoe, dus die krijgt er een trede bij.
+ */
+function gaOmhoog() {
+  const i = huidigIndex();
+  if (i > 0) { gaNaar(i - 1); return; }
+  if (lenis) lenis.scrollTo(0, { force: true });
+  else window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/**
+ * Welke balk hoort er te staan? Bovenaan de pagina is er niets boven je, dus dan
+ * geen bovenbalk. Buiten paginamodus staan ze allebei niet -- de CSS verbergt ze
+ * daar al, maar hidden houdt ze ook uit de toetsenbordvolgorde.
+ */
+function zetBalken() {
+  const boven = document.getElementById('read-prev');
+  const onder = document.getElementById('read-next-nav');
+  const aan = paginaModus();
+  // De bovenbalk hoort NOOIT over de header te liggen. Hij verscheen al zodra je
+  // een paar pixels scrolde, en dekte dan de avatar, de omschrijving en de
+  // weergaveknoppen af (Robins schermafbeelding, 20-8). Nu komt hij pas als het
+  // eerste bericht de bovenrand van het scherm heeft bereikt -- dan is de header
+  // voorbij en is er ook echt iets om naar terug te gaan.
+  const eerste = panelen()[0];
+  const headerNogInBeeld = eerste ? eerste.getBoundingClientRect().top > 4 : true;
+  if (boven) boven.hidden = !aan || headerNogInBeeld;
+  if (onder) onder.hidden = !aan;
+  if (onder && aan) onder.style.bottom = onderChroom() + 'px';
+}
+
+/**
+ * Hoe hoog staat de onderrand van het scherm werkelijk vol?
+ *
+ * De onderbalk stond op een geraden 4.75rem boven de onderkant, en dan zweeft
+ * hij: soms een kier boven de speler, soms er half achter. De tabbalk en de
+ * mini-speler hebben allebei een eigen hoogte, ze stapelen op mobiel, en de
+ * speler komt en gaat. Dus meten in plaats van gokken: hoe ver ligt de BOVENKANT
+ * van het hoogste vaste element boven de onderrand van het venster?
+ */
+function onderChroom() {
+  // .bottom-tab-fab staat erbij omdat de Write-knop BOVEN de tabbalk uitsteekt:
+  // meet je alleen de balk, dan legt onze balk zich over die knop heen (Robins
+  // schermafbeelding, 20-8).
+  const kandidaten = ['.bottom-tab', '.bottom-tab-fab', '#pcms-audio-player'];
+  let hoogste = 0;
+  kandidaten.forEach((sel) => {
+    const el = document.querySelector(sel);
+    if (!el) return;
+    const st = getComputedStyle(el);
+    if (st.display === 'none' || st.visibility === 'hidden') return;
+    const r = el.getBoundingClientRect();
+    if (r.height <= 0) return;
+    hoogste = Math.max(hoogste, window.innerHeight - r.top);
+  });
+  return Math.round(hoogste);
+}
+
+function pasPaginaModusToe() {
+  const aan = paginaModus();
+  document.body.classList.toggle('is-paged', aan);
+  panelen().forEach((a) => {
+    if (aan) a.setAttribute('data-lenis-prevent', '');
+    else a.removeAttribute('data-lenis-prevent');
+  });
+  if (lenis) { if (aan) lenis.stop(); else lenis.start(); }
+  zetBalken();
+}
+
 /**
  * Terug naar boven, en bewust NIET window.scrollTo(0).
  *
@@ -72,6 +209,7 @@ function onTap(e) {
   if (Math.abs(e.clientX - tapX) > 10 || Math.abs(e.clientY - tapY) > 10) return;
   const sel = window.getSelection && window.getSelection();
   if (sel && String(sel).trim()) return;
+
   const slug = art.dataset.slug;
   if (!slug) return;
   location.href = (art.dataset.base || '') + '/' + encodeURIComponent(slug);
@@ -114,6 +252,7 @@ function onTap(e) {
 const RUST_MS = 120;
 
 let bezig = false;          // loopt er een gebaar of een uitloop?
+let ooitGescrold = false;   // snappen begint UIT, zie zetSnappen()
 let rustTimer = null;
 
 /**
@@ -160,12 +299,33 @@ let lenis = null;
 let snap = null;
 
 async function startLenis() {
+  // DESKTOP EN TOUCH ALLEBEI. Er heeft hier een tijd gestaan dat mobiel terug was
+  // op de systeemscroll; dat klopte niet meer met de regel hieronder, die
+  // syncTouch juist AANzet op touch. Reden dat Lenis ook op de telefoon meedraait:
+  // zijn snap heeft zijn scroll-gebeurtenissen nodig om te kunnen timen.
   if (lenis || !(OP_DESKTOP.matches || OP_TOUCH.matches)) return;
   const [L, S] = await Promise.all([
     import(`/assets/vendor/lenis.mjs?v=${VENDOR_V}`),
     import(`/assets/vendor/lenis-snap.mjs?v=${VENDOR_V}`),
   ]);
   lenis = new L.default({
+    /**
+     * Wat Lenis MET RUST LAAT.
+     *
+     * In paginamodus staat Lenis stil en scrolt alleen het paneel van het
+     * bericht zelf. Dat regelde ik eerst met een data-lenis-prevent-attribuut
+     * dat de module op elk paneel zette -- maar dan hangt het scrollen af van of
+     * dat attribuut op tijd en op elk (ook later bijgeladen) paneel staat, en
+     * Robin kon binnen een lang bericht niet scrollen.
+     *
+     * Deze functie stelt dezelfde vraag zonder die afhankelijkheid: is dit een
+     * bericht-paneel? Dan bemoeit Lenis zich er niet mee en scrolt de browser
+     * het zelf -- wat op een telefoon precies is wat je wilt, want dat is de
+     * systeemscroll.
+     */
+    prevent: (node) => !!(node && node.classList
+      && node.classList.contains('read-post')
+      && document.body.classList.contains('is-paged')),
     // Lenis tekent de scrollbeweging zelf, maar STEVIG GEDEMPT (lerp 0.2 in
     // plaats van de standaard 0.1). Reden: een muiswiel scrollt in schokken en
     // heeft die demping nodig; een Mac-trackpad heeft zijn EIGEN momentum en
@@ -178,55 +338,33 @@ async function startLenis() {
     lerp: 0.2,
     // Alleen op touch overneemt hij het vingerscrollen; op desktop hoeft dat niet.
     syncTouch: OP_TOUCH.matches,
-    // TOUCH-SPECIFIEK, want de standaardwaarden voelen op een telefoon traag.
+    // Twee touch-knoppen, en ze doen echt iets anders. Lenis rekent bij het
+    // LOSLATEN eenmalig een doel uit -- afstand = snelheid^touchInertiaExponent
+    // -- en kruipt daar dan naartoe met syncTouchLerp.
     //
-    // Waar dat zit is precies aan te wijzen. In Lenis staat
-    // `lerp: d ? syncTouchLerp : 1`, waarbij d "de vinger is net losgelaten"
-    // betekent. Tijdens het SLEPEN is de lerp dus 1 -- de inhoud volgt je vinger
-    // exact, net als iOS, en daar is niets mis mee. De traagheid zit in de glijder
-    // NA het loslaten: die gebruikt syncTouchLerp, en dat staat standaard op
-    // 0.075. Dat dempt zo langzaam uit dat de pagina nog seconden naijlt.
+    //   touchInertiaExponent  hoe VER de flick draagt   (standaard 1.7)
+    //   syncTouchLerp         hoe hard hij REMT         (standaard 0.075)
     //
-    // TWEE KNOPPEN, en ze doen iets anders -- dat verwarde ik eerst:
+    // Let op: `touchInertiaMultiplier` bestaat NIET in 1.3.26. Lenis slikt
+    // onbekende opties zonder fout, dus zo'n regel lijkt te werken en doet niets.
+    // Controleer een optienaam in src/assets/vendor/lenis.mjs voor je hem zet.
     //
-    //   touchInertiaMultiplier   hoe VER een veeg je brengt
-    //   syncTouchLerp            hoe snel de glijder UITDEMPT
-    //
-    // Eerste ronde zette ik de multiplier op 25 (korter dan de standaard 35),
-    // omdat ik "te traag" las als "hij ijlt te lang na". Robin bedoelde het
-    // omgekeerde: een veeg moet je VERDER brengen, zoals op iOS -- daar draagt
-    // een flick een heel eind. Dus juist omhoog, ruim boven de standaard.
-    //
-    // De lerp gaat mee terug naar 0.1: tussen de trage standaard (0.075, dat
-    // seconden naijlt) en de kordate 0.15 in. Met een langere weg af te leggen
-    // mag de demping wat zachter, anders komt hij te abrupt tot stilstand.
-    // Waar we na een paar rondes proberen op uitkwamen, met de betekenis erbij
-    // omdat de tweede knop contra-intuitief is:
-    //
-    //   touchInertiaMultiplier 70   hoe VER een veeg draagt (standaard 35).
-    //                               25 en 45 waren allebei te kort.
-    //   syncTouchLerp 0.05          hoe snel hij zijn doel BENADERT. Hoger = eerder
-    //                               aankomen en dus abrupt stoppen; LAGER = langer
-    //                               onderweg blijven. Robin: "te stroef bij het
-    //                               loslaten, mag echt een tijdje doorscrollen".
-    //                               Dus omlaag, niet omhoog -- 0.15 en 0.1 kapten
-    //                               de uitloop af.
-    // syncTouchLerp 0.25: VIER KEER de vorige waarde, en ruim boven de standaard
-    // van 0.075. Ik heb hem vier rondes lang de verkeerde kant op gedraaid omdat
-    // ik "stroef" las als "hij stopt te vroeg" -- maar het betekende STROPERIG.
-    // Een lage lerp benadert het doel langzaam en geeft dus een kruipende
-    // uitloop; hoog betekent er vlot naartoe. Met de multiplier op 70 blijft de
-    // AFSTAND groot, dus je gaat ver EN snel: dat is hoe een flick op iOS voelt.
-    //
-    // Kort samengevat, want dit is twee keer misgegaan:
-    //   syncTouchLerp hoger  = sneller weg, korter narollen
-    //   multiplier hoger     = verder komen
-    ...(OP_TOUCH.matches ? { syncTouchLerp: 0.25, touchInertiaMultiplier: 70 } : {}),
+    // Robin wilde langer en sneller uitrollen zonder remgevoel, dus de exponent
+    // gaat omhoog (een stevige flick draagt daarmee ruim vier tot zes keer zo
+    // ver) en de lerp gaat juist boven de standaard: hij legt die afstand vlot
+    // af in plaats van er stroperig naartoe te kruipen.
+    ...(OP_TOUCH.matches ? { syncTouchLerp: 0.09, touchInertiaExponent: 2.2 } : {}),
     autoRaf: true,
   });
   snap = new S.default(lenis, {
     type: 'proximity',
-    distanceThreshold: '12%',   // de vangzone, hier WEL instelbaar
+    // DE VANGZONE. Gemeten op dev: de voet van een bericht (de link naar de
+    // reacties) staat 138 tot 472 pixels boven de bovenkant van het volgende.
+    // Met de oude 12% was de zone 86 pixels op een venster van 720, dus hij hapte
+    // pas ruim onder die voet toe. 55% is ~400 pixels: de zone begint nu rond de
+    // voet, wat Robin vroeg (20-8) -- eerder al snappen, boven de reacties.
+    // Wil je het nog eerder, dan is dit het enige getal dat je hoeft te draaien.
+    distanceThreshold: '55%',
     // Hoe lang na de laatste scrollbeweging hij mag vangen. De standaard is 500
     // en dat voelt als te laat. Op touch nog korter dan op desktop, want daar
     // eindigt een veeg in een lange, trage staart -- en juist dan wil je dat de
@@ -241,7 +379,9 @@ async function startLenis() {
     // greep op het moment van loslaten en knipte de veeg af -- wat aanvoelt als
     // "stroef bij het loslaten", en het werd er dan ook erger van. 200ms laat de
     // uitloop eerst zijn werk doen.
-    debounce: OP_TOUCH.matches ? 200 : 60,
+    // Met een iOS-achtige uitloop duurt de staart lang; te kort wachten laat de
+    // snap midden in de vlucht ingrijpen. 150ms laat hem uitrollen en vangt dan.
+    debounce: OP_TOUCH.matches ? 150 : 60,
     // Op touch korter: een telefoon vraagt om directer antwoord dan een muis, en
     // de snap komt daar aan het eind van een lange uitloop -- dan mag hij kort.
     duration: OP_TOUCH.matches ? 0.18 : 0.4,
@@ -255,6 +395,35 @@ async function startLenis() {
   // zijn bovenkant is niet te bereiken, er zit te weinig pagina onder.
   const berichten = [...document.querySelectorAll('.feed-reader .read-post')];
   berichten.slice(0, -1).forEach((a) => snap.addElement(a, { align: 'start' }));
+
+  // ALLEEN VOORUIT VANGEN. Dit hoort bij de ruime zone hierboven en is niet
+  // optioneel: lenis/snap kiest het DICHTSTBIJZIJNDE punt en zijn drempel geldt
+  // naar twee kanten. Scroll je een lang bericht in en stop je 300 pixels onder
+  // de bovenkant, dan is die bovenkant het dichtstbij -- en met een zone van 400
+  // wordt je teruggetrokken. Dat is precies de klacht "ik kan niet scrollen
+  // binnen een lang bericht", en met de oude zone van 86 pixels viel het alleen
+  // niet op.
+  //
+  // Dus: een doel ACHTER je slaan we over. Ligt er een punt voor je binnen de
+  // zone, dan gaan we daarheen; anders gebeurt er niets en scrol je vrij door.
+  // Zo verruimt de zone alleen de kant waar hij bedoeld is.
+  //
+  // Waarom niet gewoon de drempel? Omdat lenis/snap alleen de dichtstbijzijnde
+  // kandidaat beoordeelt: zonder deze omleiding houdt de zone vooruit op bij de
+  // helft van de afstand tussen twee berichten, hoe groot je de drempel ook zet.
+  const echtGaNaar = snap.goTo.bind(snap);
+  snap.goTo = (index) => {
+    const punten = snap.computeSnaps();   // zelfde volgorde als goTo intern gebruikt
+    const nu = lenis.scroll;
+    const doel = punten[index];
+    if (doel && doel.value > nu + 2) { echtGaNaar(index); return; }
+    let vooruit = -1;
+    punten.forEach((punt, i) => {
+      if (punt.value > nu + 2 && (vooruit < 0 || punt.value < punten[vooruit].value)) vooruit = i;
+    });
+    if (vooruit < 0) return;
+    if (punten[vooruit].value - nu <= snap.distanceThreshold) echtGaNaar(vooruit);
+  };
   // Native snappen uit: twee mechanismen op dezelfde scroller vechten.
   document.documentElement.style.scrollSnapType = 'none';
 }
@@ -271,6 +440,10 @@ function stopLenis() {
  */
 function zetSnappen(aan) {
   if (snap) { if (aan) snap.start(); else snap.stop(); return; }
+  // Zonder Lenis (mobiel) zetten we de CSS-eigenschap om. Hij staat bij het
+  // laden UIT -- dat is de standaardstand van deze variabele -- zodat de browser
+  // niet meteen naar het eerste bericht springt en de header wegvalt. Pas je
+  // eerste gebaar naar beneden zet hem aan.
   const el = document.documentElement;
   const wil = aan ? '' : 'none';
   if (el.style.scrollSnapType !== wil) el.style.scrollSnapType = wil;
@@ -313,6 +486,22 @@ let knop = null;
 let opScroll = null;
 
 export function init() {
+  // EERST OPRUIMEN, en pas daarna terugvallen als er geen leesstroom is.
+  //
+  // Dit stond andersom, en dat brak het scrollen op de HELE site: navigeerde je
+  // van Lezen naar het beheer, dan viel init() bij de ontbrekende leesstroom
+  // meteen terug -- en bleef Lenis leven EN gestopt (lenis.stop() vangt wiel en
+  // vinger af). Daarna scrolde niets meer, ook niet op pagina's die met Lezen
+  // niets te maken hebben. Robins melding (20-8): "scrollen werkt nu nergens ook
+  // niet in admin panels".
+  //
+  // Opruimen hoort dus bij het VERLATEN van de weergave, niet bij het opzetten
+  // ervan. init() draait bij elke paginawissel, dus dit is de plek.
+  stopLenis();
+  document.body.classList.remove('is-paged');
+  document.querySelectorAll('[data-lenis-prevent].read-post')
+    .forEach((a) => a.removeAttribute('data-lenis-prevent'));
+
   const s = document.getElementById('read-stream');
   if (!s) return;
   // Op de stroom, niet per artikel: wat "meer laden" erbij zet doet vanzelf mee.
@@ -325,11 +514,12 @@ export function init() {
 
   // De knop staat in de HTML, zodat hij er ook is zonder deze module -- dan doet
   // hij niets, maar hij springt niet in beeld bij het laden.
-  knop = document.getElementById('read-top');
-  if (knop) {
-    knop.onclick = naarBoven;
-    toonKnop(knop);
-  }
+  // De terug-naar-boven-knop staat er tijdelijk uit (Robin, 20-8) -- in
+  // paginamodus doet de bovenbalk dat werk al. De code blijft staan zodat hij
+  // met een regel terug is.
+  knop = null;
+  const oudeKnop = document.getElementById('read-top');
+  if (oudeKnop) oudeKnop.hidden = true;
 
   if (opScroll) {
     window.removeEventListener('scroll', opScroll);
@@ -342,7 +532,11 @@ export function init() {
   }
   // Elke scroll -- van een vinger of van de browser zelf -- houdt het gebaar
   // levend; pas als het stil blijft mag een nieuwe richting gelden.
-  opScroll = () => { if (knop) toonKnop(knop); planRust(); };
+  opScroll = () => {
+    if (knop) toonKnop(knop);
+    planRust();
+    if (document.body.classList.contains('is-paged')) zetBalken();
+  };
   window.addEventListener('scroll', opScroll, { passive: true });
   window.addEventListener('scrollend', rustNu);
   window.addEventListener('resize', opScroll, { passive: true });
@@ -351,11 +545,18 @@ export function init() {
   window.addEventListener('touchmove', opRaakBeweeg, { passive: true });
   window.addEventListener('keydown', opToets);
 
+  const balkBoven = document.getElementById('read-prev');
+  const balkOnder = document.getElementById('read-next-nav');
+  if (balkBoven) balkBoven.onclick = gaOmhoog;
+  if (balkOnder) balkOnder.onclick = () => gaNaar(huidigIndex() + 1);
+
   // Alleen in de leesweergave, en alleen op desktop. Bij elke init() opnieuw
   // beoordelen: van Grid naar Lezen schakelen hoort hem aan te zetten, en
   // wegnavigeren hoort hem op te ruimen.
-  stopLenis();
-  if (document.body.dataset.feedView === 'reader') startLenis();
+  if (document.body.dataset.feedView === 'reader') startLenis().then(pasPaginaModusToe);
+  else pasPaginaModusToe();
+
+
 }
 
 export default { init };
