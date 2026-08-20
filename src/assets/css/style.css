@@ -2461,12 +2461,12 @@ body.on-home[data-feed-view="reader"]:has(.feed-reader) .article-footer {
    in een bericht dat langer is dan het scherm moet je rustig door kunnen lezen. */
 html:has(body.on-home[data-feed-view="reader"]) {
     scroll-snap-type: y proximity;
-    /* Vloeiend, niet in een klap. Zonder dit springt een snap er in EEN frame
-       naartoe en voelt het als een hik in plaats van als meegeven -- Barts
-       melding (20-8). Geldt ook voor de terug-naar-boven-knop en voor een
-       ankersprong, en dat is precies wat je wilt.
-       Uitgezet bij prefers-reduced-motion, onderaan dit blok. */
-    scroll-behavior: smooth;
+    /* GEEN scroll-behavior:smooth hier. Dat maakte elke beweging op deze
+       scroller traag, ook het snappen zelf -- en een snap moet vlot zijn
+       (Robin, 20-8: "vlot maar geanimeerd, mag niet te lang duren"). De browser
+       animeert een snap uit zichzelf al, en korter dan zijn smooth-scroll.
+       De terug-naar-boven-knop vraagt zijn animatie expliciet aan in
+       mod/read.js, dus die blijft vloeiend. */
 }
 /* En de browser niet óók laten compenseren als Load more er berichten bij zet:
    Chrome en Firefox schuiven bij invoegen zelf mee (scroll anchoring), en dat

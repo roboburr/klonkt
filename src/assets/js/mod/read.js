@@ -1,116 +1,41 @@
 /**
- * De leesweergave: tikken op een bericht opent dat bericht.
+ * De leesweergave: tikken op een bericht opent dat bericht, en een knop om terug
+ * naar boven te gaan.
  *
  * Dit was een heel scherm met een eigen route, dat zijn buren zelf ophaalde, de
  * scrollpositie corrigeerde bij invoegen en de balken wegschoof. Dat is allemaal
- * weg, en dat is winst: Lezen is nu een DERDE WEERGAVE van de feed
+ * weg, en dat is winst: Lezen is nu een WEERGAVE van de feed
  * (body[data-feed-view="reader"]), naast Tijdlijn en Grid. De feed levert de
  * berichten al, "meer laden" vult al aan, en het snappen naar berichtgrenzen
- * doet CSS. Wat overblijft is dit ene gemak.
+ * doet CSS.
+ *
+ * HET SNAPPEN STAAT HIER MET OPZET NIET IN. Ik heb dat een ronde lang wel
+ * geprobeerd -- richting bijhouden, een vangzone uitrekenen, per scroll-event
+ * het snappunt verzetten -- en dat is de verkeerde laag. Robins bezwaar (20-8):
+ * "scroll-snap op het element is iets anders dan touch events,
+ * requestAnimationFrame etc. dan gaan we te veel van de view doen." Klopt, en
+ * het vocht ook met de browser: de scroll-events bevatten OOK de bewegingen van
+ * zijn eigen snap-animatie, dus de richting die je eruit afleidt is niet die van
+ * de gebruiker.
+ *
+ * Wat er nodig was, was een regel minder in de CSS en niet honderd erbij hier:
+ * zie style.css bij .feed-reader .read-post.
  *
  * De titel en de voetlink in read-article.ejs zijn echte <a>'s en doen het werk
- * voor toetsenbord en schermlezer; dit hier is er voor een duim.
+ * voor toetsenbord en schermlezer; de tik hieronder is er voor een duim.
  *
- * Vier uitzonderingen, want een tik die je niet bedoelde is erger dan geen tik:
- * iets dat zelf al een doel heeft (link, knop, veld) houdt zijn eigen werking,
- * een geselecteerde tekst is geen tik, een verschoven vinger is scrollen, en
- * cmd/ctrl-klik hoort de browser zelf af te handelen.
+ * Vier uitzonderingen op die tik, want een tik die je niet bedoelde is erger dan
+ * geen tik: iets dat zelf al een doel heeft (link, knop, veld) houdt zijn eigen
+ * werking, een geselecteerde tekst is geen tik, een verschoven vinger is
+ * scrollen, en cmd/ctrl-klik hoort de browser zelf af te handelen.
  */
-
-/**
- * Snappen alleen waar het HELPT.
- *
- * Elk bericht heeft scroll-snap-align:start en min-height:100svh. Voor een kort
- * bericht is dat precies goed: het vult het scherm en de volgende klikt netjes
- * op zijn plek. Voor een LANG bericht is het een val -- je leest naar beneden en
- * de browser trekt je terug naar de bovenrand, waardoor het scrollen lijkt te
- * stoppen terwijl je gewoon doorscrollt. Barts melding (20-8).
- *
- * "Past dit bericht op het scherm?" is een vraag over gemeten hoogte, en die kan
- * CSS niet stellen -- vandaar hier. Past het niet, dan gaat de snap eraf en lees
- * je ononderbroken door tot het volgende bericht wel weer een snappunt is.
- *
- * De marge van 4px vangt afrondingsverschillen tussen svh en de echte hoogte;
- * zonder die speling wipt een bericht dat toevallig exact past heen en weer.
- */
-/**
- * Wanneer is de bovenkant van een bericht een snappunt?
- *
- * Alleen zolang je er nog NIET voorbij bent. Zit de bovenrand op of onder de
- * bovenkant van het scherm, dan kom je er nog aan en mag hij vangen. Is hij
- * eenmaal voorbij -- je leest in het bericht -- dan gaat de snap eraf.
- *
- * Robins formulering (20-8), en die is preciezer dan wat ik er eerst van maakte:
- * "in de post zelf mag er nooit gesnapt worden, ook niet bovenin; enkel de
- * onderkant mag snappen naar de volgende post, dus daar de bovenkant van".
- * Precies dat: de onderkant van bericht N is de bovenkant van N+1, en die is een
- * doelwit omdat je hem nadert. De bovenkant van het bericht waar je IN zit is
- * dat niet meer, want daar ben je voorbij.
- *
- * Zonder deze regel trok proximity je terug naar de bovenrand zodra je een paar
- * regels verder scrolde, en leek het of het scrollen vastliep.
- *
- * De 4px is speling voor afronding: tijdens het snappen zelf loopt top naar 0 en
- * mag hij niet halverwege afhaken.
- */
-const SPELING = 4;
-
-/**
- * En snappen doet alleen mee op de weg NAAR BENEDEN (Robin, 20-8).
- *
- * Omhoog scroll je om iets terug te zoeken, en dan is elke vangst een hindernis:
- * je wilt zelf bepalen waar je stopt. Omlaag lees je door, en dan helpt de
- * grens juist. Dus bij omhoog gaat de snap er overal af.
- *
- * De drempel van 2px is er tegen richtingsruis: tijdens een vloeiende snap
- * schommelt scrollY een fractie, en zonder speling zou de richting dan heen en
- * weer klappen -- precies midden in de beweging die net soepel moest zijn.
- */
-let laatsteY = 0;
-let omlaag = true;
-
-/**
- * Hoe DICHT bij de grens hij vangt: de onderste VANGZONE pixels van een bericht.
- *
- * In pixels, en bewust niet inhoudelijk. Ik probeerde het aan de voet van het
- * bericht te hangen ("ben je de reacties voorbij"), maar bij een KORT bericht
- * gaat dat mis: min-height rekt zo'n bericht tot een vol scherm, dus de voet
- * staat middenin met lege ruimte eronder en de zone begint op een willekeurige
- * plek. Robin ving dat (20-8) voordat het uitgerold stond.
- *
- * Eerst stond dit op 20px en dat was te krap om ooit te vangen. Honderdvijftig
- * is ruwweg het laatste stukje van een bericht: kom je daarbinnen tot stilstand,
- * dan trekt hij de streep recht naar de bovenkant van het volgende. Stop je
- * eerder, dan blijf je gewoon staan.
- *
- * Eén getal, dus makkelijk bij te stellen als het onder een duim anders voelt.
- */
-const VANGZONE = 150;
-
-function ijkEen(art) {
-  const top = art.getBoundingClientRect().top;
-  // Omhoog: nooit. Omlaag: alleen een grens die je NADERT en die binnen de zone
-  // ligt. De ondergrens blijft krap (SPELING): eenmaal voorbij wordt er niet
-  // teruggetrokken, ook niet over een paar pixels.
-  const wil = (!omlaag || top < -SPELING || top > VANGZONE) ? 'none' : '';
-  // Alleen aanraken als het echt verandert: elke stijlwijziging tijdens een
-  // vloeiende scroll is een kans op een hik, zeker op iOS.
-  if (art.style.scrollSnapAlign !== wil) art.style.scrollSnapAlign = wil;
-}
-
-function ijkSnappen() {
-  const y = window.scrollY;
-  if (Math.abs(y - laatsteY) > 2) omlaag = y > laatsteY;
-  laatsteY = y;
-  document.querySelectorAll('.feed-reader .read-post').forEach(ijkEen);
-}
 
 /**
  * Terug naar boven, en bewust NIET window.scrollTo(0).
  *
  * In een stroom wil je terug naar het BEGIN VAN DIT BERICHT als je halverwege een
  * lang stuk zit, en pas daarna naar de kop van de pagina. Twee keer drukken doet
- * dus twee verschillende dingen -- dat scheelt op mobiel een halve minuut vegen.
+ * dus twee verschillende dingen -- dat scheelt op mobiel een hoop vegen.
  */
 function naarBoven() {
   const zacht = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -152,6 +77,84 @@ function onTap(e) {
   location.href = (art.dataset.base || '') + '/' + encodeURIComponent(slug);
 }
 
+/**
+ * Omhoog scrollen blijft VRIJ (Robin, 20-8).
+ *
+ * Snappen hoort bij doorlezen; ga je terug, dan zoek je iets en bepaal je zelf
+ * waar je stopt. CSS kent geen richtingsgevoelig snappen, dus dat ene stukje
+ * moet hier -- maar dan ook niet meer dan dat: we zetten de CSS-functie aan of
+ * uit op de scroller. Geen vangzones, geen snappunten per bericht, geen
+ * scrollpositie-boekhouding.
+ *
+ * DE RICHTING KOMT UIT DE INVOER, niet uit scroll-events. Gemeten op dev: die
+ * events bevatten ook de bewegingen van de browser zelf -- zijn snap-animatie en
+ * de rubber-band -- en die gaan soms omhoog. Wie daaruit de richting afleidt,
+ * leest de browser en niet de gebruiker.
+ *
+ * EN ER WORDT ALLEEN GESCHAKELD BIJ STILSTAND. Dat is de tweede les, en die
+ * kostte een ronde. Eerst zette dit de schakelaar om bij ELK wiel-event en ELKE
+ * vingerbeweging, dus binnen een veeg klapte hij meerdere keren heen en weer.
+ * De browser raadpleegt scroll-snap-type alleen aan het eind van een gebaar of
+ * van de uitloop, en of je daar net vóór of net ná zit bepaalt dan of er
+ * gesnapt wordt. Gemeten (Robins melding "soms triggert het terwijl we nog aan
+ * het doorscrollen zijn"):
+ *
+ *     snappen UIT, beweging naar 1459 loopt
+ *     -> halverwege snappen AAN gezet
+ *     -> eindigt op 1459, NIET op een berichtgrens
+ *
+ * Bij stilstand omzetten is wel onschuldig: dezelfde proef gaf 0px sprong.
+ * Vandaar: richting bepalen bij het BEGIN van een gebaar, en daarna niets meer
+ * aanraken tot de scroll echt stil is.
+ *
+ * Wat je daarvoor inlevert: binnen een veeg ligt de stand vast. Draai je
+ * halverwege om zonder los te laten, dan geldt de stand van dat gebaar nog. Een
+ * besluit per gebaar is voorspelbaar; het omklappen halverwege was het probleem.
+ */
+const RUST_MS = 120;
+
+let bezig = false;          // loopt er een gebaar of een uitloop?
+let rustTimer = null;
+
+function zetSnappen(aan) {
+  const el = document.documentElement;
+  const wil = aan ? '' : 'none';
+  if (el.style.scrollSnapType !== wil) el.style.scrollSnapType = wil;
+}
+
+/** Een richting geldt alleen als er NIETS beweegt. Anders negeren we hem. */
+function nieuwGebaar(naarBeneden) {
+  if (bezig) return;
+  bezig = true;
+  zetSnappen(naarBeneden);
+}
+
+/**
+ * Het gebaar is pas voorbij als de SCROLL stil is, niet als de vinger loslaat:
+ * op iOS loopt de uitloop daarna nog door. `scrollend` zegt dat precies, maar
+ * bestaat niet overal (Chrome 114+, Safari 17+) -- vandaar ook de timer.
+ */
+function rustNu() { bezig = false; }
+function planRust() {
+  clearTimeout(rustTimer);
+  rustTimer = setTimeout(rustNu, RUST_MS);
+}
+
+function opWiel(e) { if (Math.abs(e.deltaY) > 1) nieuwGebaar(e.deltaY > 0); }
+let raakY = 0;
+function opRaakStart(e) { if (e.touches && e.touches[0]) raakY = e.touches[0].clientY; }
+function opRaakBeweeg(e) {
+  if (!e.touches || !e.touches[0]) return;
+  const y = e.touches[0].clientY;
+  // Vinger omhoog = inhoud omlaag. Drie pixels speling tegen de trilling van een
+  // duim die stilstaat.
+  if (Math.abs(y - raakY) > 3) { nieuwGebaar(y < raakY); raakY = y; }
+}
+function opToets(e) {
+  if (['ArrowDown', 'PageDown', 'End', ' ', 'Spacebar'].indexOf(e.key) >= 0) nieuwGebaar(true);
+  else if (['ArrowUp', 'PageUp', 'Home'].indexOf(e.key) >= 0) nieuwGebaar(false);
+}
+
 let knop = null;
 let opScroll = null;
 
@@ -166,32 +169,33 @@ export function init() {
   s.addEventListener('pointerdown', onPointerDown, { passive: true });
   s.addEventListener('click', onTap);
 
-  // De knop staat in de HTML (read-top.ejs), zodat hij er ook is zonder deze
-  // module -- dan doet hij niets, maar hij springt niet in beeld bij het laden.
+  // De knop staat in de HTML, zodat hij er ook is zonder deze module -- dan doet
+  // hij niets, maar hij springt niet in beeld bij het laden.
   knop = document.getElementById('read-top');
   if (knop) {
     knop.onclick = naarBoven;
     toonKnop(knop);
   }
 
-  // Eén luisteraar, en losmaken bij een volgende init(): deze module draait bij
-  // ELKE paginawissel en anders stapelen ze op.
   if (opScroll) {
     window.removeEventListener('scroll', opScroll);
+    window.removeEventListener('scrollend', rustNu);
     window.removeEventListener('resize', opScroll);
+    window.removeEventListener('wheel', opWiel);
+    window.removeEventListener('touchstart', opRaakStart);
+    window.removeEventListener('touchmove', opRaakBeweeg);
+    window.removeEventListener('keydown', opToets);
   }
-  // Eén keer per frame, niet per scroll-event: scroll vuurt tientallen keren per
-  // seconde en we raken hier de stijl van elk bericht aan.
-  let gepland = false;
-  opScroll = () => {
-    if (knop) toonKnop(knop);
-    if (gepland) return;
-    gepland = true;
-    requestAnimationFrame(() => { gepland = false; ijkSnappen(); });
-  };
+  // Elke scroll -- van een vinger of van de browser zelf -- houdt het gebaar
+  // levend; pas als het stil blijft mag een nieuwe richting gelden.
+  opScroll = () => { if (knop) toonKnop(knop); planRust(); };
   window.addEventListener('scroll', opScroll, { passive: true });
+  window.addEventListener('scrollend', rustNu);
   window.addEventListener('resize', opScroll, { passive: true });
-  ijkSnappen();   // ook meteen bij binnenkomst, niet pas bij de eerste scroll
+  window.addEventListener('wheel', opWiel, { passive: true });
+  window.addEventListener('touchstart', opRaakStart, { passive: true });
+  window.addEventListener('touchmove', opRaakBeweeg, { passive: true });
+  window.addEventListener('keydown', opToets);
 }
 
 export default { init };
