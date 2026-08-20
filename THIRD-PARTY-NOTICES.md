@@ -17,6 +17,20 @@ open-source software listed below, with gratitude. Each dependency's own licence
 | node-webpmux | LGPL-3.0-or-later |
 | ffmpeg-static | GPL-3.0-or-later |
 
+## Vendored browser libraries
+
+Checked into `src/assets/` rather than pulled from a CDN: the Content-Security-Policy allows
+scripts from `'self'` only, so anything the browser runs has to ship with Klonkt. Each file keeps
+the licence header its author put there; Lenis ships its licence as a separate file because its
+build has no header.
+
+| Library | Version | Licence | Where |
+|---|---|---|---|
+| [Lenis](https://github.com/darkroomengineering/lenis) + `lenis/snap` | 1.3.26 | MIT (© darkroom.engineering) — text in `src/assets/vendor/lenis-LICENSE.txt` | `src/assets/vendor/lenis*.mjs` |
+| [Cropper.js](https://github.com/fengyuanchen/cropperjs) | 1.6.2 | MIT (© Chen Fengyuan) — header in the file | `src/assets/vendor/cropper.min.*` |
+| [@simplewebauthn/browser](https://github.com/MasterKale/SimpleWebAuthn) | 13.3.0 | MIT | `src/assets/vendor/simplewebauthn-browser.umd.min.js` |
+| [htmx](https://htmx.org) | — | 0BSD (also listed under npm above) | `src/assets/js/htmx.min.js` |
+
 ## Bundled binaries & native libraries
 
 These packages ship pre-built native components, redistributed under their own licences:

@@ -150,8 +150,8 @@ let snap = null;
 async function startLenis() {
   if (lenis || !OP_DESKTOP.matches) return;
   const [L, S] = await Promise.all([
-    import(`/assets/js/vendor/lenis.mjs?v=${VENDOR_V}`),
-    import(`/assets/js/vendor/lenis-snap.mjs?v=${VENDOR_V}`),
+    import(`/assets/vendor/lenis.mjs?v=${VENDOR_V}`),
+    import(`/assets/vendor/lenis-snap.mjs?v=${VENDOR_V}`),
   ]);
   lenis = new L.default({
     // Lenis tekent de scrollbeweging zelf, maar STEVIG GEDEMPT (lerp 0.2 in
