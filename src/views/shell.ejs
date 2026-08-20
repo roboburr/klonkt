@@ -221,7 +221,7 @@ const _embedUrl = _postAudio
 <link rel="preload" href="/assets/fonts/fraunces-latin-full-normal.woff2" as="font" type="font/woff2" crossorigin>
 
 <!-- v9 stylesheet (full palette system) -->
-<link rel="stylesheet" href="/assets/css/style.css?v=72">
+<link rel="stylesheet" href="/assets/css/style.css?v=77">
 <script>
 /* iOS safe-area, built by hand. env(safe-area-inset-top) resolves to 0 on this iOS in
    BOTH Safari and the installed PWA (standalone), even with viewport-fit=cover, so the
@@ -344,7 +344,7 @@ const _embedUrl = _postAudio
 <% } %>
 </head>
 
-<body class="<%= bodyClass || 'on-home' %> has-bottom-tab" data-js="chrome<%= (typeof pageJs !== 'undefined' && pageJs) ? ' ' + pageJs : '' %>" data-feed-view="<%- _e(safeSite.feed_view_default === 'grid' ? 'grid' : 'reader') %>" data-grid-cols="3" data-site-base="<%- _e((typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '') %>">
+<body class="<%= bodyClass || 'on-home' %> has-bottom-tab" data-js="chrome<%= (typeof pageJs !== 'undefined' && pageJs) ? ' ' + pageJs : '' %>" data-feed-view="<%- _e(safeSite.feed_view_default === 'grid' ? 'grid' : (["timeline","auto"].indexOf(safeSite.feed_alt_view) >= 0 ? safeSite.feed_alt_view : "reader")) %>" data-feed-alt="<%- _e(["timeline","auto"].indexOf(safeSite.feed_alt_view) >= 0 ? safeSite.feed_alt_view : "reader") %>" data-grid-cols="3" data-site-base="<%- _e((typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '') %>">
 
 <% if (typeof isViewer !== 'undefined' && isViewer) { %>
   <div class="viewer-banner" role="status">
@@ -504,7 +504,7 @@ const _embedUrl = _postAudio
   // reparatie bereikt precies de bezoekers die hem al hebben.
   // Eén nummer voor de hele map. Te vaak bumpen kost één download; te weinig
   // bumpen kost een bugfix die nooit aankomt.
-  var MOD_V = 4;
+  var MOD_V = 13;
 
   // name -> 1 (aan het laden) of de module-namespace (geladen). Een module
   // die `init` exporteert draait die bij ELKE paginawissel waarop hij actief
@@ -558,22 +558,46 @@ const _embedUrl = _postAudio
   // Wat WEL blijft: de cirkel raakt je solo-keuze niet aan. Die staat in
   // 'pcms-feed-view' en wordt hier nergens geschreven, zodat je thuiskomt in de
   // weergave die je achterliet.
+  var CIRKEL_SLEUTEL = 'pcms-cirkel-view';
   function opCirkel() { return body.classList.contains('on-cirkel'); }
 
   /** Zet de weergave die bij DEZE pagina hoort. Draait bij init en bij elke nav. */
   function pasWeergaveToe() {
     try {
       if (opCirkel()) {
-        body.dataset.feedView = 'grid';   // de enige mogelijkheid daar
+        // Lezen kan hier niet -- dat zijn berichten van ANDEREN, van hun servers,
+        // en "het hele stuk" hebben wij niet in handen. De knop staat er wel maar
+        // dood. Een TIJDLIJN kan hier juist bij uitstek: dat is de natuurlijke
+        // vorm van een cirkel.
+        //
+        // Beschikbaar, niet verplicht. Dit dwong eerst 'timeline' af zodra de
+        // site geen Lezen-site was, en dan kon je in de cirkel geen Grid meer
+        // kiezen. Nu is Grid de landing en is Tijdlijn een keuze ernaast.
+        var altC = body.dataset.feedAlt || 'reader';
+        var tijdlijnHier = altC === 'timeline'
+          || (altC === 'auto' && window.matchMedia('(min-width: 768px)').matches);
+        var magC = tijdlijnHier ? ['grid', 'timeline'] : ['grid'];
+        // Een EIGEN geheugen, en niet dat van solo. Twee redenen: hier kun je
+        // alleen uit Grid en Tijdlijn kiezen, dus een solo-keuze 'reader' zegt
+        // hier niets; en andersom mag een tuimeling hier je thuisweergave niet
+        // veranderen -- dan kom je thuis in iets anders dan je achterliet.
+        // (Dit geheugen stond er eerder al, verdween toen de cirkel nog maar een
+        // mogelijkheid had, en is nu weer nodig omdat Tijdlijn een echte keuze is.)
+        var vC = null;
+        try { vC = localStorage.getItem(CIRKEL_SLEUTEL); } catch (e) { /* geen opslag */ }
+        body.dataset.feedView = magC.indexOf(vC) >= 0 ? vC : 'grid';
         return;
       }
       var v = localStorage.getItem('pcms-feed-view');
-      // 'timeline' bestaat niet meer als keuze, maar staat nog in de localStorage
-      // van iedereen die hier eerder was. Zonder deze vertaling zou zo iemand een
-      // weergave houden die nergens meer een knop heeft: de pil helemaal grijs, en
-      // een feed die niet is wat hij koos. Lezen is waar Tijdlijn in opging.
-      if (v === 'timeline') v = 'reader';
-      if (v === 'grid' || v === 'reader') body.dataset.feedView = v;
+      // 'timeline' is sinds 20-8 weer een geldige keuze, maar alleen op een site
+      // die hem AANBIEDT. Wie de tijdlijn koos op de ene site en daarna een
+      // Lezen-site bezoekt, moet daar niet op een weergave landen die er geen
+      // knop heeft: dan staat de pil grijs en is de feed niet wat hij koos.
+      // Vandaar de toets tegen wat deze site biedt, in plaats van een vaste
+      // vertaling naar 'reader'.
+      var alt = body.dataset.feedAlt || 'reader';
+      var mag = alt === 'auto' ? ['grid', 'reader', 'timeline'] : ['grid', alt];
+      if (mag.indexOf(v) >= 0) body.dataset.feedView = v;
     } catch (e) { /* geen opslag: de server-standaard blijft staan */ }
   }
   pasWeergaveToe();
@@ -646,7 +670,10 @@ const _embedUrl = _postAudio
       // er valt niets te onthouden -- en je solo-keuze mag er zeker niet door
       // veranderen: die moet je terugvinden zoals je hem achterliet.
       try {
-        if (!opCirkel()) localStorage.setItem('pcms-feed-view', view);
+        // De cirkel heeft zijn eigen geheugen, zodat een keuze daar je
+        // thuisweergave niet aanraakt en andersom.
+        if (opCirkel()) localStorage.setItem(CIRKEL_SLEUTEL, view);
+        else localStorage.setItem('pcms-feed-view', view);
       } catch(_) {}
       syncAria();
       // On non-feed pages the switcher acts as a navigation: take the

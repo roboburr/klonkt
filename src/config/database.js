@@ -199,6 +199,15 @@ export function initializeDatabase() {
   ensureColumn('sites', 'profile_links',   'TEXT');     // JSON array [{platform, url}]
   ensureColumn('sites', 'feed_view_default', "TEXT DEFAULT 'grid'"); // timeline | grid
   ensureColumn('sites', 'feed_view_switch',  'INTEGER DEFAULT 1');       // show switcher
+  // Welke TWEEDE weergave deze site aanbiedt naast Grid.
+  //   'reader'    Lezen, hele berichten, een per scherm
+  //   'timeline'  de chronologische lijst
+  //   'auto'      Lezen op mobiel, Tijdlijn op desktop (grens 768px)
+  // Lezen verving Tijdlijn, maar de tijdlijn is nooit weggehaald -- home.ejs
+  // rendert alle drie de secties en de CSS kiest. Dit maakt er weer een keuze
+  // van in plaats van een besluit voor iedereen. 'auto' kost geen JavaScript:
+  // het is een mediaquery, dus geen resize-afhandeling en geen flikkering.
+  ensureColumn('sites', 'feed_alt_view', "TEXT DEFAULT 'reader'");   // reader | timeline | auto
   ensureColumn('sites', 'show_search',     'INTEGER DEFAULT 1');
   ensureColumn('sites', 'show_archive_link', 'INTEGER DEFAULT 1');
   // Gated feature (FEP-633c): may external (non-fediverse) embeds be shown to

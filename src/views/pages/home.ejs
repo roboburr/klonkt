@@ -66,6 +66,12 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
      sectie rendert dan niet. -->
 <% if (typeof readerItems !== 'undefined' && readerItems && readerItems.length) { %>
 <section class="feed-reader" aria-label="<%= t('switch.reader') %>">
+  <%# Terug naar boven. Staat IN de HTML en niet in JavaScript, zodat hij er ook
+      is als de module niet laadt -- dan doet hij niets, maar hij springt ook niet
+      opeens in beeld. Verschijnt pas als je ver genoeg bent (mod/read.js). %>
+  <button type="button" id="read-top" class="read-top" aria-label="<%= t('read.to_top') %>" title="<%= t('read.to_top') %>">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+  </button>
   <div class="read-stream" id="read-stream" data-base="<%= _base %>">
     <% readerItems.forEach(function(it) { %>
       <%- include('../partials/read-article', { post: it.post, entry: it.entry }) %>

@@ -326,7 +326,12 @@ router.post('/:slug/save', requireSiteManagerBySlug, async (req, res) => {
   if (!site) return res.redirect('/admin/sites?error=Not+found');
 
   const f = req.body;
-  const feedViewDef = f.feed_view_default === 'grid' ? 'grid' : 'timeline';
+  // Twee vragen, en ze hingen scheef: dit pad schreef 'timeline' terwijl het
+  // AANMAAKpad 'reader' schreef, voor precies dezelfde keuze. Elke site die ooit
+  // is opgeslagen droeg dus 'timeline', en de client vertaalde dat stil terug.
+  // Nu betekent de waarde weer wat er staat.
+  const feedAlt = ['timeline', 'auto'].includes(f.feed_alt_view) ? f.feed_alt_view : 'reader';
+  const feedViewDef = f.feed_view_default === 'grid' ? 'grid' : feedAlt;
   const profileLinksJson = buildProfileLinks(f);
 
   // FEP-7628 aliases — validated/resolved before anything is written.
@@ -365,7 +370,7 @@ router.post('/:slug/save', requireSiteManagerBySlug, async (req, res) => {
       is_public = ?, robots_index = ?, require_login_to_comment = ?,
       enable_audio_player = ?,
       approve_followers = ?,
-      feed_view_default = ?, feed_view_switch = ?,
+      feed_view_default = ?, feed_view_switch = ?, feed_alt_view = ?,
       show_search = ?, show_archive_link = ?,
       custom_css = ?, custom_head_html = ?, custom_foot_html = ?,
       updated_at = CURRENT_TIMESTAMP
@@ -389,6 +394,7 @@ router.post('/:slug/save', requireSiteManagerBySlug, async (req, res) => {
     f.approve_followers ? 1 : 0,
     feedViewDef,
     f.feed_view_switch ? 1 : 0,
+    feedAlt,
     f.show_search ? 1 : 0,
     f.show_archive_link ? 1 : 0,
     f.custom_css      || null,

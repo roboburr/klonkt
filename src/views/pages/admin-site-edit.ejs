@@ -195,10 +195,21 @@
 
     <fieldset>
       <legend><%= t('asite.feed_view') %></legend>
+      <%# Twee vragen, en ze zijn niet hetzelfde: WELKE tweede weergave je site
+          aanbiedt naast Grid, en waarin hij opent. %>
+      <label>
+        <span><%= t('asite.feed_alt') %></span>
+        <select name="feed_alt_view">
+          <% var _a = ['timeline','auto'].indexOf(site.feed_alt_view) >= 0 ? site.feed_alt_view : 'reader'; %>
+          <option value="reader"   <%= _a === 'reader'   ? 'selected' : '' %>><%= t('asite.feed_alt_reader') %></option>
+          <option value="timeline" <%= _a === 'timeline' ? 'selected' : '' %>><%= t('asite.feed_alt_timeline') %></option>
+          <option value="auto"     <%= _a === 'auto'     ? 'selected' : '' %>><%= t('asite.feed_alt_auto') %></option>
+        </select>
+      </label>
       <label>
         <span><%= t('asite.feed_default') %></span>
         <select name="feed_view_default">
-          <option value="reader" <%= site.feed_view_default !== 'grid' ? 'selected' : '' %>><%= t('asite.feed_reader') %></option>
+          <option value="reader" <%= site.feed_view_default !== 'grid' ? 'selected' : '' %>><%= t('asite.feed_alt_' + _a) %></option>
           <option value="grid"     <%= site.feed_view_default === 'grid' ? 'selected' : '' %>><%= t('asite.feed_grid') %></option>
         </select>
       </label>
