@@ -2555,6 +2555,13 @@ html:has(body.on-home[data-feed-view="reader"]),
    een halve pagina leegte gaf onder "Replies and reactions", en is nu een keuze
    -- want welke van de twee prettiger leest hangt af van wat je schrijft. */
 body[data-reader-pages="1"] .feed-reader .read-post { min-height: 100svh; }
+/* OP MOBIEL ALTIJD, wat de instelling ook zegt (Robin, 20-8). Op een telefoon is
+   een bericht per scherm de vorm die werkt -- je veegt van bericht naar bericht.
+   Op desktop blijft het een keuze, want daar lees je in een kolom naast veel
+   witruimte en is een doorlopende stroom vaak prettiger. */
+@media (hover: none) and (pointer: coarse) {
+    .feed-reader .read-post { min-height: 100svh; }
+}
 
 /* Een lijn tussen twee berichten: zonder grens is een stroom een lange brij. */
 .feed-reader .read-post + .read-post { border-top: 1px solid color-mix(in srgb, currentColor 12%, transparent); }

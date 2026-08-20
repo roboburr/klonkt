@@ -142,13 +142,25 @@ let rustTimer = null;
  * (nagekeken in de dist), dus die opzet werkt.
  */
 const OP_DESKTOP = window.matchMedia('(hover: hover) and (pointer: fine)');
+// PROEF (20-8): Lenis ook op touch. Robin meldde op mobiel drie dingen -- de
+// header niet zichtbaar bij laden, snappen dat soms te ver gaat, en horizontaal
+// kunnen scrollen. De eerste twee komen van de NATIVE snap: die vangt al bij het
+// laden, en zijn uitloop vliegt bij een flick over een grens heen. Lenis zet de
+// native snap uit en doet het zelf, dus die twee kunnen ermee verdwijnen.
+//
+// De prijs is echt: syncTouch betekent dat Lenis het VINGERSCROLLEN overneemt
+// van iOS -- momentum, rubber-band en het wegschuiven van de adresbalk worden
+// dan een benadering in JavaScript. De makers waarschuwen daar zelf voor op
+// iOS < 16. Dit staat er dus als proef, niet als besluit: voelt het niet goed,
+// dan is OP_TOUCH weer false zetten de hele terugweg.
+const OP_TOUCH = window.matchMedia('(hover: none) and (pointer: coarse)');
 const VENDOR_V = 1;   // ophogen als de bestanden in /assets/js/vendor wijzigen
 
 let lenis = null;
 let snap = null;
 
 async function startLenis() {
-  if (lenis || !OP_DESKTOP.matches) return;
+  if (lenis || !(OP_DESKTOP.matches || OP_TOUCH.matches)) return;
   const [L, S] = await Promise.all([
     import(`/assets/vendor/lenis.mjs?v=${VENDOR_V}`),
     import(`/assets/vendor/lenis-snap.mjs?v=${VENDOR_V}`),
@@ -164,14 +176,75 @@ async function startLenis() {
     // smoothWheel:false de knop -- die stand werkte ook, met alleen de snap.
     smoothWheel: true,
     lerp: 0.2,
-    syncTouch: false,   // op touch blijft alles van het systeem
+    // Alleen op touch overneemt hij het vingerscrollen; op desktop hoeft dat niet.
+    syncTouch: OP_TOUCH.matches,
+    // TOUCH-SPECIFIEK, want de standaardwaarden voelen op een telefoon traag.
+    //
+    // Waar dat zit is precies aan te wijzen. In Lenis staat
+    // `lerp: d ? syncTouchLerp : 1`, waarbij d "de vinger is net losgelaten"
+    // betekent. Tijdens het SLEPEN is de lerp dus 1 -- de inhoud volgt je vinger
+    // exact, net als iOS, en daar is niets mis mee. De traagheid zit in de glijder
+    // NA het loslaten: die gebruikt syncTouchLerp, en dat staat standaard op
+    // 0.075. Dat dempt zo langzaam uit dat de pagina nog seconden naijlt.
+    //
+    // TWEE KNOPPEN, en ze doen iets anders -- dat verwarde ik eerst:
+    //
+    //   touchInertiaMultiplier   hoe VER een veeg je brengt
+    //   syncTouchLerp            hoe snel de glijder UITDEMPT
+    //
+    // Eerste ronde zette ik de multiplier op 25 (korter dan de standaard 35),
+    // omdat ik "te traag" las als "hij ijlt te lang na". Robin bedoelde het
+    // omgekeerde: een veeg moet je VERDER brengen, zoals op iOS -- daar draagt
+    // een flick een heel eind. Dus juist omhoog, ruim boven de standaard.
+    //
+    // De lerp gaat mee terug naar 0.1: tussen de trage standaard (0.075, dat
+    // seconden naijlt) en de kordate 0.15 in. Met een langere weg af te leggen
+    // mag de demping wat zachter, anders komt hij te abrupt tot stilstand.
+    // Waar we na een paar rondes proberen op uitkwamen, met de betekenis erbij
+    // omdat de tweede knop contra-intuitief is:
+    //
+    //   touchInertiaMultiplier 70   hoe VER een veeg draagt (standaard 35).
+    //                               25 en 45 waren allebei te kort.
+    //   syncTouchLerp 0.05          hoe snel hij zijn doel BENADERT. Hoger = eerder
+    //                               aankomen en dus abrupt stoppen; LAGER = langer
+    //                               onderweg blijven. Robin: "te stroef bij het
+    //                               loslaten, mag echt een tijdje doorscrollen".
+    //                               Dus omlaag, niet omhoog -- 0.15 en 0.1 kapten
+    //                               de uitloop af.
+    // syncTouchLerp 0.25: VIER KEER de vorige waarde, en ruim boven de standaard
+    // van 0.075. Ik heb hem vier rondes lang de verkeerde kant op gedraaid omdat
+    // ik "stroef" las als "hij stopt te vroeg" -- maar het betekende STROPERIG.
+    // Een lage lerp benadert het doel langzaam en geeft dus een kruipende
+    // uitloop; hoog betekent er vlot naartoe. Met de multiplier op 70 blijft de
+    // AFSTAND groot, dus je gaat ver EN snel: dat is hoe een flick op iOS voelt.
+    //
+    // Kort samengevat, want dit is twee keer misgegaan:
+    //   syncTouchLerp hoger  = sneller weg, korter narollen
+    //   multiplier hoger     = verder komen
+    ...(OP_TOUCH.matches ? { syncTouchLerp: 0.25, touchInertiaMultiplier: 70 } : {}),
     autoRaf: true,
   });
   snap = new S.default(lenis, {
     type: 'proximity',
     distanceThreshold: '12%',   // de vangzone, hier WEL instelbaar
-    debounce: 60,               // niet de standaard 500: dat voelt als te laat
-    duration: 0.4,              // in totaal onder de halve seconde
+    // Hoe lang na de laatste scrollbeweging hij mag vangen. De standaard is 500
+    // en dat voelt als te laat. Op touch nog korter dan op desktop, want daar
+    // eindigt een veeg in een lange, trage staart -- en juist dan wil je dat de
+    // snap er snel bij is in plaats van te wachten tot de laatste pixel stil ligt.
+    //
+    // LET OP DE SPANNING: een vloeiendere uitloop (lagere syncTouchLerp) maakt
+    // die staart langer, en stelt de snap dus uit. Deze twee getallen houden
+    // elkaar in evenwicht; draai je aan de een, kijk dan ook naar de ander.
+    // OP TOUCH JUIST LANG, en dat is het omgekeerde van wat ik vorige ronde deed.
+    // Tussen je vinger loslaten en het op gang komen van de uitloop zit een korte
+    // stilte in de scrollbeweging. Met 25ms viel de snap precies in dat gat: hij
+    // greep op het moment van loslaten en knipte de veeg af -- wat aanvoelt als
+    // "stroef bij het loslaten", en het werd er dan ook erger van. 200ms laat de
+    // uitloop eerst zijn werk doen.
+    debounce: OP_TOUCH.matches ? 200 : 60,
+    // Op touch korter: een telefoon vraagt om directer antwoord dan een muis, en
+    // de snap komt daar aan het eind van een lange uitloop -- dan mag hij kort.
+    duration: OP_TOUCH.matches ? 0.18 : 0.4,
     // Vlot weg, dan steeds langzamer aankomen (Robin, 20-8). easeOutQuart: op de
     // helft van de tijd is 94% van de weg af, en de rest dempt zacht uit.
     // Bewust NIET Lenis' standaard easeOutExpo -- die schiet weg en kruipt dan
