@@ -247,14 +247,24 @@ class AudioEmbedService {
     // Bewust krap: geen slash, vraagteken of hekje in het id, want wat hier
     // gevangen wordt gaat rechtstreeks achter https://embed.music.apple.com/ aan.
     const match = url.match(
-      /music\.apple\.com\/([a-z]{2}\/(?:album|playlist|song)\/[^/?#]+\/(?:[0-9]+|pl\.[A-Za-z0-9_-]+))/i,
+      /music\.apple\.com\/([a-z]{2}\/(album|playlist|song)\/[^/?#]+\/(?:[0-9]+|pl\.[A-Za-z0-9_-]+))/i,
     );
     if (!match) return null;
     const src = `https://embed.music.apple.com/${match[1]}`;
+    // De hoogte hangt af van WAT je insluit, en dat stond hier op een vaste
+    // 175px -- de maat van een LOS NUMMER. Een album of afspeellijst is 450px,
+    // dus daarvan zag je ongeveer een derde, met `overflow:hidden` eroverheen
+    // zodat de rest ook niet te bereiken viel. Barts melding (20-8) over
+    // boiert.eu/the-mixtape.
+    //
+    // Nagemeten en niet overgenomen: de embed-pagina van die lijst
+    // (pl.u-LdbqzVvI3go5g) geeft zijn <main> EN zijn <body> allebei precies
+    // 450px. Dat is ook de hoogte in Apple's eigen insluitcode.
+    const hoogte = String(match[2]).toLowerCase() === 'song' ? 175 : 450;
     return `
       <figure class="folio-embed folio-embed--applemusic">
         <iframe src="${this.escape(src)}"
-                style="width:100%;height:175px;border:0;overflow:hidden;border-radius:8px;"
+                style="width:100%;height:${hoogte}px;border:0;overflow:hidden;border-radius:8px;"
                 loading="lazy"
                 allow="autoplay; clipboard-write; encrypted-media"
                 title="Apple Music"></iframe>

@@ -52,3 +52,39 @@ test('het pad kan niet uit de embed-host breken', () => {
     assert.ok(!/evil\.example/.test(out), `geen vreemde host uit ${kwaad}`);
   }
 });
+
+// ── De hoogte hoort bij wat je insluit (Bart, 20-8) ─────────────────────────
+// Op boiert.eu/the-mixtape stond een afspeellijst in een venster van 175px: de
+// maat van een LOS NUMMER. Je zag ongeveer een derde, en `overflow:hidden`
+// maakte de rest ook nog onbereikbaar.
+//
+// 450 is niet uit de documentatie overgenomen maar nagemeten: de embed-pagina
+// van pl.u-LdbqzVvI3go5g geeft zijn <main> en <body> allebei precies 450px.
+test('een afspeellijst krijgt 450px, niet de hoogte van een los nummer', () => {
+  const html = AudioEmbedService.generateIframe('applemusic',
+    { url: 'https://music.apple.com/nl/playlist/romance/pl.u-LdbqzVvI3go5g' });
+  assert.match(html, /height:450px/, 'een lijst is 450 hoog');
+  assert.ok(!/height:175px/.test(html), 'en zeker niet 175');
+});
+
+test('een album ook: dat is dezelfde speler met een lijst erin', () => {
+  const html = AudioEmbedService.generateIframe('applemusic',
+    { url: 'https://music.apple.com/nl/album/blue/1440857781' });
+  assert.match(html, /height:450px/);
+});
+
+test('een los nummer blijft klein', () => {
+  const html = AudioEmbedService.generateIframe('applemusic',
+    { url: 'https://music.apple.com/nl/song/blue/1440857785' });
+  assert.match(html, /height:175px/, 'een enkel nummer heeft geen lijst te tonen');
+});
+
+test('en de soort wordt uit de URL gelezen, niet geraden', () => {
+  // Dezelfde id-vorm, ander soort: alleen het woord in het pad mag beslissen.
+  const lijst = AudioEmbedService.generateIframe('applemusic',
+    { url: 'https://music.apple.com/us/playlist/x/pl.abc123def456' });
+  const nummer = AudioEmbedService.generateIframe('applemusic',
+    { url: 'https://music.apple.com/us/song/x/123456789' });
+  assert.match(lijst, /height:450px/);
+  assert.match(nummer, /height:175px/);
+});
