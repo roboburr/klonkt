@@ -37,6 +37,40 @@ die()  { printf '\nERROR: %s\n' "$*" >&2; exit 1; }
 [ -n "$SLUG" ] && [ -n "$DOMAIN" ] || die "usage: $0 <slug> <domain> [port] [--no-caddy]"
 [[ "$SLUG" =~ ^[a-z0-9][a-z0-9._-]*$ ]] || die "slug must be lowercase letters, digits, dot, dash or underscore."
 
+# An internationalised domain is written into the Caddy block, the filename and
+# .env as ASCII. Not because Caddy needs it — it copes — but because an emoji
+# name can carry a zero-width joiner and variation selectors, and those are
+# INVISIBLE. An editor, a paste or a well-meant tidy-up drops one and the vhost
+# stops matching with nothing on screen to explain why.
+#
+# Per-label punycode, and deliberately not an IDNA library. Python's built-in
+# `idna` codec STRIPS the joiner and yields a different name (one that has no
+# certificate); the strict IDNA2008 tools reject emoji outright. Encoding what
+# the operator actually typed is the only thing that matches the DNS record
+# they actually made.
+to_ascii() {
+  if LC_ALL=C printf '%s' "$1" | grep -q '[^ -~]'; then
+    python3 -c 'import codecs,sys
+print(".".join(l if l.isascii() else "xn--" + codecs.encode(l, "punycode").decode()
+               for l in sys.argv[1].split(".")))' "$1"
+  else
+    printf '%s\n' "$1"
+  fi
+}
+
+# The same name with joiner and variation selectors removed: what a client that
+# normalises them away will ask for instead. Empty when the name has none.
+stripped_ascii() {
+  python3 -c 'import codecs,sys
+d = sys.argv[1]
+s = d.replace("‍", "").replace("️", "")
+if s == d: raise SystemExit(0)
+print(".".join(l if l.isascii() else "xn--" + codecs.encode(l, "punycode").decode()
+               for l in s.split(".")))' "$1"
+}
+
+HOST_ASCII="$(to_ascii "$DOMAIN")"
+
 DATA_DIR="$DATA_ROOT/$SLUG"
 ENV_FILE="$DATA_DIR/.env"
 
@@ -47,6 +81,31 @@ step "Preflight"
    Update first: klonkt-update"
 id -u "$KLONKT_USER" >/dev/null 2>&1 || die "user $KLONKT_USER does not exist"
 [ -e "$DATA_DIR" ] && die "$DATA_DIR already exists. Pick another slug."
+
+if [ "$HOST_ASCII" != "$DOMAIN" ]; then
+  say "IDN: ${DOMAIN} -> ${HOST_ASCII}"
+  ALIAS_ASCII="$(stripped_ascii "$DOMAIN" || true)"
+  if [ -n "$ALIAS_ASCII" ]; then
+    die "refusing ${DOMAIN}
+
+  This name contains a zero-width joiner or a variation selector, which makes
+  it invalid under IDNA2008. Browsers reject it — two were tested — so nobody
+  could reach the site by the name you just typed. Worse, clients that quietly
+  strip those characters ask for a DIFFERENT name than the one you registered:
+
+      you typed : ${HOST_ASCII}
+      they ask  : ${ALIAS_ASCII}
+
+  Nothing has been created. Use an emoji that is a single codepoint, or an
+  ordinary name.
+
+  If you want this anyway, pass the punycode form as the domain, and give the
+  stripped name its own DNS record and a redirect block so one identity keeps
+  one canonical address:
+
+      $0 $SLUG ${HOST_ASCII}"
+  fi
+fi
 [ -f /etc/systemd/system/klonkt@.service ] || {
   [ -f "$KLONKT_DIR/deploy/klonkt@.service" ] || die "missing $KLONKT_DIR/deploy/klonkt@.service"
   install -m 0644 "$KLONKT_DIR/deploy/klonkt@.service" /etc/systemd/system/klonkt@.service
@@ -76,7 +135,7 @@ SECRET="$(openssl rand -hex 32)"
   # Loopback only: the reverse proxy reaches it, the internet cannot bypass HTTPS.
   echo "HOST=127.0.0.1"
   echo "SESSION_SECRET=${SECRET}"
-  echo "PUBLIC_BASE_URL=https://${DOMAIN}"
+  echo "PUBLIC_BASE_URL=https://${HOST_ASCII}"
   echo "DATABASE_PATH=${DATA_DIR}/database.sqlite"
   echo "MEDIA_PATH=${DATA_DIR}/media"
   echo "AUDIO_PATH=${DATA_DIR}/audio"
@@ -104,15 +163,26 @@ curl -fsS --max-time 8 -o /dev/null "http://127.0.0.1:${PORT}/" \
 if [ -z "$NO_CADDY" ] && command -v caddy >/dev/null 2>&1; then
   step "Caddy"
   CADDY=/etc/caddy/Caddyfile
-  if grep -q "^${DOMAIN} {" "$CADDY" 2>/dev/null; then
-    say "a block for ${DOMAIN} already exists, left untouched"
+  CONFD=/etc/caddy/conf.d
+  # One file per site. Older machines keep every block in the single Caddyfile,
+  # so add the import if it is missing: this then works on both without moving
+  # anything that is already there.
+  mkdir -p "$CONFD"
+  grep -q '^[[:space:]]*import[[:space:]]\+conf\.d/' "$CADDY" 2>/dev/null \
+    || printf '\nimport conf.d/*.caddyfile\n' >> "$CADDY"
+  BLOCK="$CONFD/${HOST_ASCII}.caddyfile"
+  if [ -e "$BLOCK" ]; then
+    say "a block for ${HOST_ASCII} already exists, left untouched"
   else
-    cp "$CADDY" "${CADDY}.bak.$(date +%s)" 2>/dev/null || true
-    printf '\n%s {\n    reverse_proxy 127.0.0.1:%s\n    encode gzip zstd\n}\n' "$DOMAIN" "$PORT" >> "$CADDY"
+    printf '%s {\n    reverse_proxy 127.0.0.1:%s\n    encode gzip zstd\n}\n' "$HOST_ASCII" "$PORT" > "$BLOCK"
+    # Take the block away again rather than leave a config that will not load.
+    # The running Caddy is unaffected until someone reloads, and reloading is
+    # precisely what the next person to touch this machine will do.
     caddy validate --config "$CADDY" --adapter caddyfile >/dev/null 2>&1 \
-      || die "Caddy config invalid after adding ${DOMAIN} — check $CADDY (a .bak was made)"
-    systemctl reload caddy 2>/dev/null || systemctl restart caddy
-    say "serving ${DOMAIN}"
+      || { rm -f "$BLOCK"; die "Caddy config invalid for ${HOST_ASCII} — the block was removed again, nothing changed"; }
+    systemctl reload caddy \
+      || die "caddy reload failed. NOT restarting: that would drop every site on this machine. See: journalctl -u caddy -n 30"
+    say "serving ${HOST_ASCII}"
   fi
 fi
 
