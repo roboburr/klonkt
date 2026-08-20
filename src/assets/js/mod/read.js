@@ -358,13 +358,15 @@ async function startLenis() {
   });
   snap = new S.default(lenis, {
     type: 'proximity',
-    // DE VANGZONE. Gemeten op dev: de voet van een bericht (de link naar de
-    // reacties) staat 138 tot 472 pixels boven de bovenkant van het volgende.
-    // Met de oude 12% was de zone 86 pixels op een venster van 720, dus hij hapte
-    // pas ruim onder die voet toe. 55% is ~400 pixels: de zone begint nu rond de
-    // voet, wat Robin vroeg (20-8) -- eerder al snappen, boven de reacties.
-    // Wil je het nog eerder, dan is dit het enige getal dat je hoeft te draaien.
-    distanceThreshold: '55%',
+    // DE VANGZONE, en dit is HET getal om aan te draaien. Ooit 12%, toen 55%
+    // (20-8: eerder vangen, boven de reacties), en 21-8 terug naar 12% -- want
+    // sinds het snappen alleen nog vooruit werkt, voelde die brede zone als
+    // trekken tijdens het lezen. 12% is ~110 pixels op een venster van 910: hij
+    // vangt pas vlak vóór de lijn.
+    // Houd dit gelijk aan vangZone() hieronder: deze drempel bepaalt of
+    // lenis/snap überhaupt aanklopt, die andere of wij het doorlaten. Zet je
+    // deze lager dan die, dan komt onze regel nooit aan bod.
+    distanceThreshold: '12%',
     // Hoe lang na de laatste scrollbeweging hij mag vangen. De standaard is 500
     // en dat voelt als te laat. Op touch nog korter dan op desktop, want daar
     // eindigt een veeg in een lange, trage staart -- en juist dan wil je dat de
@@ -425,7 +427,7 @@ async function startLenis() {
   // DE ZONE IS EEN GETAL, geen '55%'. Die string kwam ongewijzigd uit de opties
   // en werd hier met een getal vergeleken -- altijd onwaar, dus deze terugval
   // heeft nooit gewerkt en alleen het doel dat lenis zelf koos kwam erdoor.
-  const vangZone = () => 0.55 * window.innerHeight;
+  const vangZone = () => 0.12 * window.innerHeight;   // gelijk aan distanceThreshold hierboven
   // Lenis' eigen `direction` is het teken van de snelheid, en die is bij het
   // afvuren van de (gedebouncede) snap alweer nul. Daarom onthouden we de
   // laatste richting die er echt was.
