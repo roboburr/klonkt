@@ -5,6 +5,26 @@ Versions follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.7.1] · 2026-08-21
+
+### Fixed
+- **Resetting a forgotten admin password now works when several instances share
+  one copy of the code.** In the layout of `deploy/klonkt@.service` the code sits
+  at `/opt/klonkt` and each instance keeps its configuration in
+  `/var/lib/klonkt/<slug>/.env`, which systemd reads through `EnvironmentFile=`.
+  A script you start by hand gets none of that, so `npm run reset-admin` ran
+  without a `DATABASE_PATH`: it created an empty database inside the shared,
+  read-only code directory and then died on `no such table: users` — a stack
+  trace where a hint belonged. Name the instance instead:
+  `npm run reset-admin -- --instance <slug>`. It reads the same file systemd
+  does, and an explicitly named instance now beats a `DATABASE_PATH` left over
+  in your shell.
+- **The reset script never creates a database.** A missing file almost always
+  means the configuration was not loaded, not that the site is empty, so it
+  stops and prints the path it wanted. It also names the database it worked on
+  when it succeeds — with several data directories, "which one" is the only
+  question that matters.
+
 ## [1.7.0] · 2026-08-21
 
 ### Added

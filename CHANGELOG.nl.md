@@ -5,6 +5,26 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 
 ## [Unreleased]
 
+## [1.7.1] · 2026-08-21
+
+### Opgelost
+- **Een vergeten adminwachtwoord resetten werkt nu ook als meerdere instanties
+  één kopie van de code delen.** In de opstelling van `deploy/klonkt@.service`
+  staat de code op `/opt/klonkt` en houdt elke instantie zijn configuratie in
+  `/var/lib/klonkt/<slug>/.env`, die systemd leest via `EnvironmentFile=`. Een
+  script dat je zelf start krijgt die omgeving niet, dus `npm run reset-admin`
+  draaide zonder `DATABASE_PATH`: hij legde een lege database in de gedeelde,
+  read-only codemap en klapte daarna op `no such table: users` — een stacktrace
+  op de plek waar een aanwijzing hoort. Noem voortaan de instantie:
+  `npm run reset-admin -- --instance <slug>`. Die leest hetzelfde bestand als
+  systemd, en een expliciet genoemde instantie wint nu van een `DATABASE_PATH`
+  die nog in je shell hangt.
+- **Het resetscript maakt nooit een database aan.** Een ontbrekend bestand
+  betekent bijna altijd dat de configuratie niet geladen is en niet dat de site
+  leeg is, dus hij stopt en noemt het pad dat hij wilde openen. Bij een
+  geslaagde reset noemt hij ook wélke database hij bewerkt heeft — met meerdere
+  datamappen is dat de enige vraag die ertoe doet.
+
 ## [1.7.0] · 2026-08-21
 
 ### Toegevoegd

@@ -5,6 +5,27 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 
 ## [Unreleased]
 
+## [1.7.1] · 2026-08-21
+
+### Behoben
+- **Ein vergessenes Admin-Passwort zurückzusetzen funktioniert jetzt auch, wenn
+  sich mehrere Instanzen eine Kopie des Codes teilen.** Im Aufbau von
+  `deploy/klonkt@.service` liegt der Code unter `/opt/klonkt`, und jede Instanz
+  hält ihre Konfiguration in `/var/lib/klonkt/<slug>/.env`, die systemd über
+  `EnvironmentFile=` liest. Ein von Hand gestartetes Skript bekommt davon
+  nichts, also lief `npm run reset-admin` ohne `DATABASE_PATH`: es legte eine
+  leere Datenbank im gemeinsamen, schreibgeschützten Code-Verzeichnis an und
+  scheiterte dann an `no such table: users` — ein Stacktrace dort, wo ein
+  Hinweis hingehört. Benenne stattdessen die Instanz:
+  `npm run reset-admin -- --instance <slug>`. Das liest dieselbe Datei wie
+  systemd, und eine ausdrücklich benannte Instanz gewinnt jetzt gegen ein
+  `DATABASE_PATH`, das noch in deiner Shell hängt.
+- **Das Reset-Skript legt niemals eine Datenbank an.** Eine fehlende Datei
+  bedeutet fast immer, dass die Konfiguration nicht geladen wurde, und nicht,
+  dass die Seite leer ist — also hält es an und nennt den Pfad, den es öffnen
+  wollte. Bei Erfolg nennt es außerdem, welche Datenbank es bearbeitet hat: bei
+  mehreren Datenverzeichnissen ist „welche“ die einzige Frage, die zählt.
+
 ## [1.7.0] · 2026-08-21
 
 ### Hinzugefügt
