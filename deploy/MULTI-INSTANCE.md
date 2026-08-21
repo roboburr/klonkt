@@ -209,3 +209,21 @@ you owe them, and how they leave. See [HOSTING.md](HOSTING.md).
 | `systemctl restart klonkt@<slug>` | restart one instance |
 | `klonkt-update` | update the code, restart all instances |
 | `ls /var/lib/klonkt` | which instances exist |
+| `cd /opt/klonkt && npm run reset-admin -- --instance <slug>` | reset a forgotten admin password |
+
+### Why the password reset needs `--instance`
+
+Every other command here names its instance, and this one is no different — but
+the reason is easy to miss, because the app's own help page says only "run
+`npm run reset-admin` from the project folder". That advice is written for the
+one-instance layout, where the `.env` sits next to the code.
+
+Here it does not. The code is shared and read-only at `/opt/klonkt`; the
+configuration lives at `/var/lib/klonkt/<slug>/.env`, and **systemd** reads it
+through `EnvironmentFile=`. A script started by hand gets none of that: it looks
+for an `.env` beside the code, finds nothing, and is left without
+`DATABASE_PATH`. `--instance` reads the same file systemd does.
+
+Without it the script now stops and says which path it wanted, instead of
+creating an empty database inside the shared code directory. If your data lives
+somewhere other than `/var/lib/klonkt`, set `KLONKT_DATA_ROOT`.
