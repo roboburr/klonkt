@@ -5,9 +5,59 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 
 ## [Unreleased]
 
-## [1.7.0] · 2026-08-07
+## [1.7.0] · 2026-08-21
 
 ### Toegevoegd
+- **Je muziek reist als muziek, niet als een verwijzing ernaartoe.** Een track
+  ging de draad op als een bericht met een bestand eraan, dus een andere server
+  zag tekst met een bijlage en niets wat zei "dit is een uitgave van deze
+  artiest". Tracks zijn nu volwaardige Audio-objecten, een album is een eigen
+  object op de draad, en de outbox draagt de discografie mee. Playlists federeren
+  als ActivityPub-collecties en zijn als zodanig vindbaar. De vormen volgen wat
+  Funkwhale al spreekt, zodat een Klonkt-uitgave in een Funkwhale-bibliotheek
+  belandt in plaats van te worden weggegooid.
+- **De post is de uitgave.** Losse tracks in één post worden een collectie, de
+  uitgavedatum en het MusicBrainz release-id gaan mee, en de hashtags worden uit
+  de ruwe tekst gelezen in plaats van uit de opgemaakte versie — daardoor kwamen
+  ze eerder als onzin binnen, of helemaal niet.
+- **Claim jezelf in MusicBrainz.** Bij Beheer → Audio kun je jezelf opzoeken en
+  bevestigen dat jij dat bent. De koppeling gaat als `schema:sameAs` de draad op,
+  zodat andere servers je Klonkt kunnen verbinden met de artiest die je elders al
+  bent.
+- **De hele site als muziekkanaal.** `/tracks.xml` publiceert alles wat je hebt
+  uitgebracht als één feed, voor spelers die RSS spreken en geen ActivityPub.
+- **Verhuis je account, en neem alles mee (FEP-1580).** Je berichten, je audio,
+  de hoezen, de playlists en de GUID's gaan mee, je volglijst reist als CSV die
+  je kunt uploaden of plakken, en de guardianship verhuist vóór de follow — in de
+  andere volgorde stond een ward even zonder toezicht. Een verhuisd account gaat
+  op slot aan de uitgaande kant, zodat er niets nieuws vertrekt vanaf een adres
+  dat je niet meer gebruikt. Het staat nu op één pagina, in stappen, in plaats
+  van verspreid.
+- **Een leesweergave, naast Tijdlijn en Grid.** Eén bericht vult het scherm, de
+  buren staan links en rechts klaar, en het scrollen snapt naar de bovenkant van
+  het volgende bericht. Elke site kiest zelf: lezen, tijdlijn, of tijdlijn op
+  desktop met lezen op een telefoon.
+- **Gasten loggen in met het account dat ze al hebben (OpenWebAuth).** Een fan
+  meldt zich aan via zijn eigen Klonkt en wordt hier volger, geen extra
+  accounthouder met nog een wachtwoord. Twee Klonkts kunnen elkaar aanmelden, dus
+  dit werkt in beide richtingen.
+- **Acht guardianship-poorten die echt schakelen.** Het poortenpaneel is een
+  cockpit: elke poort zichtbaar, elke chip draagt zijn eigen stand, en de apps
+  weten vooraf wat er dichtstaat. Antwoorden is een eigen poort, volgverzoeken
+  worden bij meerderheid beslist als er meerdere guardians zijn, een ward kan
+  zelf een vraag stellen, en een logboek bewaart waaróm een besluit viel.
+- **Volgers eerst goedkeuren, als je dat wilt.** Een volgverzoek wacht op jouw
+  ja, en tot die tijd ziet de aanvrager niets van je berichten.
+- **Elke collectie pagineert.** De outbox serveert nu `first` en `last` en
+  bladert echt door zijn pagina's. Funkwhale weigerde hem zonder die twee
+  ronduit, dus een collectie zonder paginering was geen schoonheidsfoutje maar
+  een dichte deur.
+- **Gesprekken weten wat je gelezen hebt.** Ongelezen telt per gesprek, een
+  lezing is een gebeurtenis in plaats van een gok, en een wachtende lezing
+  antwoordt met het verschil — niet langer een hele lijst ophalen om één nieuwe
+  regel te vinden.
+- **Apple Music- en YouTube-playlists sluiten netjes in**, met dezelfde parsing
+  als de hub en een hoogte die past bij wat je werkelijk insluit.
 - **Berichten is één gesprekkenweergave.** Berichten, Gesprekken en Verzonden
   waren drie losse filters, waardoor één uitwisseling uit elkaar viel: wat jij
   stuurde stond onder Verzonden, wat terugkwam onder een van de andere twee, en
@@ -33,6 +83,25 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
   blijft een aparte knop ernaast: een zwaai is een seintje, geen antwoord.
 
 ### Opgelost
+- **De draad onder een vreemde post wordt via je eigen server opgehaald en nooit
+  bewaard.** Antwoorden, like- en booststatus en de FEP-9098-emoji komen nu mee,
+  en de volgende pagina wordt ook gelezen — eerder stopte een lange draad
+  halverwege.
+- **De snelheidsbegrenzer telde de hele site in plaats van de beller**, waardoor
+  een drukke site iedereen 429's gaf. Daarbij hoort: of je een proxy vertrouwt
+  hangt af van waar je draait, niet van of je in ontwikkeling of productie zit.
+- **Een levende klok in het antwoord maakte van de lange poll een lus.** Het
+  antwoord veranderde elke seconde, dus hij wachtte nooit — hij kwam alleen maar
+  terug.
+- **De editor overleeft een paginawissel.** Modules die aan elementen hangen
+  starten bij elke navigatie opnieuw, dus de bewerkpagina laadt zijn editor weer
+  na een terugknop, en opslaan zonder module wist niet langer wat je had
+  geschreven.
+- **Een slug is een lokale sleutel, geen naam op de draad.** Halve namen,
+  ontbrekende namen en drie spellingen van dezelfde naam kwamen er allemaal uit
+  voort dat het een voor het ander werd aangezien.
+- **De cirkel viel om op een mediaveld dat geen lijst was**, en nam dan de hele
+  pagina mee in plaats van dat ene bericht.
 - **Mensen op privacy-strenge servers kunnen je weer volgen.** Sommige servers
   geven de publieke sleutel van een account alleen aan een ondertekend verzoek.
   Klonkt vroeg zonder handtekening, werd geweigerd, en kon daardoor het
@@ -60,6 +129,25 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
   alleen opnieuw geven en nooit intrekken. Un-liken vanuit een app werkt nu.
 
 ### Beveiliging
+- **Betaalde posts lekten hun volledige inhoud via de outbox en de
+  volger-backfill.** De redactie zelf werkte; de queries gaven hem een rij zónder
+  de kolom `paid`, dus las de poort `undefined`, liet alles door en zei niets.
+  Beide queries halen nu op waarop ze beslissen, en een test bewaakt de soort
+  fout in plaats van dit ene geval.
+- **Fan-only posts gingen de deur uit met een publiek etiket.** Ze waren juist
+  geadresseerd maar verkeerd omschreven, en zo'n tegenspraak lost een andere
+  server precies de verkeerde kant op.
+- **Een lek tussen sites in de tracker-export.** De ene site kon via de exporter
+  bij de rijen van een andere.
+- **De playlist-poort opent nu alleen bestanden van de site zelf.**
+- **Een sleutel is gebonden aan de actor waarvoor hij spreekt.** Een handtekening
+  wordt alleen aanvaard als de sleutel, zijn eigenaar en de actor het eens zijn;
+  eerder kon een sleutel instaan voor iemand waar hij geen relatie mee had.
+- **OpenWebAuth pakt PKCS#1 v1.5 zelf uit**, zonder vroege uitgang en met een
+  grens op het aantal pogingen. Node heeft de padding-modus die dit deed
+  verwijderd omdat die via timing lekt (CVE-2023-46809, de Marvin-aanval); het
+  met de hand doen houdt het pad even lang en sluit het orakel in plaats van het
+  opnieuw te openen.
 
 - **Bijgewerkte onderdelen sluiten zeven beveiligingsadviezen.** Het zwaarste
   zat in de bibliotheek die berichten van elders opschoont: een zorgvuldig

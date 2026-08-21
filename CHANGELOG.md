@@ -5,9 +5,54 @@ Versions follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
-## [1.7.0] · 2026-08-07
+## [1.7.0] · 2026-08-21
 
 ### Added
+- **Your music travels as music, not as a link to it.** A track used to federate
+  as a note with a file hanging off it, so a remote server saw a text with an
+  attachment and nothing that said "this is a release by this artist". Tracks are
+  now first-class Audio objects, an album is its own object on the wire, and the
+  outbox carries the discography. Playlists federate as ActivityPub collections
+  and are discoverable as such. The shapes follow what Funkwhale already speaks,
+  so a Klonkt release lands in a Funkwhale library instead of being dropped.
+- **A post is the release.** Loose tracks in one post are gathered into a
+  collection, the release date and the MusicBrainz release id ride along, and the
+  hashtags are read from the raw text rather than the rendered version — which is
+  why they used to arrive as nonsense, or not at all.
+- **Claim yourself in MusicBrainz.** Under Admin → Audio you can look yourself up
+  and confirm "this is me". The link goes on the wire as `schema:sameAs`, so
+  other servers can tie your Klonkt to the artist you already are elsewhere.
+- **The whole site as a music channel.** `/tracks.xml` publishes everything you
+  released as one feed, for players that speak RSS rather than ActivityPub.
+- **Take your account somewhere else, and take everything with you (FEP-1580).**
+  Your posts, your audio, the covers, the playlists and the GUIDs all move, your
+  following list travels as a CSV you can upload or paste, and the guardianship
+  moves before the follow does — the other order left a ward briefly unwatched.
+  A moved account locks on the outgoing side, so nothing new leaves an address
+  you no longer use. It is one page now, in steps, instead of scattered options.
+- **A reading view, next to Timeline and Grid.** One post fills the screen, the
+  neighbours stand ready on either side, and scrolling snaps to the top of the
+  next post. Each site chooses for itself: reading, timeline, or timeline on
+  desktop with reading on a phone.
+- **Guests can sign in with the account they already have (OpenWebAuth).** A fan
+  logs in through their own Klonkt and becomes a follower here, not another
+  account holder with another password. Two Klonkts can introduce each other, so
+  this works in both directions.
+- **Eight guardianship gates that actually switch.** The gate panel is a cockpit:
+  every gate visible, each chip carrying its own state, and the apps are told
+  what is gated before they try. Replying is its own gate, follow requests are
+  decided by majority when there are several guardians, a ward can raise a
+  question itself, and a logbook keeps the reason a decision was made.
+- **Approve followers first, if you want to.** A follow request waits for your
+  yes, and until then the requester sees none of your posts.
+- **Every collection paginates.** The outbox now serves `first` and `last` and
+  really walks its pages. Funkwhale refused it outright without them, so an
+  unpaginated collection was not a cosmetic issue but a closed door.
+- **Conversations know what you have read.** Unread is counted per conversation,
+  a read is an event rather than a guess, and a waiting read answers with the
+  difference — no more polling for a whole list to find one new line.
+- **Apple Music and YouTube playlists embed properly**, with the same parsing the
+  hub uses and a height that matches what you actually embedded.
 - **Messages is one conversation view.** Messages, Conversations and Sent were
   three separate filters, so a single exchange fell apart: what you sent sat
   under Sent, what came back under one of the other two, and you had to switch
@@ -31,6 +76,21 @@ Versions follow [SemVer](https://semver.org/).
   button next to it: a wave is a nudge, not an answer.
 
 ### Fixed
+- **The thread under a remote post is fetched through your own server and never
+  stored.** Replies, like and boost status and the FEP-9098 emoji now come along,
+  and the next page is read too — before, a long thread stopped halfway.
+- **The rate limiter counted the whole site instead of the caller**, so a busy
+  site handed out 429s to everyone. Related: whether to trust a proxy belongs to
+  where you run, not to whether you are in development or production.
+- **A live clock in the response turned the long poll into a loop.** The answer
+  changed every second, so it never waited — it just kept coming back.
+- **The editor survives a page change.** Modules wired to elements restart on
+  every navigation, so the edit page loads its editor again after a back button,
+  and saving without a module no longer wiped what you wrote.
+- **A slug is a local key, not a name on the wire.** Half names, missing names
+  and three spellings of the same name all came from treating one as the other.
+- **The circle fell over on a media field that was not a list**, which took the
+  whole page with it rather than the one post.
 - **People on privacy-strict servers can follow you again.** Some servers only
   hand out an account's public key to a signed request. Klonkt asked without
   signing, got turned away, and could therefore not check the follow request that
@@ -57,6 +117,24 @@ Versions follow [SemVer](https://semver.org/).
   never undo it. Un-liking from an app now works.
 
 ### Security
+- **Paid posts leaked their full content through the outbox and the follower
+  backfill.** The redaction itself worked; the queries handed it a row without
+  the `paid` column, so the gate read `undefined`, waved everything through and
+  said nothing. Both queries now select what they decide on, and a test guards
+  the class of mistake rather than this one instance of it.
+- **Fan-only posts went out with a public label.** They were addressed correctly
+  but described as public, which is exactly the sort of contradiction a remote
+  server resolves in the wrong direction.
+- **A cross-tenant leak in the tracker export.** One site could reach another
+  site's rows through the exporter.
+- **The playlist gate now opens only files that belong to the site itself.**
+- **A key is bound to the actor it speaks for.** A signature is only accepted
+  when the key, its owner and the actor agree; before, a key could vouch for
+  someone it had no relationship with.
+- **OpenWebAuth unpacks PKCS#1 v1.5 itself**, without an early exit and with a
+  cap on attempts. Node removed the padding mode that used to do this because it
+  leaks timing (CVE-2023-46809, the Marvin attack); doing it by hand keeps the
+  path constant-time and closes the oracle rather than reopening it.
 
 - **Updated components close seven security advisories.** The heaviest one sat
   in the library that cleans up posts arriving from elsewhere: a carefully built
