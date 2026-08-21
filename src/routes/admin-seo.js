@@ -94,6 +94,18 @@ router.post('/', requireGod, (req, res) => {
   const f = req.body;
   const schemaType = f.schema_type === 'Organization' ? 'Organization' : 'Person';
 
+  // De MusicBrainz-koppeling (shaer-mbz). Alleen een echte MBID komt de kolom
+  // in: zonder deze zeef sluipt er een URL of een handle in het veld dat naar
+  // buiten gaat, en het gaat naar TWEE uitgangen -- de JSON-LD en de actor.
+  // Leeg is een geldige keuze; dat is ontkoppelen.
+  //
+  // Deze twee regels stonden BINNEN de template-literal hieronder, dus ze waren
+  // geen code maar tekst in de SQL. Daardoor faalde elke opslag op dit paneel
+  // met `near "/": syntax error` -- niet alleen de koppeling, ook het
+  // titelsjabloon, de omschrijving en alle verificatiecodes.
+  const mbRuw = String(f.mb_artist_id || '').trim().toLowerCase();
+  const mbArtistId = isMbid(mbRuw) ? mbRuw : null;
+
   db.prepare(`
     UPDATE sites SET
       robots_index = ?,
@@ -117,13 +129,6 @@ router.post('/', requireGod, (req, res) => {
       mb_artist_id = ?, mb_artist_name = ?,
       updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
-  // De MusicBrainz-koppeling (shaer-mbz). Alleen een echte MBID komt de kolom
-  // in: zonder deze zeef sluipt er een URL of een handle in het veld dat naar
-  // buiten gaat, en het gaat naar TWEE uitgangen -- de JSON-LD en de actor.
-  // Leeg is een geldige keuze; dat is ontkoppelen.
-  const mbRuw = String(f.mb_artist_id || '').trim().toLowerCase();
-  const mbArtistId = isMbid(mbRuw) ? mbRuw : null;
-
   `).run(
     f.robots_index ? 1 : 0,
     (f.title_template || '{title} — {site}').slice(0, 200),
