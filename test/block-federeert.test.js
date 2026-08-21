@@ -75,3 +75,18 @@ test('een onbereikbare tegenpartij houdt de blokkade niet tegen', async () => {
   assert.equal(r.ok, true, 'de blokkade staat, ook zonder bezorging');
   assert.equal(db.prepare('SELECT count(*) c FROM ap_blocks WHERE target = ?').get('https://203.0.113.99/ap/actor').c, 1);
 });
+
+test('een verwijderde volger krijgt een Reject(Follow)', async () => {
+  bezorgd.length = 0;
+  const VOLGER = 'https://203.0.113.81/ap/actor';
+  db.prepare(`INSERT INTO ap_followers (slug, actor_uri, inbox, created_at)
+              VALUES ('dev', ?, ?, CURRENT_TIMESTAMP)`).run(VOLGER, `${VOLGER}/inbox`);
+  const rij = db.prepare('SELECT id FROM ap_followers WHERE actor_uri = ?').get(VOLGER);
+  assert.equal(AP.removeFollower('dev', rij.id), true);
+  await new Promise((r) => setTimeout(r, 150));   // bezorging is fire-and-forget
+  const rej = bezorgd.find((b) => b.activiteit.type === 'Reject');
+  assert.ok(rej, 'er is een Reject bezorgd');
+  assert.equal(rej.activiteit.object.type, 'Follow');
+  assert.equal(rej.activiteit.object.actor, VOLGER, 'het gaat om ZIJN follow op ons');
+  assert.equal(db.prepare('SELECT count(*) c FROM ap_followers WHERE actor_uri = ?').get(VOLGER).c, 0);
+});

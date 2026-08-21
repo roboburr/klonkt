@@ -1262,9 +1262,42 @@ export function listFollowers(slug) {
   ).all(slug);
 }
 // Manually drop a follower after a check (a still-live account would have to re-follow).
+/**
+ * Een volger verwijderen, en het hem ook LATEN WETEN (Robin, 21-8).
+ *
+ * Reject(Follow) is het standaardsignaal voor "je volgt me niet meer": de
+ * andere kant ruimt de relatie dan op in plaats van te blijven denken dat hij
+ * volgt. Zonder dit merkte de hub niets -- die bleef als volger in zijn eigen
+ * boeken staan terwijl er nooit meer iets werd bezorgd.
+ *
+ * Verwijderen gaat altijd door; de melding is een gunst en mag mislukken.
+ */
 export function removeFollower(slug, id) {
+  const rij = db.prepare('SELECT actor_uri FROM ap_followers WHERE slug = ? AND id = ?').get(slug, id);
   const info = db.prepare('DELETE FROM ap_followers WHERE slug = ? AND id = ?').run(slug, id);
+  if (info.changes > 0 && rij && rij.actor_uri) meldNietLangerVolger(slug, rij.actor_uri);
   return info.changes > 0;
+}
+
+/** Reject(Follow) naar een ex-volger; faalt stil, want de relatie is al weg. */
+export function meldNietLangerVolger(slug, actorUri) {
+  try {
+    const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+    const me = actorId(base, slug);
+    const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(slug);
+    if (!site) return;
+    const reject = {
+      '@context': AP_CONTEXT,
+      id: `${me}#reject-follow-${Date.now()}-${rid()}`,
+      type: 'Reject',
+      actor: me,
+      to: [actorUri],
+      object: { type: 'Follow', actor: actorUri, object: me },
+    };
+    deliverToActor(site, actorUri, reject)
+      .then((r) => console.log('[AP] Reject(Follow)', slug, '→', actorUri, r && r.delivered ? 'bezorgd' : 'niet bezorgd'))
+      .catch(() => {});
+  } catch { /* nooit blokkerend */ }
 }
 
 // Best cached display for an actor URI, across the caches Klonkt already fills:
