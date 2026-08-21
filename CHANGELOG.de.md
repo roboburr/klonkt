@@ -5,6 +5,23 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 
 ## [Unreleased]
 
+## [1.7.2] · 2026-08-21
+
+### Behoben
+- **Das SEO-&-Social-Panel konnte nichts speichern.** Zwei Zeilen der
+  MusicBrainz-Verknüpfung landeten *innerhalb* des Template-Literals mit dem
+  `UPDATE` und waren damit Text im SQL statt Code, sodass jedes Speichern mit
+  `near "/": syntax error` scheiterte. Es ging nie nur um das
+  MusicBrainz-Feld: Titelvorlage, Canonical, Beschreibung, Standard-og:image,
+  jeder Verifizierungscode und die Publisher-Angaben laufen über dieselbe
+  Abfrage. Niemand bemerkte es, weil die Datei gültiges JavaScript ist — der
+  Fehler entsteht erst bei `prepare()` — und weil die Künstlersuche über ein
+  eigenes GET läuft: „Bist du das?“ zeigte also die richtige Künstlerin oder den
+  richtigen Künstler, während das Speichern still nichts tat. Ein
+  Actor-Dokument ohne `schema:sameAs` sagte damit die Wahrheit: die Spalte war
+  leer. Vier Route-Tests decken das Speichern jetzt ab, samt der Prüfung, dass
+  die Verknüpfung wirklich im Actor-Dokument landet.
+
 ## [1.7.1] · 2026-08-21
 
 ### Behoben

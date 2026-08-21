@@ -5,6 +5,22 @@ Versies volgen [SemVer](https://semver.org/lang/nl/) (`1.0.0-beta.N` tijdens de 
 
 ## [Unreleased]
 
+## [1.7.2] · 2026-08-21
+
+### Opgelost
+- **Het SEO & social-paneel kon niets opslaan.** Twee regels van de
+  MusicBrainz-koppeling belandden *binnen* de template-literal met de `UPDATE`,
+  waardoor ze tekst in de SQL waren in plaats van code, en elke opslag faalde
+  met `near "/": syntax error`. Het ging nooit alleen om het MusicBrainz-veld:
+  het titelsjabloon, de canonical, de omschrijving, de standaard-og:image, elke
+  verificatiecode en de publisher-gegevens lopen door diezelfde query. Niets
+  ving het af, want het bestand is geldig JavaScript — de fout bestaat pas bij
+  `prepare()` — en het zoeken naar de artiest loopt langs een aparte GET, dus
+  "Ben jij dit?" toonde netjes de juiste artiest terwijl bewaren stilletjes
+  niets deed. Een actor-document zonder `schema:sameAs` vertelde dus de
+  waarheid: de kolom was leeg. Vier routetests dekken de opslag nu af, inclusief
+  dat de koppeling ook echt op het actor-document terechtkomt.
+
 ## [1.7.1] · 2026-08-21
 
 ### Opgelost

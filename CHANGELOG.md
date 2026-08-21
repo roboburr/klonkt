@@ -5,6 +5,22 @@ Versions follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.7.2] · 2026-08-21
+
+### Fixed
+- **The SEO & social panel could not save anything.** Two lines of the
+  MusicBrainz link ended up *inside* the template literal holding the `UPDATE`,
+  so they were text in the SQL instead of code, and every save failed with
+  `near "/": syntax error`. It was never only the MusicBrainz field: the title
+  template, canonical URL, description, default og:image, every verification
+  code and the publisher details all go through that same statement. Nothing
+  caught it because the file is valid JavaScript — the error only exists at
+  `prepare()` — and because the artist search runs over a separate GET, so
+  "is this you?" showed the right artist while saving quietly did nothing. An
+  actor document without `schema:sameAs` was telling the truth: the column was
+  empty. Four route-level tests now cover the save, including that the link
+  really does reach the actor document.
+
 ## [1.7.1] · 2026-08-21
 
 ### Fixed
