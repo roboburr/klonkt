@@ -1,0 +1,53 @@
+<%# Beheer -> Media -> Luisteraars (shaer-0nh).
+
+    Deze pagina had zijn eigen <style>-blok met eigen klassen (.lis-*) en week
+    daarmee af van de vier tabs ernaast -- andere breedte, andere kop, andere
+    rij. Nu op dezelfde ax-*-romp; wat overblijft is een lijst zoals audio en
+    playlists er ook een hebben. %>
+<%- include('../partials/admin-styles') %>
+<div class="container ax-page">
+
+  <%- include('../partials/admin-back') %>
+  <%- include('../partials/media-tabs', { active: 'listeners', audioOn: audioOn }) %>
+  <header class="ax-header">
+    <div>
+      <h1><%= t('alis.lis_title') %></h1>
+      <%# Waarom dit een eigen tab is en niet een lijstje bij de volgers: dit
+          zijn accounts die aan de BIBLIOTHEEK hangen. Ze krijgen de muziek en
+          met opzet niet de gewone posts, en dat verschil hoort zichtbaar te
+          zijn -- ook voor wie later moet begrijpen waarom ze niet in de
+          volgerslijst staan. %>
+      <p class="ax-tagline"><%= t('alis.lis_intro') %></p>
+    </div>
+  </header>
+
+  <% if (!luisteraars.length) { %>
+    <div class="ax-empty">
+      <div class="ax-empty-icon">&#127911;</div>
+      <p><%= t('alis.lis_empty') %></p>
+    </div>
+  <% } else { %>
+    <p class="ax-tagline" style="margin-bottom:.75rem;"><strong><%= luisteraars.length %></strong> <%= t('alis.lis_count') %></p>
+    <ul class="ax-list">
+      <% luisteraars.forEach(function (l) { %>
+        <li class="ax-track">
+          <div class="ax-track-cover">
+            <% if (l.icon) { %><img src="<%= l.icon %>" alt="" loading="lazy" decoding="async"><% } else { %>&#9835;<% } %>
+          </div>
+          <div class="ax-track-meta">
+            <div class="ax-track-title">
+              <%= l.name || l.handle || l.actor_uri %>
+              <% if (l.last_error_at) { %><span class="ax-pill"><%= t('alis.lis_error') %></span><% } %>
+            </div>
+            <div class="ax-track-sub">
+              <% if (l.handle) { %><span><%= l.handle %></span><span class="ax-track-sep">&middot;</span><% } %>
+              <span><%= t('alis.lis_since') %> <%= formatDate(l.created_at) %></span>
+              <span class="ax-track-sep">&middot;</span>
+              <span><%= t('alis.lis_last') %>: <%= l.last_delivery_at ? formatDate(l.last_delivery_at) : t('alis.lis_never') %></span>
+            </div>
+          </div>
+        </li>
+      <% }); %>
+    </ul>
+  <% } %>
+</div>

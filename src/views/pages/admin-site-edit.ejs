@@ -13,7 +13,7 @@
         <span><%= t('asite.slug') %> <% if (!isNew) { %><em><%= t('asite.slug_fixed') %></em><% } %></span>
         <span class="slug-url">
           <span class="slug-url-host" id="slug-host"
-                data-prefix="<%= (typeof tenancy !== 'undefined' && tenancy === 'hub') ? '/user/' : '/' %>">website.com/</span><input
+                data-prefix="/">website.com/</span><input
                 type="text" name="slug" id="slug-input" class="slug-url-input" value="<%= site.slug %>" required <% if (!isNew) { %>readonly<% } %>
                 pattern="[a-z0-9_-]{2,40}" placeholder="<%= t('asite.slug_placeholder') %>"
                 autocapitalize="none" autocorrect="off" spellcheck="false">
@@ -23,20 +23,6 @@
         <span><%= t('asite.field_title') %> <small class="form-hint-inline"><%= t('asite.field_title_hint') %></small></span>
         <input type="text" name="title" value="<%= site.title || '' %>" required maxlength="200">
       </label>
-      <%# Assign (or reassign) owner — ONLY god AND only in hub mode. In hub this
-          gives each user their own self-managed Klonkt. In solo (one site,
-          one owner) this is pointless/confusing, so it's hidden. %>
-      <% if (user && user.role === 'god' && (typeof tenancy !== 'undefined' && tenancy === 'hub')) { %>
-      <label>
-        <span><%= t('asite.owner') %> <small class="form-hint-inline"><%= t('asite.owner_hint') %></small></span>
-        <% var _godSuffix = t('asite.owner_god_suffix'); %>
-        <select name="owner_id">
-          <% (typeof users !== 'undefined' ? users : []).forEach(function(u){ %>
-            <option value="<%= u.id %>" <%= (site.owner_id === u.id) ? 'selected' : '' %>><%= u.username %><%= u.role === 'god' ? _godSuffix : '' %></option>
-          <% }); %>
-        </select>
-      </label>
-      <% } %>
       <label>
         <span><%= t('asite.tagline') %> <small class="form-hint-inline"><%= t('asite.tagline_hint') %></small></span>
         <input type="text" name="tagline" value="<%= site.tagline || '' %>" maxlength="200">
@@ -139,27 +125,7 @@
 
     <%# Live preview: selecting an accent / theme / palette re-themes this page
         instantly (reverts on reload; persists on save). %>
-    <script>
-    (function(){
-      if (window.__themePreviewWired) return; window.__themePreviewWired = true;
-      var html = document.documentElement;
-      function applyAccent(hex){
-        if(!/^#[0-9a-fA-F]{6}$/.test(hex)) return;
-        var sa = document.getElementById('pcms-site-accent');
-        if(!sa){ sa = document.createElement('style'); sa.id = 'pcms-site-accent'; document.head.appendChild(sa); }
-        sa.textContent = ':root,[data-palette]{--accent:'+hex+';--accent-soft:color-mix(in srgb,'+hex+' 80%,white);--accent-tint:color-mix(in srgb,'+hex+' 12%,transparent);}';
-      }
-      document.addEventListener('change', function(e){
-        var t = e.target; if(!t || !t.name) return;
-        if(t.name === 'palette'){ html.setAttribute('data-palette', t.value); }
-        else if(t.name === 'accent'){ applyAccent(t.value); }
-        else if(t.name === 'theme_override'){
-          if(t.value === 'light' || t.value === 'dark'){ html.setAttribute('data-theme', t.value); }
-          else { var dk = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches; html.setAttribute('data-theme', dk ? 'dark' : 'light'); }
-        }
-      });
-    })();
-    </script>
+    <%# Het script van deze pagina staat in assets/js/mod/admin-site-edit.js (shaer-bqr). %>
 
     <fieldset>
       <legend><%= t('asite.behavior') %></legend>
@@ -177,6 +143,10 @@
         <span><%= t('asite.enable_audio') %></span>
       </label>
       <% } %>
+      <label class="cb">
+        <input type="checkbox" name="approve_followers" value="1" <%= site.approve_followers ? 'checked' : '' %>>
+        <span><%= t('asite.approve_followers') %></span>
+      </label>
     </fieldset>
 
     <fieldset class="profile-links-fieldset">
@@ -212,18 +182,45 @@
       <button type="button" id="profile-link-add" class="btn"><%= t('asite.link_add') %></button>
     </fieldset>
 
+    <%# Aliassen en verhuizen staan sinds 14-8 op /admin/migrate, bij elkaar met
+        exporteren, importeren en ophalen (Robin: alle migratie-opties op de
+        migrate-pagina). Ze hoorden hier ook niet thuis: dit scherm gaat over hoe
+        je site eruitziet, en een verhuizing is geen uiterlijk. Alleen de
+        wegwijzer blijft, want wie ze hier zocht moet ze kunnen vinden. %>
+    <fieldset>
+      <legend><%= t('asite.aliases') %></legend>
+      <p class="form-hint"><%= t('asite.moved_to_migrate') %></p>
+      <p><a href="/admin/migrate" class="btn"><%= t('admin.b_migrate') %></a></p>
+    </fieldset>
+
     <fieldset>
       <legend><%= t('asite.feed_view') %></legend>
+      <%# Twee vragen, en ze zijn niet hetzelfde: WELKE tweede weergave je site
+          aanbiedt naast Grid, en waarin hij opent. %>
+      <label>
+        <span><%= t('asite.feed_alt') %></span>
+        <select name="feed_alt_view">
+          <% var _a = ['timeline','auto'].indexOf(site.feed_alt_view) >= 0 ? site.feed_alt_view : 'reader'; %>
+          <option value="reader"   <%= _a === 'reader'   ? 'selected' : '' %>><%= t('asite.feed_alt_reader') %></option>
+          <option value="timeline" <%= _a === 'timeline' ? 'selected' : '' %>><%= t('asite.feed_alt_timeline') %></option>
+          <option value="auto"     <%= _a === 'auto'     ? 'selected' : '' %>><%= t('asite.feed_alt_auto') %></option>
+        </select>
+      </label>
       <label>
         <span><%= t('asite.feed_default') %></span>
         <select name="feed_view_default">
-          <option value="timeline" <%= (site.feed_view_default || 'timeline') === 'timeline' ? 'selected' : '' %>><%= t('asite.feed_timeline') %></option>
+          <option value="reader" <%= site.feed_view_default !== 'grid' ? 'selected' : '' %>><%= t('asite.feed_alt_' + _a) %></option>
           <option value="grid"     <%= site.feed_view_default === 'grid' ? 'selected' : '' %>><%= t('asite.feed_grid') %></option>
         </select>
       </label>
       <label class="cb">
         <input type="checkbox" name="feed_view_switch" value="1" <%= site.feed_view_switch ? 'checked' : '' %>>
         <span><%= t('asite.feed_switch') %></span>
+      </label>
+      <%# Alleen van toepassing op Lezen: geeft elk bericht daar een eigen scherm. %>
+      <label class="cb">
+        <input type="checkbox" name="reader_full_page" value="1" <%= site.reader_full_page ? 'checked' : '' %>>
+        <span><%= t('asite.reader_full_page') %></span>
       </label>
       <label class="cb">
         <input type="checkbox" name="show_search" value="1" <%= site.show_search ? 'checked' : '' %>>
@@ -258,108 +255,10 @@
 
     <button type="submit" class="btn btn-primary"><%= isNew ? t('asite.submit_create') : t('asite.submit_save') %></button>
   </form>
+
 </div>
 
-<script>
-(function() {
-  // Slug URL field: show the real host as a dimmed prefix (the slug itself is
-  // coloured via CSS). Hub → host/user/<slug>, otherwise host/<slug>.
-  var sh = document.getElementById('slug-host');
-  if (sh) sh.textContent = location.host + (sh.dataset.prefix || '/');
-})();
-(function() {
-  // Profile-links repeater: add row from <template>, remove on click.
-  var rows = document.getElementById('profile-links-rows');
-  var tpl  = document.getElementById('profile-link-template');
-  var add  = document.getElementById('profile-link-add');
-  if (!rows || !tpl || !add) return;
 
-  add.addEventListener('click', function() {
-    var clone = tpl.content.cloneNode(true);
-    rows.appendChild(clone);
-  });
-  rows.addEventListener('click', function(e) {
-    if (e.target && e.target.classList.contains('pl-remove')) {
-      var row = e.target.closest('.profile-link-row');
-      if (row) row.remove();
-    }
-  });
-})();
-
-// P63 — Profile photo picker: upload via /admin/sites/upload-photo,
-// then write the returned URL into the visible input. Live thumb preview.
-(function() {
-  var picker  = document.getElementById('photo-picker');
-  if (!picker) return;
-  var thumb   = document.getElementById('photo-thumb');
-  var preview = document.getElementById('photo-preview');
-  var urlEl   = document.getElementById('photo-url');
-  var trigger = document.getElementById('photo-upload-trigger');
-  var clear   = document.getElementById('photo-clear');
-  var field   = document.getElementById('photo-upload-field');
-  var status  = document.getElementById('photo-status');
-
-  function showPreview(url) {
-    if (url) {
-      preview.src = url;
-      preview.hidden = false;
-      thumb.removeAttribute('data-empty');
-      clear.hidden = false;
-    } else {
-      preview.src = '';
-      preview.hidden = true;
-      thumb.setAttribute('data-empty', '');
-      clear.hidden = true;
-    }
-  }
-
-  if (urlEl) {
-    urlEl.addEventListener('input', function() {
-      showPreview(urlEl.value.trim());
-    });
-  }
-
-  if (trigger && field) {
-    trigger.addEventListener('click', function() { field.click(); });
-    field.addEventListener('change', async function() {
-      var file = field.files && field.files[0];
-      if (!file) return;
-      status.classList.remove('is-error');
-      status.textContent = 'Uploaden…';
-      try {
-        var fd = new FormData();
-        fd.append('photo', file);
-        var r = await fetch('/admin/sites/upload-photo', {
-          method: 'POST',
-          body: fd,
-          credentials: 'same-origin',
-        });
-        var j = await r.json();
-        if (!r.ok || !j.ok) throw new Error(j.error || ('Upload mislukt (' + r.status + ')'));
-        urlEl.value = j.url;
-        showPreview(j.url);
-        status.textContent = 'Geüpload ✓';
-        setTimeout(function() { status.textContent = ''; }, 2000);
-      } catch (e) {
-        status.classList.add('is-error');
-        status.textContent = 'Mislukt: ' + e.message;
-      } finally {
-        field.value = '';
-      }
-    });
-  }
-
-  if (clear) {
-    clear.addEventListener('click', function() {
-      urlEl.value = '';
-      showPreview('');
-      status.textContent = '';
-      // Note: doesn't delete the file from disk — saving the form with empty
-      // URL leaves the file orphaned on the server. Acceptable for now.
-    });
-  }
-})();
-</script>
 
 <style>
 .admin-site-edit-page { max-width: 760px; margin: 3rem auto; padding: 0 1rem; }

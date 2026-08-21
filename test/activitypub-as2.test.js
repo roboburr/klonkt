@@ -21,20 +21,40 @@ const BASE = 'https://test.example';
 // AS2-core + security/v1 vocabulary Klonkt uses (stable — only extend when AS2/security itself
 // adds a term we adopt). JSON-LD keywords included.
 const AS2 = new Set([
-  '@context', '@id', '@type',
+  // `@container` hoort in dit rijtje omdat de verzamelaar hieronder OOK door
+  // @context zelf loopt, en een termdefinitie mag naast @id en @type ook een
+  // container dragen (artist_credit is bij Funkwhale een @list). Het is een
+  // JSON-LD-sleutelwoord, geen vocabulaire -- die laatste is wat deze test moet
+  // vangen. Zonder deze regel faalde hij op een correcte declaratie.
+  '@context', '@id', '@type', '@container',
   'id', 'type', 'actor', 'object', 'target', 'to', 'cc',
   'content', 'name', 'summary', 'url', 'href', 'mediaType',
   'published', 'updated', 'attributedTo', 'inReplyTo', 'replies',
+  // AS2-kern: de context waarbinnen een object bestaat. Een track wijst ermee
+  // naar de post die hem uitbrengt (shaer-0nh).
+  'context',
   'attachment', 'tag', 'icon', 'image', 'duration',
   'contentMap', 'nameMap', 'summaryMap', // AS2 @language-map counterparts of content/name/summary
   'totalItems', 'orderedItems', 'items', 'first', 'last', 'partOf', 'next', 'prev',
   'preferredUsername', 'inbox', 'outbox', 'followers', 'following', 'endpoints', 'sharedInbox',
   // ActivityPub §5.6: the private blocked collection (owner-only GET).
   'blocked',
+  // ActivityPub §4.1: supplementary collections on the actor — Klonkt wijst
+  // ermee naar de playlist-lijst (shaer-ayc).
+  'streams',
   // FEP-633c (Guardians): the owner-only dashboard queues on the actor; the
   // sub-keys are the daemon-contract collection names the Shaer clients read.
   // `guardians` is the availability queue (3.6.1: never public, owner-only).
-  'shaer:queues', 'offers', 'follows', 'wards', 'guardians',
+  // `outgoingFollows` is §5.3 turned around: the ward's own follow requests,
+  // waiting for the guardians (shaer-p729).
+  // `help` is de vragenlijst met haar STAAT (5.2.1): de apps lazen hulpvragen uit
+  // de feed en wisten niet of er al iemand op af was.
+  'shaer:queues', 'offers', 'follows', 'outgoingFollows', 'wards', 'guardians',
+  // §4.2: het logboek staat NAAST de wachtrijen, want het wacht nergens op.
+  'shaer:log', 'help',
+  // Elke OPEN hulpvraag zit in de collectie; daarom mag een app uit afwezigheid
+  // concluderen dat iets niet open is (shaer-6wt).
+  'shaer:openComplete',
   // ActivityPub §4.1 `endpoints` vocabulary (same category as sharedInbox), used for C2S.
   'oauthAuthorizationEndpoint', 'oauthTokenEndpoint', 'uploadMedia',
   'publicKey', 'owner', 'publicKeyPem',

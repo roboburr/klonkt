@@ -2,7 +2,7 @@
   Rich reply editor (shared component) — progressive enhancement.
 
   Renders a plain <textarea name="text"> form that works without JS; the shared
-  /assets/js/reply-editor.js upgrades it to a rich contenteditable with a small
+  mod/reply-editor.js upgrades it to a rich contenteditable with a small
   toolbar, a language select and (on ≤700px) a full-screen compose overlay,
   which is the right pattern on mobile. On submit the JS fills the hidden
   `content` field with the editor HTML and `text` with a plain-text fallback;
@@ -82,5 +82,4 @@
 <%# Assets once per render, even when this partial repeats per comment. %>
 <% if (!locals.__reAssets) { locals.__reAssets = 1; %>
 <link rel="stylesheet" href="/assets/css/reply-editor.css">
-<script src="/assets/js/reply-editor.js" defer></script>
 <% } %>

@@ -67,11 +67,37 @@ class AudioEmbedService {
       return { provider: 'applemusic', url };
     }
 
-    // YouTube — video id is always exactly 11 characters (aligns with the client-side
-    // ytId() in embed-player.js, which also expects {11}).
-    if (/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/|youtube\.com\/live\/)([A-Za-z0-9_-]{11})/i.test(url)) {
-      const match = url.match(/(?:v=|youtu\.be\/|embed\/|shorts\/|live\/)([A-Za-z0-9_-]{11})/i);
-      return { provider: 'youtube', id: match[1], url };
+    // YouTube — a video id is always exactly 11 characters (aligns with the
+    // client-side ytId() in embed-player.js, which also expects {11}).
+    //
+    // A link may carry a video, a playlist, or both, and until now we kept only
+    // the video and threw `list=` away -- so a link to an album played its first
+    // song and stopped. The ref now keeps whichever is there, in the same three
+    // shapes the Klonkt hub uses, so one ref travels between the two unchanged:
+    //
+    //   "<video>"           one video
+    //   "<video>?list=<L>"  that video, and on through the list
+    //   "list:<L>"          the whole playlist (YouTube's `videoseries`)
+    //
+    // `list` may sit before or after `v=` and is often entity-encoded (&amp;)
+    // in a baked href, hence the scan over the whole URL rather than a fixed
+    // order. A list id is 10-60 chars: longer and looser than a video id.
+    if (/(?:youtube(?:-nocookie)?\.com\/(?:watch\?|playlist\?|embed\/|shorts\/|live\/)|youtu\.be\/)/i.test(url)) {
+      const vm = url.match(/(?:[?&](?:amp;)?v=|youtu\.be\/|\/embed\/|\/shorts\/|\/live\/)([A-Za-z0-9_-]{11})(?![A-Za-z0-9_-])/i);
+      const lm = url.match(/[?&](?:amp;)?list=([A-Za-z0-9_-]{10,60})/i);
+      // `videoseries` is a marker, not a video: a bare playlist embed URL reads
+      // /embed/videoseries?list=..., and taking that for an id gives a dead
+      // frame. It is EXACTLY eleven characters, so no length rule catches it --
+      // it has to be named. (Measured, not assumed: it slipped through a
+      // boundary check that looked like it covered this.)
+      const id = vm && vm[1] !== 'videoseries' ? vm[1] : null;
+      const list = lm ? lm[1] : null;
+      if (id || list) {
+        const ref = id ? (list ? `${id}?list=${list}` : id) : `list:${list}`;
+        // `id` stays exactly what it was for every caller that only wants a
+        // video; `list` and `ref` are additions.
+        return { provider: 'youtube', id, list, ref, url };
+      }
     }
 
     // Vimeo
@@ -121,8 +147,11 @@ class AudioEmbedService {
       // We render a placeholder with data attributes instead of the bare platform
       // iframe, so the embed appears in OUR brand style.
       case 'youtube':
-        return this.embedPlaceholder('youtube', config.id, 'video',
-          config.url || `https://youtu.be/${config.id}`);
+        // The ref carries the list when there is one; `id` alone would drop it
+        // and play a single song out of an album.
+        return this.embedPlaceholder('youtube', config.ref || config.id, 'video',
+          config.url || (config.id ? `https://youtu.be/${config.id}`
+                                   : `https://www.youtube.com/playlist?list=${config.list}`));
       case 'soundcloud':
         return this.embedPlaceholder('soundcloud', config.url, 'track', config.url);
       case 'spotify':
@@ -209,13 +238,33 @@ class AudioEmbedService {
   }
 
   static applemusicIframe({ url }) {
-    const match = url.match(/music\.apple\.com\/([a-z]{2}\/(?:album|playlist|song)\/[^/?#]+\/[0-9]+)/i);
+    // Een album of nummer heeft een NUMMER als id, een afspeellijst niet: die
+    // heet `pl.u-LdbqzVvI3go5g`. Met alleen [0-9]+ viel elke playlist hier af
+    // en gaf deze functie null -- waarna de shortcode zelf op de pagina kwam.
+    // Barts melding (17-8): het concept "The Mixtape" toonde in preview
+    // letterlijk [[embed:https://music.apple.com/nl/playlist/...]].
+    //
+    // Bewust krap: geen slash, vraagteken of hekje in het id, want wat hier
+    // gevangen wordt gaat rechtstreeks achter https://embed.music.apple.com/ aan.
+    const match = url.match(
+      /music\.apple\.com\/([a-z]{2}\/(album|playlist|song)\/[^/?#]+\/(?:[0-9]+|pl\.[A-Za-z0-9_-]+))/i,
+    );
     if (!match) return null;
     const src = `https://embed.music.apple.com/${match[1]}`;
+    // De hoogte hangt af van WAT je insluit, en dat stond hier op een vaste
+    // 175px -- de maat van een LOS NUMMER. Een album of afspeellijst is 450px,
+    // dus daarvan zag je ongeveer een derde, met `overflow:hidden` eroverheen
+    // zodat de rest ook niet te bereiken viel. Barts melding (20-8) over
+    // boiert.eu/the-mixtape.
+    //
+    // Nagemeten en niet overgenomen: de embed-pagina van die lijst
+    // (pl.u-LdbqzVvI3go5g) geeft zijn <main> EN zijn <body> allebei precies
+    // 450px. Dat is ook de hoogte in Apple's eigen insluitcode.
+    const hoogte = String(match[2]).toLowerCase() === 'song' ? 175 : 450;
     return `
       <figure class="folio-embed folio-embed--applemusic">
         <iframe src="${this.escape(src)}"
-                style="width:100%;height:175px;border:0;overflow:hidden;border-radius:8px;"
+                style="width:100%;height:${hoogte}px;border:0;overflow:hidden;border-radius:8px;"
                 loading="lazy"
                 allow="autoplay; clipboard-write; encrypted-media"
                 title="Apple Music"></iframe>
@@ -223,8 +272,25 @@ class AudioEmbedService {
     `.trim();
   }
 
-  static youtubeIframe({ id }) {
-    const src = `https://www.youtube-nocookie.com/embed/${id}`;
+  /**
+   * The plain provider iframe. Takes the same ref shapes as the placeholder:
+   * "<video>", "<video>?list=<L>" and "list:<L>" -- a bare playlist embeds as
+   * `videoseries`. Kept in step with the placeholder path on purpose: this is
+   * the fallback, and a fallback that silently drops the playlist is the worst
+   * kind, because it looks like it worked.
+   */
+  static youtubeIframe({ id, ref }) {
+    const r = ref || id || '';
+    const base = 'https://www.youtube-nocookie.com/embed/';
+    let src;
+    if (r.startsWith('list:')) {
+      src = `${base}videoseries?list=${encodeURIComponent(r.slice(5))}`;
+    } else if (r.includes('?list=')) {
+      const [v, l] = r.split('?list=');
+      src = `${base}${encodeURIComponent(v)}?list=${encodeURIComponent(l)}`;
+    } else {
+      src = base + encodeURIComponent(r);
+    }
     return `
       <figure class="folio-embed folio-embed--youtube">
         <iframe src="${this.escape(src)}"
@@ -294,7 +360,13 @@ class AudioEmbedService {
         if (media) return media;
         return `<div class="post-embed-missing"><em>Embed: niet-ondersteunde of ongeldige URL.</em></div>`;
       }
-      return this.generateIframe(detected.provider, detected) || match;
+      // HERKEND maar niet te bouwen is geen reden om de shortcode zelf te
+      // tonen. Dat deed het wel, en dan leest een bezoeker "[[embed:https://...]]"
+      // op de pagina en denkt hij dat er iets stuk is. Onherkend gaf hierboven
+      // al een nette melding; herkend-maar-mislukt hoort dezelfde te geven,
+      // want voor de lezer is het hetzelfde geval.
+      return this.generateIframe(detected.provider, detected)
+        || `<div class="post-embed-missing"><em>Embed: niet-ondersteunde of ongeldige URL.</em></div>`;
     });
   }
 

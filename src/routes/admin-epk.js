@@ -32,6 +32,7 @@ router.get('/', requireGod, (req, res) => {
   let chosen = [];
   try { const r = JSON.parse(getSetting('epk_tracks_' + site.id, '') || '[]'); if (Array.isArray(r)) chosen = r; } catch (e) {}
   renderPage(req, res, 'pages/admin-epk', {
+    pageJs: 'admin-epk',
     pageTitleKey: 'admin.t_epk',
     bodyClass: 'on-admin',
     site,

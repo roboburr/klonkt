@@ -1,6 +1,10 @@
-// Unit-tests voor de hub-permissielaag — juist `canAdminSite` was lang stil kapot
+// Unit-tests voor de site-permissielaag — juist `canAdminSite` was lang stil kapot
 // (las een nooit-gevulde user.siteRoles), dus dit dekt 'm nu af. Draait op de
 // ingebouwde node:test (geen extra deps). In-memory SQLite → raakt geen echte data.
+//
+// Heette hub-permissions.test.js: de hub-modus is weg (72ec6a4), maar wat hier
+// getest wordt niet. canAdminSite, canEditPost en getPrimarySite zijn springlevend
+// en dit bestand is hun enige dekking — alleen de naam verwees nog naar de modus.
 //
 // Run: npm test   (= node --test)
 

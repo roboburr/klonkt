@@ -72,9 +72,21 @@ export function actorProps(id, slug) {
     'shaer:queues': {
       offers: `${id}/queues/offers`,
       follows: `${id}/queues/follows`,
+      // Both directions of §5.3, kept apart on purpose: a guardian must be able
+      // to tell "someone wants to follow your ward" from "your ward wants to
+      // follow someone". Same mechanism, opposite question, different words in
+      // the interface (shaer-p729).
+      outgoingFollows: `${id}/queues/outgoing-follows`,
       wards: `${id}/queues/wards`,
       guardians: `${id}/queues/guardians`,
+      help: `${id}/queues/help`,
     },
+    // NAAST de wachtrijen, niet erin. Alles onder shaer:queues wacht op een
+    // antwoord; dit is wat er al besloten is, met de reden erbij (§4.2).
+    // Geschiedenis onderbrengen bij een woord dat "wachtend" betekent maakt van
+    // twee dingen één, en dat is precies de fout die de rest van deze module
+    // net heeft opgeruimd.
+    'shaer:log': `${id}/log`,
   };
   const guardians = listGuardians(slug).map((r) => r.other_uri);
   if (guardians.length) {

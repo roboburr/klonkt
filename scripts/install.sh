@@ -27,6 +27,12 @@ KLONKT_REPO="${KLONKT_REPO:-https://github.com/roboburr/klonkt.git}"
 KLONKT_BRANCH_SET="${KLONKT_BRANCH:+1}"   # channel chosen via env? (empty = no, "1" = yes)
 KLONKT_BRANCH="${KLONKT_BRANCH:-stable}"
 KLONKT_DIR="${KLONKT_DIR:-/opt/klonkt}"
+# Where instance data lives, one directory per slug. The code in KLONKT_DIR is
+# shared; everything an instance writes stays under here.
+KLONKT_DATA_ROOT="${KLONKT_DATA_ROOT:-/var/lib/klonkt}"
+# Short name for this instance: its directory under the data root and its
+# systemd unit (klonkt@<slug>). Derived from the domain when left empty.
+KLONKT_SLUG="${KLONKT_SLUG:-}"
 KLONKT_USER="${KLONKT_USER:-klonkt}"
 KLONKT_PORT="${KLONKT_PORT:-3000}"
 KLONKT_DOMAIN="${KLONKT_DOMAIN:-}"
@@ -163,16 +169,50 @@ else
   mkdir -p "$KLONKT_DIR"
   git clone --depth 1 --branch "$KLONKT_BRANCH" "$KLONKT_REPO" "$KLONKT_DIR"
 fi
-mkdir -p "$KLONKT_DIR/storage/media" "$KLONKT_DIR/storage/audio"
 chown -R "$KLONKT_USER:$KLONKT_USER" "$KLONKT_DIR"
 ok "code in $KLONKT_DIR"
+
+# --- where this instance keeps its data -------------------------------------
+# New installs put data in /var/lib/klonkt/<slug> so the checkout stays free of
+# user data and can be shared by more instances later. An install that already
+# has its .env inside the checkout is left exactly as it is: re-running the
+# installer must never move a live database. Convert those deliberately with
+# scripts/klonkt-migrate-data.sh.
+if [ -z "$KLONKT_SLUG" ]; then
+  KLONKT_SLUG="$(printf '%s' "${KLONKT_DOMAIN:-default}" | sed 's/^www\.//' | cut -d. -f1 \
+                 | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9._-')"
+  [ -n "$KLONKT_SLUG" ] || KLONKT_SLUG=default
+fi
+# A database in the checkout but no .env is too ambiguous to guess at: refuse,
+# rather than start a fresh empty instance beside data nobody is reading.
+if [ ! -f "$KLONKT_DIR/.env" ] && [ -f "$KLONKT_DIR/storage/database.sqlite" ]; then
+  die "found $KLONKT_DIR/storage/database.sqlite but no .env next to it.
+   Put the .env back and re-run, or move the old storage/ aside first."
+fi
+if [ -f "$KLONKT_DIR/.env" ]; then
+  LAYOUT=legacy
+  ENV="$KLONKT_DIR/.env"
+  DATA_DIR="$KLONKT_DIR/storage"
+  SERVICE="klonkt"
+  mkdir -p "$DATA_DIR/media" "$DATA_DIR/audio"
+  chown -R "$KLONKT_USER:$KLONKT_USER" "$DATA_DIR"
+  ok "existing layout kept (data inside $KLONKT_DIR; split it with scripts/klonkt-migrate-data.sh)"
+else
+  LAYOUT=split
+  DATA_DIR="$KLONKT_DATA_ROOT/$KLONKT_SLUG"
+  ENV="$DATA_DIR/.env"
+  SERVICE="klonkt@${KLONKT_SLUG}"
+  mkdir -p "$DATA_DIR/media" "$DATA_DIR/audio"
+  chown -R "$KLONKT_USER:$KLONKT_USER" "$DATA_DIR"
+  chmod 750 "$DATA_DIR"
+  ok "data in $DATA_DIR (instance '$KLONKT_SLUG')"
+fi
 
 log "Installing dependencies (npm ci)…"
 as_klonkt bash -c "cd '$KLONKT_DIR' && npm ci --omit=dev"
 ok "node_modules"
 
 log ".env…"
-ENV="$KLONKT_DIR/.env"
 if [ ! -f "$ENV" ]; then
   SECRET="$(openssl rand -hex 32)"
   {
@@ -182,9 +222,12 @@ if [ ! -f "$ENV" ]; then
     # hit the app directly on its port, bypassing HTTPS.
     echo "HOST=127.0.0.1"
     echo "SESSION_SECRET=${SECRET}"
-    echo "DATABASE_PATH=./storage/database.sqlite"
-    echo "MEDIA_PATH=./storage/media"
-    echo "AUDIO_PATH=./storage/audio"
+    # Absolute, so the app does not depend on its working directory and the
+    # data can sit outside the checkout. Media subdirectories (avatars,
+    # post-images, ...) follow MEDIA_PATH by themselves.
+    echo "DATABASE_PATH=${DATA_DIR}/database.sqlite"
+    echo "MEDIA_PATH=${DATA_DIR}/media"
+    echo "AUDIO_PATH=${DATA_DIR}/audio"
     echo "PUBLIC_BASE_URL=https://${KLONKT_DOMAIN}"
     [ -n "$KLONKT_LANG" ] && echo "KLONKT_DEFAULT_LANG=${KLONKT_LANG}"
   } > "$ENV"
@@ -200,7 +243,22 @@ fi
 
 log "systemd service…"
 NODE_BIN="$(command -v node)"
-cat > /etc/systemd/system/klonkt.service <<EOF
+if [ "$LAYOUT" = split ]; then
+  # One template, one service per instance. Adding a site later is a data
+  # directory plus an .env, with no second copy of the code.
+  sed -e "s#^User=klonkt\$#User=${KLONKT_USER}#" \
+      -e "s#^Group=klonkt\$#Group=${KLONKT_USER}#" \
+      -e "s#^WorkingDirectory=/opt/klonkt\$#WorkingDirectory=${KLONKT_DIR}#" \
+      -e "s#^EnvironmentFile=/var/lib/klonkt/%i/.env\$#EnvironmentFile=${KLONKT_DATA_ROOT}/%i/.env#" \
+      -e "s#^ReadWritePaths=/var/lib/klonkt/%i\$#ReadWritePaths=${KLONKT_DATA_ROOT}/%i#" \
+      -e "s#^ExecStart=/usr/bin/node src/server.js\$#ExecStart=${NODE_BIN} src/server.js#" \
+      "$KLONKT_DIR/deploy/klonkt@.service" > /etc/systemd/system/klonkt@.service
+  chmod 0644 /etc/systemd/system/klonkt@.service
+  systemctl daemon-reload
+  systemctl enable --now "klonkt@${KLONKT_SLUG}"
+  ok "klonkt@${KLONKT_SLUG} running on 127.0.0.1:${KLONKT_PORT}"
+else
+  cat > /etc/systemd/system/klonkt.service <<EOF
 [Unit]
 Description=Klonkt
 After=network-online.target
@@ -221,9 +279,10 @@ PrivateTmp=true
 [Install]
 WantedBy=multi-user.target
 EOF
-systemctl daemon-reload
-systemctl enable --now klonkt
-ok "klonkt.service running on 127.0.0.1:${KLONKT_PORT}"
+  systemctl daemon-reload
+  systemctl enable --now klonkt
+  ok "klonkt.service running on 127.0.0.1:${KLONKT_PORT}"
+fi
 
 if [ -z "$NO_CADDY" ]; then
   log "Caddy config for ${KLONKT_DOMAIN}…"
@@ -245,25 +304,11 @@ if [ -z "$NO_CADDY" ]; then
 fi
 
 log "Update command 'klonkt-update'…"
-cat > /usr/local/bin/klonkt-update <<EOF
-#!/usr/bin/env bash
-set -euo pipefail
-D="${KLONKT_DIR}"
-B=\$(runuser -u ${KLONKT_USER} -- git -C "\$D" rev-parse HEAD 2>/dev/null || true)
-runuser -u ${KLONKT_USER} -- git -C "\$D" fetch --depth 1 origin ${KLONKT_BRANCH}
-runuser -u ${KLONKT_USER} -- git -C "\$D" checkout -qf -B ${KLONKT_BRANCH} FETCH_HEAD
-A=\$(runuser -u ${KLONKT_USER} -- git -C "\$D" rev-parse HEAD)
-if [ "\$B" = "\$A" ]; then
-  echo "Klonkt is already up to date (\$A) — nothing to do."
-  exit 0
-fi
-if ! runuser -u ${KLONKT_USER} -- git -C "\$D" diff --quiet "\$B" "\$A" -- package-lock.json 2>/dev/null; then
-  runuser -u ${KLONKT_USER} -- env HOME="\$D" bash -c "cd '\$D' && npm ci --omit=dev"
-fi
-systemctl restart klonkt
-echo "Klonkt updated (\$A) + restarted."
-EOF
-chmod +x /usr/local/bin/klonkt-update
+# Generated by the shared script so an install and a later layout migration
+# can never drift apart on what the updater restarts.
+KLONKT_DIR="$KLONKT_DIR" KLONKT_USER="$KLONKT_USER" \
+KLONKT_DATA_ROOT="$KLONKT_DATA_ROOT" KLONKT_BRANCH="$KLONKT_BRANCH" \
+  bash "$KLONKT_DIR/scripts/klonkt-refresh-updater.sh"
 ok "klonkt-update"
 
 echo
@@ -285,8 +330,15 @@ else
 fi
 echo "  • First run:       go to /auth/register and create your admin account."
 echo
-echo "  Manage:  systemctl status klonkt · journalctl -u klonkt -f · klonkt-update"
+echo "  Manage:  systemctl status ${SERVICE} · journalctl -u ${SERVICE} -f · klonkt-update"
 echo "  Lost password: cd ${KLONKT_DIR} && runuser -u ${KLONKT_USER} -- env HOME=${KLONKT_DIR} npm run reset-admin"
+if [ "$LAYOUT" = split ]; then
+  echo
+  echo "  Code:  ${KLONKT_DIR}          shared, nothing of yours lives here"
+  echo "  Data:  ${DATA_DIR}   database, uploads and .env — back up this one"
+  echo "  Another site on this server, sharing the same code:"
+  echo "      sudo bash ${KLONKT_DIR}/scripts/klonkt-add-instance.sh <slug> <domain>"
+fi
 echo
 echo "  DNS: make sure A + AAAA of ${KLONKT_DOMAIN} point to this server."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

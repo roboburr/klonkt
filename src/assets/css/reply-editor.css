@@ -111,5 +111,10 @@
 .re-form.re-full .re-editor { flex: 1; min-height: 0; overflow-y: auto; border: none; box-shadow: none; padding: .4rem .1rem; }
 .re-form.re-full .re-editor:focus { border: none; box-shadow: none; }
 .re-form.re-full .re-send { display: none; }         /* send lives in the top bar */
+/* ... EN ANDERSOM. Die regel hierboven stond er wel, deze niet: buiten
+   fullscreen bleven allebei de knoppen staan, dus twee keer Verzenden onder
+   elkaar. .re-send-top had helemaal geen CSS -- hij werd nooit verborgen.
+   Een knop hoort in de bovenbalk OF in de voet, nooit in allebei. */
+.re-form:not(.re-full) .re-send-top { display: none; }
 .re-form.re-full .re-foot { justify-content: flex-start; }
 html.re-lock, html.re-lock body { overflow: hidden; }

@@ -49,6 +49,35 @@ export function listForWard(wardSlug) { return stmts().byWard.all(wardSlug); }
  * { outcome: 'approved'|'rejected'|'waiting', follow } so the caller can
  * send the Accept/Reject. A single reject denies; approvals meet the quorum.
  */
+/**
+ * Hoeveel guardians moeten ja zeggen voor een volgverzoek (Barts besluit, 8-8).
+ *
+ * EENVOUDIGE MEERDERHEID: 1 van 1, 1 van 2, 2 van 3, 2 van 4. Bart: "1/2 is
+ * voldoende."
+ *
+ * BEWUST SOEPELER DAN DE POORTDREMPEL, en dat verschil hoort uitgelegd. Een gate
+ * opent een deur voor alles wat daarna komt; die vraagt om een STRIKTE
+ * meerderheid (thresholdFor in gated.js: 2 van 2, 3 van 4). Een volgverzoek gaat
+ * over een persoon, is met ontvolgen terug te draaien, en stond hier tot vandaag
+ * op 'any' -- een enkele ja, hoeveel guardians er ook waren. Dit is dus geen
+ * versoepeling maar een AANSCHERPING voor iedereen met drie of meer guardians.
+ *
+ * De 'all'-stand die hier stond is weg. Hij werd nergens gezet -- elke schrijver
+ * gaf 'any' mee -- dus het was een keuze die niemand kon maken en die alleen in
+ * de weg stond bij het lezen van deze regel.
+ */
+export function followThreshold(setSize) {
+  return Math.max(1, Math.ceil(setSize / 2));
+}
+
+/**
+ * Een race naar de drempel, net als de poorttelling: zodra het aantal gehaald
+ * is, is het besluit gevallen.
+ *
+ * TODO (shaer-8vt): wie antwoordt weet niet dat hij de doorslag geeft. Bij 1 van
+ * 2 is de eerste ja meteen de beslissing, en het scherm zegt dat nergens. Dat is
+ * hetzelfde gat als bij de gate-voorstellen en het hoort daar samen opgelost.
+ */
 export function decide(id, guardianUri, decision, guardiansOfWard) {
   const follow = stmts().get.get(id);
   if (!follow || follow.status !== 'pending') return { outcome: 'gone', follow };
@@ -60,9 +89,7 @@ export function decide(id, guardianUri, decision, guardiansOfWard) {
   }
   const approvers = new Set(rows.filter((r) => r.decision === 'approve').map((r) => r.guardian_uri));
   const guardians = (guardiansOfWard || []).filter(Boolean);
-  const enough = follow.quorum === 'all'
-    ? guardians.length > 0 && guardians.every((g) => approvers.has(g))
-    : approvers.size >= 1;                                   // 'any' (default)
+  const enough = approvers.size >= followThreshold(guardians.length);
   if (enough) {
     stmts().setStatus.run('accepted', id);
     return { outcome: 'approved', follow };
@@ -80,8 +107,9 @@ function rstmts() {
   if (!_r) {
     _r = {
       ins: db.prepare(`INSERT OR IGNORE INTO ap_follow_reviews
-        (id, guardian_slug, ward_uri, ward_inbox, follower_uri, follower_handle, follower_icon, follow_json, created_at)
-        VALUES (?,?,?,?,?,?,?,?, CURRENT_TIMESTAMP)`),
+        (id, guardian_slug, ward_uri, ward_inbox, follower_uri, follower_handle, follower_icon, follow_json,
+         direction, target_uri, target_handle, created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?, CURRENT_TIMESTAMP)`),
       get: db.prepare('SELECT * FROM ap_follow_reviews WHERE guardian_slug = ? AND id = ?'),
       bySlug: db.prepare("SELECT * FROM ap_follow_reviews WHERE guardian_slug = ? AND status = 'pending' ORDER BY created_at DESC"),
       del: db.prepare('DELETE FROM ap_follow_reviews WHERE guardian_slug = ? AND id = ?'),
@@ -90,9 +118,57 @@ function rstmts() {
   return _r;
 }
 
+/**
+ * De guardian-zijdige kopie van een gate-verzoek op een REMOTE ward.
+ *
+ * `direction` is niet cosmetisch (shaer-jdb). Bij een INKOMENDE is de follower
+ * iemand anders en de ward het doel. Bij een UITGAANDE is de ward zelf de
+ * follower en staat het doel in het Follow-object -- die werd hiervoor
+ * opgeslagen als "deze ward wil deze ward volgen", met het doel weggegooid.
+ */
 export function recordReview(guardianSlug, r) {
-  rstmts().ins.run(r.id, guardianSlug, r.wardUri, r.wardInbox || null, r.follower, r.followerHandle || null, r.followerIcon || null, r.followJson || null);
+  const richting = r.direction === 'outgoing' ? 'outgoing' : 'incoming';
+  rstmts().ins.run(r.id, guardianSlug, r.wardUri, r.wardInbox || null, r.follower, r.followerHandle || null,
+    r.followerIcon || null, r.followJson || null, richting, r.target || null, r.targetHandle || null);
   return rstmts().get.get(guardianSlug, r.id);
+}
+
+/**
+ * Een openstaande review als wachtrij-item, in dezelfde vorm die de clients al
+ * lezen (offers en outgoing-follows doen het net zo).
+ */
+export function reviewQueueItem(r, me, guardianCount) {
+  // guardianCount blijft WEG als we hem niet kennen. Bij een remote ward wordt
+  // de guardian-set op diens eigen server bijgehouden, en 0 sturen zou lezen als
+  // "dit kind heeft geen guardians" -- het tegenovergestelde van onbekend.
+  const stemmen = (() => {
+    try { return db.prepare('SELECT guardian_uri, decision FROM ap_pending_follow_approvals WHERE follow_id = ?').all(r.id); }
+    catch { return []; }
+  })();
+  const uitgaand = r.direction === 'outgoing';
+  return {
+    id: r.id,
+    type: 'Follow',
+    // Bij een uitgaande is de WARD de volger; bij een inkomende is dat de vreemde.
+    actor: uitgaand ? r.ward_uri : r.follower_uri,
+    object: uitgaand ? (r.target_uri || '') : r.ward_uri,
+    'shaer:direction': uitgaand ? 'outgoing' : 'incoming',
+    'shaer:ward': r.ward_uri,
+    'shaer:target': uitgaand ? (r.target_uri || undefined) : undefined,
+    'shaer:targetHandle': uitgaand ? (r.target_handle || undefined) : undefined,
+    'shaer:follower': uitgaand ? undefined : r.follower_uri,
+    'shaer:followerHandle': uitgaand ? undefined : (r.follower_handle || undefined),
+    'shaer:quorum': 'all',
+    'shaer:approvals': stemmen.filter((x) => x.decision === 'approve').length,
+    'shaer:guardianCount': guardianCount || undefined,
+    'shaer:myVote': stemmen.some((x) => x.guardian_uri === me),
+    published: r.created_at,
+  };
+}
+
+/** De openstaande reviews van een guardian, per richting. */
+export function listReviewsByDirection(guardianSlug, direction) {
+  return listReviews(guardianSlug).filter((r) => (r.direction === 'outgoing' ? 'outgoing' : 'incoming') === direction);
 }
 export function getReview(guardianSlug, id) { return rstmts().get.get(guardianSlug, id); }
 export function listReviews(guardianSlug) { return rstmts().bySlug.all(guardianSlug); }
@@ -101,4 +177,5 @@ export function removeReview(guardianSlug, id) { rstmts().del.run(guardianSlug, 
 export default {
   recordPending, getPending, listForWard, decide, remove,
   recordReview, getReview, listReviews, removeReview,
+  listReviewsByDirection, reviewQueueItem,
 };

@@ -112,8 +112,8 @@
   // is safe here because we're always in a user-gesture context (play click).
   function fallbackIframe(provider, ref, url) {
     if (provider === 'youtube') {
-      const id = ytId(ref, url);
-      return { src: 'https://www.youtube-nocookie.com/embed/' + encodeURIComponent(id) + '?autoplay=1&rel=0', ratio: true, fs: true };
+      const src = ytEmbedSrc(ref, url, 'autoplay=1&rel=0');
+      if (src) return { src, ratio: true, fs: true };
     }
     if (provider === 'soundcloud') {
       return { src: 'https://w.soundcloud.com/player/?url=' + encodeURIComponent(ref || url) + '&auto_play=true&visual=true&hide_related=true', h: '300px' };
@@ -133,11 +133,41 @@
     const m = Math.floor(sec / 60), s = Math.floor(sec % 60);
     return m + ':' + (s < 10 ? '0' : '') + s;
   }
+  // Three ref shapes, the same ones AudioEmbedService.detectProvider produces
+  // and the same ones the Klonkt hub uses, so a ref travels between them
+  // unchanged:  "<video>" | "<video>?list=<L>" | "list:<L>"
+  //
+  // ytId answers only "which VIDEO", because that is what a poster thumbnail
+  // needs; for a bare playlist there is no video and it returns null.
   function ytId(ref, url) {
-    if (ref && /^[A-Za-z0-9_-]{11}$/.test(ref)) return ref;
+    const r = String(ref || '');
+    if (r.indexOf('list:') === 0) return null;              // a playlist has no single video
+    const bare = r.split('?list=')[0];
+    if (/^[A-Za-z0-9_-]{11}$/.test(bare)) return bare;
     const m = (url || '').match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);
     if (m) return m[1];
     return null;  // no blind slice — an invalid ref returns nothing rather than a broken id
+  }
+  /** The playlist id of a ref (or of the URL it came from), else null. */
+  function ytList(ref, url) {
+    const r = String(ref || '');
+    if (r.indexOf('list:') === 0) return r.slice(5) || null;
+    const i = r.indexOf('?list=');
+    if (i > 0) return r.slice(i + 6) || null;
+    const m = (url || '').match(/[?&](?:amp;)?list=([A-Za-z0-9_-]{10,60})/);
+    return m ? m[1] : null;
+  }
+  /** The /embed/ URL for a ref. A bare playlist embeds as `videoseries`. */
+  function ytEmbedSrc(ref, url, query) {
+    const base = 'https://www.youtube-nocookie.com/embed/';
+    const id = ytId(ref, url);
+    const list = ytList(ref, url);
+    let src;
+    if (!id && list) src = base + 'videoseries?list=' + encodeURIComponent(list);
+    else if (id && list) src = base + encodeURIComponent(id) + '?list=' + encodeURIComponent(list);
+    else if (id) src = base + encodeURIComponent(id);
+    else return null;
+    return src + (src.indexOf('?') > 0 ? '&' : '?') + (query || '');
   }
   // Only allow http(s) as href (defense-in-depth against javascript:/data: URIs).
   function safeHref(u) {
@@ -165,9 +195,9 @@
     el.classList.remove('pcms-embed-loading');
     let html = '';
     if (provider === 'youtube') {
-      const id = ytId(ref, url);
-      html = id
-        ? '<div class="pcms-embed-ratio"><iframe src="https://www.youtube-nocookie.com/embed/' + encodeURIComponent(id) + '?rel=0" title="YouTube" loading="lazy" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>'
+      const src = ytEmbedSrc(ref, url, 'rel=0');
+      html = src
+        ? '<div class="pcms-embed-ratio"><iframe src="' + escAttr(src) + '" title="YouTube" loading="lazy" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>'
         : '<a class="pcms-embed-plain-link" href="' + escAttr(safeHref(url)) + '" target="_blank" rel="noopener">YouTube</a>';
     } else if (provider === 'soundcloud') {
       html = '<iframe class="pcms-embed-plain-frame" style="height:166px" src="https://w.soundcloud.com/player/?url=' + encodeURIComponent(ref || url) + '&color=%23ff5500&visual=false" title="SoundCloud" loading="lazy" frameborder="0" allow="autoplay" scrolling="no"></iframe>';
@@ -214,8 +244,10 @@
     // --- Mount the UI (differs per provider type) ---
     const isVideo = provider === 'youtube';
     const custom = provider === 'youtube' || provider === 'soundcloud'; // eigen controls
-    const poster = provider === 'youtube'
-      ? `https://i.ytimg.com/vi/${ytId(ref, url)}/hqdefault.jpg` : '';
+    // A bare playlist has no video id, and interpolating null gave
+    // i.ytimg.com/vi/null/hqdefault.jpg — a 404 painted as the poster.
+    const posterId = provider === 'youtube' ? ytId(ref, url) : null;
+    const poster = posterId ? `https://i.ytimg.com/vi/${posterId}/hqdefault.jpg` : '';
 
     el.innerHTML = ''
       + (isVideo
@@ -387,14 +419,21 @@
     async youtube(mountEl, { ref, url }, hooks) {
       const YT = await ytApi();
       const id = ytId(ref, url);
+      const list = ytList(ref, url);
       return new Promise((resolve, reject) => {
         let pollTimer = null;
+        let endTimer = null;       // see onStateChange: a list "ends" between items
         const player = new YT.Player(mountEl, {
-          videoId: id,
+          // With a video AND a list, `list` makes the player continue into the
+          // playlist after this song. Without a video it is the playlist
+          // itself, and then listType says so -- videoId must stay absent, or
+          // the API loads that one video and forgets the list.
+          ...(id ? { videoId: id } : {}),
           host: 'https://www.youtube-nocookie.com',
           playerVars: {
             controls: 0, modestbranding: 1, rel: 0, playsinline: 1, fs: 0,
             disablekb: 1, iv_load_policy: 3, origin: window.location.origin,
+            ...(list ? (id ? { list } : { list, listType: 'playlist' }) : {}),
           },
           events: {
             onReady() {
@@ -407,6 +446,7 @@
                 setVolume(pct) { try { if (pct <= 0) player.mute(); else { player.unMute(); player.setVolume(pct); } } catch (e) {} },
                 destroy() {
                   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+                  if (endTimer) { clearTimeout(endTimer); endTimer = null; }
                   try { player.destroy(); } catch (e) {}
                 },
               });
@@ -414,6 +454,9 @@
             onStateChange(e) {
               // -1 unstarted, 0 ended, 1 playing, 2 paused, 3 buffering, 5 cued
               if (e.data === 1) {
+                // A next playlist item started, so the pending "it is over" was
+                // false alarm.
+                if (endTimer) { clearTimeout(endTimer); endTimer = null; }
                 hooks.onPlay();
                 if (!pollTimer) pollTimer = setInterval(() => {
                   try { hooks.onProgress(player.getCurrentTime() || 0, player.getDuration() || 0); } catch (e) {}
@@ -422,8 +465,17 @@
                 hooks.onPause();
                 if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
               } else if (e.data === 0) {
-                hooks.onEnded();
                 if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+                // INSIDE a playlist, YouTube reports "ended" between every two
+                // songs as well. Firing onEnded there hands the queue on after
+                // song one and cuts the album off. So on a list we wait, and
+                // only a silence that is not interrupted by the next song
+                // counts as the end. Same rule as the hub (2.5s).
+                if (list) {
+                  if (!endTimer) endTimer = setTimeout(() => { endTimer = null; hooks.onEnded(); }, 2500);
+                } else {
+                  hooks.onEnded();
+                }
               }
             },
             onError() { reject(new Error('YT error')); },

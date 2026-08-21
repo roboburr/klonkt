@@ -75,6 +75,7 @@ router.get('/callback', async (req, res) => {
   const options = await Passkey.registrationOptions(baseUrl(req), r.site.slug);
   const blob = signBlob({ purpose: 'reg', siteId: r.site.id, cents, challenge: options.challenge }, 900);
   renderPage(req, res, 'pages/paid-passkey', {
+    pageJs: 'paid-passkey',
     pageTitleKey: 'ppk.t', bodyClass: 'on-post',
     optionsJson: JSON.stringify(options), regBlob: blob, postSlug: payload.post,
   });

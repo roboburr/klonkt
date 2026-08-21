@@ -1,0 +1,62 @@
+<%
+// Het lijf van één bericht, IN de stroom.
+//
+// De poorten waren tot nu toe hele pagina's: paid-gate of fan-gate in plaats
+// van het bericht. Dat kan niet meer zodra de tijdlijn hele berichten toont --
+// dan moet een gesloten bericht zijn PLEK houden en ter plekke zeggen wat er
+// aan de hand is. Weglaten zou erger zijn dan tonen: dan zien een supporter en
+// een vreemde een andere tijdlijn, met andere buren, en klopt "vorige/volgende"
+// voor niemand meer.
+//
+// Het BESLUIT staat niet hier maar in PostAccessService, dezelfde die de
+// postroute gebruikt. Dit sjabloon kiest alleen de vorm. Twee plekken die
+// allebei zelf bepalen wie een betaalde tekst mag lezen, is een lek dat op een
+// gelegenheid wacht.
+//
+// Verwacht: post, access ('full'|'paid'|'fan'|'forbidden'), teaser, _base.
+var _acc = (typeof access !== 'undefined' && access) ? access : 'full';
+var _teaser = (typeof teaser !== 'undefined' && teaser) ? teaser : '';
+var _b = (typeof _base !== 'undefined' && _base) ? _base : '';
+var _href = _b + '/' + post.slug;
+// Het lijf komt als eigen waarde binnen en wordt NIET uit `post` gevist. De rij
+// draagt nog de ruwe `content`; door alleen te tonen wat de aanroeper bewust
+// meegeeft, kan een gesloten poort hier niets laten ontsnappen.
+var _html = (typeof content_html !== 'undefined' && content_html) ? content_html : '';
+%>
+
+<% if (_acc === 'full') { %>
+  <div class="post-content"><%- _html %></div>
+
+<% } else if (_acc === 'paid') { %>
+  <%# Dezelfde woorden als de hele pagina (pgate.*), want het is dezelfde
+      boodschap -- alleen op een andere plek. Eigen teksten hier zouden na één
+      wijziging uiteen gaan lopen. %>
+  <div class="post-content post-content--gated pb-paid">
+    <% if (_teaser) { %><div class="pg-teaser"><p><%= _teaser %></p></div><% } %>
+    <div class="pb-gate">
+      <h2 class="pg-h2"><%= t('pgate.h') %></h2>
+      <p class="pg-sub">
+        <% if (post.paid_min_cents) { %><%= t('pgate.sub_cents', { eur: (post.paid_min_cents/100).toFixed(2) }) %><% } else { %><%= t('pgate.sub') %><% } %>
+      </p>
+      <%# De ontgrendeling zelf blijft op de eigen pagina: daar staat de
+          passkey-code (pageJs paid-gate) die hier niet geladen is. Eén knop die
+          ernaartoe gaat is eerlijker dan een halve poort in de stroom. %>
+      <p><a class="pg-btn" href="<%= _href %>"><%= t('pgate.unlock') %></a></p>
+    </div>
+  </div>
+
+<% } else if (_acc === 'fan') { %>
+  <div class="post-content post-content--gated pb-fan">
+    <% if (_teaser) { %><div class="pg-teaser"><p><%= _teaser %></p></div><% } %>
+    <div class="pb-gate">
+      <h2 class="pg-h2"><%= t('fgate.title') %></h2>
+      <p class="pg-sub"><%= t('fgate.sub') %></p>
+      <p><a class="fg-btn" href="/auth/login?next=<%= encodeURIComponent(_href) %>"><%= t('fgate.login') %></a></p>
+    </div>
+  </div>
+
+<% } else { %>
+  <%# 'forbidden' hoort de tijdlijn niet eens te bereiken: die haalt alleen
+      gepubliceerde berichten op. Staat er voor het geval een aanroeper ooit
+      iets anders doorgeeft -- dan liever niets dan een concept. %>
+<% } %>

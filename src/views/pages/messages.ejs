@@ -1,8 +1,8 @@
 <div class="msg-wrap">
   <%- include('../partials/fedi-tabs', { active: 'berichten' }) %>
   <h1 class="msg-title"><%= t('msg.title') %></h1>
-  <% if (typeof success !== 'undefined' && success) { %><div class="alert alert-success"><%= success === 'guardian_accepted' ? t('msg.guard_accepted') : (success === 'guardian_rejected' ? t('msg.guard_rejected') : (success === 'wave_sent' ? t('msg.wave_sent') : success)) %></div><% } %>
-  <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error === 'guardianship' ? t('msg.guard_failed') : error %></div><% } %>
+  <% if (typeof success !== 'undefined' && success) { %><div class="alert alert-success"><%= success === 'guardian_accepted' ? t('msg.guard_accepted') : (success === 'guardian_rejected' ? t('msg.guard_rejected') : (success === 'wave_sent' ? t('msg.wave_sent') : (success === 'reply_sent' ? t('msg.reply_sent') : success))) %></div><% } %>
+  <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error === 'guardianship' ? t('msg.guard_failed') : (error === 'reply_empty' ? t('msg.reply_empty') : ((error === 'reply_failed' || error === 'reply_target') ? t('msg.reply_failed') : error)) %></div><% } %>
 
   <%# FEP-633c: a pending guardianship offer is a special message: the kid
       answers here (accept/reject travels the same C2S pipeline as the apps). %>
@@ -24,12 +24,13 @@
   <% } %>
 
   <div class="msg-filters" role="tablist" aria-label="<%= t('msg.title') %>">
+    <%# Vier chips, geen zes: Berichten, Gesprekken en Verzonden gingen op in
+        een enkele Gesprekken-view, waarin verzonden en ontvangen in dezelfde
+        draad staan. Activiteit en Moderatie blijven wat ze waren. %>
     <button type="button" class="msg-chip is-on" data-show="all"><%= t('msg.filter_all') %></button>
-    <button type="button" class="msg-chip" data-show="msgs"><%= t('msg.filter_msgs') %></button>
     <button type="button" class="msg-chip" data-show="conv"><%= t('msg.filter_conv') %></button>
     <button type="button" class="msg-chip" data-show="act"><%= t('msg.filter_act') %></button>
     <button type="button" class="msg-chip" data-show="mod"><%= t('msg.filter_mod') %></button>
-    <button type="button" class="msg-chip" data-show="sent"><%= t('msg.filter_sent') %></button>
   </div>
   <div class="msg-search">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -58,64 +59,10 @@
   </details>
 </div>
 
-<script>
-(function () {
-  if (window.__msgWired) return; window.__msgWired = true;
-
-  // Filtering: kind chip AND free-text search, combined in JS (search over the
-  // sender and the rendered message text). Empty search + "all" = show all.
-  var list = document.querySelector('.msg-list');
-  var noMatch = document.querySelector('.msg-nomatch');
-  var q = document.getElementById('msg-q');
-  var kind = 'all';
-  var items = [];
-  function indexItem(li) {
-    // Index once: sender + message body + linked post title + poll text.
-    var body = li.querySelector('.msg-content');
-    var post = li.querySelector('.msg-post');
-    var poll = li.querySelector('.msg-poll');
-    li._search = ((li.getAttribute('data-who') || '') + ' ' +
-      (body ? body.textContent : '') + ' ' + (post ? post.textContent : '') + ' ' +
-      (poll ? poll.textContent : '')).toLowerCase();
-  }
-  // Re-collect + index; called on load and after each "Load more" append so new
-  // items join the filter/search (and inherit the active chip via apply()).
-  function reindex() {
-    items = list ? Array.prototype.slice.call(list.querySelectorAll('.msg-item')) : [];
-    items.forEach(function (li) { if (!li._search) indexItem(li); });
-  }
-  reindex();
-  function apply() {
-    if (!list) return;
-    var term = (q && q.value || '').trim().toLowerCase();
-    var shown = 0;
-    items.forEach(function (li) {
-      var ok = (kind === 'all' || li.getAttribute('data-kind') === kind) &&
-        (!term || li._search.indexOf(term) !== -1);
-      li.style.display = ok ? '' : 'none';
-      if (ok) shown++;
-    });
-    if (noMatch) noMatch.hidden = shown !== 0;
-  }
-  document.addEventListener('click', function (e) {
-    var chip = e.target.closest('.msg-chip'); if (!chip) return;
-    kind = chip.getAttribute('data-show');
-    document.querySelectorAll('.msg-chip').forEach(function (c) { c.classList.toggle('is-on', c === chip); });
-    apply();
-  });
-  if (q) q.addEventListener('input', apply);
-  // After a "Load more" append (htmx), index the new rows and re-apply the filter.
-  document.body.addEventListener('htmx:afterSettle', function (e) {
-    if (e.target && e.target.id === 'msg-list') { reindex(); apply(); }
-  });
-
-  var a = document.getElementById('fedi-bm-btn');
-  if (a) {
-    a.setAttribute('href', "javascript:void(window.open('" + location.origin + "/authorize_interaction?uri='+encodeURIComponent(window.location.href)))");
-    a.addEventListener('click', function (e) { e.preventDefault(); a.classList.add('nudge'); setTimeout(function(){ a.classList.remove('nudge'); }, 600); });
-  }
-})();
-</script>
+<%# Filteren, zoeken en het in-/uitklappen zitten in assets/js/mod/messages.js.
+    Inline script hier wordt door de CSP geweigerd zodra je deze pagina via een
+    link BINNEN de site opent -- zie shaer-0i6. De shell laadt de module op
+    body[data-js]; deze pagina vraagt erom met pageJs (routes/posts.js). %>
 
 <style>
   .msg-wrap { max-width: 640px; margin: 1rem auto; padding: 0 1rem; }
@@ -138,6 +85,7 @@
 
   .msg-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .55rem; }
 
+
   .msg-item { display: flex; gap: .8rem; padding: .85rem .95rem; border-radius: 14px; align-items: flex-start;
     background: color-mix(in srgb, var(--ink, #000) 3.5%, transparent);
     border: 1px solid color-mix(in srgb, var(--ink, #000) 9%, transparent);
@@ -147,6 +95,96 @@
   .msg-item.is-new { border-color: color-mix(in srgb, var(--accent, #06c) 45%, transparent);
     background: color-mix(in srgb, var(--accent, #06c) 4%, transparent); }
   .msg-sent { border-left: 3px solid color-mix(in srgb, var(--accent, #06c) 55%, transparent); }
+
+  /* ── Gesprekken ──────────────────────────────────────────────────────
+     NA .msg-item, en dat is geen smaak: .msg-item zet display:flex, en bij
+     gelijke specificiteit wint de laatste regel. Stond dit ervoor, dan kwam de
+     draadkop NAAST de bubbels te staan in plaats van erboven. */
+  .msg-thread { display: block; }
+  .msg-thread-head { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; margin-bottom: .4rem; }
+  /* De tegenpartij is een labeltje bij het gesprek, geen kop erboven: een
+     kleine verzonken uitsparing, zodat de bubbels eronder de ruimte krijgen.
+     Het aantal zit in dezelfde uitsparing in plaats van ernaast. */
+  /* Ook de knop die het gesprek in- en uitklapt. Een button erft geen font en
+     geen kleur, dus die staan hier expliciet; zonder dat wordt het ineens
+     systeemblauw in 13px. */
+  .msg-thread-who { display: inline-flex; align-items: center; gap: .3rem; min-width: 0;
+    font: inherit; font-size: .78em; line-height: 1.5; font-weight: 500;
+    padding: .05rem .5rem; border-radius: 999px; border: 0; cursor: pointer;
+    color: color-mix(in srgb, var(--ink, #000) 62%, transparent);
+    background: color-mix(in srgb, var(--ink, #000) 5%, transparent);
+    box-shadow: inset 0 1px 2px color-mix(in srgb, var(--ink, #000) 9%, transparent);
+    max-width: 100%; overflow: hidden; white-space: nowrap;
+    /* Ruimer aanraakvlak dan de tekst: een chip van 18px hoog is op een telefoon
+       niet te raken. De uitsparing blijft klein, het doel wordt groter. */
+    min-height: 32px; }
+  .msg-thread-who:hover { background: color-mix(in srgb, var(--ink, #000) 9%, transparent); }
+  .msg-thread-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .msg-thread-chevron { width: 12px; height: 12px; flex: none; opacity: .55;
+    transition: transform .18s ease; }
+  /* Ingeklapt: de bubbels en het antwoordveld verdwijnen, de uitsparing met de
+     naam en het AANTAL blijft staan -- dat aantal is juist ingeklapt het meest
+     waard. */
+  .msg-thread.is-collapsed .msg-thread-msgs,
+  .msg-thread.is-collapsed .msg-thread-foot { display: none; }
+  /* Tijdens het zoeken wint de treffer van de dichtgeklapte stand. */
+  .msg-thread.is-collapsed.is-search-open .msg-thread-msgs { display: flex; }
+  .msg-thread.is-collapsed.is-search-open .msg-thread-foot { display: flex; }
+  .msg-thread.is-collapsed .msg-thread-chevron { transform: rotate(-90deg); }
+  .msg-thread.is-collapsed .msg-thread-head { margin-bottom: 0; }
+  @media (prefers-reduced-motion: reduce) { .msg-thread-chevron { transition: none; } }
+  .msg-thread-count { font-variant-numeric: tabular-nums; opacity: .75; flex: 0 0 auto;
+    padding-inline-start: .3rem; border-inline-start: 1px solid color-mix(in srgb, var(--ink, #000) 14%, transparent); }
+  .msg-thread-post { display: inline-flex; align-items: center; gap: .3rem; font-size: .85em;
+    margin-inline-start: auto; min-width: 0; max-width: 100%;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .msg-thread-post svg { width: 13px; height: 13px; flex: none; }
+  .msg-thread-msgs { list-style: none; margin: 0; padding: 0 0 0 .7rem; display: flex; flex-direction: column; gap: .5rem;
+    border-inline-start: 2px solid color-mix(in srgb, var(--ink, #000) 10%, transparent); }
+  .msg-sub { display: flex; gap: .6rem; align-items: flex-start; min-width: 0; }
+  .msg-sub > .msg-body { min-width: 0; }
+  /* Jouw eigen bijdrage onderscheidt zich met een tint en de accentlijn die
+     .msg-sent al had -- niet met row-reverse: dat duwde de avatar buiten de
+     kaart zodra de regel smaller werd dan zijn inhoud. */
+  .msg-sub.msg-sent { border-radius: 10px; padding: .3rem .45rem;
+    background: color-mix(in srgb, var(--accent, #06c) 5%, transparent); }
+  /* Een lange naam of tijd mag de bubbel niet uit de kaart duwen. */
+  .msg-sub .msg-line { flex-wrap: wrap; }
+
+  /* De voet van een gesprek: antwoorden en zwaaien naast elkaar, ingeklapt.
+     Een open editor onder elk gesprek maakt de lijst weer onleesbaar -- precies
+     wat deze weergave moest oplossen. */
+  .msg-thread-foot { display: flex; align-items: flex-start; gap: .5rem; margin-top: .5rem; flex-wrap: wrap; }
+  .msg-reply { flex: 1 1 12rem; min-width: 0; }
+  .msg-reply > summary { cursor: pointer; font-size: .82rem; color: var(--ink-soft, #888); }
+  .msg-reply[open] > summary { margin-bottom: .4rem; }
+  .msg-reply-form { min-width: 0; }
+  .msg-wave button { line-height: 1.2; }
+
+  /* Zwaaien gebeurt ter plekke (mod/messages.js). Twee toestanden na de klik:
+     gelukt, dan vervangt de bevestiging de knoppen -- en mislukt, dan komen de
+     knoppen terug met een schud, zodat een tweede poging voor de hand ligt.
+     De bestaande klasse `nudge` kon hier niet voor dienen: die heeft alleen
+     CSS op authorize-interaction, dus op deze pagina zou hij niets doen. */
+  .msg-wave-done { font-size: .82rem; color: var(--ink-soft, #888); white-space: nowrap; }
+  .msg-wave.is-failed, .msg-quickreply.is-failed { animation: msg-wave-shake .4s ease; }
+  @keyframes msg-wave-shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .msg-wave.is-failed, .msg-quickreply.is-failed { animation: none; outline: 2px solid var(--accent); }
+  }
+
+  @media (max-width: 560px) {
+    /* Op een telefoon is 40px avatar per bubbel puur verlies: de naam staat er
+       al naast, en de inhoud heeft de breedte harder nodig. */
+    .msg-sub > .msg-av { display: none; }
+    .msg-thread-msgs { padding-inline-start: .55rem; }
+    .msg-thread-post { margin-inline-start: 0; }
+    .msg-item { padding: .7rem .6rem; gap: .6rem; }
+  }
 
   .msg-av { position: relative; flex: 0 0 40px; width: 40px; height: 40px; border-radius: 50%;
     display: inline-flex; align-items: center; justify-content: center; font-weight: 700;

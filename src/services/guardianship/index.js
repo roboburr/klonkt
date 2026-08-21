@@ -15,13 +15,14 @@
  * delegates; nothing here imports ActivityPubService back.
  */
 export { SHAER_CONTEXT, GUARDIAN_RELATIONSHIP, GUARDIAN_RELATIONSHIP_COMPACT, isGuardianRelationship } from './context.js';
-export { helpRequestProps, isHelpRequest, waveProps, isWave, awayProps, hasGuardiansProps, objectHasGuardians, externalEmbedsAllowed, externalPlaybackAllowed } from './notes.js';
+export { helpRequestProps, isHelpRequest, waveProps, isWave, awayProps, hasGuardiansProps, objectHasGuardians, externalEmbedsAllowed, externalPlaybackAllowed, wardGateAllowed } from './notes.js';
 export { wireDelivery, c2sVisibility, deliverDirectNote } from './delivery.js';
-export { wireHandshake, handleOutbox as handleGuardianshipOutbox, handleInbox as handleGuardianshipInbox, parseRelationship, parseUndoRelationship, endGuardianship } from './handshake.js';
-export { offersCollection, followsCollection, wardsCollection, guardiansCollection } from './queues.js';
+export { wireHandshake, handleOutbox as handleGuardianshipOutbox, handleInbox as handleGuardianshipInbox, parseRelationship, parseUndoRelationship, endGuardianship, existingGuardiansOf } from './handshake.js';
+export { offersCollection, followsCollection, outgoingFollowsCollection, logCollection, wardsCollection, guardiansCollection, helpCollection } from './queues.js';
 export * as availability from './availability.js';
 export { wireAvailability } from './availability.js';
 export * as follows from './follows.js';
+export * as outgoing from './outgoing.js';
 export { listForParty as listOffersForParty, getOffer, findOfferAnywhere } from './offers.js';
 export {
   listGuardians, listWards, isGuardian, getRelation, removeRelation,
@@ -30,3 +31,7 @@ export {
 
 // §5.6 gated settings (decided by the guardians, enforced by the ward's server)
 export * as gated from './gated.js';
+export * as queues from './queues.js';
+// 5.2.1: wie er op een hulpvraag af is en wanneer hij is afgesloten (shaer-lgo)
+export * as help from './help.js';
+export * as gatereq from './gatereq.js';

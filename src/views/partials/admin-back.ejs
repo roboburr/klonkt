@@ -1,0 +1,11 @@
+<%# De terugknop naar /admin.
+
+    Een partial voor een regel van niets, om dezelfde reden als de tabbalk:
+    hij stond op vijf pagina's los, drie met class="ax-btn" en twee met de
+    globale class="btn". Dat scheelt zichtbaar -- .btn is 0.55rem/1rem met
+    radius 5 en geen minimumhoogte, .ax-btn is 0.6rem/1.1rem met radius 8 en
+    min-height 44px. Robin zag het meteen (16-8).
+
+    Het wordt .ax-btn: deze pagina's zijn ax-pagina's, en 44px is de maat waar
+    een vinger op past. %>
+<p><a href="/admin" class="ax-btn">&larr; <%= t('nav.admin') %></a></p>

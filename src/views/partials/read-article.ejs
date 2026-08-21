@@ -1,0 +1,95 @@
+<%
+// Eén bericht in de leesstroom.
+//
+// Dit is het stuk dat de client AANVULT: bij de onderrand komt de oudere buur
+// eronder, bij de bovenrand de nieuwere erboven. Geen sprongen, geen
+// scrollpositie die stiekem verzet wordt -- de stroom groeit gewoon in de
+// richting waarin je leest, en de browser snapt naar de grenzen.
+//
+// Elk artikel draagt zijn eigen buren, dus de client hoeft niets te onthouden:
+// wat er nog te halen valt staat op het stuk dat er al is.
+var _b = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '';
+var _newer = (typeof newerPost !== 'undefined' && newerPost) ? newerPost : null;
+var _older = (typeof olderPost !== 'undefined' && olderPost) ? olderPost : null;
+%>
+<article class="read-post"
+         data-slug="<%= post.slug %>"
+         data-newer="<%= _newer ? _newer.slug : '' %>"
+         data-older="<%= _older ? _older.slug : '' %>"
+         data-base="<%= _b %>"
+         data-title="<%= post.title || '' %>"
+         aria-label="<%= post.title || '' %>">
+  <%# Het SNAPPUNT, en met opzet een leeg element van nul hoog in plaats van het
+      artikel zelf. Een snapgebied dat GROTER is dan het scherm mag van de spec
+      overal blijven staan waar het het scherm nog vult -- dus bij een bericht
+      van 1009px op een scherm van 812 accepteert de browser elke positie tussen
+      de bovenkant en "onderkant op de onderrand". Die tweede stand zet de
+      bovenkant van het VOLGENDE bericht op de onderrand van het scherm, en dat
+      is wat Robin zag (20-8). Een anker van nul hoog heeft maar een geldige
+      positie: zijn bovenkant op de bovenrand. %>
+  <span class="read-anker" aria-hidden="true"></span>
+  <%# De titel is een echte link naar het bericht zelf. De leesstroom toont de
+      TEKST, maar reacties, waarderingen en boosts staan op de berichtpagina --
+      en een stroom waar je niet uit kunt naar het gesprek is een doodlopende weg.
+      Een <a> en niet alleen een tik-afhandelaar: dat werkt ook met een
+      toetsenbord, met een schermlezer, en met cmd-klik. %>
+  <%# De cover hoort hier net zo goed als op de berichtpagina: het is het beeld
+      van het stuk, en zonder hem begint elk bericht in de stroom met kale tekst.
+      Boven de titel, in dezelfde volgorde als post.ejs.
+
+      Twee dingen komen hier van post-card en NIET van post.ejs:
+
+      - De SLUIER. Op de berichtpagina hangt de waarschuwing als banner boven de
+        hele pagina, want daar staat een bericht. In een stroom kan dat niet: de
+        buren rollen gewoon voorbij, dus het beeld moet zijn eigen sluier dragen
+        of het is onderweg al te zien. De afhandelaar zit gedelegeerd op
+        document (shell.ejs), dus hij werkt ook op wat de client later aanschuift.
+      - thumb(). De bron kan het volle bestand zijn en hier staan er meerdere
+        onder elkaar in een stroom die dooraanvult.
+
+      cover_image_url en cover_video_url komen mee: beide voedingen van
+      readerItems() halen `SELECT p.*` op (routes/posts.js, de pinned- en de
+      gewone feed-query). Nagekeken, want een versmalde lijst zou hier niets
+      opleveren zonder ergens te klagen. %>
+  <% if (post.cover_image_url || post.cover_video_url) { %>
+    <figure class="read-cover<%= post.nsfw ? ' nsfw-media' : '' %>">
+      <% if (post.cover_image_url) { %>
+        <img src="<%= thumb(post.cover_image_url, 1280) %>"
+             srcset="<%= thumb(post.cover_image_url, 640) %> 640w, <%= thumb(post.cover_image_url, 1280) %> 1280w"
+             sizes="(min-width: 768px) 46rem, 100vw"
+             alt="<%= post.cover_alt || '' %>" loading="lazy" decoding="async"<% if (post.cover_video_url) { %> data-ios-mp4="<%= post.cover_video_url %>"<% } %>>
+      <% } else { %>
+        <video src="<%= post.cover_video_url %>" poster="<%= thumb(post.cover_video_url, 1280) %>"
+               controls loop muted playsinline preload="metadata"></video>
+      <% } %>
+      <% if (post.nsfw) { %><span class="nsfw-veil"><%- include('nsfw-veil', { cw: post.content_warning }) %></span><% } %>
+    </figure>
+  <% } %>
+
+  <header class="read-head">
+    <%# Vastgepind hoort zichtbaar te zijn in de titel: in de leesstroom staat een
+        gepind bericht bovenaan zonder dat je ziet WAAROM het daar staat. Zelfde
+        icoon als in de tijdlijn (post-card.ejs), zodat het hetzelfde ding is. %>
+    <h1 class="read-title">
+      <% if (post.pinned > 0) { %><span class="read-pin" title="<%= t('read.pinned') %>" aria-label="<%= t('read.pinned') %>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24z"/></svg></span><% } %><a href="<%= _b %>/<%= post.slug %>"><%= post.title || '' %></a>
+    </h1>
+    <% if (post.published_at) { %><p class="read-when"><%= formatDateTime(post.published_at) %></p><% } %>
+  </header>
+
+  <%- include('post-body', {
+        post: post, access: entry.access, teaser: entry.teaser,
+        content_html: entry.content_html, _base: _b,
+      }) %>
+
+  <%# Zegt waar je heen gaat, in plaats van te vertrouwen op een tik die niemand
+      ziet. De tik-afhandelaar in mod/read.js is het gemak; dit is de aankondiging.
+
+      #fediverse is de sectie op de berichtpagina met de ⭐/🔁/💬-tellers en de
+      reacties (post.ejs). Alleen DEZE link springt daarheen: de titel en de tik
+      openen het bericht bovenaan, want die zeggen "lees dit", niet "laat het
+      gesprek zien". Staat de sectie er niet -- AP uit, of een concept -- dan
+      negeert de browser de anker en beland je gewoon bovenaan. %>
+  <footer class="read-foot">
+    <a class="read-open" href="<%= _b %>/<%= post.slug %>#fediverse"><%= t('read.open') %> &rarr;</a>
+  </footer>
+</article>

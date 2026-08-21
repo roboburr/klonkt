@@ -19,13 +19,28 @@ import { apReadLimiter, apInboxLimiter } from '../middleware/rate-limit.js';
 import { apEnabled } from '../services/SettingsService.js';
 import OAuth from '../services/OAuthService.js';
 import * as Guardianship from '../services/guardianship/index.js';
+import * as Migration from '../services/MigrationService.js';
+import { getPrimarySite } from '../middleware/site.js';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
 import { randomUUID } from 'crypto';
+import { mediaDir } from '../config/paths.js';
 
 const router = express.Router();
+
+/**
+ * Welke pagina vraagt de lezer? (shaer-sk4)
+ *
+ * Hier stond `!!req.query.page` -- of de parameter er STAAT, niet welke. Daardoor
+ * gaf ?page=2 en ?page=99 allemaal pagina 1, en noemde het antwoord zichzelf ook
+ * nog pagina 1. Onleesbaar getal of geen parameter: dan de wortel.
+ */
+function paginaNr(req) {
+  if (req.query.page === undefined) return false;
+  const n = Math.floor(Number(req.query.page));
+  return Number.isFinite(n) && n > 0 ? n : 1;
+}
 // The whole fediverse layer can be turned off (solo "no federation" mode):
 // then /ap/*, WebFinger and NodeInfo are simply gone — the site is undiscoverable
 // and unfederatable. CRITICAL: this router is mounted at root (app.use(apRoutes)), so a
@@ -33,22 +48,135 @@ const router = express.Router();
 // off. Use next('router') to SKIP this router entirely and let the normal routes handle it
 // (the /ap/* paths then fall through to the app's normal 404, which is correct).
 router.use((req, res, next) => { if (!apEnabled()) return next('router'); next(); });
-// Generous per-IP baseline over all /ap/* (reads). The inbox POST gets an
+// Generous per-IP baseline over the AP-READ paths. The inbox POST gets an
 // additional, tighter cap inline (it triggers outbound fetches).
-router.use(apReadLimiter);
+//
+// PADGEBONDEN, niet router.use kaal (Barts 429-jacht, 9-8): deze router is op
+// de ROOT gemonteerd, dus een kale use() draait voor ELKE request van de hele
+// site -- pagina's, media, avatars, de PWA. De guardian-PWA met honderd
+// ward-avatars leegde zo in seconden een emmer die "voor /ap-reads" heette,
+// en hield hem leeg: vandaar een Too many requests die niet overging. De
+// kijkbuis die dit vond: een lege /ap-teller naast remaining: 0.
+router.use(['/ap', '/.well-known', '/nodeinfo'], apReadLimiter);
 let _ver = '1.0.0';
 try { _ver = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url))).version || _ver; } catch { /* keep default */ }
 
 const baseUrl = (req) => (process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
 const hostOf = (req) => { try { return new URL(baseUrl(req)).host; } catch { return req.get('host'); } };
 const publicSite = (slug) => db.prepare('SELECT * FROM sites WHERE slug = ? AND (is_public IS NULL OR is_public = 1)').get(slug);
-const primarySlug = () => { const r = db.prepare('SELECT slug FROM sites WHERE is_primary = 1').get(); return r && r.slug; };
+// The primary site, via the one source of truth in middleware/site.js — which
+// falls back to the oldest site when nothing carries the is_primary flag. This
+// route used to keep its own is_primary-only copy, so a fresh instance whose
+// site was never flagged served its HTML at / (that resolver falls back) while
+// WebFinger and the actor route insisted it had no primary at all.
+const primarySlug = () => { const s = getPrimarySite(); return s && s.slug; };
+// A hostname as a human types it and as DNS stores it are the same host:
+// `🩵.is.wildenvrij.nl` IS `xn--zz9h.is.wildenvrij.nl`. WHATWG URL does the IDNA,
+// so compare the ASCII form and never the bytes the client happened to send.
+const asciiHost = (h) => {
+  try { return new URL(`https://${h}`).host.toLowerCase(); } catch { return String(h).trim().toLowerCase(); }
+};
+
+// ── host-meta ─────────────────────────────────────────────────────
+// De klassieke eerste stap van WebFinger (RFC 6415): een client die het
+// webfinger-pad niet wil raden, vraagt hier de sjabloon op. Mastodon serveert
+// dit ook, en een client die ermee begint kreeg bij ons een 404 en gaf het dan
+// op -- terwijl de webfinger eronder gewoon werkte.
+//
+// Twee vormen, want beide worden in het wild gevraagd: XRD (het origineel) en
+// JRD (de JSON-variant, RFC 6415 §3).
+const lrddSjabloon = (req) => `${baseUrl(req)}/.well-known/webfinger?resource={uri}`;
+
+router.get('/.well-known/host-meta', (req, res) => {
+  res.type('application/xrd+xml; charset=utf-8');
+  res.set('Cache-Control', 'public, max-age=86400');
+  res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<XRD xmlns="http://docs.oasis-open.org/ns/xri/xrd-1.0">
+  <Link rel="lrdd" template="${lrddSjabloon(req)}"/>
+</XRD>`);
+});
+
+router.get('/.well-known/host-meta.json', (req, res) => {
+  res.type('application/jrd+json; charset=utf-8');
+  res.set('Cache-Control', 'public, max-age=86400');
+  res.send(JSON.stringify({ links: [{ rel: 'lrdd', template: lrddSjabloon(req) }] }));
+});
 
 // ── WebFinger ─────────────────────────────────────────────────────
+/**
+ * De `resource` uitpakken tot de gebruiker die bedoeld wordt.
+ *
+ * RFC 7033 schrijft een URI voor, en `acct:` is de nette vorm -- maar in het
+ * wild komen er vier spellingen langs, en drie daarvan wezen we af met een 400
+ * terwijl we prima wisten wie er bedoeld werd:
+ *
+ *   acct:naam@host      de nette vorm (Mastodon stuurt altijd deze)
+ *   naam@host           zonder schema
+ *   @naam@host          met het apenstaartje dat mensen intypen
+ *
+ * Coulant zijn kost hier niets: het antwoord noemt altijd de canonieke
+ * `acct:`-vorm terug, dus een slordige vraag levert geen slordig antwoord.
+ *
+ * De ACTOR-URI als resource (die Mastodon ook accepteert) hoort hier NIET bij,
+ * bewust: test/webfinger-bare-host.test.js legt vast dat die een 400 geeft.
+ * Dat is een uitgesproken keuze van eerder en geen vergetelheid, dus die draai
+ * ik niet om als bijvangst van een coulance-fix.
+ */
+function webfingerGebruiker(resource) {
+  const r = String(resource || '').trim();
+  if (!r) return null;
+  const acct = r.match(/^(?:acct:)?@?([^@/]+)@(.+)$/i);
+  return acct ? acct[1] : null;
+}
+
+/**
+ * Is dit een vraag naar de WORTEL van deze server?
+ *
+ * FEP-61cf laat de home instance webfingeren op "the root URL of the destination
+ * site" om ons token-endpoint te vinden. Dat is een URL en geen `acct:`, dus hij
+ * strandde hierboven op de 400 -- terwijl een ACTOR-URI met een pad wel degelijk
+ * een 400 hoort te blijven (dat legt test/webfinger-bare-host.test.js vast, en
+ * dat is een uitgesproken keuze van eerder). Vandaar: alleen origin + '/' telt,
+ * alles met een pad niet.
+ */
+function isEigenWortel(resource, req) {
+  const r = String(resource || '').trim();
+  if (!/^https?:\/\//i.test(r)) return false;
+  try {
+    const u = new URL(r);
+    if (u.pathname && u.pathname !== '/') return false;
+    if (u.search || u.hash) return false;
+    return asciiHost(u.host) === asciiHost(hostOf(req));
+  } catch { return false; }
+}
+
 router.get('/.well-known/webfinger', (req, res) => {
-  const m = String(req.query.resource || '').match(/^acct:([^@]+)@(.+)$/i);
-  if (!m) return res.status(400).type('text/plain').send('bad resource');
-  const site = publicSite(m[1]);
+  if (isEigenWortel(req.query.resource, req)) {
+    res.type('application/jrd+json; charset=utf-8');
+    res.set('Cache-Control', 'public, max-age=300');
+    return res.send(JSON.stringify({
+      subject: baseUrl(req) + '/',
+      links: [
+        // Waar een home instance ondertekend een token mag ophalen (FEP-61cf
+        // stap 2/3). Host-niveau en niet per site: het token zegt WIE er binnen
+        // is, niet waar hij binnen mag -- dat besluit valt bij de poort.
+        { rel: 'http://purl.org/openwebauth/v1', href: baseUrl(req) + '/owa/token' },
+      ],
+    }));
+  }
+  const user = webfingerGebruiker(req.query.resource);
+  if (!user) return res.status(400).type('text/plain').send('bad resource');
+  let site = publicSite(user);
+  // `acct:<host>@<host>` asks for this server's primary actor — the convention
+  // Shaer's Handle relies on so a Ward is reachable without knowing anyone's
+  // slug. Typing `🩵.is.wildenvrij.nl`, pasting `https://🩵.is.wildenvrij.nl`
+  // (which the client's URL parser silently punycodes) and sending the xn--
+  // form by hand are three spellings of one address; all arrive here with the
+  // host sitting in the user position, and all must find the same actor.
+  if (!site && asciiHost(user) === asciiHost(hostOf(req))) {
+    const slug = primarySlug();
+    if (slug) site = publicSite(slug);
+  }
   if (!site) return res.status(404).end();
   res.type('application/jrd+json; charset=utf-8');
   res.set('Cache-Control', 'public, max-age=300');
@@ -60,6 +188,10 @@ router.get('/.well-known/webfinger', (req, res) => {
     links: [
       { rel: 'self', type: 'application/activity+json', href: actorUri },
       { rel: 'http://webfinger.net/rel/profile-page', type: 'text/html', href: profileUrl },
+      // FEP-61cf: hier stuurt een doelsite deze gebruiker heen om zich te
+      // bewijzen. Zonder deze regel valt zo'n site terug op /magic geraden --
+      // wat toevallig klopt, maar raden is geen afspraak.
+      { rel: 'http://purl.org/openwebauth/v1#redirect', href: baseUrl(req) + '/magic' },
     ],
   }));
 });
@@ -101,22 +233,61 @@ router.get('/ap/users/:slug/outbox', async (req, res) => {
     verifiedActor,
   });
   if (audience === 'blocked') {
-    return AP.sendAP(res, AP.buildOutbox(baseUrl(req), site, []), 'private, no-store');
+    return AP.sendAP(res, AP.buildOutbox(baseUrl(req), site, [], [], { page: paginaNr(req) }), 'private, no-store');
   }
-  const fanClause = audience === 'friend' ? '' : "AND (fan_only IS NULL OR fan_only = 0)";
-  const posts = db.prepare(
-    `SELECT id, slug, title, content, cover_image_url, cover_video_url, nsfw, content_warning, c2s_attachments, published_at, created_at
-     FROM posts WHERE site_id = ? AND status = 'published' ${fanClause}
-     ORDER BY COALESCE(published_at, created_at) DESC LIMIT 20`
-  ).all(site.id);
-  const ob = AP.buildOutbox(baseUrl(req), site, posts);
+  // ECHT DOORBLADEREN (shaer-sk4). Hier stonden twintig posts uit SQL met een
+  // tweede kap van twintig eroverheen: alles daarvoor was niet op een volgende
+  // pagina maar helemaal onbereikbaar. outboxSlice pagineert over de UNION van
+  // posts en tracks, want die vlechten op datum en zijn met twee losse queries
+  // niet te offsetten.
+  //
+  // De tracks gaan mee voor iedereen die de deur door mag; de blocked-tak
+  // hierboven levert bewust een outbox ZONDER posts en zonder tracks.
+  const nr = paginaNr(req);
+  const { posts, tracks, totaal } = AP.outboxSlice(site.id, {
+    fanOnly: audience === 'friend',
+    offset: (Math.max(1, nr || 1) - 1) * AP.PAGINA_GROOTTE,
+    limit: AP.PAGINA_GROOTTE,
+  });
+  // FEP-1580: de instantie waar dit account naartoe verhuisd is krijgt de
+  // RAUWE inhoud, met [[track:]] en [[playlist:]] er nog in. Zij is een
+  // Klonkt en rendert die zelf tot een speler. De gebakken variant komt
+  // daar aan als tekstlink, en is bovendien onherstelbaar afgeknot: het
+  // bakken plakt hooguit vier titels aan.
+  const rauweInhoud = verifiedActor ? AP.isMoveTarget(site.slug, verifiedActor) : false;
+  const ob = AP.buildOutbox(baseUrl(req), site, posts, tracks, { page: nr, totalItems: totaal, alGesneden: true, rauweInhoud });
   if (audience === 'friend') {
     // The owner's app builds its feed from this leg, and every note here is
-    // by the site itself: give it the same `shaer:author` byline the timeline
-    // entries carry, so your own cards get a header too (avatar + name).
+    // by the site itself, so give it a byline too (avatar + name): de
+    // ingesloten actor in attributedTo, net als de tijdlijn.
     const me = AP.selfAuthor(baseUrl(req), site);
+    // De kaart op je eigen post (shaer-k3f): dezelfde quote/preview die de
+    // tijdlijn voor andermans posts draagt, uit de snapshots die
+    // deliverCreate bij het publiceren opsloeg. Op note-id gekoppeld, want
+    // buildOutbox sorteert en mengt tracks erdoorheen. De embed alleen voor de
+    // BEARER en langs zijn eigen poort: een remote vriend krijgt hem niet
+    // (diens server resolvet en gate zelf bij ontvangst), en een ward zonder
+    // open embeds-poort krijgt hem hier net zo min als in de tijdlijn.
+    const byNote = new Map(posts.map((p) => [AP.noteId(baseUrl(req), p.id), p]));
+    const bearerEmbeds = bearer ? (() => {
+      const isWard = (() => { try { return Guardianship.listGuardians(bearer.site.slug).length > 0; } catch { return false; } })();
+      return Guardianship.externalEmbedsAllowed(bearer.site.external_embeds, isWard)
+        ? { playback: Guardianship.externalPlaybackAllowed(bearer.site.external_playback, isWard) } : null;
+    })() : null;
     for (const it of ob.orderedItems) {
-      if (it && it.object && typeof it.object === 'object') it.object['shaer:author'] = me;
+      if (it && it.object && typeof it.object === 'object') {
+        it.object.attributedTo = AP.actorObject(
+          (typeof it.object.attributedTo === 'string' ? it.object.attributedTo : undefined) || AP.actorId(baseUrl(req), site.slug),
+          me,
+        );
+        const row = byNote.get(it.object.id);
+        if (row) {
+          it.object.quote = AP.quoteObject(row.quote_json);
+          if (bearerEmbeds) {
+            it.object.preview = AP.previewObject(row.embed_json, { playback: bearerEmbeds.playback });
+          }
+        }
+      }
     }
   }
   AP.sendAP(res, ob, audience === 'friend' ? 'private, no-store' : undefined);
@@ -175,44 +346,384 @@ router.get('/ap/users/:slug/follow', (req, res) => {
 </main></body></html>`);
 });
 
-// ── Long-poll (owner only, Robins verzoek 31-7) ───────────────────
-// Hold the request until something push-worthy lands for this account, then
-// answer 200 (news: re-read your feed) or 204 after ~25s (nothing: re-arm).
-// The thread in the app stays live without interval polling.
-router.get('/ap/users/:slug/inbox/wait', (req, res) => {
+/** De byline-gegevens uit een tijdlijnrij, langs de emoji-poort. */
+function authorInfoFrom(r, prefix, gates) {
+  const info = {
+    name: r[`${prefix}name`] || undefined, handle: r[`${prefix}handle`] || undefined,
+    icon: r[`${prefix}icon`] || undefined, url: r[`${prefix}url`] || undefined,
+    emojis: (() => { try { return r[`${prefix}emoji_json`] ? JSON.parse(r[`${prefix}emoji_json`]) : undefined; } catch { return undefined; } })(),
+  };
+  return (info.name || info.handle || info.icon) ? gates.gateAuthor(info) : undefined;
+}
+
+// ── Een tijdlijnpost als AS2-item: EEN beschrijving van de kaartvorm ──
+//
+// Zelfde reden als messageItem hieronder: de volledige lezing en de
+// verschil-lezing bouwen dezelfde kaart, en twee beschrijvingen lopen uit de
+// pas zonder dat iemand het merkt.
+function timelineItem(t, { p, reactions }) {
+  const authorInfo = (r, prefix) => authorInfoFrom(r, prefix, p);
+  const {
+    embedsAllowed, playbackAllowed, imagesAllowed, musicAllowed, quotesAllowed, emojiAllowed,
+  } = p;
+  const reacties = reactions || new Map();
+    const auteur = authorInfo(t, 'author_');
+    const booster = authorInfo(t, 'reblog_');
+    const boosterUri = t.reblog_url || t.reblog_handle || undefined;
+    return {
+    id: `${t.id}#create`,
+    // EEN BOOST IS EEN ANNOUNCE (shaer-nmw): een Create met een
+    // zijkanaal-property was onze uitvinding; de wrapper is de standaard, en
+    // elke AP-client leest hem al.
+    type: booster ? 'Announce' : 'Create',
+    actor: booster ? (AP.actorObject(boosterUri || t.author_uri, booster)) : t.author_uri,
+    published: t.published || t.created_at || undefined,
+    object: {
+      id: t.id,
+      type: 'Note',
+      // AS2 staat een INGESLOTEN actor toe; dan heeft elke client de byline,
+      // niet alleen de onze (shaer-nmw).
+      attributedTo: AP.actorObject(t.author_uri, auteur),
+      content: t.content,
+      url: t.url || undefined,
+      published: t.published || t.created_at || undefined,
+      sensitive: !!t.nsfw,
+      summary: t.cw || undefined,
+      // Friends' media travels along (media_json → AS2 attachment), so the
+      // client renders their images/audio like own outbox posts.
+      attachment: AP.gateAttachments(AP.timelineAttachments(t.media_json), { images: imagesAllowed, audio: musicAllowed }),
+      // The note's preserved tags, so the client can render them: FEP-9098
+      // Emoji tags (:shortcode: → image) and FEP-e232 Link tags (quotes /
+      // inline object references). Combined into one `tag` array; omitted
+      // when the note has neither.
+      tag: (() => {
+        const tags = [...(emojiAllowed ? (AP.timelineEmojis(t.emoji_json) || []) : []), ...(AP.timelineObjectLinks(t.link_json) || [])];
+        return tags.length ? tags : undefined;
+      })(),
+      // Whether THIS account already liked/boosted the note, so the app's
+      // detail-view buttons show the current state (and can toggle/undo).
+      'shaer:liked': !!(reacties.get(t.id) || {}).liked,
+      'shaer:boosted': !!(reacties.get(t.id) || {}).boosted,
+      // FEP-044f: de geciteerde post als object, zodat de client een kaart
+      // rendert in plaats van een kale link. AS2 preview is diezelfde kaart
+      // voor een EXTERNE link: thumbnail, nooit de iframe van de aanbieder.
+      // Allebei weg zodra hun poort dicht staat; de speler in preview hangt
+      // aan de playback-poort.
+      quote: quotesAllowed ? AP.quoteObject(t.quote_json) : undefined,
+      preview: embedsAllowed ? AP.previewObject(t.embed_json, { playback: playbackAllowed }) : undefined,
+    },
+  };
+}
+
+/** Een inkomend antwoord op je eigen post als AS2-item. */
+function replyItem(m, { base, me, myHandle, p }) {
+  return {
+    id: `${m.object_uri}#create`,
+    type: 'Create',
+    actor: m.actor_uri,
+    published: AP.isoStamp(m.published || m.created_at),
+    object: {
+      id: m.object_uri,
+      type: 'Note',
+      attributedTo: AP.actorObject(m.actor_uri, (m.actor_name || m.actor_handle || m.actor_icon) ? p.gateAuthor({
+        name: m.actor_name || undefined, handle: m.actor_handle || undefined,
+        icon: m.actor_icon || undefined, url: m.actor_url || undefined,
+        emojis: (() => { try { return m.actor_emoji_json ? JSON.parse(m.actor_emoji_json) : undefined; } catch { return undefined; } })(),
+      }) : undefined),
+      content: AP.stripLeadingMentions(m.content),
+      inReplyTo: m.parent_uri || `${base}/ap/notes/${m.post_id}`,
+      published: AP.isoStamp(m.published || m.created_at),
+      to: [me],
+      tag: [{ type: 'Mention', href: me, name: myHandle }, ...(AP.timelineEmojis(m.emoji_json) || [])],
+      attachment: AP.timelineAttachments(m.media_json),
+      quote: p.quotesAllowed ? AP.quoteObject(m.quote_json) : undefined,
+      preview: p.embedsAllowed ? AP.previewObject(m.embed_json, { playback: p.playbackAllowed }) : undefined,
+    },
+  };
+}
+
+/** Wat deze lezer mag (FEP-633c 5.6), op EEN plek.
+ *
+ *  De verschil-lezing draagt ze net zo goed: een antwoord zonder rechten zou
+ *  de client naar zijn standaard laten terugvallen, en die standaard is
+ *  'alles mag'. Dan zet een gesloten poort zichzelf stil open. Dezelfde reden
+ *  waarom een 304 de caps met rust laat.
+ */
+function capabilitiesOf(p, gate) {
+  return {
+      'shaer:externalEmbeds': p.embedsAllowed,
+      'shaer:externalPlayback': p.playbackAllowed,
+      // Leaving the app is the same decision as playing inside it: with the
+      // gate shut a link is shown but not followed, so the door is closed too
+      // and not just the picture over it.
+      'shaer:externalLinks': p.playbackAllowed,
+      // De rest van de familie (8-8): de app hoort VOORAF te weten wat hij mag
+      // aanbieden in plaats van het bij de eerste weigering te ontdekken. De
+      // (+) kaart leest shaer:compose al (Barts gate); de rest is er voor de
+      // schermen die nog komen. Serveren wat waar is kost hier niets.
+      'shaer:compose': p.composeAllowed,
+      'shaer:replies': p.repliesAllowed,
+      'shaer:messages': p.messagesAllowed,
+      'shaer:images': p.imagesAllowed,
+      'shaer:music': p.musicAllowed,
+      'shaer:quoteCards': p.quotesAllowed,
+      'shaer:customEmoji': p.emojiAllowed,
+      'shaer:externalThreads': p.threadsAllowed,
+      'shaer:following': p.followingAllowed,
+      // Stond in de catalogus mét kolom, en ontbrak hier: de guardian zag de
+      // poort in zijn paneel en de app van het kind heeft er nooit van gehoord.
+      // Gevonden door de pariteitstest, niet door iemand die het toevallig zag.
+      'shaer:accountMove': gate('gate_account_move'),
+    };
+}
+
+// ── De poorten van een lezer, op EEN plek (FEP-633c) ─────────────
+//
+// De inbox-lezing rekende ze inline uit. Nu er meer lezingen zijn die
+// dezelfde poorten moeten eerbiedigen (de gesprekken, de geschiedenis), zou
+// dat evenveel kopieen worden -- en een poort die op een van die plekken
+// vergeten wordt, levert stil iets uit dat dicht hoorde te staan.
+function gatesFor(site) {
+  const isWard = (() => { try { return Guardianship.listGuardians(site.slug).length > 0; } catch { return false; } })();
+  const embeds = Guardianship.externalEmbedsAllowed(site.external_embeds, isWard);
+  const gate = (col) => Guardianship.wardGateAllowed(site[col], isWard);
+  const emoji = gate('gate_custom_emoji');
+  return {
+    isWard,
+    embedsAllowed: embeds,
+    playbackAllowed: embeds && Guardianship.externalPlaybackAllowed(site.external_playback, isWard),
+    imagesAllowed: gate('gate_images'),
+    musicAllowed: gate('gate_music'),
+    quotesAllowed: gate('gate_quote_cards'),
+    emojiAllowed: emoji,
+    messagesAllowed: gate('gate_messages'),
+    composeAllowed: gate('gate_compose'),
+    repliesAllowed: gate('gate_replies'),
+    threadsAllowed: gate('external_threads'),
+    followingAllowed: gate('gate_following'),
+    // Emoji dicht raakt ook de bylines: de plaatjes in een naam komen net zo
+    // goed van een vreemde server. De naam zelf blijft, met :shortcode: als tekst.
+    gateAuthor: (a) => (a && !emoji ? { ...a, emojis: undefined } : a),
+  };
+}
+
+/**
+ * De naam waaronder deze lezer zichzelf herkent in een Mention.
+ *
+ * Via deriveHandle op de actor-URI, niet uit de slug hier opgebouwd. Dit stond
+ * er als `@${slug}@${host}` met `@${slug}` als terugval, en die terugval is een
+ * HALVE naam: zonder host zegt @dev niets op een oppervlak waar iedereen @dev
+ * kan heten. Hij ging alleen af bij een onparseerbare PUBLIC_BASE_URL -- maar
+ * dan klopt elke URI die we bouwen al niet, en is de kale actor-URI (wat
+ * deriveHandle dan teruggeeft) eerlijker dan een naam die compleet lijkt.
+ */
+function ownHandle(base, slug) {
+  return AP.deriveHandle(AP.actorId(base, slug));
+}
+
+// ── Een bericht als AS2-item: EEN beschrijving van de kaartvorm ──
+//
+// Gebruikt door de inbox-lezing en door de gesprekslezingen. Twee keer
+// opschrijven is twee vormen die uit de pas kunnen lopen, en dat merk je pas
+// als een kaart ergens anders rendert dan waar je keek.
+function messageItem(m, { base, me, myHandle, p }) {
+  return {
+    id: `${m.object_uri}#create`,
+    type: 'Create',
+    actor: m.actor_uri,
+    published: AP.isoStamp(m.published || m.created_at),
+    object: {
+      id: m.object_uri,
+      type: 'Note',
+      attributedTo: AP.actorObject(m.actor_uri, (m.actor_name || m.actor_handle || m.actor_icon) ? p.gateAuthor({
+        name: m.actor_name || undefined, handle: m.actor_handle || undefined,
+        icon: m.actor_icon || undefined, url: m.actor_url || undefined,
+        emojis: (() => { try { return m.actor_emoji_json ? JSON.parse(m.actor_emoji_json) : undefined; } catch { return undefined; } })(),
+      }) : undefined),
+      content: AP.stripLeadingMentions(m.content),
+      url: m.note_url || undefined,
+      published: AP.isoStamp(m.published || m.created_at),
+      // Addressed to us and to nobody we know of: the other recipients of a
+      // note to several people are not ours to see, so we serve what we know.
+      to: [me],
+      // The Mention is how the client recognises itself as the addressee and
+      // groups the note into a conversation. No FEP-e232 link tags here: a
+      // mention row keeps the resolved quote, not the raw tags.
+      tag: [{ type: 'Mention', href: me, name: myHandle }, ...(p.emojiAllowed ? (AP.timelineEmojis(m.emoji_json) || []) : [])],
+      attachment: AP.gateAttachments(AP.timelineAttachments(m.media_json), { images: p.imagesAllowed, audio: p.musicAllowed }),
+      // FEP-633c: what kind of message this is. The wave is a gentle nudge from
+      // a guardian; the help request is the buoy. Both render differently.
+      'shaer:wave': m.wave ? true : undefined,
+      'shaer:helpRequest': m.help_request ? true : undefined,
+      quote: p.quotesAllowed ? AP.quoteObject(m.quote_json) : undefined,
+      preview: p.embedsAllowed ? AP.previewObject(m.embed_json, { playback: p.playbackAllowed }) : undefined,
+    },
+  };
+}
+
+/** Een eigen verzonden note als AS2-item, zelfde vorm als de inbox-leg. */
+function sentItem(n, { me, mine }) {
+  return {
+    id: `${n.id}#create`,
+    type: 'Create',
+    actor: me,
+    published: n.published,
+    // The leading mention anchor is addressing, not prose (the DM leg strips
+    // it the same way); the Mention tags built from the full content stay.
+    object: {
+      ...n, content: AP.stripLeadingMentions(n.content),
+      attributedTo: AP.actorObject(typeof n.attributedTo === 'string' ? n.attributedTo : me, mine),
+    },
+  };
+}
+
+// ── Gesprekken: eerst wie, dan pas wat (shaer-frontend-yso) ──────
+//
+// Twee lezingen naast de bestaande inbox-lezing, niet in de plaats ervan: de
+// apps in het veld lezen die nog. /conversations geeft EEN rij per tegenpartij
+// -- compleet van vorm, dus de avatarhemel kan niemand kwijtraken doordat een
+// ander druk was -- en /messages geeft een gesprek met een cursor, zodat een
+// 'load more' eerlijk kan verschijnen in plaats van dat de geschiedenis stil
+// ophoudt.
+//
+// Beide lopen langs dezelfde poorten als de inbox-lezing (gatesFor) en
+// dezelfde kaartvorm (messageItem/sentItem). Messages dicht sluit ook
+// hier vreemden en vrienden, maar nooit het guardian-kanaal en nooit de boei.
+function conversationItems(req, auth, refs) {
+  const base = baseUrl(req);
+  const P = gatesFor(auth.site);
+  const me = AP.actorId(base, auth.site.slug);
+  const ctx = { base, me, myHandle: ownHandle(base, auth.site.slug), p: P };
+  const mine = AP.selfAuthor(base, auth.site);
+  const guardianUris = (() => { try { return new Set(Guardianship.listGuardians(auth.site.slug).map((g) => g.other_uri)); } catch { return new Set(); } })();
+
+  const incoming = new Map(AP.messageRowsByUri(auth.site.slug, refs.filter((r) => r.direction === 'in').map((r) => r.ref))
+    .map((m) => [m.object_uri, m]));
+  // PAREN, geen losse lijst: een kop levert niet altijd een item op (dichte
+  // poort, ontbrekende rij), en dan zou de aanroeper op index koppelen en de
+  // telling aan het verkeerde gesprek hangen. Stil, en pas te zien als iemand
+  // een badge op de verkeerde naam ziet staan.
+  const pairs = [];
+  for (const r of refs) {
+    if (r.direction === 'in') {
+      const m = incoming.get(r.ref);
+      if (!m) continue;
+      if (!(P.messagesAllowed || m.help_request || guardianUris.has(m.actor_uri))) continue;
+      pairs.push({ head: r, item: messageItem(m, ctx) });
+    } else {
+      const n = AP.getOutboxNote(base, r.ref);
+      // Je eigen woorden blijven van jou: een dichte messages-poort verbergt
+      // niet wat je zelf gezegd hebt.
+      if (n) pairs.push({ head: r, item: sentItem(n, { me, mine }) });
+    }
+  }
+  return pairs;
+}
+
+router.get('/ap/users/:slug/conversations', (req, res) => {
   const auth = OAuth.verifyBearer(req.headers.authorization);
   if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
-  let settled = false;
-  const done = (code) => {
-    if (settled) return;
-    settled = true;
-    clearTimeout(timer);
-    off();
-    if (!res.headersSent) res.status(code).end();
-  };
-  const off = AP.onNews(auth.site.slug, () => done(200));
-  const timer = setTimeout(() => done(204), 25_000);
-  req.on('close', () => done(204));
+  const heads = AP.conversationHeads(auth.site.slug);
+  const pairs = conversationItems(req, auth, heads);
+  const items = pairs.map((x) => x.item);
+  // Ongelezen per gesprek (shaer-frontend-3tx): een COUNT, geen bijgehouden
+  // getal. Hij hangt aan het NIEUWSTE kopje van elke persoon -- er kunnen er
+  // twee zijn (zie conversationHeads) en het aantal hoort bij het gesprek, niet
+  // bij een bericht.
+  //
+  // AS2 heeft geen term voor ongelezen; dit is per-lezer-interactiestatus,
+  // dezelfde categorie als shaer:liked. Niet in totalItems persen: dat betekent
+  // 'hoeveel er zijn' en niet 'hoeveel jij nog niet zag'.
+  // De poorten van DEZE lezer, niet die van de inbox-handler: die leeft in een
+  // andere functie en heette hier per ongeluk P.
+  const poorten = gatesFor(auth.site);
+  const ongelezen = AP.unreadPerConversation(auth.site.slug, {
+    messagesAllowed: poorten.messagesAllowed,
+    guardians: (() => { try { return new Set(Guardianship.listGuardians(auth.site.slug).map((g) => g.other_uri)); } catch { return new Set(); } })(),
+  });
+  const gezien = new Set();
+  for (const { head, item } of pairs) {
+    if (gezien.has(head.other)) continue;
+    gezien.add(head.other);
+    const u = ongelezen.get(head.other);
+    if (!u) continue;
+    item.object['shaer:unread'] = u.n;
+    // Een zwaai is geen aantal maar een zetje van een guardian: eigen teken.
+    if (u.wave) item.object['shaer:unreadWave'] = true;
+  }
+  AP.sendAP(res, {
+    '@context': AP.AP_CONTEXT,
+    id: `${baseUrl(req)}/ap/users/${encodeURIComponent(auth.site.slug)}/conversations`,
+    type: 'OrderedCollection',
+    totalItems: items.length,
+    orderedItems: items,
+    'shaer:cursor': AP.feedCursor(auth.site.slug),
+  }, 'private, no-store');
 });
 
-// ── Blocked collection (owner only, AP §5.6) ──────────────────────
+router.get('/ap/users/:slug/messages', (req, res) => {
+  const auth = OAuth.verifyBearer(req.headers.authorization);
+  if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
+  const other = String(req.query.with || '');
+  if (!/^https?:\/\//i.test(other)) return res.status(400).json({ error: 'with must be an actor URI' });
+  const page = AP.conversationHistory(auth.site.slug, other, {
+    before: req.query.before ? String(req.query.before) : null,
+    limit: req.query.limit,
+  });
+  const items = conversationItems(req, auth, page.rows).map((x) => x.item);
+  // De paginagrootte reist mee in next: vroeg je om 30, dan hoort de volgende
+  // pagina er ook 30 te zijn. Zonder dit wordt hij stilletjes de standaard, en
+  // dan klopt het ritme van een 'load more' niet meer met wat de gebruiker ziet.
+  const size = req.query.limit ? `&limit=${encodeURIComponent(String(req.query.limit))}` : '';
+  const self = `${baseUrl(req)}/ap/users/${encodeURIComponent(auth.site.slug)}/messages?with=${encodeURIComponent(other)}`;
+  AP.sendAP(res, {
+    '@context': AP.AP_CONTEXT,
+    id: req.query.before ? `${self}${size}&before=${encodeURIComponent(String(req.query.before))}` : `${self}${size}`,
+    type: 'OrderedCollectionPage',
+    partOf: self,
+    orderedItems: items,
+    // De volgende pagina is de standaardvorm van 'er is meer' (AS2). Ontbreekt
+    // hij, dan is het gesprek op -- en dat mag de client weten zonder gokken,
+    // want anders kan een 'load more' niet eerlijk verschijnen.
+    next: page.more && page.oldest ? `${self}${size}&before=${encodeURIComponent(page.oldest)}` : undefined,
+  }, 'private, no-store');
+});
+
+// De bel (/inbox/wait) is weg (shaer-pq4, 10-8). Hij deed hetzelfde als de
+// WACHTENDE inbox-lezing hierboven, maar in twee rondjes in plaats van een:
+// eerst 'er is nieuws', dan alsnog de lezing. Die lezing kan het zelf, en
+// sinds ?changes=1 stuurt hij alleen nog het verschil.
+//
+// AP.onNews blijft bestaan: de Guardian-PWA hangt er ook aan.
+
 // The server blocklist is the source of truth for Shaer's "in Orbit":
 // clients read it here instead of keeping their own state. Actor-kind
 // blocks only (domain blocks are instance policy, not an Orbit member).
-router.get('/ap/users/:slug/blocked', (req, res) => {
+//
+// FEP-1580 zet deze deur één spleet verder open: de bronkant MOET de blokkades
+// beschikbaar maken voor de instantie waar je NAARTOE verhuist, zodat je
+// zichtbaarheidsvoorkeuren meeverhuizen. De doelkant haalt ze als eerste op,
+// want ze bepalen wat de rest te zien krijgt. Geen nieuwe collectie: deze
+// bestond al en staat al op de actor, alleen de toegang verbreedt.
+router.get('/ap/users/:slug/blocked', async (req, res) => {
   const auth = OAuth.verifyBearer(req.headers.authorization);
-  if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
+  let slug = (auth && auth.site.slug === req.params.slug) ? auth.site.slug : null;
+  if (!slug && req.headers['signature']) {
+    const verified = await AP.verifyRequest(req).catch(() => null);
+    if (verified && verified.id && AP.isMoveTarget(req.params.slug, verified.id)) slug = req.params.slug;
+  }
+  if (!slug) return res.status(403).end();
   const base = baseUrl(req);
-  const items = AP.listBlocks(auth.site.slug)
+  const items = AP.listBlocks(slug)
     .filter((b) => b.kind === 'actor')
     .map((b) => b.target);
   AP.sendAP(res, {
     '@context': AP.AP_CONTEXT,
-    id: `${base}/ap/users/${auth.site.slug}/blocked`,
+    id: `${base}/ap/users/${slug}/blocked`,
     type: 'OrderedCollection',
     totalItems: items.length,
     orderedItems: items,
-  });
+  }, 'private, no-store');
 });
 
 // ── Guardian queues (owner only, FEP-633c, shaer:queues) ──────────
@@ -225,161 +736,191 @@ function queueRoute(name, build) {
     if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
     const base = baseUrl(req);
     const me = `${base}/ap/users/${auth.site.slug}`;
-    AP.sendAP(res, { '@context': AP.AP_CONTEXT, ...build(`${me}/queues/${name}`, auth.site.slug, me) });
+    // 304 als er niets veranderde (Barts punt, 9-8). Zonder dit haalde een app
+    // bij elke actie de hele lijst opnieuw op -- een hulpvraag afvinken vroeg de
+    // honderd wards inclusief poorten terug.
+    AP.sendMaybe304(req, res, { '@context': AP.AP_CONTEXT, ...build(`${me}/queues/${name}`, auth.site.slug, me) });
   });
 }
 queueRoute('offers', (id, slug, me) => Guardianship.offersCollection(id, slug, me));
-queueRoute('follows', (id) => Guardianship.followsCollection(id));
+queueRoute('follows', (id, slug, me) => Guardianship.followsCollection(id, slug, me));
+// §5.3 turned around (shaer-p729): what this ward has asked to follow, still
+// waiting on its guardians. Owner-only like the rest — who a child wants to
+// follow is nobody else's business.
+queueRoute('outgoing-follows', (id, slug, me) => Guardianship.outgoingFollowsCollection(id, slug, me));
 queueRoute('wards', (id, slug) => Guardianship.wardsCollection(id, slug));
 // Availability (FEP-633c 3.6.1) is never public: the ward reads its
 // guardians' real states here and nowhere else.
 queueRoute('guardians', (id, slug) => Guardianship.guardiansCollection(id, slug));
+
+// ── Het logboek (FEP-633c §4.2, shaer:log) ────────────────────────────
+// NAAST de wachtrijen en niet erin: alles onder shaer:queues wacht op een
+// antwoord, dit is wat er al besloten is. Eigen pad, dezelfde eigenaar-only
+// bearer. Het bestaat omdat een weigering anders alleen te merken viel doordat
+// er iets uit een lijst verdween, en "het is weg" is geen reden.
+router.get('/ap/users/:slug/log', (req, res) => {
+  const auth = OAuth.verifyBearer(req.headers.authorization);
+  if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
+  const me = `${baseUrl(req)}/ap/users/${auth.site.slug}`;
+  AP.sendAP(res, {
+    '@context': AP.AP_CONTEXT,
+    ...Guardianship.logCollection(`${me}/log`, auth.site.slug, (s) => AP.listGuardianEvents(s, 50)),
+  }, 'private, no-store');
+});
+// De hulpvragen MET hun staat (5.2.1, shaer-lgo). De apps lazen ze uit de feed
+// en wisten dus niet of er al iemand op af was -- daarom bleef een afgehandeld
+// verzoek daar staan (Barts melding, 8-8).
+queueRoute('help', (id, slug) => Guardianship.helpCollection(id, slug));
 
 // ── Inbox read (owner only, AP C2S) ───────────────────────────────
 // GET on the inbox is part of ActivityPub C2S: the account owner (a bearer
 // scoped to this site) reads recent inbound posts (the timeline: accounts
 // they follow) as Create(Note) items, so an app (Shaer) can build a unified
 // feed. Anyone else gets 403; the inbox stays write-only for the public.
-router.get('/ap/users/:slug/inbox', (req, res) => {
+router.get('/ap/users/:slug/inbox', async (req, res) => {
   const auth = OAuth.verifyBearer(req.headers.authorization);
   if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
   const base = baseUrl(req);
+  // Wachten is een UITBREIDING van deze lezing, geen tweede endpoint (shaer-n05).
+  // Geef `since` (de shaer:cursor van je vorige antwoord) en `wait` mee, en het
+  // antwoord blijft hangen tot er iets is of de tijd om is. Zonder die twee
+  // gedraagt de route zich exact zoals altijd.
+  //
+  // Bewust hetzelfde antwoord in plaats van een "er is nieuws"-seintje: dan
+  // hoeft er niets nieuws geparsed te worden, is er geen tweede beschrijving van
+  // de kaartvorm die uit de pas kan lopen, en scheelt het de client een tweede
+  // ronde.
+  const wachtS = Math.min(Math.max(parseInt(req.query.wait, 10) || 0, 0), 50);
+  if (req.query.since && wachtS > 0) {
+    const afbreken = new AbortController();
+    res.on('close', () => afbreken.abort());   // client hing op: niet doorgaan met wachten
+    const uit = await AP.waitForFeedChange(auth.site.slug, {
+      since: String(req.query.since), waitMs: wachtS * 1000, signal: afbreken.signal,
+    });
+    if (res.writableEnded || afbreken.signal.aborted) return undefined;
+    // Niets veranderd? Dan een LEEG antwoord (Barts punt): de hele collectie
+    // terugsturen terwijl er niets gebeurd is, is elke 25 seconden een tijdlijn
+    // over de mobiele verbinding voor niets. Met 304 kost stilte niets en kost
+    // nieuws nog steeds maar één rondje -- beter dan een apart seintje-endpoint,
+    // dat voor nieuws twee rondjes nodig heeft.
+    //
+    // De '0'-uitzondering is geen franje. Ontbreekt ap_feed_state (een instance
+    // die de migratie nog niet draaide), dan geeft feedCursor altijd '0' terug,
+    // en zou een client hier eeuwig 304 krijgen en nooit meer inhoud zien. Bij
+    // een lege merksteen sturen we dus gewoon de collectie.
+    if (!uit.changed && uit.cursor !== '0') {
+      res.set('Vary', 'Authorization');
+      return res.status(304).end();
+    }
+  }
   // Gated feature (FEP-633c): may this account see EXTERNAL embeds? A ward's
   // world outside the fediverse is the guardians' call. The gate is applied
   // here, at serialisation: a blocked embed is never sent, because an embed the
   // client merely hides has still been delivered to the device.
-  const isWard = (() => { try { return Guardianship.listGuardians(auth.site.slug).length > 0; } catch { return false; } })();
-  const embedsAllowed = Guardianship.externalEmbedsAllowed(auth.site.external_embeds, isWard);
-  // The heavier sibling (5.6): may a third party's PLAYER run inside the app,
-  // and may a link hand the child over to a browser? Both are the guardians'
-  // call, both default to off for a ward, and both need the preview gate open
-  // first: you cannot play, or follow, what you may not see. Served here so
-  // the app knows what it may offer instead of guessing.
-  const playbackAllowed = embedsAllowed
-    && Guardianship.externalPlaybackAllowed(auth.site.external_playback, isWard);
-  const posts = AP.getTimeline(auth.site.slug, 60).map((t) => ({
-    id: `${t.id}#create`,
-    type: 'Create',
-    actor: t.author_uri,
-    published: t.published || t.created_at || undefined,
-    object: {
-      id: t.id,
-      type: 'Note',
-      attributedTo: t.author_uri,
-      content: t.content,
-      url: t.url || undefined,
-      published: t.published || t.created_at || undefined,
-      sensitive: !!t.nsfw,
-      summary: t.cw || undefined,
-      // Friends' media travels along (media_json → AS2 attachment), so the
-      // client renders their images/audio like own outbox posts.
-      attachment: AP.timelineAttachments(t.media_json),
-      // The note's preserved tags, so the client can render them: FEP-9098
-      // Emoji tags (:shortcode: → image) and FEP-e232 Link tags (quotes /
-      // inline object references). Combined into one `tag` array; omitted
-      // when the note has neither.
-      tag: (() => {
-        const tags = [...(AP.timelineEmojis(t.emoji_json) || []), ...(AP.timelineObjectLinks(t.link_json) || [])];
-        return tags.length ? tags : undefined;
-      })(),
-      // FEP-044f: the resolved quoted post (author + content), so the client
-      // renders an embedded quote card instead of a bare link. Omitted when the
-      // note has no quote or the quoted post could not be resolved.
-      'shaer:quote': AP.timelineQuote(t.quote_json),
-      // The post author's display info (name / @handle / avatar), so every card
-      // gets a byline header like the quote card. attributedTo stays the bare
-      // actor URI; this is the resolved presentation Klonkt already stored.
-      'shaer:author': (t.author_name || t.author_handle || t.author_icon) ? {
-        name: t.author_name || undefined, handle: t.author_handle || undefined,
-        icon: t.author_icon || undefined, url: t.author_url || undefined,
-        // FEP-9098: emojis in the display name (":shortcode:"), if any.
-        emojis: (() => { try { return t.author_emoji_json ? JSON.parse(t.author_emoji_json) : undefined; } catch { return undefined; } })(),
-      } : undefined,
-      // When a followed account boosted this, who did ("X boosted"). Omitted for
-      // ordinary posts.
-      'shaer:booster': (t.reblog_name || t.reblog_handle || t.reblog_icon) ? {
-        name: t.reblog_name || undefined, handle: t.reblog_handle || undefined,
-        icon: t.reblog_icon || undefined,
-        // FEP-9098: emojis in the booster's display name (":shortcode:"), if any.
-        emojis: (() => { try { return t.reblog_emoji_json ? JSON.parse(t.reblog_emoji_json) : undefined; } catch { return undefined; } })(),
-      } : undefined,
-      // Whether THIS account already liked/boosted the note, so the app's
-      // detail-view buttons show the current state (and can toggle/undo).
-      'shaer:liked': !!t.liked,
-      'shaer:boosted': !!t.boosted,
-      // An external (non-fediverse) embed, thumbnail-only and never an iframe.
-      // Omitted entirely when the gate is closed (see above).
-      // Carries shaer:playerUrl only when the playback gate is open too.
-      'shaer:embed': embedsAllowed ? AP.timelineEmbed(t.embed_json, { playback: playbackAllowed }) : undefined,
-    },
-  }));
+  // De poorten van deze lezer (gatesFor): een plek waar ze berekend worden,
+  // zodat de gesprekslezingen dezelfde stand eerbiedigen en niet hun eigen
+  // kopie krijgen die kan gaan afwijken.
+  const P = gatesFor(auth.site);
+  const {
+    embedsAllowed, playbackAllowed, imagesAllowed, musicAllowed, quotesAllowed,
+    emojiAllowed, messagesAllowed, composeAllowed, repliesAllowed, threadsAllowed,
+    followingAllowed, gateAuthor,
+  } = P;
+  // De rechten-lijst hieronder vraagt er nog een paar rechtstreeks op.
+  const gate = (col) => Guardianship.wardGateAllowed(auth.site[col], P.isWard);
+  // ── Standaardvormen naast het dialect (shaer-nmw) ────────────────
+  //
+  // Een lezer die AS2 kent heeft nu genoeg aan attributedTo (ingesloten
+  // actor), quote (FEP-044f als object), preview (AS2 core) en de
+  // Announce-wrapper. De shaer:-velden blijven er nog naast staan voor apps
+  // in het veld; die gaan eruit als de clients om zijn.
+  // Wie ik ben en wie mijn guardians zijn: allebei de lezingen hieronder
+  // hebben ze nodig, dus een keer, hierboven.
+  const me = AP.actorId(base, auth.site.slug);
+  const myHandle = AP.deriveHandle(me);   // een naam, of de kale URI -- nooit een halve
+  const guardianUris = (() => { try { return new Set(Guardianship.listGuardians(auth.site.slug).map((g) => g.other_uri)); } catch { return new Set(); } })();
+  // ── Alleen het VERSCHIL, als de client daarom vraagt (shaer-pq4) ──
+  //
+  // De wachtende lezing zei tot nu toe alleen DAT er iets veranderde, waarna de
+  // client alles opnieuw las: vier legs van zestig met al hun media-, quote- en
+  // embed-JSON, voor een enkel nieuw bericht. ap_feed_state houdt per object al
+  // bij wat er wanneer veranderde, dus het verschil lag er klaar en werd alleen
+  // nooit uitgedeeld (feedChangesSince had geen enkele aanroeper).
+  //
+  // OPT-IN met ?changes=1, en dat is geen franje: een app in het veld stuurt
+  // `since` al mee en vervangt haar hele feed door wat er terugkomt. Zou
+  // `since` opeens een verschil betekenen, dan wist die app zichzelf leeg.
+  //
+  // Het antwoord is een OrderedCollectionPage met partOf, want dat is wat het
+  // IS -- een deel, geen collectie. Een generieke lezer ziet dat verschil ook.
+  if (req.query.changes && req.query.since) {
+    const veranderd = AP.feedChangesSince(auth.site.slug, String(req.query.since));
+    const levend = veranderd.filter((c) => c.kind !== 'deleted').map((c) => c.object_uri);
+    const tl = new Map(AP.timelineRowsByIds(auth.site.slug, levend).map((r) => [r.id, r]));
+    const mn = new Map(AP.messageRowsByUri(auth.site.slug, levend.filter((u) => !tl.has(u))).map((r) => [r.object_uri, r]));
+    const rp = new Map(AP.replyRowsByUri(auth.site.slug, levend.filter((u) => !tl.has(u) && !mn.has(u))).map((r) => [r.object_uri, r]));
+    const reacties = AP.getReactionsFor(auth.site.slug, [...tl.keys()]);
+    const ctx = { base, me, myHandle, p: P };
+    const items = [];
+    for (const c of veranderd) {
+      if (c.kind === 'deleted') {
+        // Een verwijdering reisde tot nu toe als AFWEZIGHEID mee: de volledige
+        // lezing bevatte hem simpelweg niet meer. Die volledigheid is precies
+        // wat hier wegvalt, dus zonder grafsteen zou een weggehaalde post voor
+        // altijd in de app blijven staan -- en dat faalt stil. AS2 heeft er een
+        // vorm voor, en de rij lag er al.
+        items.push({ type: 'Delete', actor: me, object: { id: c.object_uri, type: 'Tombstone' } });
+        continue;
+      }
+      const t = tl.get(c.object_uri);
+      if (t) { items.push(timelineItem(t, { p: P, reactions: reacties })); continue; }
+      const m = mn.get(c.object_uri);
+      if (m) {
+        if (messagesAllowed || m.help_request || guardianUris.has(m.actor_uri)) items.push(messageItem(m, ctx));
+        continue;
+      }
+      const r = rp.get(c.object_uri);
+      if (r) { items.push(replyItem(r, ctx)); continue; }
+      const n = AP.getOutboxNote(base, c.object_uri);
+      if (n) items.push(sentItem(n, { me, mine: AP.selfAuthor(base, auth.site) }));
+    }
+    return AP.sendAP(res, {
+      '@context': AP.AP_CONTEXT,
+      id: `${base}/ap/users/${encodeURIComponent(auth.site.slug)}/inbox?changes=1&since=${encodeURIComponent(String(req.query.since))}`,
+      type: 'OrderedCollectionPage',
+      partOf: `${base}/ap/users/${auth.site.slug}/inbox`,
+      orderedItems: items,
+      // De rechten gaan MEE. Zonder dit valt de client terug op zijn standaard,
+      // en die standaard is 'alles mag' -- dan zet een gesloten poort zichzelf
+      // stil open bij elke verschil-lezing. Dezelfde reden waarom een 304 de
+      // caps met rust laat.
+      'shaer:capabilities': capabilitiesOf(P, gate),
+      'shaer:cursor': AP.feedCursor(auth.site.slug),
+    }, 'private, no-store');
+  }
+  const rows = AP.getTimeline(auth.site.slug, 60);
+  // Eén query voor de hele pagina (shaer-9e9 fase 2): shaer:liked komt uit de
+  // tussentabel, de bron van waarheid, en niet meer uit de afgeleide kolom op
+  // ap_timeline. Per rij vragen zou hier een N+1 opleveren.
+  const reacties = AP.getReactionsFor(auth.site.slug, rows.map((t) => t.id));
+  const posts = rows.map((t) => timelineItem(t, { p: P, reactions: reacties }));
   // The direct notes addressed to this account: a plain DM, a guardian's wave
   // (§5), a ward's 🛟 help request (§5.2.1). Those are messages, not posts, so
   // they are not in the timeline; without them the app's Berichten shows only
   // what you said yourself. Same shape as a post, so one parser handles both.
-  const me = AP.actorId(base, auth.site.slug);
-  const myHandle = (() => { try { return `@${auth.site.slug}@${new URL(base).host}`; } catch { return `@${auth.site.slug}`; } })();
-  const messages = AP.getDirectMessages(auth.site.slug, 60).map((m) => ({
-    id: `${m.object_uri}#create`,
-    type: 'Create',
-    actor: m.actor_uri,
-    published: AP.isoStamp(m.published || m.created_at),
-    object: {
-      id: m.object_uri,
-      type: 'Note',
-      attributedTo: m.actor_uri,
-      content: AP.stripLeadingMentions(m.content),
-      url: m.note_url || undefined,
-      published: AP.isoStamp(m.published || m.created_at),
-      // Addressed to us and to nobody we know of: the other recipients of a
-      // note to several people are not ours to see, so we serve what we know.
-      to: [me],
-      // The Mention is how the client recognises itself as the addressee and
-      // groups the note into a conversation. No FEP-e232 link tags here: a
-      // mention row keeps the resolved quote, not the raw tags.
-      tag: [{ type: 'Mention', href: me, name: myHandle }, ...(AP.timelineEmojis(m.emoji_json) || [])],
-      attachment: AP.timelineAttachments(m.media_json),
-      // FEP-633c: what kind of message this is. The wave is a gentle nudge from
-      // a guardian; the help request is the buoy. Both render differently.
-      'shaer:wave': m.wave ? true : undefined,
-      'shaer:helpRequest': m.help_request ? true : undefined,
-      'shaer:quote': AP.timelineQuote(m.quote_json),
-      'shaer:author': (m.actor_name || m.actor_handle || m.actor_icon) ? {
-        name: m.actor_name || undefined, handle: m.actor_handle || undefined,
-        icon: m.actor_icon || undefined, url: m.actor_url || undefined,
-        emojis: (() => { try { return m.actor_emoji_json ? JSON.parse(m.actor_emoji_json) : undefined; } catch { return undefined; } })(),
-      } : undefined,
-      'shaer:embed': embedsAllowed ? AP.timelineEmbed(m.embed_json, { playback: playbackAllowed }) : undefined,
-    },
-  }));
+  // Messages dicht (shaer-3ow) sluit vreemden en vrienden, maar NOOIT het
+  // guardian-kanaal: de zwaai en het gesprek na een hulpvraag zijn precies
+  // het kanaal dat het kind veilig houdt, en een poort die dat afsnijdt
+  // beschermt niemand. De hulpvraag zelf gaat aan de innamekant al altijd voor.
+  const messageCtx = { base, me, myHandle, p: P };
+  const messages = AP.getDirectMessages(auth.site.slug, 60)
+    .filter((m) => messagesAllowed || m.help_request || guardianUris.has(m.actor_uri))
+    .map((m) => messageItem(m, messageCtx));
   // Inbound REPLIES on your own posts: stored as interactions (the web's
   // comment machinery), never as mentions, so this read missed them and a
   // friend's reply arrived everywhere except in your app (Robins melding,
   // 30-7). Same shape as the other legs; media/quotes ride the stored JSON.
-  const replies = AP.getReplyMessages(auth.site.slug, 60).map((m) => ({
-    id: `${m.object_uri}#create`,
-    type: 'Create',
-    actor: m.actor_uri,
-    published: AP.isoStamp(m.published || m.created_at),
-    object: {
-      id: m.object_uri,
-      type: 'Note',
-      attributedTo: m.actor_uri,
-      content: AP.stripLeadingMentions(m.content),
-      inReplyTo: m.parent_uri || `${base}/ap/notes/${m.post_id}`,
-      published: AP.isoStamp(m.published || m.created_at),
-      to: [me],
-      tag: [{ type: 'Mention', href: me, name: myHandle }, ...(AP.timelineEmojis(m.emoji_json) || [])],
-      attachment: AP.timelineAttachments(m.media_json),
-      'shaer:quote': AP.timelineQuote(m.quote_json),
-      'shaer:author': (m.actor_name || m.actor_handle || m.actor_icon) ? {
-        name: m.actor_name || undefined, handle: m.actor_handle || undefined,
-        icon: m.actor_icon || undefined, url: m.actor_url || undefined,
-        emojis: (() => { try { return m.actor_emoji_json ? JSON.parse(m.actor_emoji_json) : undefined; } catch { return undefined; } })(),
-      } : undefined,
-      'shaer:embed': embedsAllowed ? AP.timelineEmbed(m.embed_json, { playback: playbackAllowed }) : undefined,
-    },
-  }));
+  const replies = AP.getReplyMessages(auth.site.slug, 60).map((m) => replyItem(m, messageCtx));
   // Your OWN sent notes (replies and direct messages, ap_outbox): without
   // them a reply existed everywhere except in your own app, Messages showed
   // half a conversation, and a retry ran into the duplicate guard (Robins
@@ -392,7 +933,10 @@ router.get('/ap/users/:slug/inbox', (req, res) => {
     published: n.published,
     // The leading mention anchor is addressing, not prose (the DM leg strips
     // it the same way); the Mention tags built from the full content stay.
-    object: { ...n, content: AP.stripLeadingMentions(n.content), 'shaer:author': mine },
+    object: {
+      ...n, content: AP.stripLeadingMentions(n.content),
+      attributedTo: AP.actorObject(typeof n.attributedTo === 'string' ? n.attributedTo : me, mine),
+    },
   }));
   // Newest first over all legs, so the app can keep treating this as one feed.
   const items = [...posts, ...messages, ...replies, ...sent].sort((a, b) => String(b.published || '').localeCompare(String(a.published || '')));
@@ -403,17 +947,15 @@ router.get('/ap/users/:slug/inbox', (req, res) => {
     // What this account may do with what is in here (FEP-633c 5.6). Owner-only
     // by construction, and never on the public actor document: it says
     // something about a child, and only the child and its guardians need it.
-    'shaer:capabilities': {
-      'shaer:externalEmbeds': embedsAllowed,
-      'shaer:externalPlayback': playbackAllowed,
-      // Leaving the app is the same decision as playing inside it: with the
-      // gate shut a link is shown but not followed, so the door is closed too
-      // and not just the picture over it.
-      'shaer:externalLinks': playbackAllowed,
-    },
+    'shaer:capabilities': capabilitiesOf(P, gate),
+    // Het merk van wat hierin zit. Geef hem terug als `since` om op het
+    // volgende te wachten. NA het samenstellen bepaald, zodat hij precies dekt
+    // wat je in handen hebt en niet iets dat er ondertussen bij kwam.
+    'shaer:cursor': AP.feedCursor(auth.site.slug),
     totalItems: items.length,
     orderedItems: items,
   });
+  return undefined;
 });
 
 // ── uploadMedia (owner only, AP C2S) ──────────────────────────────
@@ -421,10 +963,7 @@ router.get('/ap/users/:slug/inbox', (req, res) => {
 // scoped to this site uploads one image/audio/video (multipart field "file",
 // AP convention) into the same store the reply editor uses, and gets back
 // { url, mediaType, name } to attach on a note (e.g. the help-buoy capture).
-const AP_MEDIA_DIR = path.resolve(
-  process.env.REPLY_MEDIA_PATH ||
-  path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'storage', 'media', 'reply-media')
-);
+const AP_MEDIA_DIR = mediaDir('REPLY_MEDIA_PATH', 'reply-media');
 fs.mkdirSync(AP_MEDIA_DIR, { recursive: true });
 const AP_MEDIA_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.mp3', '.m4a', '.ogg', '.opus', '.flac', '.wav', '.mp4', '.webm', '.mov']);
 const apMediaUpload = multer({
@@ -521,10 +1060,10 @@ router.get('/ap/users/:slug/followers', (req, res) => {
     const uris = db.prepare('SELECT actor_uri FROM ap_followers WHERE slug = ? ORDER BY created_at').all(site.slug).map((r) => r.actor_uri);
     // Default = bare references; enrich only when the client asks (FEP-9876).
     const items = wantsEnriched(req, res) ? uris.map((u) => AP.buildActorRef(site.slug, u)) : uris;
-    return AP.sendAP(res, AP.buildFollowers(baseUrl(req), site, items.length, items));
+    return AP.sendAP(res, AP.buildFollowers(baseUrl(req), site, items.length, items, { page: paginaNr(req) }));
   }
   const n = db.prepare('SELECT COUNT(*) n FROM ap_followers WHERE slug = ?').get(site.slug).n;
-  AP.sendAP(res, AP.buildFollowers(baseUrl(req), site, n));
+  AP.sendAP(res, AP.buildFollowers(baseUrl(req), site, n, null, { page: paginaNr(req) }));
 });
 
 // ── Following (count-only public, full for the owner) ─────────────
@@ -540,11 +1079,64 @@ router.get('/ap/users/:slug/following', (req, res) => {
       const uris = db.prepare("SELECT actor_uri FROM ap_following WHERE slug = ? AND status = 'accepted' ORDER BY created_at").all(site.slug).map((r) => r.actor_uri);
       items = enrich ? uris.map((u) => AP.buildActorRef(site.slug, u)) : uris;
     } catch { /* table may not exist */ }
-    return AP.sendAP(res, AP.buildFollowing(baseUrl(req), site, items.length, items));
+    return AP.sendAP(res, AP.buildFollowing(baseUrl(req), site, items.length, items, { page: paginaNr(req) }));
   }
   let n = 0;
   try { n = db.prepare("SELECT COUNT(*) n FROM ap_following WHERE slug = ? AND status = 'accepted'").get(site.slug).n; } catch { /* table may not exist */ }
-  AP.sendAP(res, AP.buildFollowing(baseUrl(req), site, n));
+  AP.sendAP(res, AP.buildFollowing(baseUrl(req), site, n, null, { page: paginaNr(req) }));
+});
+
+/**
+ * Mag deze aanvrager alles van `slug` zien? Waar bij de eigenaar zelf, en waar
+ * voor de actor waar `slug` naartoe verhuisd is (FEP-1580, Source Instance).
+ *
+ * Eén plek voor die vraag, want hij komt op meerdere collecties terug en twee
+ * antwoorden op dezelfde vraag lopen vroeg of laat uiteen.
+ */
+async function magAlles(req, slug) {
+  const auth = OAuth.verifyBearer(req.headers.authorization);
+  if (auth && auth.site.slug === slug) return true;
+  if (!req.headers['signature']) return false;
+  const v = await AP.verifyRequest(req).catch(() => null);
+  return !!(v && v.id && AP.isMoveTarget(slug, v.id));
+}
+
+// ── FEP-1580: de vertaaltabel van een verhuizing ──────────────────
+//
+// Publiek leesbaar, want dat is het hele doel: een derde die een oude URI in
+// zijn database heeft leest hier wat de nieuwe is. Zonder deze collectie blijft
+// elke reactie op een verhuisd bericht naar een dood adres wijzen.
+//
+// Niet-publieke items komen er alleen in voor een lezer die ze mocht zien. De
+// spec: Moves voor objecten die niet aan as:Public gericht zijn MOGEN NIET
+// publiek getoond worden. Een lijst met de URIs van je fan-only posts is een
+// lek, ook al staat de inhoud er niet bij.
+router.get('/ap/users/:slug/migration', async (req, res) => {
+  const site = publicSite(req.params.slug);
+  if (!site) return res.status(404).end();
+  let alles = false;
+  const auth = OAuth.verifyBearer(req.headers.authorization);
+  if (auth && auth.site.slug === site.slug) alles = true;
+  else if (req.headers['signature']) {
+    const v = await AP.verifyRequest(req).catch(() => null);
+    // Een geverifieerde volger zat in het publiek van de fan-only posts, dus
+    // die mag ook weten waar ze heen zijn.
+    if (v && v.id && AP.outboxAudience(site.slug, { verifiedActor: v.id }) === 'friend') alles = true;
+  }
+  AP.sendAP(res, Migration.buildMigration(baseUrl(req), site, { page: paginaNr(req), alles }),
+    alles ? 'private, no-store' : undefined);
+});
+
+// De Moves die de vertaaltabel rechtvaardigen. Altijd publiek: een bewijs dat
+// je moet kunnen nakijken heeft niets aan een slot.
+//
+// LET OP: zonder FEP-8b32 (shaer-j1v0) staat hier geen handtekening onder. De
+// collectie is structureel goed en niet verifieerbaar, en een derde die de spec
+// streng volgt mag hem daarom weigeren. Bewust geen leeg proof-veld erbij.
+router.get('/ap/users/:slug/moves', (req, res) => {
+  const site = publicSite(req.params.slug);
+  if (!site) return res.status(404).end();
+  AP.sendAP(res, Migration.buildMoves(baseUrl(req), site));
 });
 
 // ── Featured (pinned posts → Mastodon "Featured" tab) ─────────────
@@ -560,14 +1152,127 @@ router.get('/ap/users/:slug/featured', (req, res) => {
        AND pinned IS NOT NULL AND pinned > 0
      ORDER BY pinned DESC, COALESCE(published_at, created_at) ASC LIMIT 20`
   ).all(site.id);
-  AP.sendAP(res, AP.buildFeatured(baseUrl(req), site, posts));
+  AP.sendAP(res, AP.buildFeatured(baseUrl(req), site, posts, { page: paginaNr(req) }));
+});
+
+// ── Playlist als dereferenceerbare AP-collectie (shaer-ayc) ───────
+// De eerste stap van het Funkwhale-spoor: een playlist heeft een id, dus een
+// stabiele URI. Alleen het fedi_open-deel staat erin (de poort is per bestand
+// en eenrichtings; zie setAudioFediOpen in routes/posts.js) — een collectie
+// zonder open tracks bestaat wel maar is leeg, want de playlist zelf is niet
+// geheim, alleen de bestanden erachter.
+// De lijst van alle playlist-collecties (shaer-ayc, stap 2). De actor wijst
+// hierheen via AS2 `streams`. Kaal standaard; verrijkte stubs op verzoek
+// (FEP-9876), dezelfde conventie als followers/following.
+router.get('/ap/users/:slug/playlists', (req, res) => {
+  const site = publicSite(req.params.slug);
+  if (!site) return res.status(404).end();
+  AP.sendAP(res, AP.listPlaylistsAP(baseUrl(req), site, wantsEnriched(req, res), { page: paginaNr(req) }));
+});
+
+// De tracks van deze site: de kanonieke plek voor onze muziek (shaer-0nh,
+// stap 3). Een playlist is een keuze hieruit; deze collectie is alles wat de
+// artiest heeft opengezet, ook wat in geen enkele playlist staat.
+router.get('/ap/users/:slug/tracks', async (req, res) => {
+  const site = publicSite(req.params.slug);
+  if (!site) return res.status(404).end();
+  AP.sendAP(res, AP.buildTrackCollection(baseUrl(req), site, AP.siteOpenTracks(site.id, { alles: await magAlles(req, site.slug) }), { page: paginaNr(req) }));
+});
+
+// De bibliotheek van deze site (shaer-0nh). Funkwhale's Audio draagt een
+// `library`, en dat is bij hen het haakje waar een UPLOAD aan komt te hangen --
+// zonder die bak blijft een binnengehaalde track daar een naam zonder geluid.
+// Gemeten op 13-8: open.audio had onze vier tracks wel, met onze eigen AP-id's,
+// maar uploads leeg en is_playable false.
+//
+// Openbaar, want alles erin is fedi_open. Er valt dus niets goed te keuren en de
+// volgerslijst blijft leeg: wie ons volgt volgt de ACTOR, niet de bak.
+//
+// `?page=` MOET hier doorgegeven worden. Zonder dat adverteert de wortel een
+// `first` die op zichzelf uitkomt: de lezer volgt hem, krijgt weer een `Library`
+// in plaats van een pagina, en klapt eruit -- open.audio gaf op 15-8 een 500 op
+// precies deze URL. Dezelfde les als bij de outbox (shaer-sk4): een `first`
+// beloven is een pagina beloven.
+router.get('/ap/users/:slug/library', (req, res) => {
+  const site = publicSite(req.params.slug);
+  if (!site) return res.status(404).end();
+  AP.sendAP(res, AP.buildLibrary(baseUrl(req), site, AP.siteOpenTracks(site.id), { page: paginaNr(req) }));
+});
+
+// De volgerscollectie die hun docs als vereist noemen. Leeg en eerlijk: er is
+// geen goedkeuringspad omdat de bibliotheek openbaar is.
+router.get('/ap/users/:slug/library/followers', (req, res) => {
+  const site = publicSite(req.params.slug);
+  if (!site) return res.status(404).end();
+  AP.sendAP(res, AP.pagedCollection(`${AP.libraryId(baseUrl(req), site)}/followers`, [], { page: paginaNr(req) }));
+});
+
+// Eén track, los op te halen. Een gesloten track is AFWEZIG, niet leeg: 404,
+// dezelfde regel als in de collectie, zodat het bestaan van een gated nummer
+// niet uit een ander antwoord af te leiden is.
+router.get('/ap/users/:slug/tracks/:id', (req, res) => {
+  const site = publicSite(req.params.slug);
+  if (!site) return res.status(404).end();
+  const row = AP.openTrack(site.id, req.params.id);
+  if (!row) return res.status(404).end();
+  AP.sendAP(res, AP.buildTrackAudio(baseUrl(req), site, row, { standalone: true }));
+});
+
+// De losse tracks van een post als EEN uitgave (shaer-38y). Ze gingen tot nu
+// toe los de deur uit -- Audio-objecten die een lezer nergens kon plaatsen. Ze
+// horen bij elkaar omdat ze in dezelfde post staan, en die post leent zijn
+// titel, tekst, hoes en tags uit. 404 als de post geen muzikale eenheid IS:
+// dan is er niets om naar te wijzen, en dat is geen lege collectie maar een
+// collectie die niet bestaat.
+router.get('/ap/users/:slug/posts/:id/tracks', (req, res) => {
+  const site = publicSite(req.params.slug);
+  if (!site) return res.status(404).end();
+  const post = db.prepare(
+    "SELECT id, slug, title, excerpt, content, cover_image_url, tags FROM posts WHERE id = ? AND site_id = ? AND status = 'published'"
+  ).get(req.params.id, site.id);
+  if (!post) return res.status(404).end();
+  const col = AP.buildPostTrackCollection(baseUrl(req), site, post);
+  if (!col) return res.status(404).end();
+  AP.sendAP(res, col);
+});
+
+router.get('/ap/users/:slug/playlists/:id', async (req, res) => {
+  const site = publicSite(req.params.slug);
+  if (!site) return res.status(404).end();
+  const pl = db.prepare('SELECT id, title, artist, year, cover_url, kind, release_date, mb_release_id, created_at FROM playlists WHERE id = ? AND site_id = ?')
+    .get(req.params.id, site.id);
+  if (!pl) return res.status(404).end();
+  // De doel-actor van een verhuizing krijgt de VOLLEDIGE plaat, niet alleen de
+  // nummers die voor de fediverse opengezet zijn (FEP-1580).
+  const alles = await magAlles(req, site.slug);
+  AP.sendAP(res, AP.buildPlaylistCollection(baseUrl(req), site, pl, AP.playlistOpenTracks(pl.id, { alles })));
 });
 
 // ── Note ──────────────────────────────────────────────────────────
-router.get('/ap/notes/:id', (req, res) => {
+router.get('/ap/notes/:id', async (req, res) => {
+  // No fan_only filter in the SELECT anymore: a friends-only post is not
+  // absent, it is GATED. The old route hid it from EVERYONE, also from the
+  // follower whose friendship earns it — so the signed resolution the reply
+  // path performs knocked on a door that could never open, and every reply
+  // to a friends-only post (Shaer's default!) died in
+  // cannot_resolve_inReplyTo. Strangers still get the exact same 404, so a
+  // note's existence stays as private as before.
   const post = db.prepare(
-    "SELECT * FROM posts WHERE id = ? AND status = 'published' AND (fan_only IS NULL OR fan_only = 0)"
+    "SELECT * FROM posts WHERE id = ? AND status = 'published'"
   ).get(req.params.id);
+  if (post && AP.noteAudience(post) !== 'public') {
+    // The whole gate in a try: this is the only async route in this file,
+    // and Express 4 does not catch an async rejection — the request would
+    // hang forever instead of failing (which is exactly how the missing
+    // default-export entry manifested while building this). Any error here
+    // reads as "not authorized", never as silence.
+    try {
+      if (AP.noteAudience(post) === 'direct') return res.status(404).end();
+      const gsite = db.prepare('SELECT * FROM sites WHERE id = ?').get(post.site_id);
+      const actor = await AP.verifyRequest(req).catch(() => null);
+      if (!actor || !AP.mayReadNote(gsite, post, actor.id)) return res.status(404).end();
+    } catch { return res.status(404).end(); }
+  }
   if (!post) {
     // Could be one of OUR outbound replies (ap_outbox), not a post.
     const note = AP.getOutboxNote(baseUrl(req), req.params.id);
@@ -593,16 +1298,100 @@ router.get('/ap/notes/:id', (req, res) => {
 });
 
 // ── Replies collection ── lets remote servers fetch a post's whole thread.
+// ── De composer-preview (shaer-k3f): een URL wordt alvast een kaart ──
+//
+// Bearer-only, net als de thread: dit is de eigen app die tijdens het typen
+// vraagt wat een link gaat worden. Dezelfde pijplijn als publiceren, dus de
+// preview kan niet iets beloven dat de post niet waarmaakt. De embed gaat
+// langs de eigen poort van de lezer -- een ward zonder open embeds-poort
+// krijgt in de composer geen kaart die zijn feed hem ook niet zou tonen.
+router.get('/ap/users/:slug/card', async (req, res) => {
+  const auth = OAuth.verifyBearer(req.headers.authorization);
+  if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
+  const uit = await AP.previewCard(String(req.query.url || ''));
+  const isWard = (() => { try { return Guardianship.listGuardians(auth.site.slug).length > 0; } catch { return false; } })();
+  const embedsAllowed = Guardianship.externalEmbedsAllowed(auth.site.external_embeds, isWard);
+  const playback = embedsAllowed && Guardianship.externalPlaybackAllowed(auth.site.external_playback, isWard);
+  AP.sendAP(res, {
+    '@context': AP.AP_CONTEXT,
+    quote: AP.quoteObject(uit.quoteJson),
+    preview: embedsAllowed ? AP.previewObject(uit.embedJson, { playback }) : undefined,
+  }, 'private, no-store');
+});
+
+// ── De thread onder een post (shaer-tqz): ophalen, niet bewaren ────
+//
+// Bearer-only: dit is de eigen app van deze account die vraagt, nooit een
+// vreemde. Klonkt doet de ondertekende GET die de app zelf niet kan (de
+// sleutel staat hier), loopt één pagina van de replies-collectie af en geeft
+// genormaliseerde notes terug. Er wordt NIETS opgeslagen; zie getThread.
+//
+// Voor een ward geldt de veiligste stand tot shaer-vw4 beslist is: alleen
+// antwoorden uit de kring die de guardians al kennen, en shaer:hidden telt wat
+// er buiten viel. De telling staat er zodat de UI eerlijk kan zijn -- OF hij
+// getoond wordt is onderdeel van datzelfde besluit.
+router.get('/ap/users/:slug/thread', async (req, res) => {
+  const auth = OAuth.verifyBearer(req.headers.authorization);
+  if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
+  const objectUri = String(req.query.object || '');
+  if (!/^https:\/\//i.test(objectUri)) return res.status(400).json({ error: 'object must be an https URI' });
+  const isWard = (() => { try { return Guardianship.listGuardians(auth.site.slug).length > 0; } catch { return false; } })();
+  const uit = await AP.getThread(auth.site.slug, objectUri);
+  if (!uit.found) {
+    // WIENS schuld is dit? De oude melding zei "jouw server kon het niet
+    // laden" terwijl onze server het prima deed en de BRON weigerde -- dat
+    // wees naar de verkeerde partij (Barts melding, 10-8: een post van een
+    // account dat hij vanochtend nog volgde, en dat nu niet meer).
+    // 401/403/404/410 is een besluit van die server; al het andere, inclusief
+    // een status die we niet eens kregen, is een storing.
+    const geweigerd = [401, 403, 404, 410].includes(uit.sourceStatus);
+    return res.status(geweigerd ? 404 : 502)
+      .json({ error: geweigerd ? 'not shared by source' : 'source unreachable', sourceStatus: uit.sourceStatus || undefined });
+  }
+  // De poortstand komt uit de kolom (shaer-9y2): expliciete 0/1 van de
+  // guardians wint, de automatiek is dicht-voor-een-ward. Dicht is de KRING,
+  // niet niets: antwoorden van al goedgekeurd volk blijven staan, en wat er
+  // buiten valt wordt geteld. Beeld, muziek en emoji gaan door dezelfde
+  // poorten als de tijdlijn -- per verzoek, buiten de threadcache om.
+  const threadsOpen = Guardianship.wardGateAllowed(auth.site.external_threads, isWard);
+  const gate2 = (col) => Guardianship.wardGateAllowed(auth.site[col], isWard);
+  const kring = threadsOpen ? { notes: uit.notes, hidden: 0 } : AP.filterThreadToCircle(auth.site.slug, uit.notes);
+  const imagesOk = gate2('gate_images'), musicOk = gate2('gate_music'), emojiOk = gate2('gate_custom_emoji');
+  uit.notes = kring.notes.map((n) => ({
+    ...n,
+    attachment: AP.gateAttachments(n.attachment, { images: imagesOk, audio: musicOk }),
+    tag: emojiOk ? n.tag : AP.stripEmojiTags(n.tag),
+    // De emoji-poort knipt in de byline zelf: FEP-9098 zit in de tag van de
+    // ingesloten actor, niet meer in een eigen emoji-kaart ernaast.
+    attributedTo: (!emojiOk && n.attributedTo && typeof n.attributedTo === 'object')
+      ? { ...n.attributedTo, tag: undefined } : n.attributedTo,
+  }));
+  uit.hidden = kring.hidden;
+  // Liked/boosted per antwoord, BUITEN de cache om: de genormaliseerde notes
+  // mogen twee minuten oud zijn, maar of JIJ iets geliked hebt hoort van nu te
+  // zijn -- anders springt het hartje terug zodra de reader opnieuw opent.
+  const reacties = AP.getReactionsFor(auth.site.slug, uit.notes.map((n) => n.id));
+  // De thread heeft al een ?object= in zijn id, dus geen ?page= erachter: die
+  // collectie is niet te pagineren zonder de vraag zelf te herhalen. Hij is
+  // owner-only en wordt door Shaer gelezen, niet door de federatie.
+  AP.sendAP(res, {
+    '@context': AP.AP_CONTEXT,
+    id: `${baseUrl(req)}/ap/users/${encodeURIComponent(auth.site.slug)}/thread?object=${encodeURIComponent(objectUri)}`,
+    type: 'OrderedCollection',
+    totalItems: uit.notes.length,
+    orderedItems: uit.notes.map((n) => ({
+      ...n,
+      'shaer:liked': !!(reacties.get(n.id) || {}).liked,
+      'shaer:boosted': !!(reacties.get(n.id) || {}).boosted,
+    })),
+    'shaer:hidden': uit.hidden || undefined,
+  }, 'private, no-store');
+});
+
 router.get('/ap/notes/:id/replies', (req, res) => {
   const base = baseUrl(req);
   const items = AP.getReplyUris(base, req.params.id);
-  AP.sendAP(res, {
-    '@context': AP.AP_CONTEXT,
-    id: `${base}/ap/notes/${req.params.id}/replies`,
-    type: 'OrderedCollection',
-    totalItems: items.length,
-    orderedItems: items,
-  });
+  AP.sendAP(res, AP.pagedCollection(`${base}/ap/notes/${req.params.id}/replies`, items));
 });
 
 // ── NodeInfo ── standard instance metadata so fediverse tools recognise Klonkt.
@@ -637,7 +1426,17 @@ const apJson = express.json({
 });
 router.post(['/ap/users/:slug/inbox', '/ap/inbox'], apInboxLimiter, apJson, async (req, res) => {
   try { return res.status(await AP.handleInbox(req, req.params.slug || null) || 202).end(); }
-  catch (e) { console.warn('[AP inbox] error:', e.message); return res.status(202).end(); }
+  // Met de STACK erbij. Hier stond alleen `e.message`, en op 15-8 leverde dat
+  // zes keer "[AP inbox] error: slug is not defined" op zonder één aanwijzing
+  // waar -- een ReferenceError in een handler van duizenden regels, met een
+  // naam die overal voorkomt. Een fout die je niet kunt plaatsen is niet
+  // gemeld. Het type en de activiteit erbij, want dat zegt welke tak liep.
+  catch (e) {
+    const soort = req.body && req.body.type;
+    console.warn('[AP inbox] error:', e.message, '| type:', soort, '| slug:', req.params.slug || '(gedeeld)');
+    console.warn(e.stack);
+    return res.status(202).end();
+  }
 });
 
 // ── Outbox POST: ActivityPub Client-to-Server ─────────────────────
@@ -655,7 +1454,9 @@ router.post('/ap/users/:slug/outbox', apInboxLimiter, apJson, async (req, res) =
   if (out.error) return res.status(out.status || 400).json({ error: out.error, detail: out.detail });
   // 201 Created → Location header (AP spec); 202 Accepted for side-effect verbs.
   if (out.status === 201 && out.url) res.set('Location', out.url);
-  return res.status(out.status || 202).json({ ok: true, id: out.id, url: out.url });
+  // `state` carries a third outcome the app must be able to tell apart from a
+  // plain success: a ward's follow held for its guardians (§5.3, shaer-p729).
+  return res.status(out.status || 202).json({ ok: true, id: out.id, url: out.url, ...(out.state ? { state: out.state } : {}) });
 });
 
 export default router;

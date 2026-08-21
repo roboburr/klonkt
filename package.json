@@ -1,6 +1,6 @@
 {
   "name": "klonkt",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "Klonkt — self-hosted multi-site music & blog platform (solo, hub or circles). Node + SQLite + htmx.",
   "license": "AGPL-3.0-or-later",
   "type": "module",
@@ -11,7 +11,8 @@
     "test": "node --test",
     "migrate": "node src/db/migrate.js",
     "reset-admin": "node scripts/reset-admin.mjs",
-    "backfill:durations": "node scripts/backfill-durations.mjs"
+    "backfill:durations": "node scripts/backfill-durations.mjs",
+    "backfill:post-types": "node scripts/backfill-post-types.mjs"
   },
   "dependencies": {
     "@resvg/resvg-js": "^2.6.2",
@@ -32,7 +33,7 @@
     "marked": "^11.1.1",
     "multer": "^1.4.5-lts.1",
     "node-webpmux": "^3.2.1",
-    "nodemailer": "^6.9.15",
+    "nodemailer": "^9.0.5",
     "qrcode": "^1.5.4",
     "sanitize-html": "^2.17.3",
     "uuid": "^9.0.1",

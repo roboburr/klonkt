@@ -558,6 +558,26 @@ page-container figcaption { font-family: var(--font-ui); font-size: .85rem; colo
 page-container[contenteditable="true"] { outline: 2px dashed var(--accent); outline-offset: .5rem; border-radius: var(--radius); }
 
 .empty { text-align: center; padding: 4rem 1rem; }
+/* Moved account (FEP-7628 slice 3): the signpost above the feed. Loud on
+   purpose — a visitor must not read a stale timeline thinking it is current. */
+.moved-banner {
+    text-align: center;
+    margin: 1.5rem 0 2rem;
+    padding: 1.75rem 1.25rem;
+    border: 2px solid var(--accent, #e8b04b);
+    border-radius: var(--radius, 10px);
+    background: color-mix(in srgb, var(--accent, #e8b04b) 10%, var(--paper-2, var(--paper)));
+}
+.moved-banner-lead { margin: 0 0 .5rem; font-size: 1rem; opacity: .85; }
+.moved-banner-link {
+    display: inline-block;
+    font-family: var(--font-display);
+    font-size: clamp(1.5rem, 5vw, 2.4rem);
+    font-weight: 700;
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+}
+.moved-banner-hint { margin: .75rem 0 0; font-size: .85rem; color: var(--ink-soft); }
 .empty h1 { font-size: 2rem; }
 .empty p { color: var(--ink-muted); }
 
@@ -2351,6 +2371,15 @@ body.search-open { overflow: hidden; }
     color: var(--ink);
     border-color: var(--ink-muted);
 }
+/* Uitgeschakeld (Lezen in de cirkel) wint van :hover -- anders licht een knop
+   op die je niet kunt indrukken, en dat is precies de verkeerde belofte. */
+.view-switch-btn[disabled],
+.view-switch-btn[disabled]:hover {
+    opacity: .38;
+    cursor: not-allowed;
+    color: var(--ink-muted);
+    border-color: var(--rule);
+}
 /* Actieve state: puur afgeleid van body[data-feed-view]. Geen .is-active class meer.
    Niet op de Archive-pagina: daar is geen "huidige" timeline/grid-keuze, dus beide
    knoppen blijven neutraal (grijs). */
@@ -2377,6 +2406,404 @@ body.on-cirkel[data-feed-view="grid"]  .feed-timeline {
 .feed-grid { display: none; }
 body.on-home[data-feed-view="grid"]    .feed-grid,
 body.on-cirkel[data-feed-view="grid"]  .feed-grid { display: block; }
+
+/* -------- LEESWEERGAVE (data-feed-view="reader") --------
+   Dezelfde berichten als de tijdlijn, maar heel: één per scherm, grenzen door
+   scroll-snapping. GEEN eigen route en geen eigen shell -- de balken blijven
+   staan, want je bent nog op de feed en moet terug kunnen schakelen.
+   Pagina's zonder .feed-reader (cirkel, archief, post) negeren de keuze en
+   houden hun tijdlijn: er is hieronder simpelweg geen regel die die daar
+   verbergt. Zo is Lezen nooit een leeg scherm. */
+.feed-reader { display: none; }
+body.on-home[data-feed-view="reader"] .feed-reader { display: block; }
+/* :has(.feed-reader) is hier de LEGE STAAT, niet een truc. Zonder berichten
+   rendert de leessectie niet, en dan mag de tijdlijn niet verborgen worden --
+   want dáár staat "nog niets geschreven" met de knop om te beginnen. Zonder deze
+   voorwaarde is Lezen op een verse site een wit scherm. Hetzelfde geldt voor
+   feeds die (nog) geen leessectie hebben. */
+body.on-home[data-feed-view="reader"]:has(.feed-reader) .feed-timeline,
+body.on-home[data-feed-view="reader"]:has(.feed-reader) .feed-grid,
+body.on-home[data-feed-view="reader"]:has(.feed-reader) .pagination,
+body.on-home[data-feed-view="reader"]:has(.feed-reader) .related-posts,
+body.on-home[data-feed-view="reader"]:has(.feed-reader) .article-footer {
+    display: none !important;
+}
+
+/* -------- AUTO (data-feed-view="auto") --------
+   Lezen op mobiel, Tijdlijn op desktop. GEEN JavaScript: de CSS kiest, dus geen
+   resize-afhandeling en geen flikkering waarin je eerst de verkeerde weergave
+   ziet. De tijdlijn is de terugval, dus boven de grens hoeft hier niets te
+   staan -- die is vanzelf al zichtbaar.
+   De :has(.feed-reader)-voorwaarde staat er om dezelfde reden als hierboven:
+   zonder berichten is er geen leessectie, en dan moet de tijdlijn blijven staan
+   met "nog niets geschreven" erin. */
+@media (max-width: 767px) {
+    body.on-home[data-feed-view="auto"] .feed-reader { display: block; }
+    body.on-home[data-feed-view="auto"]:has(.feed-reader) .feed-timeline,
+    body.on-home[data-feed-view="auto"]:has(.feed-reader) .feed-grid,
+    body.on-home[data-feed-view="auto"]:has(.feed-reader) .pagination,
+    body.on-home[data-feed-view="auto"]:has(.feed-reader) .related-posts,
+    body.on-home[data-feed-view="auto"]:has(.feed-reader) .article-footer {
+        display: none !important;
+    }
+}
+/* In de auto-stand staan BEIDE knoppen in de HTML en laat de mediaquery er een
+   zien. Zo verspringt de naam van de knop niet terwijl je ernaar kijkt, en is er
+   geen JavaScript nodig dat op resize moet luisteren. */
+.view-switch-btn.vs-alleen-mobiel { display: none; }
+@media (max-width: 767px) {
+    .view-switch-btn.vs-alleen-mobiel { display: inline-flex; }
+    .view-switch-btn.vs-alleen-desktop { display: none; }
+}
+
+/* Snappen doet de SCROLLCONTAINER, en dat is het document -- niet .read-stream,
+   die heeft overflow: visible en scrollt zelf niet. Proximity en geen mandatory:
+   in een bericht dat langer is dan het scherm moet je rustig door kunnen lezen. */
+html:has(body.on-home[data-feed-view="reader"]) {
+    scroll-snap-type: y proximity;
+    /* GEEN scroll-behavior:smooth hier. Dat maakte elke beweging op deze
+       scroller traag, ook het snappen zelf -- en een snap moet vlot zijn
+       (Robin, 20-8: "vlot maar geanimeerd, mag niet te lang duren"). De browser
+       animeert een snap uit zichzelf al, en korter dan zijn smooth-scroll.
+       De terug-naar-boven-knop vraagt zijn animatie expliciet aan in
+       mod/read.js, dus die blijft vloeiend. */
+}
+/* En de browser niet óók laten compenseren als Load more er berichten bij zet:
+   Chrome en Firefox schuiven bij invoegen zelf mee (scroll anchoring), en dat
+   vecht met het snappen. */
+html:has(body.on-home[data-feed-view="reader"]),
+.feed-reader .read-stream { overflow-anchor: none; }
+
+.feed-reader .read-post {
+    /* Snap naar de BOVENkant van een bericht, zacht (proximity op html) en nooit
+       dwingend (stop: normal). Een korte post vult het scherm, zodat hij niet als
+       snipper tussen twee lijnen hangt.
+       De uitzondering staat NIET hier maar in mod/read.js: een bericht dat langer
+       is dan het scherm krijgt scroll-snap-align:none, anders trekt de browser je
+       tijdens het lezen terug naar zijn bovenrand en lijkt het of het scrollen
+       stopt. "Past het op het scherm?" is een vraag over gemeten hoogte, en die
+       kan CSS niet stellen. */
+    /* Je LANDT op de bovenkant van een bericht -- dat is wat "snap to post"
+       hoort te betekenen. (align:end probeerde ik ook; dan land je op de
+       ONDERKANT van het vorige bericht, en bij een lang bericht zie je dus zijn
+       laatste schermvol in plaats van de kop van het volgende.)
+       Wanneer die bovenkant een snappunt IS, staat in mod/read.js: alleen zolang
+       je er nog niet voorbij bent. Eenmaal in een bericht snapt er niets meer,
+       ook niet naar zijn eigen bovenrand -- anders trekt proximity je terug
+       zodra je een paar regels verder leest. */
+    /* Het snappunt zit op .read-anker hierna, niet hier. Zie de toelichting
+       daar: een snapgebied groter dan het scherm heeft een BEREIK aan geldige
+       posities, en de bovenste daarvan zet het volgende bericht op de onderrand. */
+    scroll-snap-align: none;
+    scroll-snap-stop: normal;
+    /* GEEN min-height meer. Die rekte elk bericht tot een vol scherm, en bij een
+       kort bericht leverde dat een halve pagina leegte op onder "Replies and
+       reactions" -- je zat naar niets te kijken en moest verder scrollen om te
+       ontdekken dat er nog iets kwam. Robins vondst (20-8), met een
+       schermafbeelding erbij.
+       Zonder die hoogte is de stroom gewoon bericht na bericht: je ziet het
+       volgende meteen onder het vorige beginnen. Het snappen doet nog steeds
+       zijn werk aan de grens -- dat hangt aan scroll-snap-align en niet aan de
+       hoogte -- dus de streep lijnt nog altijd uit met de bovenkant van het
+       volgende bericht. */
+    max-width: 46rem;
+    margin: 0 auto;
+    /* De onderrand loopt achter de vaste tabbalk door; deze padding houdt de
+       TEKST erboven. De BOVENmarge is verdubbeld (Robin, 20-8: 2rem -> 4rem):
+       na een snap staat de scheidingslijn op de bovenrand, en de tekst
+       daaronder krijgt meer lucht. MOET GELIJK BLIJVEN aan scroll-margin-top
+       op .read-anker hieronder -- lopen die uit elkaar, dan landt de lijn niet
+       meer precies op de bovenrand. */
+    padding: 4rem 1.2rem 4rem;
+    box-sizing: border-box;
+}
+/* ONDERIN GEBEURT ER NIETS (Robin, 20-8: "enkel de bovenkant mag snappen, niet
+   de onderkant; onderin mag er niks met de zone gebeuren").
+   Het laatste bericht heeft een snappunt dat de browser NIET KAN BEREIKEN: er
+   zit niet genoeg pagina onder om zijn bovenkant naar de bovenrand te brengen.
+   Gemeten op dev: snappunt 2548, maar de scroll gaat maar tot 2356. De spec
+   laat de browser dan naar de dichtstbijzijnde BEREIKBARE positie snappen, en
+   dat is de bodem -- waardoor het laatste bericht ergens middenin het scherm
+   blijft hangen en het lijkt of er aan de onderkant wordt uitgelijnd.
+   Zonder snappunt scrolt dat laatste stuk gewoon vrij uit tot het einde. */
+/* HET SNAPPUNT. Nul hoog, dus precies EEN geldige positie: deze bovenrand aan de
+   bovenrand van het scherm. Zat de uitlijning op het artikel zelf, dan gold voor
+   elk bericht dat hoger is dan het scherm een heel BEREIK aan geldige posities
+   (spec: een snapgebied groter dan de snapport mag overal staan waar het de
+   snapport nog vult). Gemeten op dev: bericht van 1009px op een scherm van 812
+   -> geldig van 700 tot 897, en op 867 bleef hij dus gewoon staan. Die bovenste
+   stand, 897, is de onderkant van dat bericht op de onderrand -- oftewel de
+   bovenkant van het VOLGENDE bericht op de onderrand. Dat is wat er onderin
+   leek te snappen, en het kwam van de browser en niet uit onze code. */
+.feed-reader .read-anker {
+    display: block;
+    height: 0;
+    scroll-snap-align: start;
+    /* Het anker staat BINNEN de padding van het artikel, dus een padding-top
+       onder de streep. Zonder deze correctie landt de snap net zoveel te laag
+       en staat de scheidingslijn boven beeld -- gemeten: 733 waar 700 hoort.
+       scroll-margin verschuift alleen het SNAPPUNT en niet de opmaak, dus het
+       anker blijft waar het staat en de uitlijning klopt met de lijn.
+       GELIJK aan de padding-top van .read-post hierboven; die ging 20-8 van
+       2rem naar 4rem, dus deze ook. */
+    scroll-margin-top: 4rem;
+}
+/* HET LAATSTE BERICHT SNAPT OOK (Robin, 20-8). Dat kon eerst niet: zijn
+   bovenkant was onbereikbaar -- er zat te weinig pagina onder om hem naar de
+   bovenrand te brengen (gemeten: snappunt 2548, maxScroll 2356), en de browser
+   viel dan terug op de dichtstbijzijnde bereikbare positie: de bodem. Het
+   snappunt weghalen was de vorige oplossing; dit is de echte.
+   Een volle schermhoogte op het LAATSTE bericht maakt die bovenkant precies
+   bereikbaar. Korter dan het scherm: het bericht wordt even hoog en het snappunt
+   valt exact op maxScroll. Langer dan het scherm: dan was het al haalbaar en
+   doet min-height niets.
+   100lvh en niet 100svh: op een telefoon met een verdwijnende adresbalk is het
+   zichtbare scherm soms de GROTE viewport, en dan komt svh net tekort.
+   Zichtbaar kost dit niets: berichten hebben geen kader, alleen een scheidings-
+   lijn erboven, dus het laatste bericht krijgt hooguit witruimte eronder. */
+.feed-reader .read-post:last-child { min-height: 100lvh; }
+
+/* ELK BERICHT EEN EIGEN SCHERM, als de site dat wil (Instellingen -> Weergave).
+   Aan: een kort bericht vult het scherm en je ziet het volgende pas na een snap.
+   Uit (standaard): de stroom is bericht na bericht, zonder lege ruimte eronder.
+   Dit stond eerst vast op AAN, is toen vast op UIT gezet omdat een kort bericht
+   een halve pagina leegte gaf onder "Replies and reactions", en is nu een keuze
+   -- want welke van de twee prettiger leest hangt af van wat je schrijft. */
+body[data-reader-pages="1"] .feed-reader .read-post { min-height: 100svh; }
+/* OP MOBIEL ALTIJD, wat de instelling ook zegt (Robin, 20-8). Op een telefoon is
+   een bericht per scherm de vorm die werkt -- je veegt van bericht naar bericht.
+   Op desktop blijft het een keuze, want daar lees je in een kolom naast veel
+   witruimte en is een doorlopende stroom vaak prettiger. */
+@media (hover: none) and (pointer: coarse) {
+    /* Op mobiel draait Lezen in paginamodus (body.is-paged), en die zet hieronder
+       een vaste hoogte. Deze regel is de terugval voor het moment vóór de module
+       geladen is, zodat de berichten niet eerst als losse stroom in beeld
+       springen. */
+    .feed-reader .read-post { min-height: 100svh; }
+/* Geen native snap op mobiel: dat doet lenis/snap, met een instelbare vangzone
+       en duur. Twee snapsystemen op dezelfde scroller vechten. */
+    html:has(body.on-home[data-feed-view="reader"]) { scroll-snap-type: none; }
+}
+
+/* -------- PAGINAMODUS --------
+   Elk bericht is een paneel van precies een scherm dat ZELF scrollt; tussen
+   berichten ga je met knoppen. Daarmee doet het scrollgevoel er niet meer toe:
+   geen momentum om na te bouwen en geen snap die vangt.
+   De stroom zelf vangt geen vingers meer -- dat regelt lenis.stop() in
+   mod/read.js -- en data-lenis-prevent op het paneel houdt de scroll BINNEN een
+   bericht ongemoeid (die controle staat in Lenis vóór de gestopt-controle).
+   Geldt waar een bericht een eigen scherm heeft: op mobiel altijd, op desktop
+   als de site dat zo instelt. */
+body.is-paged .feed-reader .read-post {
+    height: 100svh;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;   /* raakt het einde, dan niet doorschuiven */
+    scroll-snap-align: none;
+    /* Ruimte voor de twee balken, zodat er nooit tekst onder een knop verdwijnt.
+       Het verloop laat een regel wel zacht wegvagen, maar wat je moet KUNNEN
+       lezen hoort er niet achter te komen -- vandaar padding en niet alleen die
+       fade. --read-balk staat hieronder bij .read-nav, zodat de twee niet uit
+       elkaar kunnen lopen. */
+    padding-top: calc(var(--read-balk) + .5rem);
+    padding-bottom: calc(var(--read-balk) + .5rem);
+    /* BOVENAAN beginnen, niet gecentreerd. Ik had de inhoud een ronde lang
+       verticaal gecentreerd om het gat onder een kort bericht te verdelen, maar
+       dan hangt zo'n bericht halverwege het scherm en begint niet elk paneel op
+       dezelfde plek -- dat leest onrustig. Robin ving het (20-8). Elk bericht
+       begint nu bovenaan, en de ruimte die overblijft valt onderaan. */
+}
+body.is-paged .feed-reader .read-anker { scroll-snap-align: none; }
+
+/* DE DYNAMIC ISLAND, en met opzet alleen op iOS (Robin, 20-8: "op android is het
+   een ander verhaal").
+   In paginamodus vult een bericht precies het scherm, dus de eerste regel komt
+   bovenaan -- en op een iPhone ligt daar de island of de notch overheen.
+   env(safe-area-inset-top) geeft daar de vrije ruimte; viewport-fit=cover staat
+   al in de viewport-meta, dus die waarde is echt.
+   De @supports-regel is de iOS-Safari-toets: -webkit-touch-callout bestaat alleen
+   daar. Op Android is env() vaak 0 of betekent het iets anders (camera-uitsparing,
+   statusbalk die al meegerekend is), en dan zou dit een gat bovenin maken dat er
+   niet hoort. Vandaar afgeschermd in plaats van env() overal toepassen.
+   De hoogte krimpt mee, anders duwt de padding het paneel groter dan het scherm
+   en krijg je alsnog scroll tussen de berichten. */
+@supports (-webkit-touch-callout: none) {
+    body.is-paged .feed-reader .read-post {
+        padding-top: calc(var(--read-balk) + .5rem + env(safe-area-inset-top, 0px));
+        height: calc(100svh - env(safe-area-inset-top, 0px));
+    }
+    /* De bovenbalk houdt zijn knop al vrij van de island via padding-top
+       hierboven; hier hoeft niets extra's meer. */
+}
+
+/* De knop onderaan een bericht: naar het volgende. */
+
+
+/* Omhoog en omlaag: twee balken, boven en onder, die BLIJVEN staan terwijl je in
+   een bericht scrolt (Robin, 20-8). Het verloop van paginakleur naar doorzichtig
+   laat de tekst eronderdoor wegvagen -- zonder dat zou een regel halverwege hard
+   achter de knop verdwijnen en oogt het als een afgeknipte pagina.
+   De BALK vangt geen aanrakingen (pointer-events: none), alleen de knop zelf --
+   anders zou een strook van 5rem boven- en onderaan je scroll opeten. */
+/* TWEE BALKEN over de volle breedte, boven en onder. Eerder waren dit losse
+   cirkels (te rommelig naast de tabbalk en de speler) en daarna onzichtbare
+   tikzones -- maar die werkten niet, omdat de onderste strook onder de
+   mini-speler en de tabbalk ligt en die de tik opvangen. Een balk met een eigen
+   z-index kan daar wel overheen.
+   Slank gehouden: ze eten hooguit 2.6rem aan elke kant, en het paneel houdt daar
+   al ruimte voor vrij. */
+:root { --read-balk: 2.6rem; }
+.read-bar {
+    position: fixed; left: 0; right: 0; z-index: 1060;   /* boven tabbalk (1050) */
+    display: flex; align-items: center;
+    /* Pijlen LINKS in de balk, niet gecentreerd (Robin, 20-8). */
+    justify-content: flex-start;
+    padding-left: max(1.1rem, env(safe-area-inset-left, 0px));
+    box-sizing: border-box;
+    height: var(--read-balk);
+    border: 0;
+    border-top: 1px solid transparent;
+    background: color-mix(in srgb, var(--paper) 90%, var(--ink));
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    color: var(--ink);
+    cursor: pointer;
+    transition: opacity .15s ease;
+}
+.read-bar--top {
+    top: 0;
+    height: calc(var(--read-balk) + env(safe-area-inset-top, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
+    border-bottom: 1px solid color-mix(in srgb, var(--ink) 14%, transparent);
+}
+.read-bar--bottom {
+    /* De waarde komt uit mod/read.js: die meet hoe hoog de tabbalk en de
+       mini-speler werkelijk staan. Geraden rem-waarden lieten hem zweven -- een
+       kier boven de speler, of er half achter. Dit is de terugval voor de eerste
+       frame en voor als de module niet laadt. */
+    bottom: 0;
+    border-top: 1px solid color-mix(in srgb, var(--ink) 14%, transparent);
+}
+.read-bar:active { background: color-mix(in srgb, var(--paper) 78%, var(--ink)); }
+.read-bar[hidden], body:not(.is-paged) .read-bar { display: none; }
+
+/* Een lijn tussen twee berichten: zonder grens is een stroom een lange brij. */
+.feed-reader .read-post + .read-post { border-top: 1px solid color-mix(in srgb, currentColor 12%, transparent); }
+
+/* De cover vult de leeskolom. Eigen regel, niet .post-cover hergebruikt: die
+   heeft een marge van 2rem die hier tegen de scroll-snap aan duwt.
+   De hoogtebegrenzing is er met opzet. Een paneel is min-height:100svh en snapt,
+   dus een staande foto op volle breedte zou de titel en de eerste alinea onder
+   de vouw duwen -- dan begint elk bericht met een plaat waar je langs moet
+   scrollen om te zien wat het IS. */
+.feed-reader .read-cover {
+    /* Volle kolombreedte: de afbeelding erin neemt die breedte, dus de figure
+       hoeft niet meer om het beeld te krimpen. */
+    width: 100%;
+    margin: 0 0 1.2rem;
+    border-radius: 10px;
+    overflow: hidden;
+}
+.feed-reader .read-cover img,
+.feed-reader .read-cover video {
+    display: block;
+    /* Neemt de VOLLE kolombreedte, met de verhouding intact (object-fit
+       weggelaten, dus geen bijsnijden). Een cover die van zichzelf kleiner is
+       wordt netjes tot de kolom opgeschaald in plaats van als postzegeltje te
+       blijven staan -- dat was te klein. De hoogtegrens houdt een staande foto
+       nog binnen de perken zodat titel + eerste alinea boven de vouw blijven;
+       hij krimpt dan mee in plaats van bijgesneden te worden. */
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: 70svh;
+    object-fit: contain;
+    /* Een logo met doorzichtige achtergrond zweeft anders op de paginakleur;
+       dezelfde keuze als bij .post-list-cover in de tijdlijn. */
+    background-color: #fff;
+}
+
+.feed-reader .read-head { padding-bottom: .5rem; }
+.feed-reader .read-title { font-size: clamp(1.6rem, 4vw, 2.4rem); line-height: 1.15; margin: 0 0 .3rem; }
+/* Het pin-icoon voor de titel: meeschalend met de kop, maar duidelijk kleiner --
+   het is een markering en geen deel van de titel. */
+.feed-reader .read-pin {
+    display: inline-block;
+    vertical-align: baseline;
+    width: .62em; height: .62em;
+    margin-right: .35em;
+    color: var(--ink-muted);
+}
+.feed-reader .read-pin svg { width: 100%; height: 100%; display: block; }
+/* De titel is een link, maar mag er niet als een link uitzien: dit is een
+   leesscherm, geen index. */
+.feed-reader .read-title a { color: inherit; text-decoration: none; }
+.feed-reader .read-title a:hover,
+.feed-reader .read-title a:focus-visible { text-decoration: underline; }
+.feed-reader .read-when { font-size: .85rem; opacity: .6; margin: 0; }
+
+.feed-reader .read-foot { margin-top: 2rem; }
+.feed-reader .read-open {
+    display: inline-block; font-size: .9rem; opacity: .75;
+    text-decoration: none; border-bottom: 1px solid currentColor; padding-bottom: 1px;
+}
+.feed-reader .read-open:hover,
+.feed-reader .read-open:focus-visible { opacity: 1; }
+
+/* Terug naar boven. Rechtsonder, want daar zit de duim -- en boven de tabbalk,
+   die op mobiel 1050 is en anders overheen zou vallen. Onzichtbaar tot je ver
+   genoeg bent, zodat hij niet meteen in de weg staat bij het eerste bericht. */
+.read-top {
+    position: fixed;
+    right: max(1rem, env(safe-area-inset-right, 0));
+    bottom: calc(env(safe-area-inset-bottom, 0) + 4.75rem);
+    z-index: 1040;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;                 /* 44px = de kleinste maat die een duim betrouwbaar raakt */
+    border-radius: 999px;
+    border: 1px solid var(--rule);
+    background: color-mix(in srgb, var(--paper) 88%, transparent);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    color: var(--ink);
+    box-shadow: 0 2px 12px color-mix(in srgb, var(--ink) 12%, transparent);
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .18s ease, transform .18s ease;
+    transform: translateY(6px);
+}
+.read-top.is-zichtbaar { opacity: 1; pointer-events: auto; transform: none; }
+/* Buiten de leesweergave bestaat hij niet -- home.ejs rendert alle drie de
+   secties, dus zonder deze regel zweeft hij ook boven Tijdlijn en Grid. */
+body:not([data-feed-view="reader"]) .read-top,
+body:not(.on-home) .read-top { display: none; }
+/* Op desktop is er geen tabbalk, dus mag hij lager staan. */
+@media (min-width: 768px) {
+    .read-top { bottom: 1.5rem; right: 1.5rem; }
+}
+/* Staat de mini-speler onderin, dan wijkt de knop daarvoor -- anders komt hij er
+   bovenop te liggen (Robins schermafbeelding, 20-8). body.has-audio-player wordt
+   door audio-player.js gezet zodra de speler zichtbaar is, en weer weggehaald
+   als hij verdwijnt, dus dit volgt vanzelf.
+   Op mobiel staat de speler BOVEN de tabbalk gestapeld, dus daar komt zijn
+   hoogte bovenop de ruimte die er al gereserveerd was. */
+body.has-audio-player .read-top { bottom: calc(env(safe-area-inset-bottom, 0) + 4.75rem + 4.25rem); }
+@media (min-width: 768px) {
+    body.has-audio-player .read-top { bottom: calc(1.5rem + 4.25rem); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .read-top { transition: none; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html:has(body.on-home[data-feed-view="reader"]) {
+        scroll-snap-type: none;
+        scroll-behavior: auto;
+    }
+}
 
 /* -------- GRID VIEW TILES (Instagram-stijl) -------- */
 .feed-grid {

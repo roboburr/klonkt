@@ -89,17 +89,4 @@
   .admin-page .epk-pick-artist { color: var(--ink-muted, var(--ink-soft)); font-size: 0.85rem; }
   .admin-page .epk-pick-item input:disabled ~ .epk-pick-title { opacity: 0.45; }
 </style>
-<script>
-(function () {
-  var box = document.querySelector('.epk-track-pick');
-  if (!box) return;
-  var max = parseInt(box.dataset.max, 10) || 5;
-  function sync() {
-    var checks = box.querySelectorAll('input[type=checkbox]');
-    var n = box.querySelectorAll('input[type=checkbox]:checked').length;
-    checks.forEach(function (c) { c.disabled = (!c.checked && n >= max); });
-  }
-  box.addEventListener('change', sync);
-  sync();
-})();
-</script>
+<%# Het script van deze pagina staat in assets/js/mod/admin-epk.js (shaer-bqr). %>

@@ -9,8 +9,6 @@
  * Views carry no inline scripts (CSP): logic lives in /assets/js/guardian.js.
  */
 import express from 'express';
-import crypto from 'crypto';
-import bcrypt from 'bcryptjs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import db from '../config/database.js';
@@ -43,7 +41,7 @@ function uiStrings(L) {
     'accept', 'reject', 'complete', 'awaiting_others', 'coguard',
     // The per-ward panel: everything about one child in one place.
     'settings_title', 'panel_open', 'panel_close', 'panel_help', 'panel_help_empty',
-    'panel_follow', 'panel_follow_empty', 'panel_posts', 'panel_posts_empty',
+    'panel_follow', 'panel_follow_empty', 'follow_out_line', 'panel_posts', 'panel_posts_empty',
     'panel_actions', 'badge_help', 'badge_follow', 'badge_follow_one', 'help_empty',
     // Releasing a ward: a deliberate two-step answer, never one click.
     'release_title', 'release_effect', 'release_local', 'release_step_down',
@@ -58,7 +56,31 @@ function uiStrings(L) {
     // The status of a proposal this guardian sent (5.6).
     'prop_line', 'prop_embeds', 'prop_play', 'prop_on', 'prop_off',
     'prop_st_open', 'prop_st_accepted', 'prop_st_rejected', 'prop_st_expired',
-    'panel_guards_far'];
+    'panel_guards_far',
+    // Het gate-paneel per ward (shaer-ahy.1): een rij per gate, met het soort en
+    // de drempel erbij. De namen volgen de catalogus in gated.js.
+    'gate_externalEmbeds', 'gate_externalPlayback', 'gate_externalThreads',
+    // De twee richtingen van §5.3, met woorden die niet op elkaar lijken:
+    // "Volgverzoeken" komt naar het kind toe, "Zelf iemand volgen" gaat ervan
+    // weg. Zonder dat verschil in de tekst zijn de rijen niet uit elkaar te
+    // houden zodra ze naast elkaar staan (shaer-p729).
+    'gate_follows', 'gate_following',
+    'gate_kind_setting', 'gate_kind_perRequest', 'gate_kind_handover',
+    'gate_unknown', 'gate_always', 'gate_threshold', 'gate_threshold_unknown',
+    'gate_irreversible', 'gate_waiting', 'gate_blocked', 'gate_propose',
+    // Oppikken en afhandelen van een hulpvraag (shaer-lgo).
+    'help_pick', 'help_close', 'help_picked_by', 'help_handled_by', 'help_handled_note',
+    'help_close_ask', 'help_close_yes', 'help_just_now', 'help_hours', 'help_days', 'help_former_ward',
+  'warn_reversible', 'warn_irreversible', 'warn_unknown', 'warn_tally_elsewhere', 'warn_decides', 'warn_not_last', 'warn_go', 'warn_back',
+    'help_archive', 'help_archive_hide', 'panel_history',
+    // Het logboek (§4.2): onbekende soorten vallen terug op hun ruwe naam.
+    'log_show', 'log_hide', 'evr_not_a_teapot',
+    'ev_offer_rejected', 'ev_offer_refused', 'ev_committed', 'ev_guardian_left',
+    'ev_coguardian_left', 'ev_gated_outcome', 'ev_lapse_opened',
+    'gate_propose_open', 'gate_propose_close', 'gate_default_off',
+    'gate_images', 'gate_messages', 'gate_compose', 'gate_replies', 'gate_music', 'gate_quoteCards', 'gate_asked',
+    'gate_customEmoji', 'gate_publicProfile', 'gate_accountMove', 'gate_independence',
+    'gate_unavailable', 'gate_planned_note', 'gates_summary', 'gates_show', 'gates_hide'];
   const s = Object.fromEntries(keys.map((k) => [k, i18nT(L, `guardian.${k}`)]));
   s.wave = i18nT(L, 'guardian.wave');
   s.waved = i18nT(L, 'guardian.waved');
@@ -68,11 +90,12 @@ function uiStrings(L) {
 function dashboardState(site, L) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   const me = AP.actorId(base, site.slug);
-  const help = db.prepare(
-    `SELECT object_uri, note_url, actor_uri, actor_name, actor_handle, actor_icon, content, published, created_at,
-            emoji_json, actor_emoji_json, media_json, quote_json, embed_json
-     FROM ap_mentions WHERE slug = ? AND help_request = 1 ORDER BY created_at DESC LIMIT 50`
-  ).all(site.slug).map((h) => ({
+  // EEN weg naar de hulpvragen (Barts 429-jacht, 9-8): dit scherm had een
+  // eigen kopie van de queue-query, met een afkap op 50 -- dus de fix die open
+  // vragen nooit meer afkapt (shaer-6wt) ging aan het paneel voorbij, en juist
+  // de guardian met een caseload zag oude open vragen wegvallen. Nu dezelfde
+  // bron als de apps: open vragen volledig, geschiedenis afgekapt.
+  const helpItems = Guardianship.queues.helpItemsFor(site.slug).map((h) => ({
     ...h,
     // The dashboard is built in the browser, so it gets the body finished: the
     // same partial de Krant and Berichten use. A 🛟 often carries a screenshot
@@ -95,7 +118,7 @@ function dashboardState(site, L) {
       ...w,
       embeds: wardEmbedSetting(w.other_uri),
       playback: wardPlaybackSetting(w.other_uri),
-      guardians: wardGuardianStatuses(w.other_uri),
+      guardians: Guardianship.queues.wardGuardianStatuses(w.other_uri),
       // What THIS guardian proposed for this ward and how it stands (5.6):
       // open, accepted, rejected, or expired when the window ran out and the
       // ward's server had nothing to write home. The answer is a real
@@ -104,6 +127,10 @@ function dashboardState(site, L) {
         feature: p.feature, value: !!p.value, created: p.created_at,
         status: Guardianship.gated.sentStatus(p, Date.now()),
       })),
+      // Alles wat voor dit kind gated is op EEN plek, met per gate het soort en
+      // de drempel (shaer-ahy.1). Losse knoppen lieten een guardian zelf
+      // uitzoeken wat er allemaal geldt; wat niet verstelbaar is stond nergens.
+      gates: Guardianship.queues.wardGates(site.slug, w.other_uri),
     })),
     offers: Guardianship.offersCollection(`${me}/queues/offers`, site.slug, me).orderedItems,
     // Running lapses (3.6.3) this guardian or its local wards are party to.
@@ -113,33 +140,20 @@ function dashboardState(site, L) {
     // threshold is never met and the proposal simply expires.
     gatedReviews: Guardianship.gated.listGatedReviews(site.slug).map((r) => ({
       id: r.id, ward: r.ward_uri, proposer: r.proposer, feature: r.feature, value: !!r.value,
+      // Wat er blijft hangen als dit doorgaat (shaer-nf9). Alleen bij OPENZETTEN:
+      // dichtzetten laat niets nieuws door en hoeft dus niet gewaarschuwd te
+      // worden -- een waarschuwing die overal staat wordt nergens gelezen.
+      consequence: r.value ? Guardianship.gated.gateConsequence(r.feature) : null,
+      // Maakt JOUW antwoord dit af (shaer-8vt)? De telling loopt op de server van
+      // het kind, dus dit is het enige wat we erover weten -- en zonder dat
+      // weet niemand dat hij de doorslag geeft.
+      decisive: r.decisive !== 0,
     })),
-    help,
+    help: helpItems,
     strings: uiStrings(L),
   };
 }
 
-/** The guardians of a ward WE host, with availability (3.6.1: owner-only in
- *  spirit; the co-guardians are among the owners of the relationship). Null
- *  for a remote ward: its server tracks availability, not us. */
-function wardGuardianStatuses(wardUri) {
-  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
-  if (!base || !String(wardUri || '').startsWith(`${base}/`)) return null;
-  const slug = String(wardUri).trim().replace(/\/+$/, '').split('/').pop();
-  try {
-    const uris = Guardianship.listGuardians(slug).map((g) => ({ uri: g.other_uri, handle: g.other_handle }));
-    const st = Object.fromEntries(
-      Guardianship.availability.statusesFor(slug, uris.map((u) => u.uri), Date.now()).map((s) => [s.id, s]),
-    );
-    return uris.map((u) => ({
-      uri: u.uri,
-      handle: u.handle,
-      availability: (st[u.uri] || {})['shaer:availability'] || 'active',
-      awayUntil: (st[u.uri] || {})['shaer:awayUntil'] || null,
-      lapse: (st[u.uri] || {})['shaer:lapse'] || null,
-    }));
-  } catch { return null; }
-}
 
 // ── The PWA page ─────────────────────────────────────────────────────────
 router.get('/', requireAuth, (req, res) => {
@@ -163,10 +177,47 @@ router.get('/', requireAuth, (req, res) => {
 });
 
 // ── JSON state for refreshes ─────────────────────────────────────────────
-router.get('/api/state', requireAuth, (req, res) => {
+/**
+ * De staat van het paneel, desgewenst als LANGE POLL (Barts opdracht, 9-8).
+ *
+ * Zonder `wait` gedraagt de route zich exact zoals altijd. Met `wait` blijft het
+ * antwoord hangen tot er iets gebeurt dat de guardian moet verwerken, of tot de
+ * tijd om is -- dan een lege 304.
+ *
+ * EERST KIJKEN, DAN WACHTEN. Veranderde er iets tussen het vorige antwoord en
+ * dit verzoek, dan is de merksteen nu al anders en gaat het antwoord METEEN de
+ * deur uit. Zou je eerst gaan wachten, dan blijft nieuws dat net in dat gaatje
+ * viel vijfentwintig seconden liggen -- en juist bij een hulpvraag is dat de
+ * verkeerde vertraging.
+ *
+ * WAKKER OP ALLES. De guardianship-module zendt veertien soorten gebeurtenissen
+ * uit en die wekken allemaal (wakeGuardian); daarnaast wekt de tijdlijn (onNews),
+ * want de berichten van je wards staan in ditzelfde scherm.
+ */
+router.get('/api/state', requireAuth, async (req, res) => {
   const site = siteForUser(req);
   if (!site) return res.status(404).json({ error: 'no_site' });
-  res.json(dashboardState(site, resolveLang(req)));
+  const stuur = () => AP.sendMaybe304(req, res, dashboardState(site, resolveLang(req)), { contentType: 'application/json' });
+
+  const wachtS = Math.min(Math.max(parseInt(req.query.wait, 10) || 0, 0), 50);
+  const merk = req.headers['if-none-match'];
+  if (!wachtS || !merk) return stuur();
+
+  // Is er nu al iets anders? Dan niet wachten.
+  const nu = AP.etagFor(JSON.stringify(dashboardState(site, resolveLang(req))));
+  if (nu !== merk) return stuur();
+
+  await new Promise((klaar) => {
+    let af = false;
+    const eind = () => { if (af) return; af = true; clearTimeout(t); offG(); offN(); klaar(); };
+    const offG = AP.onGuardian(site.slug, eind);
+    const offN = AP.onNews(site.slug, eind);
+    const t = setTimeout(eind, wachtS * 1000);
+    // Hing de client op, dan houdt niemand dit antwoord meer vast.
+    res.on('close', eind);
+  });
+  if (res.writableEnded) return undefined;
+  return stuur();
 });
 
 // ── Meekijken (FEP-633c §5, interop-hoofdroute): a committed guardian FOLLOWS
@@ -193,6 +244,7 @@ function ensureWardConnections(site) {
 router.get('/api/feed', requireAuth, (req, res) => {
   const site = siteForUser(req);
   if (!site) return res.status(404).json({ error: 'no_site' });
+  const L = resolveLang(req);
   ensureWardConnections(site);
   const wardUris = new Set(Guardianship.listWards(site.slug).map((w) => w.other_uri));
   // Only show the wards you actually guard (the timeline can hold more).
@@ -209,7 +261,17 @@ router.get('/api/feed', requireAuth, (req, res) => {
       published: p.published || p.created_at,
       when_text: formatDateTime(p.published || p.created_at),
       cw: p.cw || null,
-      media: p.media_json ? JSON.parse(p.media_json) : [],
+      // Zelfde valkuil als in note-body.ejs: kapotte json gooit, maar geldige json
+      // van het verkeerde type niet. Zonder deze wacht neemt één vreemde note van
+      // een remote server het hele guardian-paneel mee, en dat is precies het
+      // scherm dat het moet doen als er iets aan de hand is.
+      media: (() => { try { const m = JSON.parse(p.media_json || '[]'); return Array.isArray(m) ? m : []; } catch { return []; } })(),
+      // Een post van je ward hoort er hetzelfde uit te zien als in de Krant en
+      // in Berichten: dezelfde partial, dus opmaak, media, quote-kaart en
+      // embed. Tot nu toe kreeg de PWA alleen kale content -- een guardian zag
+      // een lege regel waar een foto stond. `content` blijft ernaast staan voor
+      // een client die nog uit de cache draait.
+      body_html: renderNoteBody(p, L),
     }));
   res.json({ items, following: wardUris.size });
 });
@@ -234,15 +296,42 @@ router.get('/api/follow-requests', requireAuth, (req, res) => {
   // Local wards (guardian co-located): read the pending follows directly.
   for (const w of wardSlugsOf(site)) {
     for (const f of Guardianship.follows.listForWard(w.slug)) {
-      items.push({ id: f.id, ward: `@${w.slug}@${host}`, wardUri: w.uri, follower: f.follower_handle || f.follower_name || f.follower_uri, followerIcon: f.follower_icon, remote: false, created: f.created_at });
+      items.push({ id: f.id, direction: 'incoming', ward: `@${w.slug}@${host}`, wardUri: w.uri, follower: f.follower_handle || f.follower_name || f.follower_uri, followerIcon: f.follower_icon, remote: false, created: f.created_at });
+    }
+    // §5.3 andersom (shaer-p729): wat dit kind zelf heeft gevraagd. Stond hier
+    // niet, dus een guardian met een LOKALE ward zag uitgaande verzoeken in de
+    // PWA helemaal niet -- ze wachtten op iemand die er nooit naar keek.
+    for (const o of Guardianship.outgoing.listForWard(w.slug)) {
+      items.push({ id: o.id, direction: 'outgoing', ward: `@${w.slug}@${host}`, wardUri: w.uri, target: o.target_handle || o.target_uri, remote: false, created: o.created_at });
     }
   }
   // Remote wards: the copies forwarded here as Offer(Follow) (cross-instance).
   for (const rev of Guardianship.follows.listReviews(site.slug)) {
     const wardName = (() => { try { const u = new URL(rev.ward_uri); return `@${u.pathname.split('/').pop()}@${u.host}`; } catch { return rev.ward_uri; } })();
-    items.push({ id: rev.id, ward: wardName, wardUri: rev.ward_uri, follower: rev.follower_handle || rev.follower_uri, followerIcon: rev.follower_icon, remote: true, created: rev.created_at });
+    // De richting stond in de tabel en werd hier weggelaten. Zonder haar leest
+    // een uitgaand verzoek als een inkomend: de follower IS dan de ward, dus de
+    // kaart zei "je kind wil je kind volgen" en het doel viel weg.
+    const uitgaand = rev.direction === 'outgoing';
+    items.push({
+      id: rev.id, direction: uitgaand ? 'outgoing' : 'incoming',
+      ward: wardName, wardUri: rev.ward_uri,
+      follower: uitgaand ? undefined : (rev.follower_handle || rev.follower_uri),
+      target: uitgaand ? (rev.target_handle || rev.target_uri) : undefined,
+      followerIcon: uitgaand ? undefined : rev.follower_icon,
+      remote: true, created: rev.created_at,
+    });
   }
   res.json({ items });
+});
+
+// Het logboek (§4.2): wat er is gebeurd, met de reden erbij. GEEN wachtrij --
+// hier staat niets dat om een antwoord vraagt, en daarom hoort het ingeklapt.
+// Het bestaat omdat een weigering anders alleen te merken was doordat er iets
+// uit een lijst verdween, en "het is weg" vertelt een ward niet waarom.
+router.get('/api/events', requireAuth, (req, res) => {
+  const site = siteForUser(req);
+  if (!site) return res.status(404).json({ error: 'no_site' });
+  res.json({ items: AP.listGuardianEvents(site.slug, 50) });
 });
 
 router.post('/api/follow/:id', requireAuth, express.json({ limit: '4kb' }), async (req, res) => {
@@ -279,6 +368,33 @@ router.post('/api/follow/:id', requireAuth, express.json({ limit: '4kb' }), asyn
   res.json({ ok: true, outcome: r.outcome });
 });
 
+// ── §5.3, the other direction (shaer-p729): the ward wants to follow SOMEONE,
+//    and the guardians decide. Same quorum arithmetic and the same availability
+//    rules as the inbound gate above; only the question is turned around, which
+//    is why it gets its own endpoint rather than a flag on that one.
+router.post('/api/outgoing-follow/:id', requireAuth, express.json({ limit: '4kb' }), async (req, res) => {
+  const site = siteForUser(req);
+  if (!site) return res.status(404).json({ error: 'no_site' });
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  const me = AP.actorId(base, site.slug);
+  const decision = req.body?.decision === 'reject' ? 'reject' : 'approve';
+
+  const pending = Guardianship.outgoing.getPending(req.params.id);
+  if (!pending) return res.status(404).json({ error: 'gone' });
+  const allGuardians = Guardianship.listGuardians(pending.ward_slug).map((g) => g.other_uri);
+  if (!allGuardians.includes(me)) return res.status(403).json({ error: 'not_a_guardian' });
+  Guardianship.availability.oneAnswer(me, Date.now());
+  const guardians = Guardianship.availability.availableSet(pending.ward_slug, allGuardians, Date.now());
+  const r = Guardianship.outgoing.decide(pending.id, me, decision, guardians);
+  try {
+    // Only on approval does anything leave the building. A refusal is a local
+    // fact: the follow was never sent, so there is nothing out there to undo
+    // and nobody to inform that a child asked about them.
+    if (r.outcome === 'approved') await AP.performApprovedFollow(r.follow);
+  } catch { return res.status(502).json({ error: 'delivery', outcome: r.outcome }); }
+  res.json({ ok: true, outcome: r.outcome });
+});
+
 // ── Wave (FEP-633c §5, shaer:wave): a gentle "thinking of you" from a
 //    guardian to a ward. A private direct note, never a feed post. Warmth
 //    without publishing (Robins besluit).
@@ -293,6 +409,64 @@ router.post('/api/wave', requireAuth, express.json({ limit: '2kb' }), async (req
   const r = await AP.deliverDirectNote(site, { recipients: [wardUri], text, wave: true }).catch(() => null);
   if (!r) return res.status(502).json({ error: 'delivery' });
   res.json({ ok: true, delivered: r.delivered });
+});
+
+// ── Een hulpvraag oppikken of afsluiten (shaer-lgo) ───────────────
+// Gaat naar de WARD en naar de MEDE-GUARDIANS. De ward hoort te weten dat er
+// iemand komt -- dat is de helft van de gerustheid -- en de anderen dat het
+// loopt, zodat niemand denkt dat de ander het al doet.
+//
+// OPPIKKEN mag stapelen: twee mensen die tegelijk reageren is geen probleem.
+// AFSLUITEN kent geen terugdraai; leeft de vraag nog, dan wordt hij opnieuw
+// gesteld. De stevige bevestiging zit in de client, net als bij het loslaten van
+// een ward: nooit een window.confirm.
+router.post('/api/help/:kind', requireAuth, express.json({ limit: '2kb' }), async (req, res) => {
+  const site = siteForUser(req);
+  if (!site) return res.status(404).json({ error: 'no_site' });
+  const kind = req.params.kind === 'handled' ? 'handled' : 'pickup';
+  const noteUri = String(req.body?.note || '').trim();
+  const wardUri = String(req.body?.ward || '').trim();
+  if (!noteUri || !/^https?:\/\//i.test(noteUri)) return res.status(400).json({ error: 'no_note' });
+  // Alleen over een hulpvraag van een kind dat je echt bewaakt.
+  const isWard = Guardianship.listWards(site.slug).some((w) => w.other_uri === wardUri);
+  if (!isWard) return res.status(403).json({ error: 'not_your_ward' });
+
+  const me = AP.actorId((process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, ''), site.slug);
+  // Onze eigen kopie meteen, zonder op bezorging te wachten: het scherm van
+  // degene die klikt hoort niet te liegen omdat een andere server traag is.
+  // MET onze eigen handle. Die stond hier op null, en "door wie" was juist de
+  // hele vraag van deze bead: een binnengekomen markering draagt de handle van
+  // de afzender wel, dus onze EIGEN rij was de enige zonder naam. Op het scherm
+  // viel dat terug op de kale URI.
+  Guardianship.help.record(noteUri, me, kind, AP.deriveHandle(me));
+
+  // DE MEDE-GUARDIANS, en dit ging mis (shaer-lgo, gevonden 11-8 met @mee).
+  //
+  // Hier stond listGuardians(wardUri.replace(/.*\/ap\/users\//, '')): de staart
+  // van de URI als slug. listGuardians kent alleen relaties van LOKALE sites,
+  // dus voor een ward elders leverde dat altijd een lege lijst -- en juist die
+  // ward is het hele punt, want een ward op je eigen instance heeft geen
+  // federatie nodig. De markering ging dus alleen naar het kind en nooit naar
+  // de andere guardian. Precies de faalstand waar deze bead voor bestaat:
+  // iedereen denkt dat de ander het oppakt.
+  //
+  // Erger nog: had er toevallig een lokale site met die naam bestaan, dan
+  // waren het DIENS guardians geweest.
+  //
+  // existingGuardiansOf kende de goede weg al -- lokaal opzoeken, en anders
+  // shaer:guardians uit de actor van de ward. Die stond alleen niet aan deze
+  // route vast.
+  const anderen = await Guardianship.existingGuardiansOf(wardUri).catch(() => []);
+  const ontvangers = [wardUri, ...anderen].filter((u) => u && u !== me);
+  const r = await AP.deliverDirectNote(site, {
+    recipients: ontvangers,
+    text: kind === 'handled' ? 'Deze hulpvraag is afgehandeld.' : 'Ik kijk hiernaar.',
+    helpMark: { kind, noteUri },
+  }).catch(() => null);
+  // Bezorging kan mislukken; de eigen staat staat er dan toch. Dat melden we,
+  // want "verstuurd" zeggen terwijl het niet aankwam is hier het ergste soort
+  // stilte.
+  res.json({ ok: true, delivered: r ? r.delivered : 0, recipients: ontvangers.length });
 });
 
 // ── Adopt a ward: handle → resolve → C2S Offer through the same pipeline
@@ -470,7 +644,7 @@ router.get('/wards/guardians', requireAuth, async (req, res) => {
   if (!Guardianship.listWards(site.slug).some((w) => w.other_uri === uri)) {
     return res.status(403).json({ error: 'not_my_ward' });
   }
-  const local = wardGuardianStatuses(uri);
+  const local = Guardianship.queues.wardGuardianStatuses(uri);
   if (local) return res.json({ local: true, guardians: local });
   const doc = await AP.fetchActor(uri).catch(() => null);
   let g = doc && doc['shaer:guardians'];
@@ -505,6 +679,7 @@ router.post('/wards/remove', requireAuth, express.json({ limit: '4kb' }), async 
 function wardEmbedSetting(uri) { return wardGateSetting(uri, 'external_embeds'); }
 /** The playback gate of a ward we host (5.6): the heavier sibling. */
 function wardPlaybackSetting(uri) { return wardGateSetting(uri, 'external_playback'); }
+
 function wardGateSetting(uri, column) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   if (!base || !String(uri || '').startsWith(`${base}/`)) return null;
@@ -519,43 +694,24 @@ function wardGateSetting(uri, column) {
 // server-side when the feed is serialised, so this endpoint is the only way it
 // can move, and only a committed guardian of THAT ward may move it.
 router.post('/wards/embeds', requireAuth, express.json({ limit: '4kb' }), (req, res) => {
-  req.body = { ...req.body, feature: req.body?.feature === 'shaer:externalPlayback' ? 'shaer:externalPlayback' : 'shaer:externalEmbeds' };
+  // Niet meer alleen embeds/playback: elke gate uit de catalogus met een kolom
+  // is voorstelbaar (8-8, "maak ze allemaal functioneel"). De oude regel
+  // HERSCHREEF een onbekende feature stilletjes naar externalEmbeds -- een
+  // voorstel voor de ene poort dat op de andere landt is precies het soort
+  // fout dat een guardian nooit mag overkomen. Onbekend wordt nu geweigerd.
+  const feature = String(req.body?.feature || 'shaer:externalEmbeds');
+  if (!Guardianship.gated.featureColumn(feature)) return res.status(400).json({ error: 'unknown_feature' });
+  req.body = { ...req.body, feature };
   return proposeGated(req, res);
 });
 function proposeGated(req, res) {
   const site = siteForUser(req);
   if (!site) return res.status(404).json({ error: 'no_site' });
-  const uri = String(req.body?.uri || '').trim();
-  const allow = req.body?.allow === true;
-  if (!uri) return res.status(400).json({ error: 'empty_uri' });
-  // Only a guardian of this ward, and only for a ward we host: a setting on a
-  // remote ward belongs to that ward's own server (federating it is Fase 4).
-  const isMyWard = Guardianship.listWards(site.slug).some((w) => w.other_uri === uri);
-  if (!isMyWard) return res.status(403).json({ error: 'not_your_ward' });
-  // §5.6: propose it to the WARD'S server, wherever that is. The ward's server
-  // tallies (a majority of its guardians, §3.5) and enforces. Co-location is
-  // just the case where that server happens to be this one, so it takes the
-  // same road: propose, then let the tally decide. Anything else would make a
-  // guardian on the ward's own instance more powerful than one elsewhere.
-  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
-  const me = AP.actorId(base, site.slug);
-  const feature = req.body.feature;   // normalised by the route above
-  const offerId = `${me}/gated/${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
-  const offer = Guardianship.gated.buildGatedOffer(offerId, me, uri, feature, allow);
-  // ONE path, whether the ward lives here or on the other side of the world
-  // (Robins regel, 29-7): propose over the wire and let the ward's server do
-  // what it does for everyone. deliverToActor loops a local recipient back
-  // into the same inbox handler, so co-location changes the transport and
-  // nothing else. The old shortcut recorded the vote here directly, which is
-  // how the remote path stayed broken for a month without anyone noticing.
-  // Our own record of what we sent (5.6): the ward's server answers this Offer
-  // once the decision settles, and that answer needs a row to land in. It is
-  // also the only way the proposer's screen can say more than a button caption.
-  Guardianship.gated.recordSent(offerId, site.slug, uri, feature, allow);
-  AP.deliverToActor(site, uri, offer).catch(() => { /* queued, best-effort */ });
-  const localSlug = (base && uri.startsWith(`${base}/`)) ? uri.replace(/\/+$/, '').split('/').pop() : null;
-  const progress = localSlug ? Guardianship.gated.gatedProgress(localSlug, feature) : null;
-  res.json({ ok: true, allow, state: 'open', ...(progress || { federated: true }) });
+  // De hele afweging staat in AP.proposeGate, zodat de apps langs dezelfde weg
+  // kunnen voorstellen (shaer-8ru). Deze route is nog maar de PWA-deur ernaartoe.
+  const uit = AP.proposeGate(site, req.body?.uri, req.body?.feature, req.body?.allow === true);
+  const { status, ...rest } = uit;
+  return res.status(status === 200 ? 200 : status).json(rest);
 }
 
 // ── The installable identity: own scope so the Guardian corner installs as
@@ -594,66 +750,11 @@ router.get('/icon.svg', (req, res) => {
   res.send(svg);
 });
 
-// ── Losse guardians (Guardian 2): uitnodigen en aansluiten ───────────────
-// De familie nodigt oma uit; zij kiest naam + wachtwoord en heeft daarmee een
-// guardian-only account: user + minimale site (guardian_only=1). Alles wat al
-// per slug werkt (actor, inbox, offers, push, deze PWA) werkt dan meteen.
-
-router.post('/invite', requireAuth, (req, res) => {
-  const token = crypto.randomBytes(16).toString('base64url');
-  db.prepare('INSERT INTO ap_guardian_invites (token, created_by) VALUES (?,?)')
-    .run(token, req.session.user.id);
-  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
-  const url = `${base}/guardian/join/${token}`;
-  res.send(`<!doctype html><meta charset="utf-8"><body style="font-family:sans-serif;max-width:480px;margin:40px auto">
-    <h2>Invite a guardian</h2>
-    <p>Share this link. It lets one person create a guardian account here:</p>
-    <p><a href="${url}">${url}</a></p>
-    <p><a href="/guardian">Back</a></p></body>`);
-});
-
-function joinForm(token, error) {
-  return `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <body style="font-family:sans-serif;max-width:420px;margin:40px auto">
-  <h2>Become a guardian</h2>
-  <p>Watch over someone you care about. Pick a name and a password; that is all.</p>
-  ${error ? `<p style="color:#b00">${error}</p>` : ''}
-  <form method="post" action="/guardian/join/${token}">
-    <p><input name="name" placeholder="your name (grandma)" required pattern="[a-z0-9_-]{1,32}"
-       style="width:100%;padding:10px" autocapitalize="none"></p>
-    <p><input name="password" type="password" placeholder="password" required minlength="8"
-       style="width:100%;padding:10px"></p>
-    <p><button style="width:100%;padding:12px">Create my guardian account</button></p>
-  </form></body>`;
-}
-
-router.get('/join/:token', (req, res) => {
-  const inv = db.prepare('SELECT * FROM ap_guardian_invites WHERE token = ? AND used_at IS NULL')
-    .get(req.params.token);
-  if (!inv) return res.status(404).send('This invite is no longer valid.');
-  res.send(joinForm(req.params.token));
-});
-
-router.post('/join/:token', express.urlencoded({ extended: false }), (req, res) => {
-  const inv = db.prepare('SELECT * FROM ap_guardian_invites WHERE token = ? AND used_at IS NULL')
-    .get(req.params.token);
-  if (!inv) return res.status(404).send('This invite is no longer valid.');
-  const name = String(req.body.name || '').trim().toLowerCase();
-  const password = String(req.body.password || '');
-  if (!/^[a-z0-9_-]{1,32}$/.test(name)) return res.status(400).send(joinForm(req.params.token, 'Only lowercase letters, digits, - and _.'));
-  if (password.length < 8) return res.status(400).send(joinForm(req.params.token, 'Password: at least 8 characters.'));
-  if (db.prepare('SELECT 1 FROM sites WHERE slug = ?').get(name) || db.prepare('SELECT 1 FROM users WHERE username = ?').get(name)) {
-    return res.status(409).send(joinForm(req.params.token, 'That name is taken, pick another.'));
-  }
-  const userId = crypto.randomUUID();
-  db.prepare('INSERT INTO users (id, username, email, password_hash, role) VALUES (?,?,?,?,?)')
-    .run(userId, name, `${name}@guardian.invalid`, bcrypt.hashSync(password, 10), 'member');
-  db.prepare('INSERT INTO sites (id, slug, title, owner_id, is_primary, guardian_only) VALUES (?,?,?,?,0,1)')
-    .run(crypto.randomUUID(), name, name, userId);
-  db.prepare('UPDATE ap_guardian_invites SET used_by = ?, used_at = CURRENT_TIMESTAMP WHERE token = ?')
-    .run(userId, req.params.token);
-  req.session.user = { id: userId, username: name, role: 'member' };
-  res.redirect('/guardian');
-});
+// Losse guardian-accounts (guardian-lite: /invite + /join, user + site met
+// guardian_only=1) zijn verwijderd op 31-7-2026. Een instance is een eigenaar;
+// zo'n account was de laatste multi-user-rest en zette bovendien andermans
+// wachtwoordhash, sessie en PRIVATE actor-sleutel in jouw database, wat een
+// verhuizing (shaer-qw6q) onmogelijk netjes maakte. Een guardian hoort een
+// eigen Klonkt te hebben; de adoptie loopt dan gewoon over de federatie.
 
 export default router;

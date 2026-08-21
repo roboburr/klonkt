@@ -16,7 +16,6 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
 import multer from 'multer';
 import { v4 as uuid } from 'uuid';
 import db from '../config/database.js';
@@ -25,15 +24,14 @@ import { requireGod, requireAuth, requireSiteManagerBySlug } from '../middleware
 import ThemeService from '../services/ThemeService.js';
 import { listPlatforms, PLATFORMS } from '../services/PlatformIcons.js';
 import { toWebp } from '../services/ImageWebpService.js';
+import { mediaDir } from '../config/paths.js';
+import AP from '../services/ActivityPubService.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Profile photos share the avatar directory with user avatars — same physical
 // folder, same URL prefix. Filenames are uuid-prefixed so site photos and
 // user avatars never collide.
-const PHOTO_DIR = path.resolve(
-  process.env.AVATAR_PATH || path.join(__dirname, '..', '..', 'storage', 'media', 'avatars')
-);
+const PHOTO_DIR = mediaDir('AVATAR_PATH', 'avatars');
 fs.mkdirSync(PHOTO_DIR, { recursive: true });
 
 const ALLOWED_PHOTO_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif']);
@@ -73,6 +71,27 @@ function buildProfileLinks(body) {
     arr.push({ platform: p, url: u });
   }
   return arr.length ? JSON.stringify(arr) : null;
+}
+
+/**
+ * FEP-7628 aliases (alsoKnownAs): one former identity per line, as an actor
+ * URL or an @user@host handle. Handles resolve via WebFinger AT SAVE TIME on
+ * purpose — a typo'd alias that silently lands on the actor would make a later
+ * Move fail at the old server with no hint why. Throws the offending line.
+ */
+export async function parseApAliases(raw, ownActorUri) {
+  const lines = String(raw || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  if (lines.length > 5) throw new Error(lines[5] + ' (max 5)');
+  const out = [];
+  for (const line of lines) {
+    let uri = null;
+    if (/^https?:\/\//i.test(line)) uri = line;
+    else if (line.includes('@')) uri = await AP.webfingerResolve(line).catch(() => null);
+    if (!uri) throw new Error(line);
+    if (uri === ownActorUri) continue; // claiming yourself adds nothing
+    if (!out.includes(uri)) out.push(uri);
+  }
+  return out;
 }
 
 const router = express.Router();
@@ -180,6 +199,7 @@ router.get('/', requireGod, (req, res) => {
 // ==================== NEW (form) ====================
 router.get('/new', requireGod, (req, res) => {
   renderPage(req, res, 'pages/admin-site-edit', {
+    pageJs: 'admin-site-edit',
     pageTitleKey: 'admin.t_newsite',
     bodyClass: 'on-admin',
     isNew: true,
@@ -191,6 +211,7 @@ router.get('/new', requireGod, (req, res) => {
     accents: ThemeService.listAccents(),
     platforms: listPlatforms(),
     parsedLinks: [],
+    apAliases: '',
     error: null,
   });
 });
@@ -238,7 +259,7 @@ router.post('/create', requireGod, (req, res) => {
     f.robots_index ? 1 : 0,
     f.require_login_to_comment ? 1 : 0,
     (f.enable_audio_player !== undefined ? (f.enable_audio_player ? 1 : 0) : 1),
-    f.feed_view_default === 'timeline' ? 'timeline' : 'grid',
+    f.feed_view_default === 'grid' ? 'grid' : 'reader',
   );
 
   // The OWNER (not necessarily the creator) gets a site_members admin row → this
@@ -258,7 +279,11 @@ router.get('/:slug/edit', requireSiteManagerBySlug, (req, res) => {
     try { parsedLinks = JSON.parse(site.profile_links) || []; } catch {}
   }
 
+  let apAliases = '';
+  try { apAliases = (JSON.parse(site.ap_aliases || '[]') || []).join('\n'); } catch { /* show empty on malformed */ }
+
   renderPage(req, res, 'pages/admin-site-edit', {
+    pageJs: 'admin-site-edit',
     pageTitleKey: 'admin.t_editsite', pageTitleVars: { title: site.title },
     bodyClass: 'on-admin',
     isNew: false,
@@ -268,19 +293,64 @@ router.get('/:slug/edit', requireSiteManagerBySlug, (req, res) => {
     accents: ThemeService.listAccents(),
     platforms: listPlatforms(),
     parsedLinks,
+    apAliases,
     success: req.query.success || null,
     error: req.query.error || null,
   });
 });
 
+// ==================== MOVE (FEP-7628, slice 2) ====================
+// The explicit departure: announce to every follower that this account now
+// lives elsewhere. Deliberately its own POST with its own button, never a
+// side effect of Save: a Move is a door you close behind you.
+router.post('/:slug/move', requireSiteManagerBySlug, async (req, res) => {
+  const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(req.params.slug);
+  if (!site) return res.redirect('/admin/sites?error=Not+found');
+  const r = await AP.moveAccount(site, req.body.move_target || '');
+  if (r && r.ok) {
+    return res.redirect(`/admin/sites/${req.params.slug}/edit?success=` + encodeURIComponent(`Verhuizing aangekondigd naar ${r.target} (${r.inboxes} inboxen).`));
+  }
+  const msg = {
+    guarded_account: 'Dit account heeft guardians; verhuizen kan pas als de guardianship mee kan (shaer-tge).',
+    no_backreference: 'Het nieuwe profiel claimt dit account niet in zijn aliassen. Zet daar eerst dit adres als alias.',
+    not_found: 'Nieuw adres niet gevonden. Gebruik @naam@server of een actor-URL.',
+    unreachable: 'Het nieuwe profiel is niet bereikbaar.',
+    self: 'Dat is dit account zelf.',
+  }[r && r.error] || 'Verhuizen mislukte; probeer het opnieuw.';
+  res.redirect(`/admin/sites/${req.params.slug}/edit?error=` + encodeURIComponent(msg));
+});
+
 // ==================== SAVE ====================
-router.post('/:slug/save', requireSiteManagerBySlug, (req, res) => {
-  const site = db.prepare('SELECT id FROM sites WHERE slug = ?').get(req.params.slug);
+router.post('/:slug/save', requireSiteManagerBySlug, async (req, res) => {
+  const site = db.prepare('SELECT id, ap_aliases FROM sites WHERE slug = ?').get(req.params.slug);
   if (!site) return res.redirect('/admin/sites?error=Not+found');
 
   const f = req.body;
-  const feedViewDef = f.feed_view_default === 'grid' ? 'grid' : 'timeline';
+  // Twee vragen, en ze hingen scheef: dit pad schreef 'timeline' terwijl het
+  // AANMAAKpad 'reader' schreef, voor precies dezelfde keuze. Elke site die ooit
+  // is opgeslagen droeg dus 'timeline', en de client vertaalde dat stil terug.
+  // Nu betekent de waarde weer wat er staat.
+  const feedAlt = ['timeline', 'auto'].includes(f.feed_alt_view) ? f.feed_alt_view : 'reader';
+  const feedViewDef = f.feed_view_default === 'grid' ? 'grid' : feedAlt;
   const profileLinksJson = buildProfileLinks(f);
+
+  // FEP-7628 aliases — validated/resolved before anything is written.
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  // Het INVOERVELD staat hier sinds 14-8 niet meer: aliassen horen bij
+  // Migreren. Dit formulier mag ze dus niet aanraken, en al helemaal niet
+  // leegmaken omdat het veld ontbreekt. Anders verlies je je claim op je oude
+  // account door je kleuren aan te passen, en weigert de Move daarna met
+  // no_backreference. Alleen verwerken als het veld ECHT is meegestuurd, zodat
+  // een oude gecachte pagina die hem nog wel heeft blijft werken.
+  let apAliasesJson = site.ap_aliases || null;
+  if (Object.prototype.hasOwnProperty.call(f, 'ap_aliases')) {
+    try {
+      const arr = await parseApAliases(f.ap_aliases, AP.actorId(base, req.params.slug));
+      apAliasesJson = arr.length ? JSON.stringify(arr) : null;
+    } catch (e) {
+      return res.redirect(`/admin/sites/${req.params.slug}/edit?error=` + encodeURIComponent(`Alias niet herkend of niet vindbaar: ${e.message}`));
+    }
+  }
 
   // theme_override: only accept the three legal values. Empty string means
   // "Auto" — defer to user's prefers-color-scheme on first paint.
@@ -296,9 +366,11 @@ router.post('/:slug/save', requireSiteManagerBySlug, (req, res) => {
       palette = ?, accent = ?, theme_override = ?, profile_photo = ?,
       profile_enabled = ?,
       profile_links = ?,
+      ap_aliases = ?,
       is_public = ?, robots_index = ?, require_login_to_comment = ?,
       enable_audio_player = ?,
-      feed_view_default = ?, feed_view_switch = ?,
+      approve_followers = ?,
+      feed_view_default = ?, feed_view_switch = ?, feed_alt_view = ?, reader_full_page = ?,
       show_search = ?, show_archive_link = ?,
       custom_css = ?, custom_head_html = ?, custom_foot_html = ?,
       updated_at = CURRENT_TIMESTAMP
@@ -314,12 +386,16 @@ router.post('/:slug/save', requireSiteManagerBySlug, (req, res) => {
     f.profile_photo || null,
     f.profile_enabled ? 1 : 0,
     profileLinksJson,
+    apAliasesJson,
     f.is_public ? 1 : 0,
     f.robots_index ? 1 : 0,
     f.require_login_to_comment ? 1 : 0,
     f.enable_audio_player ? 1 : 0,
+    f.approve_followers ? 1 : 0,
     feedViewDef,
     f.feed_view_switch ? 1 : 0,
+    feedAlt,
+    f.reader_full_page ? 1 : 0,
     f.show_search ? 1 : 0,
     f.show_archive_link ? 1 : 0,
     f.custom_css      || null,
@@ -336,6 +412,16 @@ router.post('/:slug/save', requireSiteManagerBySlug, (req, res) => {
       db.prepare('UPDATE sites SET owner_id = ? WHERE id = ?').run(newOwner, site.id);
       grantSiteAdmin(site.id, newOwner);
     }
+  }
+
+  // Alias change → broadcast an actor Update so remote caches refresh. The old
+  // server re-fetches the actor live during a Move anyway; this is freshness,
+  // not correctness, hence best-effort.
+  if ((site.ap_aliases || null) !== apAliasesJson) {
+    try {
+      const fresh = db.prepare('SELECT * FROM sites WHERE id = ?').get(site.id);
+      AP.deliverActorUpdate(fresh).catch(() => {});
+    } catch { /* never blocks the save */ }
   }
 
   res.redirect(`/admin/sites/${req.params.slug}/edit?success=` + encodeURIComponent('Opgeslagen'));

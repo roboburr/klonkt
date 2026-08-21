@@ -213,6 +213,7 @@ test('no guardianship decision takes a shortcut for a local party', () => {
   // local branch in a decision path, that is the bug, not this list.
   const allowed = {
     existingGuardiansOf: 'reads our own guardian list instead of fetching our own actor doc',
+    candidateFitness: '§4.2: same question, same source — is this candidate a ward? Our table, not a self-fetch',
     applyCommitLocally: '§3.1.4: each instance writes the side of the commit it hosts',
     endGuardianship: '§3.2: same, for the ward side of the Undo, after the fanout',
     proposeGated: 'reads the tally back for the screen, after delivering',
@@ -225,8 +226,21 @@ test('no guardianship decision takes a shortcut for a local party', () => {
     // exists, not so it can be forgotten. Removing this line is the definition
     // of that job being done.
     wardSlugsOf: 'TODO: gated follows still take the shared-database path for a local guardian',
+    // Tweede plek van diezelfde sluiproute, aangekomen met Fase 2 (shaer-jdb):
+    // followsCollection vult de wachtrij voor een ward op DEZE instance uit
+    // ap_pending_follows. Hoort mee te verdwijnen met wardSlugsOf hierboven --
+    // niet apart, want het is een sluiproute en geen tweede probleem.
+    slugOf: 'TODO: idem, nu ook in de follows-wachtrij (shaer-h6u)',
   };
-  const files = ['src/services/guardianship/handshake.js', 'src/routes/guardian.js'];
+  // De hele module, niet twee bestanden. Het commentaar hierboven zegt "elke
+  // plek die vraagt of deze actor van ons is", en dat werd tot nu toe afgemeten
+  // aan twee namen -- waardoor een nieuwe sluiproute in een DERDE bestand er
+  // geruisloos doorheen kwam. Dat is precies hoe deze er kwam.
+  const files = [
+    ...fs.readdirSync('src/services/guardianship').filter((f) => f.endsWith('.js'))
+      .map((f) => `src/services/guardianship/${f}`),
+    'src/routes/guardian.js',
+  ];
   // Only top-level declarations name a scope; an indented `const base = ...` is
   // a local and would otherwise take the blame for its enclosing function. A
   // route handler is an anonymous arrow, so it is named after its path.

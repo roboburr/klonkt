@@ -104,7 +104,7 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
         <button type="button" class="profile-sheet-item" id="profile-sheet-theme" role="menuitemcheckbox">
           <svg class="psi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
           <span class="psi-label"><%= t('nav.theme_label') %></span>
-          <span class="psi-meta" id="profile-sheet-theme-state"><%= t('nav.dark') %></span>
+          <span class="psi-meta" id="profile-sheet-theme-state" data-dark="<%= t('nav.dark') %>" data-light="<%= t('nav.light') %>"><%= t('nav.dark') %></span>
         </button>
       </li>
     </ul>
@@ -325,99 +325,4 @@ body.profile-sheet-locked { overflow: hidden; }
 [data-theme="dark"] .profile-sheet-item.is-destructive { color: #f87171; }
 </style>
 
-<script>
-(function() {
-  const sheet = document.getElementById('profile-sheet');
-  if (!sheet) return;
-
-  const backdrop  = document.getElementById('profile-sheet-backdrop');
-  const panel     = sheet.querySelector('.profile-sheet-panel');
-  const closeBtn  = document.getElementById('profile-sheet-close');
-  const dragZone  = document.getElementById('profile-sheet-drag-zone');
-  const themeBtn  = document.getElementById('profile-sheet-theme');
-  const themeLbl  = document.getElementById('profile-sheet-theme-state');
-
-  function openSheet() {
-    sheet.classList.add('is-open');
-    sheet.setAttribute('aria-hidden', 'false');
-    document.body.classList.add('profile-sheet-locked');
-    syncTheme();
-  }
-  function closeSheet() {
-    sheet.classList.remove('is-open');
-    sheet.setAttribute('aria-hidden', 'true');
-    document.body.classList.remove('profile-sheet-locked');
-    panel.style.removeProperty('--pcms-drag-y');
-  }
-
-  // Open: any element with [data-profile-sheet-toggle]
-  document.addEventListener('click', function(e) {
-    const trigger = e.target.closest('[data-profile-sheet-toggle]');
-    if (trigger) {
-      e.preventDefault();
-      openSheet();
-    }
-  });
-
-  // Close: backdrop tap, handle tap, ESC, or any [data-close-sheet] item
-  if (backdrop) backdrop.addEventListener('click', closeSheet);
-  if (closeBtn) closeBtn.addEventListener('click', closeSheet);
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && sheet.classList.contains('is-open')) closeSheet();
-  });
-
-  // Menu items that navigate: close synchronously before nav fires
-  sheet.querySelectorAll('[data-close-sheet]').forEach((el) => {
-    el.addEventListener('click', closeSheet);
-  });
-
-  // Drag-down-to-close on touch.
-  // Uses --pcms-drag-y custom property rather than overwriting the panel's
-  // transform string. This composes correctly with any horizontal centering
-  // (currently none here, but the pattern matches audio-sheet for safety).
-  let startY = 0, lastY = 0, dragging = false;
-  function onDown(e) {
-    if (e.pointerType !== 'touch') return;
-    if (panel.scrollTop > 0) return;
-    startY = lastY = e.clientY;
-    dragging = true;
-    panel.classList.add('is-dragging');
-  }
-  function onMove(e) {
-    if (!dragging) return;
-    lastY = e.clientY;
-    const dy = Math.max(0, lastY - startY);
-    panel.style.setProperty('--pcms-drag-y', dy + 'px');
-  }
-  function onUp() {
-    if (!dragging) return;
-    dragging = false;
-    panel.classList.remove('is-dragging');
-    const dy = lastY - startY;
-    if (dy > 80) closeSheet();
-    else panel.style.removeProperty('--pcms-drag-y');
-  }
-  if (window.PointerEvent && dragZone) {
-    dragZone.addEventListener('pointerdown', onDown);
-    document.addEventListener('pointermove', onMove);
-    document.addEventListener('pointerup', onUp);
-    document.addEventListener('pointercancel', onUp);
-  }
-
-  // Theme toggle inside sheet — syncs label
-  function syncTheme() {
-    if (!themeLbl) return;
-    const t = document.documentElement.getAttribute('data-theme') || 'dark';
-    themeLbl.textContent = t === 'dark' ? '<%= t('nav.dark') %>' : '<%= t('nav.light') %>';
-  }
-  if (themeBtn) {
-    themeBtn.addEventListener('click', function() {
-      const cur = document.documentElement.getAttribute('data-theme') || 'dark';
-      const next = cur === 'dark' ? 'light' : 'dark';
-      document.documentElement.setAttribute('data-theme', next);
-      try { localStorage.setItem('pcms-theme', next); } catch (e) {}
-      syncTheme();
-    });
-  }
-})();
-</script>
+<%# Het script van het profielblad staat in assets/js/mod/chrome.js (shaer-bqr). %>

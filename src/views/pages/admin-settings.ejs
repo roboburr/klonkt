@@ -26,18 +26,7 @@
       </div>
       <div class="set-actions"><button type="submit" class="btn btn-primary"><%= t('aset.save') %></button></div>
     </form>
-    <script>
-    (function () {
-      var f = document.getElementById('mode-form');
-      if (!f || f.__age18wired) return; f.__age18wired = true;
-      f.addEventListener('submit', function (e) {
-        var sel = f.querySelector('input[name=mode]:checked');
-        if (sel && sel.value === 'cirkels' && f.getAttribute('data-was-cirkels') === '0') {
-          if (!window.confirm(f.getAttribute('data-confirm'))) e.preventDefault();
-        }
-      });
-    })();
-    </script>
+    <%# Het script van deze pagina staat in assets/js/mod/admin-settings.js (shaer-bqr). %>
   </section>
 
   <%# ── Default language for visitors ── %>

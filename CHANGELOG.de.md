@@ -5,6 +5,172 @@ Versionen folgen [SemVer](https://semver.org/lang/de/) (`1.0.0-beta.N` während 
 
 ## [Unreleased]
 
+## [1.7.0] · 2026-08-21
+
+### Hinzugefügt
+- **Deine Musik reist als Musik, nicht als Verweis darauf.** Ein Track ging als
+  Notiz mit angehängter Datei über die Leitung, ein fremder Server sah also Text
+  mit Anhang und nichts, was sagte: „das ist eine Veröffentlichung dieser
+  Künstlerin oder dieses Künstlers“. Tracks sind jetzt vollwertige Audio-Objekte,
+  ein Album ist ein eigenes Objekt auf der Leitung, und der Outbox trägt die
+  Diskografie mit. Playlists föderieren als ActivityPub-Sammlungen und sind als
+  solche auffindbar. Die Formen folgen dem, was Funkwhale bereits spricht, damit
+  eine Klonkt-Veröffentlichung in einer Funkwhale-Bibliothek landet, statt
+  verworfen zu werden.
+- **Der Beitrag ist die Veröffentlichung.** Einzelne Tracks in einem Beitrag
+  werden zu einer Sammlung, Veröffentlichungsdatum und MusicBrainz-Release-ID
+  reisen mit, und die Hashtags werden aus dem Rohtext gelesen statt aus der
+  gesetzten Fassung — deshalb kamen sie vorher als Unsinn an, oder gar nicht.
+- **Beanspruche dich selbst in MusicBrainz.** Unter Verwaltung → Audio kannst du
+  dich suchen und bestätigen, dass du das bist. Die Verknüpfung geht als
+  `schema:sameAs` auf die Leitung, sodass andere Server dein Klonkt mit der
+  Künstlerin oder dem Künstler verbinden können, die oder der du anderswo längst
+  bist.
+- **Die ganze Seite als Musikkanal.** `/tracks.xml` veröffentlicht alles, was du
+  herausgebracht hast, als einen Feed — für Player, die RSS sprechen und kein
+  ActivityPub.
+- **Zieh mit deinem Konto um und nimm alles mit (FEP-1580).** Deine Beiträge,
+  deine Audios, die Cover, die Playlists und die GUIDs ziehen mit, deine
+  Folgeliste reist als CSV zum Hochladen oder Einfügen, und die Guardianship zieht
+  vor dem Folgen um — in der anderen Reihenfolge stand ein Ward kurz ohne
+  Aufsicht da. Ein umgezogenes Konto verriegelt die ausgehende Seite, damit von
+  einer Adresse, die du nicht mehr nutzt, nichts Neues mehr abgeht. Das steht
+  jetzt auf einer Seite, in Schritten, statt verstreut.
+- **Eine Leseansicht, neben Zeitleiste und Raster.** Ein Beitrag füllt den
+  Bildschirm, die Nachbarn stehen links und rechts bereit, und das Scrollen
+  rastet am oberen Rand des nächsten Beitrags ein. Jede Seite entscheidet selbst:
+  Lesen, Zeitleiste, oder Zeitleiste am Rechner und Lesen am Telefon.
+- **Gäste melden sich mit dem Konto an, das sie schon haben (OpenWebAuth).** Ein
+  Fan meldet sich über sein eigenes Klonkt an und wird hier Follower, nicht noch
+  ein Kontoinhaber mit noch einem Passwort. Zwei Klonkts können einander
+  anmelden, das funktioniert also in beide Richtungen.
+- **Acht Guardianship-Tore, die wirklich schalten.** Das Torpanel ist ein
+  Cockpit: jedes Tor sichtbar, jeder Chip trägt seinen eigenen Stand, und die
+  Apps wissen vorab, was zu ist. Antworten ist ein eigenes Tor, Folgeanfragen
+  werden bei mehreren Guardians per Mehrheit entschieden, ein Ward kann selbst
+  eine Frage stellen, und ein Logbuch bewahrt, warum eine Entscheidung fiel.
+- **Follower zuerst genehmigen, wenn du magst.** Eine Folgeanfrage wartet auf
+  dein Ja, und bis dahin sieht die anfragende Person nichts von deinen Beiträgen.
+- **Jede Sammlung paginiert.** Der Outbox liefert jetzt `first` und `last` und
+  blättert wirklich durch seine Seiten. Funkwhale wies ihn ohne diese beiden
+  rundweg ab — eine Sammlung ohne Paginierung war also kein Schönheitsfehler,
+  sondern eine verschlossene Tür.
+- **Gespräche wissen, was du gelesen hast.** Ungelesen zählt pro Gespräch, eine
+  Lesung ist ein Ereignis statt einer Vermutung, und eine wartende Lesung
+  antwortet mit der Differenz — kein Abholen einer ganzen Liste mehr, um eine
+  neue Zeile zu finden.
+- **Apple-Music- und YouTube-Playlists betten sauber ein**, mit derselben
+  Auswertung wie im Hub und einer Höhe, die zu dem passt, was du tatsächlich
+  eingebettet hast.
+- **Nachrichten ist eine einzige Gesprächsansicht.** Nachrichten, Gespräche und
+  Gesendet waren drei getrennte Filter, wodurch ein Austausch auseinanderfiel:
+  was du gesendet hast, stand unter Gesendet, was zurückkam unter einem der
+  beiden anderen, und um einem Verlauf zu folgen, musstest du hin und her
+  wechseln. Es ist jetzt eine Gesprächsansicht, in der Gesendetes und
+  Empfangenes im selben Verlauf stehen, das Älteste oben, mit deinen eigenen
+  Beiträgen markiert. Vier Filter bleiben: Alle, Gespräche, Aktivität und
+  Moderation.
+- **Ein Gespräch sagt, worum es geht.** Hängt ein Verlauf an einem deiner
+  Beiträge, verlinkt die Kopfzeile darauf. Ohne diesen Zusammenhang lässt sich
+  eine Antwort in einer Liste nicht einordnen. Verläufe ohne Beitrag laufen
+  stattdessen pro Person.
+- **Beiträge in Nachrichten sehen aus wie Beiträge.** Formatierung, Bilder,
+  Audio, Video, Zitatkarten und Link-Vorschauen werden jetzt genauso dargestellt
+  wie in den Nachrichten der Zeitung — auch bei dem, was du selbst gesendet hast:
+  ein von dir angehängtes Foto kam auf dem eigenen Bildschirm als nackter Text
+  an, während alle anderen das Bild sahen.
+- **Die Guardian-App zeigt Beiträge deines Wards vollständig.** Dieselbe Lücke
+  steckte in der Guardian-Ansicht: ein Beitrag deines Wards kam ohne Medien,
+  Zitatkarte oder Emoji an — genau der Beitrag, den ein Guardian beurteilen
+  können muss. Eine Inhaltswarnung bleibt dort wie bisher eingeklappt.
+- **Aus einem Gespräch heraus antworten.** Unter einem Verlauf steht ein eigenes
+  Antwortfeld, der reichhaltige Editor mit Formatierung, Medien und Sprachwahl.
+  Winken bleibt eine eigene Schaltfläche daneben: ein Winken ist ein Zeichen,
+  keine Antwort.
+
+### Behoben
+- **Der Verlauf unter einem fremden Beitrag wird über deinen eigenen Server
+  geholt und nie gespeichert.** Antworten, Like- und Boost-Status und die
+  FEP-9098-Emoji kommen jetzt mit, und die nächste Seite wird ebenfalls gelesen —
+  vorher brach ein langer Verlauf auf halber Strecke ab.
+- **Die Ratenbegrenzung zählte die ganze Seite statt der aufrufenden Stelle**,
+  sodass eine viel besuchte Seite allen 429er gab. Dazu gehört: ob du einem Proxy
+  traust, hängt davon ab, wo du läufst, nicht davon, ob du in Entwicklung oder
+  Produktion bist.
+- **Eine mitlaufende Uhr in der Antwort machte aus dem langen Poll eine
+  Schleife.** Die Antwort änderte sich jede Sekunde, also wartete er nie — er kam
+  nur immer wieder zurück.
+- **Der Editor übersteht einen Seitenwechsel.** An Elemente gebundene Module
+  starten bei jeder Navigation neu, die Bearbeitungsseite lädt ihren Editor nach
+  einem Zurück also wieder, und Speichern ohne Modul löscht nicht mehr, was du
+  geschrieben hattest.
+- **Ein Slug ist ein lokaler Schlüssel, kein Name auf der Leitung.** Halbe Namen,
+  fehlende Namen und drei Schreibweisen desselben Namens kamen alle daher, dass
+  das eine für das andere gehalten wurde.
+- **Der Zirkel fiel über ein Medienfeld, das keine Liste war**, und riss dann die
+  ganze Seite mit, statt nur diesen einen Beitrag.
+- **Menschen auf datenschutzstrengen Servern können dir wieder folgen.** Manche
+  Server geben den öffentlichen Schlüssel eines Kontos nur an eine signierte
+  Anfrage heraus. Klonkt fragte ohne Signatur, wurde abgewiesen und konnte die
+  gerade eingegangene Folge-Anfrage deshalb nicht prüfen — sie wurde abgelehnt,
+  und der andere Server versuchte es tagelang erneut. Klonkt signiert diese
+  Abfrage jetzt, und solche Follows kommen durch. Das betraf auch alles andere,
+  was von so einem Server geholt wurde: Profile, Beiträge und Antworten.
+- **Antworten anderer kommen jetzt im Verlauf an.** Antwortete jemand auf einen
+  Beitrag in einem Gespräch, an dem du beteiligt warst, leitete dessen Server die
+  Antwort an dich weiter — und sie wurde abgewiesen, weil ein weiterleitender
+  Server mit seinem eigenen Schlüssel signiert und nicht mit dem des Autors.
+  Verläufe waren auf deiner Seite dadurch stillschweigend unvollständig. Eine
+  solche Antwort wird jetzt an der Quelle geprüft statt abgewiesen: der Beitrag
+  wird bei dem Server geholt, der ihn beherbergt, und nur das von dort wird
+  gespeichert. Eine weitergeleitete Löschung wird weiterhin abgewiesen, denn ein
+  gelöschter Beitrag lässt sich nicht prüfen.
+- **Ein Like oder Boost sieht überall gleich aus.** Derselbe Beitrag konnte in
+  der Zeitung als geliked und auf der Interact-Seite als nicht geliked
+  erscheinen, weil beide eine eigene Buchführung hatten. Es gibt jetzt nur noch
+  eine, also stimmen die Schaltflächen überein — auch für alles, worauf du vor
+  dieser Version schon reagiert hast; das wird beim Aktualisieren der Seite
+  automatisch übernommen.
+- **Ein Like aus einer App bleibt jetzt bestehen.** Ein Like aus Shaer wurde
+  zwar gespeichert, aber die App bekam das nie zurück, sodass das Herz beim
+  nächsten Laden wieder aussprang — und weil die App das Like nie sah, konnte sie
+  es nur erneut senden und nie zurücknehmen. Das Zurücknehmen aus einer App
+  funktioniert jetzt.
+
+### Sicherheit
+- **Bezahlte Beiträge gaben ihren vollen Inhalt über den Outbox und den
+  Follower-Backfill preis.** Die Schwärzung selbst funktionierte; die Abfragen
+  reichten ihr eine Zeile ohne die Spalte `paid`, also las das Tor `undefined`,
+  ließ alles durch und sagte nichts. Beide Abfragen holen jetzt, worüber sie
+  entscheiden, und ein Test bewacht die Art des Fehlers statt dieses einen Falls.
+- **Fan-only-Beiträge gingen mit einem öffentlichen Etikett hinaus.** Sie waren
+  richtig adressiert, aber falsch beschrieben — und so einen Widerspruch löst ein
+  fremder Server genau in die falsche Richtung auf.
+- **Ein Leck zwischen Seiten im Tracker-Export.** Eine Seite kam über den
+  Exporter an die Zeilen einer anderen.
+- **Das Playlist-Tor öffnet jetzt nur noch Dateien der Seite selbst.**
+- **Ein Schlüssel ist an den Akteur gebunden, für den er spricht.** Eine Signatur
+  wird nur akzeptiert, wenn Schlüssel, Eigentümer und Akteur übereinstimmen;
+  vorher konnte ein Schlüssel für jemanden bürgen, zu dem er keine Beziehung
+  hatte.
+- **OpenWebAuth entpackt PKCS#1 v1.5 selbst**, ohne frühen Ausstieg und mit einer
+  Obergrenze für Versuche. Node hat den Padding-Modus, der das erledigte,
+  entfernt, weil er über Timing leckt (CVE-2023-46809, der Marvin-Angriff); es
+  von Hand zu tun hält den Pfad gleich lang und schließt das Orakel, statt es
+  wieder zu öffnen.
+
+- **Aktualisierte Komponenten schließen sieben Sicherheitshinweise.** Der
+  schwerwiegendste steckte in der Bibliothek, die von außen eintreffende
+  Beiträge säubert: ein sorgfältig gebauter Beitrag konnte ein Skript daran
+  vorbeischmuggeln, und ein Skript, das auf deiner Seite läuft, kann in deinem
+  Namen handeln. Gleichzeitig ging der Mailversand drei Hauptversionen weiter
+  und schloss damit eine Reihe von Lücken — darunter eine, bei der ein
+  präparierter Name Befehle in das Gespräch mit dem Mailserver einschleusen
+  konnte, und eine, bei der eine Nachricht bei einer anderen Domain landen
+  konnte als der adressierten. An Aussehen und Verhalten von Klonkt ändert das
+  nichts. Ein Hinweis bleibt bewusst offen: er betrifft eine Art, Bezeichner zu
+  erzeugen, die Klonkt nicht verwendet.
+
 ## [1.6.0] · 2026-07-31
 
 ### Hinzugefügt

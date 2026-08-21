@@ -2,10 +2,10 @@
 import { v4 as uuid } from 'uuid';
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
 import multer from 'multer';
 import ejs from 'ejs';
 import db from '../config/database.js';
+import { POST_TYPES, KEUZE_TYPES } from '../config/post-types.js';
 import { requireAuth, requireSiteManager, isViewer } from '../middleware/auth.js';
 import { renderPage } from '../middleware/render.js';
 import { recordPageview, recordPostView } from '../services/StatsService.js';
@@ -23,13 +23,12 @@ import * as Guardianship from '../services/guardianship/index.js';
 import { premiumUnlocked } from '../services/PatreonService.js';
 import { defaultMinCents as paidDefaultMinCents, patreonUrl as paidPatronUrl } from '../services/PaidPatreonService.js';
 import { verifyBlob } from '../services/CryptoBox.js';
+import { postEntry } from '../services/PostAccessService.js';
+import * as OWA from '../services/OpenWebAuthService.js';
 import MusicMeta from '../services/MusicMeta.js';
+import { mediaDir } from '../config/paths.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const POST_IMAGES_DIR = path.resolve(
-  process.env.POST_IMAGES_PATH ||
-  path.join(__dirname, '..', '..', 'storage', 'media', 'post-images')
-);
+const POST_IMAGES_DIR = mediaDir('POST_IMAGES_PATH', 'post-images');
 fs.mkdirSync(POST_IMAGES_DIR, { recursive: true });
 
 const ALLOWED_IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif']);
@@ -37,10 +36,7 @@ const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 // Rich replies: media dropped/pasted into the reply editor. Images, audio and
 // video, stored as-is (no transcode; a reply attachment is not a track).
-const REPLY_MEDIA_DIR = path.resolve(
-  process.env.REPLY_MEDIA_PATH ||
-  path.join(__dirname, '..', '..', 'storage', 'media', 'reply-media')
-);
+const REPLY_MEDIA_DIR = mediaDir('REPLY_MEDIA_PATH', 'reply-media');
 fs.mkdirSync(REPLY_MEDIA_DIR, { recursive: true });
 const ALLOWED_REPLY_MEDIA_EXT = new Set([
   '.jpg', '.jpeg', '.png', '.webp', '.gif',
@@ -153,6 +149,9 @@ const RESERVED_SLUGS = new Set([
   'manifest.webmanifest', 'sw.js', 'favicon.ico', 'favicon.svg', 'assets',
   'authorize_interaction', 'fediverse', 'news', 'following', 'notifications', 'blocking',
   'paid', 'push', 'guardian',
+  // De meeslepende leesweergave. Gereserveerd
+  // omdat een bericht met deze slug de route anders zou overschaduwen.
+  'read',
 ]);
 
 /**
@@ -233,18 +232,29 @@ router.get('/', (req, res) => {
   const moreBase = res.locals.siteUrlBase || '';
 
   if (append) {
-    return renderPage(req, res, 'partials/home-append', { posts, hasMore, nextOffset: offset + FEED_PAGE, moreBase });
+    return renderPage(req, res, 'partials/home-append', {
+      posts, hasMore, nextOffset: offset + FEED_PAGE, moreBase,
+      readerItems: readerItems(site, posts, req),
+    });
   }
 
   recordPageview(site.id, req);
 
+  // FEP-7628 slice 3: this account moved. A visitor who lands here deserves
+  // the same signpost the fediverse gets — one big link to the new address.
+  const movedTo = site.moved_to && /^https?:\/\//i.test(String(site.moved_to)) ? String(site.moved_to) : null;
   renderPage(req, res, 'pages/home', {
     pinnedPosts,
     posts,
+    readerItems: readerItems(site, [...pinnedPosts, ...posts], req),
     hasMore, nextOffset: offset + FEED_PAGE, moreBase,
+    movedTo,
+    movedToLabel: movedTo ? (ActivityPubService.actorDisplay(site.slug, movedTo).handle || movedTo) : null,
     pageTitle: site.title,
     socialDescr: site.description || site.tagline || '',
     bodyClass: 'on-home',
+    // mod/read.js: alleen nog de tik-op-een-bericht in de leesweergave.
+    pageJs: 'read',
   });
 });
 
@@ -257,6 +267,8 @@ router.get('/posts/new', requireAuth, (req, res) => {
   }
 
   renderPage(req, res, 'pages/post-edit', {
+    // post-edit neemt de playlist-editor op.
+    pageJs: 'post-edit playlist-editor',
     post: {
       id: uuid(),
       title: '', slug: '', content: '', excerpt: '',
@@ -264,6 +276,7 @@ router.get('/posts/new', requireAuth, (req, res) => {
       cover_image_url: '',
     },
     isNew: true,
+    keuzeTypes: KEUZE_TYPES,
     pageTitle: 'New post',
     bodyClass: 'on-special',
   });
@@ -283,7 +296,9 @@ function setAudioFediOpen(siteId, content, open) {
   try {
     for (const m of c.matchAll(/\[\[track:([A-Za-z0-9_-]+)\]\]/g)) db.prepare('UPDATE audio_tracks SET fedi_open = 1 WHERE id = ? AND site_id = ?').run(m[1], siteId);
     for (const m of c.matchAll(/\[\[album:([^\]]+)\]\]/g)) db.prepare('UPDATE audio_tracks SET fedi_open = 1 WHERE site_id = ? AND album = ?').run(siteId, m[1].trim());
-    for (const m of c.matchAll(/\[\[playlist:([A-Za-z0-9_-]+)\]\]/g)) db.prepare('UPDATE audio_tracks SET fedi_open = 1 WHERE id IN (SELECT track_id FROM playlist_tracks WHERE playlist_id = ?)').run(m[1]);
+    // playlists.id is a GLOBAL key, so the site filter has to sit on the tracks: without it a
+    // post on site A embedding site B's playlist would open B's files — permanently.
+    for (const m of c.matchAll(/\[\[playlist:([A-Za-z0-9_-]+)\]\]/g)) db.prepare('UPDATE audio_tracks SET fedi_open = 1 WHERE site_id = ? AND id IN (SELECT track_id FROM playlist_tracks WHERE playlist_id = ?)').run(siteId, m[1]);
   } catch { /* non-fatal */ }
 }
 // True when the post references hosted audio AND all of it is currently fedi_open (drives the
@@ -328,6 +343,15 @@ router.post('/posts/create', requireAuth, (req, res) => {
   if (!site || !PermissionsService.canCreatePost(req.session.user, site)) {
     return res.status(403).send('No permission');
   }
+  // Verhuisd = niet meer schrijven. Dit moet HIER staan en niet pas bij
+  // deliverCreate: die weigert alleen de bezorging, waarna de post gewoon in de
+  // database belandt met een object-URI op een adres dat je hebt opgezegd. Dan
+  // lijkt het gelukt, staat het er, en sterft het met het domein. Precies de
+  // halve toestand die dit slot moet voorkomen.
+  if (ActivityPubService.movedLock(site).locked) {
+    return res.status(409).send('Dit account is verhuisd naar ' + ActivityPubService.movedLock(site).movedTo
+      + '. Nieuwe berichten maak je daar. Wil je terug? Maak het verhuisadres leeg bij Uiterlijk.');
+  }
 
   const { title, slug, content, excerpt, status, pinned, cover_image_url, tags, noindex, type } = req.body;
   const fanOnly = req.body.fan_only ? 1 : 0;
@@ -356,8 +380,7 @@ router.post('/posts/create', requireAuth, (req, res) => {
   // Duplicate title/slug? Make it unique automatically (title-2, title-3, …) instead of rejecting.
   finalSlug = uniqueSlug(site.id, finalSlug);
 
-  const validTypes = new Set(['post', 'foto', 'video', 'audio']);
-  const finalType = validTypes.has(type) ? type : 'post';
+  const finalType = POST_TYPES.has(type) ? type : 'post';
   const pollJson = parsePollForm(req.body);   // AS2 Question definition, or null
   const postId = uuid();
   const now = new Date().toISOString();
@@ -446,8 +469,12 @@ router.get('/posts/:slug/edit', requireAuth, (req, res) => {
   try { pollLocked = !!(post.poll_json && db.prepare('SELECT 1 FROM poll_votes WHERE post_id = ? LIMIT 1').get(post.id)); } catch { /* ignore */ }
 
   renderPage(req, res, 'pages/post-edit', {
+    // Zelfde modules als de nieuw-route hierboven: zonder deze regel laadt de
+    // editor niet, en dan wist een opslag de post (shaer-5s1, de beet van 7-8).
+    pageJs: 'post-edit playlist-editor',
     post,
     isNew: false,
+    keuzeTypes: KEUZE_TYPES,
     pollLocked,
     fediOpenAudio: postAudioFediOpen(site.id, post.content),
     pageTitle: 'Edit: ' + (post.title || 'Untitled'),
@@ -469,6 +496,16 @@ router.post('/posts/:slug/save', requireAuth, (req, res) => {
     return res.status(403).send('No permission');
   }
 
+  // Verhuisd: een BESTAANDE post bewerken mag nog -- daar wil je juist "ik ben
+  // verhuisd naar ..." in kunnen zetten, en die URI bestaat al. Een concept
+  // alsnog publiceren mag niet: dat is nieuwe inhoud op een adres dat je hebt
+  // opgezegd.
+  if (post.status !== 'published' && String(req.body.status || '') === 'published'
+      && ActivityPubService.movedLock(site).locked) {
+    return res.status(409).send('Dit account is verhuisd. Publiceren doe je op '
+      + ActivityPubService.movedLock(site).movedTo + '. Bestaande berichten bewerken kan hier wel.');
+  }
+
   const { title, content, excerpt, status, pinned, cover_image_url, tags, noindex, type } = req.body;
   const fanOnly = req.body.fan_only ? 1 : 0;
   const paid = (premiumUnlocked() && req.body.paid) ? 1 : 0;   // paid posts (klonkt-demo-aki)
@@ -480,8 +517,7 @@ router.post('/posts/:slug/save', requireAuth, (req, res) => {
   const language = /^[a-z]{2,3}(-[A-Za-z]{2,4})?$/.test(req.body.language || '') ? req.body.language : (res.locals.lang || null); // BCP-47 content language
   const newSlug = req.body.slug;
   const action = req.body.action || 'save';
-  const validTypes = new Set(['post', 'foto', 'video', 'audio']);
-  const finalType = validTypes.has(type) ? type : (post.type || 'post');
+  const finalType = POST_TYPES.has(type) ? type : (post.type || 'post');
 
   // A poll that has already received votes is frozen (you can still edit the surrounding
   // post, but not the options) — changing options after votes would scramble the tally and
@@ -558,6 +594,11 @@ router.post('/posts/:slug/save', requireAuth, (req, res) => {
       content: cleanContent, cover_image_url: cover_image_url || null, cover_video_url: req.body.cover_video_url || null, cover_alt: coverAlt, language,
       published_at: publishedAt, created_at: post.created_at, fan_only: fanOnly, paid, paid_min_cents: paidMinCents, excerpt: excerpt || '', nsfw, content_warning: cw, poll_json: pollJson,
     };
+    // Op een verhuisd account mag een BESTAANDE post nog bewerkt worden -- daar
+    // wil je juist "ik ben verhuisd naar ..." in kunnen zetten, en die URI
+    // bestaat al. Wat niet mag is een concept alsnog publiceren: dat is nieuwe
+    // inhoud op een adres dat je hebt opgezegd. deliverCreate/deliverUpdate
+    // weigeren zelf ook, dit voorkomt alleen de lokale halve toestand.
     if (post.status !== 'published') ActivityPubService.deliverCreate(site, apPost).catch(() => { /* best-effort */ });
     else ActivityPubService.deliverUpdate(site, apPost).catch(() => { /* best-effort */ });
   }
@@ -652,6 +693,22 @@ router.get('/archive', (req, res) => {
 // everywhere. Solo: within the site (pinned first, then date). Hub: globally by date.
 // Renders a post's display HTML: baked content + the dynamic audio/embed layer.
 // Extracted so the paid unlock (slice 4) serves the exact same body as the page.
+// Dezelfde berichten, klaar voor de leesweergave.
+//
+// Tijdlijn en Grid tonen kaartjes; Lezen toont het hele stuk. Het is dus geen
+// andere PAGINA maar een andere vorm van dezelfde rijen -- vandaar dat de feed
+// ze alledrie meestuurt en CSS kiest, precies zoals timeline/grid dat al deden.
+//
+// Het lijf loopt door PostAccessService: een gesloten poort levert hier GEEN
+// tekst op, want wat niet gerenderd wordt kan ook niet lekken.
+function readerItems(site, rows, req) {
+  const viewer = OWA.viewerFor(req, site, { unlockedSlug: null });
+  return rows.map((post) => ({
+    post,
+    entry: postEntry(post, viewer, { renderBody: (p) => renderPostBodyHtml(site, p, req) }),
+  }));
+}
+
 export function renderPostBodyHtml(site, post, req) {
   let html = (post.content_rendered != null && post.content_rendered !== '')
     ? post.content_rendered
@@ -764,25 +821,17 @@ function paidTeaser(post, max = 280) {
   return text.length > max ? text.slice(0, max).replace(/\s+\S*$/, '') + '…' : text;
 }
 
-function postNeighbors(site, post, isHub) {
-  const urlBaseFor = (p) => (isHub && p && p.site_slug) ? `/user/${p.site_slug}` : '';
-  const ordered = isHub
-    ? db.prepare(`
-        SELECT p.id, p.slug, p.title, p.pinned, s.slug AS site_slug
-        FROM posts p JOIN sites s ON s.id = p.site_id
-        WHERE p.status = 'published'
-        ORDER BY p.published_at DESC
-      `).all()
-    : db.prepare(`
-        SELECT id, slug, title, pinned FROM posts
-        WHERE site_id = ? AND status = 'published'
-        ORDER BY (pinned = 0) ASC, pinned ASC, published_at DESC
-      `).all(site.id);
+function postNeighbors(site, post) {
+  const ordered = db.prepare(`
+    SELECT id, slug, title, pinned FROM posts
+    WHERE site_id = ? AND status = 'published'
+    ORDER BY (pinned = 0) ASC, pinned ASC, published_at DESC
+  `).all(site.id);
   const idx = ordered.findIndex((p) => p.id === post.id);
   const newerPost = idx > 0 ? ordered[idx - 1] : null;
   const olderPost = (idx >= 0 && idx < ordered.length - 1) ? ordered[idx + 1] : null;
-  if (newerPost) newerPost._urlBase = urlBaseFor(newerPost);
-  if (olderPost) olderPost._urlBase = urlBaseFor(olderPost);
+  if (newerPost) newerPost._urlBase = '';
+  if (olderPost) olderPost._urlBase = '';
   return { newerPost, olderPost };
 }
 
@@ -804,6 +853,7 @@ router.get('/authorize_interaction', requireSiteManager, async (req, res) => {
     if (!target) { try { followTarget = await ActivityPubService.resolveRemoteActor(uri); } catch { /* ignore */ } }
   }
   renderPage(req, res, 'pages/authorize-interaction', {
+    pageJs: 'authorize-interaction reply-editor',
     pageTitleKey: 'fedi.remote_interact', // i18n: was hardcoded Dutch on non-NL sites
     bodyClass: 'on-special',
     uri,
@@ -815,7 +865,7 @@ router.get('/authorize_interaction', requireSiteManager, async (req, res) => {
     reported: !!req.query.reported,
     liked: !!req.query.liked,
     boosted: !!req.query.boosted,
-    reacted: (site && uri) ? ActivityPubService.getMyReactions(site.slug, uri) : { liked: false, boosted: false },
+    reacted: (site && uri) ? ActivityPubService.getReaction(site.slug, uri) : { liked: false, boosted: false },
     siteTitle: site ? site.title : '',
   });
 });
@@ -848,11 +898,12 @@ router.post('/authorize_interaction/like', requireSiteManager, (req, res) => {
   const uri = (req.body.uri || '').toString();
   let on = false;
   if (site && uri) {
-    on = !ActivityPubService.getMyReactions(site.slug, uri).liked;
+    on = !ActivityPubService.getReaction(site.slug, uri).liked;
     ActivityPubService.resolveRemoteNote(uri)
       .then((note) => note && ActivityPubService.sendInteraction(site, on ? 'like' : 'unlike', note.object_uri || uri, note.actor_uri))
       .catch((e) => console.warn('[AP] remote like failed:', e.message));
-    ActivityPubService.setMyReaction(site.slug, uri, 'like', on);
+    // Eén schrijfpad (shaer-9e9): tussentabel + afgeleide vlag.
+    ActivityPubService.setReaction(site.slug, uri, 'like', on);
   }
   if (req.get('X-Requested-With') === 'fetch') return res.json({ ok: true, on });
   res.redirect('/authorize_interaction?uri=' + encodeURIComponent(uri));
@@ -865,18 +916,23 @@ router.post('/authorize_interaction/boost', requireSiteManager, (req, res) => {
   const uri = (req.body.uri || '').toString();
   let on = false;
   if (site && uri) {
-    on = !ActivityPubService.getMyReactions(site.slug, uri).boosted;
+    on = !ActivityPubService.getReaction(site.slug, uri).boosted;
     ActivityPubService.resolveRemoteNote(uri)
       .then((note) => {
         if (!note) return;
         const id = note.object_uri || uri;
         return Promise.resolve(ActivityPubService.sendInteraction(site, on ? 'boost' : 'unboost', id, note.actor_uri))
-          // Boost → store the post in the timeline (even if you don't follow the author) so it
-          // surfaces in the Cirkel; unboost → just clear the flag.
-          .then(() => on ? ActivityPubService.upsertBoostedNote(site.slug, note) : ActivityPubService.unmarkBoosted(site.slug, id));
+          // De note gaat mee: een boost zet niet alleen een vlag maar trekt de
+          // post je tijdlijn in, ook als je de auteur niet volgt, zodat hij in
+          // de Cirkel verschijnt.
+          .then(() => ActivityPubService.setReaction(site.slug, uri, 'boost', on, { flagUri: id, note: on ? note : null }));
       })
       .catch((e) => console.warn('[AP] remote boost failed:', e.message));
-    ActivityPubService.setMyReaction(site.slug, uri, 'boost', on);
+    // Meteen zetten, zodat de knop klopt voordat de resolve terug is. Via
+    // setReaction en niet via setMyReaction: ook dit korte moment mag geen
+    // halve schrijfactie zijn. De resolve hierboven werkt hem daarna bij met de
+    // note, zodat de post ook in je tijdlijn belandt.
+    ActivityPubService.setReaction(site.slug, uri, 'boost', on);
   }
   if (req.get('X-Requested-With') === 'fetch') return res.json({ ok: true, on });
   res.redirect('/authorize_interaction?uri=' + encodeURIComponent(uri));
@@ -886,11 +942,16 @@ router.post('/authorize_interaction/boost', requireSiteManager, (req, res) => {
 router.post('/authorize_interaction/follow', requireSiteManager, (req, res) => {
   const site = res.locals.site;
   const uri = (req.body.uri || '').toString();
-  if (site && uri) {
-    ActivityPubService.followActor(site, uri)
-      .catch((e) => console.warn('[AP] remote follow failed:', e.message));
-  }
-  res.redirect('/authorize_interaction?followed=1&uri=' + encodeURIComponent(uri));
+  if (!site || !uri) return res.redirect('/authorize_interaction?followed=1&uri=' + encodeURIComponent(uri));
+  // Afwachten in plaats van wegsturen: ligt het verzoek bij de guardians, dan
+  // moet dat op het scherm staan (shaer-p729). "followed=1" terwijl er niets
+  // gebeurd is, is precies de leugen die de poort waardeloos maakt.
+  ActivityPubService.followActor(site, uri)
+    .then((r) => res.redirect('/authorize_interaction?' + (r && r.held ? 'held=1' : 'followed=1') + '&uri=' + encodeURIComponent(uri)))
+    .catch((e) => {
+      console.warn('[AP] remote follow failed:', e.message);
+      res.redirect('/authorize_interaction?error=1&uri=' + encodeURIComponent(uri));
+    });
 });
 
 router.post('/authorize_interaction', requireSiteManager, (req, res) => {
@@ -939,7 +1000,7 @@ router.get('/messages', requireSiteManager, (req, res) => {
     ? Guardianship.offersCollection(`${gMe}/queues/offers`, site.slug, gMe).orderedItems
     : []).filter((o) => o['shaer:ward'] === gMe && o['shaer:needsMyAccept']);
   renderPage(req, res, 'pages/messages', {
-    pageTitleKey: 'msg.title', bodyClass: 'on-special', items, seenAt,
+    pageTitleKey: 'msg.title', bodyClass: 'on-special', pageJs: 'messages reply-editor', items, seenAt,
     hasMore, nextOffset: offset + FEED_PAGE, moreBase, guardianOffers,
     success: req.query.success || null, error: req.query.error || null,
   });
@@ -968,12 +1029,65 @@ router.post('/messages/quick-reply', requireSiteManager, express.urlencoded({ ex
   const back = `${res.locals.siteUrlBase || ''}/messages`;
   const to = String(req.body.to || '').trim();
   const text = String(req.body.text || '').trim().slice(0, 200);
-  if (!site || !/^https?:\/\//i.test(to) || !text) return res.redirect(back + '?error=quickreply');
+  // Zwaaien is een seintje, en een seintje hoort de pagina niet te herladen.
+  // De module stuurt hem met X-Requested-With: fetch en krijgt JSON terug;
+  // zonder JS blijft het formulier gewoon posten en omleiden.
+  const viaFetch = req.get('X-Requested-With') === 'fetch';
+  const mis = (reden) => (viaFetch ? res.status(400).json({ ok: false, error: reden }) : res.redirect(back + '?error=' + reden));
+  if (!site || !/^https?:\/\//i.test(to) || !text) return mis('quickreply');
   try {
     const r = await ActivityPubService.deliverDirectNote(site, { recipients: [to], text, wave: true });
-    if (r) return res.redirect(back + '?success=wave_sent');
+    if (r) return viaFetch ? res.json({ ok: true }) : res.redirect(back + '?success=wave_sent');
   } catch { /* fall through */ }
-  res.redirect(back + '?error=quickreply');
+  return mis('quickreply');
+});
+
+// Antwoorden vanuit een gesprek in Berichten. Twee paden, en welke het wordt
+// bepaalt de draad zelf (zie groupConversations → replyTo):
+//   - hangt de draad aan een post van jou, dan is dit een gewone reply op het
+//     nieuwste ontvangen bericht erin: deliverReply, publiek zoals de thread;
+//   - hangt hij aan een persoon, dan is het een direct bericht terug.
+// Rijk in beide gevallen: `content` is de HTML uit de reply-editor, `text` de
+// platte versie die de editor er altijd bij levert (en die het no-JS-formulier
+// als enige stuurt).
+router.post('/messages/reply', requireSiteManager, async (req, res) => {
+  const site = res.locals.site;
+  const back = `${res.locals.siteUrlBase || ''}/messages`;
+  if (!site) return res.status(404).send('Site required');
+  const text = String(req.body.text || '');
+  const html = String(req.body.content || '');
+  let attachments = [];
+  try { attachments = JSON.parse(req.body.attachments || '[]'); } catch { /* geen media */ }
+  let mentions;
+  try { if (req.body.mentions !== undefined) mentions = JSON.parse(req.body.mentions || '[]'); } catch { mentions = undefined; }
+  const language = String(req.body.language || '');
+  // Leeg is leeg: een bericht zonder tekst EN zonder media is geen bericht.
+  if (!text.trim() && !html.trim() && !attachments.length) return res.redirect(back + '?error=reply_empty');
+
+  const interactionId = parseInt(req.body.interaction_id, 10) || 0;
+  const postSlug = String(req.body.post_slug || '');
+  const toActor = String(req.body.to || '');
+  try {
+    if (interactionId && postSlug) {
+      const post = db.prepare('SELECT id, slug FROM posts WHERE site_id = ? AND slug = ?').get(site.id, postSlug);
+      const parent = ActivityPubService.getInteractionById(interactionId);
+      // De parent MOET bij deze post horen: anders zou een gemanipuleerd
+      // formulier een antwoord onder andermans draad kunnen hangen.
+      if (!post || !parent || parent.post_id !== post.id) return res.redirect(back + '?error=reply_target');
+      await ActivityPubService.deliverReply(site, {
+        postId: post.id, postSlug: post.slug, parent, text, html, attachments, mentions, language,
+      });
+    } else if (/^https?:\/\//i.test(toActor)) {
+      const r = await Guardianship.deliverDirectNote(site, { recipients: [toActor], text, html, language, attachments });
+      if (!r) return res.redirect(back + '?error=reply_failed');
+    } else {
+      return res.redirect(back + '?error=reply_target');
+    }
+  } catch (e) {
+    console.warn('[AP] reply from Berichten failed:', e.message);
+    return res.redirect(back + '?error=reply_failed');
+  }
+  res.redirect(back + '?success=reply_sent');
 });
 
 router.get('/fediverse', requireSiteManager, (req, res) => res.redirect(`${res.locals.siteUrlBase || ''}/messages`));
@@ -1148,6 +1262,7 @@ router.get('/news', requireSiteManager, (req, res) => {
     return renderPage(req, res, 'partials/news-append', { timeline, hasMore, nextOffset: offset + FEED_PAGE, moreBase });
   }
   renderPage(req, res, 'pages/news', {
+    pageJs: 'news',
     pageTitle: 'News', bodyClass: 'on-special',
     timeline, hasMore, nextOffset: offset + FEED_PAGE, moreBase,
     success: req.query.success || null, error: req.query.error || null,
@@ -1181,9 +1296,18 @@ router.get('/connect', requireSiteManager, (req, res) => {
       availability: (gStatus[g.other_uri] || {})['shaer:availability'] || 'active',
       awayUntil: (gStatus[g.other_uri] || {})['shaer:awayUntil'] || null,
     }));
+  // De eigenaarspoort: openstaande volgverzoeken, alleen buiten voogdij.
+  // Een ward-follow beslissen de guardians — die tonen we hier dus NIET,
+  // anders is deze pagina een deur naast hun poort.
+  const followRequests = (site && !myGuardians.length)
+    ? Guardianship.follows.listForWard(site.slug) : [];
   renderPage(req, res, 'pages/connect', {
     pageTitle: 'Connect', bodyClass: 'on-special',
-    connections, myGuardians,
+    connections, myGuardians, followRequests,
+    approveFollowers: !!(site && site.approve_followers),
+    // Na een verhuizing staat de uitgaande kant op slot. Dat hoort te blijken
+    // VOORDAT je op een knop drukt, niet daarna uit een foutmelding.
+    movedTo: ActivityPubService.movedLock(site).movedTo,
     success: req.query.success || null, error: req.query.error || null,
   });
 });
@@ -1200,6 +1324,41 @@ router.post('/followers/:id/remove', requireSiteManager, (req, res) => {
     : 'error=' + encodeURIComponent('Volger niet gevonden')));
 });
 
+// De poort zelf aan- of uitzetten, op de plek waar de verzoeken toch al
+// staan (Robins wens, 18-8: "op de connect is logischer").
+router.post('/connect/approve-followers', requireSiteManager, (req, res) => {
+  const site = res.locals.site;
+  const base = res.locals.siteUrlBase || '';
+  if (site) {
+    db.prepare('UPDATE sites SET approve_followers = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+      .run(req.body.on ? 1 : 0, site.id);
+  }
+  return res.redirect(`${base}/connect`);
+});
+
+// De eigenaarspoort beslist (Robins wens, 18-8): accepteer of weiger een
+// volgverzoek dat door approve_followers is vastgehouden. Bewust NIET voor
+// wards — daar beslissen de guardians, en deze route weigert dan hard, zodat
+// hij geen sluiproute naast die poort wordt.
+router.post('/follow-requests/:decision', requireSiteManager, async (req, res) => {
+  const site = res.locals.site;
+  const base = res.locals.siteUrlBase || '';
+  const { decision } = req.params;
+  if (!site || !['approve', 'deny'].includes(decision)) return res.redirect(`${base}/connect`);
+  if (Guardianship.listGuardians(site.slug).length) {
+    return res.redirect(`${base}/connect?error=` + encodeURIComponent('Volgverzoeken lopen via je guardians'));
+  }
+  const pending = Guardianship.follows.getPending(String(req.body.id || ''));
+  if (!pending || pending.ward_slug !== site.slug || pending.status !== 'pending') {
+    return res.redirect(`${base}/connect?error=` + encodeURIComponent('Verzoek niet gevonden'));
+  }
+  if (decision === 'approve') await ActivityPubService.acceptGatedFollow(pending);
+  else await ActivityPubService.rejectGatedFollow(pending);
+  Guardianship.follows.remove(pending.id);
+  return res.redirect(`${base}/connect?success=` + encodeURIComponent(
+    decision === 'approve' ? 'Volger geaccepteerd' : 'Verzoek geweigerd'));
+});
+
 router.post('/news/follow', requireSiteManager, async (req, res) => {
   const site = res.locals.site;
   const handle = (req.body.handle || '').toString();
@@ -1207,13 +1366,82 @@ router.post('/news/follow', requireSiteManager, async (req, res) => {
   if (site && handle.trim()) {
     try {
       const r = await ActivityPubService.followActor(site, handle, !!req.body.auto_boost);
-      if (r && r.error) q = 'error=' + encodeURIComponent(r.error === 'not_found' ? 'Account niet gevonden' : (r.error === 'unreachable' ? 'Server onbereikbaar' : 'Volgen mislukt'));
+      // 'moved' is geen mislukking maar een weigering met een reden, en die reden
+      // hoort de gebruiker te lezen. "Volgen mislukt" laat hem zoeken naar een
+      // storing die er niet is.
+      if (r && r.error === 'moved') q = 'error=' + encodeURIComponent(`Dit account is verhuisd naar ${r.movedTo}. Volgen doe je daarvandaan.`);
+      else if (r && r.error) q = 'error=' + encodeURIComponent(r.error === 'not_found' ? 'Account niet gevonden' : (r.error === 'unreachable' ? 'Server onbereikbaar' : 'Volgen mislukt'));
+      // Een DERDE uitkomst, niet gelukt en niet mislukt (shaer-p729). "Je volgt
+      // nu X" zeggen terwijl het verzoek bij de guardians ligt is de leugen die
+      // deze poort waardeloos maakt: het kind denkt dat het gebeurd is.
+      else if (r && r.held) q = 'success=' + encodeURIComponent(r.status === 'denied' ? 'Je guardians hebben dit geweigerd' : 'Je verzoek ligt bij je guardians');
       else {
         q = 'success=' + encodeURIComponent('Je volgt nu ' + ((r && r.name) || handle));
       }
     } catch (e) { q = 'error=' + encodeURIComponent('Volgen mislukt'); }
   }
   res.redirect('/following?' + q);
+});
+
+// ── Je volglijst meenemen ─────────────────────────────────────────
+//
+// Zonder dit was verhuizen halfslachtig: de Move vertelt je VOLGERS waar je heen
+// ging, maar niets vertelde JOU wie jij volgde. Die lijst stond alleen in de
+// database die je achterlaat.
+router.get('/news/following.csv', requireSiteManager, async (req, res) => {
+  const site = res.locals.site;
+  const { followingCsv } = await import('../services/ArchiveExportService.js');
+  const csv = site ? followingCsv(site.slug) : null;
+  if (!csv) return res.redirect('/connect?error=' + encodeURIComponent('Je volgt nog niemand'));
+  res.set('Content-Type', 'text/csv; charset=utf-8');
+  res.set('Content-Disposition', `attachment; filename="following-${site.slug}.csv"`);
+  // Privé: dit is de lijst van wie jij volgt, niets voor een cache onderweg.
+  res.set('Cache-Control', 'private, no-store');
+  res.send(csv);
+});
+
+// Een bestand OF geplakte tekst. Multer leest een multipart-formulier, en dat
+// bevat allebei: het bestandsveld en het tekstveld. In het geheugen, niet op
+// schijf: dit is een lijstje adressen van een paar kilobyte dat na het lezen
+// niets meer te zoeken heeft op de server.
+const followingCsvUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 512 * 1024, files: 1 },
+}).single('csvfile');
+
+router.post('/news/following/import', requireSiteManager, followingCsvUpload, async (req, res) => {
+  const site = res.locals.site;
+  // Een geupload bestand wint van het plakveld: wie een bestand kiest bedoelt dat.
+  const csv = (req.file && req.file.buffer)
+    ? req.file.buffer.toString('utf8').replace(/^﻿/, '')   // BOM eraf; Excel zet die erin
+    : ((req.body && req.body.csv) || '');
+  // Terug naar waar je vandaan kwam. Sinds 14-8 staat dit formulier op
+  // /admin/migrate (Robin: alle migratie-opties bij elkaar); terugspringen naar
+  // Connect is dan desorienterend. Alleen een eigen pad, geen open redirect.
+  const terug = /^\/[A-Za-z0-9/_-]*$/.test(String(req.body.next || '')) ? String(req.body.next) : '/connect';
+  if (!site || !String(csv).trim()) return res.redirect(terug + '?error=' + encodeURIComponent('Geen lijst ontvangen'));
+
+  const { importFollowing } = await import('../services/ArchiveImportService.js');
+  // followActor als followFn: die doet de webfinger, stuurt de Follow en zet
+  // auto_boost meteen goed. Zo blijft er één pad naar een volgrelatie.
+  const r = await importFollowing(site, csv, {
+    followFn: async (s, adres, uitgelicht) => {
+      const uit = await ActivityPubService.followActor(s, adres, !!uitgelicht);
+      // followActor meldt een fout als VELD, niet als exception. Zonder deze
+      // vertaling telde een onvindbaar account gewoon als geslaagd mee.
+      if (uit && uit.error) throw new Error(uit.error);
+      return true;
+    },
+  });
+
+  const delen = [`${r.gevolgd} gevolgd`];
+  if (r.overgeslagen) delen.push(`${r.overgeslagen} overgeslagen`);
+  if (r.mislukt.length) {
+    const namen = r.mislukt.slice(0, 3).map((m) => m.adres).join(', ');
+    delen.push(`${r.mislukt.length} mislukt (${namen}${r.mislukt.length > 3 ? '…' : ''})`);
+  }
+  // Terug naar /connect: daar staat het blok, /following is de oude pagina.
+  res.redirect(terug + '?' + (r.mislukt.length ? 'error=' : 'success=') + encodeURIComponent(delen.join(', ')));
 });
 
 router.post('/news/unfollow', requireSiteManager, async (req, res) => {
@@ -1238,9 +1466,9 @@ router.post('/news/like', requireSiteManager, async (req, res) => {
   const note = (req.body.note || '').toString();
   let on = false;
   if (site && note) {
-    on = !ActivityPubService.getTimelineReaction(site.slug, note).liked;
+    on = !ActivityPubService.getReaction(site.slug, note).liked;
     try { await ActivityPubService.sendInteraction(site, on ? 'like' : 'unlike', note, (req.body.author || '').toString()); } catch (e) { /* ignore */ }
-    if (on) ActivityPubService.markLiked(site.slug, note); else ActivityPubService.unmarkLiked(site.slug, note);
+    ActivityPubService.setReaction(site.slug, note, 'like', on);
   }
   if (req.get('X-Requested-With') === 'fetch') return res.json({ ok: true, on });
   res.redirect('/news');
@@ -1252,18 +1480,16 @@ router.post('/news/boost', requireSiteManager, async (req, res) => {
   const note = (req.body.note || '').toString();
   let on = false;
   if (site && note) {
-    on = !ActivityPubService.getTimelineReaction(site.slug, note).boosted;
+    on = !ActivityPubService.getReaction(site.slug, note).boosted;
     try { await ActivityPubService.sendInteraction(site, on ? 'boost' : 'unboost', note, (req.body.author || '').toString()); } catch (e) { /* ignore */ }
+    ActivityPubService.setReaction(site.slug, note, 'boost', on); // instant UI state
     if (on) {
-      ActivityPubService.markBoosted(site.slug, note); // instant UI state
       // Fire-and-forget: re-resolve the note so the cached row is refreshed
       // (cover/content) — boosting again heals a stale copy from EVERY boost
       // path, not just the interact page.
       ActivityPubService.resolveRemoteNote(note)
-        .then((n) => { if (n) ActivityPubService.upsertBoostedNote(site.slug, n); })
+        .then((n) => { if (n) ActivityPubService.setReaction(site.slug, note, 'boost', true, { note: n }); })
         .catch(() => { /* best-effort */ });
-    } else {
-      ActivityPubService.unmarkBoosted(site.slug, note);
     }
   }
   if (req.get('X-Requested-With') === 'fetch') return res.json({ ok: true, on });
@@ -1345,8 +1571,9 @@ router.get('/:slug', (req, res, next) => {
   const _u = req.query.u ? verifyBlob(String(req.query.u)) : null;
   const _unlocked = _u && _u.purpose === 'unlocked' && _u.siteId === site.id && String(_u.post) === String(post.slug);
   if (post.paid && !canEditThis && !_unlocked) {
-    const { newerPost, olderPost } = postNeighbors(site, post, res.locals.tenancy === 'hub');
+    const { newerPost, olderPost } = postNeighbors(site, post);
     return renderPage(req, res, 'pages/paid-gate', {
+    pageJs: 'paid-gate',
       pageTitle: post.title || 'Voor supporters',
       bodyClass: 'on-special',
       pgTitle: post.title || '',
@@ -1362,15 +1589,19 @@ router.get('/:slug', (req, res, next) => {
   // Fan-only preview (premium #3): full content only for logged-in fans.
   // Anonymous visitors get a clean login gate instead of the content (the title/
   // teaser may still appear elsewhere as a teaser).
-  if (post.fan_only && !(req.session && req.session.user)) {
+  // Een bezoeker die via OpenWebAuth bewees @iemand@ergens te zijn EN deze site
+  // volgt, is precies wie fan_only bedoelde. Die hoeft geen poort te zien.
+  const _fediVolger = OWA.isFollowerOf(site.slug, OWA.guestActor(req));
+  if (post.fan_only && !(req.session && req.session.user) && !_fediVolger) {
     // Same Newer/Older navigation as on a normal post, so the visitor doesn't get
     // stuck on the fan gate but can keep browsing.
-    const { newerPost, olderPost } = postNeighbors(site, post, res.locals.tenancy === 'hub');
+    const { newerPost, olderPost } = postNeighbors(site, post);
     return renderPage(req, res, 'pages/fan-gate', {
       pageTitle: post.title || 'Alleen voor fans',
       bodyClass: 'on-special',
       fgTitle: post.title || '',
       fgNext: (res.locals.siteUrlBase || '') + '/' + post.slug,
+      owaError: !!(req.query && req.query.owa_error),
       newerPost,
       olderPost,
     });
@@ -1397,31 +1628,20 @@ router.get('/:slug', (req, res, next) => {
 
   // Prev / next chronological (kept for back-compat — "post-nav" feature
   // below the article still uses these as a simple linear navigation).
-  // Hub mode: Related posts + Newer/Older pull from ALL users (all sites),
-  // newest first. Solo mode: within the current site (old behaviour).
-  const isHub = res.locals.tenancy === 'hub';
-  // Per-post URL base: in hub a link points to /user/<site-slug>/<post-slug>.
-  const urlBaseFor = (p) => (isHub && p && p.site_slug) ? `/user/${p.site_slug}` : '';
+  const urlBaseFor = () => '';
 
   // Newer/Older across ALL posts (shared helper — also used by the fan gate).
-  const { newerPost, olderPost } = postNeighbors(site, post, isHub);
+  const { newerPost, olderPost } = postNeighbors(site, post);
 
   // ── Related posts: same-tag matching with recency fallback ─────
   // Fetch ~50 candidates, score by tag overlap, take top 3.
   // Excluding self via `id != ?`.
-  const candidates = isHub
-    ? db.prepare(`
-        SELECT p.id, p.slug, p.title, p.cover_image_url, p.cover_video_url, p.published_at, p.tags, p.nsfw, p.content_warning, s.slug AS site_slug
-        FROM posts p JOIN sites s ON s.id = p.site_id
-        WHERE p.status = 'published' AND p.id != ?
-        ORDER BY p.published_at DESC LIMIT 50
-      `).all(post.id)
-    : db.prepare(`
-        SELECT id, slug, title, cover_image_url, cover_video_url, published_at, tags, nsfw, content_warning
-        FROM posts
-        WHERE site_id = ? AND status = 'published' AND id != ?
-        ORDER BY published_at DESC LIMIT 50
-      `).all(site.id, post.id);
+  const candidates = db.prepare(`
+    SELECT id, slug, title, cover_image_url, cover_video_url, published_at, tags, nsfw, content_warning
+    FROM posts
+    WHERE site_id = ? AND status = 'published' AND id != ?
+    ORDER BY published_at DESC LIMIT 50
+  `).all(site.id, post.id);
 
   // Parse tags JSON safely; missing/malformed → empty array.
   const parseTags = (raw) => {
@@ -1474,6 +1694,7 @@ router.get('/:slug', (req, res, next) => {
   const siteAvatar = (site && site.profile_photo) ? site.profile_photo : null;
 
   renderPage(req, res, 'pages/post', {
+    pageJs: 'post reply-editor',
     post,
     poll: ActivityPubService.ownPollView(post),
     newerPost,
@@ -1525,19 +1746,21 @@ router.post('/posts/:slug/fedi-react', requireSiteManager, async (req, res) => {
   const parent = ActivityPubService.getInteractionById(req.body.interaction_id);
   const kind = req.body.kind === 'boost' ? 'boost' : 'like';
   if (parent && parent.post_id === post.id && parent.object_uri) {
-    if (kind === 'boost') {
-      // Toggle: boost an unboosted comment, or retract it (Undo Announce) if already boosted.
-      const on = !parent.acted_boost;
-      ActivityPubService.sendInteraction(site, on ? 'boost' : 'unboost', parent.object_uri, parent.actor_uri)
-        .catch((e) => console.warn('[AP] reaction failed:', e.message));
-      ActivityPubService.setInteractionBoosted(parent.id, on);
-    } else {
-      // Toggle: like an unliked comment, or un-favourite (Undo Like) if already liked.
-      const on = !parent.acted_like;
-      ActivityPubService.sendInteraction(site, on ? 'like' : 'unlike', parent.object_uri, parent.actor_uri)
-        .catch((e) => console.warn('[AP] reaction failed:', e.message));
-      ActivityPubService.setInteractionLiked(parent.id, on);
-    }
+    // Toggle: react, or retract it (Undo Announce / Undo Like) if already on.
+    // De stand komt uit dezelfde bron als de knop die je zag; leest de toggle uit
+    // de kolom en de knop uit de tussentabel, dan draait een divergentie de
+    // richting om en stuur je een Undo voor iets dat nooit is verstuurd.
+    const ik = ActivityPubService.getReaction(site.slug, parent.object_uri);
+    const on = kind === 'boost' ? !ik.boosted : !ik.liked;
+    ActivityPubService.sendInteraction(site, on ? kind : `un${kind}`, parent.object_uri, parent.actor_uri)
+      .catch((e) => console.warn('[AP] reaction failed:', e.message));
+    // De tussentabel is de waarheid (shaer-ipb), gesleuteld op object_uri -- net
+    // als de Like die hierboven de fediverse in gaat. acted_* blijft voorlopig
+    // als afgeleide meelopen, hetzelfde vangnet dat ap_timeline.liked na
+    // shaer-9e9 is: pas weghalen als deze migratie een release heeft ingelopen.
+    ActivityPubService.setReaction(site.slug, parent.object_uri, kind, on);
+    if (kind === 'boost') ActivityPubService.setInteractionBoosted(parent.id, on);
+    else ActivityPubService.setInteractionLiked(parent.id, on);
   }
   res.redirect(`${res.locals.siteUrlBase || ''}/${post.slug}#fediverse`);
 });

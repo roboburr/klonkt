@@ -3,4 +3,7 @@
     itself (beforeend), so display:contents lets the tiles lay out as direct grid
     items instead of nesting under an extra box. %>
 <div hx-swap-oob="beforeend:#grid-tiles" style="display:contents"><% posts.forEach(function(post){ %><%- include('post-tile', { post: post }) %><% }); %></div>
+<%# Lezen: dezelfde berichten OOB achteraan de leesstroom, net als de tegels
+    hierboven. Zonder dit zou "meer laden" in de leesweergave niets doen. %>
+<% if (typeof readerItems !== 'undefined' && readerItems && readerItems.length) { %><div hx-swap-oob="beforeend:#read-stream" style="display:contents"><% readerItems.forEach(function(it){ %><%- include('read-article', { post: it.post, entry: it.entry }) %><% }); %></div><% } %>
 <%- include('load-more', { hasMore: hasMore, nextOffset: nextOffset, moreBase: moreBase, moreTarget: '#post-list', morePath: (typeof morePath !== 'undefined' ? morePath : '/'), oob: true }) %>

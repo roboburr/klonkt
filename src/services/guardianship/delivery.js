@@ -12,6 +12,7 @@
  */
 import crypto from 'crypto';
 import db from '../../config/database.js';
+import { carriesGuardians } from './context.js';
 
 const PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
 
@@ -39,7 +40,7 @@ export function c2sVisibility(object) {
 // so no boosts and no timelines. The same S2S leg a Mastodon DM takes, so a
 // guardian on any instance receives it as a private mention (the ward
 // call-for-help path).
-export async function deliverDirectNote(site, { recipients, text, language, inReplyTo, attachments, helpRequest, wave, awayUntil }) {
+export async function deliverDirectNote(site, { recipients, text, html, language, inReplyTo, attachments, helpRequest, wave, awayUntil, helpMark, gateRequest }) {
   const { actorId, fetchActor, localActor, deliverTo, deriveHandle, escHtml, linkUrls, linkHashtags,
           getOutboxRow, buildReplyNote, AP_CONTEXT, getOrCreateKeys, deliver, enqueueDelivery } = deps;
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
@@ -48,22 +49,63 @@ export async function deliverDirectNote(site, { recipients, text, language, inRe
   const me = actorId(base, site.slug);
   // Resolve every recipient for a mention anchor + a delivery inbox.
   const resolved = [];
+  const teapots = [];
   for (const uri of list) {
     // An actor we host is read from our own database, not fetched from our own
     // hostname: that request has to leave the machine and come back, and when
     // it does not, the recipient is silently dropped from the note. Everything
     // that decides anything still runs below, for local and remote alike.
-    const a = (localActor && localActor(uri)) || await fetchActor(uri).catch(() => null);
+    // ONDERTEKEND ophalen als het onbetekend niet lukt (asSlug). Een instance
+    // met Mastodons secure mode -- infosec.exchange bijvoorbeeld -- antwoordt
+    // 401 op een anonieme GET van het actor-document. Zonder document geen
+    // inbox, dus viel de ontvanger hier stil weg, en met de laatste ontvanger
+    // gaf deliverDirectNote null terug: "502 direct_failed", zonder te zeggen
+    // wie er niet bereikbaar was.
+    //
+    // Dezelfde les als bij het volgen vanaf een boost (Robins melding, 31-7):
+    // die weg kreeg toen signedGetJson, deze niet. fetchActor probeert nog
+    // steeds ONBETEKEND eerst -- dat blijft de veiligheidskeuze -- en tekent
+    // alleen deze ene URL als dat mislukt.
+    const a = (localActor && localActor(uri))
+      || await fetchActor(uri, { asSlug: site.slug }).catch(() => null);
     if (!a || !(a.inbox || (a.endpoints && a.endpoints.sharedInbox))) continue;
+    // FEP-633c §4.1: an escalation addressed to a "guardian" that carries
+    // guardians of its own goes nowhere. There is no grand-guardian, so we
+    // MUST NOT recurse to that actor's guardians — and we fail SOFTLY: drop
+    // this one target and keep delivering to the rest, because a malformed
+    // guardian must never cost a child the guardians who are fine.
+    //
+    // Only for a call for help. An ordinary direct note is not an escalation,
+    // and a ward is perfectly entitled to message another ward.
+    if (helpRequest && carriesGuardians(a)) { teapots.push(uri); continue; }
     resolved.push({ uri, inbox: (a.endpoints && a.endpoints.sharedInbox) || a.inbox, local: !!a.local, handle: deriveHandle(uri), url: a.url || uri });
   }
-  if (!resolved.length) return null;
+  if (teapots.length) console.warn('[AP] not a teapot: escalation dropped for malformed guardian(s)', teapots.join(', '));
+  if (!resolved.length) {
+    // Every guardian was malformed. §4 does not say what to do here because
+    // §4.1 assumes there are others to continue to — but a ward whose whole
+    // safety net is broken has just called for help into nothing, which is the
+    // one outcome this FEP exists to prevent. Say so loudly; the caller can
+    // tell "nobody was reachable" from "nobody was valid".
+    if (teapots.length) console.error('[AP] EVERY guardian of', site.slug, 'is malformed: the call for help reached no one');
+    return null;
+  }
   const mention = resolved.map((r) => {
     const disp = r.handle && r.handle[0] === '@' ? r.handle : '@' + (r.handle || '');
     return `<a href="${escHtml(r.url)}" class="u-url mention" data-actor="${escHtml(r.uri)}">${escHtml(disp)}</a> `;
   }).join('');
+  // Rijk antwoord: `html` is de HTML uit de reply-editor, hier gesaneerd; `text`
+  // blijft de platte versie (het `source`-veld en de no-JS-fallback). Levert de
+  // sanitizer niets bruikbaars op, dan valt hij terug op de escaped tekst --
+  // een leeggepoetste editor mag geen leeg bericht versturen.
+  const richClean = html ? deps.sanitizeHtml(String(html)) : '';
+  const rich = richClean && deps.htmlToPlainText(richClean).trim() ? richClean : '';
   const body = escHtml(String(text).trim()).replace(/\r?\n/g, '<br>');
-  const content = `<p>${mention}${linkUrls(linkHashtags(base, body))}</p>`;
+  // De mention-anker blijft een eigen alinea vooraan: de ontvanger moet in het
+  // bericht genoemd staan, ook als de rijke inhoud met een kop of lijst begint.
+  const content = rich
+    ? `<p>${mention}</p>${linkUrls(linkHashtags(base, rich))}`
+    : `<p>${mention}${linkUrls(linkHashtags(base, body))}</p>`;
   const lang = /^[a-z]{2,3}(-[A-Za-z0-9-]+)?$/.test(String(language || '')) ? language : null;
   // Attachments: same rules as deliverReply (own /media/ uploads only,
   // image/audio/video, max 4) — the help-buoy capture rides this.
@@ -78,6 +120,16 @@ export async function deliverDirectNote(site, { recipients, text, language, inRe
     .run(id, site.slug, '', null, inReplyTo || null, resolved[0].uri, resolved[0].handle, content, lang, media.length ? JSON.stringify(media) : null, 'direct', JSON.stringify(resolved.map((r) => r.uri)), helpRequest ? 1 : 0, wave ? 1 : 0, awayUntil || null);
   const row = getOutboxRow(id);
   const note = buildReplyNote(base, site, row);
+  // Markering op een hulpvraag (shaer-lgo): een gewone directe note die er een
+  // shaer:-eigenschap bij draagt, net als de zwaai. Zo reist het over dezelfde
+  // bezorging, ziet de ward het als bericht ("er komt iemand"), en houden de
+  // mede-guardians er staat aan over.
+  if (helpMark && helpMark.noteUri) {
+    note[helpMark.kind === 'handled' ? 'shaer:helpHandled' : 'shaer:helpPickup'] = helpMark.noteUri;
+  }
+  // Een kind dat zelf om een poort vraagt (shaer-8ru). Alleen de naam van de
+  // feature reist mee -- geen vrije tekst, zie gatereq.js.
+  if (gateRequest) note['shaer:gateRequest'] = String(gateRequest);
   const create = {
     '@context': AP_CONTEXT,
     id: note.id + '#create', type: 'Create', actor: me,
@@ -103,7 +155,7 @@ export async function deliverDirectNote(site, { recipients, text, language, inRe
     else enqueueDelivery(site.slug, inbox, create);
   }
   console.log('[AP] direct note', site.slug, '→', resolved.length, 'recipient(s), delivered', delivered);
-  return { id, content, delivered };
+  return { id, content, delivered, teapots };
 }
 
 export default { wireDelivery, c2sVisibility, deliverDirectNote };

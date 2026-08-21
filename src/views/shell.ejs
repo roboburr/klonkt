@@ -90,6 +90,12 @@ const _publisher = {
 if (safeSite.publisher_logo) {
   _publisher.logo = { '@type': 'ImageObject', url: safeSite.publisher_logo };
 }
+// Dezelfde koppeling die de fediverse-actor draagt, hier in de JSON-LD
+// (shaer-mbz). sameAs is schema.org-eigen, dus dit is geen extra vocabulaire --
+// het is hetzelfde feit, verteld aan de andere lezer.
+if (safeSite.mb_artist_id) {
+  _publisher.sameAs = 'https://musicbrainz.org/artist/' + safeSite.mb_artist_id;
+}
 let _jsonLd = null;
 if (typeof post !== 'undefined' && post && post.slug) {
   _jsonLd = {
@@ -215,7 +221,7 @@ const _embedUrl = _postAudio
 <link rel="preload" href="/assets/fonts/fraunces-latin-full-normal.woff2" as="font" type="font/woff2" crossorigin>
 
 <!-- v9 stylesheet (full palette system) -->
-<link rel="stylesheet" href="/assets/css/style.css?v=67">
+<link rel="stylesheet" href="/assets/css/style.css?v=105">
 <script>
 /* iOS safe-area, built by hand. env(safe-area-inset-top) resolves to 0 on this iOS in
    BOTH Safari and the installed PWA (standalone), even with viewport-fit=cover, so the
@@ -338,7 +344,7 @@ const _embedUrl = _postAudio
 <% } %>
 </head>
 
-<body class="<%= bodyClass || 'on-home' %> has-bottom-tab" data-feed-view="<%- _e(safeSite.feed_view_default || 'timeline') %>" data-grid-cols="3" data-site-base="<%- _e((typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '') %>">
+<body class="<%= bodyClass || 'on-home' %> has-bottom-tab" data-js="chrome<%= (typeof pageJs !== 'undefined' && pageJs) ? ' ' + pageJs : '' %>" data-feed-view="<%- _e(safeSite.feed_view_default === 'grid' ? 'grid' : (["timeline","auto"].indexOf(safeSite.feed_alt_view) >= 0 ? safeSite.feed_alt_view : "reader")) %>" data-feed-alt="<%- _e(["timeline","auto"].indexOf(safeSite.feed_alt_view) >= 0 ? safeSite.feed_alt_view : "reader") %>" data-reader-pages="<%- safeSite.reader_full_page ? 1 : 0 %>" data-grid-cols="3" data-site-base="<%- _e((typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '') %>">
 
 <% if (typeof isViewer !== 'undefined' && isViewer) { %>
   <div class="viewer-banner" role="status">
@@ -427,6 +433,8 @@ const _embedUrl = _postAudio
   // De page-context body-classes. Bij pcmsNav strippen we ze allemaal en zetten
   // we opnieuw wat de server stuurde. 'on-auth' staat erbij zodat het login-
   // focusscherm óók via htmx z'n styling krijgt (geen chrome, geen tab, audio op 0).
+  // ALLES wat de server als page-class kan sturen moet hier staan: wat er niet in
+  // staat wordt bij een htmx-navigatie stilletjes weggefilterd.
   var PAGE_CLASSES = ['on-home','on-post','on-special','on-archive','on-search','on-admin','on-auth',
     'on-shows','on-downloads','on-download','on-epk','on-linkbio','on-newsletter',
     'on-tag','on-type','on-user','on-cirkel','on-hub','on-chat'];
@@ -446,6 +454,12 @@ const _embedUrl = _postAudio
     }
     if (d.palette && /^[a-z0-9-]+$/i.test(d.palette)) {
       document.documentElement.setAttribute('data-palette', d.palette);
+    }
+
+    // Welke modules deze pagina wil (shaer-bqr). De bootstrap hieronder leest
+    // dit zodra deze handler klaar is.
+    if (typeof d.js === 'string' && /^[a-z0-9 -]*$/.test(d.js)) {
+      document.body.setAttribute('data-js', d.js);
     }
 
     var next = d.bodyClass;
@@ -469,15 +483,126 @@ const _embedUrl = _postAudio
 })();
 </script>
 
+<!-- Modules laden (shaer-bqr). Inline script in gewisselde inhoud wordt door de
+     CSP geweigerd: de nonce rouleert per verzoek, dus een script dat via htmx
+     binnenkomt draagt er een die dit document niet kent (shaer-0i6). Alles wat
+     bij een pagina hoort komt daarom uit een module, en die wordt HIER geladen —
+     vanuit de shell, die alleen bij een volledige laadbeurt binnenkomt en dus
+     wél de goede nonce heeft.
+
+     Een dynamische import vanuit een vertrouwd (genonced) script is precies waar
+     'strict-dynamic' voor bedoeld is, dus de module zelf heeft geen nonce nodig. -->
+<script>
+(function () {
+  if (window.__modBoot) return;
+  window.__modBoot = true;
+
+  // ?v=N — cache-buster voor ALLE modules in assets/js/mod, net als bij
+  // audio-player.js hierboven. BUMP BIJ ELKE WIJZIGING IN DIE MAP. Zonder
+  // query staat /assets op max-age=1y, en dan blijft een browser die de
+  // pagina eerder bezocht een jaar lang de oude module draaien: een
+  // reparatie bereikt precies de bezoekers die hem al hebben.
+  // Eén nummer voor de hele map. Te vaak bumpen kost één download; te weinig
+  // bumpen kost een bugfix die nooit aankomt.
+  var MOD_V = 49;
+
+  // name -> 1 (aan het laden) of de module-namespace (geladen). Een module
+  // die `init` exporteert draait die bij ELKE paginawissel waarop hij actief
+  // is -- dat is het gedrag van de oude inline scripts, die per render
+  // draaiden. Een module zonder init draait alleen zijn top-level, een keer.
+  var loaded = {};
+  function start(name, m) {
+    if (!m || typeof m.init !== 'function') return;
+    try { m.init(); } catch (e) { console.warn('[mod] ' + name + ' init:', e && e.message); }
+  }
+  function load() {
+    var names = (document.body.getAttribute('data-js') || '').trim().split(/\s+/);
+    names.forEach(function (name) {
+      // Streng: deze waarde komt uit een template en wordt een PAD. Alleen
+      // kleine letters, cijfers en streepjes; nooit een punt of een schuine
+      // streep.
+      if (!name || !/^[a-z0-9-]+$/.test(name)) return;
+      if (loaded[name]) { start(name, loaded[name]); return; }
+      loaded[name] = 1;
+      import('/assets/js/mod/' + name + '.js?v=' + MOD_V).then(function (m) {
+        loaded[name] = m;
+        start(name, m);
+      }).catch(function (e) {
+        console.warn('[mod] ' + name + ' laadde niet:', e && e.message);
+      });
+    });
+  }
+  load();
+  // Bij een htmx-navigatie wisselt de INHOUD, niet de body. De nav-trigger
+  // hieronder zet data-js opnieuw; daarna halen we op wat er nieuw bij staat.
+  // Een module die er al is wordt niet opnieuw geimporteerd -- vandaar dat elke
+  // module gedelegeerd moet werken en tegen een tweede aanroep moet kunnen.
+  document.body.addEventListener('pcmsNav', load);
+})();
+</script>
+
 <!-- View switcher + grid-cols persistence (event delegation: works for switcher
      elements rendered later by HTMX, e.g. when navigating back to home). -->
 <script>
 (function() {
   var body = document.body;
-  // Restore feed view + grid cols from localStorage (overrides server default)
+
+  // DE CIRKEL HEEFT MAAR EEN WEERGAVE: Grid.
+  //
+  // Lezen is daar geen optie -- dat zijn berichten van ANDEREN, van hun servers,
+  // en "het hele stuk" hebben wij daar niet in handen. De knop staat er wel,
+  // maar dood (zie view-switcher.ejs). Er valt dus niets te kiezen en dus ook
+  // niets te onthouden: de eigen cirkel-voorkeur die hier stond
+  // ('pcms-cirkel-view') is vervallen, want hij kon nog maar een waarde hebben.
+  //
+  // Wat WEL blijft: de cirkel raakt je solo-keuze niet aan. Die staat in
+  // 'pcms-feed-view' en wordt hier nergens geschreven, zodat je thuiskomt in de
+  // weergave die je achterliet.
+  var CIRKEL_SLEUTEL = 'pcms-cirkel-view';
+  function opCirkel() { return body.classList.contains('on-cirkel'); }
+
+  /** Zet de weergave die bij DEZE pagina hoort. Draait bij init en bij elke nav. */
+  function pasWeergaveToe() {
+    try {
+      if (opCirkel()) {
+        // Lezen kan hier niet -- dat zijn berichten van ANDEREN, van hun servers,
+        // en "het hele stuk" hebben wij niet in handen. De knop staat er wel maar
+        // dood. Een TIJDLIJN kan hier juist bij uitstek: dat is de natuurlijke
+        // vorm van een cirkel.
+        //
+        // Beschikbaar, niet verplicht. Dit dwong eerst 'timeline' af zodra de
+        // site geen Lezen-site was, en dan kon je in de cirkel geen Grid meer
+        // kiezen. Nu is Grid de landing en is Tijdlijn een keuze ernaast.
+        var altC = body.dataset.feedAlt || 'reader';
+        var tijdlijnHier = altC === 'timeline'
+          || (altC === 'auto' && window.matchMedia('(min-width: 768px)').matches);
+        var magC = tijdlijnHier ? ['grid', 'timeline'] : ['grid'];
+        // Een EIGEN geheugen, en niet dat van solo. Twee redenen: hier kun je
+        // alleen uit Grid en Tijdlijn kiezen, dus een solo-keuze 'reader' zegt
+        // hier niets; en andersom mag een tuimeling hier je thuisweergave niet
+        // veranderen -- dan kom je thuis in iets anders dan je achterliet.
+        // (Dit geheugen stond er eerder al, verdween toen de cirkel nog maar een
+        // mogelijkheid had, en is nu weer nodig omdat Tijdlijn een echte keuze is.)
+        var vC = null;
+        try { vC = localStorage.getItem(CIRKEL_SLEUTEL); } catch (e) { /* geen opslag */ }
+        body.dataset.feedView = magC.indexOf(vC) >= 0 ? vC : 'grid';
+        return;
+      }
+      var v = localStorage.getItem('pcms-feed-view');
+      // 'timeline' is sinds 20-8 weer een geldige keuze, maar alleen op een site
+      // die hem AANBIEDT. Wie de tijdlijn koos op de ene site en daarna een
+      // Lezen-site bezoekt, moet daar niet op een weergave landen die er geen
+      // knop heeft: dan staat de pil grijs en is de feed niet wat hij koos.
+      // Vandaar de toets tegen wat deze site biedt, in plaats van een vaste
+      // vertaling naar 'reader'.
+      var alt = body.dataset.feedAlt || 'reader';
+      var mag = alt === 'auto' ? ['grid', 'reader', 'timeline'] : ['grid', alt];
+      if (mag.indexOf(v) >= 0) body.dataset.feedView = v;
+    } catch (e) { /* geen opslag: de server-standaard blijft staan */ }
+  }
+  pasWeergaveToe();
+
   try {
-    var v = localStorage.getItem('pcms-feed-view');
-    if (v === 'timeline' || v === 'grid') body.dataset.feedView = v;
     var c = parseInt(localStorage.getItem('pcms-grid-cols'), 10);
     if (c === 2 || c === 3 || c === 4) body.dataset.gridCols = String(c);
   } catch (e) {}
@@ -488,8 +613,17 @@ const _embedUrl = _postAudio
     // staat verderop, maar deze functie draait al bij init).
     var _feedC = ['on-home','on-tag','on-type','on-user','on-cirkel'];
     var _onFeed = _feedC.some(function(c){ return body.classList.contains(c); });
+    // Een weergave die op DEZE pagina niet KAN, kan ook niet actief zijn. In de
+    // cirkel staat Lezen er wel maar uitgeschakeld; pasWeergaveToe() heeft
+    // feedView daar al op 'grid' gezet, dus de terugval hieronder vuurt er niet.
+    // Hij blijft staan voor het geval een pagina een knop mist: zonder terugval
+    // staat de hele pil grijs terwijl er wel degelijk iets te zien is, en dan
+    // ziet de lezer nergens meer waar hij is. De solo-VOORKEUR blijft intact.
+    var _view = String(body.dataset.feedView || 'reader');
+    if (!/^[a-z]+$/.test(_view)) _view = 'reader';
+    if (!document.querySelector('.view-switch-btn[data-view="' + _view + '"]')) _view = 'reader';
     document.querySelectorAll('.view-switch-btn').forEach(function(b) {
-      b.setAttribute('aria-selected', (_onFeed && b.dataset.view === body.dataset.feedView) ? 'true' : 'false');
+      b.setAttribute('aria-selected', (_onFeed && !b.disabled && b.dataset.view === _view) ? 'true' : 'false');
     });
     document.querySelectorAll('.grid-cols-btn').forEach(function(b) {
       b.classList.toggle('is-active', b.dataset.cols === body.dataset.gridCols);
@@ -500,8 +634,11 @@ const _embedUrl = _postAudio
   // pcmsNav vuurt ná de body-class-update (zie de pcmsNav-listener hierboven), dus
   // dáár weet syncAria de juiste pagina-class — los van de afterSettle-timing.
   // Een vertraagde herhaling wint eventuele resterende races (OOB-chrome-swap).
-  document.body.addEventListener('htmx:afterSettle', function(){ syncAria(); setTimeout(syncAria, 60); });
-  document.body.addEventListener('pcmsNav', function(){ syncAria(); setTimeout(syncAria, 60); });
+  // Eerst de weergave die bij de NIEUWE pagina hoort, dan pas de pil bijwerken:
+  // van de cirkel naar huis en terug wisselt niet alleen de knop maar ook welke
+  // onthouden keuze telt.
+  document.body.addEventListener('htmx:afterSettle', function(){ pasWeergaveToe(); syncAria(); setTimeout(syncAria, 60); });
+  document.body.addEventListener('pcmsNav', function(){ pasWeergaveToe(); syncAria(); setTimeout(syncAria, 60); });
 
   // Pages where the body actually has a feed to toggle. On these the
   // click stays put — it just flips body[data-feed-view] and CSS does
@@ -523,9 +660,21 @@ const _embedUrl = _postAudio
   document.addEventListener('click', function(e) {
     var sw = e.target.closest('.view-switch-btn');
     if (sw) {
+      // Een dode knop doet niets. Een <button disabled> vuurt in de meeste
+      // browsers geen click, maar deze listener hangt op document en vangt ook
+      // wat er langs de randen komt -- dus expliciet, niet op goed vertrouwen.
+      if (sw.disabled) return;
       var view = sw.dataset.view;
       body.dataset.feedView = view;
-      try { localStorage.setItem('pcms-feed-view', view); } catch(_) {}
+      // Op de cirkel schrijven we NIETS. Daar is Grid de enige mogelijkheid, dus
+      // er valt niets te onthouden -- en je solo-keuze mag er zeker niet door
+      // veranderen: die moet je terugvinden zoals je hem achterliet.
+      try {
+        // De cirkel heeft zijn eigen geheugen, zodat een keuze daar je
+        // thuisweergave niet aanraakt en andersom.
+        if (opCirkel()) localStorage.setItem(CIRKEL_SLEUTEL, view);
+        else localStorage.setItem('pcms-feed-view', view);
+      } catch(_) {}
       syncAria();
       // On non-feed pages the switcher acts as a navigation: take the
       // user back to home in the chosen view. Use HTMX if available so

@@ -1,0 +1,541 @@
+/**
+ * Import van een draagbaar inhoudsarchief (shaer-pmr).
+ *
+ * Leest wat docs/EXPORT-FORMAT.md beschrijft. Vier regels uit dat document zijn
+ * geen implementatiekeuze maar eis, en ze staan hier alle vier expliciet:
+ *
+ *   VERSIE EERST   Een hogere onbekende formatVersion wordt in zijn GEHEEL
+ *                  geweigerd. Een half begrepen herstel is erger dan geen
+ *                  herstel, want het ziet eruit alsof het gelukt is.
+ *   IDENTITEIT     De origin uit het manifest bepaalt of de AP-ids behouden
+ *                  blijven. Dat is geen vraag aan de gebruiker: een verkeerd
+ *                  antwoord publiceert objecten onder een id dat je niet beheert.
+ *   NIETS STILS    Ontbrekende media worden geteld en gemeld.
+ *   GEEN UITZENDING Geen Update de fediverse in. Verouderde kopieen elders
+ *                  rechttrekken is een aparte, bewuste actie.
+ *
+ * `readable/` wordt nooit gelezen. Dat is de hele reden dat het afgeleid is.
+ */
+
+import fs from 'fs';
+import path from 'path';
+import zlib from 'zlib';
+import crypto from 'crypto';
+import { randomUUID } from 'crypto';
+import db from '../config/database.js';
+import { MEDIA_ROOT, AUDIO_ROOT } from '../config/paths.js';
+import { FORMAT_VERSION, parseFollowingCsv } from './ArchiveExportService.js';
+import * as Migration from './MigrationService.js';
+
+const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
+// De tijdstempel gaat er ONGEWIJZIGD in. Omzetten naar SQL-notatie kostte de
+// sub-seconde, en twee posts in dezelfde seconde staan dan in willekeurige
+// volgorde. Klonkt schrijft zelf ook ISO in deze kolommen.
+const tijd = (iso) => (iso && !isNaN(Date.parse(iso)) ? String(iso) : null);
+
+// ── Inlezen ───────────────────────────────────────────────────────
+
+/** Lees een archiefmap in als pad -> Buffer. */
+export function readArchiveDir(dir) {
+  const files = new Map();
+  const loop = (sub) => {
+    for (const naam of fs.readdirSync(path.join(dir, sub), { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const rel = sub ? `${sub}/${naam.name}` : naam.name;
+      if (naam.isDirectory()) loop(rel);
+      else files.set(rel, fs.readFileSync(path.join(dir, rel)));
+    }
+  };
+  loop('');
+  return files;
+}
+
+/**
+ * Lees een zip in. Onze eigen export is store-only, maar een archief dat elders
+ * gemaakt is mag deflate gebruiken -- anders is het geen uitwisselformaat.
+ */
+export function readArchiveZip(buf) {
+  const files = new Map();
+  const eocd = (() => {
+    for (let i = buf.length - 22; i >= 0 && i > buf.length - 66000; i--) if (buf.readUInt32LE(i) === 0x06054b50) return i;
+    return -1;
+  })();
+  if (eocd < 0) throw new Error('geen zip: het eind-record ontbreekt');
+  const aantal = buf.readUInt16LE(eocd + 10);
+  let p = buf.readUInt32LE(eocd + 16);
+  for (let n = 0; n < aantal; n++) {
+    if (buf.readUInt32LE(p) !== 0x02014b50) throw new Error('beschadigde zip: centrale ingang klopt niet');
+    const methode = buf.readUInt16LE(p + 10);
+    const gecomp = buf.readUInt32LE(p + 20);
+    const naamLen = buf.readUInt16LE(p + 28);
+    const extraLen = buf.readUInt16LE(p + 30);
+    const commentLen = buf.readUInt16LE(p + 32);
+    const lokaalOffset = buf.readUInt32LE(p + 42);
+    const naam = buf.toString('utf8', p + 46, p + 46 + naamLen);
+    const lNaam = buf.readUInt16LE(lokaalOffset + 26);
+    const lExtra = buf.readUInt16LE(lokaalOffset + 28);
+    const start = lokaalOffset + 30 + lNaam + lExtra;
+    const rauw = buf.subarray(start, start + gecomp);
+    if (!naam.endsWith('/')) {
+      files.set(naam, methode === 8 ? zlib.inflateRawSync(rauw) : Buffer.from(rauw));
+    }
+    p += 46 + naamLen + extraLen + commentLen;
+  }
+  return files;
+}
+
+export function readArchive(bron) {
+  const st = fs.statSync(bron);
+  return st.isDirectory() ? readArchiveDir(bron) : readArchiveZip(fs.readFileSync(bron));
+}
+
+// ── Importeren ────────────────────────────────────────────────────
+
+/** Een pad onder MEDIA_ROOT houden. Een archief van elders is invoer, geen vriend. */
+function veiligMediaPad(urlPad) {
+  if (!urlPad || !urlPad.startsWith('/media/')) return null;
+  const abs = path.resolve(MEDIA_ROOT, decodeURIComponent(urlPad.slice('/media/'.length)));
+  const root = path.resolve(MEDIA_ROOT);
+  return (abs !== root && abs.startsWith(`${root}${path.sep}`)) ? abs : null;
+}
+
+/** Het pad-deel van een originele media-URL, of null als het er niet een van ons is. */
+function padVanOrigineel(u) {
+  const s = String(u || '');
+  if (s.startsWith('/media/')) return s;
+  try { const x = new URL(s); return x.pathname.startsWith('/media/') ? x.pathname : null; } catch { return null; }
+}
+
+/**
+ * Waar deze bijlage komt te staan, als site-relatief pad.
+ *
+ * Meestal zijn oorspronkelijke plek en bestemming gelijk. Maar een bestand dat
+ * ELDERS werd geserveerd -- gehoste audio ging via /audio/stream/ -- heeft geen
+ * plek onder /media. Zonder een bestemming zou het bestand wel worden
+ * weggeschreven en toch uit de kolommen verdwijnen. Nu krijgt het een eigen hoek,
+ * en verwijzen de kolommen daarheen.
+ */
+function bestemming(a) {
+  return padVanOrigineel(a && a['shaer:originalUrl']) || `/media/archief/${path.basename(String((a && a.url) || ''))}`;
+}
+
+/**
+ * De audiobibliotheek terugzetten (formaat v2).
+ *
+ * EEN REGEL DIE HIER ALLES BEPAALT: geen bestand, geen track. Dat klinkt
+ * vanzelfsprekend en was het niet. De oude per-post-tak maakte een
+ * audio_tracks-rij aan zodra er metadata was, ook als de bytes ontbraken. Op
+ * soundfabrics.nl leverde dat 13 nummers op die in de lijst stonden en 404'den
+ * bij het afspelen. Dat is erger dan ontbreken: het ziet eruit alsof de
+ * verhuizing gelukt is, dus je gooit de oude instantie weg.
+ *
+ * De bestanden gaan naar AUDIO_ROOT en niet onder MEDIA_ROOT, want daar hoort
+ * gehoste audio: de publieke /media-handler mag er niet bij (routes/audio.js).
+ *
+ * @returns {Array} de schrijfopdrachten; de beller voert ze in zijn transactie uit
+ * (en bij een droogloop dus niet, maar het verslag klopt wel)
+ */
+/**
+ * Een hoes uit het archief terugzetten. Geeft het nieuwe /media-pad terug, of
+ * null als het bestand er niet in zat: dan liever GEEN cover_url dan een
+ * verwijzing naar niets.
+ */
+function hoesTerug(files, bestand, werk) {
+  if (!bestand) return null;
+  const bytes = files.get(bestand);
+  if (!bytes || !bytes.length) return null;
+  const naam = path.basename(String(bestand));
+  if (!naam || naam.includes('/') || naam.includes('\\') || naam.startsWith('.')) return null;
+  const urlPad = `/media/archief/${naam}`;
+  const doel = veiligMediaPad(urlPad);
+  if (!doel) return null;
+  werk.push({ soort: 'media', doel, bytes });
+  return urlPad;
+}
+
+function tracksTerug(files, site, rapport) {
+  const buf = files.get('tracks.json');
+  if (!buf) return [];
+  let coll;
+  try { coll = JSON.parse(buf.toString('utf8')); } catch { rapport.waarschuwingen.push('tracks.json is onleesbaar'); return []; }
+  if (coll['shaer:archive'] !== true) { rapport.waarschuwingen.push('tracks.json: niet gemarkeerd als archief, overgeslagen'); return []; }
+
+  const werk = [];
+  for (const t of (coll.orderedItems || [])) {
+    const id = String(t.id || '').trim();
+    if (!id) continue;
+    const bestand = t['shaer:file'];
+    const bytes = bestand ? files.get(bestand) : null;
+    // "Geen bestand" en "niets om te tonen" zijn niet hetzelfde. Een LINK-ONLY
+    // track heeft nooit een bestand gehad: hij bestaat uit een Spotify- of
+    // YouTube-link en Klonkt maakt daar een embed-kaart van. Die hoort gewoon
+    // mee. Mijn eerste regel gooide hem weg, en dat kostte Robin een nummer
+    // (Youngstown) dat op de oude site prima werkte.
+    const links = Array.isArray(t.url) ? t.url.filter(Boolean) : [];
+    const alleenLinks = t['shaer:availability'] === 'linkOnly' || (!bestand && links.length > 0);
+    if ((!bytes || !bytes.length) && !alleenLinks) {
+      rapport.tracksMissing += 1;
+      rapport.waarschuwingen.push(`${t.name || id}: geluidsbestand zit niet in het archief, track niet aangemaakt`);
+      continue;
+    }
+    if (alleenLinks) {
+      // Geen bestand om weg te schrijven, geen mediarij: alleen de track zelf.
+      werk.push({ soort: 'track', id, t, naam: null, bytes: null, doel: null, hoes: hoesTerug(files, t['shaer:coverFile'], werk) });
+      rapport.tracks += 1;
+      rapport.tracksLinks = (rapport.tracksLinks || 0) + 1;
+      continue;
+    }
+    // Naam op de schijf: de hash uit het archief, met zijn extensie. De speler
+    // zoekt op bestandsnaam in AUDIO_ROOT, dus dit is meteen het pad dat werkt.
+    const naam = path.basename(String(bestand));
+    if (!naam || naam.includes('/') || naam.includes('\\') || naam.startsWith('.')) {
+      rapport.waarschuwingen.push(`${t.name || id}: onbruikbare bestandsnaam, overgeslagen`);
+      continue;
+    }
+    const hoes = hoesTerug(files, t['shaer:coverFile'], werk);
+    werk.push({ soort: 'track', doel: path.join(path.resolve(AUDIO_ROOT), naam), bytes, id, t, naam, hoes });
+    rapport.tracks += 1;
+  }
+  return werk;
+}
+
+/** De playlists terug, inclusief hun volgorde: die volgorde IS de playlist. */
+function playlistsTerug(files, site, rapport, bekendeTracks) {
+  const buf = files.get('playlists.json');
+  if (!buf) return [];
+  let coll;
+  try { coll = JSON.parse(buf.toString('utf8')); } catch { rapport.waarschuwingen.push('playlists.json is onleesbaar'); return []; }
+  if (coll['shaer:archive'] !== true) return [];
+  const werk = [];
+  for (const p of (coll.orderedItems || [])) {
+    const id = String(p.id || '').trim();
+    if (!id) continue;
+    // Alleen verwijzen naar tracks die er echt gekomen zijn, anders staat er
+    // straks een playlist vol gaten die niemand kan afspelen.
+    const items = (p['shaer:tracks'] || []).filter((x) => bekendeTracks.has(String(x && x.id)));
+    const kwijt = (p['shaer:tracks'] || []).length - items.length;
+    if (kwijt) rapport.waarschuwingen.push(`playlist ${p.name || id}: ${kwijt} nummer(s) ontbreken en zijn eruit gelaten`);
+    const hoes = hoesTerug(files, p['shaer:coverFile'], werk);
+    werk.push({ soort: 'playlist', p, id, items, hoes });
+    rapport.playlists += 1;
+  }
+  return werk;
+}
+
+/**
+ * Volg opnieuw wie je volgde, uit de `following.csv` van een archief.
+ *
+ * BEWUST BUITEN importArchive. Die draait in één transactie en raakt alleen de
+ * database; opnieuw volgen stuurt Follow-activiteiten de deur uit en wacht op
+ * het netwerk. Dat hoort niet in een transactie: een trage peer houdt hem open,
+ * en een rollback neemt verzonden activiteiten niet terug.
+ *
+ * Ook een aparte, expliciete stap omdat een archief inlezen stil is maar negen
+ * mensen aanschrijven niet. Dat mag geen bijwerking zijn van een import.
+ *
+ * `followFn` is injecteerbaar, zodat de test geen netwerk raakt en dit bestand
+ * ActivityPubService niet hoeft te importeren.
+ */
+export async function importFollowing(site, csvText, { followFn = null } = {}) {
+  const rijen = parseFollowingCsv(csvText);
+  const rapport = { totaal: rijen.length, gevolgd: 0, overgeslagen: 0, mislukt: [] };
+  if (!followFn) return { ...rapport, error: 'no_follow_fn' };
+  for (const r of rijen) {
+    // Jezelf volgen is geen relatie maar een lus. Kan echt gebeuren bij een
+    // archief van een instance die je onder een nieuwe naam opnieuw opzet.
+    if (site && site.slug && r.address.startsWith(`${site.slug}@`)) { rapport.overgeslagen += 1; continue; }
+    try {
+      // De uitgelicht-stand gaat MEE in de Follow zelf: followActor neemt hem
+      // als derde argument en zet auto_boost bij het aanmaken van de rij. Een
+      // aparte UPDATE erna zou een tweede pad zijn naar dezelfde vlag, en dan
+      // kan er precies een halve toestand ontstaan als die faalt.
+      const ok = await followFn(site, r.address, r.featured);
+      if (ok === false) { rapport.mislukt.push({ adres: r.address, reden: 'geweigerd' }); continue; }
+      rapport.gevolgd += 1;
+    } catch (e) {
+      rapport.mislukt.push({ adres: r.address, reden: (e && e.message) || 'onbekend' });
+    }
+  }
+  return rapport;
+}
+
+/**
+ * Zet een archief terug in een site.
+ *
+ * @param {Map<string,Buffer>} files  het ingelezen archief
+ * @param {object} opts  { slug, dryRun, overwrite, origin }
+ */
+export function importArchive(files, opts = {}) {
+  const rapport = {
+    formatVersion: null, origin: null, idsBehouden: null,
+    posts: 0, overgeslagen: 0, overschreven: 0,
+    replies: 0, media: 0, mediaMissing: 0, gemist: [], waarschuwingen: [],
+    tracks: 0, tracksMissing: 0, tracksLinks: 0, playlists: 0, linksBijgetrokken: 0,
+  };
+
+  const manifestBuf = files.get('manifest.json');
+  if (!manifestBuf) throw new Error('geen manifest.json: dit is geen inhoudsarchief');
+  const manifest = JSON.parse(manifestBuf.toString('utf8'));
+  rapport.formatVersion = manifest.formatVersion;
+
+  // VERSIE EERST, voordat er ook maar iets gelezen wordt.
+  if (!Number.isInteger(manifest.formatVersion)) throw new Error('manifest zonder bruikbare formatVersion');
+  if (manifest.formatVersion > FORMAT_VERSION) {
+    throw new Error(`archiefversie ${manifest.formatVersion} is nieuwer dan deze Klonkt kent (${FORMAT_VERSION}); geweigerd`);
+  }
+
+  const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(opts.slug);
+  if (!site) {
+    // De naam van de INSTANCE (de map, de unit) en de slug van de SITE in zijn
+    // database zijn twee dingen. Ze vallen vaak samen en soms niet, en dan zat je
+    // met een foutmelding die je liet raden. Zeg dus wat er wel in staat.
+    let bestaand = [];
+    try { bestaand = db.prepare('SELECT slug FROM sites ORDER BY rowid').all().map((r) => r.slug); } catch { /* geen sites-tabel */ }
+    const wat = opts.slug ? `onbekende site: ${opts.slug}` : 'geen site opgegeven';
+    throw new Error(bestaand.length
+      ? `${wat}. In deze database staat: ${bestaand.join(', ')}`
+      : `${wat}. In deze database staat geen enkele site -- wijst DATABASE_PATH naar de juiste?`);
+  }
+  const eigenOrigin = (opts.origin || process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  rapport.origin = manifest.origin || null;
+
+  // IDENTITEIT. Het INTERNE id blijft altijd (Robins besluit, 14-8).
+  //
+  // Dat is iets anders dan de AP-URI. Die is domeingebonden en wordt hoe dan
+  // ook nieuw: https://nieuw/ap/notes/<id> is een ander adres dan
+  // https://oud/ap/notes/<id>. Je claimt dus niets van een ander door het GUID
+  // te hergebruiken, en je wint dat elke INTERNE verwijzing blijft kloppen:
+  // [[track:]], [[playlist:]] en [[album:]] wijzen na een verhuizing nog naar
+  // het goede ding.
+  //
+  // Voorheen hing dit aan de origin, en alleen voor posts; tracks en playlists
+  // hielden hun id al wel. Die scheve tabel was precies waarom een post uit de
+  // zip met [[track:oud]] naast een nummer uit de pull met een nieuw id kwam te
+  // staan, en je de shorthand als kale tekst in je bericht zag.
+  //
+  // `idsBehouden` gaat hieronder alleen nog over de AP-URI: gelijke origin
+  // betekent dat ook die identiek blijft, en dan valt er niets te vertalen.
+  const idsBehouden = !!(manifest.origin && eigenOrigin && manifest.origin === eigenOrigin);
+  rapport.idsBehouden = idsBehouden;
+  if (!idsBehouden) {
+    rapport.waarschuwingen.push(
+      `origin verschilt (archief ${manifest.origin || '?'} vs deze site ${eigenOrigin || '?'}): de berichten krijgen een nieuw AP-adres. Hun interne id blijft, dus verwijzingen binnen je site blijven kloppen.`,
+    );
+  }
+
+  const postPaden = [...files.keys()].filter((p) => p.startsWith('posts/') && p.endsWith('.json')).sort();
+  const bestaatId = db.prepare('SELECT 1 FROM posts WHERE id = ?');
+  const bestaatSlug = db.prepare('SELECT id FROM posts WHERE site_id = ? AND slug = ?');
+  const idKaart = new Map();     // oud post-id -> nieuw post-id
+
+  const schrijf = [];            // alles eerst uitrekenen, dan in EEN transactie
+
+  for (const pad of postPaden) {
+    const o = JSON.parse(files.get(pad).toString('utf8'));
+    const oudId = decodeURIComponent(String(o.id || '').split('/ap/notes/')[1] || path.basename(pad, '.json'));
+    // Altijd het id uit het archief. Staat er hier al iets met dat id, dan is
+    // dat hetzelfde object, en dat handelt de botsingscontrole hieronder af.
+    const nieuwId = oudId;
+    idKaart.set(oudId, nieuwId);
+
+    const botsing = !!bestaatId.get(nieuwId) || !!bestaatSlug.get(site.id, o['shaer:slug']);
+    if (botsing && !opts.overwrite) {
+      // EEN gedocumenteerde regel, geen gok per post: bestaande inhoud wordt niet
+      // overschreven tenzij dat expliciet gevraagd is. Dit is ook wat de import
+      // idempotent maakt.
+      rapport.overgeslagen += 1;
+      continue;
+    }
+    if (botsing) rapport.overschreven += 1;
+
+    // Media: terug naar hun oorspronkelijke plek onder /media, want de content
+    // van de post verwijst daarnaar. Dat pad is site-relatief, dus het werkt ook
+    // op een ander domein.
+    for (const a of (Array.isArray(o.attachment) ? o.attachment : [])) {
+      if (a['shaer:availability'] === 'missing') {
+        rapport.mediaMissing += 1;
+        rapport.gemist.push({ post: o['shaer:slug'], url: a['shaer:originalUrl'] || a.url });
+        continue;
+      }
+      const bytes = files.get(a.url);
+      if (!bytes) {
+        // Het archief zegt 'included' maar het bestand ontbreekt. Dat is een kapot
+        // archief, geen ontbrekende media -- apart melden, niet stil optellen.
+        rapport.waarschuwingen.push(`archief verwijst naar ${a.url}, dat er niet in zit`);
+        continue;
+      }
+      if (a['shaer:sha256'] && sha256(bytes) !== a['shaer:sha256']) {
+        rapport.waarschuwingen.push(`${a.url}: checksum klopt niet, overgeslagen`);
+        continue;
+      }
+      const doel = veiligMediaPad(bestemming(a));
+      if (!doel) { rapport.waarschuwingen.push(`${a.url}: onbruikbaar doelpad, overgeslagen`); continue; }
+      schrijf.push({ soort: 'media', doel, bytes });
+      rapport.media += 1;
+    }
+
+    schrijf.push({ soort: 'post', id: nieuwId, oudId, obj: o, oudeUri: o.id || null });
+    rapport.posts += 1;
+  }
+
+  // Antwoorden: alleen-lezen archief. Nooit opnieuw bezorgd, geen meldingen.
+  for (const pad of [...files.keys()].filter((p) => p.startsWith('replies/')).sort()) {
+    const coll = JSON.parse(files.get(pad).toString('utf8'));
+    if (coll['shaer:archive'] !== true) {
+      rapport.waarschuwingen.push(`${pad}: niet gemarkeerd als archief, overgeslagen`);
+      continue;
+    }
+    const oudId = path.basename(pad, '.json');
+    const postId = idKaart.get(oudId);
+    if (!postId) continue;                       // post overgeslagen -> antwoorden ook
+    for (const it of (coll.orderedItems || [])) {
+      schrijf.push({ soort: 'reply', postId, it });
+      rapport.replies += 1;
+    }
+  }
+
+  // De audiobibliotheek. Telt ook in een droogloop mee in het verslag, want
+  // "hoeveel nummers komen er" is precies wat je wilt weten voor je besluit.
+  const trackWerk = tracksTerug(files, site, rapport);
+  const bekendeTracks = new Set(trackWerk.map((w) => w.id));
+  const playlistWerk = playlistsTerug(files, site, rapport, bekendeTracks);
+
+  if (opts.dryRun) return rapport;
+
+  // Schrijven pas nu, in EEN transactie: een half ingelezen archief is de ergste
+  // uitkomst, want dan lijkt het gelukt.
+  const insPost = db.prepare(`INSERT OR REPLACE INTO posts
+    (id, site_id, slug, author_id, title, content, excerpt, status, cover_image_url, cover_alt, cover_video_url,
+     pinned, type, tags, published_at, created_at, updated_at, noindex, publish_at, fan_only, nsfw, language,
+     content_warning, poll_json, quote_uri, quote_actor, ap_visibility, paid, paid_min_cents, view_count, c2s_attachments, origin_server)
+    VALUES (@id, @site_id, @slug, @author_id, @title, @content, @excerpt, @status, @cover_image_url, @cover_alt, @cover_video_url,
+     @pinned, @type, @tags, @published_at, @created_at, @updated_at, @noindex, @publish_at, @fan_only, @nsfw, @language,
+     @content_warning, @poll_json, @quote_uri, @quote_actor, @ap_visibility, @paid, @paid_min_cents, @view_count, @c2s_attachments, 'import')`);
+  const insReply = db.prepare(`INSERT OR IGNORE INTO ap_interactions
+    (kind, post_id, object_uri, actor_uri, actor_name, actor_handle, content, published, parent_uri, created_at)
+    VALUES ('reply', ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`);
+
+  db.transaction(() => {
+    for (const s of [...schrijf, ...trackWerk, ...playlistWerk]) {
+      if (s.soort === 'media') {
+        fs.mkdirSync(path.dirname(s.doel), { recursive: true });
+        fs.writeFileSync(s.doel, s.bytes);
+        continue;
+      }
+      if (s.soort === 'reply') {
+        insReply.run(s.postId, s.it.id || '', s.it.attributedTo || '', s.it['shaer:actorName'] || null,
+          s.it['shaer:actorHandle'] || null, s.it.content || '', s.it.published || null, s.it.inReplyTo || null);
+        continue;
+      }
+      if (s.soort === 'track') {
+        // Bestand eerst, dan pas de rijen. Faalt het schrijven, dan gooit dit en
+        // rolt de hele transactie terug: liever geen import dan een track zonder
+        // geluid, want dat is precies de val waar dit uit voortkomt.
+        //
+        // Een link-only track heeft geen bestand en dus ook geen mediarij; die
+        // krijgt media_id NULL, precies zoals op de bron.
+        let mediaId = null;
+        if (s.doel && s.bytes) {
+          fs.mkdirSync(path.dirname(s.doel), { recursive: true });
+          fs.writeFileSync(s.doel, s.bytes);
+          mediaId = randomUUID();
+          db.prepare('INSERT INTO media (id, site_id, filename, mime_type, size, storage_path) VALUES (?,?,?,?,?,?)')
+            .run(mediaId, site.id, s.naam, s.t['shaer:mediaType'] || 'audio/mpeg', s.bytes.length, s.doel);
+        }
+        const link = (k) => (s.t.url || []).find((u) => String(u).includes(k)) || null;
+        db.prepare(`INSERT OR REPLACE INTO audio_tracks
+            (id, site_id, title, artist, album, duration, media_id, position, credit, license,
+             cover_url, downloadable, fedi_open, link_spotify, link_youtube, link_soundcloud)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+          .run(s.id, site.id, s.t.name || 'zonder titel', s.t.artist || null, s.t.album || null,
+            s.t.duration || null, mediaId, s.t.position ?? null, s.t.credit || null, s.t.license || null,
+            s.hoes || null, s.t['shaer:downloadable'] ? 1 : 0, s.t['shaer:fediOpen'] ? 1 : 0,
+            link('spotify'), link('youtube'), link('soundcloud'));
+        continue;
+      }
+      if (s.soort === 'playlist') {
+        db.prepare(`INSERT OR REPLACE INTO playlists (id, site_id, title, artist, year, cover_url, kind)
+                    VALUES (?,?,?,?,?,?,?)`)
+          .run(s.id, site.id, s.p.name || 'zonder titel', s.p.artist || null, s.p.year || null,
+            s.hoes || null, s.p['shaer:kind'] || null);
+        db.prepare('DELETE FROM playlist_tracks WHERE playlist_id = ?').run(s.id);
+        const insPT = db.prepare('INSERT OR IGNORE INTO playlist_tracks (playlist_id, track_id, position) VALUES (?,?,?)');
+        s.items.forEach((it, i) => insPT.run(s.id, String(it.id), it.position ?? i));
+        continue;
+      }
+      const o = s.obj;
+      const opties = (Array.isArray(o.oneOf) ? o.oneOf : (Array.isArray(o.anyOf) ? o.anyOf : null));
+      // De rollen uit het archief terug naar de kolommen. Zonder dit staat het
+      // bestand er wel, maar komt de post zonder cover en zonder speler terug --
+      // en dat zie je pas als je alle kolommen vergelijkt.
+      const bijlagen = Array.isArray(o.attachment) ? o.attachment : [];
+      const padVan = (a) => (a && a['shaer:availability'] !== 'missing' ? bestemming(a) : (a ? padVanOrigineel(a['shaer:originalUrl']) : null));
+      const metRol = (r) => bijlagen.find((a) => a['shaer:role'] === r);
+      const c2s = bijlagen.filter((a) => a['shaer:role'] === 'c2s').map((a) => {
+        const poster = bijlagen.find((x) => x['shaer:role'] === 'poster' && x['shaer:posterFor'] === padVan(a));
+        return {
+          url: padVan(a), mediaType: a.mediaType, name: a.name || undefined,
+          poster: poster ? padVan(poster) : undefined,
+        };
+      }).filter((a) => a.url);
+      insPost.run({
+        id: s.id, site_id: site.id, slug: o['shaer:slug'] || s.id, author_id: site.owner_id,
+        title: o.name || null, content: o.content || '', excerpt: o['shaer:excerpt'] || null,
+        status: o['shaer:status'] || 'draft',
+        cover_image_url: padVan(metRol('cover')), cover_alt: o['shaer:coverAlt'] || null,
+        cover_video_url: padVan(metRol('coverVideo')),
+        c2s_attachments: c2s.length ? JSON.stringify(c2s) : null,
+        pinned: o['shaer:pinned'] ? 1 : 0, type: o['shaer:type'] || 'post',
+        tags: Array.isArray(o.tag) ? o.tag.filter((t) => t && t.type === 'Hashtag').map((t) => String(t.name).replace(/^#/, '')).join(', ') : null,
+        published_at: tijd(o.published), created_at: tijd(o.published), updated_at: tijd(o.updated || o.published),
+        noindex: o['shaer:noindex'] ? 1 : 0, publish_at: tijd(o['shaer:publishAt']),
+        fan_only: o['shaer:fanOnly'] ? 1 : 0, nsfw: o.sensitive ? 1 : 0,
+        language: (o.contentMap && Object.keys(o.contentMap)[0]) || null,
+        content_warning: o.summary || null,
+        poll_json: opties ? JSON.stringify({ multiple: Array.isArray(o.anyOf), options: opties.map((x) => ({ name: x.name })), endTime: o.endTime || null, closed: !!o.closed }) : null,
+        quote_uri: o.quoteUrl || null, quote_actor: o['shaer:quoteActor'] || null,
+        ap_visibility: o['shaer:apVisibility'] || null,
+        paid: o['shaer:paid'] ? 1 : 0, paid_min_cents: o['shaer:paidMinCents'] || null,
+        view_count: o['shaer:viewCount'] || 0,
+      });
+      // De per-post audio-tak is weg. Tracks komen sinds v2 uit tracks.json,
+      // dat de HELE bibliotheek draagt in plaats van alleen wat in een bericht
+      // stond. Hier stond bovendien de fout die soundfabrics.nl opleverde: deze
+      // lus maakte een audio_tracks-rij aan ZONDER te kijken of het bestand er
+      // wel was, dus je kreeg 13 nummers die bestonden, in de lijst stonden, en
+      // 404'den zodra je op play drukte. Zie tracksTerug hieronder.
+    }
+
+    // FEP-1580: een import uit een export is GEEN apart geval. De spec zegt
+    // met zoveel woorden dat objecten uit een geëxporteerde collectie net zo
+    // behandeld moeten worden als objecten die van de bron zijn opgehaald.
+    // Dus vult ook deze weg de vertaaltabel, en werkt de reactie van een derde
+    // op een verhuisd bericht straks net zo goed bij als bij een live ingest.
+    //
+    // Alleen zinnig als de ids VERANDERD zijn: bleven ze gelijk, dan wijst de
+    // oude URI al naar het goede object en valt er niets te vertalen.
+    if (!idsBehouden && eigenOrigin) {
+      for (const s of schrijf) {
+        if (s.soort !== 'post' || !s.oudeUri) continue;
+        Migration.recordMigrated(site.slug, {
+          origin: s.oudeUri,
+          target: `${eigenOrigin}/ap/notes/${encodeURIComponent(s.id)}`,
+          sourceActor: manifest.actor || '',
+          isPublic: !(s.obj && (s.obj['shaer:fanOnly'] || s.obj['shaer:apVisibility'] === 'direct')),
+        });
+      }
+    }
+
+    // Links naar de BRONPOSTS ombuigen naar hier. Ook bij een zip-import: een
+    // verhuizing is een verhuizing, en een bericht dat naar het oude domein
+    // linkt wordt een dode link zodra dat domein opgezegd wordt. Binnen dezelfde
+    // transactie, want half bijgetrokken is erger dan niet.
+    //
+    // Pas hier, aan het eind: nu staan alle berichten er, dus nu weten we welke
+    // slugs bestaan. Een link naar iets dat we niet hebben blijft met rust.
+    if (manifest.origin && manifest.origin !== eigenOrigin) {
+      Migration.postLinksBijtrekken(site, String(manifest.origin).replace(/\/+$/, ''), rapport);
+    }
+  })();
+
+  return rapport;
+}

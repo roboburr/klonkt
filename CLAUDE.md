@@ -62,8 +62,8 @@ npm test           # unit tests (built-in node:test runner, no extra deps)
 
 Tests live in `test/*.test.js` and run against an in-memory SQLite
 (`DATABASE_PATH=':memory:'`), so they never touch real data. Cover new
-permission/tenancy logic with tests — `PermissionsService.canAdminSite` was once
-silently broken; see `test/hub-permissions.test.js`.
+permission logic with tests — `PermissionsService.canAdminSite` was once
+silently broken; see `test/site-permissions.test.js`.
 
 ## Architecture Overview
 
@@ -71,4 +71,18 @@ _Add a brief overview of your project architecture_
 
 ## Conventions & Patterns
 
-_Add your project-specific conventions here_
+- **Bump `MOD_V` whenever you change anything in `src/assets/js/mod/`.** It sits
+  at the top of the module loader in `src/views/shell.ejs` and is the
+  cache-buster for every page module. `/assets` is served `max-age=1y` outside
+  development, so without a bump a browser that visited before keeps running the
+  old module for a year — meaning a fix reaches everyone *except* the people who
+  already have the bug. Same discipline as `audio-player.js?v=N` a few hundred
+  lines up. One number for the whole directory: bumping too often costs one
+  download, bumping too rarely costs a bugfix that never arrives.
+
+- **Comments and commit messages in Dutch, identifiers in English.** The modules
+  in `assets/js/mod` read `setIcon`, `uploadOne`, `applyAccent`; the comments
+  around them are Dutch prose. Both halves matter — a Dutch identifier in an
+  English file is the same wrong note as an English comment in a Dutch one. This
+  extends to anything long-lived and outward-facing: URL paths and CSS class
+  names are English (`/read`, `.read-end`), never a Dutch verb form.

@@ -1,4 +1,4 @@
-﻿node_modules/
+﻿node_modules
 storage/
 .env
 .env.local
@@ -17,3 +17,7 @@ preview/
 .dolt/
 *.db
 .beads-credential-key
+
+# Sessiesleutel, per installatie gegenereerd (server.js maakt hem bij de eerste
+# start). Hoort nooit in de repo: hij tekent sessies en dient als thumbnail-sleutel.
+.session-secret

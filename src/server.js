@@ -29,6 +29,7 @@ import accountRoutes from './routes/account.js';
 import adminRoutes from './routes/admin.js';
 import adminAudioRoutes from './routes/admin-audio.js';
 import adminPlaylistsRoutes from './routes/admin-playlists.js';
+import adminListenersRoutes from './routes/admin-listeners.js';
 import adminSitesRoutes from './routes/admin-sites.js';
 import adminUsersRoutes from './routes/admin-users.js';
 import adminSettingsRoutes from './routes/admin-settings.js';
@@ -50,6 +51,7 @@ import adminPushRoutes from './routes/admin-push.js';
 import pushRoutes from './routes/push.js';
 import guardianRoutes from './routes/guardian.js';
 import adminMediaRoutes from './routes/admin-media.js';
+import adminMigrateRoutes from './routes/admin-migrate.js';
 import circleRoutes from './routes/circle.js';
 import epkRoutes from './routes/epk.js';
 import newsletterRoutes from './routes/newsletter.js';
@@ -63,8 +65,9 @@ import adminEpkRoutes from './routes/admin-epk.js';
 import changelogRoutes from './routes/changelog.js';
 import ogRoutes from './routes/og.js';
 import apRoutes from './routes/activitypub.js';
+import owaRoutes, { owaMiddleware } from './routes/openwebauth.js';
 import oauthRoutes from './routes/oauth.js';
-import { apWants, startDeliveryWorker, selfHealTimeline } from './services/ActivityPubService.js';
+import { apWants, startDeliveryWorker, selfHealTimeline, migrateReactions } from './services/ActivityPubService.js';
 
 // SESSION_SECRET: use the env var if set. Otherwise auto-generate a strong one
 // and persist it next to the database, so it stays stable across restarts and
@@ -178,7 +181,16 @@ app.use(bodyParser.json({ limit: '10mb' }));
 // HTTPS and forwards to us over plain HTTP, setting X-Forwarded-Proto: https.
 // Without this, Express sees req.protocol === 'http' and won't issue secure
 // cookies — sessions never persist past the redirect after login.
-if (!isDev) app.set('trust proxy', 1);
+// Trust proxy hoort bij WAAR JE DRAAIT, niet bij dev/prod (Barts 429-jacht,
+// 9-8): klonkt-dev draait NODE_ENV=development ACHTER Caddy, en zonder trust
+// proxy was req.ip voor elk verzoek 127.0.0.1 -- de hele wereld plus de
+// honderd kudde-daemons deelden EEN rate-limit-emmer van 300/min. De kudde
+// leegde hem, en Barts refresh kreeg 'Too many requests' terwijl de live-lus
+// aan dezelfde 429's verhongerde. TRUST_PROXY=1 zet hem aan waar een proxy
+// voor de deur staat; kaal-op-poort blijft hem uit laten, want een direct
+// bereikbare server die X-Forwarded-For vertrouwt laat iedereen zijn eigen
+// IP kiezen -- en daarmee de limiter omzeilen.
+if (!isDev || process.env.TRUST_PROXY === '1') app.set('trust proxy', 1);
 
 // Collapse leading duplicate slashes in the path. A reverse proxy that proxies with
 // `RewriteRule ^(.*)$ http://localhost:3000/$1` (Apache [P]) sends "//" for the root and
@@ -196,6 +208,10 @@ app.use((req, res, next) => {
 initializeDatabase();
 startScheduler(); // release planning: publish scheduled posts when publish_at is reached
 startDeliveryWorker(); // retry failed fediverse deliveries with backoff
+// Once per REACTIONS_MIGRATION_VERSION bump: reacties naar de tussentabel, onder
+// de canonieke object-URI. Moet VOOR het serveren, want vanaf nu leest de code
+// die tabel -- draait hij niet, dan tonen oude likes als niet-gegeven.
+migrateReactions();
 selfHealTimeline(); // once per SELFHEAL_VERSION bump: re-sync the fediverse cache (covers/edits) after a drastic update
 
 // Safety net: guarantee that there is always a primary site (solo/hub/circle).
@@ -295,6 +311,12 @@ app.use('/media', express.static(process.env.MEDIA_PATH || './storage/media', {
 
 // ActivityPub: WebFinger + /ap/* (site-agnostic, resolves the site by slug).
 app.use(apRoutes);
+// OpenWebAuth (FEP-61cf): het token-endpoint en het inlogformulier.
+app.use(owaRoutes);
+// En op elk GET-verzoek kijken of er een token wordt ingewisseld (?owt=) of een
+// stroom gestart (?zid=). Na de sessie, want het resultaat gaat IN de sessie;
+// voor de pagina's, want een poort verderop moet de uitkomst al kunnen zien.
+app.use(owaMiddleware);
 // ActivityPub C2S: OAuth 2.0 (native/web clients). Site-agnostic; the consent
 // screen picks which site the token can post as.
 app.use(oauthRoutes);
@@ -381,8 +403,10 @@ app.use('/account', accountRoutes);
 if (audioEnabled()) {
   app.use('/admin/audio', adminAudioRoutes);
   app.use('/admin/playlists', adminPlaylistsRoutes);
+  app.use('/admin/listeners', adminListenersRoutes);
 }
 app.use('/admin/media', adminMediaRoutes); // image library + cleanup (works in lite mode too)
+app.use('/admin/migrate', adminMigrateRoutes); // posts + media naar/van een andere Klonkt
 app.use('/admin/sites', adminSitesRoutes);
 app.use('/admin/users', adminUsersRoutes);
 app.use('/admin/settings', adminSettingsRoutes);
@@ -541,13 +565,22 @@ self.addEventListener('push', e => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (err) { /* non-JSON push */ }
   const title = d.title || 'Klonkt';
-  e.waitUntil(self.registration.showNotification(title, {
-    body: d.body || '',
-    icon: '/favicon.svg',
-    badge: '/favicon.svg',
-    tag: d.type ? ('klonkt-' + d.type) : undefined,   // collapse same-type bursts
-    data: { url: d.url || '/' },
-  }));
+  e.waitUntil(Promise.all([
+    self.registration.showNotification(title, {
+      body: d.body || '',
+      icon: '/favicon.svg',
+      badge: '/favicon.svg',
+      tag: d.type ? ('klonkt-' + d.type) : undefined,   // collapse same-type bursts
+      data: { url: d.url || '/' },
+    }),
+    // Wek ook een pagina die al openstaat. De push IS het teken dat er iets
+    // veranderd is, dus een aparte live-verbinding ernaast zou hetzelfde nog
+    // eens doen -- en die tweede zou alleen werken zolang de app open is,
+    // terwijl dit kanaal er ook is als hij dicht is. Een kanaal, twee doelen.
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then(list => { for (const c of list) c.postMessage({ klonkt: 'push', type: d.type || null }); })
+      .catch(() => { /* geen open venster: niets te wekken */ }),
+  ]));
 });
 self.addEventListener('notificationclick', e => {
   e.notification.close();

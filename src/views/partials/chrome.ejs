@@ -16,8 +16,7 @@
 var _isAdmin   = typeof bodyClass === 'string' && bodyClass.indexOf('on-admin') >= 0;
 var _isAuth    = typeof bodyClass === 'string' && bodyClass.indexOf('on-auth') >= 0;
 var _isChat    = typeof bodyClass === 'string' && bodyClass.indexOf('on-chat') >= 0;
-var hubLanding = (typeof bodyClass === 'string' && bodyClass.indexOf('on-hub') >= 0)
-   || ((typeof tenancy !== 'undefined' && tenancy === 'hub') && !siteUrlBase && !_isAdmin);
+var hubLanding = (typeof bodyClass === 'string' && bodyClass.indexOf('on-hub') >= 0);
 // Zelfstandige premium-feature-pagina's hebben hun eigen kop → geen profielkop/
 // switcher, wél de topnav (Robin 2026-06-18: "bovenste weg, behoud de nav").
 // NB: on-shows (agenda) én on-downloads (de downloads-LIJST) horen hier NIET bij —

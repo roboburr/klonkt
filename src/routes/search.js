@@ -50,9 +50,8 @@ function cleanSnippet(html, excerpt) {
 //    (small for live suggestions, large for the full page). ──────────────────
 function searchSite(req, res, rawQ, lim) {
   const site = res.locals.site;
-  const isHub = res.locals.tenancy === 'hub';
   const base = res.locals.siteUrlBase || '';
-  const urlFor = (slug) => (isHub ? `/user/${site.slug}/${slug}` : `/${slug}`);
+  const urlFor = (slug) => `/${slug}`;
   // Eigen vertaler (werkt ook in de JSON-route, waar res.locals.t niet bestaat).
   const lang = resolveLang(req);
   const t = (k) => i18nT(lang, k);
@@ -171,8 +170,7 @@ router.get('/suggest', (req, res) => {
   const rawQ = (req.query.q || '').toString().trim().slice(0, 100);
   if (rawQ.length < 2) return res.json({ posts: [], tracks: [], events: [], pages: [] });
 
-  const isHub = res.locals.tenancy === 'hub';
-  const urlFor = (slug) => (isHub ? `/user/${site.slug}/${slug}` : `/${slug}`);
+  const urlFor = (slug) => `/${slug}`;
   const r = searchSite(req, res, rawQ, { posts: 5, tracks: 4, events: 3, pages: 4 });
   res.json({
     posts: r.results.map((p) => ({ title: p.title || '(zonder titel)', url: urlFor(p.slug) })),

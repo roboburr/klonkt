@@ -25,39 +25,31 @@ import HtmlSanitizerService from './HtmlSanitizerService.js';
 import AudioEmbedService from './AudioEmbedService.js';
 import EmbedResolver from './EmbedResolver.js';
 import Push from './PushService.js';
-import { getTenancy } from './SettingsService.js';
 import { t as i18nT } from './i18n.js';
 import Blocklist from './BlocklistService.js';
 import * as Guardianship from './guardianship/index.js';
+import { PUBLIC, AP_CONTEXT, safeUrl, actorId, noteId, guessMediaType, normalizeTags, tagParts, hashtagTags, buildHashtagList, pagedCollection, PAGINA_GROOTTE, artiestUrl } from './ap-core.js';
+// Doorgeven wat hier altijd vandaan kwam, zodat elke bestaande aanroep blijft werken.
+export { AP_CONTEXT, actorId, noteId, guessMediaType };
+// De muziekkant woont in music/ (shaer-drc). Doorgeven wat hier altijd
+// vandaan kwam, zodat elke bestaande aanroep blijft werken.
+import { luisteraars } from './music/index.js';
+import { TRACK_KOLOMMEN,
+  playlistOpenTracks, siteOpenTracks, openTrack, trackHostPosts,
+  buildTrackAudio, buildTrackCollection, buildTrackCreate,
+  buildPlaylistCollection, listPlaylistsAP, playlistLinkTags,
+  buildPostTrackCollection, uitgavePost,
+  buildLibrary, libraryId,
+  licentieUri, channelCategory,
+} from './music/index.js';
+export {
+  playlistOpenTracks, siteOpenTracks, openTrack, trackHostPosts,
+  buildTrackAudio, buildTrackCollection, buildTrackCreate,
+  buildPlaylistCollection, listPlaylistsAP, playlistLinkTags, licentieUri,
+  buildPostTrackCollection, uitgavePost,
+  buildLibrary, libraryId,
+};
 
-const PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
-// Full JSON-LD context for every AP object we emit: AS2 core + security (publicKey) + the
-// extension terms we actually use (Mastodon/toot + schema.org), each with a term definition
-// so a strict JSON-LD processor resolves them instead of dropping them → valid AS2/JSON-LD.
-// This is the same context shape Mastodon publishes, so Mastodon sees no change.
-const AP_CONTEXT = [
-  'https://www.w3.org/ns/activitystreams',
-  'https://w3id.org/security/v1',
-  {
-    toot: 'http://joinmastodon.org/ns#',
-    schema: 'http://schema.org#',
-    sensitive: 'as:sensitive',
-    Hashtag: 'as:Hashtag',
-    manuallyApprovesFollowers: 'as:manuallyApprovesFollowers',
-    discoverable: 'toot:discoverable',
-    featured: { '@id': 'toot:featured', '@type': '@id' },
-    PropertyValue: 'schema:PropertyValue',
-    value: 'schema:value',
-    embedUrl: { '@id': 'schema:embedUrl', '@type': '@id' },
-    // Poll (Question) extension: Question/oneOf/anyOf/endTime/closed are AS2 core, but the
-    // per-poll unique-voter count is a Mastodon (toot) term — declare it so the emitted
-    // Question stays valid JSON-LD (a strict processor would otherwise drop votersCount).
-    votersCount: 'toot:votersCount',
-    // FEP-633c (Guardians): the shaer namespace, owned by the guardianship
-    // module (src/services/guardianship/).
-    ...Guardianship.SHAER_CONTEXT,
-  },
-];
 
 // Short random suffix so two activity ids minted in the same millisecond (e.g.
 // parallel saves) don't collide and get deduped by a receiver.
@@ -65,7 +57,6 @@ const rid = () => crypto.randomBytes(4).toString('hex');
 
 // Keep only http(s) URLs — drops javascript:/data:/etc so a remote actor can't
 // smuggle a dangerous scheme into a stored href/src (rendered in owner-only views).
-const safeUrl = (u) => { const s = String(u == null ? '' : u).trim(); return /^https?:\/\//i.test(s) ? s : ''; };
 
 // ── SSRF guard for outbound fetches ───────────────────────────────
 // Remote URLs (actor/keyId/webfinger/inbox/inReplyTo) are attacker-controlled, so
@@ -90,9 +81,39 @@ function isBlockedIp(ip) {
   }
   return true; // not an IP literal we recognise → refuse
 }
+/**
+ * Uitzonderingen op de SSRF-poort, voor een testkudde op de eigen machine
+ * (shaer-6wt: honderd wards met een guardian, Barts opdracht 8-8).
+ *
+ * WAAROM DIT MAG BESTAAN. De bescherming hierboven is er omdat een actor-URI van
+ * een VREEMDE komt: een aanvaller die "http://169.254.169.254/" doorgeeft laat
+ * ons zijn werk doen. Deze lijst gaat niet over vreemden -- hij staat in de
+ * omgeving van deze server, wordt door de beheerder gezet, en is leeg tenzij
+ * iemand hem expliciet vult.
+ *
+ * WAAROM HIJ ZO SMAL IS. Geen vlag die "loopback is oke" zegt, maar een lijst
+ * van precieze host:poort-paren. `[::1]:3060` opent niet 127.0.0.1, niet poort
+ * 3061, en niets in het interne netwerk. Een brede vlag zou de bescherming in
+ * een dev-omgeving uitzetten, en dev-omgevingen worden productie.
+ *
+ *   AP_ALLOW_HOSTS="[::1]:3060,[::1]:3061"
+ */
+const AP_ALLOW_HOSTS = new Set(
+  String(process.env.AP_ALLOW_HOSTS || '').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean),
+);
+function isAllowedTestHost(u) {
+  if (!AP_ALLOW_HOSTS.size) return false;
+  return AP_ALLOW_HOSTS.has(u.host.toLowerCase());
+}
 async function assertPublicHost(hostname) {
-  if (net.isIP(hostname)) { if (isBlockedIp(hostname)) throw new Error('ssrf-blocked-ip'); return; }
-  const addrs = await dns.promises.lookup(hostname, { all: true });
+  // URL.hostname geeft een IPv6-literal MET blokhaken ("[::1]"), en net.isIP
+  // herkent die vorm niet. Zonder strippen viel elk IPv6-adres door naar de
+  // DNS-tak, waar het strandde op ENOTFOUND: geweigerd, maar per ongeluk en met
+  // de verkeerde reden. isBlockedIp strippde ze al -- die verwachtte dus input
+  // die hier nooit aankwam.
+  const naakt = String(hostname || '').replace(/^\[|\]$/g, '');
+  if (net.isIP(naakt)) { if (isBlockedIp(naakt)) throw new Error('ssrf-blocked-ip'); return; }
+  const addrs = await dns.promises.lookup(naakt, { all: true });
   if (!addrs.length || addrs.some((a) => isBlockedIp(a.address))) throw new Error('ssrf-blocked-host');
 }
 // One honest name on ALL outbound federation traffic (Robins vraag, 31-7):
@@ -108,7 +129,9 @@ export async function safeFetch(url, opts = {}, maxRedirects = 3) {
   for (let hop = 0; ; hop++) {
     const u = new URL(target); // throws on malformed → caller's catch
     if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new Error('ssrf-bad-scheme');
-    await assertPublicHost(u.hostname);
+    // Alleen op de precieze host:poort uit AP_ALLOW_HOSTS, en per hop opnieuw:
+    // een omleiding naar een ANDER intern adres blijft geweigerd.
+    if (!isAllowedTestHost(u)) await assertPublicHost(u.hostname);
     const r = await fetch(target, {
       ...opts,
       headers: { 'User-Agent': KLONKT_UA, ...(opts.headers || {}) },
@@ -159,6 +182,46 @@ export function apWants(req) {
 }
 
 const AP_CONTENT_TYPE = 'application/activity+json; charset=utf-8';
+/**
+ * Hetzelfde antwoord als de vorige keer? Dan 304 (Barts punt, 9-8).
+ *
+ * De inbox doet dit al met `since` + `wait`, en de guardian-wachtrijen niet: die
+ * stuurden bij elke verversing de hele lijst terug, ook als er niets veranderd
+ * was. Bij honderd wards is dat 217 KB JSON die de telefoon opnieuw moet
+ * parsen -- over de lijn valt het mee (2,8 KB gzip), maar het OPBOUWEN van
+ * veertienhonderd objecten is wat je merkt.
+ *
+ * EEN INHOUDS-ETAG, geen cursor. Een cursor vraagt een tweede beschrijving van
+ * wanneer iets "veranderd" is, en die kan uit de pas gaan lopen met wat er
+ * werkelijk in het antwoord staat; een hash van het antwoord zelf kan dat per
+ * definitie niet. De server bouwt het antwoord nog steeds (26 ms) -- wat we
+ * besparen is de overdracht en het parsen.
+ *
+ * NOOIT 304 OP EEN LEEG ANTWOORD. Dezelfde les als de '0'-uitzondering bij de
+ * inbox: gaat er bij het opbouwen iets mis en komt er een lege lijst uit, dan is
+ * die hash ook stabiel, en zou een client voor eeuwig 304 krijgen op niets.
+ */
+export function etagFor(body) {
+  return `"${crypto.createHash('sha256').update(body).digest('base64url').slice(0, 27)}"`;
+}
+
+export function sendMaybe304(req, res, obj, { cacheControl, contentType } = {}) {
+  const body = JSON.stringify(obj);
+  const leeg = !obj || (Array.isArray(obj.orderedItems) && obj.orderedItems.length === 0);
+  res.set('Vary', 'Authorization');
+  if (!leeg) {
+    const tag = etagFor(body);
+    res.set('ETag', tag);
+    if (req.headers['if-none-match'] === tag) return res.status(304).end();
+  }
+  res.type(contentType || AP_CONTENT_TYPE);
+  // `no-cache` betekent NIET "niet bewaren": de client bewaart het antwoord en
+  // vraagt elke keer of het nog klopt. Precies wat we willen -- zonder dit
+  // stuurt een browser geen If-None-Match en is de ETag decoratie.
+  res.set('Cache-Control', cacheControl || 'private, no-cache');
+  return res.send(body);
+}
+
 export function sendAP(res, obj, cacheControl) {
   res.type(AP_CONTENT_TYPE);
   // A per-caller (e.g. guardian-widened) view must not be publicly cached.
@@ -167,8 +230,144 @@ export function sendAP(res, obj, cacheControl) {
 }
 
 // ── document builders ─────────────────────────────────────────────
-export function actorId(base, slug) { return `${base}/ap/users/${encodeURIComponent(slug)}`; }
-export function noteId(base, postId) { return `${base}/ap/notes/${encodeURIComponent(postId)}`; }
+
+
+/** Eén Link uit een AS2 `url` kiezen op mediaType. Een `url` mag een string,
+ *  een Link of een array van beide zijn; dit is de enige plek die dat weet. */
+function pickLink(url, test) {
+  const links = Array.isArray(url) ? url : (url ? [url] : []);
+  for (const l of links) {
+    const href = safeUrl(typeof l === 'string' ? l : (l && l.href));
+    const mt = (l && typeof l === 'object' && l.mediaType) || '';
+    if (href && test(mt)) return { href, mediaType: mt };
+  }
+  return null;
+}
+
+/**
+ * De `url` van de actor als kanaal (shaer-0nh): de webpagina en, als die er is,
+ * de RSS-feed ernaast.
+ *
+ * De RSS-link gaat er ALLEEN in voor de site waar de instance op gepind staat.
+ * Sinds hub-modus verdween serveert routes/feed.js `/feed.xml` van de primaire
+ * site en bestaat `/user/<slug>` niet meer als route; een feed-link voor een
+ * andere site zou naar de verkeerde feed wijzen. Liever een link minder dan een
+ * link die iemand anders' muziek belooft.
+ */
+export function channelUrls(base, site) {
+  const isPrimair = site.slug === site.primary_slug;
+  const pagina = `${base}/${isPrimair ? '' : 'user/' + encodeURIComponent(site.slug)}`;
+  const uit = [{ type: 'Link', href: pagina, mediaType: 'text/html' }];
+  if (isPrimair) uit.push({ type: 'Link', href: `${base}/feed.xml`, mediaType: 'application/rss+xml' });
+  return uit;
+}
+
+
+/**
+ * Welke objectsoorten deze inbox in de tijdlijn opneemt.
+ *
+ * `Audio` staat erbij sinds de kanaalbeslissing (shaer-0nh): een Funkwhale-
+ * kanaal stuurt Create(Audio), geen Note. Uitbreiden gebeurt HIER en in
+ * timelineFields -- en uitdrukkelijk NIET door vreemde soorten tot Note om te
+ * vormen. Een Audio is geen Note, en die soort willen we kunnen blijven zien.
+ */
+const TIJDLIJN_SOORTEN = new Set(['Note', 'Article', 'Question', 'Audio']);
+
+/**
+ * Wat de tijdlijn van een binnengekomen object nodig heeft, PER SOORT: de
+ * inhoud-HTML, de bijlagen voor media_json, en de link van het item.
+ *
+ * Eén plek, zodat een nieuwe soort erbij een tak is en geen speurtocht. De
+ * Krant rendert media_json al naar soort -- audio/* wordt een speler -- dus een
+ * track komt vanzelf als echte speler binnen zonder dat de weergave iets van
+ * Funkwhale hoeft te weten.
+ */
+/**
+ * De waarschuwingstekst van een object, of niets.
+ *
+ * `summary` IS in AS2 een SAMENVATTING -- "a natural language summarization of
+ * the object". Dat Mastodon dat veld hergebruikt als waarschuwing is Mastodons
+ * conventie, en die zet er `sensitive` bij. Zonder `sensitive` is een summary
+ * dus gewoon een samenvatting.
+ *
+ * WordPress + ActivityPub stuurt daar de EXCERPT van een artikel in, netjes
+ * afgekapt voor Mastodon. Wij lazen dat als waarschuwing en verborgen de post
+ * daarmee achter zijn eigen eerste alinea (Barts melding, 13-8:
+ * europeanpirates.eu). Niemand krijgt dan te zien wat er staat, en de
+ * waarschuwing waarschuwt nergens voor.
+ */
+export function contentWarning(o) {
+  if (!o || !o.sensitive) return null;
+  const s = typeof o.summary === 'string' ? o.summary.trim() : '';
+  return s || null;
+}
+
+export function timelineFields(o) {
+  // De hoes: een `image` op het object. Bij een Note alleen als terugval (daar
+  // is het de kaart-afbeelding van een player-post), bij een Audio altijd,
+  // want daar IS het de albumhoes.
+  const hoes = () => {
+    if (!o.image) return null;
+    const im = Array.isArray(o.image) ? o.image[0] : o.image;
+    const iu = safeUrl(typeof im === 'string' ? im : (im && im.url));
+    return iu ? { url: iu, type: (im && im.mediaType) || 'image/jpeg' } : null;
+  };
+
+  if (o.type === 'Audio') {
+    const geluid = pickLink(o.url, (mt) => /^audio\//i.test(mt));
+    // De webpagina van de track. Zonder mediaType is dat de veilige aanname:
+    // er een speler op zetten zou een HTML-pagina als geluid aanbieden.
+    const pagina = pickLink(o.url, (mt) => /^text\/html/i.test(mt)) || pickLink(o.url, (mt) => !mt);
+    const atts = [];
+    const h = hoes(); if (h) atts.push(h);              // eerst kijken, dan luisteren
+    if (geluid) atts.push({ url: geluid.href, type: geluid.mediaType || 'audio/mpeg' });
+    // Een Audio heeft geen `content`; de titel is wat er te lezen valt. Door de
+    // sanitizer, want hij komt van een vreemde server.
+    return {
+      html: o.name ? HtmlSanitizerService.sanitize(`<p>${o.name}</p>`) : '',
+      atts,
+      url: pagina ? pagina.href : null,
+    };
+  }
+
+  // Een ARTIKEL heeft een titel, en die is het eerste wat je wilt zien. Zonder
+  // dit kwam een WordPress-post binnen als kale body: de titel zit in `name` en
+  // die gooiden we weg, terwijl de excerpt in `summary` ten onrechte als
+  // waarschuwing dienstdeed. Nu allebei goed -- en dit is dezelfde greep die
+  // resolveRemoteNote al doet voor niet-Note-objecten, dus de tijdlijn en het
+  // antwoordpad zeggen eindelijk hetzelfde.
+  if (o.type && o.type !== 'Note' && typeof o.name === 'string' && o.name.trim()) {
+    const kop = `<p><strong>${HtmlSanitizerService.escape ? HtmlSanitizerService.escape(o.name) : o.name}</strong></p>`;
+    const atts = mediaFromNote(o);
+    const pagina = pickLink(o.url, (mt) => !mt || /html/i.test(mt));
+    return {
+      html: HtmlSanitizerService.sanitize(kop + (o.content || '')),
+      atts,
+      url: pagina ? pagina.href : null,
+    };
+  }
+
+  // Note / Question -- ongewijzigd gedrag.
+  const atts = (Array.isArray(o.attachment) ? o.attachment : [])
+    .map((a) => ({ url: safeUrl(a && a.url), type: (a && a.mediaType) || '' }))
+    .filter((m) => m.url);
+  if (!atts.some((m) => !m.type || /image/i.test(m.type))) {
+    const h = hoes(); if (h) atts.push(h);
+  }
+  const pagina = pickLink(o.url, () => true);
+  return { html: HtmlSanitizerService.sanitize(o.content || ''), atts, url: pagina ? pagina.href : null };
+}
+
+/**
+ * De site achter een library-uri, of null. Zelfde strengheid als localSlugOf:
+ * de uri moet met ONZE basis beginnen en de site moet bestaan -- anders levert
+ * andermans /library met dezelfde padstaart hier een volger op onze naam op.
+ */
+function libraryOwnerSlug(uri) {
+  const u = String(uri || '');
+  if (!u.endsWith('/library')) return null;
+  return localSlugOf(u.slice(0, -'/library'.length));
+}
 
 export function buildActor(base, site) {
   const id = actorId(base, site.slug);
@@ -184,18 +383,35 @@ export function buildActor(base, site) {
     preferredUsername: site.slug,
     name: site.title || site.slug,
     summary: site.tagline || site.description || '',
-    url: `${base}/${site.slug === site.primary_slug ? '' : 'user/' + encodeURIComponent(site.slug)}`,
-    manuallyApprovesFollowers: isWard,
+    // Een Link-ARRAY in plaats van een kale string (shaer-0nh): zo adverteert
+    // een kanaal zichzelf, en zo vindt een podcast-app de feed. De text/html
+    // staat VOORAAN, want een lezer die maar één url verwacht pakt de eerste --
+    // dezelfde vorm die Funkwhale in productie met Mastodon uitwisselt.
+    url: channelUrls(base, site),
+    ...(channelCategory(site) ? { category: channelCategory(site) } : {}),
+    // …and the same honesty for the OWNER gate (Robins wens, 18-8): a site
+    // with approve_followers on holds follows pending until the owner decides.
+    manuallyApprovesFollowers: isWard || !!site.approve_followers,
     discoverable: true,
     inbox: `${id}/inbox`,
     outbox: `${id}/outbox`,
     followers: `${id}/followers`,
     following: `${id}/following`,
     featured: `${id}/featured`,
+    // AS2-kern `streams`: "supplementary Collections which may be of
+    // interest" -- precies wat de playlist-lijst is (shaer-ayc, stap 2).
+    // Geen eigen vocabulaire nodig, en wie het niet kent negeert het.
+    streams: [`${id}/tracks`, `${id}/playlists`],
     // AP §5.6: the private blocked collection (owner-only GET). The server
     // list is the source of truth for Shaer's "in Orbit"; clients keep no
     // separate state.
     blocked: `${id}/blocked`,
+    // FEP-1580: de vertaaltabel van een verhuizing plus de Moves die hem
+    // rechtvaardigen. Deze twee staan er ALTIJD, ook leeg, en dat is met opzet:
+    // de FEP wijst er apart op dat "een verhuizing zonder objecten" en "een
+    // server die dit niet kent" anders niet uit elkaar te houden zijn.
+    migration: `${id}/migration`,
+    moves: `${id}/moves`,
     // FEP-633c §2: shaer:guardians / shaer:isGuardian / shaer:queues
     // (guardianship module owns these).
     ...Guardianship.guardianshipActorProps(id, site.slug),
@@ -220,6 +436,33 @@ export function buildActor(base, site) {
   }
   // Account creation date — shown by Mastodon + read by indexers (additive, standard AS2).
   if (site.created_at) { try { actor.published = new Date(site.created_at).toISOString(); } catch { /* skip bad date */ } }
+  // FEP-7628: former identities this account claims. The OLD server checks for
+  // exactly this back-reference before it will move followers here, so the
+  // list must be on the public actor, not tucked away in settings.
+  try {
+    const aka = JSON.parse(site.ap_aliases || '[]');
+    if (Array.isArray(aka)) {
+      const clean = aka.filter((u) => typeof u === 'string' && /^https?:\/\//i.test(u) && u !== id);
+      if (clean.length) actor.alsoKnownAs = clean;
+    }
+  } catch { /* skip malformed ap_aliases */ }
+  // FEP-7628 slice 3: this account moved. The old actor stays online AS A
+  // SIGNPOST — that is the whole point of keeping it: whoever missed the Move
+  // activity (offline server, later visitor) still learns where we went by
+  // fetching us. Per the FEP the moved actor "should be considered inactive",
+  // and publishers should stop delivering here.
+  if (site.moved_to && /^https?:\/\//i.test(String(site.moved_to))) actor.movedTo = String(site.moved_to);
+  // Zie movedLock() verderop: het serveren van movedTo is de ENE helft, het
+  // stilzetten van de uitgaande kant de andere.
+  // De MusicBrainz-koppeling van de artiest (shaer-mbz). Alleen als hij ZELF
+  // gekozen heeft -- er staat niets als er niets gekoppeld is, want een lege
+  // of geraden verwijzing is erger dan geen.
+  //
+  // schema:sameAs en niet alsoKnownAs: dat laatste is in AS2 voor vroegere
+  // identiteiten van dezelfde actor, en FEP-7628 leunt erop bij een verhuizing.
+  // Een MBID hier neerzetten zou een verhuizing kunnen laten mislukken.
+  const mbUrl = artiestUrl(site.mb_artist_id);
+  if (mbUrl) actor.sameAs = mbUrl;
   // Profile links → PropertyValue rows: Mastodon/PeerTube/WordPress-ActivityPub render these as
   // profile metadata (rel=me enables link-back verification). Additive; ignored by simpler receivers.
   try {
@@ -339,6 +582,13 @@ export function buildNote(base, site, post, opts = {}) {
       cc: [`${aId}/followers`],
       tag: [...hashtagTags(base, post.content)],
       replies: `${id}/replies`,
+      // DE WAARSCHUWING REIST MEE (Barts melding, 15-8). Deze vroege return liet
+      // `sensitive` en `summary` vallen, want die worden pas na de gewone tak
+      // gezet. Gevolg: een betaalde post met een waarschuwing ging ZONDER die
+      // waarschuwing de deur uit -- en de teaser is publiek, dus juist die had
+      // hem nodig. Een gevoelige teaser zonder vlag is erger dan geen teaser.
+      sensitive: !!post.nsfw,
+      ...(post.nsfw ? { summary: post.content_warning || 'Gevoelige inhoud' } : {}),
       ...Guardianship.hasGuardiansProps(site.slug),
     };
   }
@@ -347,10 +597,6 @@ export function buildNote(base, site, post, opts = {}) {
   // the cover + any inline <img>, make absolute, then strip <img> from the content
   // to avoid duplicate rendering on clients that DO keep them.
   const abs = (u) => !u ? null : (/^https?:/i.test(u) ? u : `${base}${u.startsWith('/') ? '' : '/'}${u}`);
-  const mediaType = (u) => {
-    const e = ((u || '').split('?')[0].match(/\.(\w+)$/) || [])[1];
-    return ({ jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', avif: 'image/avif', mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime' })[(e || '').toLowerCase()] || 'image/jpeg';
-  };
   const hadAudio = /\[\[(track|album|playlist):/i.test(post.content || '');
   const playable = hasPlayableAudio(post.content || '', site && site.id);
   // A post with an external embed (Spotify/YouTube/SoundCloud/Vimeo/Bandcamp/Apple) should let
@@ -425,10 +671,38 @@ export function buildNote(base, site, post, opts = {}) {
   // replace the shortcodes with a "🎵 listen on the site" link so the post invites
   // a click-through to the protected player (discovery without leaking the file).
   const esc = (s) => String(s == null ? '' : s).replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+  // Elke titel met zijn track-id erbij, zodat hij hieronder een EIGEN link
+  // krijgt naar #track-<id> op de postpagina (shaer-38y). Zonder id was dit een
+  // vetgedrukte opsomming waar je niets mee kon: vijf namen en een enkele
+  // "listen on"-link naar de post als geheel. Elke track heeft daar al een
+  // anker -- direct ingesloten, in een album of in een playlist -- dus dit
+  // wijst naar precies het nummer waar de naam bij hoort.
   const audioLabels = [];
   try {
-    for (const m of body.matchAll(/\[\[track:([A-Za-z0-9_-]+)\]\]/g)) { const r = db.prepare('SELECT title FROM audio_tracks WHERE id = ?').get(m[1]); if (r && r.title) audioLabels.push(r.title); }
-    for (const m of body.matchAll(/\[\[album:([^\]]+)\]\]/g)) audioLabels.push(m[1].trim());
+    const zien = new Set();
+    const voegToe = (id, titel) => {
+      const t = String(titel || '').trim();
+      if (!t) return;
+      const sleutel = id || ('naam:' + t);
+      if (zien.has(sleutel)) return;
+      zien.add(sleutel);
+      audioLabels.push({ id: id || null, titel: t });
+    };
+    // In de volgorde van de POST: een enkele scan over alle drie de vormen,
+    // zodat de opsomming leest zoals de post is neergezet.
+    for (const m of body.matchAll(/\[\[(track|album|playlist):([^\]]+)\]\]/gi)) {
+      const soort = m[1].toLowerCase(), waarde = m[2].trim();
+      if (soort === 'track') {
+        const r = db.prepare('SELECT id, title FROM audio_tracks WHERE id = ?').get(waarde);
+        if (r) voegToe(r.id, r.title);
+      } else if (soort === 'album') {
+        const rs = db.prepare('SELECT id, title FROM audio_tracks WHERE site_id = ? AND album = ? ORDER BY rowid').all(site.id, waarde);
+        if (rs.length) for (const r of rs) voegToe(r.id, r.title);
+        else voegToe(null, waarde);            // album zonder tracks: dan maar de naam
+      } else {
+        for (const r of db.prepare('SELECT t.id, t.title FROM playlist_tracks pt JOIN audio_tracks t ON t.id = pt.track_id WHERE pt.playlist_id = ? ORDER BY pt.position').all(waarde)) voegToe(r.id, r.title);
+      }
+    }
   } catch { /* non-fatal */ }
   // fedi_open tracks → real AS2 Audio attachments (the actual file URL, served ungated) so
   // EVERY client incl. the Mastodon apps plays them inline natively. Gated tracks (default)
@@ -444,7 +718,7 @@ export function buildNote(base, site, post, opts = {}) {
       // Cover art on the Audio attachment (AS2 `icon`): track cover, else the post cover.
       // Mastodon renders it as the artwork thumbnail on its native audio player.
       const art = abs(r.cover_url || post.cover_image_url || null);
-      if (art) a.icon = { type: 'Image', mediaType: mediaType(art), url: art };
+      if (art) a.icon = { type: 'Image', mediaType: guessMediaType(art), url: art };
       openAudio.push(a);
     };
     const SEL = 'SELECT t.title, t.cover_url, m.filename, m.storage_path, m.mime_type FROM audio_tracks t JOIN media m ON m.id = t.media_id WHERE t.fedi_open = 1 AND ';
@@ -454,7 +728,16 @@ export function buildNote(base, site, post, opts = {}) {
       for (const mm of (post.content || '').matchAll(/\[\[playlist:([A-Za-z0-9_-]+)\]\]/g)) for (const r of db.prepare('SELECT t.title, t.cover_url, m.filename, m.storage_path, m.mime_type FROM playlist_tracks pt JOIN audio_tracks t ON t.id = pt.track_id JOIN media m ON m.id = t.media_id WHERE t.fedi_open = 1 AND pt.playlist_id = ? ORDER BY pt.position').all(mm[1])) addRow(r);
     } catch { /* non-fatal */ }
   }
-  body = body.replace(/\[\[(track|album|playlist):[^\]]+\]\]/gi, '');
+  // ONVERTAALD voor een verhuizing (FEP-1580). De doelinstantie IS een Klonkt:
+  // die rendert [[track:]], [[album:]] en [[playlist:]] zelf en maakt er een
+  // speler van. Bakken we ze eerst om, dan komt er een tekstlink aan en is de
+  // speler weg. Onherstelbaar bovendien: het bakken STRIPT de shorthand en
+  // plakt achteraan hooguit VIER titels, dus een album van tien nummers
+  // overleeft het niet.
+  //
+  // Dezelfde regel als bij de outbox en de tracks: wie ondertekend vraagt
+  // namens de actor waar wij naartoe verhuisd zijn, krijgt onze eigen kijk.
+  if (!opts.rauweInhoud) body = body.replace(/\[\[(track|album|playlist):[^\]]+\]\]/gi, '');
   // External embeds ([[embed:url]]) → emit the bare URL as a link so Mastodon
   // renders its OWN preview/player card (YouTube/Spotify/SoundCloud/etc) instead
   // of federating the raw shortcode text.
@@ -462,8 +745,12 @@ export function buildNote(base, site, post, opts = {}) {
     const u = esc(raw.trim().replace(/&amp;/g, '&'));
     return `<p><a href="${u}">${u}</a></p>`;
   });
-  if (hadAudio) {
-    const lbl = audioLabels.length ? esc(audioLabels.slice(0, 4).join(', ')) : '';
+  if (hadAudio && !opts.rauweInhoud) {
+    // Elke titel als eigen link naar zijn anker; een titel zonder id (een
+    // albumnaam zonder tracks) blijft gewone tekst.
+    const lbl = audioLabels.slice(0, 4)
+      .map((a) => (a.id ? `<a href="${human}#track-${esc(a.id)}">${esc(a.titel)}</a>` : esc(a.titel)))
+      .join(', ');
     if (trackEmbedLinks.length) {
       // Link-only track(s): emit the external link(s). Mastodon cards the first (Spotify → its
       // player), the rest render as clickable links — the fediverse-native "embed + links".
@@ -499,7 +786,7 @@ export function buildNote(base, site, post, opts = {}) {
   const seen = new Set();
   const attachment = urls.filter((x) => x && x.url)
     .filter((x) => { if (seen.has(x.url)) return false; seen.add(x.url); return true; })
-    .map((x) => { const mt = x.mt || mediaType(x.url); // the stored type wins; the extension map is the fallback
+    .map((x) => { const mt = x.mt || guessMediaType(x.url); // the stored type wins; the extension map is the fallback
       const ty = /^image\//i.test(mt) ? 'Image' : /^video\//i.test(mt) ? 'Video' : /^audio\//i.test(mt) ? 'Audio' : 'Document';
       const a = { type: ty, mediaType: mt, url: x.url };
       if (x.name) a.name = String(x.name).slice(0, 1500); // alt text / description (AS2 `name`)
@@ -529,7 +816,7 @@ export function buildNote(base, site, post, opts = {}) {
       ...(post.ap_visibility === 'quiet' ? [PUBLIC] : []),          // quiet public: Public in cc, not to
       ...((post.fan_only || post.ap_visibility === 'quiet') ? [] : [`${aId}/followers`]),
       ..._mentionCc])],
-    tag: [...buildHashtagList(base, post.tags, body), ..._mentionTags],
+    tag: [...buildHashtagList(base, post.tags, body), ..._mentionTags, ...playlistLinkTags(base, site, post.content, post)],
     replies: `${id}/replies`,
     // NSFW → Mastodon-style content warning: sensitive (blurs media) + a summary/spoiler
     // (hides the whole post behind a "Gevoelige inhoud" button until the reader opens it).
@@ -548,7 +835,7 @@ export function buildNote(base, site, post, opts = {}) {
   // `image`, so its card is unaffected — but a Klonkt receiver reads it (handleInbox o.image).
   if (post.cover_image_url && noImages) {
     const cov = abs(post.cover_image_url);
-    if (cov) { note.image = { type: 'Image', mediaType: mediaType(cov), url: cov }; if (post.cover_alt) note.image.name = String(post.cover_alt).slice(0, 1500); }
+    if (cov) { note.image = { type: 'Image', mediaType: guessMediaType(cov), url: cov }; if (post.cover_alt) note.image.name = String(post.cover_alt).slice(0, 1500); }
   }
   // Experiment (mirrors PeerTube / schema.org `embedUrl`): point at the GATED player page
   // (/embed) so a client that honours embedUrl can show an inline player WITHOUT ever
@@ -608,6 +895,21 @@ export function notificationsSeenAt(slug) {
 // every notification PLUS your own outbound replies ('sent', with edit/delete via their
 // outboxId), sorted as one stream. Consecutive likes/boosts on the same post collapse into
 // one grouped item (actors list + count) so activity doesn't drown out conversations.
+/** ap_outbox.attachments ([{url, mediaType, name}]) naar de vorm die note-body
+ *  leest (media_json: [{url, type, name}]). Geeft null bij niets of rommel,
+ *  zodat een kapotte kolom hooguit media kost en niet de hele regel. */
+function outboxMediaJson(attachments) {
+  if (!attachments) return null;
+  try {
+    const list = JSON.parse(attachments);
+    if (!Array.isArray(list) || !list.length) return null;
+    const media = list
+      .filter((a) => a && a.url)
+      .map((a) => ({ url: a.url, type: a.mediaType || a.type || '', name: a.name || undefined }));
+    return media.length ? JSON.stringify(media) : null;
+  } catch { return null; }
+}
+
 export function getMessages(slug, limit, offset) {
   const off = Math.max(0, offset || 0);
   const lim = limit || 60;
@@ -619,11 +921,32 @@ export function getMessages(slug, limit, offset) {
   try {
     for (const m of listOutbox(slug).slice(0, need)) {
       items.push({
-        type: 'sent', outboxId: m.id, to_handle: m.to_handle, in_reply_to: m.in_reply_to,
-        content: m.content, editable: m.editable, language: m.language, created_at: m.created_at,
+        type: 'sent', outboxId: m.id, to_handle: m.to_handle, to_actor: m.to_actor, to_actors: m.to_actors,
+        in_reply_to: m.in_reply_to, post_slug: m.post_slug, content: m.content,
+        editable: m.editable, language: m.language, created_at: m.created_at,
+        // Je eigen bericht hoort er hetzelfde uit te zien als dat van een ander:
+        // note-body rendert Berichten, de Krant en de Guardian-PWA, maar leest
+        // media uit media_json met een `type`, terwijl ap_outbox ze als
+        // `attachments` met een `mediaType` bewaart. Zonder deze vertaling kwam
+        // een foto die JIJ meestuurde als kale tekst binnen.
+        media_json: outboxMediaJson(m.attachments),
       });
     }
   } catch { /* ignore */ }
+  // Een verzonden antwoord kent zijn post_slug maar niet de titel (ap_outbox
+  // bewaart die niet). Zonder titel toont een draad waarin JIJ als enige iets
+  // zei alleen een slug, dus vullen we ze in één query aan.
+  try {
+    const missing = [...new Set(items.filter((i) => i.post_slug && !i.post_title).map((i) => i.post_slug))];
+    if (missing.length) {
+      const rows = db.prepare(
+        `SELECT slug, title FROM posts WHERE slug IN (${missing.map(() => '?').join(',')})
+           AND site_id = (SELECT id FROM sites WHERE slug = ?)`,
+      ).all(...missing, slug);
+      const byslug = new Map(rows.map((r) => [r.slug, r.title]));
+      for (const i of items) if (i.post_slug && !i.post_title) i.post_title = byslug.get(i.post_slug) || null;
+    }
+  } catch { /* zonder titel valt de draad terug op de slug */ }
   items.sort((a, b) => _msgTs(b) - _msgTs(a)); // NaN-safe (zie getNotifications)
   const out = [];
   for (const it of items) {
@@ -637,11 +960,118 @@ export function getMessages(slug, limit, offset) {
     }
     out.push(it);
   }
-  return out.slice(off, off + lim);
+  // Antwoorden, mentions en je eigen verzonden berichten vouwen samen tot
+  // draden; likes/boosts/follows/reports blijven losse regels. Na deze stap
+  // telt een draad als één item voor de paginering, wat klopt: je scrolt door
+  // gesprekken, niet door losse zinnen.
+  return groupConversations(out).slice(off, off + lim);
 }
 
-export function buildCreate(base, site, post) {
-  const note = buildNote(base, site, post);
+// De drie soorten die samen een gesprek vormen. Vroeger zaten ze in drie
+// aparte chips: 'reply' en 'mention' onder Berichten/Gesprekken (afhankelijk van
+// de zichtbaarheid) en 'sent' onder Verzonden. Wie een uitwisseling wilde volgen
+// moest dus tussen chips heen en weer, terwijl het één draad is.
+const CONV_TYPES = new Set(['reply', 'mention', 'sent']);
+
+/** Waar hangt dit bericht aan? Twee soorten draden, en de volgorde telt:
+ *
+ *  1. Aan een post van jou. Een ontvangen antwoord kent zijn post via de join
+ *     op `posts`, een verzonden antwoord via ap_outbox.post_slug. Dat is
+ *     dezelfde sleutel, en daarom staan ze nu in dezelfde draad.
+ *  2. Aan een persoon. Een mention hangt aan niets van jou (het is iemands
+ *     eigen post waarin je genoemd wordt) en heeft geen post_slug; die draad
+ *     loopt per tegenpartij.
+ *
+ *  De post wint van de persoon: twee mensen die onder dezelfde post reageren
+ *  voeren één gesprek, geen twee. Geeft null terug voor alles wat geen gesprek
+ *  is (likes, boosts, follows, reports, poll-uitslagen); die stromen ongemoeid
+ *  door.
+ */
+export function threadKey(it) {
+  if (!it || !CONV_TYPES.has(it.type)) return null;
+  if (it.post_slug) return `post:${it.post_slug}`;
+  let who = it.handle || it.to_handle || '';
+  // Een direct bericht kan zonder to_handle in de tabel staan (de handle van de
+  // ontvanger was niet af te leiden). De eerste uit to_actors is dan alsnog de
+  // tegenpartij, en zonder deze terugval kreeg een gesprek dat JIJ begon geen
+  // draad -- precies het geval waarin het meest onlogisch is dat het los blijft.
+  if (!who && it.to_actors) {
+    try {
+      const first = JSON.parse(it.to_actors)[0];
+      if (first) who = deriveHandle(first);
+    } catch { /* geen bruikbare lijst → geen sleutel, het blijft een losse regel */ }
+  }
+  const norm = String(who || '').trim().toLowerCase().replace(/^@/, '');
+  return norm ? `actor:${norm}` : null;
+}
+
+/** Vouw losse berichten samen tot draden, met alles wat geen gesprek is
+ *  ongemoeid ertussen. Verwacht [items] al gesorteerd op created_at aflopend
+ *  (zoals getMessages ze aanlevert); de draad komt daardoor op de plek van zijn
+ *  nieuwste bericht te staan en `created_at` van de draad IS dat bericht. Binnen
+ *  de draad draait het om: een gesprek leest naar beneden, oud naar nieuw.
+ */
+export function groupConversations(items) {
+  const threads = new Map();
+  const out = [];
+  for (const it of items || []) {
+    const key = threadKey(it);
+    if (!key) { out.push(it); continue; }
+    let t = threads.get(key);
+    if (!t) {
+      // Eerste keer dat we deze draad zien = het nieuwste bericht erin, want de
+      // invoer is aflopend gesorteerd. Vandaar created_at hier en niet later.
+      t = { type: 'thread', key, post: null, people: [], messages: [], created_at: it.created_at };
+      threads.set(key, t);
+      out.push(t);
+    }
+    t.messages.push(it);
+    // De context bij de draad: gaat het over een post, dan hoort de link
+    // erbij, anders is een los antwoord in een lijst niet te plaatsen.
+    // De titel blijft LEEG zolang hij onbekend is, in plaats van terug te
+    // vallen op de slug: het nieuwste bericht in een draad is vaak je eigen
+    // verzonden antwoord, en dat kent alleen de slug. Zou die de titel worden,
+    // dan kan het ontvangen antwoord eronder de echte titel niet meer
+    // invullen. De terugval op de slug hoort in de weergave, niet in de data.
+    if (it.post_slug) {
+      if (!t.post) t.post = { slug: it.post_slug, title: it.post_title || null };
+      else if (!t.post.title && it.post_title) t.post.title = it.post_title;
+    }
+  }
+  for (const t of threads.values()) {
+    t.messages.sort((a, b) => _msgTs(a) - _msgTs(b));
+    t.count = t.messages.length;
+    // Wie zit er in dit gesprek, jij niet meegerekend: 'sent' ben jij.
+    const seen = new Set();
+    for (const m of t.messages) {
+      if (m.type === 'sent') continue;
+      const h = m.handle || m.name;
+      if (!h || seen.has(h)) continue;
+      seen.add(h);
+      t.people.push({ name: m.name, handle: m.handle, icon: m.icon, url: m.url });
+    }
+    // Heb JIJ in deze draad iets gezegd? Bepaalt of hij als uitwisseling of als
+    // onbeantwoord bericht leest.
+    t.mine = t.messages.some((m) => m.type === 'sent');
+    // Waar gaat een antwoord uit deze draad heen? Twee paden, en ze sluiten
+    // elkaar uit: hangt de draad aan een post, dan antwoord je op het NIEUWSTE
+    // ontvangen bericht erin (dat is de parent van de thread) -- anders is het
+    // een direct bericht aan de tegenpartij.
+    const inkomend = t.messages.filter((m) => m.type !== 'sent');
+    const laatste = inkomend[inkomend.length - 1];
+    t.replyTo = {
+      interactionId: (laatste && laatste.interactionId) || null,
+      postSlug: (t.post && t.post.slug) || null,
+      actorUri: (laatste && (laatste.actorUri || laatste.url))
+        || (t.messages.find((m) => m.to_actor) || {}).to_actor
+        || (() => { try { return JSON.parse((t.messages.find((m) => m.to_actors) || {}).to_actors || '[]')[0] || null; } catch { return null; } })(),
+    };
+  }
+  return out;
+}
+
+export function buildCreate(base, site, post, opts = {}) {
+  const note = buildNote(base, site, post, opts);
   return {
     '@context': AP_CONTEXT,
     id: note.id + '#create',
@@ -654,59 +1084,159 @@ export function buildCreate(base, site, post) {
   };
 }
 
-export function buildOutbox(base, site, posts) {
+
+/**
+ * De outbox: wat deze actor heeft uitgebracht. Posts EN tracks (shaer-0nh,
+ * stap 4).
+ *
+ * WAAROM HIER EN NIET IN EEN BEZORGING. Een kanaal-lezer HAALT de outbox op --
+ * zo heb ik zelf Funkwhales kanaal uitgelezen. Een Create(Audio) ook naar de
+ * inboxen van volgers duwen zou schade doen: Mastodon neemt Audio aan als
+ * statustype, dus bij een album-post zou dezelfde muziek twee keer in hun
+ * tijdlijn komen -- een keer als bijlage bij de Note, en dan nog N keer los.
+ * De post is het bericht, de outbox is de discografie.
+ *
+ * Door elkaar op datum, nieuwste eerst, zodat de outbox één verhaal vertelt in
+ * plaats van twee lijstjes achter elkaar.
+ *
+ * De tracks komen als ARGUMENT binnen, net als de posts, en worden hier
+ * uitdrukkelijk NIET zelf opgehaald. De route beslist wie wat mag zien -- een
+ * geblokkeerde bezoeker krijgt daar een lege outbox, en een bouwer die stiekem
+ * zijn eigen database bevraagt zou dwars door die deur heen leveren.
+ */
+/**
+ * Een PAGINA van de outbox, in SQL (shaer-sk4).
+ *
+ * De outbox mengt twee bronnen: posts en open tracks, gevlochten op datum. Een
+ * offset over die twee kan niet met twee losse queries -- je weet niet hoeveel
+ * van elk er in pagina drie horen. Vandaar een UNION met de datum als sleutel,
+ * daar de LIMIT/OFFSET overheen, en pas dan de rijen zelf ophalen.
+ *
+ * Wat er stond was geen paginering maar een KAP: de route haalde twintig posts
+ * en hield daarvan twintig items over. Alles daarvoor was niet op een volgende
+ * pagina maar helemaal onbereikbaar.
+ *
+ * @param {boolean} fanOnly  mag de lezer ook de fans-only posts zien?
+ */
+export function outboxSlice(siteId, { fanOnly = false, offset = 0, limit = MAX_OUTBOX } = {}) {
+  const fanClause = fanOnly ? '' : 'AND (p.fan_only IS NULL OR p.fan_only = 0)';
+  const unie = `
+    SELECT 'post' AS soort, p.id AS id, COALESCE(p.published_at, p.created_at) AS wanneer
+      FROM posts p WHERE p.site_id = ? AND p.status = 'published' ${fanClause}
+    UNION ALL
+    SELECT 'track', t.id, t.created_at
+      FROM audio_tracks t WHERE t.site_id = ? AND t.fedi_open = 1`;
+  let rijen = [], totaal = 0;
+  try {
+    totaal = db.prepare(`SELECT COUNT(*) n FROM (${unie})`).get(siteId, siteId).n;
+    rijen = db.prepare(`SELECT soort, id FROM (${unie}) ORDER BY wanneer DESC LIMIT ? OFFSET ?`)
+      .all(siteId, siteId, limit, Math.max(0, offset));
+  } catch { return { posts: [], tracks: [], totaal: 0 }; }
+
+  const postIds = rijen.filter((r) => r.soort === 'post').map((r) => r.id);
+  const trackIds = rijen.filter((r) => r.soort === 'track').map((r) => r.id);
+  const gaten = (n) => Array.from({ length: n }, () => '?').join(',');
+  const posts = postIds.length ? db.prepare(
+    // fan_only en ap_visibility MOETEN mee. buildNote adresseert hierop, en
+    // zonder deze twee kolommen is post.fan_only altijd undefined: elke
+    // fan-only post ging dan de outbox uit met to: as:Public, terwijl hij
+    // alleen aan vrienden geserveerd wordt. Een volger kreeg dus een
+    // vrienden-post met een publiek etiket erop, en die mag hij dan publiek
+    // boosten. Gevonden tijdens de FEP-1580 end-to-end test (shaer-fuyo).
+    // EN paid + excerpt, om exact dezelfde reden (Barts melding, 15-8). Zonder
+    // `paid` is post.paid hier `undefined`, dan slaat buildNote zijn redactie
+    // over en gaat de VOLLEDIGE tekst van een betaalde post de outbox uit. Zo
+    // kwam een post via een hub-actor gewoon te lezen. `excerpt` moet mee omdat
+    // de teaser daaruit komt; zonder dat veld valt hij terug op de eerste
+    // alinea van precies de tekst die verborgen hoort te blijven.
+    //
+    // Dit is een KOLOMMENLIJST, en die faalt stil: een vergeten kolom is
+    // `undefined` en niet een fout. Wie hier een veld toevoegt waar buildNote
+    // op beslist, moet het HIER ook toevoegen.
+    `SELECT id, slug, title, excerpt, content, cover_image_url, cover_video_url, nsfw, content_warning,
+            c2s_attachments, quote_json, embed_json, published_at, created_at,
+            fan_only, ap_visibility, paid, paid_min_cents
+       FROM posts WHERE id IN (${gaten(postIds.length)})`).all(...postIds) : [];
+  const tracks = trackIds.length ? db.prepare(
+    `SELECT ${TRACK_KOLOMMEN}
+       FROM audio_tracks t JOIN media m ON m.id = t.media_id
+      WHERE t.id IN (${gaten(trackIds.length)})`).all(...trackIds) : [];
+  return { posts, tracks, totaal };
+}
+
+export function buildOutbox(base, site, posts, tracks = [], { page = false, totalItems, alGesneden = false, rauweInhoud = false } = {}) {
   const id = `${actorId(base, site.slug)}/outbox`;
-  const items = (posts || []).slice(0, MAX_OUTBOX).map((p) => buildCreate(base, site, p));
-  return {
-    '@context': AP_CONTEXT,
-    id,
-    type: 'OrderedCollection',
-    totalItems: items.length,
-    orderedItems: items,
-  };
+  const wanneer = (x) => Date.parse(x && x.published ? x.published : 0) || 0;
+  const items = [
+    ...(posts || []).map((p) => buildCreate(base, site, p, { rauweInhoud })),
+    // Eén zoekopdracht voor alle tracks samen, niet per stuk.
+    ...(() => {
+      const posts = (tracks || []).length && site.id ? trackHostPosts(site.id) : null;
+      return (tracks || []).map((r) => buildTrackCreate(base, site, r, { hostPosts: posts }));
+    })(),
+  ]
+    .sort((a, b) => wanneer(b) - wanneer(a))
+    .slice(0, alGesneden ? Infinity : MAX_OUTBOX);
+  // WAT HIER NOG NIET GEPAGINEERD IS, en dat hoort genoemd (shaer-sk4): deze
+  // lijst is al door de route op twintig rijen afgekapt, dus pagina 2 is leeg.
+  // Echt doorbladeren vraagt een LIMIT/OFFSET in SQL -- en dat is hier lastiger
+  // dan bij volgers, want posts en tracks worden op DATUM door elkaar gevlochten
+  // en komen uit twee tabellen. Dat vraagt een UNION met een offset erover, geen
+  // tweede slice. De vorm klopt nu wel: pagina 2 zegt eerlijk dat hij leeg is en
+  // biedt geen `next` aan, in plaats van pagina 1 nog eens te geven.
+  // GEPAGINEERD, ook al past alles op een pagina (Funkwhale, 11-8).
+  //
+  // Hun serializer weigerde onze outbox met "first: This field is required" en
+  // "last: This field is required". AS2 EIST ze niet -- een collectie mag zijn
+  // items inline dragen -- maar bijna iedereen pagineert, en een lezer die de
+  // paginaweg volgt liep hier dood. Dit is de eerste concrete reden die we
+  // hoorden waarom er niets van ons binnenkwam.
+  //
+  // De items blijven WEL inline op de wortel. Shaer bouwt zijn feed daaruit, en
+  // wie hem vandaag leest hoort er morgen niet voor te hoeven pagineren. Er is
+  // precies een pagina, dus first en last wijzen naar dezelfde.
+  return pagedCollection(id, items, { page, totalItems, alGesneden });
 }
 
 // Public callers get a count-only collection (privacy). The authenticated
 // account owner (a C2S bearer scoped to this site) gets the real actor URIs via
 // `items`, so their own client can build a friends list.
-export function buildFollowers(base, site, count, items = null) {
+export function buildFollowers(base, site, count, items = null, { page = false } = {}) {
   const id = `${actorId(base, site.slug)}/followers`;
-  return {
-    '@context': AP_CONTEXT,
-    id,
-    type: 'OrderedCollection',
-    totalItems: items ? items.length : (count || 0),
-    orderedItems: items || [], // count-only for the public; full for the owner
-  };
+  // count-only for the public; full for the owner
+  return pagedCollection(id, items || [], { totalItems: items ? items.length : (count || 0), page });
 }
 
 // The accounts this site follows — count only, mirroring buildFollowers. The spec lists
 // `following` as a standard actor property; Hubzilla/Friendica + crawlers expect it.
-export function buildFollowing(base, site, count, items = null) {
+export function buildFollowing(base, site, count, items = null, { page = false } = {}) {
   const id = `${actorId(base, site.slug)}/following`;
-  return {
-    '@context': AP_CONTEXT,
-    id,
-    type: 'OrderedCollection',
-    totalItems: items ? items.length : (count || 0),
-    orderedItems: items || [], // count-only for the public; full for the owner
-  };
+  // count-only for the public; full for the owner
+  return pagedCollection(id, items || [], { totalItems: items ? items.length : (count || 0), page });
 }
 
 // Pinned posts → the actor's `featured` collection. Mastodon reads this and shows
 // these as the "Featured" tab (pinned to the profile). Posts come ordered by pin
 // rank; embedded as full Notes so a remote server doesn't need extra fetches.
-export function buildFeatured(base, site, posts) {
+export function buildFeatured(base, site, posts, { page = false } = {}) {
   const id = `${actorId(base, site.slug)}/featured`;
   const items = (posts || []).map((p) => buildNote(base, site, p));
-  return {
-    '@context': AP_CONTEXT,
-    id,
-    type: 'OrderedCollection',
-    totalItems: items.length,
-    orderedItems: items,
-  };
+  return pagedCollection(id, items, { page });
 }
+
+// ── Playlist als AP-collectie (shaer-ayc, stap 1 van het Funkwhale-spoor) ──
+// Een playlist heeft, anders dan een album-als-tekstveld, een id — dus kan hij
+// een stabiele URI dragen en federeren. De vorm is bewust kaal AS2: een
+// OrderedCollection van Audio-objecten, dezelfde rijvorm die een post als
+// attachment meestuurt, zodat elke client die post-audio al speelt dit ook
+// speelt.
+//
+// De poortregel verandert hier NIET: alleen fedi_open-tracks staan erin, met
+// echte bestands-URL. Een gated track is niet "een rij zonder url" maar
+// afwezig — wie de collectie leest ziet het open deel en kan niet aftellen
+// hoeveel er achter de poort staat. totalItems telt daarom ook alleen het
+// open deel: een eerlijke telling over wat er werkelijk in de collectie staat,
+// niet over wat wij thuis in de kast hebben.
 
 // ── followers store (lazy stmts) ──────────────────────────────────
 let _insF, _updFDisp, _delF, _listF, _cntF;
@@ -928,13 +1458,28 @@ export function getMyReactions(slug, uri) {
 
 const localPostExists = (id) => { try { return !!db.prepare('SELECT 1 FROM posts WHERE id = ?').get(id); } catch { return false; } };
 // Extract our local post id from a note URL, but only if it's ours (base match).
+// One host, two spellings (Barts WebFinger-les, 2-8): a URL the client hands
+// back may carry the punycoded host (every URL parser silently punycodes)
+// while PUBLIC_BASE_URL carries the typed one. WHATWG URL does the IDNA, so
+// compare origins in ASCII and never the bytes the client happened to send.
+function asciiOrigin(u) {
+  try { const x = new URL(String(u)); return `${x.protocol}//${x.host}`.toLowerCase(); } catch { return null; }
+}
+function isOwnUrl(u) {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  if (!base) return false;
+  const a = asciiOrigin(u);
+  return !!a && a === asciiOrigin(base);
+}
 function postIdFromNoteUrl(url, base) {
   const s = String(url || '');
-  if (base && !s.startsWith(base)) return null;
+  // ASCII origins, not startsWith: xn--zz9h.example IS 🩵.example, and a
+  // byte comparison read our own note as a stranger's.
+  if (base) { const a = asciiOrigin(s); if (!a || a !== asciiOrigin(base)) return null; }
   const m = s.match(/\/ap\/notes\/([^/?#]+)/);
   return m ? decodeURIComponent(m[1]) : null;
 }
-function deriveHandle(actorUri) {
+export function deriveHandle(actorUri) {
   try { const u = new URL(actorUri); const seg = u.pathname.split('/').filter(Boolean).pop() || ''; return `@${seg}@${u.host}`; } catch { return String(actorUri || ''); }
 }
 function actorInfo(doc, actorUri) {
@@ -942,10 +1487,18 @@ function actorInfo(doc, actorUri) {
   const handle = doc && doc.preferredUsername ? `@${doc.preferredUsername}@${host}` : deriveHandle(actorUri);
   const icon = doc && doc.icon ? (doc.icon.url || (Array.isArray(doc.icon) && doc.icon[0] && doc.icon[0].url)) : null;
   const name = (doc && (doc.name || doc.preferredUsername)) || handle;
+  // Een AS2 `url` mag een ARRAY van Links zijn -- onze eigen buildActor doet
+  // dat (profiel + RSS), en een oudere consument stringde die array tot
+  // "[object Object],[object Object]" in de mention-hrefs van een hulpvraag
+  // (Barts vondst, 8-8). pickLink kiest de html-Link; de kale string blijft
+  // de gewone weg, en de actor-id de terugval.
+  const profiel = (doc && Array.isArray(doc.url))
+    ? ((pickLink(doc.url, (mt) => !mt || /html/i.test(mt)) || {}).href || safeUrl(doc.id || actorUri))
+    : safeUrl((doc && (doc.url || doc.id)) || actorUri);
   return {
     name,
     handle,
-    url: safeUrl((doc && (doc.url || doc.id)) || actorUri) || null,
+    url: profiel || null,
     icon: safeUrl(icon) || null,
     // FEP-9098 custom emojis in the display name (":shortcode:"), so the byline
     // renders them. Only computed when the name actually has a shortcode.
@@ -1009,16 +1562,29 @@ export function getInteractions(postId, base, site) {
   const siteUrl = baseClean ? `${baseClean}/` : '';
   const siteIcon = (site && site.profile_photo) || null;
 
+  // Wat JIJ met deze reacties deed komt uit de tussentabel, niet meer uit
+  // acted_* (shaer-ipb). Eén batch-lookup, want een drukke thread zou anders een
+  // N+1 worden. De sleutel loopt door canonicalReactionUri, precies zoals aan de
+  // schrijfkant -- staat dezelfde note toevallig ook in je tijdlijn, dan is het
+  // één feit en niet twee knoppen die los van elkaar aan kunnen staan.
+  const mijnSleutel = new Map();
+  for (const r of rows) {
+    if (r.kind === 'reply' && r.object_uri) mijnSleutel.set(r.object_uri, canonicalReactionUri(site && site.slug, r.object_uri));
+  }
+  const mijn = getReactionsFor(site && site.slug, [...mijnSleutel.values()]);
+  const mijnReactie = (uri) => mijn.get(mijnSleutel.get(uri)) || { liked: false, boosted: false };
+
   const nodes = [];
   for (const r of rows) {
     if (r.kind !== 'reply') continue;
+    const ik = mijnReactie(r.object_uri);
     nodes.push({
       noteId: r.object_uri, parent: r.parent_uri || null, mine: false, id: r.id,
       actor_uri: r.actor_uri,
       actor_name: r.actor_name, actor_handle: r.actor_handle, actor_url: r.actor_url,
       actor_icon: r.actor_icon, content: stripLeadingMentions(r.content), created_at: r.published || r.created_at,
       emoji_json: r.emoji_json, actor_emoji_json: r.actor_emoji_json,   // FEP-9098 (thread render)
-      acted_boost: !!r.acted_boost, acted_like: !!r.acted_like,
+      acted_boost: ik.boosted, acted_like: ik.liked,
       children: [],
     });
   }
@@ -1107,14 +1673,41 @@ export async function deliver(inboxUrl, bodyObj, keyId, privatePem) {
   return r.status;
 }
 
-export async function fetchActor(url) {
+export async function fetchActor(url, opts = {}) {
+  // Authorized fetch (Mastodons secure mode): zo'n instance serveert zijn
+  // actor-document -- en dus zijn publieke sleutel -- alleen aan een ONDERTEKEND
+  // verzoek en antwoordt anders met 401. Zonder sleutel kunnen we een correct
+  // ondertekende Follow van die instance niet verifiëren en wijzen we hem af,
+  // waarna Mastodon het dagenlang blijft proberen. Gemeten op boiert.eu: vier
+  // accounts eindeloos geweigerd, en precies die vier geven 401 op een
+  // onbetekende GET (shaer-afq).
+  //
+  // Geen kip-ei: om ONZE handtekening te controleren haalt de andere kant ons
+  // actor-document op, en dat serveert Klonkt publiek.
+  //
+  // ONBETEKEND EERST, en dat is een veiligheidskeuze en geen optimalisatie.
+  // verifyRequest haalt de keyId-URL op VOORDAT er iets geverifieerd is, en die
+  // URL komt uit een header die iedereen mag sturen. Tekenden we dat verzoek
+  // standaard, dan kan een volslagen onbekende ons een ONDERTEKEND verzoek laten
+  // sturen naar een adres van zijn keuze -- met onze identiteit eronder. Dat is
+  // precies hoe een instance op een blocklist belandt. Ondertekenen doen we dus
+  // pas als het onbetekend niet lukt, en dan alleen voor deze ene URL.
+  let doc = null;
   try {
     const r = await safeFetch(url, { headers: { Accept: 'application/activity+json' } });
-    if (!r.ok) return null;
-    const len = Number(r.headers.get('content-length') || 0);
-    if (len > 2_000_000) return null; // refuse oversized actor docs
-    return await r.json();
-  } catch { return null; }
+    if (r.ok) {
+      const len = Number(r.headers.get('content-length') || 0);
+      if (len > 2_000_000) return null; // refuse oversized actor docs
+      doc = await r.json();
+    }
+  } catch { /* val door naar de ondertekende poging */ }
+  // Genoeg? Dan klaar. Sommige instances serveren onbetekend wel een document
+  // maar zonder sleutel; voor een verificatie hebben we daar niets aan, dus die
+  // telt als mislukt.
+  if (doc && (!opts.asSlug || (doc.publicKey && doc.publicKey.publicKeyPem))) return doc;
+  if (!opts.asSlug) return doc;
+  const signed = await signedGetJson(opts.asSlug, url).catch(() => null);
+  return (signed && signed.id) ? signed : doc;
 }
 
 // ── Delivery queue with retries ───────────────────────────────────
@@ -1191,19 +1784,50 @@ export function startDeliveryWorker() {
   if (_delivTimer.unref) _delivTimer.unref();
 }
 
+/** Een lokale site om GETs mee te ondertekenen wanneer er geen specifieke is
+ *  (de gedeelde inbox). Gecached: dit draait per binnenkomend verzoek. */
+let _signSlug;
+function anySigningSlug() {
+  if (_signSlug !== undefined) return _signSlug;
+  try { const r = db.prepare('SELECT slug FROM sites ORDER BY rowid LIMIT 1').get(); _signSlug = (r && r.slug) || null; }
+  catch { _signSlug = null; }
+  return _signSlug;
+}
+
 // Best-effort verification of an incoming signed request. Returns the sender's
 // actor doc if the signature checks out, else null. (Not gating yet — MVP.)
 // Max clock skew for the signed Date header (replay window). Generous default to tolerate
 // federating servers with drifting clocks; an operator can widen it via env.
 const SIG_MAX_SKEW_MS = (Number(process.env.AP_SIG_MAX_SKEW_MIN) || 60) * 60 * 1000;
-export async function verifyRequest(req) {
+export async function verifyRequest(req, asSlug = null) {
   const sigH = req.headers['signature'];
   if (!sigH) return null;
   const p = Object.fromEntries([...sigH.matchAll(/([a-zA-Z]+)="([^"]*)"/g)].map((m) => [m[1], m[2]]));
   if (!p.keyId || !p.signature) return null;
-  const actor = await fetchActor(p.keyId.split('#')[0]);
+  // Onderteken de sleutel-ophaal, anders faalt elke instance met authorized
+  // fetch (shaer-afq). Zonder aangewezen site -- de gedeelde inbox -- tekenen we
+  // als een willekeurige lokale actor: elke Klonkt-actor is een geldige
+  // ondertekenaar, het gaat de andere kant er alleen om DAT er ondertekend is.
+  const actor = await fetchActor(p.keyId.split('#')[0], { asSlug: asSlug || anySigningSlug() });
   const pem = actor && actor.publicKey && actor.publicKey.publicKeyPem;
   if (!pem) return null;
+  // Bind the key to the actor it speaks for. Without this we hand back whatever
+  // `id` the fetched document claims, so anyone could host a document carrying a
+  // VICTIM's id next to their OWN public key, sign with their own private half,
+  // and be believed: the victim's server is never contacted. The caller decides on
+  // `verified.id`, so the identity has to come from where the key was FETCHED,
+  // never from what the document says about itself.
+  // Adds conditions only, and there is no exemption list on purpose: an
+  // "unless it's a known peer" escape hatch is exactly the door this closes.
+  // Note this does not narrow what we accept in practice, since the line above
+  // already requires the embedded publicKey object (an array or a bare URI
+  // reference never worked here).
+  const key = actor.publicKey;
+  try {
+    if (new URL(p.keyId).host !== new URL(actor.id).host) return null;   // same origin as the key
+    if (key.id && key.id !== p.keyId) return null;                       // this key, not a neighbour's
+    if (key.owner && key.owner !== actor.id) return null;                // and it belongs to this actor
+  } catch { return null; }                                               // unparseable id or keyId
   const hs = (p.headers || '(request-target) host date').split(/\s+/);
   // Behind a reverse proxy the raw Host header is the backend bind (e.g. localhost:3000, when
   // the proxy doesn't preserve it — Apache .htaccess [P] proxying), but the sender signed the
@@ -1243,6 +1867,39 @@ export async function verifyRequest(req) {
     }
   }
   return ok ? actor : null;
+}
+
+// ── Authorized fetch for a single Note (2-8) ─────────────────────
+// Who may read this post's Note over AP GET? 'public' needs nobody;
+// friends-only (fan_only, Shaer's DEFAULT) needs a verified follower;
+// 'direct' is addressed to people and is never served over a GET at all.
+export function noteAudience(post) {
+  if (!post) return 'direct';
+  if (post.ap_visibility === 'direct') return 'direct';
+  if (post.fan_only || post.ap_visibility === 'friends') return 'followers';
+  return 'public';
+}
+// A follower earns the friends-only Note; a blocked actor gets the same
+// nothing as a stranger (the standing rule: a blocked actor's signed fetch
+// earns the empty set, gated server-side at serialisation).
+export function mayReadNote(site, post, actorUri) {
+  const aud = noteAudience(post);
+  if (aud === 'public') return true;
+  if (aud === 'direct' || !site || !actorUri) return false;
+  // FEP-1580: dezelfde regel als in outboxAudience, en hier net zo hard nodig.
+  // De outbox geeft de LIJST vrij; zonder deze tak strandt de doelinstantie
+  // alsnog op elke losse Note die niet publiek is.
+  if (isMoveTarget(site.slug, actorUri)) return true;
+  try {
+    const blocked = db.prepare("SELECT 1 FROM ap_blocks WHERE slug = ? AND kind = 'actor' AND target = ?").get(site.slug, actorUri);
+    if (blocked) return false;
+    let host = null; try { host = new URL(actorUri).host; } catch { /* geen host, geen domein-block */ }
+    if (host) {
+      const dom = db.prepare("SELECT 1 FROM ap_blocks WHERE slug = ? AND kind = 'domain' AND target = ?").get(site.slug, host);
+      if (dom) return false;
+    }
+    return !!db.prepare('SELECT 1 FROM ap_followers WHERE slug = ? AND actor_uri = ?').get(site.slug, actorUri);
+  } catch { return false; }
 }
 
 // Parse a fediverse poll (an ActivityStreams `Question` — the Mastodon-standard poll form)
@@ -1390,6 +2047,34 @@ export function onNews(slug, cb) {
   set.add(cb);
   return () => { set.delete(cb); if (!set.size) _newsWaiters.delete(slug); };
 }
+/**
+ * Wachters op het Guardian-paneel (Barts opdracht, 9-8).
+ *
+ * APART VAN onNews, en dat is met opzet. `news` gaat over de tijdlijn; dit gaat
+ * over alles wat een guardian te VERWERKEN krijgt -- een aanbod, een
+ * volgverzoek, een gate-voorstel, een hulpvraag, een lapse. De guardianship-
+ * module zendt daar al veertien soorten voor uit; die gingen alleen naar push,
+ * en push kiest bewust maar een handvol. Het paneel moet ze allemaal weten.
+ *
+ * Een wachter wordt EEN keer gewekt en daarna vergeten: het antwoord dat volgt
+ * is de nieuwe waarheid, en de client komt terug met een nieuwe wachter.
+ */
+const _guardWaiters = new Map();   // slug -> Set<cb>
+export function onGuardian(slug, cb) {
+  let set = _guardWaiters.get(slug);
+  if (!set) { set = new Set(); _guardWaiters.set(slug, set); }
+  set.add(cb);
+  return () => { set.delete(cb); if (!set.size) _guardWaiters.delete(slug); };
+}
+export function wakeGuardian(slug) {
+  const set = _guardWaiters.get(slug);
+  if (!set || !set.size) return;
+  const cbs = [...set];
+  set.clear();
+  _guardWaiters.delete(slug);
+  for (const cb of cbs) { try { cb(); } catch { /* een wachter mag de rest nooit breken */ } }
+}
+
 export function wakeNews(slug) {
   const set = _newsWaiters.get(slug);
   if (!set || !set.size) return;
@@ -1398,10 +2083,10 @@ export function wakeNews(slug) {
   _newsWaiters.delete(slug);
   for (const cb of cbs) { try { cb(); } catch { /* a waiter must never break the rest */ } }
 }
-// Hub-aware path prefix for a site's pages ('' in solo).
-function pushPrefix(slug) {
-  try { return getTenancy() === 'hub' ? `/user/${slug}` : ''; } catch { return ''; }
-}
+// Path prefix for a site's pages. One instance is one owner, so the site
+// lives at the root; kept as a function because the push URLs read like
+// `${pushPrefix(slug)}/messages` all over this file.
+function pushPrefix() { return ''; }
 // Notification language: the site's content language (fallback: instance default).
 function pushLang(slug) {
   try { const r = db.prepare('SELECT language FROM sites WHERE slug = ?').get(slug); return (r && r.language) || process.env.KLONKT_DEFAULT_LANG || 'nl'; } catch { return 'nl'; }
@@ -1413,6 +2098,159 @@ function pushPostCtx(postId) {
     if (!r) return null;
     return { site: r.site, title: r.title || r.post, url: `${pushPrefix(r.site)}/${r.post}#fediverse` };
   } catch { return null; }
+}
+
+/**
+ * Een DOORGESTUURDE activiteit alsnog verifiëren (shaer-s8k).
+ *
+ * Reageert iemand in een thread, dan stuurt de server van de oorspronkelijke
+ * poster die reactie door naar de deelnemers -- en ondertekent met zijn EIGEN
+ * sleutel. De handtekening klopt dan, maar de ondertekenaar is niet de auteur,
+ * dus de gate hieronder wees hem af. Gevolg: reacties van derden kwamen niet
+ * binnen, zonder dat iemand een fout zag.
+ *
+ * Mastodon lost dit op met een LD-Signature over de payload. Dat vraagt
+ * JSON-LD-canonicalisatie; wij doen het lichter en strenger: we geloven de
+ * bezorgde inhoud NIET en halen het object op bij de bron.
+ *
+ * Vier voorwaarden, en geen ervan is optioneel:
+ *
+ *  1. Alleen Create en Update. Een doorgestuurde Delete is per definitie niet te
+ *     dereferencen -- het object is weg -- dus die blijft geweigerd.
+ *  2. De host van de object-id MOET die van de geclaimde actor zijn. Zonder dit
+ *     anker wijst een doorsturer je naar een host die hij zelf beheert, waar
+ *     attributedTo alles kan beweren.
+ *  3. Het OPGEHAALDE object wordt gebruikt, niet de bezorgde payload. Anders
+ *     levert een doorsturer een echt id met verdraaide inhoud.
+ *  4. Mislukt het ophalen, of wijst het object zichzelf niet toe aan de
+ *     geclaimde actor, dan blijft het een weigering. Geen twijfelgeval opslaan.
+ */
+/** Kennen we deze note? Een eigen post, een eigen outbox-antwoord, een
+ *  gecachete post in de tijdlijn, of een reactie die al in een thread van ons
+ *  staat. Alle vier zijn een geldige reden dat iemand ons een antwoord daarop
+ *  doorstuurt; iets anders is dat niet. */
+function knownNoteUri(uri) {
+  if (!uri || typeof uri !== 'string') return false;
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  try {
+    if (base && uri.startsWith(`${base}/ap/notes/`)) {
+      const seg = decodeURIComponent(uri.slice(`${base}/ap/notes/`.length).split(/[?#]/)[0]);
+      if (db.prepare('SELECT 1 FROM ap_outbox WHERE id = ?').get(seg)) return true;
+      if (db.prepare('SELECT 1 FROM posts WHERE id = ?').get(seg)) return true;
+    }
+    if (db.prepare('SELECT 1 FROM ap_timeline WHERE id = ? LIMIT 1').get(uri)) return true;
+    if (db.prepare('SELECT 1 FROM ap_interactions WHERE object_uri = ? LIMIT 1').get(uri)) return true;
+    // Een antwoord dat we al bezorgd kregen van iemand die we volgen (shaer-e9g).
+    if (db.prepare('SELECT 1 FROM ap_seen_notes WHERE uri = ? LIMIT 1').get(uri)) return true;
+  } catch { /* bij twijfel niet ophalen */ }
+  return false;
+}
+
+/**
+ * Onthoud dat we dit bericht al eens bezorgd kregen.
+ *
+ * Alleen de URI. Geen inhoud, niets op het scherm, geen tweede weergave -- dit
+ * beantwoordt uitsluitend de vraag "kennen wij dit bericht?" die knownNoteUri
+ * stelt voordat er iets bij de bron wordt opgehaald.
+ *
+ * De beller bepaalt WIE er onthouden wordt, en dat is de hele veiligheidsvraag:
+ * onthouden we zomaar alles wat iemand aflevert, dan kan een vreemde eerst een
+ * bericht neerleggen en daarna met een doorgestuurd antwoord dáárop ons naar een
+ * adres van zijn keuze sturen. Vandaar dat handleInbox dit alleen doet voor
+ * schrijvers die je zelf volgt.
+ */
+const SEEN_NOTES_DAYS = 30;
+let _seenSinceSnoei = 0;
+function rememberNoteUri(uri) {
+  if (!uri || typeof uri !== 'string') return;
+  try {
+    db.prepare('INSERT OR IGNORE INTO ap_seen_notes (uri) VALUES (?)').run(uri);
+    // Af en toe opruimen, niet bij het opstarten: een server die weken doorloopt
+    // zou anders nooit snoeien. Doorsturen gebeurt kort na het antwoord, dus wat
+    // ouder is dan een maand beantwoordt geen enkele vraag meer.
+    if (++_seenSinceSnoei >= 500) {
+      _seenSinceSnoei = 0;
+      const r = db.prepare(`DELETE FROM ap_seen_notes WHERE created_at < datetime('now', '-${SEEN_NOTES_DAYS} days')`).run();
+      if (r.changes) console.log(`[AP] seen notes: ${r.changes} pruned`);
+    }
+  } catch { /* niet fataal */ }
+}
+const isFollowedActor = (uri) => {
+  try { return !!db.prepare('SELECT 1 FROM ap_following WHERE actor_uri = ? LIMIT 1').get(uri); } catch { return false; }
+};
+
+// Mislukte dereferences kort onthouden. Mastodon herhaalt een bezorging
+// dagenlang; zonder dit doet elke herhaling de fetch opnieuw, ook als die de
+// vorige twintig keer niets opleverde. Dempt meteen de scherpte van misbruik.
+const _derefMiss = new Map();
+const DEREF_MISS_MS = 30 * 60 * 1000;
+function derefRecentlyFailed(uri) {
+  const t = _derefMiss.get(uri);
+  if (t === undefined) return false;
+  if (Date.now() - t > DEREF_MISS_MS) { _derefMiss.delete(uri); return false; }
+  return true;
+}
+function noteDerefFailure(uri) {
+  if (_derefMiss.size > 500) {   // simpele begrenzing: oudste helft eruit
+    const oud = [..._derefMiss.entries()].sort((a, b) => a[1] - b[1]).slice(0, 250);
+    for (const [k] of oud) _derefMiss.delete(k);
+  }
+  _derefMiss.set(uri, Date.now());
+}
+
+async function dereferenceForwarded(act, claimedActor, type, slugParam) {
+  // Every exit states its reason. Five of the six used to return silently, so a
+  // rejection count could not be told apart from a narrowing that closed too far
+  // — and that is exactly the measurement shaer-drf is waiting for. Bounded by
+  // the signer-mismatch rate (tens per hour), so this is not a noisy log.
+  const skipped = (reason, detail) => {
+    console.log(`[AP] inbox forwarded, skipped (${reason}):`, claimedActor, detail || '');
+    return null;
+  };
+  if (type !== 'Create' && type !== 'Update') return skipped('not Create/Update', type);
+  const o = act && act.object;
+  const objId = typeof o === 'string' ? o : (o && o.id);
+  if (!objId || typeof objId !== 'string' || !/^https:\/\//i.test(objId)) return skipped('no https object id', objId || '(none)');
+  try {
+    if (new URL(objId).host !== new URL(claimedActor).host) return skipped('host anchor', objId);   // ankereis
+  } catch { return skipped('unparsable id', objId); }
+  // Alleen dereferencen als het object beweert een antwoord te zijn op iets van
+  // ONS (shaer-drf). Zonder die eis zijn claimedActor en object.id allebei door
+  // de aanvaller gekozen en eist het host-anker alleen dat ze aan elkaar gelijk
+  // zijn -- dan kan iedereen met een werkende actor ons naar elke URL sturen.
+  // Doorsturen bestaat juist omdát wij in de thread zitten, dus deze eis kost
+  // niets aan legitiem verkeer waarvan we de ouder kennen.
+  const parent = typeof o === 'object' && o
+    ? (typeof o.inReplyTo === 'string' ? o.inReplyTo : (o.inReplyTo && o.inReplyTo.id))
+    : null;
+  if (!knownNoteUri(parent)) return skipped('unknown inReplyTo', parent || '(none)');
+  if (derefRecentlyFailed(objId)) return skipped('recent failure', objId);
+  // Onbetekend eerst; tekenen alleen als terugval. Anders kan een ander ons een
+  // ONDERTEKEND verzoek naar een adres van zijn keuze laten sturen -- dezelfde
+  // reden als bij fetchActor sinds efe5633.
+  let fetched = await apGetJson(objId).catch(() => null);
+  if (!fetched || fetched.id !== objId) {
+    // The signer used to be slugParam, which is null on the shared inbox — and
+    // that is where forwarded traffic lands, because we advertise a sharedInbox.
+    // signedGetJson falls back to an unsigned GET for a null slug, so a source in
+    // secure mode could never be dereferenced at all. Same fix verifyRequest got
+    // in shaer-afq: any local actor is a valid signer.
+    const asSlug = slugParam || anySigningSlug();
+    if (asSlug) fetched = await signedGetJson(asSlug, objId).catch(() => null);
+  }
+  const attributed = fetched && (typeof fetched.attributedTo === 'string'
+    ? fetched.attributedTo
+    : (fetched.attributedTo && fetched.attributedTo.id));
+  if (!fetched || fetched.id !== objId) {
+    noteDerefFailure(objId);
+    return skipped('fetch failed', objId);
+  }
+  if (attributed !== claimedActor) {
+    // Not a transport hiccup: the source itself says someone else wrote this.
+    noteDerefFailure(objId);
+    return skipped('attributedTo mismatch', `${objId} claims ${attributed || '(none)'}`);
+  }
+  return fetched;
 }
 
 // Handle an incoming inbox POST. slugParam = null for the shared /ap/inbox.
@@ -1428,7 +2266,7 @@ export async function handleInbox(req, slugParam, preVerified = null) {
   // check — but we do know who signed, because we signed it. Handing that in
   // keeps everything below identical, including the actor-versus-signer check,
   // which is exactly the check that must not be skipped for being local.
-  const verified = preVerified || await verifyRequest(req).catch(() => null);
+  const verified = preVerified || await verifyRequest(req, slugParam).catch(() => null);
 
   // ENFORCE HTTP signatures: a data-affecting activity must be signed by the very
   // actor it claims to be. No valid signature, or signer ≠ actor → reject (no
@@ -1436,10 +2274,28 @@ export async function handleInbox(req, slugParam, preVerified = null) {
   const claimedActor = typeof act.actor === 'string' ? act.actor : (act.actor && act.actor.id);
   // Blocked actor/domain → silently drop (202, don't reveal the block).
   if (claimedActor && isBlockedAny(claimedActor)) { console.log('[AP] inbox dropped (blocked)', claimedActor, 'from', ip); return 202; }
-  const GATED = ['Create', 'Like', 'Announce', 'Follow', 'Delete', 'Undo', 'Accept', 'Reject', 'Add', 'Remove', 'Update', 'Flag', 'Offer'];
+  const GATED = ['Create', 'Like', 'Announce', 'Follow', 'Delete', 'Undo', 'Accept', 'Reject', 'Add', 'Remove', 'Update', 'Flag', 'Offer', 'Move'];
   if (GATED.includes(type)) {
-    if (!verified || !claimedActor || verified.id !== claimedActor) {
-      console.warn('[AP] inbox REJECTED (signature)', type, claimedActor || '?', 'from', ip, verified ? '(signer mismatch)' : '(unsigned/invalid)');
+    // Een geldige handtekening van iemand anders dan de auteur is doorsturen,
+    // geen vervalsing. Haal het object dan bij de bron op in plaats van het af
+    // te wijzen; lukt dat niet, dan valt het door naar de weigering hieronder.
+    let forwarded = null;
+    if (verified && claimedActor && verified.id !== claimedActor) {
+      forwarded = await dereferenceForwarded(act, claimedActor, type, slugParam).catch(() => null);
+      if (forwarded) {
+        act.object = forwarded;   // de OPGEHAALDE inhoud, niet de bezorgde
+        console.log('[AP] inbox forwarded, verified at the source:', type, claimedActor, 'via', verified.id);
+      }
+    }
+    if (!forwarded && (!verified || !claimedActor || verified.id !== claimedActor)) {
+      // Drie verschillende oorzaken, die eerder allemaal "unsigned/invalid"
+      // heetten: geen handtekening meegestuurd, wel een handtekening maar niet
+      // te verifiëren (meestal een opgeheven account waarvan de sleutel weg is),
+      // of geldig ondertekend door iemand anders.
+      const reden = verified ? '(signer mismatch)'
+        : (req.headers && req.headers.signature) ? '(signature present, unverifiable)'
+        : '(no signature)';
+      console.warn('[AP] inbox REJECTED (signature)', type, claimedActor || '?', 'from', ip, reden);
       return 401;
     }
     // One answer restores everything (FEP-633c 3.6): any VERIFIED activity
@@ -1470,14 +2326,21 @@ export async function handleInbox(req, slugParam, preVerified = null) {
     // Every LOCAL party this activity is addressed to gets its own copy of the
     // handshake (a ward and a co-guardian may both live here). Gather candidate
     // local slugs from the inbox owner, the `to` list, and the ward.
+    // MET localSlugOf en niet met slugFromActorUrl. Dat laatste knipt alleen de
+    // staart van een pad af, zonder naar de HOST te kijken -- en deze uri's
+    // komen uit `to` en uit de relatie, dus van de afzender. Een Offer gericht
+    // aan https://elders.example/ap/users/dev leverde zo de slug "dev" op, en
+    // die bestaat hier. Dan draait onze dev de afhandeling van een activiteit
+    // die nooit aan hem geadresseerd was. localSlugOf eist dat de uri met onze
+    // eigen basis begint en dat de site echt bestaat.
     const cand = new Set();
     if (slugParam) cand.add(slugParam);
     for (const t of (Array.isArray(act.to) ? act.to : (act.to ? [act.to] : []))) {
-      if (typeof t === 'string') { const s = slugFromActorUrl(t); if (s) cand.add(s); }
+      if (typeof t === 'string') { const s = localSlugOf(t); if (s) cand.add(s); }
     }
     if (type === 'Offer' || type === 'Undo') {
       const rel = type === 'Undo' ? Guardianship.parseUndoRelationship(act) : Guardianship.parseRelationship(act.object);
-      if (rel) { const s = slugFromActorUrl(rel.ward); if (s) cand.add(s); }
+      if (rel) { const s = localSlugOf(rel.ward); if (s) cand.add(s); }
     }
     let consumed = false;
     for (const slug of cand) {
@@ -1495,7 +2358,7 @@ export async function handleInbox(req, slugParam, preVerified = null) {
     let targetSlug = null;
     const noteIds = [];
     for (const u of objectUris) {
-      const s = slugFromActorUrl(u);        // one of our actors?
+      const s = localSlugOf(u);             // one of OURS -- host meegewogen
       if (s) { targetSlug = targetSlug || s; continue; }
       const pid = postIdFromNoteUrl(u, base); // one of our notes?
       if (pid) noteIds.push(pid);
@@ -1514,9 +2377,50 @@ export async function handleInbox(req, slugParam, preVerified = null) {
     return 202;
   }
 
+  // FEP-7628 (DRAFT): an account moved house. Handled before Follow on purpose:
+  // a Move often arrives seconds before the new actor's re-Follow wave, and the
+  // swap below must not race our own outgoing Follow of the target.
+  if (type === 'Move') {
+    return handleMoveInbox(act, { verifiedActor: claimedActor });
+  }
+
   if (type === 'Follow') {
     const who = typeof act.actor === 'string' ? act.actor : (act.actor && act.actor.id);
-    const slug = slugParam || slugFromActorUrl(typeof act.object === 'string' ? act.object : (act.object && act.object.id));
+    // EERST: volgt iemand onze BIBLIOTHEEK in plaats van onze actor? (shaer-0nh)
+    //
+    // Een luisteraar krijgt de muziek en NIET de gewone posts -- wie zich
+    // abonneert op een platenkast heeft niet om de Krant gevraagd. Vandaar een
+    // eigen tabel: zolang ze daar staan kan een postbezorging ze niet per
+    // ongeluk meenemen.
+    //
+    // De bibliotheek is openbaar (alles erin is fedi_open), dus dit accepteert
+    // meteen. Er valt niets goed te keuren, en dan is wachten oneerlijk.
+    const libSlug = libraryOwnerSlug(typeof act.object === 'string' ? act.object : (act.object && act.object.id));
+    if (who && libSlug) {
+      const remote = await fetchActor(who);
+      if (!remote || !remote.inbox) return 202;
+      const fi = actorInfo(remote, who);
+      luisteraars.voegToe(libSlug, {
+        actorUri: who, inbox: remote.inbox,
+        sharedInbox: (remote.endpoints && remote.endpoints.sharedInbox) || null,
+        name: fi.name, handle: fi.handle, icon: fi.icon,
+      });
+      const keys = getOrCreateKeys(libSlug);
+      const accept = {
+        '@context': AP_CONTEXT,
+        id: `${actorId(base, libSlug)}#accept-library-${Date.now()}-${rid()}`,
+        type: 'Accept', actor: actorId(base, libSlug), object: act,
+      };
+      deliver(remote.inbox, accept, `${actorId(base, libSlug)}#main-key`, keys.privatePem)
+        .catch(() => { /* de volger staat er; een mislukte Accept mag dat niet omgooien */ });
+      console.log('[AP] library follow from', who, '->', libSlug);
+      return 202;
+    }
+    // slugParam is de eigenaar van een per-actor inbox; op de GEDEELDE inbox is
+    // die er niet en werd de slug uit act.object geraden. Zonder hostcontrole
+    // kon een Follow op andermans actor met dezelfde padstaart hier een volger
+    // opleveren.
+    const slug = slugParam || localSlugOf(typeof act.object === 'string' ? act.object : (act.object && act.object.id));
     if (!who || !slug) return 400;
     const remote = await fetchActor(who);
     if (!remote || !remote.inbox) return 202; // can't reach them → drop quietly
@@ -1555,17 +2459,45 @@ export async function handleInbox(req, slugParam, preVerified = null) {
         const isLocal = gslug && db.prepare('SELECT 1 FROM sites WHERE slug = ?').get(gslug);
         if (isLocal) {
           const L = pushLang(gslug);
-          pushEvent(gslug, { type: 'guardian', title: i18nT(L, 'push.n_guard_cog_t'), body: i18nT(L, 'push.n_guard_cog_b', { who: fi.name || fi.handle || i18nT(L, 'notif.someone') }), url: `${pushPrefix(gslug)}/guardian` });
+          // Een volgverzoek is geen mede-voogdij. Deze push leende de tekst van
+          // offer_for_ward en meldde dus een adoptie die niet gebeurde -- met de
+          // volger als onderwerp. Eigen woorden, en allebei de namen erin: wie
+          // er vraagt, en om wie het gaat (shaer-p729).
+          pushEvent(gslug, { type: 'guardian', title: i18nT(L, 'push.n_guard_folin_t'), body: i18nT(L, 'push.n_guard_folin_b', { who: fi.name || fi.handle || i18nT(L, 'notif.someone'), ward: slug }), url: `${pushPrefix(gslug)}/guardian` });
         } else {
           fetchActor(g).then((ga) => {
             const inbox = ga && ((ga.endpoints && ga.endpoints.sharedInbox) || ga.inbox);
             if (!inbox) return;
-            const offer = { '@context': AP_CONTEXT, id: `${wardActor}#followoffer-${Date.now()}-${rid()}`, type: 'Offer', actor: wardActor, to: [g], object: followObj, 'shaer:followApproval': true };
+            const beslissend2 = Guardianship.gated.isDecisive(0, Guardianship.follows.followThreshold(guardians.length));
+            const offer = { '@context': AP_CONTEXT, id: `${wardActor}#followoffer-${Date.now()}-${rid()}`, type: 'Offer', actor: wardActor, to: [g], object: followObj, 'shaer:followApproval': true, 'shaer:decisive': beslissend2 };
             deliverWithRetry(slug, inbox, offer, `${wardActor}#main-key`, wardKeys.private_pem).catch(() => {});
           }).catch(() => {});
         }
       }
       console.log('[AP] Follow', who, '→ ward', slug, '(gated, awaiting guardians)');
+      return 202;
+    }
+    // De eigenaarspoort (Robins wens, 18-8): met approve_followers aan wordt
+    // een Follow niet automatisch geaccepteerd — hij wacht in dezelfde
+    // wachtrij als een ward-follow, maar hier beslist de EIGENAAR, op
+    // /connect. Zo kan niemand een klonkt zomaar aan een hub of ander
+    // verzamelplatform hangen zonder dat de eigenaar ja heeft gezegd.
+    // Wards vallen hier nooit: de guardianpoort hierboven gaat vóór.
+    const ownerGate = db.prepare('SELECT approve_followers FROM sites WHERE slug = ?').get(slug);
+    if (ownerGate && ownerGate.approve_followers) {
+      const followId = (typeof act.id === 'string' && act.id) || `${who}#follow-${Date.now()}-${rid()}`;
+      Guardianship.follows.recordPending(slug, {
+        id: followId, follower: who, inbox: remote.inbox, sharedInbox,
+        name: fi.name, handle: fi.handle, icon: fi.icon, activity: act, quorum: 'owner',
+      });
+      const L = pushLang(slug);
+      pushEvent(slug, {
+        type: 'follow',
+        title: i18nT(L, 'push.n_folreq_t'),
+        body: i18nT(L, 'push.n_folreq_b', { who: fi.name || fi.handle || i18nT(L, 'notif.someone') }),
+        url: `${pushPrefix(slug)}/connect`,
+      });
+      console.log('[AP] Follow', who, '→', slug, '(awaiting owner approval)');
       return 202;
     }
     fStmts().ins.run(slug, who, remote.inbox, sharedInbox, fi.name, fi.handle, fi.icon);
@@ -1590,6 +2522,17 @@ export async function handleInbox(req, slugParam, preVerified = null) {
     console.log('[AP] Follow', who, '→', slug, verified ? '(sig ok)' : '(sig unverified)');
     return 202;
   }
+  // Een luisteraar die weggaat, hoort meteen weg te zijn.
+  if (type === 'Undo' && act.object && act.object.type === 'Follow') {
+    const doel = typeof act.object.object === 'string' ? act.object.object : (act.object.object && act.object.object.id);
+    const libSlug = libraryOwnerSlug(doel);
+    const wie = typeof act.actor === 'string' ? act.actor : (act.actor && act.actor.id);
+    if (libSlug && wie && luisteraars.verwijder(libSlug, wie)) {
+      console.log('[AP] library unfollow from', wie, '->', libSlug);
+      return 202;
+    }
+  }
+
   if (type === 'Undo' && act.object) {
     const who = typeof act.actor === 'string' ? act.actor : (act.actor && act.actor.id);
     const ot = act.object.type;
@@ -1620,7 +2563,7 @@ export async function handleInbox(req, slugParam, preVerified = null) {
   const isLocalActor = !!(actorUri && slugParam && actorUri === actorId(base, slugParam));
 
   // Inbound reply: a Create whose object replies to one of our notes (post OR comment).
-  if (type === 'Create' && act.object && (act.object.type === 'Note' || act.object.type === 'Article' || act.object.type === 'Question')) {
+  if (type === 'Create' && act.object && TIJDLIJN_SOORTEN.has(act.object.type)) {
     const o = act.object;
     // A poll ballot: a Note carrying a `name` (the chosen option) inReplyTo one of OUR poll
     // posts. Record it (deduped per actor) BEFORE the reply logic so a vote is never stored
@@ -1673,15 +2616,7 @@ export async function handleInbox(req, slugParam, preVerified = null) {
       let subs = []; try { subs = db.prepare('SELECT slug, auto_boost FROM ap_following WHERE actor_uri = ?').all(actorUri); } catch { /* table may not exist yet */ }
       if (subs.length) {
         const ai = actorInfo(await resolveActor(actorUri), actorUri);
-        const html = HtmlSanitizerService.sanitize(o.content || '');
-        const _atts = (Array.isArray(o.attachment) ? o.attachment : []).map((a) => ({ url: safeUrl(a && a.url), type: (a && a.mediaType) || '' })).filter((m) => m.url);
-        // Fallback cover: a Note's `image` (set when the attachment was suppressed
-        // for a player-card post, e.g. hosted-audio posts).
-        if (!_atts.some((m) => !m.type || /image/i.test(m.type)) && o.image) {
-          const _im = Array.isArray(o.image) ? o.image[0] : o.image;
-          const _iu = safeUrl(typeof _im === 'string' ? _im : (_im && _im.url));
-          if (_iu) _atts.push({ url: _iu, type: (_im && _im.mediaType) || 'image/jpeg' });
-        }
+        const { html, atts: _atts, url: _url } = timelineFields(o);
         const media = JSON.stringify(_atts);
         const poll = parsePoll(o); // a Question (fediverse poll) → cache its options/counts
         // "Feature" = show in the Cirkel (local only). We do NOT auto-Announce
@@ -1689,7 +2624,7 @@ export async function handleInbox(req, slugParam, preVerified = null) {
         // fediverse is only ever a deliberate, manual per-post action (the 🔁 on
         // the timeline).
         for (const s of subs) {
-          tlStmts().ins.run(o.id, s.slug, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.url || null, o.published || null, media, o.sensitive ? 1 : 0, o.summary || null);
+          tlStmts().ins.run(o.id, s.slug, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, _url, o.published || null, media, o.sensitive ? 1 : 0, contentWarning(o));
           // FEP-633c §2.2: register the ward hint on the stored object (no action yet).
           if (Guardianship.objectHasGuardians(o)) { try { db.prepare('UPDATE ap_timeline SET has_guardians = 1 WHERE id = ? AND slug = ?').run(o.id, s.slug); } catch { /* ignore */ } }
           // FEP-9098: keep the note's custom-emoji tags so the C2S inbox read can serve them.
@@ -1722,10 +2657,34 @@ export async function handleInbox(req, slugParam, preVerified = null) {
         console.log('[AP] timeline +', actorUri, 'x' + subs.length);
       }
     }
+    // Een ANTWOORD van iemand die we volgen: bewaar de URI (shaer-e9g). Zo'n
+    // bericht komt hier gewoon binnen, ondertekend door de schrijver zelf, maar
+    // belongsInTimeline houdt het uit de Krant en daarna raakten we het kwijt.
+    // Kwam er later een doorgestuurd antwoord OP dat bericht, dan kenden we de
+    // ouder niet en wezen we het af -- terwijl we hem wel degelijk hadden gehad.
+    // Er verandert niets aan wat we tonen of van vreemden aannemen: de schrijver
+    // moet iemand zijn die je zelf bent gaan volgen.
+    if (actorUri && !isLocalActor && o.id && o.inReplyTo && noteVisibility(o) !== 'direct' && isFollowedActor(actorUri)) {
+      rememberNoteUri(o.id);
+    }
     // Mentioned in a post that is NOT a reply to our content (a reply to us already returned
     // above): store a mention notification for each of our actors named in the Mention tags.
     // Requires our own base prefix on the tag href — /ap/users/<slug> on a REMOTE host is
     // someone else's actor, not ours.
+    // Een markering op een hulpvraag (shaer-lgo): een mede-guardian laat weten
+    // dat hij ernaar kijkt, of dat het is afgehandeld. Gewone directe note met
+    // een shaer:-markering, net als de zwaai -- dus die komt hier langs. VOOR de
+    // mention-opslag, want dit is staat en geen bericht om te bewaren; de ward
+    // krijgt hem wel als bericht te lezen, en dat gebeurt hieronder.
+    if (actorUri && !isLocalActor) {
+      const mark = Guardianship.help.parseMarker(o);
+      if (mark) {
+        const ai = actorInfo(await resolveActor(actorUri).catch(() => null), actorUri);
+        Guardianship.help.record(mark.noteUri, actorUri, mark.kind, ai && ai.handle);
+        wakeGuardian(slug);   // een mede-guardian pakte iets op: het paneel hoort het meteen
+        console.log('[AP] help', mark.kind, actorUri, '→', mark.noteUri);
+      }
+    }
     if (actorUri && !isLocalActor && o.id) {
       const slugs = localMentionSlugs(o.tag, base);
       if (slugs.length) {
@@ -1749,6 +2708,25 @@ export async function handleInbox(req, slugParam, preVerified = null) {
             if (!until || until <= Date.now()) { console.warn('[AP] away without a (future) end ignored (3.6.1):', actorUri, '→', slug); continue; }
             Guardianship.availability.declareAway(slug, actorUri, until);
             console.log('[AP] guardian declared away (3.6.1):', actorUri, '→', slug, 'until', new Date(until).toISOString());
+          }
+        }
+        // Een kind dat zelf om een poort vraagt (shaer-8ru). Zelfde weg als de
+        // afwezigheidsmelding: een gewone directe note met een shaer:-markering,
+        // per genoemde ontvanger afgehandeld.
+        //
+        // ALLEEN VAN EEN EIGEN WARD. Een verzoek van een vreemde is geen vraag
+        // maar een onbekende die iets over jouw instellingen wil zeggen -- dat
+        // hoort in geen enkele lijst te belanden waar een guardian op afgaat.
+        {
+          const req = Guardianship.gatereq.parseRequest(o);
+          if (req) {
+            for (const slug of slugs) {
+              const mijn = (() => { try { return Guardianship.listWards(slug).some((w) => w.other_uri === actorUri); } catch { return false; } })();
+              if (!mijn) { console.warn('[AP] gate request from someone who is not our ward, ignored:', actorUri, '→', slug); continue; }
+              Guardianship.gatereq.record(slug, actorUri, req.feature, o.id);
+              wakeGuardian(slug);   // het kind vroeg om een poort
+              console.log('[AP] gate request', req.feature, actorUri, '→', slug);
+            }
           }
         }
         for (const slug of slugs) {
@@ -1798,7 +2776,7 @@ export async function handleInbox(req, slugParam, preVerified = null) {
         // rename keeps the same AP id but changes the human url, so without this the cached
         // post would keep linking to the old, now-dead URL.
         const r = db.prepare('UPDATE ap_timeline SET content = ?, media_json = ?, nsfw = ?, cw = ?, url = COALESCE(?, url) WHERE id = ? AND author_uri = ?')
-          .run(html, media, o.sensitive ? 1 : 0, o.summary || null, o.url || null, o.id, claimedActor);
+          .run(html, media, o.sensitive ? 1 : 0, contentWarning(o), o.url || null, o.id, claimedActor);
         if (r.changes) console.log('[AP] timeline update', claimedActor, '→', o.id);
         // A poll's Update carries the fresh vote counts / closed state. Refresh per-row so each
         // site keeps its own `voted` state while the counts/closed update to the new totals.
@@ -1862,7 +2840,7 @@ export async function handleInbox(req, slugParam, preVerified = null) {
             // reblogs at reblog-time, not the original's date). INSERT OR IGNORE: if we already
             // have the note (e.g. we also follow the author), keep it and DON'T relabel it.
             let inserted = false;
-            try { const r = tlStmts().ins.run(bn.id, s.slug, origUri || '', oai.name, oai.handle, oai.icon, oai.url, html, bn.url || null, new Date().toISOString(), media, bn.sensitive ? 1 : 0, bn.summary || null); inserted = r.changes > 0; } catch { /* ignore */ }
+            try { const r = tlStmts().ins.run(bn.id, s.slug, origUri || '', oai.name, oai.handle, oai.icon, oai.url, html, bn.url || null, new Date().toISOString(), media, bn.sensitive ? 1 : 0, contentWarning(bn)); inserted = r.changes > 0; } catch { /* ignore */ }
             if (inserted) { try { db.prepare('UPDATE ap_timeline SET reblog_name = ?, reblog_handle = ?, reblog_icon = ?, reblog_emoji_json = ? WHERE slug = ? AND id = ?').run(booster.name, booster.handle, booster.icon, (booster.emojis && Object.keys(booster.emojis).length) ? JSON.stringify(booster.emojis) : null, s.slug, bn.id); } catch { /* ignore */ } }
             storeAuthorEmoji(bn.id, s.slug, oai);   // custom-emoji display name for the byline
             // A boost carries the same renderable tags as a Create: capture the
@@ -1909,8 +2887,36 @@ export async function handleInbox(req, slugParam, preVerified = null) {
   // Accept/Reject of a Follow WE sent (client side).
   if (type === 'Accept' && act.object) {
     const fid = typeof act.object === 'string' ? act.object : (act.object && act.object.id);
-    if (fid) { try { fwStmts().acc.run(fid); } catch { /* ignore */ } }
-    console.log('[AP] follow accepted', actorUri);
+    let raak = 0;
+    if (fid) { try { raak = fwStmts().acc.run(fid).changes; } catch { /* ignore */ } }
+    // TERUGVAL, en die is nodig gebleken tegen Funkwhale. Een Accept hoort de
+    // Follow terug te geven die hij beantwoordt, maar Funkwhale verzint er een
+    // EIGEN id voor, in ONZE namespace:
+    //
+    //   wij stuurden   .../ap/users/dev#follow-1786161977286-bb2de32f
+    //   Funkwhale zegt .../ap/users/dev#follows/19fd8b00-8f66-...
+    //
+    // Matchen op follow_id raakt dan niets, en de volgrelatie bleef eeuwig op
+    // 'pending' staan terwijl de logregel 'accepted' riep -- een stille no-op
+    // die pas opviel toen er nooit iets binnenkwam.
+    //
+    // Het paar dat we WEL zeker weten is (deze site, deze actor): de Accept is
+    // handtekening-geverifieerd, en actorUri is de ondertekenaar. Alleen een
+    // rij die nog op pending staat wordt geraakt, dus dit kan niets anders
+    // openzetten dan een follow die wij zelf hebben verstuurd.
+    //
+    // En de slug mag NIET van slugParam afhangen: Funkwhale bezorgt op de
+    // GEDEELDE inbox, en dan is die leeg. Wie wij zijn staat in de ingesloten
+    // Follow -- die hebben wij immers zelf verstuurd, dus `object.actor` is
+    // onze eigen actor-URI.
+    let mij = slugParam;
+    if (!mij && act.object && typeof act.object === 'object') mij = slugFromActorUrl(act.object.actor);
+    if (!raak && mij && actorUri) {
+      try { raak = fwStmts().accByActor.run(mij, actorUri).changes; } catch { /* ignore */ }
+    }
+    // Eerlijk loggen: zonder treffer is er niets geaccepteerd, en dat hoort te
+    // zien te zijn in plaats van als succes voorbij te komen.
+    console.log('[AP] follow', raak ? 'accepted' : 'accept UNMATCHED', actorUri, fid ? '(' + fid + ')' : '');
     // The moment a friendship exists is the moment the history comes along
     // (Robins besluit, 30-7): delivery cannot reach into the past, so the
     // fresh follower pulls the outbox, signed, and the other side now serves
@@ -1924,13 +2930,61 @@ export async function handleInbox(req, slugParam, preVerified = null) {
     return 202;
   }
 
-  console.log('[AP] inbox', type || 'unknown', '→', slugParam || 'shared', 'from', ip, '(ignored)');
+  // Zeg ook WAT er viel. Een kale "Create (ignored)" verbergt het verschil
+  // tussen een soort die we bewust overslaan en een die we niet kennen -- en
+  // dat verschil was precies de vraag bij Funkwhale, dat Create(Audio) stuurt
+  // waar deze inbox alleen Note, Article en Question aanneemt.
+  const objType = act.object && typeof act.object === 'object' ? act.object.type : (typeof act.object === 'string' ? '<uri>' : null);
+  console.log('[AP] inbox', type || 'unknown', objType ? '(' + objType + ')' : '', '→', slugParam || 'shared',
+    'from', ip, 'by', claimedActor || '?', '(ignored)');
   return 202;
+}
+
+// ── Op slot na een verhuizing (FEP-7628) ──────────────────────────
+//
+// Een verhuisd account serveert `movedTo` en is daarmee dood verklaard. Toch kon
+// je er gewoon op posten, volgen, liken en reageren, en dat federeerde vrolijk
+// de wereld in. Drie dingen gaan daar mis:
+//
+//   - Nieuwe posts krijgen een object-URI op een adres dat je hebt opgezegd. Die
+//     URI's overleven het domein niet, en de reacties erop ook niet.
+//   - Je volgers zijn al verhuisd, dus je post in het niets terwijl het lijkt of
+//     je post.
+//   - Een server die je movedTo ziet EN tegelijk verse activiteit van dat adres
+//     krijgt, krijgt tegenstrijdige signalen over de verhuizing.
+//
+// Daarom staat de poort op de UITGAANDE kant en niet op de knoppen: een
+// C2S-client (Shaer) praat rechtstreeks met deze functies en zou anders zo langs
+// een verborgen knop lopen. De UI volgt de poort, niet andersom.
+//
+// WAT DICHT GAAT: posten, reageren, volgen, liken, boosten, stemmen, en een
+// tweede verhuizing.
+// WAT OPEN BLIJFT: alles wat de wegwijzer draagt (de actor, webfinger, je
+// bestaande posts, de outbox), alles inkomend (reacties op oude posts blijven
+// binnenkomen en leesbaar), je eigen beheer (archief exporteren, volglijst
+// downloaden), en ontvolgen -- opruimen mag altijd.
+// Rapporteren blijft OOK open: dat is een veiligheidsklep, geen inhoud maken.
+//
+// OMKEERBAAR: `moved_to` leegmaken heft het slot op. Een verhuizing kan mislukken
+// en dan moet je terug kunnen.
+export function movedLock(site) {
+  const to = site && site.moved_to && /^https?:\/\//i.test(String(site.moved_to))
+    ? String(site.moved_to) : null;
+  return to ? { locked: true, movedTo: to } : { locked: false, movedTo: null };
+}
+
+/** Weigering in de vorm die de aanroepers al kennen: een object met `error`. */
+function movedRefusal(site, wat) {
+  const l = movedLock(site);
+  if (!l.locked) return null;
+  console.warn('[AP] geweigerd, dit account is verhuisd:', wat, '→', l.movedTo);
+  return { error: 'moved', movedTo: l.movedTo };
 }
 
 // Deliver a new post as Create(Note) to all followers' inboxes (fire-and-forget).
 // Needs PUBLIC_BASE_URL (absolute URLs); no-op without followers or base.
 export async function deliverCreate(site, post) {
+  if (movedLock(site).locked) { console.warn('[AP] Create niet bezorgd, account verhuisd:', site && site.slug); return; }
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   if (!base || !site || !site.slug) return;
   // Resolve inline @user@host mentions → link them in the note + collect their inboxes, so a
@@ -1942,12 +2996,36 @@ export async function deliverCreate(site, post) {
   // never has to fetch. The quoted author's inbox joins the delivery set: that
   // IS the notification.
   const quoteInboxes = [];
+  // EERST BAKKEN, dan pas linken zoeken (shaer-k3f, gevonden op het toestel):
+  // firstExternalUrl leest <a href>-ankers, en de web-editor bakt die er bij
+  // het opslaan al in -- maar een post uit de APP is platte tekst waarin de
+  // URL nog geen anker is. Zonder deze bak zag het C2S-pad dus nooit een link
+  // en kreeg een app-post nooit een kaart, terwijl de preview hem net wel
+  // beloofd had.
+  const gebakken = bakePostContent(post2.content || '');
   if (post2.quote_uri === undefined || post2.quote_uri === null) {
-    const q = await resolveOwnQuote(post2.content || '');
+    const q = await resolveOwnQuote(gebakken);
     if (q) {
       try { db.prepare('UPDATE posts SET quote_uri = ?, quote_actor = ? WHERE id = ?').run(q.uri, q.actor || null, post.id); } catch { /* ignore */ }
       post2 = { ...post2, quote_uri: q.uri, quote_actor: q.actor || null };
     }
+  }
+  // De kaart op de eigen post (shaer-k3f), langs dezelfde pijplijn als een
+  // binnenkomende: een fediverse-quote wordt een quote-snapshot, anders
+  // probeert de link een externe kaart. VOOR de vroege return hieronder, want
+  // ook een post zonder volgers hoort zijn kaart te krijgen -- de app leest
+  // hem uit de outbox, niet uit een bezorging. Best-effort en eenmalig: wat
+  // hier niet lukt blijft een kale link, precies wat het was.
+  if (!post2.quote_json && !post2.embed_json) {
+    try {
+      if (post2.quote_uri) {
+        const qj = await resolveQuoteByUri(post2.quote_uri);
+        if (qj) { db.prepare('UPDATE posts SET quote_json = ? WHERE id = ?').run(qj, post.id); post2 = { ...post2, quote_json: qj }; }
+      } else {
+        const ej = await resolveExternalEmbed(gebakken);
+        if (ej) { db.prepare('UPDATE posts SET embed_json = ? WHERE id = ?').run(ej, post.id); post2 = { ...post2, embed_json: ej }; }
+      }
+    } catch { /* een kaart is nooit een blokkade voor de post zelf */ }
   }
   if (post2.quote_actor) {
     const a = await fetchActor(post2.quote_actor).catch(() => null);
@@ -1970,9 +3048,18 @@ async function backfillNewFollower(base, slug, inbox) {
   if (!base || !slug || !inbox) return;
   const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(slug);
   if (!site) return;
+  // Deze lijst filterde op fan_only maar NIET op paid, en haalde `paid` ook niet
+  // op -- dus stond post.paid op undefined, sloeg buildNote zijn redactie over,
+  // en duwden we bij ELKE nieuwe volger twintig posts de deur uit met de
+  // volledige tekst van de betaalde erbij. Een push, dus onherroepelijk: het
+  // staat daarna in hun inbox. Zelfde reden voor ap_visibility, dat hier
+  // helemaal ontbrak: een friends- of direct-post hoort niet in een backfill.
+  // (Barts melding, 15 augustus 2026.)
   const recent = db.prepare(
-    `SELECT id, slug, title, content, cover_image_url, cover_video_url, nsfw, content_warning, c2s_attachments, published_at, created_at
+    `SELECT id, slug, title, excerpt, content, cover_image_url, cover_video_url, nsfw, content_warning,
+            c2s_attachments, published_at, created_at, fan_only, ap_visibility, paid, paid_min_cents
      FROM posts WHERE site_id = ? AND status = 'published' AND (fan_only IS NULL OR fan_only = 0)
+       AND IFNULL(ap_visibility, 'public') = 'public'
      ORDER BY COALESCE(published_at, created_at) DESC LIMIT 20`
   ).all(site.id).reverse();
   if (!recent.length) return;
@@ -2180,53 +3267,17 @@ export async function bakePostContentWithMentions(source) {
 }
 
 // Extract the AP Hashtag tag objects from already-linked reply content.
-function hashtagTags(base, content) {
-  const tags = [], seen = new Set();
-  const re = /class="[^"]*\bhashtag\b[^"]*"[^>]*>#([\p{L}\p{M}\p{N}_]+)</giu;
-  let m;
-  while ((m = re.exec(content || ''))) {
-    const k = m[1].toLowerCase();
-    if (seen.has(k)) continue; seen.add(k);
-    tags.push({ type: 'Hashtag', href: `${base}/tag/${encodeURIComponent(k)}`, name: '#' + m[1] });
-  }
-  return tags;
-}
 
 // Normalise a post's tags field (array, JSON-string, or comma-string) to an array.
-function normalizeTags(t) {
-  if (Array.isArray(t)) return t;
-  if (typeof t === 'string') {
-    const s = t.trim(); if (!s) return [];
-    if (s[0] === '[') { try { const a = JSON.parse(s); return Array.isArray(a) ? a : []; } catch { /* fall through */ } }
-    return s.split(',').map((x) => x.trim()).filter(Boolean);
-  }
-  return [];
-}
+// normalizeTags en tagParts staan sinds shaer-38y in ap-core: music/ heeft ze
+// ook nodig en mag hier niet uit importeren.
 // A tag → { label, slug }. Multi-word tags become CamelCase (#LiveMusic) for the display
 // name (Mastodon hashtags can't contain spaces; CamelCase is the accessibility norm); the
 // slug/href stays lowercase ("livemusic").
-function tagParts(raw) {
-  const words = String(raw || '').trim().split(/[\s_]+/).map((w) => w.replace(/[^\p{L}\p{M}\p{N}]/gu, '')).filter(Boolean);
-  if (!words.length) return null;
-  const slug = words.join('').toLowerCase();
-  if (!slug) return null;
-  const label = words.length > 1 ? words.map((w) => w[0].toUpperCase() + w.slice(1)).join('') : words[0];
-  return { label, slug };
-}
 // Merge a post's tags field + the #hashtags linked inline in its body into one deduped
 // Hashtag tag list (with hrefs to our /tag page).
-function buildHashtagList(base, tagsField, content) {
-  const out = [], seen = new Set();
-  for (const t of normalizeTags(tagsField)) {
-    const p = tagParts(t); if (!p || seen.has(p.slug)) continue; seen.add(p.slug);
-    out.push({ type: 'Hashtag', href: `${base}/tag/${encodeURIComponent(p.slug)}`, name: '#' + p.label });
-  }
-  for (const h of hashtagTags(base, content)) {
-    const k = h.name.slice(1).toLowerCase(); if (seen.has(k)) continue; seen.add(k);
-    out.push(h);
-  }
-  return out;
-}
+// hashtagTags en buildHashtagList staan sinds shaer-38y in ap-core: music/
+// heeft dezelfde lijst nodig en mag hier niet uit importeren.
 
 // Extract Mention tag objects from already-linked content (class="u-url mention").
 function mentionTags(content) {
@@ -2317,11 +3368,63 @@ export async function ingestOutboxActivity(site, user, activity) {
     const g = await Guardianship.handleGuardianshipOutbox(site, activity).catch(() => null);
     if (g) return g;
   }
+  // Een gate-voorstel uit de app (5.6, shaer-8ru): een Offer van een
+  // shaer:GatedSetting, de vorm die 5.6 al beschrijft.
+  //
+  // HIER, EN GEEN `case` IN DE SWITCH. Dat was hij eerst, en die claimde ELKE
+  // Offer: wat geen gate-voorstel was kreeg 400 unsupported_offer -- ook de
+  // adoptie-handshake, en straks elke Offer-vorm die we nog toevoegen. Barts
+  // honderd aanbiedingen liepen er meteen op stuk. Alleen claimen wat je
+  // herkent, en de rest laten doorlopen.
+  if (type === 'Offer') {
+    const gs = Guardianship.gated.parseGatedSetting(activity.object);
+    if (gs) {
+      const uit = proposeGate(site, gs.ward, gs.feature, gs.value);
+      return uit.status === 200 ? { ...uit, status: 201, id: uit.offerId } : uit;
+    }
+  }
 
   try {
     switch (type) {
       case 'Create': {
         if (!object || typeof object !== 'object') return { status: 400, error: 'missing_object' };
+        // Innamepoorten (shaer-ahy.1, 8-8): wat de ward niet mag versturen
+        // wordt HIER geweigerd, niet in de app verstopt -- een knop die de
+        // client alleen verbergt is geen poort. De reddingsboei gaat ALTIJD
+        // voor: een hulpvraag aan de guardians mag door elke dichte deur heen,
+        // anders sluit een messages-poort precies het kanaal af dat het kind
+        // veilig houdt.
+        {
+          const isWard = (() => { try { return Guardianship.listGuardians(site.slug).length > 0; } catch { return false; } })();
+          const isHelp = object['shaer:helpRequest'] === true || object.helpRequest === true;
+          // Een poortverzoek van het kind zelf (shaer-8ru) gaat langs de
+          // messages-poort. Dat lijkt een gat en is het niet: het verzoek draagt
+          // ALLEEN de naam van de feature, geen vrije tekst, dus er ontstaat geen
+          // kanaal om omheen die poort te praten. Zonder deze uitzondering kan
+          // een kind met berichten dicht nergens meer om vragen -- en dan is de
+          // hele weg dood op precies het moment dat hij nodig is.
+          const isGateReq = !!Guardianship.gatereq.parseRequest(object);
+          const direct = c2sVisibility(object) === 'direct';
+          if (!isHelp && !isGateReq) {
+            if (direct && !Guardianship.wardGateAllowed(site.gate_messages, isWard)) {
+              return { status: 403, error: 'gated_messages' };
+            }
+            if (!direct && !object.inReplyTo && !Guardianship.wardGateAllowed(site.gate_compose, isWard)) {
+              return { status: 403, error: 'gated_compose' };
+            }
+            // Meedoen aan een gesprek is ook iets (Bart, 8-8). Hier stond de
+            // aanname dat een antwoord geen eigen podium is en dus onder compose
+            // door mocht. Dat is teruggedraaid: antwoorden heeft een EIGEN poort,
+            // los van compose in beide richtingen -- je kunt willen dat een kind
+            // meepraat zonder podium, en ook andersom.
+            //
+            // Geldt ook voor een DIRECT antwoord, bovenop de messages-poort: een
+            // privé-antwoord is allebei, en dan mag allebei hem tegenhouden.
+            if (object.inReplyTo && !Guardianship.wardGateAllowed(site.gate_replies, isWard)) {
+              return { status: 403, error: 'gated_replies' };
+            }
+          }
+        }
         // Client sends `source` (plain/markdown) + `content` (HTML). deliverReply
         // re-escapes, so it needs plain text; a top-level post keeps sanitized HTML.
         const plain = (object.source && object.source.content) || HtmlSanitizerService.toPlainText(object.content || '');
@@ -2360,7 +3463,26 @@ export async function ingestOutboxActivity(site, user, activity) {
             // instance through the loopback, and its inbox handler applies the
             // absence like it does for a ward anywhere else. One path.
           }
-          const r = await deliverDirectNote(site, { recipients, text: plain, language: object.language || null, inReplyTo: typeof object.inReplyTo === 'string' ? object.inReplyTo : null, attachments: atts, helpRequest: help, awayUntil });
+          const gateReq = Guardianship.gatereq.parseRequest(object);
+          // Een hulpvraag oppikken of afsluiten vanuit de app (5.2.1, shaer-lgo).
+          // De markering IS al een gewone directe note met een shaer:-eigenschap,
+          // dus hier hoeft niets nieuws bij: de app stuurt precies wat de PWA
+          // stuurt, en het gaat over dezelfde bezorging naar de mede-guardians.
+          //
+          // We boeken hem ook LOKAAL. Zonder dat zou de guardian die de knop
+          // indrukt zijn eigen markering pas zien als hij bij zichzelf
+          // terugkomt -- en die weg bestaat niet.
+          const mark = Guardianship.help.parseMarker(object);
+          if (mark) {
+            const base2 = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+            // Met de VOLLEDIGE handle. Hier stond `@${site.slug}` -- zonder host,
+            // dus een derde vorm naast de kale URI van de PWA-route en de echte
+            // handle die een binnengekomen markering draagt. Drie spellingen van
+            // dezelfde naam, en "door wie" was de hele vraag van shaer-lgo.
+            const mij = actorId(base2, site.slug);
+            Guardianship.help.record(mark.noteUri, mij, mark.kind, deriveHandle(mij));
+          }
+          const r = await deliverDirectNote(site, { recipients, text: plain, language: object.language || null, inReplyTo: typeof object.inReplyTo === 'string' ? object.inReplyTo : null, attachments: atts, helpRequest: help, awayUntil, gateRequest: gateReq && gateReq.feature, helpMark: mark });
           if (!r || !r.id) return { status: 502, error: 'direct_failed' };
           return { status: 201, id: r.id, url: `${base}/ap/notes/${r.id}` };
         }
@@ -2392,6 +3514,20 @@ export async function ingestOutboxActivity(site, user, activity) {
         }
         return await c2sCreatePost(base, site, user, object);
       }
+      // ── Gelezen tot hier (shaer-frontend-3tx) ───────────────────
+      //
+      // AS2 kent Read: 'the actor has read the object'. Geen shaer:seen
+      // verzinnen, en geen zetbare stand: dit is een GEBEURTENIS, dus twee
+      // toestellen kunnen elkaar niet terugzetten. Blijft lokaal -- een
+      // leesbevestiging heeft in de fediverse niets te zoeken.
+      case 'Read': {
+        const targetUri = c2sIdOf(object);
+        if (!targetUri) return { status: 400, error: 'missing_object' };
+        const uit = markRead(site.slug, targetUri);
+        // Kennen we die note niet, dan is er niets gelezen om te onthouden.
+        // Geen fout: een client mag best een oud bericht aanwijzen.
+        return { status: uit ? 200 : 202 };
+      }
       case 'Like':
       case 'Announce': {
         const targetUri = c2sIdOf(object);
@@ -2410,13 +3546,35 @@ export async function ingestOutboxActivity(site, user, activity) {
         const authorUri = note && note.actor_uri;
         const kind = type === 'Announce' ? 'boost' : 'like';
         await sendInteraction(site, kind, objUri, authorUri);
-        setMyReaction(site.slug, targetUri, kind, true);
-        if (type === 'Announce' && note) { try { upsertBoostedNote(site.slug, note); } catch { /* non-fatal */ } }
+        // Eén schrijfpad (shaer-9e9): tussentabel + afgeleide vlag in één keer.
+        // De note gaat mee zodat een boost de post je tijdlijn in trekt.
+        try { setReaction(site.slug, targetUri, kind, true, { flagUri: objUri, note: type === 'Announce' ? note : null }); }
+        catch { /* non-fatal: een reactie mag nooit de bezorging blokkeren */ }
+        // Een Like uit een app moet ook in ap_timeline.liked landen, want dat
+        // is wat de C2S-tijdlijn als shaer:liked teruggeeft. Zonder dit werd
+        // de reactie wel opgeslagen (setMyReaction, de webroute leest die),
+        // maar kreeg de app altijd liked:false terug: het hartje sprong bij de
+        // eerste herlaadbeurt uit, en un-liken kon niet meer -- de app bood
+        // alleen nog "Like" aan en stuurde bij elke tik een nieuwe Like.
+        // Anders dan bij een boost geen upsert: een like hoort een post niet
+        // in je tijdlijn te trekken, dus staat de post er niet in, dan is dit
+        // terecht een no-op.
         return { status: 202, url: objUri };
       }
       case 'Follow': {
         const actorUri = c2sIdOf(object);
         if (!actorUri) return { status: 400, error: 'missing_object' };
+        // FEP-633c §5.3 outbound (shaer-p729): a ward asks its guardians first.
+        // A held request is a THIRD outcome — not sent, not failed — and it
+        // travels to the app as one, so Shaer can show "waiting" instead of a
+        // tile that already looks followed.
+        const held = await gateOutgoingFollow(site, actorUri);
+        if (held) {
+          return {
+            status: 202, url: actorUri, id: held.id,
+            state: held.status === 'denied' ? 'refused_by_guardian' : 'awaiting_guardian',
+          };
+        }
         // The error REACHES the app (Robins melding, 31-7): swallowing it
         // made a failed follow look exactly like a successful one.
         const r = await followActor(site, actorUri);
@@ -2449,8 +3607,8 @@ export async function ingestOutboxActivity(site, user, activity) {
           const note = await resolveRemoteNote(innerTarget, { asSlug: site.slug }).catch(() => null);
           const objUri = (note && note.object_uri) || innerTarget;
           await sendInteraction(site, kind, objUri, note && note.actor_uri);
-          setMyReaction(site.slug, innerTarget, innerType === 'Announce' ? 'boost' : 'like', false);
-          if (innerType === 'Announce') { try { unmarkBoosted(site.slug, objUri); } catch { /* non-fatal */ } }
+          try { setReaction(site.slug, innerTarget, innerType === 'Announce' ? 'boost' : 'like', false, { flagUri: objUri }); }
+          catch { /* non-fatal */ }
           return { status: 202, url: objUri };
         }
         return { status: 400, error: 'unsupported_undo' };
@@ -2569,7 +3727,47 @@ export const deliverDirectNote = Guardianship.deliverDirectNote;
 
 // Send a reply FROM this site to a remote actor (in reply to their inbound reply).
 // `parent` = an ap_interactions row (actor_uri, actor_url, actor_handle, object_uri).
+/**
+ * Een gate-voorstel de deur uit (FEP-633c 5.6, shaer-8ru).
+ *
+ * STOND IN routes/guardian.js en kon daar alleen door de PWA aangeroepen worden.
+ * De apps moeten hetzelfde kunnen, en een tweede implementatie ernaast zou een
+ * tweede weg naar hetzelfde besluit zijn -- precies de fout die we vandaag bij
+ * de antwoordpoort hebben rechtgezet, toen de innamepoort alleen in C2S bleek te
+ * zitten en het webpad eromheen liep. Een pad dus.
+ *
+ * EEN WEG, waar de ward ook woont (Robins regel, 29-7): voorstellen over de
+ * lijn en de server van de ward laat tellen. Co-locatie verandert alleen het
+ * transport -- deliverToActor lust een lokale ontvanger terug door dezelfde
+ * inbox. De oude kortsluiting boekte de stem hier meteen, en zo bleef het
+ * remote-pad een maand stuk zonder dat iemand het merkte.
+ */
+export function proposeGate(site, wardUri, feature, allow) {
+  const uri = String(wardUri || '').trim();
+  if (!uri) return { status: 400, error: 'empty_uri' };
+  if (!Guardianship.gated.featureColumn(feature)) return { status: 400, error: 'unknown_feature' };
+  // Alleen een guardian van dit kind. Zonder deze regel zou iedereen met een
+  // token een instelling van een vreemd kind kunnen aanvragen.
+  if (!Guardianship.listWards(site.slug).some((w) => w.other_uri === uri)) {
+    return { status: 403, error: 'not_your_ward' };
+  }
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  const me = actorId(base, site.slug);
+  const offerId = `${me}/gated/${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
+  const offer = Guardianship.gated.buildGatedOffer(offerId, me, uri, feature, allow);
+  // Ons eigen spoor van wat we stuurden: de server van de ward antwoordt op deze
+  // Offer zodra het besluit valt, en dat antwoord heeft een rij nodig om in te
+  // landen. Het is ook het enige waardoor het scherm van de voorsteller meer kan
+  // zeggen dan een knoptekst.
+  Guardianship.gated.recordSent(offerId, site.slug, uri, feature, allow);
+  deliverToActor(site, uri, offer).catch(() => { /* queued, best-effort */ });
+  const localSlug = (base && uri.startsWith(`${base}/`)) ? uri.replace(/\/+$/, '').split('/').pop() : null;
+  const progress = localSlug ? Guardianship.gated.gatedProgress(localSlug, feature) : null;
+  return { status: 200, ok: true, allow, state: 'open', offerId, ...(progress || { federated: true }) };
+}
+
 export async function deliverReply(site, { postId, postSlug, parent, text, html, language, attachments, mentions, visibility }) {
+  const _mv = movedRefusal(site, 'reply'); if (_mv) return _mv;
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   // Rich replies: `html` is the reply editor's HTML (sanitized here); `text` is
   // the plain-text fallback (no-JS path, C2S `source`). Either may carry the reply.
@@ -2584,6 +3782,18 @@ export async function deliverReply(site, { postId, postSlug, parent, text, html,
     .map((a) => ({ url: a.url, mediaType: String(a.mediaType), name: String(a.name || '').slice(0, 120) }));
   // A media-only reply (no text) is a valid reply.
   if (!base || !site || !site.slug || !parent || (!String(text || '').trim() && !rich && !media.length)) return null;
+  // DE POORT STAAT HIER en niet alleen in de outbox (shaer-r4c). routes/posts.js
+  // roept deliverReply op drie plekken rechtstreeks aan -- de eigen webinterface
+  // van Klonkt gaat dus nooit langs ingestOutboxActivity. Een poort die alleen in
+  // C2S staat is een poort met een deur ernaast.
+  //
+  // Dit is het knooppunt dat beide paden delen. De reddingsboei komt hier niet
+  // langs: een hulpvraag is altijd direct en loopt via deliverDirectNote, dus de
+  // boei blijft open zonder dat daar een uitzondering voor nodig is.
+  {
+    const isWard = (() => { try { return Guardianship.listGuardians(site.slug).length > 0; } catch { return false; } })();
+    if (!Guardianship.wardGateAllowed(site.gate_replies, isWard)) return null;
+  }
   const me = actorId(base, site.slug);
   // u02, the mentions bar: `mentions` undefined = legacy behavior (mention the
   // parent author). An ARRAY (possibly empty) = the kept conversation partners
@@ -2696,6 +3906,209 @@ function actorUriOf(att) {
 
 // Resolve a remote post URL (any fediverse/Klonkt post) into a reply target.
 // Returns a parent-shaped object usable by deliverReply(), or null.
+// The server's own note, built straight from the DB. resolveRemoteNote used
+// to fetch EVERYTHING over HTTPS, including notes living right here: a
+// hairpin fetch fails on home setups (a Klonkt on a Mac behind a tunnel), the
+// /ap/notes route rightly hides friends-only posts, and a punycode-spelled
+// own URL read as remote on a byte comparison. For the authenticated C2S
+// caller none of those walls apply; the DB is one prepare() away.
+// `forSlug` is that caller: only the post's own site gets its non-public
+// notes on this shortcut (public ones anyone, same as the route serves).
+function localNoteObject(url, forSlug) {
+  if (!isOwnUrl(url)) return null;
+  const m = String(url).match(/\/ap\/notes\/([^/?#]+)/);
+  if (!m) return null;
+  const id = decodeURIComponent(m[1]);
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  const post = db.prepare("SELECT * FROM posts WHERE id = ? AND status = 'published'").get(id);
+  if (post) {
+    const site = db.prepare('SELECT * FROM sites WHERE id = ?').get(post.site_id);
+    if (!site) return null;
+    const nonPublic = post.fan_only || post.ap_visibility === 'friends' || post.ap_visibility === 'direct';
+    if (nonPublic && (!forSlug || forSlug !== site.slug)) return null;
+    return buildNote(base, site, post);
+  }
+  return getOutboxNote(base, id);   // our own outbound replies
+}
+// The own actor document, same shortcut, same reason.
+function localActorObject(uri) {
+  if (!isOwnUrl(uri)) return null;
+  const m = String(uri).match(/\/ap\/users\/([^/?#]+)/);
+  const site = m ? db.prepare('SELECT * FROM sites WHERE slug = ?').get(decodeURIComponent(m[1])) : null;
+  return site ? buildActor((process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, ''), site) : null;
+}
+
+// ── De thread onder een post (shaer-tqz) ───────────────────────────
+//
+// Klonkt is hier een TOLK, geen archief (Barts besluit, 7-8): de antwoorden
+// worden opgehaald op het moment dat iemand kijkt en daarna weer vergeten.
+// Geen tabel, geen migratie -- wie replies bewaart van elke post die iemand
+// tegenkomt, laat de omvang van zijn database bepalen door surfgedrag. Dat is
+// de AFWIJKING, niet de norm: Mastodon serveert /context uit zijn eigen
+// database, en dat verdient zich daar terug omdat honderden mensen de cache
+// delen. Een Klonkt-instance is de server van één persoon.
+//
+// Waarom dit niet in de app kan: de replies-collectie van een vreemde server
+// eist in secure mode een ONDERTEKEND verzoek, en de sleutel staat hier en kan
+// hier niet weg. Voor de opgaande inReplyTo-keten komt de app weg met een
+// ongetekende GET (mist er een, jammer); voor een thread van dertig is "de
+// helft doet het niet" geen resultaat.
+//
+// Je krijgt hier NOOIT de hele thread: een replies-collectie bevat alleen wat
+// die ene server gezien heeft. De UI hoort "wat de bron weet" te tonen en geen
+// volledigheid te suggereren.
+// NIET hetzelfde als maybeCrawlThread verderop: die kruipt de thread onder je
+// EIGEN posts af en bewaart de antwoorden in ap_interactions (dat zijn de
+// jouwe, die horen te blijven). Dit hier is voor een post van een ANDER die je
+// tegenkomt, en bewaart niets.
+const THREAD_VIEW_LIMIT = 30;
+const THREAD_VIEW_TTL_MS = 120_000;
+const THREAD_VIEW_CACHE_MAX = 200;
+const threadViewCache = new Map();   // `${slug}|${uri}` -> { at, out } -- geheugen, weg bij herstart
+
+/** Eén pagina items uit een AS2-collectie, welke spelling hij ook koos. */
+function collectionItems(coll) {
+  if (!coll || typeof coll !== 'object') return [];
+  const arr = coll.orderedItems || coll.items;
+  return Array.isArray(arr) ? arr : [];
+}
+
+/**
+ * De directe antwoorden op één note, genormaliseerd voor de C2S-lezer.
+ *
+ * ALLEEN ophalen en normaliseren; de poorten zitten in de route. De
+ * kringfilter (de dichte stand van shaer:externalThreads) woont in
+ * filterThreadToCircle en de beeld/muziek/emoji-poorten in
+ * gateAttachments/stripEmojiTags -- per verzoek, buiten deze cache om, want de
+ * stand van een poort mag hier niet twee minuten bevriezen. Geblokkeerde
+ * actors zijn een andere categorie en verdwijnen WEL hier, zonder telling:
+ * een blokkade is onzichtbaar, ook als getal.
+ */
+export async function getThread(slug, objectUri) {
+  const key = `${slug}|${objectUri}`;
+  const hit = threadViewCache.get(key);
+  if (hit && Date.now() - hit.at < THREAD_VIEW_TTL_MS) return hit.out;
+
+  // De status waarmee de BRON antwoordde op de note zelf. 401/403/404/410 is
+  // een besluit van die server (niet gedeeld, of weg); alles daarbuiten -- ook
+  // een stuk netwerk dat wegviel -- is een storing. De route moet dat verschil
+  // kunnen zeggen, anders wijst de melding naar de verkeerde partij.
+  let sourceStatus = 0;
+  const get = (u) => localNoteObject(u, slug) || signedGetJson(slug, u, (st) => { sourceStatus = st; });
+  const note = await get(objectUri);
+  const repliesRef = note && note.replies;
+  let coll = null;
+  if (typeof repliesRef === 'string') coll = await signedGetJson(slug, repliesRef);
+  else if (repliesRef && typeof repliesRef === 'object') {
+    coll = collectionItems(repliesRef).length || repliesRef.first ? repliesRef
+      : (repliesRef.id ? await signedGetJson(slug, repliesRef.id) : repliesRef);
+  }
+  // De pagina-wandeling van collectReplyItems, maar met behoud van INLINE
+  // objecten (die niet opnieuw opgehaald hoeven). Niet "de eerste pagina":
+  // Mastodon serveert `first` als inline-pagina met LEGE items en een `next`
+  // waar de antwoorden echt staan -- wie alleen de eerste pagina leest, ziet
+  // op elke Mastodon-post een leeg gesprek. Dat was precies Barts melding
+  // (8-8, reacties op een vreemde post). Eigen posts maskeerden het: die
+  // gaan door de lokale kortsluiting en hebben orderedItems meteen vol.
+  let items = [];
+  let node = coll;
+  if (node && node.first && !collectionItems(node).length) {
+    node = typeof node.first === 'string' ? await signedGetJson(slug, node.first) : node.first;
+  }
+  let pages = 0;
+  while (node && pages++ < 3 && items.length < THREAD_VIEW_LIMIT) {
+    items.push(...collectionItems(node));
+    if (!node.next) break;
+    node = typeof node.next === 'string' ? await signedGetJson(slug, node.next) : node.next;
+  }
+  items = items.slice(0, THREAD_VIEW_LIMIT);
+
+  // Alles tegelijk in plaats van om de beurt: dertig vreemde servers na elkaar
+  // afwachten is een halve minuut kijken naar een spinner.
+  const objs = await Promise.all(items.map(async (it) => {
+    const o = typeof it === 'string' ? await get(it) : (it && it.object && typeof it.object === 'object' ? it.object : it);
+    return (o && o.id && o.attributedTo) ? o : null;
+  }));
+
+  const kept = [];
+  for (const o of objs) {
+    if (!o) continue;
+    const actorUri = actorUriOf(o.attributedTo);
+    if (!actorUri || isBlockedAny(actorUri)) continue;   // een blokkade telt niet mee
+    kept.push({ o, actorUri });
+  }
+
+  // Bylines: één fetch per unieke auteur, niet één per antwoord.
+  const authors = new Map();
+  await Promise.all([...new Set(kept.map((k) => k.actorUri))].map(async (uri) => {
+    authors.set(uri, localActorObject(uri) || await signedGetJson(slug, uri).catch(() => null));
+  }));
+
+  const notes = kept.map(({ o, actorUri }) => ({
+    id: o.id,
+    type: 'Note',
+    // De ingesloten actor (shaer-nmw): de byline hoort in attributedTo, waar
+    // elke AP-lezer hem zoekt, en niet in een eigen property ernaast.
+    attributedTo: actorObject(actorUri, actorInfo(authors.get(actorUri), actorUri)),
+    inReplyTo: (typeof o.inReplyTo === 'string' ? o.inReplyTo : (o.inReplyTo && o.inReplyTo.id)) || objectUri,
+    content: HtmlSanitizerService.sanitize(String(o.content || '').slice(0, 50_000)),
+    url: safeUrl(typeof o.url === 'string' ? o.url : (o.url && o.url.href)) || undefined,
+    published: typeof o.published === 'string' ? o.published : undefined,
+    sensitive: !!o.sensitive,
+    summary: (contentWarning(o) || '').slice(0, 500) || undefined,
+    attachment: (() => {
+      const arr = Array.isArray(o.attachment) ? o.attachment : (o.attachment ? [o.attachment] : []);
+      const out = arr.map((a) => ({ type: 'Document', mediaType: (a && a.mediaType) || undefined, url: safeUrl(a && a.url), name: (a && typeof a.name === 'string') ? a.name.slice(0, 1500) : undefined }))
+        .filter((a) => a.url);
+      return out.length ? out.slice(0, 8) : undefined;
+    })(),
+    // FEP-9098: de custom emoji van het antwoord (":shortcode:" -> plaatje).
+    // Zonder deze tags rendert een reply van een Mastodon-account zijn emoji
+    // als kale tekst (Barts punt, 8-8). Alleen naam + geschoond icoon-adres
+    // gaan door; de rest van de vreemde tag-array blijft achter.
+    tag: (() => {
+      const j = extractEmojiTags(o.tag);
+      if (!j) return undefined;
+      const out = JSON.parse(j)
+        .map((t) => ({ type: 'Emoji', name: t.name, icon: { type: 'Image', url: safeUrl(t.icon && (t.icon.url || (Array.isArray(t.icon) && t.icon[0] && t.icon[0].url))) } }))
+        .filter((t) => t.icon.url)
+        .slice(0, 30);
+      return out.length ? out : undefined;
+    })(),
+  })).sort((a, b) => String(a.published || '').localeCompare(String(b.published || '')));
+
+  const out = { notes, found: !!note, sourceStatus };
+  threadViewCache.set(key, { at: Date.now(), out });
+  if (threadViewCache.size > THREAD_VIEW_CACHE_MAX) {
+    const oldest = [...threadViewCache.entries()].sort((a, b) => a[1].at - b[1].at)[0];
+    if (oldest) threadViewCache.delete(oldest[0]);
+  }
+  return out;
+}
+
+/**
+ * De thread gefilterd op de kring die de guardians al kennen (gevolgd of
+ * volgend) -- de dichte stand van shaer:externalThreads. PER VERZOEK, buiten de
+ * threadcache om: een poort die de guardians net dichtzetten mag niet nog twee
+ * minuten open nawerken uit een cache. Wat er buiten valt wordt GETELD, nooit
+ * stil weggelaten.
+ */
+export function filterThreadToCircle(slug, notes) {
+  const circle = new Set();
+  try { for (const r of db.prepare("SELECT actor_uri FROM ap_following WHERE slug = ? AND status = 'accepted'").all(slug)) circle.add(r.actor_uri); } catch { /* geen tabel */ }
+  try { for (const r of db.prepare('SELECT actor_uri FROM ap_followers WHERE slug = ?').all(slug)) circle.add(r.actor_uri); } catch { /* geen tabel */ }
+  const kept = [], out = { hidden: 0 };
+  for (const n of notes) {
+    // actorUriOf, niet n.attributedTo: sinds de byline ingesloten meegaat is
+    // dat een OBJECT en zou een kale vergelijking hier stil alles wegfilteren
+    // -- een ward met een lege thread en nergens een foutmelding.
+    if (circle.has(actorUriOf(n.attributedTo))) kept.push(n);
+    else out.hidden += 1;
+  }
+  out.notes = kept;
+  return out;
+}
+
 export async function resolveRemoteNote(url, opts = {}) {
   if (!/^https?:\/\//i.test(String(url || ''))) return null;
   // With `asSlug` the fetches are SIGNED as that local actor. An anonymous
@@ -2704,12 +4117,12 @@ export async function resolveRemoteNote(url, opts = {}) {
   // a reply to your own public post worked (Robins melding, 30-7). Signed,
   // the other server sees WHO asks and serves what the friendship earns.
   const get = (u) => (opts.asSlug ? signedGetJson(opts.asSlug, u) : fetchActor(u).catch(() => null));
-  const note = await get(url); // AP GET (content-negotiates)
+  const note = localNoteObject(url, opts.asSlug) || await get(url); // own DB first, then AP GET
   if (!note || !note.id) return null;
   const att = note.attributedTo;
   const actorUri = actorUriOf(att);
   if (!actorUri) return null;
-  const actor = await get(actorUri);
+  const actor = localActorObject(actorUri) || await get(actorUri);
   const ai = actorInfo(actor, actorUri);
   // Is what we're replying to a post (or a comment) on one of OUR posts? If so,
   // link our reply to that local post so it shows nested in the post thread.
@@ -2723,7 +4136,7 @@ export async function resolveRemoteNote(url, opts = {}) {
   while (cursor && guard++ < 6) {
     const url = typeof cursor === 'string' ? cursor : (cursor && cursor.id);
     if (!url) break;
-    const pn = await get(url);
+    const pn = localNoteObject(url, opts.asSlug) || await get(url);
     if (!pn) break;
     const pa = actorUriOf(pn.attributedTo);
     if (pa && pa !== actorUri) {
@@ -2758,7 +4171,7 @@ export async function resolveRemoteNote(url, opts = {}) {
     url: note.url || url,
     content: HtmlSanitizerService.sanitize(rawHtml),       // full, sanitized
     sensitive: !!note.sensitive,                            // remote CW → blur in the Cirkel
-    cw: note.summary || '',
+    cw: contentWarning(note) || '',
     images,
     // Full typed media (incl. video/mp4) for the timeline cache. `images` above is
     // image-only for the interact page preview; a boosted video-only post (Loops)
@@ -2783,7 +4196,11 @@ function outboxEditableText(content) {
     .trim();
 }
 export function listOutbox(siteSlug) {
-  return db.prepare('SELECT id, content, to_handle, in_reply_to, language, created_at FROM ap_outbox WHERE site_slug = ? ORDER BY created_at DESC')
+  // post_slug reist mee sinds Berichten gesprekken toont: het is de sleutel
+  // waarop een verzonden antwoord bij de ontvangen antwoorden op dezelfde post
+  // gaat staan (zie threadKey). Zonder die kolom viel een uitwisseling uit
+  // elkaar in "Verzonden" en "Gesprekken".
+  return db.prepare('SELECT id, content, to_handle, to_actor, to_actors, post_slug, in_reply_to, attachments, language, created_at FROM ap_outbox WHERE site_slug = ? ORDER BY created_at DESC')
     .all(siteSlug).map((r) => { const c = stripLeadingMentions(r.content); return { ...r, content: c, editable: outboxEditableText(c) }; });
 }
 
@@ -2889,17 +4306,21 @@ export async function webfingerResolve(handle) {
   } catch { return null; }
 }
 
-let _insFw, _delFw, _listFw, _accFw, _oneFw, _setAB;
+let _insFw, _delFw, _listFw, _accFw, _accFwByActor, _oneFw, _setAB;
 function fwStmts() {
   if (!_insFw) {
     _insFw = db.prepare('INSERT OR REPLACE INTO ap_following (slug, actor_uri, handle, name, icon, url, inbox, follow_id, status, auto_boost, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)');
     _delFw = db.prepare('DELETE FROM ap_following WHERE slug = ? AND actor_uri = ?');
     _listFw = db.prepare('SELECT * FROM ap_following WHERE slug = ? ORDER BY created_at DESC');
     _accFw = db.prepare("UPDATE ap_following SET status = 'accepted' WHERE follow_id = ?");
+    // Terugval als de Accept ons follow-id niet teruggeeft (zie de Accept-tak
+    // in handleInbox): dan is het paar dat we WEL zeker weten (deze site, deze
+    // actor) genoeg, mits de rij nog op pending staat.
+    _accFwByActor = db.prepare("UPDATE ap_following SET status = 'accepted' WHERE slug = ? AND actor_uri = ? AND status = 'pending'");
     _oneFw = db.prepare('SELECT * FROM ap_following WHERE slug = ? AND actor_uri = ?');
     _setAB = db.prepare('UPDATE ap_following SET auto_boost = ? WHERE slug = ? AND actor_uri = ?');
   }
-  return { ins: _insFw, del: _delFw, list: _listFw, acc: _accFw, one: _oneFw, setAB: _setAB };
+  return { ins: _insFw, del: _delFw, list: _listFw, acc: _accFw, accByActor: _accFwByActor, one: _oneFw, setAB: _setAB };
 }
 export function listFollowing(slug) { return fwStmts().list.all(slug); }
 
@@ -2921,7 +4342,29 @@ function tlStmts() {
   }
   return { ins: _insTl, list: _listTl, del: _delTl };
 }
-export function getTimeline(slug, limit, offset) { return tlStmts().list.all(slug, limit || 50, offset || 0); }
+/**
+ * De tijdlijn, met liked/boosted uit de TUSSENTABEL (shaer-9e9).
+ *
+ * De rijen komen met SELECT *, dus ap_timeline.liked en .boosted liften mee --
+ * en die zijn sinds fase 1 nog maar een afgeleide. De Krant tekende zijn
+ * knoppen daar wel op, terwijl de toggle al uit getReaction besliste: tekenen en
+ * beslissen leunden dus op verschillende bronnen. Ze waren het eens zolang de
+ * migratie ze gelijk hield, maar dat was synchronisatie en geen ontwerp.
+ *
+ * Bewust in JS en niet als join: met SELECT * zouden twee kolommen `liked`
+ * heten en hangt het van de driver af welke wint. Eén extra query per pagina
+ * (dezelfde batch die de C2S-tijdlijn gebruikt) is dat niet waard.
+ */
+export function getTimeline(slug, limit, offset) {
+  const rows = tlStmts().list.all(slug, limit || 50, offset || 0);
+  const reacties = getReactionsFor(slug, rows.map((r) => r.id));
+  for (const r of rows) {
+    const x = reacties.get(r.id);
+    r.liked = !!(x && x.liked);
+    r.boosted = !!(x && x.boosted);
+  }
+  return rows;
+}
 
 /**
  * The direct notes addressed to this account: a plain DM, a guardian's wave
@@ -2943,12 +4386,46 @@ export function getTimeline(slug, limit, offset) { return tlStmts().list.all(slu
 // C2S read missed them entirely: a reply arrived at the other side
 // everywhere EXCEPT in the other's app (Robins melding, 30-7: "komt niet
 // binnen bij de ander").
+const REPLY_COLUMNS = `
+      i.object_uri, i.actor_uri, i.actor_name, i.actor_handle, i.actor_icon, i.actor_url,
+      i.content, i.published, i.created_at, i.parent_uri, i.post_id,
+      i.emoji_json, i.actor_emoji_json, i.media_json, i.quote_json, i.embed_json`;
+
+/** Dezelfde antwoordrijen, maar op object-uri -- voor de verschil-lezing. */
+export function replyRowsByUri(slug, uris) {
+  const list = (uris || []).filter((u) => typeof u === 'string' && u);
+  if (!list.length) return [];
+  try {
+    const holes = list.map(() => '?').join(',');
+    return db.prepare(`SELECT ${REPLY_COLUMNS} FROM ap_interactions i
+                        JOIN posts p ON p.id = i.post_id
+                        JOIN sites s ON s.id = p.site_id
+                       WHERE s.slug = ? AND i.kind = 'reply' AND i.object_uri IN (${holes})`)
+      .all(slug, ...list);
+  } catch { return []; }
+}
+
+/** Tijdlijnrijen op id, met dezelfde afgeleide liked/boosted als getTimeline. */
+export function timelineRowsByIds(slug, ids) {
+  const list = (ids || []).filter((u) => typeof u === 'string' && u);
+  if (!list.length) return [];
+  try {
+    const holes = list.map(() => '?').join(',');
+    const rows = db.prepare(`SELECT * FROM ap_timeline WHERE slug = ? AND id IN (${holes})`).all(slug, ...list);
+    const reacties = getReactionsFor(slug, rows.map((r) => r.id));
+    for (const r of rows) {
+      const x = reacties.get(r.id);
+      r.liked = !!(x && x.liked);
+      r.boosted = !!(x && x.boosted);
+    }
+    return rows;
+  } catch { return []; }
+}
+
 export function getReplyMessages(slug, limit) {
   try {
     return db.prepare(`
-      SELECT i.object_uri, i.actor_uri, i.actor_name, i.actor_handle, i.actor_icon, i.actor_url,
-             i.content, i.published, i.created_at, i.parent_uri, i.post_id,
-             i.emoji_json, i.actor_emoji_json, i.media_json, i.quote_json, i.embed_json
+      SELECT ${REPLY_COLUMNS}
       FROM ap_interactions i
       JOIN posts p ON p.id = i.post_id
       JOIN sites s ON s.id = p.site_id
@@ -2957,12 +4434,305 @@ export function getReplyMessages(slug, limit) {
   } catch { return []; }
 }
 
+/**
+ * Een merk voor "is er iets veranderd aan wat de inbox-lezing zou opleveren?"
+ * (shaer-n05).
+ *
+ * Alle VIER de poten die de inbox samenvoegt tellen mee -- tijdlijn, berichten,
+ * antwoorden op je eigen posts, en wat je zelf verstuurde. Zou er een ontbreken,
+ * dan blijft een wachtende client slapen terwijl er wel degelijk iets is
+ * bijgekomen, en dat is erger dan niet wachten: het lijkt te werken.
+ *
+ * rowid en niet een tijdstempel: rowid loopt strikt op per invoeging, terwijl
+ * twee dingen in dezelfde seconde kunnen aankomen en een `published` van een
+ * andere server niet te vertrouwen is.
+ *
+ * Ondoorzichtig voor de client. Hij krijgt hem terug en geeft hem ongewijzigd
+ * mee; de vorm mag veranderen zonder dat dat iets breekt.
+ */
+export function feedCursor(slug) {
+  try {
+    const r = db.prepare('SELECT MAX(rev) AS n FROM ap_feed_state WHERE slug = ?').get(slug);
+    return String((r && r.n) || 0);
+  } catch { return '0'; }
+}
+
+/**
+ * Wat er sinds `rev` met deze tijdlijn gebeurd is: welke berichten er nieuw zijn,
+ * bewerkt, of weg.
+ *
+ * Nog niet gebruikt door een leespad -- de vorm van de aankomst is shaer-of7 en
+ * de "bewerkt"-markering is daar nog een open beslissing. Maar de gegevens
+ * ontstaan hoe dan ook bij het bijhouden van de merksteen, en dit is de enige
+ * plek waar ze samen te lezen zijn.
+ */
+export function feedChangesSince(slug, rev, limit = 200) {
+  try {
+    return db.prepare(`SELECT object_uri, kind, rev FROM ap_feed_state
+                        WHERE slug = ? AND rev > ? ORDER BY rev ASC LIMIT ?`)
+      .all(slug, parseInt(rev, 10) || 0, limit);
+  } catch { return []; }
+}
+
+// Zoveel clients mogen er tegelijk op EEN account staan wachten. Een client met
+// een kapotte herverbind-lus mag de instance niet vastzetten; de overtolligen
+// krijgen gewoon meteen antwoord in plaats van een fout.
+const FEED_WAIT_MAX = 4;
+const _wachters = new Map();
+
+/**
+ * Wacht tot de inbox-lezing iets anders zou opleveren dan bij `since`.
+ *
+ * Bewust met een interne tik en niet met een gebeurtenis-emitter. Een emitter
+ * moet op ELKE plek worden aangeroepen waar er iets bijkomt, en de plek die je
+ * vergeet is precies de melding die nooit aankomt. Twee tot vier MAX(rowid)-
+ * queries per seconde is niets, en dit kan niets missen. Prijs: hooguit een tik
+ * vertraging.
+ */
+export async function waitForFeedChange(slug, opts = {}) {
+  const tickMs = Math.max(50, opts.tickMs || 1000);
+  const waitMs = Math.max(0, opts.waitMs || 0);
+  const since = String(opts.since || '');
+  let cursor = feedCursor(slug);
+  // Geen sinds, al iets veranderd, of niet willen wachten: meteen antwoorden.
+  if (!since || since !== cursor || !waitMs) return { cursor, changed: !!since && since !== cursor, waited: false };
+
+  const bezet = _wachters.get(slug) || 0;
+  if (bezet >= FEED_WAIT_MAX) return { cursor, changed: false, waited: false, busy: true };
+  _wachters.set(slug, bezet + 1);
+  try {
+    const einde = Date.now() + waitMs;
+    while (Date.now() < einde) {
+      if (opts.signal && opts.signal.aborted) break;   // client hing op
+      const rest = Math.min(tickMs, einde - Date.now());
+      await new Promise((r) => setTimeout(r, rest));
+      cursor = feedCursor(slug);
+      if (cursor !== since) return { cursor, changed: true, waited: true };
+    }
+    return { cursor, changed: false, waited: true };
+  } finally {
+    const n = (_wachters.get(slug) || 1) - 1;
+    if (n > 0) _wachters.set(slug, n); else _wachters.delete(slug);
+  }
+}
+
+// ── Gesprekken: eerst wie, dan pas wat (shaer-frontend-yso) ──────────
+//
+// De oude lezing gaf de nieuwste 60 berichten over ALLE gesprekken samen. Dat
+// knipt geschiedenis weg zonder dat iemand het merkt, en het is bij DM's veel
+// erger dan bij posts: dat zijn er meer en het zijn kortere berichten, dus een
+// druk gesprek kan de 60 in zijn eentje opeten en de rest uit de lezing duwen.
+// Viel het laatste bericht van iemand erbuiten, dan verdween die persoon
+// helemaal uit Messages -- de avatarhemel plaatst mensen op de leeftijd van hun
+// laatste bericht, dus geen bericht is geen gezicht.
+//
+// Vandaar twee lezingen. Deze geeft EEN rij per tegenpartij, hoe druk iemand
+// ook is, en conversationHistory hieronder geeft het gesprek zelf met een
+// cursor. Wat de client van de hemel nodig heeft -- wie, wanneer, en waarmee --
+// zit in die ene nieuwste note.
+//
+// Een gesprek is hier hetzelfde als in de app: incoming zijn de ap_mentions
+// (die tabel IS de aan ons gerichte post), uitgaand zijn de eigen notes met
+// visibility 'direct'. Een publiek antwoord is geen gesprek en hoort niet als
+// gezicht in de hemel.
+/**
+ * EEN STEMPEL IN EEN VORM, en dat is hier geen netheid maar de volgorde zelf.
+ *
+ * Drie vormen kwamen samen in deze unie: `2026-08-13 19:26:17` van SQLite's
+ * CURRENT_TIMESTAMP, `2026-08-13T18:21:57Z` uit een object, en dezelfde met
+ * milliseconden. Als TEKST vergeleken staat op plek 10 een spatie tegen een
+ * T -- en een spatie is kleiner. Dus sorteerde binnen dezelfde dag alles wat
+ * JIJ stuurde vóór alles wat binnenkwam, ongeacht de klok (Barts melding 14-8:
+ * een bericht van 00:30 stond boven een antwoord van 20:22 de avond ervoor).
+ *
+ * strftime leest alle drie en geeft er een vorm voor terug, in UTC. Lukt het
+ * niet, dan blijft de rauwe waarde staan -- dan is die ene rij verkeerd
+ * gesorteerd in plaats van de hele lijst.
+ *
+ * Dit gaat ook de client aan: `new Date('2026-08-13 19:26:17')` leest in
+ * JavaScript als LOKALE tijd en `...T19:26:17Z` als UTC. Dezelfde rij gaf dus
+ * een leeftijd die twee uur verschilde per vorm.
+ */
+const STEMPEL = (rauw) => `COALESCE(strftime('%Y-%m-%dT%H:%M:%SZ', ${rauw}), ${rauw})`;
+
+const CONVERSATION_UNION = `
+  SELECT m.actor_uri AS other, ${STEMPEL('COALESCE(m.published, m.created_at)')} AS stamp,
+         'in' AS direction, m.object_uri AS ref
+    FROM ap_mentions m
+   WHERE m.slug = @slug AND m.actor_uri IS NOT NULL AND m.actor_uri <> ''
+  UNION ALL
+  SELECT j.value AS other, ${STEMPEL('o.created_at')} AS stamp,
+         'out' AS direction, o.id AS ref
+    FROM ap_outbox o
+    JOIN json_each(COALESCE(NULLIF(o.to_actors, ''), json_array(o.to_actor))) j
+   WHERE o.site_slug = @slug AND o.visibility = 'direct'
+     AND j.value IS NOT NULL AND j.value <> ''`;
+
+/**
+ * Een rij per tegenpartij: zijn nieuwste bericht, nieuwste gesprek eerst.
+ *
+ * Compleet van vorm -- het aantal rijen is het aantal mensen, niet het aantal
+ * berichten -- dus de hemel kan niemand meer kwijtraken doordat een ander druk
+ * was. Zonder limiet, en dat mag: dit schaalt met je kring.
+ */
+export function conversationHeads(slug) {
+  try {
+    // Twee rijen per persoon, niet een: het nieuwste bericht (dat bepaalt waar
+    // iemand in de hemel hangt) EN het nieuwste bericht VAN HEM.
+    //
+    // Die tweede is er omdat het nieuwste bericht van jou kan zijn, en dan
+    // draagt het jouw byline. De hemel zoekt de naam en het gezicht van de
+    // ander in een bericht van de ander -- vond hij dat niet, dan viel hij
+    // terug op het staartje van de actor-uri en heette tante opeens
+    // 'hotelbreakfast'. Op het toestel gezien, 10-8.
+    //
+    // Valt het samen (het nieuwste is al van hem), dan is het een rij; dubbel
+    // sturen doen we niet.
+    return db.prepare(`
+      SELECT other, stamp, direction, ref FROM (
+        SELECT *, ROW_NUMBER() OVER (PARTITION BY other ORDER BY stamp DESC, ref DESC) AS rn
+          FROM (${CONVERSATION_UNION})
+      ) WHERE rn = 1
+      UNION
+      SELECT other, stamp, direction, ref FROM (
+        SELECT *, ROW_NUMBER() OVER (PARTITION BY other ORDER BY stamp DESC, ref DESC) AS rn
+          FROM (${CONVERSATION_UNION}) WHERE direction = 'in'
+      ) WHERE rn = 1
+      ORDER BY stamp DESC, ref DESC`).all({ slug });
+  } catch { return []; }
+}
+
+/**
+ * Een gesprek, nieuwste eerst, met een cursor.
+ *
+ * BEIDE KANTEN ONDER EEN LIMIET. In de oude lezing werden jouw kant
+ * (getSentNotes) en hun kant apart afgekapt, waardoor een gesprek eenzijdig
+ * kon lijken -- alsof iemand nooit geantwoord had. Hier is de limiet er een
+ * voor het gesprek als geheel.
+ *
+ * `before` is de cursor van het OUDSTE bericht dat je al hebt; je krijgt wat
+ * daarvoor ligt. Er komt er een extra op om te weten of er nog meer is: de
+ * client hoort dat te weten zonder te moeten gokken, en zonder dat weten kan
+ * 'load more' niet eerlijk verschijnen.
+ *
+ * DE CURSOR IS SAMENGESTELD -- '<stempel>|<ref>' -- en niet alleen de stempel.
+ * Twee berichten in dezelfde seconde is bij DM's geen randgeval maar een
+ * gesprek, en met 'stamp < before' zou alles wat die grensseconde deelt stil
+ * overgeslagen worden. Je zou het niet merken: de pagina komt gewoon, er
+ * ontbreekt alleen iets in het midden.
+ */
+const cursorOf = (r) => (r ? `${r.stamp}|${r.ref}` : null);
+
+export function conversationHistory(slug, other, { before = null, limit = 60 } = {}) {
+  try {
+    const n = Math.min(Math.max(parseInt(limit, 10) || 60, 1), 200);
+    const sep = String(before || '').indexOf('|');
+    const bStamp = before && sep > 0 ? String(before).slice(0, sep) : null;
+    const bRef = before && sep > 0 ? String(before).slice(sep + 1) : null;
+    const rows = db.prepare(`
+      SELECT other, stamp, direction, ref FROM (${CONVERSATION_UNION})
+       WHERE other = @other
+         AND (@bStamp IS NULL OR stamp < @bStamp OR (stamp = @bStamp AND ref < @bRef))
+       ORDER BY stamp DESC, ref DESC LIMIT @n`).all({ slug, other, bStamp, bRef, n: n + 1 });
+    const more = rows.length > n;
+    const page = more ? rows.slice(0, n) : rows;
+    return { rows: page, more, oldest: cursorOf(page[page.length - 1]) };
+  } catch { return { rows: [], more: false, oldest: null }; }
+}
+
+// De kolommen die een bericht tot kaart maken. Een constante, want de
+// gesprekslezing haalt dezelfde rows op: twee lijsten die uiteenlopen leveren
+// een kaart die op de ene plek een plaatje heeft en op de andere niet.
+const MESSAGE_COLUMNS = `
+      m.object_uri, m.note_url, m.actor_uri, m.actor_name, m.actor_handle, m.actor_icon, m.actor_url,
+      m.content, m.published, m.created_at, m.wave, m.help_request,
+      m.emoji_json, m.actor_emoji_json, m.media_json, m.quote_json, m.embed_json`;
+
+/** Dezelfde berichtrijen, maar op object-uri -- voor een gesprek. */
+export function messageRowsByUri(slug, uris) {
+  const lijst = (uris || []).filter((u) => typeof u === 'string' && u);
+  if (!lijst.length) return [];
+  try {
+    const gaten = lijst.map(() => '?').join(',');
+    return db.prepare(`SELECT ${MESSAGE_COLUMNS} FROM ap_mentions m
+                        WHERE m.slug = ? AND m.object_uri IN (${gaten})`).all(slug, ...lijst);
+  } catch { return []; }
+}
+
+/**
+ * Tot waar deze lezer elk gesprek gelezen heeft (shaer-frontend-3tx).
+ *
+ * De markering komt uit AS2 `Read`-activiteiten, en die zijn OPTELLEND: het
+ * lezen van bericht N maakt niets anders ongelezen. Daarom is achteruit gaan
+ * geen regel die iemand moet onthouden maar een eigenschap van het model --
+ * markRead neemt het maximum. Een 'zet mijn markering op X' zou een toestel
+ * dat een week uit stond je gelezen berichten weer op ongelezen laten zetten.
+ */
+export function readMarkers(slug) {
+  try {
+    return new Map(db.prepare('SELECT other, cursor FROM ap_read_markers WHERE slug = ?')
+      .all(slug).map((r) => [r.other, r.cursor]));
+  } catch { return new Map(); }
+}
+
+/**
+ * Markeer een gesprek als gelezen tot en met dit bericht.
+ *
+ * Het object van de Read is een berichturi; welk gesprek dat is en waar het in
+ * de tijd staat weet de server zelf, dus de client hoeft niets uit te rekenen
+ * en kan er ook niet naast zitten.
+ */
+export function markRead(slug, objectUri) {
+  try {
+    const rij = db.prepare(`SELECT other, stamp, ref FROM (${CONVERSATION_UNION})
+                             WHERE ref = @ref ORDER BY stamp DESC LIMIT 1`)
+      .get({ slug, ref: String(objectUri || '') });
+    if (!rij) return null;
+    const cursor = `${rij.stamp}|${rij.ref}`;
+    db.prepare(`INSERT INTO ap_read_markers (slug, other, cursor) VALUES (?,?,?)
+                ON CONFLICT(slug, other) DO UPDATE SET cursor = MAX(cursor, excluded.cursor), at = CURRENT_TIMESTAMP`)
+      .run(slug, rij.other, cursor);
+    return { other: rij.other, cursor };
+  } catch { return null; }
+}
+
+/**
+ * Hoeveel er per gesprek nog ongelezen is, en of daar een zwaai bij zit.
+ *
+ * Een COUNT en geen bijgehouden getal (Barts besluit): niets om op te hogen
+ * bij bezorging, niets om te verlagen bij lezen, en bij een verwijdering klopt
+ * het vanzelf weer.
+ *
+ * Een zwaai telt apart, want dat is geen gesprek maar een zetje van een
+ * guardian -- die hoort een eigen teken te krijgen en niet opgeteld te worden.
+ * Eigen berichten tellen nooit mee: je hebt jezelf gelezen.
+ */
+export function unreadPerConversation(slug, { messagesAllowed = true, guardians = new Set() } = {}) {
+  try {
+    // DE POORT TELT MEE. Staat messages dicht, dan toont de app die berichten
+    // niet -- en dan mag een badge ze ook niet aankondigen, want dat getal
+    // vertelt precies wat de poort verbergt. Wat er altijd door mag telt wel:
+    // het guardian-kanaal en de boei. Zelfde regel als bij de serialisatie.
+    const rijen = db.prepare(`
+      SELECT u.other AS other,
+             COUNT(*) AS n,
+             MAX(CASE WHEN m.wave = 1 THEN 1 ELSE 0 END) AS wave
+        FROM (${CONVERSATION_UNION}) u
+        LEFT JOIN ap_read_markers r ON r.slug = @slug AND r.other = u.other
+        LEFT JOIN ap_mentions m ON m.slug = @slug AND m.object_uri = u.ref
+       WHERE u.direction = 'in'
+         AND (r.cursor IS NULL OR (u.stamp || '|' || u.ref) > r.cursor)
+         AND (@open = 1 OR m.help_request = 1 OR u.other IN (SELECT value FROM json_each(@guardians)))
+       GROUP BY u.other`)
+      .all({ slug, open: messagesAllowed ? 1 : 0, guardians: JSON.stringify([...guardians]) });
+    return new Map(rijen.map((r) => [r.other, { n: r.n, wave: !!r.wave }]));
+  } catch { return new Map(); }
+}
+
 export function getDirectMessages(slug, limit) {
   try {
     return db.prepare(`
-      SELECT m.object_uri, m.note_url, m.actor_uri, m.actor_name, m.actor_handle, m.actor_icon, m.actor_url,
-             m.content, m.published, m.created_at, m.wave, m.help_request,
-             m.emoji_json, m.actor_emoji_json, m.media_json, m.quote_json, m.embed_json
+      SELECT ${MESSAGE_COLUMNS}
       FROM ap_mentions m
       WHERE m.slug = ?
         AND NOT EXISTS (SELECT 1 FROM ap_timeline t WHERE t.slug = m.slug AND t.id = m.object_uri)
@@ -3014,6 +4784,35 @@ export function extractEmojiTags(tag) {
     && typeof t.name === 'string' && t.icon);
   return emojis.length ? JSON.stringify(emojis) : null;
 }
+// ── Gate-filters voor de C2S-serialisatie (shaer-ahy.1, 8-8) ──────
+//
+// Dezelfde regel als bij de embeds: de poort zit bij de AFLEVERING. Een
+// bijlage die de client alleen verbergt is wel degelijk geleverd, dus wat
+// dicht is wordt hier nooit geserialiseerd. Puur, zodat de regels los van de
+// routes te toetsen zijn.
+
+/** Bijlagen door de beeld- en muziekpoort. Leeg wordt undefined, zoals de
+ *  serialisatie dat overal doet. */
+export function gateAttachments(atts, { images = true, audio = true } = {}) {
+  if (!Array.isArray(atts)) return atts;
+  const out = atts.filter((a) => {
+    const mt = String((a && a.mediaType) || '');
+    if (!images && mt.startsWith('image/')) return false;
+    if (!audio && (mt.startsWith('audio/') || (a && a.type === 'Audio'))) return false;
+    return true;
+  });
+  return out.length ? out : undefined;
+}
+
+/** Tag-array zonder de FEP-9098 Emoji-tags, voor een dichte emoji-poort. De
+ *  :shortcode: blijft als tekst staan -- dat is eerlijk: er STAAT iets, het
+ *  wordt alleen niet als plaatje van een vreemde server gerenderd. */
+export function stripEmojiTags(tags) {
+  if (!Array.isArray(tags)) return tags;
+  const out = tags.filter((t) => (Array.isArray(t && t.type) ? t.type[0] : (t && t.type)) !== 'Emoji');
+  return out.length ? out : undefined;
+}
+
 export function timelineEmojis(emojiJson) {
   try { const arr = emojiJson ? JSON.parse(emojiJson) : null; return (Array.isArray(arr) && arr.length) ? arr : undefined; }
   catch { return undefined; }
@@ -3113,10 +4912,15 @@ export function getCirkelPosts(slug, limit, offset) {
     // (t.boosted), mixed by date. One row per note in ap_timeline → no duplicates.
     if (!_cirkelPosts) _cirkelPosts = db.prepare(`
       SELECT t.id, t.author_uri, t.author_name, t.author_handle, t.author_icon, t.author_url,
-             t.content, t.url, t.published, t.media_json, t.boosted, t.nsfw, t.cw
+             t.content, t.url, t.published, t.media_json, t.nsfw, t.cw,
+             (rb.target_uri IS NOT NULL) AS boosted
       FROM ap_timeline t
       LEFT JOIN ap_following f ON f.slug = t.slug AND f.actor_uri = t.author_uri
-      WHERE t.slug = ? AND (f.auto_boost = 1 OR t.boosted = 1)
+      -- Uit de tussentabel, niet uit t.boosted: die kolom is een afgeleide. De
+      -- UNIQUE(site_slug, target_uri, kind) garandeert hoogstens één match, dus
+      -- deze join kan geen rijen verdubbelen.
+      LEFT JOIN ap_my_reactions rb ON rb.site_slug = t.slug AND rb.target_uri = t.id AND rb.kind = 'boost'
+      WHERE t.slug = ? AND (f.auto_boost = 1 OR rb.target_uri IS NOT NULL)
       ORDER BY COALESCE(t.published, t.created_at) DESC, t.rowid DESC
       LIMIT ? OFFSET ?`);
     return _cirkelPosts.all(slug, limit || 60, offset || 0);
@@ -3125,7 +4929,16 @@ export function getCirkelPosts(slug, limit, offset) {
 export function getCirkelMembers(slug) {
   try { if (!_cirkelMembers) _cirkelMembers = db.prepare('SELECT name, url, icon FROM ap_following WHERE slug = ? AND auto_boost = 1 ORDER BY name'); return _cirkelMembers.all(slug); } catch { return []; }
 }
-// Mark a timeline post as boosted so it shows in the Cirkel (mixed by date).
+// AFGELEIDE, GEEN BRON (shaer-9e9). De waarheid over "heb ik hierop gereageerd"
+// staat in ap_my_reactions; deze vlaggen worden daaruit bijgehouden door
+// setReaction en door niets anders. Roep ze niet los aan -- dan schrijf je de
+// helft, en dat is precies hoe shaer:liked maandenlang false bleef (04aca12).
+//
+// ap_timeline.boosted verdient zijn bestaan wel: hij staat in de WHERE van de
+// Cirkel-feed (getCirkelPosts) en in boostedCount, dus hij is een index en geen
+// kopie. ap_timeline.liked wordt nergens als verzameling bevraagd en kan weg
+// zodra fase 2 lang genoeg goed staat; hij is nu nog het vangnet waarmee
+// terugdraaien een code-revert blijft in plaats van dataherstel.
 let _markBoost, _unmarkBoost, _boostedCount;
 export function markBoosted(slug, noteId) {
   try { if (!_markBoost) _markBoost = db.prepare('UPDATE ap_timeline SET boosted = 1 WHERE slug = ? AND id = ?'); _markBoost.run(slug, noteId); } catch { /* ignore */ }
@@ -3140,6 +4953,217 @@ export function markLiked(slug, noteId) {
 export function unmarkLiked(slug, noteId) {
   try { if (!_unmarkLike) _unmarkLike = db.prepare('UPDATE ap_timeline SET liked = 0 WHERE slug = ? AND id = ?'); _unmarkLike.run(slug, noteId); } catch { /* ignore */ }
 }
+/**
+ * Zet een reactie van JOU op een object. Dit hoort het enige schrijfpad te zijn
+ * (shaer-9e9): de tussentabel ap_my_reactions is de waarheid, de vlaggen op
+ * ap_timeline zijn de afgeleide. Zolang markLiked en broers los aanroepbaar
+ * blijven kan een aanroeper ze vergeten, en dat is niet hypothetisch -- precies
+ * dat leverde de shaer:liked-bug op (04aca12).
+ *
+ * `opts.note` is de opgeloste remote note bij een boost. Die is niet optioneel
+ * uit netheid: een boost moet de post je tijdlijn IN trekken als je de auteur
+ * niet volgt, anders heeft de vlag geen rij om op te landen en verschijnt de
+ * boost nergens -- ook niet in de Cirkel.
+ *
+ * `opts.flagUri` bestaat omdat de twee bronnen vandaag verschillend gesleuteld
+ * worden: de tussentabel op de URI die de client stuurde, de vlag op de
+ * opgeloste object-URI. Meestal zijn die gelijk, maar niet gegarandeerd. Deze
+ * naad houdt fase 1 gedragsbehoudend; het samentrekken van die twee sleutels is
+ * werk voor fase 2, mét datamigratie.
+ */
+// Reactie-migratie (shaer-9e9). Draait bij boot, EEN keer per bump, net als
+// selfHealTimeline. Bewust automatisch: klonkt-update tilt een hele vloot in een
+// stap naar nieuwe code, en een handmatig script per instance wordt vergeten --
+// terwijl het falen stil is (een reactie die niemand meer ziet geeft geen fout).
+// v2 haalt de derde bron erbij: ap_interactions.acted_* (shaer-ipb). Een bump
+// laat alle stappen opnieuw lopen, en dat mag -- ze zijn alle drie idempotent.
+const REACTIONS_MIGRATION_VERSION = 2;
+
+/**
+ * Brengt alle reacties naar de tussentabel, onder de canonieke object-URI.
+ *
+ * Twee stappen, en ze zijn allebei nodig:
+ *
+ *  1. HERSLEUTELEN. De oude interact-route bewaarde de URI waarmee je binnenkwam
+ *     en de bookmarklet geeft window.location.href door, dus de permalink. Sinds
+ *     canonicalReactionUri wordt er op de object-URI gezocht, waardoor die rijen
+ *     wees zouden zijn. De created_at reist mee: bij hersleutelen weten we
+ *     wanneer je reageerde, bij aanvullen niet.
+ *  2. AANVULLEN vanuit de afgeleide kolommen. Alles wat op oude code via de
+ *     Krant is gegeven staat alleen daar; zonder deze stap toont het als
+ *     niet-gereageerd en klikt een gebruiker opnieuw -- met een tweede Like de
+ *     fediverse in als gevolg.
+ *
+ * Idempotent. Geeft terug wat er gebeurd is, zodat het script het kan tonen.
+ */
+export function migrateReactions(opts = {}) {
+  const uit = { hersleuteld: 0, aangevuld: 0, reacties: 0, overgeslagen: false };
+  try {
+    if (!opts.force) {
+      const r = db.prepare('SELECT value FROM app_settings WHERE key = ?').get('reactions_migration_version');
+      const cur = r ? (parseInt(r.value, 10) || 0) : 0;
+      if (cur >= REACTIONS_MIGRATION_VERSION) { uit.overgeslagen = true; return uit; }
+    }
+  } catch { return uit; }   // geen app_settings → deze database is te oud om aan te raken
+
+  // Een rij die NIET op een tijdlijn-id staat maar wel op een tijdlijn-url.
+  const wees = `
+    FROM ap_my_reactions r JOIN ap_timeline t ON t.slug = r.site_slug AND t.url = r.target_uri
+     WHERE NOT EXISTS (SELECT 1 FROM ap_timeline t2 WHERE t2.slug = r.site_slug AND t2.id = r.target_uri)`;
+  const scheef = (kind, kolom) => `
+    FROM ap_timeline t
+     WHERE t.${kolom} = 1
+       AND NOT EXISTS (SELECT 1 FROM ap_my_reactions r
+                        WHERE r.site_slug = t.slug AND r.target_uri = t.id AND r.kind = '${kind}')`;
+  // 3. De derde bron: wat JIJ deed met een reactie onder je eigen post. De slug
+  //    hangt hier niet aan de rij maar aan de post; vandaar de twee joins. Een
+  //    rij zonder object_uri kan nooit een reactie dragen (fedi-react eist hem),
+  //    dus die uitsluiting verliest per constructie niets.
+  const acted = (kind, kolom) => `
+    FROM ap_interactions i
+     JOIN posts p ON p.id = i.post_id
+     JOIN sites s ON s.id = p.site_id
+     WHERE i.${kolom} = 1 AND IFNULL(i.object_uri, '') <> ''
+       AND NOT EXISTS (SELECT 1 FROM ap_my_reactions r
+                        WHERE r.site_slug = s.slug AND r.target_uri = i.object_uri AND r.kind = '${kind}')`;
+
+  if (opts.dryRun) {
+    const tel = (sql) => { try { return db.prepare(`SELECT COUNT(*) AS n ${sql}`).get().n; } catch { return 0; } };
+    uit.hersleuteld = tel(wees);
+    uit.aangevuld = tel(scheef('like', 'liked')) + tel(scheef('boost', 'boosted'));
+    uit.reacties = tel(acted('like', 'acted_like')) + tel(acted('boost', 'acted_boost'));
+    return uit;
+  }
+
+  try {
+    db.transaction(() => {
+      // 1. Hersleutelen: eerst de canonieke variant erbij, dan de permalink weg.
+      //    In die volgorde, zodat een onderbreking hooguit een dubbele rij
+      //    oplevert en nooit een verdwenen reactie.
+      uit.hersleuteld = db.prepare(`
+        INSERT OR IGNORE INTO ap_my_reactions (site_slug, target_uri, kind, created_at)
+        SELECT r.site_slug, t.id, r.kind, r.created_at ${wees}`).run().changes;
+      db.prepare(`DELETE FROM ap_my_reactions WHERE rowid IN (SELECT r.rowid ${wees})`).run();
+
+      // 2. Aanvullen vanuit de kolommen.
+      for (const [kind, kolom] of [['like', 'liked'], ['boost', 'boosted']]) {
+        uit.aangevuld += db.prepare(`
+          INSERT OR IGNORE INTO ap_my_reactions (site_slug, target_uri, kind)
+          SELECT t.slug, t.id, '${kind}' ${scheef(kind, kolom)}`).run().changes;
+      }
+
+      // 3. En vanuit acted_* op de reacties onder je eigen posts.
+      for (const [kind, kolom] of [['like', 'acted_like'], ['boost', 'acted_boost']]) {
+        uit.reacties += db.prepare(`
+          INSERT OR IGNORE INTO ap_my_reactions (site_slug, target_uri, kind)
+          SELECT s.slug, i.object_uri, '${kind}' ${acted(kind, kolom)}`).run().changes;
+      }
+    })();
+    if (uit.hersleuteld || uit.aangevuld || uit.reacties) {
+      console.log(`[AP] reaction migration v${REACTIONS_MIGRATION_VERSION}: ${uit.hersleuteld} re-keyed, ${uit.aangevuld} backfilled, ${uit.reacties} from comments`);
+    }
+    if (!opts.force) {
+      db.prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)')
+        .run('reactions_migration_version', String(REACTIONS_MIGRATION_VERSION));
+    }
+  } catch (e) {
+    // Niet fataal: de kolommen staan er nog, dus de oude waarheid is niet weg.
+    // Een volgende boot probeert het opnieuw, want de versie is niet gezet.
+    console.warn('[AP] reaction migration failed:', e.message);
+  }
+  return uit;
+}
+
+/**
+ * Van wat de client stuurde naar de canonieke sleutel voor een reactie.
+ *
+ * Een post heeft twee URI's: zijn AP-object-id (.../ap/notes/<uuid>) en zijn
+ * leesbare permalink (.../effortlesseffect). De Krant en het C2S-pad spreken de
+ * eerste, de interact-pagina de tweede. Werden reacties onder allebei opgeslagen,
+ * dan bestond dezelfde like twee keer -- en erger: een like uit de Krant was op
+ * de interact-pagina onzichtbaar, want daar werd op de permalink gezocht.
+ *
+ * Dit was de naad die fase 1 bewust open liet ("samentrekken is werk voor fase
+ * 2"). Robin liep er meteen tegenaan: een geboost en geliket bericht toonde geen
+ * highlight. Vandaar hier, en niet later.
+ *
+ * De object-URI wint, want dat is waar ap_timeline op sleutelt en waar de
+ * backfill op is gebaseerd. Kennen we de post niet, dan blijft de invoer staan:
+ * een reactie op iets buiten je tijdlijn moet gewoon werken.
+ */
+export function canonicalReactionUri(slug, uri) {
+  if (!slug || !uri) return uri;
+  try {
+    if (db.prepare('SELECT 1 FROM ap_timeline WHERE slug = ? AND id = ?').get(slug, uri)) return uri;
+    const row = db.prepare('SELECT id FROM ap_timeline WHERE slug = ? AND url = ? LIMIT 1').get(slug, uri);
+    return (row && row.id) || uri;
+  } catch { return uri; }
+}
+
+/**
+ * Wat heb IK met dit object gedaan? Leest de tussentabel, de bron van waarheid
+ * sinds shaer-9e9 fase 2. Vervangt getMyReactions en getTimelineReaction, die
+ * dezelfde vraag beantwoordden uit twee verschillende bronnen.
+ */
+export function getReaction(slug, uri) {
+  try {
+    const key = canonicalReactionUri(slug, uri);
+    const rows = (slug && key)
+      ? db.prepare('SELECT kind FROM ap_my_reactions WHERE site_slug = ? AND target_uri = ?').all(slug, key)
+      : [];
+    return { liked: rows.some((r) => r.kind === 'like'), boosted: rows.some((r) => r.kind === 'boost') };
+  } catch { return { liked: false, boosted: false }; }
+}
+
+/**
+ * Dezelfde vraag voor een hele pagina in EEN query. De C2S-tijdlijn zet
+ * shaer:liked op elke post; per rij vragen zou dat een N+1 maken, en dan had je
+ * een consistentiebug geruild voor een traagheidsbug.
+ */
+export function getReactionsFor(slug, uris) {
+  const out = new Map();
+  const list = [...new Set((uris || []).filter(Boolean))].slice(0, 500);
+  if (!slug || !list.length) return out;
+  try {
+    const rows = db.prepare(
+      `SELECT target_uri, kind FROM ap_my_reactions
+        WHERE site_slug = ? AND target_uri IN (${list.map(() => '?').join(',')})`,
+    ).all(slug, ...list);
+    for (const r of rows) {
+      const cur = out.get(r.target_uri) || { liked: false, boosted: false };
+      if (r.kind === 'like') cur.liked = true;
+      if (r.kind === 'boost') cur.boosted = true;
+      out.set(r.target_uri, cur);
+    }
+  } catch { /* leeg = niets gereageerd, en dat is een veilige uitkomst */ }
+  return out;
+}
+
+export function setReaction(slug, uri, kind, on, opts = {}) {
+  if (!slug || !uri || (kind !== 'like' && kind !== 'boost')) return;
+  // Ook hier, en niet alleen bij sendInteraction. Deze functie schrijft ALLEEN de
+  // lokale vlag; het versturen gebeurt elders. Zonder deze poort zou je op een
+  // verhuisd account een like zien staan die nooit de deur uit is gegaan, en dat
+  // is de halve toestand die erger is dan een duidelijke weigering.
+  try {
+    const s = db.prepare('SELECT moved_to FROM sites WHERE slug = ?').get(slug);
+    if (movedLock(s).locked) { console.warn('[AP] reactie geweigerd, account verhuisd:', slug, kind); return; }
+  } catch { /* geen sites-tabel = geen verhuizing */ }
+  // EEN sleutel voor beide bronnen. opts.flagUri is de opgeloste object-URI van
+  // de aanroeper (het C2S-pad kent die uit resolveRemoteNote en dat is
+  // betrouwbaarder dan onze cache); anders leiden we hem af. Vroeger kreeg de
+  // tussentabel de URI die de client stuurde en de vlag de opgeloste -- dat
+  // maakte dezelfde like onvindbaar vanaf de andere pagina.
+  const flagUri = opts.flagUri || canonicalReactionUri(slug, uri);
+  setMyReaction(slug, flagUri, kind, !!on);
+  if (kind === 'boost') {
+    if (!on) unmarkBoosted(slug, flagUri);
+    else if (opts.note) upsertBoostedNote(slug, opts.note);
+    else markBoosted(slug, flagUri);
+  } else if (on) markLiked(slug, flagUri);
+  else unmarkLiked(slug, flagUri);
+}
+
 export function getTimelineReaction(slug, noteId) {
   try { const r = db.prepare('SELECT liked, boosted FROM ap_timeline WHERE slug = ? AND id = ?').get(slug, noteId); return { liked: !!(r && r.liked), boosted: !!(r && r.boosted) }; } catch { return { liked: false, boosted: false }; }
 }
@@ -3173,7 +5197,14 @@ export function upsertBoostedNote(slug, note) {
   markBoosted(slug, id);
 }
 export function boostedCount(slug) {
-  try { if (!_boostedCount) _boostedCount = db.prepare('SELECT COUNT(*) AS n FROM ap_timeline WHERE slug = ? AND boosted = 1'); return _boostedCount.get(slug).n; } catch { return 0; }
+  // Geboost EN in je tijdlijn, zoals voorheen: de tussentabel kan ook een boost
+  // bevatten van iets dat er (nog) niet in staat.
+  try {
+    if (!_boostedCount) _boostedCount = db.prepare(`SELECT COUNT(*) AS n FROM ap_my_reactions r
+      JOIN ap_timeline t ON t.slug = r.site_slug AND t.id = r.target_uri
+      WHERE r.site_slug = ? AND r.kind = 'boost'`);
+    return _boostedCount.get(slug).n;
+  } catch { return 0; }
 }
 
 // Resolve a Klonkt/AP actor URL from a site root: a Klonkt site's root 302s to
@@ -3198,7 +5229,7 @@ async function resolveApActor(siteUrl) {
 // note and refreshes content + media (recovers covers/edits that were delivered
 // during a flux window, e.g. a fleet-wide update), and drops notes that are gone
 // (404/410). Bump SELFHEAL_VERSION only on a release that warrants a re-sync.
-const SELFHEAL_VERSION = 21; // v21: drop direct notes (🛟 help requests, waves) that were cached as timeline posts
+const SELFHEAL_VERSION = 22; // v22: summary is pas een waarschuwing MET sensitive, en een artikel houdt zijn titel
 async function fetchNoteAP(url) {
   try {
     const r = await fetch(url, { headers: { Accept: 'application/activity+json' } });
@@ -3295,6 +5326,28 @@ export async function resolveOwnQuote(html) {
   return { uri: card.id, actor: card.attributedTo || null };
 }
 
+/**
+ * De composer-preview (shaer-k3f): één URL langs exact dezelfde pijplijn als
+ * publiceren, zodat wat de preview toont ook is wat de post krijgt. Twee
+ * uitkomsten, hoogstens een gevuld: een AP-object wordt een quote-snapshot,
+ * een externe link probeert een kaart. Beide als JSON-string, dezelfde vorm
+ * als de kolommen -- de route serveert ze door timelineQuote/timelineEmbed en
+ * de gate, net als de tijdlijn.
+ */
+export async function previewCard(url) {
+  if (!/^https?:\/\//i.test(String(url || ''))) return {};
+  const html = `<a href="${String(url).replace(/"/g, '&quot;')}">x</a>`;
+  const q = await resolveOwnQuote(html);
+  if (q && q.uri) {
+    const quoteJson = await resolveQuoteByUri(q.uri).catch(() => null);
+    if (quoteJson) return { quoteJson };
+  } else {
+    const embedJson = await resolveExternalEmbed(html).catch(() => null);
+    if (embedJson) return { embedJson };
+  }
+  return {};
+}
+
 /** The first http(s) link in sanitized note HTML that is not a mention/hashtag. */
 export function firstExternalUrl(html) {
   if (!html || typeof html !== 'string') return null;
@@ -3308,6 +5361,98 @@ export function firstExternalUrl(html) {
 }
 
 /** The stored external-embed card, for the C2S read. */
+// ── Standaardvormen in plaats van eigen dialect (shaer-nmw) ───────
+//
+// Robins waarschuwing: geen Klonkt/Shaer-dialect schrijven waar AS2 of een FEP
+// het al regelt. Vier eigen properties hadden een standaard naast zich staan,
+// en deze helpers zijn die standaard -- een definitie per vorm, zodat de tien
+// plekken die ze emitten niet elk hun eigen variant krijgen.
+//
+// De oude shaer:-velden blijven er voorlopig NAAST staan. Een app in het veld
+// leest ze nog, en een leeg scherm is een duurdere fout dan een dubbel veld;
+// ze gaan eruit als de clients om zijn (tweede helft van shaer-nmw).
+
+/** FEP-9098 Emoji-tags uit een {shortcode: url}-kaart. */
+function emojiTagsFromMap(emojis) {
+  const uit = Object.entries(emojis || {})
+    .filter(([naam, url]) => naam && url)
+    .map(([naam, url]) => ({ type: 'Emoji', name: naam, icon: { type: 'Image', url } }));
+  return uit.length ? uit : undefined;
+}
+
+/**
+ * Een actor als INGESLOTEN OBJECT voor `attributedTo` / `actor`.
+ *
+ * AS2 staat toe dat attributedTo een object is in plaats van een URI, en dan
+ * heeft ELKE client er wat aan -- niet alleen de onze, die er shaer:author
+ * naast kreeg. `preferredUsername` is de lokale naam; een lezer leidt de handle
+ * af uit die naam plus de host van de id, precies zoals wij serverkant ook
+ * doen. Weten we niets van de persoon, dan blijft het de kale URI: een leeg
+ * object zou beweren dat we hem kennen.
+ */
+export function actorObject(uri, info) {
+  if (!uri) return undefined;
+  const iets = info && (info.name || info.handle || info.icon || info.url);
+  if (!iets) return uri;
+  const o = { id: uri, type: 'Person' };
+  if (info.name) o.name = info.name;
+  const lokaal = String(info.handle || '').replace(/^@/, '').split('@')[0];
+  if (lokaal) o.preferredUsername = lokaal;
+  if (info.icon) o.icon = { type: 'Image', url: info.icon };
+  if (info.url) o.url = info.url;
+  const tags = emojiTagsFromMap(info.emojis);
+  if (tags) o.tag = tags;
+  return o;
+}
+
+/**
+ * De linkkaart als AS2 `preview` (core: "identifies an entity that provides a
+ * preview of this object"). Een Page met url, name en image IS een kaart; daar
+ * hoefde shaer:embed nooit voor te bestaan.
+ *
+ * Wat WEL van ons blijft is de spelerpagina: dat die alleen meegaat als de
+ * guardians de poort openden is FEP-633c-gedrag en heeft geen AS2-tegenhanger.
+ */
+export function previewObject(embedJson, { playback = false } = {}) {
+  const e = timelineEmbed(embedJson, { playback });
+  if (!e) return undefined;
+  const thumb = (e.media || []).find((m) => m && m.url);
+  const p = { type: 'Page', url: e.url };
+  if (e.title) p.name = e.title;
+  if (thumb) p.image = { type: 'Image', url: thumb.url };
+  if (e.author && (e.author.name || e.author.handle)) {
+    p.attributedTo = { type: 'Person', name: e.author.name || e.author.handle };
+  }
+  if (e['shaer:playerUrl']) p['shaer:playerUrl'] = e['shaer:playerUrl'];
+  if (e['shaer:playable']) p['shaer:playable'] = e['shaer:playable'];
+  return p;
+}
+
+/**
+ * De geciteerde post als OBJECT in `quote` (FEP-044f staat toe dat quote het
+ * object zelf is, niet alleen een URI). De opgeslagen momentopname wordt hier
+ * een echte Note, met de auteur als ingesloten actor -- dus geen tweede eigen
+ * property voor iets dat de FEP al kan.
+ */
+export function quoteObject(quoteJson) {
+  const q = timelineQuote(quoteJson);
+  if (!q) return undefined;
+  const note = { type: 'Note', id: q.url, url: q.url };
+  if (q.content) note.content = q.content;
+  if (q.published) note.published = q.published;
+  if (q.author) {
+    note.attributedTo = actorObject(q.author.url || q.url, {
+      name: q.author.name, handle: q.author.handle, icon: q.author.icon,
+    });
+  }
+  const media = (q.media || []).filter((m) => m && m.url)
+    .map((m) => ({ type: 'Document', mediaType: m.type || undefined, url: m.url }));
+  if (media.length) note.attachment = media;
+  const tags = emojiTagsFromMap(q.emojis);
+  if (tags) note.tag = tags;
+  return note;
+}
+
 export function timelineEmbed(embedJson, { playback = false } = {}) {
   try {
     const e = embedJson ? JSON.parse(embedJson) : null;
@@ -3350,6 +5495,12 @@ export function playerUrlFor(url) {
 async function resolveQuote(note) {
   const url = quoteHrefOf(note);
   if (!url) return null;
+  return resolveQuoteByUri(url);
+}
+
+/** Hetzelfde snapshot, maar vanaf een kale URI: eigen posts en de
+ *  composer-preview (shaer-k3f) kennen alleen de link, niet de tag-vorm. */
+async function resolveQuoteByUri(url) {
   const q = await apGetJson(url);
   if (!q || typeof q !== 'object') return null;
   const authorUri = typeof q.attributedTo === 'string' ? q.attributedTo
@@ -3399,19 +5550,38 @@ async function resolveCard(o) {
  * exactly like the guardian's authorized fetch. The signature covers
  * (request-target) host date, the set verifyRequest checks.
  */
-async function signedGetJson(slug, url) {
+/**
+ * De handtekening-headers voor een GET als `slug`. Losgetrokken uit
+ * signedGetJson omdat een verhuizing ook BYTES moet kunnen ophalen (FEP-1580:
+ * gehoste audio zit achter dezelfde poort als de rest, en een ongetekende fetch
+ * krijgt daar terecht een 403).
+ */
+export function signedGetHeaders(slug, url, accept = 'application/activity+json') {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  if (!base || !slug) return null;
+  const me = actorId(base, slug);
+  const keys = getOrCreateKeys(slug);
+  const u = new URL(url);
+  const date = new Date().toUTCString();
+  const target = `${u.pathname}${u.search || ''}`;
+  const signingString = `(request-target): get ${target}\nhost: ${u.host}\ndate: ${date}`;
+  const signature = crypto.sign('sha256', Buffer.from(signingString), keys.private_pem).toString('base64');
+  return {
+    Accept: accept,
+    Date: date,
+    Signature: `keyId="${me}#main-key",algorithm="rsa-sha256",headers="(request-target) host date",signature="${signature}"`,
+  };
+}
+
+export async function signedGetJson(slug, url, onStatus) {
   try {
-    const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
-    if (!base || !slug) return apGetJson(url);
-    const me = actorId(base, slug);
-    const keys = getOrCreateKeys(slug);
-    const u = new URL(url);
-    const date = new Date().toUTCString();
-    const target = `${u.pathname}${u.search || ''}`;
-    const signingString = `(request-target): get ${target}\nhost: ${u.host}\ndate: ${date}`;
-    const signature = crypto.sign('sha256', Buffer.from(signingString), keys.private_pem).toString('base64');
-    const sig = `keyId="${me}#main-key",algorithm="rsa-sha256",headers="(request-target) host date",signature="${signature}"`;
-    const r = await safeFetch(url, { headers: { Accept: 'application/activity+json', Date: date, Signature: sig } });
+    const headers = signedGetHeaders(slug, url);
+    if (!headers) return apGetJson(url);
+    const r = await safeFetch(url, { headers });
+    // De status doorgeven aan wie erom vroeg: null alleen zegt "het lukte
+    // niet", en dat is te weinig om een WEIGERING van een STORING te
+    // onderscheiden. Wie geen callback meegeeft merkt hier niets van.
+    if (typeof onStatus === 'function') onStatus(r.status);
     if (!r.ok) return null;
     const len = Number(r.headers.get('content-length') || 0);
     if (len > 3_000_000) return null;
@@ -3461,7 +5631,7 @@ export async function backfillFromOutbox(slug, actorUri, limit = 20) {
       const html = HtmlSanitizerService.sanitize(o.content || '');
       const poll = parsePoll(o); // a Question (poll) → carry its options/counts on backfill too
       try {
-        const r = tlStmts().ins.run(o.id, slug, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.url || null, o.published || null, mediaFromNote(o), o.sensitive ? 1 : 0, o.summary || null);
+        const r = tlStmts().ins.run(o.id, slug, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.url || null, o.published || null, mediaFromNote(o), o.sensitive ? 1 : 0, contentWarning(o));
         if (r && r.changes > 0) added++;
         // FEP-9098: keep custom-emoji tags from backfilled posts too.
         { const ej = extractEmojiTags(o.tag); if (ej) { try { db.prepare('UPDATE ap_timeline SET emoji_json = ? WHERE id = ? AND slug = ?').run(ej, o.id, slug); } catch { /* ignore */ } } }
@@ -3620,10 +5790,16 @@ export async function selfHealTimeline() {
         const note = await fetchNoteAP(r.id);
         if (note === 404) { db.prepare('DELETE FROM ap_timeline WHERE id = ?').run(r.id); healed++; continue; }
         if (!note || typeof note !== 'object') { failed++; continue; } // origin unreachable right now
-        const html = HtmlSanitizerService.sanitize(note.content || '');
-        const media = mediaFromNote(note);
+        // Door DEZELFDE bouwer als de innamekant (v22). Hij bouwde de inhoud
+        // hier zelf op, en daardoor miste een gerepareerde rij precies wat de
+        // inname wel doet -- de titel van een artikel bijvoorbeeld. Een
+        // zelfherstel dat een andere vorm oplevert dan de inname repareert naar
+        // een derde toestand.
+        const velden = timelineFields(note);
+        const html = velden.html;
+        const media = velden.atts.length ? JSON.stringify(velden.atts) : mediaFromNote(note);
         const nsfw = note.sensitive ? 1 : 0;   // re-sync NSFW/sensitive + CW onto already-cached posts
-        const cw = note.summary || null;
+        const cw = contentWarning(note);
         const url = note.url || null;          // re-sync the human url (catches a remote slug rename)
         const emoji = extractEmojiTags(note.tag);   // FEP-9098: re-capture custom-emoji tags (v8)
         const link = extractLinkJson(note);   // FEP-e232 + FEP-044f: re-capture object-link/quote tags (v9)
@@ -3669,9 +5845,25 @@ export async function selfHealTimeline() {
 }
 
 // Follow a fediverse account by @handle (WebFinger → actor → signed Follow).
-export async function followActor(site, handle, autoBoost = false) {
+export async function followActor(site, handle, autoBoost = false, { approved = false } = {}) {
+  const _mv = movedRefusal(site, 'follow'); if (_mv) return _mv;
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   if (!base || !site || !site.slug) return { error: 'config' };
+  // DE POORT STAAT HIER, en niet alleen in de C2S-outbox (shaer-p729, Barts
+  // melding 8-8: de volgverzoeken van Esmee kwamen nooit bij haar guardians
+  // aan). Hij stond in `case 'Follow'` van de outbox -- dus alleen als je via
+  // Shaer volgt. Volgde het kind vanuit Klonkts eigen webinterface, dan werd er
+  // geen verzoek aangemaakt, ging er niets naar de guardians, en was er dus ook
+  // niets om te beantwoorden. Precies dezelfde deur-naast-de-poort als bij de
+  // antwoordpoort vanmiddag (shaer-r4c).
+  //
+  // Merk op wat het NIET was: niet dat een guardian elders het niet kon
+  // beantwoorden. Die weg werkt en levert een Offer af bij de externe guardian.
+  // Er kwam alleen nooit iets aan om af te leveren.
+  //
+  // `approved` is de enige doorlaat, voor performApprovedFollow: zonder dat zou
+  // een goedgekeurd verzoek opnieuw op de poort stuiten en voor eeuwig wachten.
+
   // Accept any of: a profile/actor URL, an @user@host handle (WebFinger), or a
   // bare site domain (site.com) — for a single-actor site (Klonkt etc.) the root
   // resolves to its AP actor, so you can follow a site by just its domain.
@@ -3682,6 +5874,14 @@ export async function followActor(site, handle, autoBoost = false) {
   else if (/^[a-z0-9.-]+\.[a-z]{2,}/i.test(s)) actorUrl = await resolveApActor('https://' + s.replace(/^\/+|\/+$/g, ''));
   else actorUrl = null;
   if (!actorUrl) return { error: 'not_found' };
+  // NA het oplossen, want een kind volgt net zo goed met @naam@server of een
+  // kaal domein. Zou de poort alleen naar de ruwe invoer kijken, dan is elke
+  // handle een sluiproute -- en dat is precies de fout die we hier repareren,
+  // een maat kleiner.
+  if (!approved) {
+    const held = await gateOutgoingFollow(site, actorUrl);
+    if (held) return { held: true, id: held.id, status: held.status || 'pending' };
+  }
   // SIGNED, as this actor: an authorized-fetch instance refuses an anonymous
   // GET of the actor doc, which made following from a boost silently fail
   // (Robins melding, 31-7). Signed, the other side sees who asks.
@@ -3759,6 +5959,174 @@ export async function unfollowActor(site, actorUri) {
   return { ok: true };
 }
 
+/**
+ * FEP-7628 (DRAFT status — the shape is Mastodon's since 2019, but the FEP can
+ * still change): an account our sites follow says it moved to a new home.
+ *
+ * Validity has two independent legs, and both must hold:
+ *  1. The SIGNER is a party to the move: the old actor announcing its own move
+ *     (push mode) or the new actor doing it (pull mode). A third party
+ *     narrating someone else's move is refused — without this, any signed
+ *     stranger could re-point our follows.
+ *  2. The NEW actor claims the old identity in its `alsoKnownAs`. That is the
+ *     cross-side proof: the mover controls both ends. Without it, whoever
+ *     holds ONE end could hijack the other end's followers.
+ *
+ * Effect: every local site following the old actor unfollows it and follows
+ * the new one, keeping its auto-boost choice. Deliberately NOT retargeted:
+ * guardianship relations (FEP-633c) — a guardian is a security anchor, not a
+ * feed subscription, and moving one is shaer-tge's gated decision, not a
+ * side effect of an inbox event. We only log when a move touches one.
+ *
+ * Deps are injectable for tests (no network in node:test).
+ */
+export async function handleMoveInbox(act, { verifiedActor = null, fetchActorFn = null, followFn = null, unfollowFn = null } = {}) {
+  const oldUri = typeof act.object === 'string' ? act.object : (act.object && act.object.id);
+  const newUri = typeof act.target === 'string' ? act.target : (act.target && act.target.id);
+  if (!oldUri || !newUri || oldUri === newUri) return 400;
+  if (!verifiedActor || (verifiedActor !== oldUri && verifiedActor !== newUri)) {
+    console.warn('[AP] Move refused: signer is not a party to the move', verifiedActor || '(unsigned)', oldUri, '→', newUri);
+    return 401;
+  }
+  // Nobody here follows the old actor → nothing to move. This also makes
+  // redelivery idempotent: after the first swap the rows are gone.
+  let rows = [];
+  try { rows = db.prepare('SELECT * FROM ap_following WHERE actor_uri = ?').all(oldUri); } catch { /* fresh init */ }
+  if (!rows.length) return 202;
+  // A blocked destination is declined outright: the old follow stays (it goes
+  // stale on its own), and we will not open a door to a blocked house.
+  if (isBlockedAny(newUri)) { console.log('[AP] Move dropped: target is blocked', newUri); return 202; }
+  const target = await (fetchActorFn || fetchActor)(newUri);
+  const aka = [].concat((target && target.alsoKnownAs) || [])
+    .map((a) => (typeof a === 'string' ? a : (a && a.id))).filter(Boolean);
+  if (!target || !target.id || !aka.includes(oldUri)) {
+    console.warn('[AP] Move refused: target does not claim the old actor in alsoKnownAs', oldUri, '→', newUri);
+    return 202; // decline to act; no 4xx, the sender may be a well-meaning retrying server
+  }
+  // EERST de guardianship, DAARNA pas de follows. Die volgorde is geen netheid
+  // maar de hele werking, en hij is met bloed geschreven: bij Robins verhuizing
+  // op 13-8 stond het andersom en het log liet precies zien wat er dan gebeurt.
+  //
+  //   [AP] outgoing Follow beta → .../robo (gated, awaiting guardians)
+  //
+  // Beta is zelf een ward. Zijn UITGAANDE follow naar de verhuisde guardian werd
+  // gepoort (§5.3), want op dat moment stond het nieuwe adres nog niet in zijn
+  // guardian-lijst: de code hieronder had de relatie nog niet bijgewerkt. En de
+  // INKOMENDE kant heeft hetzelfde probleem, want de ward gate't een Follow van
+  // een onbekende. Dus beide richtingen bleven hangen op goedkeuring die niemand
+  // hoefde te geven, omdat het om een guardian ging die er al was.
+  //
+  // Met de relatie eerst is de verhuisde actor al een erkende guardian als de
+  // follows langskomen, en gaat de auto-acceptatie gewoon door.
+  //
+  // Een Move is een Move: de guardian is dezelfde guardian, het kind is hetzelfde
+  // kind, alleen het adres is nieuw. Zelfde bescherming als de re-follow: alleen
+  // na een geverifieerde Move, en niet naar een geblokkeerde bestemming (daar
+  // zijn we hierboven al uitgestapt). De twee harde randen van shaer-tge staan
+  // hier LOS van: weigeren te verhuizen naar een instance die shaer:guardians
+  // niet kan dragen is een controle aan de UITGAANDE kant, en het
+  // terugkeren-zonder-set is een alsoKnownAs-kwestie.
+  try {
+    const g = db.prepare('SELECT slug, role FROM ap_guardianships WHERE other_uri = ? AND status = ?').all(oldUri, 'accepted');
+    if (g.length) {
+      const r = db.prepare('UPDATE ap_guardianships SET other_uri = ? WHERE other_uri = ? AND status = ?').run(newUri, oldUri, 'accepted');
+      console.log('[AP] guardianship moved:', oldUri, '→', newUri, `(${r.changes}x)`, g.map((x) => `${x.role}:${x.slug}`).join(', '));
+    }
+  } catch (e) { console.warn('[AP] guardianship move failed:', e && e.message); }
+
+  for (const row of rows) {
+    const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(row.slug);
+    if (!site) continue;
+    try {
+      await (unfollowFn || unfollowActor)(site, oldUri);
+      const already = fwStmts().one.get(row.slug, newUri);
+      if (!already) await (followFn || followActor)(site, newUri, !!row.auto_boost);
+      console.log('[AP] follow moved', row.slug, ':', oldUri, '→', newUri);
+    } catch (e) {
+      console.warn('[AP] move re-follow failed for', row.slug, e && e.message);
+    }
+  }
+  return 202;
+}
+
+/**
+ * Slice 2 van shaer-0j2 (FEP-7628, DRAFT): de UITGAANDE helft — deze Klonkt
+ * is het oude huis en kondigt het vertrek aan. Twee eisen voordat er iets
+ * de deur uit gaat:
+ *  1. Geen guardians: een warded account verhuizen zonder de guardianship
+ *     te hertargeten zou het vangnet van het kind stil breken; dat is
+ *     shaer-tge's gated beslissing, dus tot die er is weigert een bewaakt
+ *     account de verhuizing.
+ *  2. De NIEUWE actor claimt ons in alsoKnownAs — dezelfde back-reference
+ *     die elke ontvangende server (onze eigen slice 1 incluis) eist. Zonder
+ *     die claim is de Move overal dood bij aankomst.
+ * De Move gaat duurzaam naar elke volger-inbox; hun servers doen de
+ * re-follow. `moved_to` wordt hier vastgelegd; het SERVEREN ervan op de
+ * actor (en het beleid van de oude site) is slice 3.
+ * Deps injecteerbaar voor tests (geen netwerk in node:test).
+ */
+export async function moveAccount(site, targetRaw, { fetchActorFn = null, deliverFn = null } = {}) {
+  // Al verhuisd? Dan eerst het slot eraf (moved_to leegmaken). Anders stapel je
+  // wegwijzers op elkaar en weet niemand meer waar de keten eindigt.
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  if (!base || !site || !site.slug) return { error: 'config' };
+  if (movedLock(site).locked) return { error: 'already_moved', movedTo: movedLock(site).movedTo };
+  try {
+    // Was een harde weigering voor elk bewaakt account (shaer-tge); sinds 8-8
+    // een GATE met dezelfde standaard: de automatiek weigert voor een ward,
+    // maar de guardians kunnen shaer:accountMove expliciet openzetten -- en
+    // expliciet dichtzetten geldt dan ook voor een account dat net geen ward
+    // meer is, net als bij de embeds.
+    const isWard = Guardianship.listGuardians(site.slug).length > 0;
+    if (!Guardianship.wardGateAllowed(site.gate_account_move, isWard)) {
+      console.warn('[AP] move refused: gated (shaer-tge):', site.slug, '→', String(targetRaw || ''));
+      return { error: 'guarded_account' };
+    }
+  } catch { /* geen guardianship-tabellen = geen guardians */ }
+  const s = String(targetRaw || '').trim();
+  let targetUri = null;
+  if (/^https?:\/\//i.test(s)) targetUri = safeUrl(s);
+  else if (s.includes('@')) targetUri = await webfingerResolve(s);
+  if (!targetUri) return { error: 'not_found' };
+  const me = actorId(base, site.slug);
+  if (targetUri === me) return { error: 'self' };
+  const target = await (fetchActorFn ? fetchActorFn(targetUri) : signedGetJson(site.slug, targetUri));
+  if (!target || !target.id || !target.inbox) return { error: 'unreachable' };
+  const aka = [].concat(target.alsoKnownAs || [])
+    .map((a) => (typeof a === 'string' ? a : (a && a.id))).filter(Boolean);
+  if (!aka.includes(me)) return { error: 'no_backreference' };
+  db.prepare('UPDATE sites SET moved_to = ? WHERE slug = ?').run(target.id, site.slug);
+  const keys = getOrCreateKeys(site.slug);
+  const move = {
+    '@context': AP_CONTEXT,
+    id: `${me}#move-${Date.now()}-${rid()}`,
+    type: 'Move',
+    actor: me,
+    object: me,
+    target: target.id,
+    to: [`${me}/followers`],
+  };
+  // FEP-7628: after setting movedTo, notify the followers with an Update of
+  // the actor, so their servers hold the signpost even if the Move itself is
+  // lost. Built from the FRESH row: `site` still carries the pre-move values.
+  const movedSite = db.prepare('SELECT * FROM sites WHERE slug = ?').get(site.slug) || { ...site, moved_to: target.id };
+  const update = {
+    '@context': AP_CONTEXT,
+    id: `${me}#update-${Date.now()}-${rid()}`,
+    type: 'Update', actor: me, to: [PUBLIC], cc: [`${me}/followers`],
+    object: buildActor(base, movedSite),
+    published: new Date().toISOString(),
+  };
+  const inboxes = [...new Set(fStmts().list.all(site.slug).map((f) => f.shared_inbox || f.inbox).filter(Boolean))];
+  const send = deliverFn || deliverWithRetry;
+  for (const inbox of inboxes) {
+    await send(site.slug, inbox, update, `${me}#main-key`, keys.private_pem);
+    await send(site.slug, inbox, move, `${me}#main-key`, keys.private_pem);
+  }
+  console.log('[AP] MOVE announced:', site.slug, '→', target.id, 'to', inboxes.length, 'inbox(es)');
+  return { ok: true, target: target.id, inboxes: inboxes.length };
+}
+
 // FEP-633c §5.3 note (authorized fetch): true when `actorUri` is a committed
 /**
  * Who is reading this outbox, and what may they see (30-7)?
@@ -3773,11 +6141,39 @@ export function outboxAudience(slug, { bearerSlug = null, verifiedActor = null }
   if (bearerSlug && bearerSlug === slug) return 'friend';
   if (!verifiedActor) return 'public';
   if (isBlockedAny(verifiedActor)) return 'blocked';
+  // FEP-1580, Source Instance: wie ondertekend vraagt namens de actor waar wij
+  // NAARTOE verhuisd zijn, moet behandeld worden alsof wij het zelf vragen.
+  // Anders kan de nieuwe instantie alleen het publieke deel ophalen en verhuist
+  // je fan-only geschiedenis niet mee.
+  if (isMoveTarget(slug, verifiedActor)) return 'friend';
   try {
     if (db.prepare('SELECT 1 FROM ap_followers WHERE slug = ? AND actor_uri = ?').get(slug, verifiedActor)) return 'friend';
   } catch { /* table absent on fresh init */ }
   if (isWardGuardian(slug, verifiedActor)) return 'friend';
   return 'public';
+}
+
+/**
+ * FEP-1580, de hele autorisatie van de bronkant in één predicaat.
+ *
+ * De spec zegt: behandel een verzoek dat namens de DOEL-actor getekend is alsof
+ * de BRON-actor het deed, voor zichtbaarheid en toegang. Wij hangen dat aan
+ * `moved_to`, en dat mag omdat moveAccount() `no_backreference` weigert: het
+ * veld komt er alleen te staan als de doel-actor ons al in `alsoKnownAs` had.
+ * Dus staat er iets, dan heeft iemand met beheer op BEIDE kanten dat gewild.
+ * Een typefout kan hier niet binnenkomen, want die haalt de move zelf niet.
+ *
+ * Dat dit veilig is leunt op de keyId-binding in verifyRequest (shaer-xd8i):
+ * zonder die controle kon een actor tekenen met de sleutel van een buurman op
+ * dezelfde host, en dan is "wie tekende dit" te zacht om je hele geschiedenis
+ * aan af te geven.
+ */
+export function isMoveTarget(slug, actorUri) {
+  if (!slug || !actorUri) return false;
+  try {
+    const row = db.prepare('SELECT moved_to FROM sites WHERE slug = ?').get(slug);
+    return !!(row && row.moved_to && row.moved_to === actorUri);
+  } catch { return false; }
 }
 
 // guardian of the local ward `wardSlug` — so a signed GET from it may read the
@@ -3789,12 +6185,116 @@ export function isWardGuardian(wardSlug, actorUri) {
 // FEP-633c §5.3: the guardians approved a gated follow of their ward. Send the
 // Accept to the follower and record them, so delivery (incl. followers-only)
 // begins. `pending` is a row from ap_pending_follows.
+/**
+ * FEP-633c §5.3, the direction that was never gated (bead shaer-p729).
+ *
+ * A ward's OWN follow waited for nobody: it went straight out and the guardians
+ * got a note afterwards (1a2f206). That is informing, not gating — the door is
+ * already open when the message lands. Now it waits, with two exceptions that
+ * are not favours but the same decision already taken:
+ *
+ *   - the target is one of the ward's own guardians. Following the adult who
+ *     watches over you is not a question anyone needs to answer.
+ *   - the target already follows the ward THROUGH THE GATE. A guardian
+ *     approved that person by name; asking again about the same person only
+ *     teaches everyone to stop reading the question.
+ *
+ * Returns the held request, or null when the follow may go out now.
+ * Deliberately not a boolean: a held follow must be distinguishable from a sent
+ * one all the way up to the app, which is the lesson the error path already
+ * learned (Robins melding, 31-7).
+ */
+export async function gateOutgoingFollow(site, targetUri) {
+  const slug = site && site.slug;
+  if (!slug || !targetUri) return null;
+  const guardians = Guardianship.listGuardians(slug).map((g) => g.other_uri);
+  if (!guardians.length) return null;                                   // not a ward: nothing to gate
+  // shaer:following (shaer-p729) — its own gate, apart from shaer:follows,
+  // which governs the OTHER direction. §5.3 fixes the inbound one on: a Follow
+  // aimed at a ward MUST pass the guardians. About this direction the FEP says
+  // nothing, so it is ours to set and ours to let go of, and the guardians can
+  // relax it for a child who has grown into it. Undecided means gated for a
+  // ward, the same automatiek as the rest of the family.
+  const gateRow = db.prepare('SELECT gate_following FROM sites WHERE slug = ?').get(slug);
+  if (Guardianship.wardGateAllowed(gateRow && gateRow.gate_following, true)) return null;
+  if (guardians.includes(targetUri)) return null;                       // your own guardian
+  if (Guardianship.outgoing.isMutual(slug, targetUri)) return null;     // already vetted by name
+
+  const seen = Guardianship.outgoing.findFor(slug, targetUri);
+  if (seen && seen.status === 'approved') return null;                  // the guardians said yes already
+  if (seen && (seen.status === 'pending' || seen.status === 'denied')) return seen;
+
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  const wardActor = actorId(base, slug);
+  const target = await fetchActor(targetUri).catch(() => null);
+  const ti = actorInfo(target, targetUri);
+  const id = `${wardActor}#outfollow-${Date.now()}-${rid()}`;
+  const held = Guardianship.outgoing.recordPending(slug, {
+    id, target: targetUri,
+    inbox: target && ((target.endpoints && target.endpoints.sharedInbox) || target.inbox),
+    name: ti.name, handle: ti.handle, icon: ti.icon,
+  });
+
+  // Same routing as the inbound gate: a guardian on this instance gets a push
+  // and reads /guardian; one elsewhere gets an Offer delivered so its own
+  // server holds a copy to answer from.
+  const wardKeys = getOrCreateKeys(slug);
+  const followObj = { id, type: 'Follow', actor: wardActor, object: targetUri };
+  for (const g of guardians) {
+    try { Guardianship.availability.recordRequest(slug, g, id, Date.now()); } catch { /* never load-bearing */ }
+  }
+  for (const g of guardians) {
+    const gslug = g.startsWith(`${base}/`) ? slugFromActorUrl(g) : null;
+    const isLocal = gslug && db.prepare('SELECT 1 FROM sites WHERE slug = ?').get(gslug);
+    if (isLocal) {
+      const L = pushLang(gslug);
+      // De andere richting, en dus andere woorden: hier vraagt het kind of het
+      // iemand mag volgen. Met dezelfde tekst als hierboven kon een guardian
+      // op zijn telefoon niet zien wie er nu eigenlijk om wie vroeg.
+      pushEvent(gslug, { type: 'guardian', title: i18nT(L, 'push.n_guard_folout_t'), body: i18nT(L, 'push.n_guard_folout_b', { who: ti.name || ti.handle || i18nT(L, 'notif.someone'), ward: slug }), url: `${pushPrefix(gslug)}/guardian` });
+    } else {
+      fetchActor(g).then((ga) => {
+        const inbox = ga && ((ga.endpoints && ga.endpoints.sharedInbox) || ga.inbox);
+        if (!inbox) return;
+        // Zou DIT antwoord het besluit afmaken (shaer-8vt)? Bij twee guardians is de
+        // drempel 1, dus de EERSTE ja beslist -- en dat is precies wat de
+        // beantwoorder niet kon weten.
+        const beslissend = Guardianship.gated.isDecisive(0, Guardianship.follows.followThreshold(guardians.length));
+        const offer = { '@context': AP_CONTEXT, id: `${wardActor}#outfollowoffer-${Date.now()}-${rid()}`, type: 'Offer', actor: wardActor, to: [g], object: followObj, 'shaer:followApproval': true, 'shaer:direction': 'outgoing', 'shaer:decisive': beslissend };
+        deliverWithRetry(slug, inbox, offer, `${wardActor}#main-key`, wardKeys.private_pem).catch(() => {});
+      }).catch(() => {});
+    }
+  }
+  console.log('[AP] outgoing Follow', slug, '→', targetUri, '(gated, awaiting guardians)');
+  return held || { id, ward_slug: slug, target_uri: targetUri, status: 'pending' };
+}
+
+/**
+ * The guardians said yes: send the ward's Follow for real (§5.3, shaer-p729).
+ *
+ * The row stays behind as `approved` rather than being deleted. It is the
+ * record that these guardians vetted this target, so an unfollow-and-refollow
+ * later does not put the same question in front of them again.
+ */
+export async function performApprovedFollow(pending) {
+  const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(pending.ward_slug);
+  if (!site) return { error: 'no_such_ward' };
+  const r = await followActor(site, pending.target_uri, false, { approved: true });
+  if (r && r.error) return { error: r.error };
+  console.log('[AP] outgoing Follow approved', pending.ward_slug, '→', pending.target_uri);
+  return { ok: true };
+}
+
 export async function acceptGatedFollow(pending) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   const slug = pending.ward_slug;
   const me = actorId(base, slug);
   const keys = getOrCreateKeys(slug);
   fStmts().ins.run(slug, pending.follower_uri, pending.follower_inbox, pending.follower_shared_inbox, pending.follower_name, pending.follower_handle, pending.follower_icon);
+  // This follower came through the §5.3 gate: a guardian said yes to this
+  // person by name. That is precisely what lets the ward follow them back later
+  // without asking the same guardians the same question twice (shaer-p729).
+  db.prepare('UPDATE ap_followers SET gate_approved = 1 WHERE slug = ? AND actor_uri = ?').run(slug, pending.follower_uri);
   const original = pending.activity_json ? JSON.parse(pending.activity_json) : { type: 'Follow', actor: pending.follower_uri, object: me };
   const accept = { '@context': AP_CONTEXT, id: `${me}#accept-${Date.now()}-${rid()}`, type: 'Accept', actor: me, object: original };
   await deliverWithRetry(slug, pending.follower_inbox, accept, `${me}#main-key`, keys.private_pem);
@@ -3846,9 +6346,35 @@ async function handleFollowApprovalInbox(act, slugParam) {
       if (!Guardianship.getRelation(gslug, 'guardian', wardUri)) continue;   // must actually guard this ward
       const wardDoc = await fetchActor(wardUri).catch(() => null);
       const fai = actorInfo(await fetchActor(follower).catch(() => null), follower);
-      Guardianship.follows.recordReview(gslug, { id: followId, wardUri, wardInbox: wardDoc && wardDoc.inbox, follower, followerHandle: fai.handle, followerIcon: fai.icon, followJson: JSON.stringify(fo) });
+      // De RICHTING bewaren (shaer-jdb). shaer:direction wordt sinds de uitgaande
+      // gate meegestuurd maar werd nergens gelezen, dus een uitgaande belandde
+      // hier als "deze ward wil deze ward volgen" met het doel weggegooid.
+      // Terugval voor oudere afzenders: is de volger de ward zelf, dan is het
+      // uitgaand -- dat volgt uit de vorm en hoeft niet geloofd te worden.
+      const uitgaand = act['shaer:direction'] === 'outgoing' || follower === wardUri;
+      const doel = uitgaand ? (typeof fo.object === 'string' ? fo.object : (fo.object && fo.object.id)) : null;
+      const dai = uitgaand ? actorInfo(await fetchActor(doel).catch(() => null), doel) : null;
+      Guardianship.follows.recordReview(gslug, {
+        id: followId, wardUri, wardInbox: wardDoc && wardDoc.inbox,
+        follower, followerHandle: fai.handle, followerIcon: fai.icon, followJson: JSON.stringify(fo),
+        direction: uitgaand ? 'outgoing' : 'incoming',
+        target: doel || null, targetHandle: dai ? dai.handle : null,
+      });
       const L = pushLang(gslug);
-      pushEvent(gslug, { type: 'guardian', title: i18nT(L, 'push.n_guard_cog_t'), body: i18nT(L, 'push.n_guard_cog_b', { who: fai.name || fai.handle || i18nT(L, 'notif.someone') }), url: `${pushPrefix(gslug)}/guardian` });
+      // `uitgaand` staat hier al, drie regels hoger, en werd voor de melding
+      // weer weggegooid: elke richting kreeg dezelfde tekst, geleend van
+      // offer_for_ward. Op de telefoon las een volgverzoek dus als een
+      // adoptie-aanvraag, en beide richtingen als elkaar.
+      const wardNaam = (wardDoc && (wardDoc.preferredUsername || wardDoc.name)) || slugFromActorUrl(wardUri) || wardUri;
+      const anderNaam = uitgaand
+        ? ((dai && (dai.name || dai.handle)) || i18nT(L, 'notif.someone'))
+        : (fai.name || fai.handle || i18nT(L, 'notif.someone'));
+      pushEvent(gslug, {
+        type: 'guardian',
+        title: i18nT(L, uitgaand ? 'push.n_guard_folout_t' : 'push.n_guard_folin_t'),
+        body: i18nT(L, uitgaand ? 'push.n_guard_folout_b' : 'push.n_guard_folin_b', { who: anderNaam, ward: wardNaam }),
+        url: `${pushPrefix(gslug)}/guardian`,
+      });
       stored = true;
     }
     return stored;
@@ -3889,6 +6415,7 @@ export async function sendFollowDecision(guardianSite, review, decision) {
 
 // Send a Like or Announce (boost) on a remote note FROM this site.
 export async function sendInteraction(site, kind, targetNoteId, authorUri) {
+  const _mv = movedRefusal(site, `interaction:${kind}`); if (_mv) return _mv;
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   if (!base || !site || !site.slug || !targetNoteId) return { error: 'config' };
   const me = actorId(base, site.slug);
@@ -3949,7 +6476,7 @@ export function getNotifications(slug, limit) {
   } catch { /* ignore */ }
   try {
     const rows = db.prepare(`
-      SELECT i.kind, i.actor_name, i.actor_handle, i.actor_url, i.actor_icon, i.content, i.created_at, i.published, i.visibility,
+      SELECT i.id AS interaction_id, i.kind, i.actor_uri, i.actor_name, i.actor_handle, i.actor_url, i.actor_icon, i.content, i.created_at, i.published, i.visibility,
              i.emoji_json, i.actor_emoji_json, i.media_json, i.quote_json, i.embed_json,
              p.slug AS post_slug, p.title AS post_title
       FROM ap_interactions i LEFT JOIN posts p ON p.id = i.post_id
@@ -3958,6 +6485,9 @@ export function getNotifications(slug, limit) {
     `).all(slug, L);
     for (const r of rows) out.push({
       type: r.kind, name: r.actor_name, handle: r.actor_handle, url: r.actor_url, icon: r.actor_icon,
+      // Waar een antwoord uit de draad heen moet: het id is de parent voor
+      // deliverReply, de uri het adres voor een direct bericht.
+      interactionId: r.interaction_id, actorUri: r.actor_uri,
       content: stripLeadingMentions(r.content), post_slug: r.post_slug, post_title: r.post_title, created_at: r.created_at,
       // When the post was written, for display. created_at (when it reached us)
       // stays the sort key and the unread watermark: a note that federated late
@@ -4069,6 +6599,7 @@ export async function voteOnPoll(site, questionId, choices) {
 // Create(Note) with `name` + inReplyTo) straight to the poll's author. Used for polls you find
 // by URL, not just ones from accounts you follow (which go through voteOnPoll via /news).
 export async function voteOnRemotePoll(site, questionUrl, choices) {
+  const _mv = movedRefusal(site, 'poll-vote'); if (_mv) return _mv;
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   if (!base || !site || !site.slug || !/^https?:\/\//i.test(String(questionUrl || ''))) return { error: 'config' };
   const q = await fetchActor(questionUrl).catch(() => null); // AP GET (SSRF-guarded)
@@ -4191,6 +6722,10 @@ Guardianship.wireDelivery({
   actorId, fetchActor, localActor, deliverTo: deliverToActor, deriveHandle, escHtml, linkUrls, linkHashtags,
   getOutboxRow: (id) => iStmts().getO.get(id),
   buildReplyNote, AP_CONTEXT, getOrCreateKeys, deliver, enqueueDelivery,
+  // Rijke directe berichten: dezelfde sanitizer als deliverReply gebruikt, zodat
+  // een antwoord uit Berichten door precies één poort gaat.
+  sanitizeHtml: (h) => HtmlSanitizerService.sanitize(h),
+  htmlToPlainText: (h) => HtmlSanitizerService.toPlainText(h),
 });
 /**
  * The actor document of a site WE host, read straight from the database.
@@ -4211,7 +6746,7 @@ function localActor(actorUri) {
 }
 // Which local site (if any) hosts this actor URI — used by the handshake to
 // apply the local side of a commit and to derive a ward's existing guardians.
-function localSlugOf(actorUri) {
+export function localSlugOf(actorUri) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   if (!actorUri || !actorUri.startsWith(`${base}/ap/users/`)) return null;
   const slug = slugFromActorUrl(actorUri);
@@ -4227,23 +6762,120 @@ Guardianship.wireHandshake({
   fetchActor,
   // Guardian PWA / Berichten push. The kid answers an incoming offer in its
   // own Berichten; an existing guardian and a commit land in the PWA.
-  onEvent: (slug, ev) => {
-    const L = pushLang(slug);
-    const texts = {
-      offer_received: ['push.n_guard_offer_t', 'push.n_guard_offer_b'],   // I am the ward
-      offer_for_ward: ['push.n_guard_cog_t', 'push.n_guard_cog_b'],       // I co-guard this ward
-      committed: ['push.n_guard_ward_t', 'push.n_guard_ward_b'],
-      // §3.2: a guardian ended the relation. The ward hears that someone who
-      // was looking after them has gone; a co-guardian hears they are one fewer.
-      guardian_left: ['push.n_guard_left_t', 'push.n_guard_left_b'],
-      coguardian_left: ['push.n_guard_cogleft_t', 'push.n_guard_cogleft_b'],
-    }[ev.kind];
-    if (!texts) return;
-    const who = deriveHandle(ev.candidate || ev.guardian || ev.ward || '') || '?';
-    const url = (ev.kind === 'offer_received' || ev.kind === 'guardian_left') ? `${pushPrefix(slug)}/messages` : '/guardian';
-    pushEvent(slug, { type: 'guardian', title: i18nT(L, texts[0]), body: i18nT(L, texts[1], { who }), url });
-  },
+  //
+  // De labels hangen aan dezelfde sleutels als het Guardian-paneel, zodat een
+  // melding en het scherm waar hij heen wijst hetzelfde woord gebruiken.
+  onEvent: (slug, ev) => onGuardianshipEvent(slug, ev),
 });
+
+/**
+ * Wat er gebeurt als de guardianship-module iets uitzendt.
+ *
+ * TWEE VERSCHILLENDE VRAGEN, en ze horen niet dezelfde te zijn: wie maak je
+ * WAKKER (push kiest bewust een handvol soorten), en wat moet een scherm dat
+ * openstaat WETEN (alles). Het paneel werd daarom voorheen niet gewekt door de
+ * tien soorten zonder pushtekst -- die zag je pas bij de volgende tik.
+ *
+ * Apart en met een naam, zodat een toets erbij kan. Verstopt in de deps-literal
+ * was hij onbereikbaar, en een mutatie die het wekken weghaalde bleef groen.
+ */
+/**
+ * Hoeveel er van bewaard blijft. Een logboek dat oneindig groeit is een
+ * logboek dat niemand meer opent, en dit is geschiedenis, geen archief: wat
+ * ertoe doet staat vooraan.
+ */
+export const GUARDIAN_EVENT_KEEP = 200;
+
+/**
+ * Leg de gebeurtenis vast VOOR de melding.
+ *
+ * De meldingstabel beslist wie er wakker van wordt, en dat is terecht een korte
+ * lijst -- maar hij besliste daarmee ook wat er onthouden werd, en dat was niet
+ * de bedoeling. Elf van de achttien soorten verdwenen spoorloos, met hun inhoud:
+ * een geweigerd aanbod droeg de REDEN mee tot hier en niet verder, terwijl §4.2
+ * eist dat de ward en zijn guardians die te horen krijgen.
+ *
+ * Vastleggen en melden zijn nu twee dingen. Alles komt in het logboek; alleen
+ * wat een mens moet wekken gaat ook als push de deur uit.
+ */
+export function recordGuardianEvent(slug, ev) {
+  if (!slug || !ev || !ev.kind) return;
+  try {
+    db.prepare('INSERT INTO ap_guardian_events (slug, kind, payload, created_at) VALUES (?,?,?,CURRENT_TIMESTAMP)')
+      .run(slug, String(ev.kind), JSON.stringify(ev));
+    db.prepare(`DELETE FROM ap_guardian_events WHERE slug = ? AND id NOT IN
+                (SELECT id FROM ap_guardian_events WHERE slug = ? ORDER BY id DESC LIMIT ?)`)
+      .run(slug, slug, GUARDIAN_EVENT_KEEP);
+  } catch { /* een logboek mag nooit de gebeurtenis zelf breken */ }
+}
+
+/** De laatste gebeurtenissen voor dit account, nieuwste eerst. */
+export function listGuardianEvents(slug, limit = 50) {
+  try {
+    return db.prepare('SELECT id, kind, payload, created_at FROM ap_guardian_events WHERE slug = ? ORDER BY id DESC LIMIT ?')
+      .all(slug, Math.max(1, Math.min(Number(limit) || 50, GUARDIAN_EVENT_KEEP)))
+      .map((r) => ({ id: r.id, kind: r.kind, created: r.created_at, ...safeJson(r.payload) }));
+  } catch { return []; }
+}
+
+function safeJson(s) { try { return JSON.parse(s) || {}; } catch { return {}; } }
+
+export function onGuardianshipEvent(slug, ev) {
+  recordGuardianEvent(slug, ev);
+  wakeGuardian(slug);
+  const p = guardianEventPush(slug, ev);
+  if (p) pushEvent(slug, p);
+  return p;
+}
+
+/**
+ * Welke melding hoort bij een guardianship-gebeurtenis, of geen.
+ *
+ * Apart en puur, omdat dit een BESLISSING is en geen bezorging: de
+ * guardianship-module zendt veertien soorten uit en deze tabel bepaalt welke
+ * daarvan een mens wakker maken. Dat hoort toetsbaar te zijn zonder web-push
+ * erbij te halen.
+ */
+export function guardianEventPush(slug, ev) {
+  const L = pushLang(slug);
+  const texts = {
+    offer_received: ['push.n_guard_offer_t', 'push.n_guard_offer_b'],   // I am the ward
+    offer_for_ward: ['push.n_guard_cog_t', 'push.n_guard_cog_b'],       // I co-guard this ward
+    committed: ['push.n_guard_ward_t', 'push.n_guard_ward_b'],
+    // §3.2: a guardian ended the relation. The ward hears that someone who
+    // was looking after them has gone; a co-guardian hears they are one fewer.
+    guardian_left: ['push.n_guard_left_t', 'push.n_guard_left_b'],
+    coguardian_left: ['push.n_guard_cogleft_t', 'push.n_guard_cogleft_b'],
+    // 5.6 gated settings. Zonder deze twee is de hele tally stil: een guardian
+    // hoort niet dat er een antwoord van hem gewenst is, en dus loopt het
+    // venster leeg en verloopt het voorstel. Een drempel die niemand ziet is
+    // geen drempel.
+    gated_review: ['push.n_gate_ask_t', 'push.n_gate_ask_b'],      // jij moet antwoorden
+    gated_outcome: ['push.n_gate_done_t', 'push.n_gate_done_b'],   // er is besloten
+  }[ev.kind];
+  if (!texts) return null;
+  const who = deriveHandle(ev.candidate || ev.guardian || ev.ward || '') || '?';
+  // Een gate-melding zonder te zeggen WELKE instelling is nutteloos: er zijn er
+  // meer dan een, en ze betekenen heel verschillende dingen voor een kind.
+  const wat = i18nT(L, GATE_LABEL[ev.feature] || 'guardian.prop_embeds');
+  const stand = i18nT(L, ev.value ? 'guardian.prop_on' : 'guardian.prop_off');
+  const uitkomst = i18nT(L, GATE_OUTCOME[ev.outcome] || 'guardian.prop_st_open');
+  const url = (ev.kind === 'offer_received' || ev.kind === 'guardian_left') ? `${pushPrefix(slug)}/messages` : '/guardian';
+  return { type: 'guardian', title: i18nT(L, texts[0]), body: i18nT(L, texts[1], { who, wat, stand, uitkomst }), url };
+}
+
+// Van een gated feature naar het woord dat het Guardian-paneel er al voor
+// gebruikt. Een onbekende feature valt terug op het algemene woord in plaats van
+// de melding te laten vervallen: liever een iets vager bericht dan geen bericht.
+const GATE_LABEL = {
+  'shaer:externalEmbeds': 'guardian.prop_embeds',
+  'shaer:externalPlayback': 'guardian.prop_play',
+};
+const GATE_OUTCOME = {
+  accepted: 'guardian.prop_st_accepted',
+  rejected: 'guardian.prop_st_rejected',
+  expired: 'guardian.prop_st_expired',
+};
 
 // The notification duty of FEP-633c 3.6.2, wired once for every place a
 // dormancy promotion can happen (queue reads, fan-outs, tallies): marking a
@@ -4270,18 +6902,31 @@ Guardianship.wireAvailability({
 });
 
 export default {
-  AP_CONTEXT, getOrCreateKeys, apWants, sendAP, actorId, noteId, stripLeadingMentions,
+  movedLock,
+  // FEP-1580 bronkant. Vergeet je hem hier, dan werpt elke route die hem
+  // aanroept een 500 en lijkt het alsof de poort dicht staat terwijl hij
+  // ontbreekt (precies hoe movedLock zich een dag eerder verstopte).
+  isMoveTarget, signedGetJson, signedGetHeaders,
+  AP_CONTEXT, getOrCreateKeys, apWants, sendAP, actorId, noteId, stripLeadingMentions, pagedCollection,
+  deriveHandle, localSlugOf, outboxSlice, PAGINA_GROOTTE,
   buildActor, buildNote, buildCreate, buildOutbox, buildFollowers, buildFollowing, buildFeatured,
+  channelUrls, channelCategory, timelineFields, guessMediaType,
+  siteOpenTracks, openTrack, buildTrackAudio, buildTrackCollection, buildTrackCreate, trackHostPosts,
+  buildPlaylistCollection, playlistOpenTracks, listPlaylistsAP, playlistLinkTags,
+  buildPostTrackCollection, uitgavePost,
+  buildLibrary, libraryId,
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
-  getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, setMyReaction, getMyReactions, buildReplyNote, getOutboxNote, getSentNotes, deliverReply, resolveRemoteNote,
+  feedCursor, feedChangesSince, waitForFeedChange,
+  getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, buildReplyNote, getOutboxNote, getSentNotes, deliverReply, resolveRemoteNote, noteAudience, mayReadNote,
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate, deliverDirectNote,
-  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, getDirectMessages, isoStamp, timelineAttachments, timelineEmojis, timelineObjectLinks, timelineQuote, timelineEmbed, applyQuoteProps, deliverToActor, sendInteraction, voteOnPoll, voteOnRemotePoll,
+  webfingerResolve, followActor, resolveRemoteActor, unfollowActor, handleMoveInbox, moveAccount, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, timelineRowsByIds, contentWarning, getDirectMessages, readMarkers, markRead, unreadPerConversation, messageRowsByUri, replyRowsByUri, conversationHeads, conversationHistory, isoStamp, timelineAttachments, timelineEmojis, timelineObjectLinks, timelineQuote, timelineEmbed, applyQuoteProps, deliverToActor, sendInteraction, voteOnPoll, voteOnRemotePoll,
   acceptGatedFollow, rejectGatedFollow, isWardGuardian, outboxAudience, sendFollowDecision,
-  parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread, sendReport, localMentionSlugs,
-  autoBoostCount, boostedCount, markBoosted, unmarkBoosted, markLiked, unmarkLiked, getTimelineReaction, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
+  gateOutgoingFollow, performApprovedFollow, recordGuardianEvent, listGuardianEvents, GUARDIAN_EVENT_KEEP,
+  parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread, sendReport, localMentionSlugs, previewCard,
+  autoBoostCount, boostedCount, setReaction, getReaction, getReactionsFor, canonicalReactionUri, migrateReactions, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
-  getReplyUris, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
+  sendMaybe304, etagFor, onGuardian, wakeGuardian, onGuardianshipEvent, proposeGate, getReplyUris, getThread, filterThreadToCircle, gateAttachments, stripEmojiTags, actorObject, previewObject, quoteObject, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
   linkifyBody, bakePostContent, bakePostContentWithMentions, listFollowers, removeFollower, listConnections,
   noteVisibility, belongsInTimeline, playerUrlFor, isRejectedObject, rejectInteraction, interactionReportTarget,
   getMessages, notificationsSeenAt, ingestOutboxActivity, c2sVisibility, actorDisplay, buildActorRef, prefersEnriched, selfAuthor, getReplyMessages, onNews, wakeNews,

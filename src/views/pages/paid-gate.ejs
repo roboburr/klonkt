@@ -30,60 +30,7 @@
 </article>
 
 <script src="/assets/vendor/simplewebauthn-browser.umd.min.js"></script>
-<script>
-(function () {
-  var base = "<%= (typeof siteUrlBase !== 'undefined' && siteUrlBase ? siteUrlBase : '') %>";
-  var slug = "<%= pgSlug %>";
-  var hasPatron = <%= _hasPatron ? 'true' : 'false' %>;
-  var I = { join: "<%= t('pgate.join_short') %>", confirm: "<%= t('pgate.confirm') %>", failed: "<%= t('pgate.failed') %>", error: "<%= t('pgate.error') %>" };
-  var btn = document.getElementById('pg-unlock');
-  var status = document.getElementById('pg-status');
-  function say(msg, err) { status.hidden = false; status.textContent = msg; status.classList.toggle('is-err', !!err); }
-  function toLink() { location.href = base + '/paid/link?post=' + encodeURIComponent(slug); }
-
-  // No WebAuthn here: an assertion is impossible. With a Patreon page there is
-  // already a "Word supporter" button, so hide the (dead) unlock button rather
-  // than turn it into a second "Word supporter". Without one, this IS the button.
-  if (!window.SimpleWebAuthnBrowser || !window.PublicKeyCredential) {
-    if (hasPatron) { btn.style.display = 'none'; }
-    else { btn.textContent = I.join; btn.addEventListener('click', toLink); }
-    return;
-  }
-
-  btn.addEventListener('click', function () {
-    btn.disabled = true;
-    say(I.confirm);
-    fetch(base + '/paid/challenge?post=' + encodeURIComponent(slug))
-      .then(function (r) { if (!r.ok) throw { link: true }; return r.json(); })
-      .then(function (data) {
-        return window.SimpleWebAuthnBrowser.startAuthentication({ optionsJSON: data.options })
-          .then(function (response) {
-            return fetch(base + '/paid/unlock', {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ response: response, blob: data.blob }),
-            });
-          });
-      })
-      .then(function (r) { return r.json().then(function (j) { return { status: r.status, j: j }; }); })
-      .then(function (res) {
-        if (res.j && res.j.ok && res.j.redirect) {
-          // Reload the real post page via the one-shot unlock capability, so it
-          // renders through its normal template (layout, styles, audio).
-          location.href = res.j.redirect;
-        } else if (res.status === 403) {
-          toLink();   // no valid passkey yet (or lapsed tier): link via Patreon
-        } else {
-          btn.disabled = false; say(I.failed, true);
-        }
-      })
-      .catch(function (e) {
-        if (e && e.link) { toLink(); return; }
-        if (e && e.name === 'NotAllowedError') { toLink(); return; }   // cancelled / no passkey -> link
-        btn.disabled = false; say(I.error, true);
-      });
-  });
-})();
-</script>
+<%# Het script staat in assets/js/mod/paid-gate.js; de gegevens via partials/page-data.ejs (shaer-bqr). %>
 
 <style>
   .pg-navwrap { max-width: 720px; margin: 0.5rem auto 1.5rem; padding: 0 1rem; }
@@ -104,3 +51,4 @@
   .pg-status { margin: 12px 0 0; opacity: .9; }
   .pg-status.is-err { color: #c0392b; }
 </style>
+<%- include('../partials/page-data', { pageData: { base: (typeof siteUrlBase !== 'undefined' && siteUrlBase ? siteUrlBase : ''), slug: pgSlug, hasPatron: !!_hasPatron, i18n: { join: t('pgate.join_short'), confirm: t('pgate.confirm'), failed: t('pgate.failed'), error: t('pgate.error') } } }) %>

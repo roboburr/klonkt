@@ -1,0 +1,160 @@
+/**
+ * Een artiest zoekt zichzelf op in MusicBrainz (shaer-mbz).
+ *
+ * WAAROM DIT GEEN DIALECT IS. Funkwhale's Track/Artist/ArtistCredit zijn hun
+ * eigen vocabulaire -- hun docs noemen ze letterlijk "Custom Funkwhale object"
+ * -- en wij kunnen ze niet eerlijk vullen: artiest en album zijn bij ons
+ * tekstkolommen, geen entiteiten. Een MBID is iets anders: geen vocabulaire
+ * maar een REGISTER. Ernaar verwijzen is als een ISBN noemen. Je neemt niemands
+ * model over en je wijst naar iets dat al bestaat.
+ *
+ * WAT HIER NIET GEBEURT: schrijven. Via hun API zijn alleen tags, ratings,
+ * ISRC's en barcodes in te dienen -- artiesten, releases en recordings niet,
+ * dat gaat via hun website. Wij lezen dus alleen, en dat is meteen de
+ * geruststelling: we kunnen hun register niet vervuilen.
+ *
+ * TWEE HARDE REGELS VAN HUN KANT, allebei hieronder ingebakken omdat ze bij
+ * overtreding tot blokkade leiden en niet tot een foutmelding:
+ *   - hoogstens EEN verzoek per seconde, per applicatie (niet per bezoeker)
+ *   - een echte User-Agent, met contactgegevens
+ */
+import { safeFetch } from './ActivityPubService.js';
+// De twee pure vormcontroles wonen in ap-core: ActivityPubService heeft ze ook
+// nodig voor de actor, en zonder die verhuizing zou dat een KRINGLOOP zijn --
+// deze module leent immers safeFetch dáár.
+import { isMbid, artiestUrl } from './ap-core.js';
+
+const BASIS = 'https://musicbrainz.org/ws/2';
+
+/**
+ * De User-Agent die MusicBrainz eist. Hun regel: naam, versie en een manier om
+ * contact op te nemen. Een lege of generieke string is precies waarop ze
+ * blokkeren, dus als er geen contact is ingesteld zeggen we dat met zoveel
+ * woorden in plaats van iets aardigs te verzinnen.
+ */
+function userAgent() {
+  const contact = (process.env.MUSICBRAINZ_CONTACT || '').trim()
+    || (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '')
+    || 'geen-contact-ingesteld';
+  return `Klonkt/1.0 ( ${contact} )`;
+}
+
+/**
+ * Hun tempo aanhouden: ten hoogste een verzoek per seconde, over de HELE
+ * applicatie. Geen bibliotheek en geen wachtrij -- een belofte die de volgende
+ * aanroeper laat wachten tot het weer mag. Zonder dit is de eerste drukke dag
+ * meteen een blokkade, en dan werkt het bij iedereen niet meer.
+ */
+let laatste = 0;
+let beurt = Promise.resolve();
+function opDeBeurt() {
+  beurt = beurt.then(async () => {
+    const wachten = 1000 - (Date.now() - laatste);
+    if (wachten > 0) await new Promise((r) => setTimeout(r, wachten));
+    laatste = Date.now();
+  });
+  return beurt;
+}
+
+/**
+ * Zoek artiesten op naam. Geeft de kandidaten met alles wat nodig is om er EEN
+ * uit te kiezen -- de naam alleen is niet genoeg, want er zijn drie bands die
+ * Nirvana heten. Vandaar disambiguation, land en de jaren erbij.
+ *
+ * Geeft een LEGE lijst bij een storing, geen exceptie: niet kunnen zoeken is
+ * vervelend, maar het mag het beheerscherm niet omvergooien.
+ */
+export async function zoekArtiesten(naam, { limit = 8 } = {}) {
+  const q = String(naam || '').trim();
+  if (!q) return [];
+  const url = `${BASIS}/artist?query=${encodeURIComponent(q)}&fmt=json&limit=${Math.min(25, Math.max(1, limit))}`;
+  try {
+    await opDeBeurt();
+    const r = await safeFetch(url, { headers: { Accept: 'application/json', 'User-Agent': userAgent() } });
+    if (!r || !r.ok) return [];
+    const doc = await r.json();
+    return (doc.artists || []).map(kandidaat).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Een MBID rechtstreeks opzoeken. Wie zijn id al kent hoeft niet te zoeken --
+ * en een zoekopdracht op een UUID levert bij MusicBrainz niets op, dus zonder
+ * deze tak zou plakken juist het slechtste resultaat geven.
+ */
+export async function haalArtiest(mbid) {
+  if (!isMbid(mbid)) return null;
+  const url = `${BASIS}/artist/${encodeURIComponent(mbid)}?inc=url-rels&fmt=json`;
+  try {
+    await opDeBeurt();
+    const r = await safeFetch(url, { headers: { Accept: 'application/json', 'User-Agent': userAgent() } });
+    if (!r || !r.ok) return null;
+    return kandidaat(await r.json());
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * DE TERUG-WEG. Noemt de MusicBrainz-pagina van deze artiest ons domein?
+ *
+ * Een koppeling van onze kant is een bewering: iedereen kan een MBID in een
+ * veld typen. Pas als de artiestenpagina TERUGWIJST is het een paar, en dan
+ * weet een lezer dat dezelfde persoon aan allebei de kanten stond. Dat is
+ * dezelfde gedachte als rel="me" bij Mastodon.
+ *
+ * Wij zetten die terugwijzing NIET zelf: via hun API kan het niet, en het hoort
+ * ook niet -- de artiest doet dat op musicbrainz.org onder "social networking".
+ * Wij kijken alleen of hij er staat.
+ *
+ * Geeft { verified, urls } -- bij een storing verified:false en een lege lijst,
+ * want niet kunnen kijken is niet hetzelfde als niet gevonden.
+ */
+export async function controleerTerugweg(mbid, domein) {
+  const leeg = { verified: false, urls: [] };
+  if (!isMbid(mbid) || !domein) return leeg;
+  let host;
+  try { host = new URL(domein).host.toLowerCase(); } catch { return leeg; }
+  const url = `${BASIS}/artist/${encodeURIComponent(mbid)}?inc=url-rels&fmt=json`;
+  try {
+    await opDeBeurt();
+    const r = await safeFetch(url, { headers: { Accept: 'application/json', 'User-Agent': userAgent() } });
+    if (!r || !r.ok) return leeg;
+    const doc = await r.json();
+    const urls = (doc.relations || [])
+      .map((rel) => rel && rel.url && rel.url.resource)
+      .filter((u) => typeof u === 'string');
+    const wijst = urls.some((u) => { try { return new URL(u).host.toLowerCase() === host; } catch { return false; } });
+    return { verified: wijst, urls };
+  } catch {
+    return leeg;
+  }
+}
+
+/** Een kandidaat, teruggebracht tot wat een mens nodig heeft om te kiezen. */
+function kandidaat(a) {
+  if (!a || !a.id || !a.name) return null;
+  const jaren = [a['life-span']?.begin, a['life-span']?.ended ? a['life-span']?.end : null]
+    .filter(Boolean).join(' – ');
+  return {
+    mbid: a.id,
+    naam: a.name,
+    // "disambiguation" is het veld waarmee MusicBrainz zelf twee gelijknamige
+    // artiesten uit elkaar houdt. Precies wat de kiezer nodig heeft.
+    toelichting: a.disambiguation || '',
+    soort: a.type || '',            // Person, Group, ...
+    land: a.country || '',
+    jaren,
+    url: `https://musicbrainz.org/artist/${a.id}`,
+    // Hun eigen zoekscore. Niet om op te sorteren -- dat doen zij al -- maar om
+    // een zwakke treffer te kunnen tonen als zwak.
+    score: Number(a.score) || 0,
+  };
+}
+
+// Her-geexporteerd zodat een aanroeper er niet over hoeft na te denken waar
+// ze precies wonen.
+export { isMbid, artiestUrl };
+export default { zoekArtiesten, haalArtiest, controleerTerugweg, isMbid, artiestUrl };

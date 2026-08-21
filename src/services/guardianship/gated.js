@@ -58,7 +58,162 @@ export function tallyGatedSetting(votes, guardianSet, ageMs, windowMs = GATED_WI
 const FEATURES = {
   'shaer:externalEmbeds': 'external_embeds',
   'shaer:externalPlayback': 'external_playback',
+  'shaer:externalThreads': 'external_threads',
+  'shaer:images': 'gate_images',
+  'shaer:messages': 'gate_messages',
+  'shaer:compose': 'gate_compose',
+  'shaer:replies': 'gate_replies',
+  'shaer:music': 'gate_music',
+  'shaer:quoteCards': 'gate_quote_cards',
+  'shaer:customEmoji': 'gate_custom_emoji',
+  'shaer:accountMove': 'gate_account_move',
+  'shaer:following': 'gate_following',
 };
+/**
+ * De gates die deze Klonkt kent, met hun SOORT.
+ *
+ * Wat gated wordt is een ontwerpkeuze van de implementatie: de FEP levert het
+ * mechanisme (voorstel, tally, settle) en een paar voorbeelden, niet de lijst.
+ * Deze catalogus is die lijst, op een plek. Een gate erbij hoort een regel data
+ * te zijn en geen nieuw stuk scherm.
+ *
+ * `kind` is niet decoratief. De gates verschillen in hoe ze werken en dat mag
+ * een guardian niet hoeven raden:
+ *
+ *   setting     een stand, aan of uit, terug te draaien
+ *   perRequest  geen stand maar een stroom beslissingen (5.3 volgverzoeken)
+ *   handover    draagt gezag OVER; onomkeerbaar zodra de ward hem gebruikt
+ *
+ * `needs` is de trap uit shaer-ahy: zien < afspelen. Je kunt niet afspelen wat
+ * je niet mag zien, dus dat tweede is pas te bewegen als het eerste openstaat.
+ */
+export const GATE_CATALOGUE = [
+  // Werkend: er is een kolom, de tally kan erover beslissen en de server dwingt
+  // hem af bij het serveren (of, voor compose/messages/move, bij het INNEMEN:
+  // wat de ward niet mag versturen wordt aan de outbox geweigerd).
+  { feature: 'shaer:externalEmbeds', kind: 'setting', reversible: true },
+  { feature: 'shaer:externalPlayback', kind: 'setting', reversible: true, needs: 'shaer:externalEmbeds' },
+  // Sinds 8-8 ("maak ze allemaal functioneel", Bart): de hele setting-familie
+  // schakelt echt. De bead-nummers blijven staan, want elk van deze heeft nog
+  // een app-kant (wat de UI toont als de poort dicht is) en die woont daar.
+  { feature: 'shaer:externalThreads', kind: 'setting', reversible: true, bead: 'shaer-9y2' },
+  { feature: 'shaer:images', kind: 'setting', reversible: true, bead: 'shaer-6p5' },
+  { feature: 'shaer:messages', kind: 'setting', reversible: true, bead: 'shaer-3ow' },
+  { feature: 'shaer:compose', kind: 'setting', reversible: true, bead: 'shaer-qgev' },
+  // MEEDOEN AAN EEN GESPREK IS OOK IETS (Bart, 8-8). Dit stond hier bewust niet:
+  // een antwoord gold als meedoen en niet als eigen podium, dus compose liet het
+  // door. Bart heeft dat teruggedraaid -- wie mag antwoorden staat los van wie
+  // mag posten, en het hoort een eigen poort te zijn die je kunt zien.
+  //
+  // Los van compose en niet eronder: je kunt willen dat een kind wel meepraat
+  // maar geen eigen podium heeft, en ook precies andersom.
+  { feature: 'shaer:replies', kind: 'setting', reversible: true, bead: 'shaer-r4c' },
+  { feature: 'shaer:music', kind: 'setting', reversible: true, bead: 'shaer-rmz' },
+  { feature: 'shaer:quoteCards', kind: 'setting', reversible: true, bead: 'shaer-mls' },
+  { feature: 'shaer:customEmoji', kind: 'setting', reversible: true, bead: 'shaer-ytw' },
+  { feature: 'shaer:accountMove', kind: 'setting', reversible: true, bead: 'shaer-tge' },
+  // Wie de ward mag VOLGEN, en wie de ward mag volgen: twee poorten, want twee
+  // vragen. Ze stonden hier als één rij, en dan telt het paneel de ene richting
+  // en zwijgt over de andere -- een guardian ziet "follows: 3 wachtend" en weet
+  // niet of er drie vreemden bij zijn kind willen of dat zijn kind drie keer
+  // heeft gevraagd of het iemand mag volgen. Dat zijn niet dezelfde zorg.
+  //
+  // Inkomend is vast: §5.3 EIST dat een Follow naar een ward langs de guardians
+  // gaat, dus die staat aan en blijft aanstaan. Tonen mag, verzetten niet.
+  // fixedValue false: de poort staat DICHT en blijft dicht -- een Follow naar
+  // een ward gaat altijd langs de guardians. Dezelfde polariteit als de rest
+  // van de familie, waar `value` "mag het zonder tussenkomst?" betekent.
+  { feature: 'shaer:follows', kind: 'perRequest', reversible: true, fixed: true, fixedValue: false },
+  // Uitgaand is verstelbaar, en dat verschil is opzet. De FEP zegt over deze
+  // richting niets: §5.3 gaat alleen over een Follow die op een ward AF komt.
+  // Wat je verder gated is expliciet aan de implementatie gelaten, dus dit is
+  // onze keuze en niet die van de spec -- en dan hoort hij ook echt te kunnen
+  // worden losgelaten, want een kind dat ouder wordt hoort niet eeuwig te
+  // blijven vragen wie het mag volgen (shaer-p729, shaer-yeo5).
+  { feature: 'shaer:following', kind: 'perRequest', reversible: true, bead: 'shaer-p729' },
+
+  // GEPLAND, en dat is bij deze twee geen achterstand maar een besluit.
+  //
+  // publicProfile is niet een veld dat je wegfiltert: het is het hele publieke
+  // web-oppervlak van een site (de Krant, de AP-objecten, de scrape-vraag van
+  // shaer-hj0). Dat dichtzetten zonder dat ontwerp is een half slot, en een
+  // half slot leest als een heel slot -- gevaarlijker dan geen.
+  //
+  // available: false is geen detail. featureColumn() kent deze naam niet, dus
+  // een voorstel strandt op unknown_feature, en de rij leest als "hier is nog
+  // niets van", niet als een gesloten poort.
+  { feature: 'shaer:publicProfile', kind: 'setting', reversible: true, available: false, bead: 'shaer-hj0' },
+  // De enige die gezag OVERDRAAGT, en daarmee de enige die niet terug te draaien
+  // is zodra het kind hem gebruikt (shaer-90v). Telt met de lapse-vorm: volle
+  // set, volle venster. Die vorm hoort daar beslist te worden, niet hier
+  // geimproviseerd: een verkeerd gemaakte onafhankelijkheid is een kind zonder
+  // vangnet.
+  { feature: 'shaer:independence', kind: 'handover', reversible: false, available: false, bead: 'shaer-90v' },
+];
+
+/**
+ * De gates van een ward als rijen voor het paneel. Puur, zodat de regels
+ * getoetst kunnen worden zonder database of scherm.
+ *
+ * @param settings       {feature: true|false|null} -- null is ONBEKEND, niet uit
+ * @param guardianCount  aantal guardians, of null als we het niet weten
+ * @param proposals      [{feature, value, status}] lopende voorstellen
+ * @param waiting        {feature: aantal} wat er per gate op een besluit wacht
+ */
+export function gateRows({ settings = {}, guardianCount = null, proposals = [], waiting = {}, requested = {} } = {}) {
+  return GATE_CATALOGUE.map((g) => {
+    // Een stand kan drie dingen zijn: beslist-aan, beslist-uit, of de standaard
+    // omdat er nooit iets besloten is. Dat derde als "uit" tonen zou een besluit
+    // suggereren dat niemand nam.
+    const raw = Object.prototype.hasOwnProperty.call(settings, g.feature) ? settings[g.feature] : null;
+    let beslist = raw && typeof raw === 'object' ? !!raw.decided : (raw === true || raw === false);
+    let value = raw && typeof raw === 'object' ? raw.value : raw;
+    // Een VASTE poort heeft geen kolom om een stand in te bewaren, want er valt
+    // niets te bewaren: hij staat zoals de spec hem zet. Zonder dit viel hij
+    // door naar "nooit besloten" en las het paneel eeuwig "onbekend" -- wat een
+    // vraag suggereert die er niet is. §5.3 EIST dat een Follow naar een ward
+    // langs de guardians gaat, dus dat is beslist, alleen niet door ons.
+    if (g.fixed) { value = !!g.fixedValue; beslist = true; }
+    // De trap: het bovenliggende moet OPEN staan. Onbekend telt niet als dicht --
+    // bij een ward elders kennen we de stand niet, en verbergen betekende daar
+    // ooit dat een voorstel nooit geopend kon worden.
+    const bovenliggend = settings[g.needs];
+    const bovenWaarde = bovenliggend && typeof bovenliggend === 'object' ? bovenliggend.value : bovenliggend;
+    const bovenBeslist = bovenliggend && typeof bovenliggend === 'object' ? bovenliggend.decided : (bovenWaarde === true || bovenWaarde === false);
+    // Alleen dichthouden als we ZEKER weten dat het bovenliggende uit staat.
+    const blockedBy = (g.needs && bovenBeslist && bovenWaarde === false) ? g.needs : null;
+    return {
+      feature: g.feature,
+      kind: g.kind,
+      reversible: !!g.reversible,
+      value,
+      decided: beslist,
+      // Vast staat vast: tonen mag, verzetten niet.
+      // Wat er niet is, valt niet te verzetten. Een knop die op unknown_feature
+      // strandt is erger dan geen knop.
+      available: g.available !== false,
+      // Vast is iets anders dan geblokkeerd of afwezig, en alle drie maken ze
+      // `adjustable` false. Een client die alleen dat ziet weet niet WAAROM er
+      // geen knop is; met dit veld kan hij "altijd" zeggen in plaats van een
+      // stand te tonen alsof er ooit nog iets aan verandert.
+      fixed: !!g.fixed,
+      adjustable: g.available !== false && !g.fixed && !blockedBy,
+      blockedBy: blockedBy || undefined,
+      // Zonder bekend aantal guardians GEEN drempel verzinnen. Nul of een gok
+      // leest als een feit, en dit is precies waar een guardian op afgaat.
+      threshold: (guardianCount && guardianCount > 0)
+        ? { need: thresholdFor(guardianCount), of: guardianCount } : null,
+      proposal: proposals.find((p) => p.feature === g.feature) || undefined,
+      waiting: waiting[g.feature] || undefined,
+      // Het kind vroeg hier zelf om (shaer-8ru). Apart van `waiting`: drie
+      // onbekenden die je kind willen volgen is iets anders dan je kind dat
+      // een keer vraagt of muziek aan mag, en een gedeeld getal maakt daar
+      // hetzelfde van.
+      requested: requested[g.feature] || undefined,
+    };
+  });
+}
+
 export function featureColumn(feature) {
   return Object.prototype.hasOwnProperty.call(FEATURES, feature) ? FEATURES[feature] : null;
 }
@@ -104,6 +259,56 @@ export function recordGatedVote(slug, feature, guardianUri, value) {
     db.prepare('DELETE FROM ap_gated_votes WHERE slug = ? AND feature = ?').run(slug, feature);
   }
   return { ...result, need: thresholdFor(guardians.length), of: guardians.length };
+}
+
+/**
+ * Wat er blijft hangen als deze gate opengaat (shaer-nf9).
+ *
+ * BARTS ZIN KLOPT NIET LETTERLIJK, en dat is precies waarom dit hier staat. "Een
+ * geopende poort gaat niet meer dicht" is onwaar over de INSTELLING -- shaer-ahy
+ * eist het tegendeel en de code doet het: een voorstel draagt true of false. Maar
+ * het GEVOLG is wel onomkeerbaar. De poort gaat later weer dicht; wat er in de
+ * tussentijd doorheen kwam komt niet terug. Een kind dat iets gezien heeft, heeft
+ * het gezien.
+ *
+ * Dat verschil moet in de tekst, om twee redenen. Een waarschuwing die aantoonbaar
+ * onwaar is neemt de rest van het scherm mee in zijn val zodra iemand het merkt.
+ * En de ware versie is ZWAARDER: "je kunt dit terugdraaien maar niet ongedaan
+ * maken" zet je harder stil dan een verbod dat niet blijkt te kloppen.
+ *
+ * ONBEKEND KRIJGT DE ZWAARSTE TEKST. Een mede-guardian elders kan een feature
+ * voorstellen die onze catalogus niet kent, en dan weten wij niet wat het doet.
+ * Bij twijfel waarschuwen we zwaarder, niet lichter -- de faalstand die hier pijn
+ * doet is een guardian die iets doorlaat omdat het scherm er licht over deed.
+ */
+export function gateConsequence(feature) {
+  const g = GATE_CATALOGUE.find((x) => x.feature === feature);
+  if (!g) return 'unknown';
+  return g.reversible === false ? 'irreversible' : 'reversible';
+}
+
+/**
+ * Zou het antwoord van deze guardian het besluit AFMAKEN (shaer-8vt)?
+ *
+ * De telling is een race naar de drempel: zodra het aantal gehaald is, is het
+ * gevallen. Bij 2 van 3 is de tweede ja dus meteen de beslissing, en bij een
+ * volgverzoek met twee guardians is de EERSTE ja dat al. Wie antwoordt weet dat
+ * niet, en het scherm zei het nergens.
+ *
+ * EEN JA/NEE, GEEN TELLING, en dat is een besluit. Een getal ("1 van 2") reist
+ * mee, veroudert onderweg en leest daarna als een feit; de beschikbare set
+ * schuift bovendien met 3.6 mee. En hoeveel guardians een kind heeft, en wie er
+ * al gestemd heeft, is niet vanzelf iets dat elke mede-guardian hoort te zien.
+ * Een waarschuwing veroudert ook, maar hij CLAIMT niets -- en dat scheelt.
+ *
+ * BIJ TWIJFEL WAARSCHUWEN. De twee fouten zijn niet gelijk: zeggen dat je
+ * beslist terwijl dat niet zo is maakt iemand voorzichtiger dan nodig; niets
+ * zeggen terwijl hij wel beslist laat hem het onwetend doen.
+ */
+export function isDecisive(votes, need) {
+  const v = Number.isFinite(votes) ? votes : 0;
+  const n = Number.isFinite(need) ? need : 1;
+  return (n - v) <= 1;
 }
 
 /** The open decision for a feature, for showing progress ("1 of 2"). */
@@ -159,9 +364,9 @@ let _rs = null;
 function rstmts() {
   if (!_rs) {
     _rs = {
-      ins: db.prepare(`INSERT INTO ap_gated_reviews (id, guardian_slug, ward_uri, ward_inbox, proposer, feature, value)
-                       VALUES (?,?,?,?,?,?,?)
-                       ON CONFLICT(guardian_slug, id) DO UPDATE SET value = excluded.value, ward_inbox = excluded.ward_inbox`),
+      ins: db.prepare(`INSERT INTO ap_gated_reviews (id, guardian_slug, ward_uri, ward_inbox, proposer, feature, value, decisive)
+                       VALUES (?,?,?,?,?,?,?,?)
+                       ON CONFLICT(guardian_slug, id) DO UPDATE SET value = excluded.value, ward_inbox = excluded.ward_inbox, decisive = excluded.decisive`),
       get: db.prepare('SELECT * FROM ap_gated_reviews WHERE guardian_slug = ? AND id = ?'),
       bySlug: db.prepare('SELECT * FROM ap_gated_reviews WHERE guardian_slug = ? ORDER BY created_at DESC'),
       del: db.prepare('DELETE FROM ap_gated_reviews WHERE guardian_slug = ? AND id = ?'),
@@ -172,7 +377,8 @@ function rstmts() {
 }
 
 export function recordGatedReview(guardianSlug, r) {
-  rstmts().ins.run(r.id, guardianSlug, r.wardUri, r.wardInbox || null, r.proposer || null, r.feature, r.value ? 1 : 0);
+  // decisive ontbreekt bij een oudere server -> 1, want bij twijfel waarschuwen.
+  rstmts().ins.run(r.id, guardianSlug, r.wardUri, r.wardInbox || null, r.proposer || null, r.feature, r.value ? 1 : 0, r.decisive === false ? 0 : 1);
   return rstmts().get.get(guardianSlug, r.id);
 }
 export function getGatedReview(guardianSlug, id) { return rstmts().get.get(guardianSlug, id); }
@@ -213,6 +419,37 @@ export function recallSent(offerId) {
   catch { return null; }
 }
 
+/**
+ * De stand van een gate zoals DEZE guardian hem kent.
+ *
+ * Er zijn geen lokale accounts: elke ward woont op een andere server, dus de
+ * kolom op onze eigen sites-tabel is voor een ward altijd leeg. Wat een guardian
+ * wel heeft is de UITSLAG van besluiten -- een geaccepteerd voorstel met waarde
+ * true betekent dat de poort openging.
+ *
+ * Geeft { value, decided }:
+ *   decided true   we hebben een aangenomen besluit gezien; value is die waarde
+ *   decided false  we hebben er geen; value is de standaard voor een ward (uit)
+ *
+ * Dat verschil hoort zichtbaar te blijven. "Uit" en "voor zover wij weten uit"
+ * zijn niet hetzelfde, en het tweede is wat we meestal hebben.
+ *
+ * BEKEND GAT: dit ziet alleen onze EIGEN voorstellen. Antwoordde je op dat van
+ * een mede-guardian, dan komt de uitslag wel binnen (gated_outcome) maar wordt
+ * hij niet bewaard -- handshake.js legt alleen vast voor sent-rijen die van ons
+ * zijn. Een gate die een ander heeft geopend leest hier dus als "uit". Dat is de
+ * onveilige kant en het hoort gerepareerd te worden.
+ */
+export function knownSetting(guardianSlug, wardUri, feature) {
+  try {
+    const r = db.prepare(`SELECT value FROM ap_gated_sent
+                           WHERE guardian_slug = ? AND ward_uri = ? AND feature = ? AND status = 'accepted'
+                           ORDER BY created_at DESC LIMIT 1`).get(guardianSlug, wardUri, feature);
+    if (r) return { value: !!r.value, decided: true };
+  } catch { /* val terug op de standaard */ }
+  return { value: false, decided: false };
+}
+
 export function settleSent(offerId, outcome) {
   try { db.prepare('UPDATE ap_gated_sent SET status = ? WHERE offer_id = ?').run(outcome, offerId); } catch { /* non-fatal */ }
 }
@@ -238,7 +475,8 @@ export function sentStatus(row, now) {
 }
 
 export default {
-  tallyGatedSetting, thresholdFor, featureColumn, recordGatedVote, gatedProgress, GATED_WINDOW_MS,
+  GATE_CATALOGUE, gateRows, knownSetting,
+  tallyGatedSetting, thresholdFor, featureColumn, recordGatedVote, gatedProgress, gateConsequence, isDecisive, GATED_WINDOW_MS,
   parseGatedSetting, buildGatedOffer, rememberGatedOffer, recallGatedOffer,
   recordGatedReview, getGatedReview, listGatedReviews, removeGatedReview, clearGatedReviews,
   recordSent, recallSent, settleSent, listSent, sentStatus,

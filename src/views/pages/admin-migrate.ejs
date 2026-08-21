@@ -1,0 +1,329 @@
+<div class="container mig-wrap">
+  <h1><%= t('mig.title') %></h1>
+  <p class="mig-lead"><%= t('mig.lead') %></p>
+
+  <% if (typeof success !== 'undefined' && success) { %><div class="alert alert-success"><%= success %></div><% } %>
+  <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+  <%# ── Het stappenplan ────────────────────────────────────────── %>
+  <%# Bestaat omdat de VOLGORDE niet vanzelfsprekend is en een fout erin je
+      halverwege vastzet. Twee dingen die niemand raadt:
+        - de ophaalknop werkt PAS nadat de verhuizing is aangekondigd; de bron
+          geeft niets af aan een instantie die niet in zijn movedTo staat;
+        - met een zip kan het juist andersom, want een zip vraagt niemand iets.
+      En stap 5 staat erbij omdat hij bestaat, niet omdat er een knop voor is. %>
+  <section class="mig-card mig-plan">
+    <h2><%= t('mig.plan_title') %></h2>
+    <p class="form-hint"><%= t('mig.plan_hint') %></p>
+    <%# "hier" hangt af van WELKE kant je bekijkt. Deze pagina draait op allebei
+        de instanties, en een vaste tekst is dus op de helft van de schermen
+        onzin. Heeft deze site een moved_to, dan is dit de vertrekkende kant. %>
+    <%# Stap 1, 3 en 4 horen op de NIEUWE kant; stap 2 en 5 op de oude. Vanaf
+        welke instantie je kijkt bepaalt dus welk van de twee "hier" is. %>
+    <% var _hier = stap.isOud ? t('mig.plan_new')  : t('mig.plan_here');
+       var _daar = stap.isOud ? t('mig.plan_here') : t('mig.plan_old'); %>
+    <% if (stap.isOud) { %>
+      <p class="form-hint mig-warn"><%= t('mig.plan_from_old') %></p>
+    <% } %>
+    <ol class="mig-steps">
+      <li class="<%= stap.geclaimd ? 'is-done' : '' %>">
+        <strong><%= t('mig.plan_1') %></strong>
+        <span class="mig-waar"><%= _hier %></span>
+        <em><%= t('mig.plan_1_why') %></em>
+      </li>
+      <li class="<%= stap.aangekondigd ? 'is-done' : '' %>">
+        <strong><%= t('mig.plan_2') %></strong>
+        <span class="mig-waar"><%= _daar %></span>
+        <em><%= t('mig.plan_2_why') %></em>
+      </li>
+      <li class="<%= stap.opgehaald ? 'is-done' : '' %>">
+        <strong><%= t('mig.plan_3') %></strong>
+        <span class="mig-waar"><%= _hier %></span>
+        <em><%= t('mig.plan_3_why') %></em>
+      </li>
+      <li>
+        <strong><%= t('mig.plan_4') %></strong>
+        <span class="mig-waar"><%= _hier %></span>
+      </li>
+      <li class="mig-step-later">
+        <strong><%= t('mig.plan_5') %></strong>
+        <span class="mig-waar"><%= _daar %></span>
+        <em><%= t('mig.plan_5_why') %></em>
+      </li>
+    </ol>
+  </section>
+
+  <%# ── Je oude account claimen (FEP-7628 alsoKnownAs) ─────────── %>
+  <%# Bewust als EERSTE: zonder deze claim weigert de oude instantie de Move
+      met no_backreference, en kan de ophaalknop hieronder ook niets. Dit stond
+      op de site-bewerkpagina tussen de kleuren; daar zoekt niemand het als hij
+      aan het verhuizen is. %>
+  <section class="mig-card">
+    <h2><%= t('mig.alias_title') %></h2>
+    <p class="form-hint"><%= t('mig.alias_hint') %></p>
+    <form method="post" action="/admin/migrate/aliases">
+      <label for="mig-alias"><%= t('mig.alias_label') %></label>
+      <textarea id="mig-alias" name="ap_aliases" rows="3" class="mig-input"
+        placeholder="@jij@mastodon.social&#10;@jij@oude-klonkt.nl"><%= aliassen || '' %></textarea>
+      <p class="form-hint"><%= t('mig.alias_note') %></p>
+      <button type="submit" class="btn"><%= t('mig.alias_btn') %></button>
+    </form>
+  </section>
+
+  <%# ── Exporteren ─────────────────────────────────────────────── %>
+  <section class="mig-card">
+    <h2><%= t('mig.export_title') %></h2>
+    <p class="form-hint"><%= t('mig.export_hint') %></p>
+
+    <% if (telling) { %>
+      <ul class="mig-counts">
+        <li><strong><%= telling.posts %></strong> <%= t('mig.c_posts') %></li>
+        <li><strong><%= telling.replies %></strong> <%= t('mig.c_replies') %></li>
+        <li><strong><%= telling.media %></strong> <%= t('mig.c_media') %></li>
+        <%# Muziek APART tellen, niet onder "media". Dit ontbrak, en juist daardoor
+            kon een export van 140 nummers er als 4,5 MB uitzien zonder dat iemand
+            het merkte: de teller zei "39 mediabestanden" en zweeg over de rest. %>
+        <% if (telling.tracks) { %>
+          <%# Wat er ECHT meegaat, niet hoeveel rijen er in de database staan.
+              "8 nummers" met daaronder "van 3 ontbreekt het bestand" telt niet
+              op; 5 plus die waarschuwing wel. %>
+          <li><strong><%= telling.tracks - (telling.audioMissing || 0) %></strong> <%= t('mig.c_tracks') %></li>
+        <% } %>
+        <% if (telling.playlists) { %>
+          <li><strong><%= telling.playlists %></strong> <%= t('mig.c_playlists') %></li>
+        <% } %>
+        <% if (typeof telling.following === 'number') { %>
+          <li><strong><%= telling.following %></strong> <%= t('mig.c_following') %></li>
+        <% } %>
+        <li><strong><%= mb(telling.bytes) %></strong> <%= t('mig.c_size') %></li>
+      </ul>
+
+      <% if (telling.ontbrekend) { %>
+        <%# Niets stils: media die op schijf ontbreekt wordt geteld en gemeld, want
+            een archief dat stilzwijgend minder bevat is erger dan een waarschuwing. %>
+        <p class="alert alert-error"><%= t('mig.missing', { n: telling.ontbrekend }) %></p>
+      <% } %>
+
+      <% if (telling.audioMissing) { %>
+        <%# Een eigen zin voor muziek. "N mediaverwijzingen" zei niets over de
+            vraag die er toe doet: gaat mijn bibliotheek mee. %>
+        <p class="alert alert-error"><%= t('mig.audio_missing', { n: telling.audioMissing }) %></p>
+      <% } %>
+
+
+      <% if (telling.groot) { %>
+        <p class="alert alert-error"><%= t('mig.too_big') %></p>
+      <% } else { %>
+        <p><a class="btn btn-primary" href="/admin/migrate/export"><%= t('mig.export_btn') %></a></p>
+      <% } %>
+    <% } else { %>
+      <p class="form-hint"><%= t('mig.export_none') %></p>
+    <% } %>
+  </section>
+
+  <%# ── Rechtstreeks ophalen (FEP-1580) ────────────────────────── %>
+  <section class="mig-card">
+    <h2><%= t('mig.pull_title') %></h2>
+    <p class="form-hint"><%= t('mig.pull_hint') %></p>
+
+    <% if (haalVerslag) { %>
+      <div class="mig-report<%= haalVerslag.error ? '' : ' is-done' %>">
+        <% if (haalVerslag.error) { %>
+          <h3><%= t('mig.pull_failed') %></h3>
+          <%# Elke weigering krijgt een eigen zin. "Er ging iets mis" laat je
+              raden welke van de twee kanten van de afspraak ontbreekt, en dat
+              is precies wat je moet weten om het op te lossen. %>
+          <p><%= t('mig.e_' + haalVerslag.error) !== 'mig.e_' + haalVerslag.error
+                   ? t('mig.e_' + haalVerslag.error) : (haalVerslag.melding || haalVerslag.error) %></p>
+          <% if (haalVerslag.error === 'not_moved_here' && haalVerslag.movedTo) { %>
+            <p class="form-hint"><%= t('mig.e_points_at') %> <code><%= haalVerslag.movedTo %></code></p>
+          <% } %>
+        <% } else { %>
+          <h3><%= t('mig.pull_done') %></h3>
+          <ul class="mig-counts">
+            <li><strong><%= haalVerslag.posts %></strong> <%= t('mig.r_imported') %></li>
+            <% if (haalVerslag.overgeslagen) { %><li><strong><%= haalVerslag.overgeslagen %></strong> <%= t('mig.r_skipped') %></li><% } %>
+            <% if (haalVerslag.media) { %><li><strong><%= haalVerslag.media %></strong> <%= t('mig.r_media') %></li><% } %>
+            <% if (haalVerslag.blocks) { %><li><strong><%= haalVerslag.blocks %></strong> <%= t('mig.r_blocks') %></li><% } %>
+            <% if (haalVerslag.tracksBinnen) { %><li><strong><%= haalVerslag.tracksBinnen %></strong> <%= t('mig.c_tracks') %></li><% } %>
+            <%# Aangevuld telt apart van nieuw. Een tweede ronde die "0 erbij"
+                meldt terwijl hij drie nummers compleet maakte, leest als niets
+                gedaan. %>
+            <% if (haalVerslag.tracksBijgewerkt) { %><li><strong><%= haalVerslag.tracksBijgewerkt %></strong> <%= t('mig.r_tracks_updated') %></li><% } %>
+            <% if (haalVerslag.postsBijgewerkt) { %><li><strong><%= haalVerslag.postsBijgewerkt %></strong> <%= t('mig.r_posts_updated') %></li><% } %>
+            <% if (haalVerslag.linksBijgetrokken) { %><li><strong><%= haalVerslag.linksBijgetrokken %></strong> <%= t('mig.r_links_fixed') %></li><% } %>
+            <% if (haalVerslag.playlistsBinnen) { %><li><strong><%= haalVerslag.playlistsBinnen %></strong> <%= t('mig.c_playlists') %></li><% } %>
+          </ul>
+          <% if (haalVerslag.tracksMislukt) { %>
+            <p class="alert alert-error"><%= t('mig.r_tracks_missing', { n: haalVerslag.tracksMislukt }) %></p>
+          <% } %>
+        <% } %>
+        <% if (haalVerslag.waarschuwingen && haalVerslag.waarschuwingen.length) { %>
+          <ul class="mig-warnlist">
+            <% haalVerslag.waarschuwingen.slice(0, 6).forEach(function (w) { %><li><%= w %></li><% }); %>
+          </ul>
+        <% } %>
+      </div>
+    <% } %>
+
+    <form method="post" action="/admin/migrate/pull">
+      <label for="mig-bron"><%= t('mig.pull_source') %></label>
+      <input type="url" id="mig-bron" name="bron" value="<%= bron || '' %>"
+             placeholder="@jij@oude-klonkt.nl" class="mig-input">
+      <p class="form-hint"><%= t('mig.pull_source_hint') %></p>
+      <button type="submit" class="btn"><%= t('mig.pull_btn') %></button>
+    </form>
+
+    <% if (mig && (mig.total || mig.moves)) { %>
+      <p class="form-hint mig-state">
+        <%= t('mig.state', { n: mig.total }) %>
+        <%= mig.complete ? t('mig.state_done') : t('mig.state_busy') %>
+      </p>
+    <% } %>
+  </section>
+
+  <%# ── Importeren ─────────────────────────────────────────────── %>
+  <section class="mig-card">
+    <h2><%= t('mig.import_title') %></h2>
+    <p class="form-hint"><%= t('mig.import_hint') %></p>
+
+    <% if (verslag) { %>
+      <div class="mig-report<%= verslag.echt ? ' is-done' : '' %>">
+        <h3><%= verslag.echt ? t('mig.r_done') : t('mig.r_dry') %></h3>
+        <p class="form-hint"><%= verslag.bestand %> &middot; <%= mb(verslag.bytes) %></p>
+        <ul class="mig-counts">
+          <li><strong><%= verslag.posts %></strong> <%= verslag.echt ? t('mig.r_imported') : t('mig.r_would') %></li>
+          <li><strong><%= verslag.overgeslagen %></strong> <%= t('mig.r_skipped') %></li>
+          <% if (verslag.overschreven) { %><li><strong><%= verslag.overschreven %></strong> <%= t('mig.r_overwritten') %></li><% } %>
+          <% if (verslag.mediaMissing) { %><li><strong><%= verslag.mediaMissing %></strong> <%= t('mig.r_media_missing') %></li><% } %>
+          <% if (verslag.media) { %><li><strong><%= verslag.media %></strong> <%= t('mig.r_media') %></li><% } %>
+          <%# Ook hier: muziek apart. Zonder deze twee regels zie je aan de
+              ontvangende kant net zo min of je bibliotheek is aangekomen. %>
+          <% if (verslag.tracks) { %><li><strong><%= verslag.tracks %></strong> <%= t('mig.c_tracks') %></li><% } %>
+          <% if (verslag.playlists) { %><li><strong><%= verslag.playlists %></strong> <%= t('mig.c_playlists') %></li><% } %>
+          <% if (verslag.linksBijgetrokken) { %><li><strong><%= verslag.linksBijgetrokken %></strong> <%= t('mig.r_links_fixed') %></li><% } %>
+        </ul>
+        <% if (verslag.tracksMissing) { %>
+          <p class="alert alert-error"><%= t('mig.r_tracks_missing', { n: verslag.tracksMissing }) %></p>
+        <% } %>
+        <% if (verslag.waarschuwingen && verslag.waarschuwingen.length) { %>
+          <ul class="mig-warnlist">
+            <% verslag.waarschuwingen.slice(0, 6).forEach(function (w) { %><li><%= w %></li><% }); %>
+          </ul>
+        <% } %>
+        <% if (verslag.idsBehouden === false) { %>
+          <%# Dit is de belangrijkste regel van het hele verslag: komt het archief
+              van een ANDER adres, dan krijgen de posts nieuwe id's en zijn het
+              nieuwe objecten voor de fediverse. %>
+          <p class="alert alert-error"><%= t('mig.r_new_ids') %></p>
+        <% } %>
+
+        <% if (!verslag.echt && verslag.posts > 0) { %>
+          <form method="post" action="/admin/migrate/import" enctype="multipart/form-data" class="mig-confirm">
+            <p class="form-hint"><%= t('mig.r_confirm_hint') %></p>
+            <label for="mig-file2"><%= t('mig.file_label') %></label>
+            <input type="file" id="mig-file2" name="archief" accept=".zip,application/zip" required>
+            <input type="hidden" name="echt" value="1">
+            <% if (verslag.overschrijf) { %><input type="hidden" name="overschrijf" value="1"><% } %>
+            <button type="submit" class="btn btn-primary"><%= t('mig.r_confirm_btn') %></button>
+          </form>
+        <% } %>
+      </div>
+    <% } %>
+
+    <form method="post" action="/admin/migrate/import" enctype="multipart/form-data">
+      <label for="mig-file"><%= t('mig.file_label') %></label>
+      <input type="file" id="mig-file" name="archief" accept=".zip,application/zip" required>
+
+      <label class="mig-check">
+        <input type="checkbox" name="overschrijf" value="1">
+        <%= t('mig.overwrite_label') %>
+      </label>
+      <p class="form-hint mig-warn"><%= t('mig.overwrite_hint') %></p>
+
+      <button type="submit" class="btn"><%= t('mig.check_btn') %></button>
+      <p class="form-hint"><%= t('mig.check_hint') %></p>
+    </form>
+  </section>
+
+  <%# ── De verhuizing aankondigen (FEP-7628 Move) ──────────────── %>
+  <%# ONDERAAN, en met een rode knop. Dit is de enige knop op deze pagina die
+      de fediverse in gaat en niet terug te draaien is: je volgers verhuizen
+      mee en dit account gaat op slot. Alles hierboven kun je overdoen. %>
+  <section class="mig-card mig-card-danger">
+    <h2><%= t('mig.move_title') %></h2>
+    <p class="form-hint"><%= t('mig.move_hint') %></p>
+    <% if (movedTo) { %>
+      <p class="alert alert-error"><%= t('mig.move_done') %> <code><%= movedTo %></code></p>
+    <% } else { %>
+      <form method="post" action="/admin/sites/<%= site.slug %>/move"
+            onsubmit="return confirm('<%= t('mig.move_confirm') %>');">
+        <input type="hidden" name="next" value="/admin/migrate">
+        <label for="mig-move"><%= t('mig.move_label') %></label>
+        <input type="text" id="mig-move" name="move_target" class="mig-input"
+               placeholder="@nieuw@andere-server.nl" required>
+        <p class="form-hint mig-warn"><%= t('mig.move_warn') %></p>
+        <button type="submit" class="btn btn-danger"><%= t('mig.move_btn') %></button>
+      </form>
+    <% } %>
+  </section>
+
+  <%# ── Wie je volgt ────────────────────────────────────────────── %>
+  <%# Stond op Connect, in een <details> zonder een greintje opmaak: labels als
+      losse tekst naast hun invoerveld, een textarea van vijf regels breed. Hier
+      krijgt hij de kaartopmaak van deze pagina, en hij hoort hier ook: je
+      volglijst meenemen is een migratie-optie. %>
+  <section class="mig-card">
+    <h2><%= t('mig.follows_title') %></h2>
+    <p class="form-hint"><%= t('tl.move_hint') %></p>
+    <p><a class="btn" href="/news/following.csv" download>&#11015; <%= t('tl.move_export') %></a></p>
+
+    <form method="post" action="/news/following/import" enctype="multipart/form-data">
+      <input type="hidden" name="next" value="/admin/migrate">
+      <label for="mig-volg-bestand"><%= t('tl.move_import_file') %></label>
+      <input type="file" id="mig-volg-bestand" name="csvfile" accept=".csv,text/csv,text/plain">
+
+      <label for="mig-volg-csv"><%= t('tl.move_import_lbl') %></label>
+      <textarea id="mig-volg-csv" name="csv" rows="5" spellcheck="false" class="mig-input"
+                placeholder="Account address,Show boosts,Notify on new posts,Languages,Featured"></textarea>
+      <p class="form-hint"><%= t('mig.follows_note') %></p>
+
+      <button type="submit" class="btn btn-primary"><%= t('tl.move_import') %></button>
+    </form>
+  </section>
+</div>
+
+<style>
+  .mig-wrap { max-width: 46rem; }
+  .mig-lead { color: var(--sub); margin-bottom: 1.5rem; }
+  .mig-card { border: 1px solid var(--rule); border-radius: 12px; padding: 1.25rem 1.4rem; margin-bottom: 1.25rem; }
+  .mig-card h2 { margin: 0 0 .35rem; font-size: 1.1rem; }
+  .mig-counts { list-style: none; padding: 0; margin: .9rem 0; display: flex; flex-wrap: wrap; gap: .4rem 1.4rem; }
+  .mig-counts li { color: var(--sub); font-size: .94rem; }
+  .mig-counts strong { color: var(--ink); font-size: 1.05rem; }
+  .mig-card label { display: block; margin: .9rem 0 .35rem; font-weight: 600; font-size: .92rem; }
+  .mig-card input[type="file"] { display: block; margin-bottom: .6rem; }
+  .mig-check { display: flex; align-items: center; gap: .5rem; font-weight: 400 !important; }
+  .mig-input { width: 100%; max-width: 34rem; padding: .5rem .6rem; border: 1px solid var(--rule);
+               border-radius: 8px; background: transparent; color: var(--ink); font-size: .95rem; }
+  .mig-state { margin-top: .9rem; }
+  .mig-report code { word-break: break-all; font-size: .88rem; }
+  .mig-warn { color: var(--accent); }
+  .mig-plan { background: color-mix(in srgb, var(--ink, #000) 3%, transparent); }
+  .mig-steps { margin: 1rem 0 0; padding-left: 1.4rem; display: flex; flex-direction: column; gap: .7rem; }
+  .mig-steps li { color: var(--ink); }
+  .mig-steps li em { display: block; color: var(--sub); font-style: normal; font-size: .9rem; margin-top: .15rem; }
+  .mig-steps li.is-done > strong { text-decoration: line-through; opacity: .6; }
+  .mig-steps li.is-done::marker { content: '✓ '; }
+  .mig-steps li.mig-step-later { opacity: .8; }
+  .mig-waar { font-size: .8rem; padding: .05rem .4rem; border: 1px solid var(--rule); border-radius: 999px;
+              color: var(--sub); margin-left: .4rem; white-space: nowrap; }
+  .mig-card-danger { border-color: color-mix(in srgb, var(--accent, #c33) 45%, var(--rule)); }
+  textarea.mig-input { font-family: inherit; resize: vertical; }
+  .mig-report { border-left: 3px solid var(--accent); padding: .8rem 1rem; margin-bottom: 1.2rem;
+                background: color-mix(in srgb, var(--ink, #000) 4%, transparent); border-radius: 0 8px 8px 0; }
+  .mig-report.is-done { border-left-color: #3fa843; }
+  .mig-report h3 { margin: 0 0 .3rem; font-size: 1rem; }
+  .mig-warnlist { margin: .5rem 0; padding-left: 1.2rem; color: var(--accent); font-size: .9rem; }
+  .mig-confirm { margin-top: .9rem; padding-top: .9rem; border-top: 1px solid var(--rule); }
+</style>

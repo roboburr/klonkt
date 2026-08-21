@@ -9,6 +9,37 @@
   // + Tijdlijn/Grid grijs). Alleen Agenda krijgt z'n eigen is-active op de agenda.
   var _neutral = ['on-shows','on-downloads','on-post','on-epk','on-linkbio','on-newsletter','on-archive']
                    .some(function(c){ return _bc.indexOf(c) >= 0; });
+  // Lezen bestaat alleen waar een leessectie is, en dat is de eigen feed. De
+  // cirkel toont berichten van ANDEREN, opgehaald van hun servers -- daar is
+  // "het hele stuk" niet iets wat wij in handen hebben.
+  //
+  // De knop verdween daar eerst helemaal, met het argument dat een knop die
+  // niets doet erger is dan geen knop. In de praktijk pakte dat andersom uit:
+  // de pil werd smaller op de cirkel en breder op solo, en die sprong leest als
+  // "er is hier iets weg" -- terwijl juist NIET duidelijk werd dat Lezen
+  // bestaat en hier alleen niet kan. Hij staat er nu dood bij: zichtbaar, grijs
+  // en niet aan te klikken. Dan is er maar een mogelijkheid, Grid, en je ziet
+  // meteen dat dat geen toeval is maar de enige.
+  var _leesUit = _bc.indexOf('on-cirkel') >= 0;
+  var _gridStandaard = (typeof site !== 'undefined' && site && site.feed_view_default === 'grid');
+  // Welke tweede weergave biedt deze site aan? Bij 'auto' tekenen we ZE ALLEBEI
+  // en laat de CSS er per viewport een zien -- Lezen op mobiel, Tijdlijn op
+  // desktop. Dat scheelt een resize-afhandeling en een knop die van naam
+  // verspringt terwijl je kijkt.
+  var _alt = (typeof site !== 'undefined' && site && site.feed_alt_view) || 'reader';
+  if (['reader', 'timeline', 'auto'].indexOf(_alt) < 0) _alt = 'reader';
+  var _tweede = _alt === 'auto' ? ['reader', 'timeline'] : [_alt];
+  // De tijdlijn WERKT wel in de cirkel -- dat is er zelfs de natuurlijke vorm.
+  // Alleen Lezen kan daar niet, want dat zijn berichten van anderen.
+  var _dood = function (v) { return v === 'reader' && _leesUit; };
+  // Staat er GEEN levende tweede knop, dan is Grid het enige dat overblijft en
+  // hoort die aan te staan. Bij een tijdlijn-site is dat in de cirkel niet zo:
+  // daar werkt de tijdlijn gewoon.
+  var _alleenGrid = _tweede.every(_dood);
+  var _icoon = {
+    reader: '<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>',
+    timeline: '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>',
+  };
 %>
 <div class="view-switcher-wrap">
   <div class="container">
@@ -34,13 +65,21 @@
     </div>
     <% } %>
     <div class="view-switcher" role="tablist" aria-label="Weergave">
-      <button type="button" class="view-switch-btn" data-view="timeline" role="tab"
-              aria-selected="<%= (!_neutral && !(typeof site !== 'undefined' && site && site.feed_view_default === 'grid')) ? 'true' : 'false' %>">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-        <span><%= t('switch.timeline') %></span>
+
+      <%# De tweede weergave naast Grid. Welke dat is, staat in de instellingen
+          van de site (feed_alt_view). Bij 'auto' staan ze er allebei en kiest
+          een mediaquery; vandaar de klasse vs-alleen-*. %>
+      <% _tweede.forEach(function (v) { %>
+      <button type="button" class="view-switch-btn<%= _alt === 'auto' ? ' vs-alleen-' + (v === 'reader' ? 'mobiel' : 'desktop') : '' %>"
+              data-view="<%= v %>" role="tab"
+              <%- _dood(v) ? 'disabled aria-disabled="true" tabindex="-1" title="' + t('switch.reader_solo_only') + '"' : '' %>
+              aria-selected="<%= (!_dood(v) && !_neutral && !_gridStandaard) ? 'true' : 'false' %>">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><%- _icoon[v] %></svg>
+        <span><%= t('switch.' + v) %></span>
       </button>
+      <% }); %>
       <button type="button" class="view-switch-btn" data-view="grid" role="tab"
-              aria-selected="<%= (!_neutral && (typeof site !== 'undefined' && site && site.feed_view_default === 'grid')) ? 'true' : 'false' %>">
+              aria-selected="<%= (!_neutral && (_alleenGrid || _gridStandaard)) ? 'true' : 'false' %>">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
         <span><%= t('switch.grid') %></span>
       </button>

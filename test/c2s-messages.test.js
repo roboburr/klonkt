@@ -93,7 +93,7 @@ test('the inbox read serves posts and messages in one collection', async (t) => 
     'addressed to me, which is what makes it a conversation instead of a loose note');
   assert.ok((wave.tag || []).some((x) => x.type === 'Mention' && x.href === 'https://test.example/ap/users/kid'),
     'with a Mention the client recognises itself in');
-  assert.equal(wave['shaer:author'].name, 'Oma', 'and a byline to show');
+  assert.equal(wave.attributedTo.name, 'Oma', 'and a byline to show');
   assert.ok(!/@kid@test\.example/.test(wave.content), 'the leading @mention is stripped, like Berichten on the web');
 
   assert.equal(byId['https://oma.test/n/2']['shaer:helpRequest'], true, 'the buoy stays a buoy');

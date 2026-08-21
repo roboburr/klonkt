@@ -33,7 +33,7 @@ function downloadsPostNav(req, res) {
     "SELECT id, slug, pinned FROM posts WHERE site_id = ? AND slug = 'downloads' AND status = 'published'"
   ).get(site.id);
   if (!post) return {};
-  try { return postNeighbors(site, post, res.locals.tenancy === 'hub'); } catch (e) { return {}; }
+  try { return postNeighbors(site, post); } catch (e) { return {}; }
 }
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const AUDIO_DIR = path.resolve(process.env.AUDIO_PATH || path.join(__dirname, '..', '..', 'storage', 'audio'));
@@ -112,6 +112,10 @@ router.post('/download/:id', (req, res, next) => {
   if (!req.session.dl) req.session.dl = {};
   req.session.dl[track.id] = Date.now();
   renderPage(req, res, 'pages/download', {
+    // De auto-start hoort ALLEEN bij ready: op het formulier zou hij de
+    // e-mailvraag omzeilen. Het script stond v66r shaer-bqr dan ook binnen
+    // de ready-tak van de template.
+    pageJs: 'download',
     pageTitle: track.title + ' — download', bodyClass: 'on-download',
     dlState: 'ready', dlTrack: track,
   });

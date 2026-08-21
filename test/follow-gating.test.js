@@ -21,10 +21,23 @@ test('any-quorum: one guardian approval is enough', () => {
   assert.equal(G.follows.listForWard('kid').length, 0);
 });
 
-test('all-quorum: needs every guardian', () => {
+test('een eenvoudige meerderheid beslist: 1 van 2 is genoeg', () => {
+  // WAS: 'all-quorum: needs every guardian'. Barts besluit (8-8) vervangt de
+  // any/all-tweedeling door een meerderheid, en "1/2 is voldoende" waren zijn
+  // woorden. De 'all'-stand die deze toets bewaakte werd nergens gezet -- elke
+  // schrijver gaf 'any' mee -- dus het was een keuze die niemand kon maken.
   G.follows.recordPending('kid', { id: 'f2', follower: STRANGER, inbox: `${STRANGER}/inbox`, quorum: 'all' });
-  assert.equal(G.follows.decide('f2', MOM, 'approve', [MOM, DAD]).outcome, 'waiting');
-  assert.equal(G.follows.decide('f2', DAD, 'approve', [MOM, DAD]).outcome, 'approved');
+  assert.equal(G.follows.decide('f2', MOM, 'approve', [MOM, DAD]).outcome, 'approved');
+});
+
+test('bij drie guardians is een enkele ja NIET meer genoeg', () => {
+  // De andere kant van hetzelfde besluit: tot vandaag stond dit op 'any', en
+  // dan was een enkele ja genoeg hoeveel guardians er ook waren. Voor iedereen
+  // met drie of meer is dit dus een aanscherping.
+  const GRAN = 'https://gran.example/u/gran';
+  G.follows.recordPending('kid', { id: 'f2b', follower: STRANGER, inbox: `${STRANGER}/inbox` });
+  assert.equal(G.follows.decide('f2b', MOM, 'approve', [MOM, DAD, GRAN]).outcome, 'waiting');
+  assert.equal(G.follows.decide('f2b', DAD, 'approve', [MOM, DAD, GRAN]).outcome, 'approved');
 });
 
 test('a single reject denies the follow (§3.2 spirit)', () => {

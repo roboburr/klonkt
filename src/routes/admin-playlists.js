@@ -22,14 +22,12 @@ import db from '../config/database.js';
 import { renderPage } from '../middleware/render.js';
 import { requireGod } from '../middleware/auth.js';
 import PlaylistService from '../services/PlaylistService.js';
+import { mediaDir } from '../config/paths.js';
 
 // Cover storage — same convention as track covers so a single physical
 // directory holds all album/track artwork. Existing covers in the DB
 // already point at /media/audio-covers/<filename> so we reuse the path.
-const __dirname = path.dirname(new URL(import.meta.url).pathname);
-const COVER_DIR = path.resolve(
-  process.env.COVER_PATH || path.join(__dirname, '..', '..', 'storage', 'media', 'audio-covers')
-);
+const COVER_DIR = mediaDir('COVER_PATH', 'audio-covers');
 fs.mkdirSync(COVER_DIR, { recursive: true });
 
 const MAX_COVER_BYTES = 5 * 1024 * 1024;
@@ -63,6 +61,8 @@ router.get('/', requireGod, (req, res) => {
 
   const playlists = PlaylistService.list(site.id);
   renderPage(req, res, 'pages/admin-playlists', {
+    // admin-playlists neemt de playlist-editor op, dus die module hoort erbij.
+    pageJs: 'admin-playlists playlist-editor',
     pageTitleKey: 'admin.t_playlists',
     playlists,
     bodyClass: 'on-admin',

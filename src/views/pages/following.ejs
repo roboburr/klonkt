@@ -14,6 +14,18 @@
     <label class="tl-follow-ab" title="<%= t('tl.autoboost_hint') %>"><input type="checkbox" name="auto_boost" value="1"> ✨ <%= t('tl.autoboost_follow') %></label>
   </form>
 
+  <details class="tl-move">
+    <summary><%= t('tl.move_title') %></summary>
+    <p class="tl-move-hint"><%= t('tl.move_hint') %></p>
+    <p><a class="btn" href="/news/following.csv" download>⬇ <%= t('tl.move_export') %></a></p>
+    <form method="post" action="/news/following/import">
+      <label class="tl-move-lbl" for="tl-move-csv"><%= t('tl.move_import_lbl') %></label>
+      <textarea id="tl-move-csv" name="csv" rows="5" spellcheck="false"
+                placeholder="Account address,Show boosts,Notify on new posts,Languages,Featured"></textarea>
+      <button type="submit" class="btn btn-primary"><%= t('tl.move_import') %></button>
+    </form>
+  </details>
+
   <% if (following && following.length) { %>
     <h2 class="tl-sub"><%= t('tl.following') %> (<%= following.length %>)</h2>
     <ul class="tl-foll-list">

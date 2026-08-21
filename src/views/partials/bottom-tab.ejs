@@ -12,10 +12,7 @@ const _path        = (typeof currentPath !== 'undefined' && currentPath) ? curre
 const _canPost     = !!(user && (typeof canMutate === 'undefined' || canMutate)
                         && permissions && permissions.canCreatePost && permissions.canCreatePost(user, site));
 const _ownProfile  = user ? ('/users/' + user.username) : null;
-const _isHub       = (typeof tenancy !== 'undefined' && tenancy === 'hub');
-// Home in hub mode ALWAYS goes to the hub root (/), not to an artist's sub-home.
-// In solo/circle _siteUrlBase is empty, so it stays '/'.
-const _homeHref    = (_isHub ? '' : _siteUrlBase) + '/';
+const _homeHref    = _siteUrlBase + '/';
 
 // Strip site prefix for cleaner matching
 function _normalize(p) {
@@ -25,8 +22,7 @@ function _normalize(p) {
 const _p = _normalize(_path);
 
 let _active = null;
-// In hub, Home is only active on the real hub root, not on an artist sub-home.
-if (_isHub ? (_path === '/') : (_p === '/' || _p === '')) _active = 'home';
+if (_p === '/' || _p === '') _active = 'home';
 else if (_p.indexOf('/search') === 0 || _p.indexOf('/tag/') === 0 || _p.indexOf('/type/') === 0) _active = 'search';
 else if (_p === '/posts/new' || /^\/posts\/[^/]+\/edit$/.test(_p)) _active = 'create';
 else if (_p.indexOf('/account') === 0 || (_ownProfile && _p.indexOf(_ownProfile) === 0)) _active = 'profile';
@@ -305,18 +301,6 @@ else if (_p.indexOf('/auth/login') === 0) _active = 'login';
 }
 </style>
 
-<script>
-// Bottom-tab search button → opens #search-overlay. Using event delegation + looking
-// up the overlay on EVERY click: the overlay lives in the chrome that is OOB-replaced
-// during htmx navigation, so a once-captured reference goes stale
-// (button did nothing afterwards). Guard against double-wiring.
-(function() {
-  if (window.__btSearchWired) return;
-  window.__btSearchWired = true;
-  document.addEventListener('click', function(e) {
-    if (!e.target.closest || !e.target.closest('#bottom-tab-search-toggle')) return;
-    var o = document.getElementById('search-overlay');
-    if (o) { o.hidden = false; var i = o.querySelector('input'); if (i) i.focus(); }
-  });
-})();
-</script>
+<%# De zoekknop zit nu in de chrome-module (assets/js/mod/chrome.js).
+    Inline script hier wordt door de CSP geweigerd zodra deze partial via htmx
+    binnenkomt, en dat is bij elke navigatie -- zie shaer-0i6. %>

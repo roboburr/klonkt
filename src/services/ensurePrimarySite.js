@@ -2,14 +2,13 @@ import { v4 as uuid } from 'uuid';
 import db from '../config/database.js';
 
 // A Klonkt instance should ALWAYS have a primary site — it carries the identity
-// (title, theme, profile) and is the anchor point in solo/hub/circle mode.
+// (title, theme, profile) and is the anchor point for the whole instance.
 // The register flow already creates one, but an admin created via a script
 // (or an empty sites table for any reason) left the instance without a site:
 // no settings, dashboard would crash.
 //
 // This helper runs at boot (and is idempotent): as soon as there is an admin
 // but no site yet, it creates a default site owned by the first god/admin.
-// Tenancy-agnostic — applies to solo, hub, and circle.
 
 function defaultTitle() {
   try {

@@ -15,7 +15,6 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
 import multer from 'multer';
 import { v4 as uuid } from 'uuid';
@@ -27,11 +26,9 @@ import { t } from '../services/i18n.js';
 import { requireAuth } from '../middleware/auth.js';
 import { toWebp } from '../services/ImageWebpService.js';
 import { SUPPORTED } from '../services/i18n.js';
+import { mediaDir } from '../config/paths.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const AVATAR_DIR = path.resolve(
-  process.env.AVATAR_PATH || path.join(__dirname, '..', '..', 'storage', 'media', 'avatars')
-);
+const AVATAR_DIR = mediaDir('AVATAR_PATH', 'avatars');
 fs.mkdirSync(AVATAR_DIR, { recursive: true });
 
 const ALLOWED_AVATAR_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif']);

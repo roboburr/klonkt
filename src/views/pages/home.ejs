@@ -17,6 +17,20 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
     #pcms-main) so it survives HTMX swaps and is visible on every
     non-admin page. %>
 
+<%# FEP-7628 slice 3: this account moved. The signpost comes FIRST, before
+    any post: a visitor should not scroll a dead feed to find out we left.
+    typeof-guard because an old route may render this template for one
+    request right after a deploy (view cache fills on first hit). %>
+<% if (typeof movedTo !== 'undefined' && movedTo) { %>
+  <div class="container">
+    <aside class="moved-banner">
+      <p class="moved-banner-lead"><%= t('phome.moved_lead') %></p>
+      <a class="moved-banner-link" href="<%= movedTo %>" rel="me noopener"><%= movedToLabel || movedTo %></a>
+      <p class="moved-banner-hint"><%= t('phome.moved_hint') %></p>
+    </aside>
+  </div>
+<% } %>
+
 <!-- ========== TIMELINE ========== -->
 <div class="container feed-timeline">
 
@@ -43,6 +57,39 @@ const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase 
   <% } %>
 
 </div>
+
+<!-- ========== LEZEN (alleen zichtbaar bij body[data-feed-view="reader"]) ==========
+     Hetzelfde stel berichten, maar heel: één per scherm, met de grenzen door
+     CSS-snapping. Geen eigen route en geen eigen shell -- de balken blijven
+     staan, want je bent nog gewoon op de feed en moet terug kunnen schakelen.
+     Leeg? Dan valt de lege staat van de tijdlijn hierboven in beeld; deze
+     sectie rendert dan niet. -->
+<% if (typeof readerItems !== 'undefined' && readerItems && readerItems.length) { %>
+<section class="feed-reader" aria-label="<%= t('switch.reader') %>">
+  <%# Terug naar boven. Staat IN de HTML en niet in JavaScript, zodat hij er ook
+      is als de module niet laadt -- dan doet hij niets, maar hij springt ook niet
+      opeens in beeld. Verschijnt pas als je ver genoeg bent (mod/read.js). %>
+  <%# Een bericht omhoog of omlaag. Alleen in paginamodus zichtbaar (CSS). %>
+  <%# Twee echte balken over de volle breedte. Tikzones zonder zichtbaar element
+      werkten niet: de onderste strook ligt onder de mini-speler en de tabbalk,
+      en die vangen de tik voordat de leesstroom hem ziet. Een balk kan daar wel
+      bovenop. %>
+  <button type="button" class="read-bar read-bar--top" id="read-prev" aria-label="<%= t('read.prev') %>">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="18 15 12 9 6 15"/></svg>
+  </button>
+  <button type="button" class="read-bar read-bar--bottom" id="read-next-nav" aria-label="<%= t('read.next') %>">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+  </button>
+  <button type="button" id="read-top" class="read-top" aria-label="<%= t('read.to_top') %>" title="<%= t('read.to_top') %>">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+  </button>
+  <div class="read-stream" id="read-stream" data-base="<%= _base %>">
+    <% readerItems.forEach(function(it) { %>
+      <%- include('../partials/read-article', { post: it.post, entry: it.entry }) %>
+    <% }); %>
+  </div>
+</section>
+<% } %>
 
 <!-- ========== GRID (only visible when body[data-feed-view="grid"]) ========== -->
 <% if (allPosts.length > 0) { %>

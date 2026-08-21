@@ -114,6 +114,7 @@ router.get('/register', (req, res) => {
   // No public registration: only the very first admin may be created here.
   if (!isSetupMode()) return res.redirect('/auth/login' + (next ? '?next=' + encodeURIComponent(next) : ''));
   renderPage(req, res, 'pages/auth-register', {
+    pageJs: 'auth-register',
     pageTitle: t(resolveLang(req), 'setup.title'), bodyClass: 'on-special',
     error: null, username: '', email: '', siteName: '', next,
   });
@@ -123,6 +124,7 @@ router.post('/register', registerLimiter, (req, res) => {
   const { username, email, password, siteName } = req.body;
   const next = safeNext(req.body.next) || '';
   const renderErr = (error) => renderPage(req, res, 'pages/auth-register', {
+    pageJs: 'auth-register',
     pageTitle: t(resolveLang(req), 'setup.title'), bodyClass: 'on-special',
     error, username: username || '', email: email || '', siteName: siteName || '', next,
   });
@@ -204,7 +206,7 @@ router.post('/reset-request', registerLimiter, async (req, res) => {
         devResetUrl = url;
       } else {
         // Production without SMTP: NEVER log the token. Refer to the CLI break-glass.
-        console.log(`[password-reset] aangevraagd voor ${user.email} (geen SMTP — gebruik 'npm run reset-admin')`);
+        console.log(`[password-reset] requested for ${user.email} (no SMTP — use 'npm run reset-admin')`);
       }
     }
   }

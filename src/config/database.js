@@ -37,16 +37,14 @@ export function initializeDatabase() {
   // Additive column migrations — safe to run every boot.
   // SQLite throws if the column already exists; we swallow that.
   ensureColumn('sites', 'enable_audio_player', 'INTEGER DEFAULT 1');
-  // Guardian 2: losse guardians. Een guardian-only account is user + minimale
-  // site (alleen de actor telt); de vlag houdt CMS/listings erbuiten.
-  ensureColumn('sites', 'guardian_only', 'INTEGER DEFAULT 0');
-  db.exec(`CREATE TABLE IF NOT EXISTS ap_guardian_invites (
-    token TEXT PRIMARY KEY,
-    created_by TEXT NOT NULL,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    used_by TEXT,
-    used_at TEXT
-  )`);
+  // Eigenaarspoort (Robins wens, 18-8-2026): volgers niet automatisch
+  // accepteren maar door de eigenaar laten beslissen, op z'n fediverse.
+  // STANDAARD AAN (ook Robins wens, zelfde dag): een nieuwe of bijgewerkte
+  // klonkt beschermt zijn eigenaar meteen; uitzetten is de bewuste keuze.
+  ensureColumn('sites', 'approve_followers', 'INTEGER DEFAULT 1');
+  // (Verwijderd 31-7-2026: sites.guardian_only en ap_guardian_invites hoorden
+  // bij de guardian-lite accounts. Bestaande installaties houden kolom en tabel
+  // ongebruikt; nieuwe krijgen ze niet meer.)
   // FEP-633c §5.3: follows targeting a ward are held pending until its
   // guardians approve (Guardian 2). Gating applies only to ward-actors.
   db.exec(`CREATE TABLE IF NOT EXISTS ap_pending_follows (
@@ -70,6 +68,49 @@ export function initializeDatabase() {
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (follow_id, guardian_uri)
   )`);
+  // FEP-633c §5.3, the OTHER direction (shaer-p729): a ward's own follow is
+  // held until its guardians approve. Deliberately not ap_pending_follows —
+  // that table is keyed with the ward as the TARGET ("who wants to follow me"),
+  // and adding a direction column would make every existing query ambiguous.
+  db.exec(`CREATE TABLE IF NOT EXISTS ap_pending_outgoing_follows (
+    id TEXT PRIMARY KEY,
+    ward_slug TEXT NOT NULL,
+    target_uri TEXT NOT NULL,
+    target_inbox TEXT,
+    target_name TEXT,
+    target_handle TEXT,
+    target_icon TEXT,
+    quorum TEXT DEFAULT 'any',
+    status TEXT DEFAULT 'pending',
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )`);
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_ap_outgoing_follows_target
+           ON ap_pending_outgoing_follows(ward_slug, target_uri)`);
+  // Wat er gebeurd is, en waarom (shaer-p729, §4.2). Guardianship-events waren
+  // vluchtig: onGuardianshipEvent wekte de long-poll en stuurde eventueel een
+  // push, en de rest van de gebeurtenis loste op. Een weigering droeg
+  // `reason: 'not_a_teapot'` tot in die functie en verder niet -- de ward en
+  // zijn guardians hoorden het alleen doordat het aanbod uit de wachtrij
+  // verdween. §4.2 eist dat ze het TE HOREN krijgen, met de reden erbij.
+  //
+  // Een logboek, geen wachtrij: hier staat niets dat om een antwoord vraagt.
+  // Daarom hoort het ook ingeklapt te staan -- naast wat nog wel wacht, maakt
+  // afgelopen nieuws de open vraag onleesbaar.
+  db.exec(`CREATE TABLE IF NOT EXISTS ap_guardian_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    payload TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )`);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_ap_guardian_events_slug ON ap_guardian_events(slug, id DESC)');
+  db.exec(`CREATE TABLE IF NOT EXISTS ap_outgoing_follow_approvals (
+    follow_id TEXT NOT NULL,
+    guardian_uri TEXT NOT NULL,
+    decision TEXT NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (follow_id, guardian_uri)
+  )`);
   // Cross-instance follow-approval (modelled on the guardian offer): the
   // guardian-side COPY of a gated follow on a REMOTE ward, forwarded here by
   // the ward's server as an Offer(Follow). The decision is sent back to the
@@ -87,7 +128,36 @@ export function initializeDatabase() {
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (guardian_slug, id)
   )`);
+  // Guardianship Fase 2 (shaer-jdb): een doorgestuurde follow-goedkeuring draagt
+  // een RICHTING. Bij een inkomende is de follower iemand anders en de ward het
+  // doel; bij een uitgaande is de ward zelf de follower en staat het doel in het
+  // Follow-object. Zonder deze twee kolommen werd een uitgaande opgeslagen als
+  // "deze ward wil deze ward volgen" en viel het doel weg -- dan valt er niets
+  // zinnigs te tonen, hoe je de wachtrij ook vult.
+  ensureColumn('ap_follow_reviews', 'direction', "TEXT DEFAULT 'incoming'");
+  ensureColumn('ap_follow_reviews', 'target_uri', 'TEXT');
+  ensureColumn('ap_follow_reviews', 'target_handle', 'TEXT');
   ensureColumn('sites', 'profile_photo', 'TEXT');
+  // De MusicBrainz-koppeling van de artiest (shaer-mbz). Een MBID is een
+  // verwijzing naar hun register, geen kopie ervan -- de naam staat erbij zodat
+  // het beheerscherm kan tonen WAT er gekoppeld is zonder ervoor te moeten
+  // netwerken, en zodat een verkeerde koppeling opvalt.
+  ensureColumn('sites', 'mb_artist_id', 'TEXT');
+  ensureColumn('sites', 'mb_artist_name', 'TEXT');
+  // Een UITGAVE heeft twee dingen die een afspeellijst niet heeft (shaer-756s).
+  //
+  // release_date en niet `year`: die kolom bestaat al en blijft, maar hun
+  // AlbumSerializer leest `released` als een DateField. Een jaartal als
+  // 2024-01-01 versturen is een dag verzinnen, en dat is precies wat we bij
+  // artiesten en albums niet doen. Volledige datum of niets.
+  //
+  // mb_release_id is de tegenhanger van sites.mb_artist_id: dezelfde soort
+  // verwijzing naar MusicBrainz, een niveau lager.
+  //
+  // Ze horen ALLEEN bij kind='album'. PlaylistService dwingt dat af bij het
+  // opslaan -- zie daar waarom dat niet alleen in het scherm mag zitten.
+  ensureColumn('playlists', 'release_date', 'TEXT');
+  ensureColumn('playlists', 'mb_release_id', 'TEXT');
   ensureColumn('audio_tracks', 'cover_url', 'TEXT');
   ensureColumn('audio_tracks', 'album', 'TEXT');
   ensureColumn('users', 'reset_token', 'TEXT');
@@ -129,6 +199,21 @@ export function initializeDatabase() {
   ensureColumn('sites', 'profile_links',   'TEXT');     // JSON array [{platform, url}]
   ensureColumn('sites', 'feed_view_default', "TEXT DEFAULT 'grid'"); // timeline | grid
   ensureColumn('sites', 'feed_view_switch',  'INTEGER DEFAULT 1');       // show switcher
+  // Welke TWEEDE weergave deze site aanbiedt naast Grid.
+  //   'reader'    Lezen, hele berichten, een per scherm
+  //   'timeline'  de chronologische lijst
+  //   'auto'      Lezen op mobiel, Tijdlijn op desktop (grens 768px)
+  // Lezen verving Tijdlijn, maar de tijdlijn is nooit weggehaald -- home.ejs
+  // rendert alle drie de secties en de CSS kiest. Dit maakt er weer een keuze
+  // van in plaats van een besluit voor iedereen. 'auto' kost geen JavaScript:
+  // het is een mediaquery, dus geen resize-afhandeling en geen flikkering.
+  ensureColumn('sites', 'feed_alt_view', "TEXT DEFAULT 'reader'");   // reader | timeline | auto
+  // Krijgt elk bericht in Lezen zijn EIGEN scherm? Aan betekent min-height:100svh
+  // per bericht: een kort bericht vult dan het scherm en je ziet het volgende
+  // pas na een snap. Uit is de stroom zoals hij nu is, bericht na bericht zonder
+  // lege ruimte. Stond eerst vast op AAN, is toen vast op UIT gezet omdat een
+  // kort bericht een halve pagina leegte gaf; nu is het een keuze.
+  ensureColumn('sites', 'reader_full_page', 'INTEGER DEFAULT 0');
   ensureColumn('sites', 'show_search',     'INTEGER DEFAULT 1');
   ensureColumn('sites', 'show_archive_link', 'INTEGER DEFAULT 1');
   // Gated feature (FEP-633c): may external (non-fediverse) embeds be shown to
@@ -136,12 +221,41 @@ export function initializeDatabase() {
   // else. The guardians flip it; the gate itself lives server-side, so a ward
   // never even receives the thumbnail it is not allowed to see.
   ensureColumn('sites', 'external_embeds', 'INTEGER');
+  // De rest van de gate-familie (shaer-ahy.1, "maak ze allemaal functioneel",
+  // Barts opdracht 8-8). Zelfde drietal als external_embeds: NULL is de
+  // automatiek (dicht voor een ward, open voor de rest), 0/1 is een besluit
+  // van de guardians en wint van de automatiek.
+  ensureColumn('sites', 'external_threads', 'INTEGER');   // replies van vreemden onder een post (shaer-9y2)
+  ensureColumn('sites', 'gate_replies', 'INTEGER');       // zelf antwoorden in een gesprek (shaer-r4c)
+  ensureColumn('sites', 'gate_images', 'INTEGER');        // afbeeldingsbijlagen (shaer-6p5)
+  ensureColumn('sites', 'gate_messages', 'INTEGER');      // heel Messages (shaer-3ow)
+  ensureColumn('sites', 'gate_compose', 'INTEGER');       // zelf posten, de (+) kaart (shaer-qgev)
+  ensureColumn('sites', 'gate_music', 'INTEGER');         // audiobijlagen (shaer-rmz)
+  ensureColumn('sites', 'gate_quote_cards', 'INTEGER');   // ingebedde quote-kaarten (shaer-mls)
+  ensureColumn('sites', 'gate_custom_emoji', 'INTEGER');  // FEP-9098 emoji-plaatjes (shaer-ytw)
+  ensureColumn('sites', 'gate_account_move', 'INTEGER');  // FEP-7628 Move (shaer-tge)
+  // Wie de ward ZELF mag volgen (shaer-p729): de tegenhanger van shaer:follows,
+  // dat over de andere richting gaat. §5.3 schrijft alleen het doorsturen voor
+  // van een Follow NAAR een ward; wat je verder gated is een keuze van de
+  // implementatie, en dit is die keuze. Verstelbaar, anders dan de inkomende
+  // kant: een kind dat ouder wordt hoort niet eeuwig te blijven vragen.
+  ensureColumn('sites', 'gate_following', 'INTEGER');     // zelf iemand volgen (shaer-p729)
   // The heavier sibling (FEP-633c 5.6): may a player from outside this app run
   // INSIDE it? A preview is a picture; playback hands the screen to a third
   // party's engine, recommendations and all. Two settings, so the guardians can
   // allow the one without the other. NULL = auto, which means off for a ward.
   ensureColumn('sites', 'external_playback', 'INTEGER');
   ensureColumn('sites', 'og_theme', 'TEXT');             // OG share-card variant: NULL=auto (follow site theme) | 'light' | 'dark'
+  // FEP-7628: former identities this actor claims (JSON array of actor URIs).
+  // Publishing them as alsoKnownAs is what lets the OLD server approve a Move
+  // of its followers to this account — the claim must be visible on OUR side.
+  ensureColumn('sites', 'ap_aliases', 'TEXT');
+  ensureColumn('sites', 'moved_to', 'TEXT');   // FEP-7628 slice 2: waarheen dit account vertrok
+  // FEP-1580: staat de ingest-routine nog open? 1 = klaar (en dat is ook de
+  // stand van een site die nooit iets gemigreerd heeft, want er hangt niets).
+  // Derden pollen op deze vlag, dus hij moet ook "er valt niets te wachten"
+  // kunnen zeggen.
+  ensureColumn('sites', 'migration_complete', 'INTEGER DEFAULT 1');
 
   // Per-post noindex + type
   ensureColumn('posts', 'noindex', 'INTEGER DEFAULT 0');
@@ -196,8 +310,11 @@ export function initializeDatabase() {
       ON playlist_tracks(playlist_id, position);
   `);
 
-  // Global app settings (key/value singleton). Includes the tenancy mode
-  // (solo = one site, hub = company site + /user/). Default = solo.
+  // Global app settings (key/value singleton). One instance is one owner, so
+  // there is no tenancy mode here anymore — see SettingsService.
+  // Oudere installaties dragen nog een dode rij key='tenancy' ('solo' of
+  // 'circle'). Niets leest hem; bewust laten staan (shaer-x7c0) in plaats van
+  // er opruimcode voor te schrijven die na één ronde zelf dood is.
   db.exec(`
     CREATE TABLE IF NOT EXISTS app_settings (
       key TEXT PRIMARY KEY,
@@ -205,7 +322,6 @@ export function initializeDatabase() {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
   `);
-  db.prepare("INSERT OR IGNORE INTO app_settings (key, value) VALUES ('tenancy', 'solo')").run();
 
   // ── Statistics (premium) — cookie-free ──────────────────────
   // stat_daily: pageview count per day per site (bare counter).
@@ -303,7 +419,44 @@ export function initializeDatabase() {
       public_pem TEXT NOT NULL,
       private_pem TEXT NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );    -- LUISTERAARS (shaer-0nh). Wie de BIBLIOTHEEK volgt, niet de actor.
+    --
+    -- Een eigen tabel en niet een vlag op ap_followers, en dat is met opzet:
+    -- deze accounts horen onze gewone posts NIET te krijgen. Zolang ze in een
+    -- andere tabel staan kan een bezorging ze niet per ongeluk meenemen -- een
+    -- vlag die iemand vergeet te filteren zou dat wel doen, en dan komt de
+    -- Krant van een site bij mensen die alleen muziek wilden.
+    CREATE TABLE IF NOT EXISTS ap_library_followers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug TEXT NOT NULL,
+      actor_uri TEXT NOT NULL,
+      inbox TEXT,
+      shared_inbox TEXT,
+      name TEXT,
+      handle TEXT,
+      icon TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      last_delivery_at DATETIME,
+      last_error_at DATETIME,
+      UNIQUE (slug, actor_uri)
     );
+
+    -- OpenWebAuth (FEP-61cf): eenmalige tokens waarmee een BEZOEKER van elders
+    -- bewijst wie hij is. Klonkt is hier de 'target instance': we hebben nooit
+    -- iemands prive-sleutel nodig, alleen zijn publieke -- dus staat hier ook
+    -- geen geheim van een ander in.
+    --
+    -- Het token is kort houdbaar (minuten, zie OpenWebAuthService) en gaat na
+    -- inwisselen meteen weg: eenmalig is de hele bedoeling. De FEP noemt de
+    -- opruiming expliciet als DoS-verdediging -- zonder vervaltijd vult iemand
+    -- deze tabel met tokens die hij nooit inwisselt.
+    CREATE TABLE IF NOT EXISTS owa_tokens (
+      token TEXT PRIMARY KEY,
+      actor_uri TEXT NOT NULL,
+      created_at INTEGER NOT NULL          -- ms sinds epoch
+    );
+    CREATE INDEX IF NOT EXISTS idx_owa_tokens_created ON owa_tokens(created_at);
+
     CREATE TABLE IF NOT EXISTS ap_followers (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       slug TEXT NOT NULL,
@@ -445,6 +598,18 @@ export function initializeDatabase() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(slug, actor_uri)
     );
+    -- Antwoorden van accounts die we volgen komen gewoon binnen, ondertekend
+    -- door de schrijver, maar horen niet in de Krant (belongsInTimeline) en
+    -- werden daarna nergens bewaard. Kwam er later een doorgestuurd antwoord OP
+    -- zo'n bericht, dan kenden we de ouder niet en wezen we het af (shaer-e9g).
+    -- Alleen de URI, geen inhoud: dit voedt uitsluitend de vraag "kennen wij dit
+    -- bericht?". Wordt na 30 dagen gesnoeid; doorsturen gebeurt kort na het
+    -- antwoord, dus langer bewaren levert niets op.
+    CREATE TABLE IF NOT EXISTS ap_seen_notes (
+      uri TEXT PRIMARY KEY,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_ap_seen_notes_age ON ap_seen_notes(created_at);
     CREATE TABLE IF NOT EXISTS ap_timeline (
       id TEXT NOT NULL,              -- the remote note's AP id
       slug TEXT NOT NULL,            -- whose home timeline (our site)
@@ -454,6 +619,49 @@ export function initializeDatabase() {
       UNIQUE(slug, id)
     );
     CREATE INDEX IF NOT EXISTS idx_ap_timeline_slug ON ap_timeline(slug, published);
+    -- canonicalReactionUri herleidt een permalink naar het object-id door op (slug, url)
+    -- te zoeken. Zonder deze index viel dat terug op idx_ap_timeline_slug, dus een scan
+    -- van elke rij van die slug. Dat gebeurt PER REACTIE in getInteractions, en de
+    -- reactie-migratie erft het in haar re-key-join, die synchroon vóór listen draait:
+    -- de opstartkosten waren reacties maal tijdlijnrijen.
+    CREATE INDEX IF NOT EXISTS idx_ap_timeline_url ON ap_timeline(slug, url);
+    -- FEP-1580: de vertaaltabel van een verhuizing. Per gemigreerd object waar
+    -- het VANDAAN kwam en welke URI het HIER kreeg. Derden lezen deze mapping en
+    -- werken er hun eigen inReplyTo/Like-verwijzingen mee bij; zonder deze tabel
+    -- is "de berichten krijgen nieuwe adressen" een permanent kapotte draad.
+    --
+    -- De spec eist omgekeerd-chronologisch op het moment dat de kopie HIER is
+    -- aangemaakt (niet de oorspronkelijke publicatiedatum). Daarom sorteren we
+    -- op de autoincrement-id en niet op created_at: die heeft secondeprecisie,
+    -- en een ingest zet er tientallen per seconde in.
+    CREATE TABLE IF NOT EXISTS ap_migration (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug TEXT NOT NULL,          -- onze site, de DOELkant van de verhuizing
+      origin TEXT NOT NULL,        -- object-URI op de broninstantie
+      target TEXT NOT NULL,        -- de URI die het object hier kreeg
+      source_actor TEXT NOT NULL DEFAULT '',
+      is_public INTEGER NOT NULL DEFAULT 1,   -- niet-publieke items horen niet in een publieke pagina
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(slug, origin)
+    );
+    CREATE INDEX IF NOT EXISTS idx_ap_migration_slug ON ap_migration(slug, id DESC);
+    -- De Move-activities zelf, gededupliceerd. FEP-1580 wil dat deze collectie
+    -- een op zichzelf staand bewijs vormt voor de items in ap_migration, met een
+    -- FEP-8b32 integrity proof van de bron-actor plus een kopie van diens
+    -- actor-document. Wij bewaren allebei die stukken al (activity_json en
+    -- actor_json), maar Klonkt kent 8b32 nog niet: zie shaer-j1v0. Zolang dat
+    -- open staat is deze collectie structureel goed en niet verifieerbaar.
+    CREATE TABLE IF NOT EXISTS ap_moves (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug TEXT NOT NULL,
+      move_id TEXT NOT NULL,       -- id van de Move-activity, tevens dedup-sleutel
+      source_actor TEXT NOT NULL,
+      target_actor TEXT NOT NULL,
+      activity_json TEXT NOT NULL,
+      actor_json TEXT,             -- inline kopie van het bron-actordocument
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(slug, move_id)
+    );
     CREATE TABLE IF NOT EXISTS ap_blocks (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       slug TEXT NOT NULL,          -- our site that set the block
@@ -641,7 +849,10 @@ export function initializeDatabase() {
     );
     CREATE INDEX IF NOT EXISTS idx_ap_reports_slug ON ap_reports(slug, created_at);
   `);
-  // "Feature" a followed account: its posts show in the local Cirkel.
+  // "Feature" a followed account: its posts show in the local Cirkel. Heet in de
+  // UI "Uitgelicht" / "Featured" (tl.autoboost), en zo heet de kolom ook in
+  // following.csv. Niet te verwarren met `featured` op de ACTOR: dat is de
+  // collectie vastgezette POSTS (toot:featured), iets heel anders.
   ensureColumn('ap_following', 'auto_boost', 'INTEGER DEFAULT 0');
   // A timeline post you boosted (🔁) — also shown in the Cirkel (mixed by date).
   ensureColumn('ap_timeline', 'boosted', 'INTEGER DEFAULT 0');
@@ -654,6 +865,11 @@ export function initializeDatabase() {
   // FEP-044f: the fediverse object THIS post quotes, resolved once at publish
   // time so buildNote (sync, also used by the outbox) needs no network.
   ensureColumn('posts', 'quote_uri', 'TEXT');     // the quoted object's id
+  // De kaart op je EIGEN post (shaer-k3f): dezelfde snapshots die ap_timeline
+  // voor binnenkomende posts draagt, maar dan voor wat je zelf publiceert --
+  // zonder deze twee kan de app een eigen post nooit als kaart tonen.
+  ensureColumn('posts', 'quote_json', 'TEXT');    // FEP-044f resolved quote snapshot
+  ensureColumn('posts', 'embed_json', 'TEXT');    // externe linkkaart (oEmbed/OG), thumbnail-only
   ensureColumn('posts', 'quote_actor', 'TEXT');   // its author, so we can address them
   ensureColumn('ap_timeline', 'embed_json', 'TEXT');       // resolved EXTERNAL embed (oEmbed/provider), thumbnail-only; gated per site (sites.external_embeds)
   ensureColumn('ap_timeline', 'author_emoji_json', 'TEXT');  // FEP-9098 custom emojis in the author's display name (shaer:author.emojis)
@@ -690,10 +906,65 @@ export function initializeDatabase() {
   ensureColumn('ap_outbox', 'visibility', 'TEXT');  // 'direct' = private mention, never Public (shaer-tqc)
   ensureColumn('ap_outbox', 'to_actors', 'TEXT');   // JSON array of recipient actor URIs for direct notes
   ensureColumn('ap_outbox', 'help_request', 'INTEGER'); // FEP-633c shaer:helpRequest (ward's call for help)
+  // Wie er op een hulpvraag af is, en wanneer hij is afgesloten (shaer-lgo).
+  // Los van ap_mentions, want dit is GEDEELDE staat: elke guardian van dit kind
+  // heeft er een kopie van, en die komt binnen als bericht van een ander. Een
+  // kolom op de mention zou alleen over onszelf gaan.
+  //
+  // OPGEPIKT mag stapelen: twee mensen die tegelijk reageren op een kind dat om
+  // hulp vraagt is geen probleem. Twee mensen die allebei niets doen omdat de
+  // ander het "geclaimd" had, wel.
+  //
+  // AFGEHANDELD kent geen terugdraai. Sluiten gebeurt met een stevige
+  // bevestiging, en leeft de vraag daarna nog, dan wordt hij opnieuw gesteld --
+  // een nieuwe hulpvraag. Zo blijft het verslag eerlijk: er wordt niets
+  // herschreven, er wordt toegevoegd.
+  db.exec(`CREATE TABLE IF NOT EXISTS ap_help_state (
+    note_uri TEXT NOT NULL,
+    guardian_uri TEXT NOT NULL,
+    kind TEXT NOT NULL,                 -- pickup | handled
+    guardian_handle TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (note_uri, guardian_uri, kind)
+  )`);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_ap_help_state_note ON ap_help_state(note_uri)');
+  // Een kind dat zelf om een poort vraagt (shaer-8ru). Een VRAAG, geen stem:
+  // pas als een guardian hem oppakt wordt het een voorstel dat langs de tally
+  // gaat. handled_at in plaats van verwijderen -- wat een kind gevraagd heeft
+  // hoort terug te vinden te zijn, ook als het antwoord nee was.
+  db.exec(`CREATE TABLE IF NOT EXISTS ap_gate_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug TEXT NOT NULL,                 -- de guardian die hem ontving
+    ward_uri TEXT NOT NULL,
+    feature TEXT NOT NULL,
+    note_uri TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    handled_at TEXT,
+    UNIQUE (slug, ward_uri, feature, handled_at)
+  )`);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_ap_gate_requests_slug ON ap_gate_requests(slug, handled_at)');
   ensureColumn('ap_mentions', 'help_request', 'INTEGER'); // inbound ward call-for-help (Guardian PWA message centre)
   ensureColumn('ap_outbox', 'wave', 'INTEGER');    // FEP-633c shaer:wave (guardian -> ward nudge)
   ensureColumn('ap_outbox', 'away_until', 'INTEGER'); // FEP-633c 3.6.1 shaer:away + endTime (epoch ms)
   ensureColumn('ap_gated_offers', 'proposer', 'TEXT'); // who proposed (5.6): the settle-answer goes back to them
+  // Zou JOUW antwoord het besluit afmaken (shaer-8vt)? De telling loopt op de
+  // server van het kind; zonder dit veld kan een guardian elders niet weten dat
+  // hij de doorslag geeft. Ontbreekt hij, dan waarschuwen we -- bij twijfel.
+  ensureColumn('ap_gated_reviews', 'decisive', 'INTEGER');
+  // Did a guardian actually say yes to this follower? That is what makes the
+  // mutual shortcut sound: a ward may follow back anyone its guardians already
+  // admitted, without asking the same question twice. Only follows that came
+  // through the §5.3 gate carry the mark; a free actor's followers never faced
+  // one. Everyone already following when this column arrives is grandfathered
+  // in (Barts besluit, 3-8): the rule is exact from that moment forward rather
+  // than retroactively suspicious of relationships that already exist.
+  {
+    const had = db.prepare("SELECT COUNT(*) AS n FROM pragma_table_info('ap_followers') WHERE name = 'gate_approved'").get();
+    ensureColumn('ap_followers', 'gate_approved', 'INTEGER DEFAULT 0');
+    if (!had || !had.n) {
+      try { db.prepare('UPDATE ap_followers SET gate_approved = 1').run(); } catch { /* table still empty on a fresh init */ }
+    }
+  }
   ensureColumn('posts', 'c2s_attachments', 'TEXT'); // media a C2S Note carried (JSON [{url,mediaType,name}]); buildNote federates them
   // 30-7: C2S posts briefly got their content media copied onto the cover,
   // which showed the same video twice on the post page. Clear the covers that
@@ -721,6 +992,114 @@ export function initializeDatabase() {
   ensureColumn('ap_followers', 'name', 'TEXT');    // cached display name (shaer-aa3)
   ensureColumn('ap_followers', 'handle', 'TEXT');  // @user@host
   ensureColumn('ap_followers', 'icon', 'TEXT');    // avatar URL
+  feedStateTriggers();
+}
+
+/**
+ * Wat er met een tijdlijn gebeurd is, op één plek (shaer-n05).
+ *
+ * De inbox-lezing voegt vier bronnen samen. De vraag "is er iets veranderd" werd
+ * eerst beantwoord met MAX(rowid) over die vier -- een TOEVALLIGE eigenschap van
+ * de tabellen, geen feit dat ergens is opgeschreven. Dat gaf precies de gebreken
+ * die je van zo'n afleiding verwacht: bewerkingen en verwijderingen bewogen hem
+ * niet, en hij kon achteruit lopen. Dezelfde fout als reacties uitlezen uit
+ * ap_timeline.liked (shaer-9e9).
+ *
+ * Nu één rij per bericht per tijdlijn, met een oplopende `rev` en `kind`. Dat
+ * beantwoordt drie vragen die anders drie eigen oplossingen zouden krijgen:
+ * is er iets veranderd sinds N, wát is er veranderd, en is dit bericht bewerkt.
+ *
+ * Bijgehouden door TRIGGERS en niet door de aanroepende code, om dezelfde reden
+ * dat er geen gebeurtenis-emitter is: een trigger zit in de database, dus geen
+ * enkel codepad kan hem vergeten. De prijs is onzichtbare logica -- wie alleen de
+ * JavaScript leest ziet niet waarom deze tabel vult. Vandaar dat ze hier staan,
+ * bij de tabel, en niet verspreid.
+ *
+ * Let op de `UPDATE OF`-kolomlijsten: die zijn niet decoratief. Een like schrijft
+ * ap_timeline.liked en een 🔁 schrijft .boosted; zonder die afbakening zou je
+ * eigen like het bericht als BEWERKT merken en elke wachtende client wekken.
+ */
+function feedStateTriggers() {
+  try {
+    db.exec(`
+      -- Tot waar jij een gesprek gelezen hebt (shaer-frontend-3tx).
+      --
+      -- Een MARKERING, geen teller: het aantal ongelezen berichten is een
+      -- COUNT over de berichten die na deze cursor komen. Een opgeslagen
+      -- getal zou opgehoogd, verlaagd en gerepareerd moeten worden, en zou
+      -- blijven staan als er iets verwijderd wordt -- badge zegt 3, er is
+      -- niets.
+      --
+      -- De cursor is samengesteld ('<stempel>|<ref>'), dezelfde vorm als de
+      -- gesprekspaginering en om dezelfde reden: twee berichten in dezelfde
+      -- seconde is bij DM's een gesprek, geen randgeval.
+      CREATE TABLE IF NOT EXISTS ap_read_markers (
+        slug TEXT NOT NULL,
+        other TEXT NOT NULL,          -- de tegenpartij (actor uri)
+        cursor TEXT NOT NULL,
+        at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (slug, other)
+      );
+      CREATE TABLE IF NOT EXISTS ap_feed_state (
+        slug TEXT NOT NULL,
+        object_uri TEXT NOT NULL,
+        rev INTEGER NOT NULL,
+        kind TEXT NOT NULL,             -- new | updated | deleted
+        at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (slug, object_uri)
+      );
+      CREATE INDEX IF NOT EXISTS idx_ap_feed_state_rev ON ap_feed_state(slug, rev);
+      -- Eén doorlopende teller voor de hele instance. Bewust niet MAX(rev) uit de
+      -- tabel zelf: verdwijnt de hoogste rij, dan zou die teruglopen en denkt een
+      -- client dat er niets gebeurd is.
+      CREATE TABLE IF NOT EXISTS ap_feed_rev (n INTEGER NOT NULL);
+    `);
+    if (!db.prepare('SELECT COUNT(*) AS n FROM ap_feed_rev').get().n) {
+      db.prepare('INSERT INTO ap_feed_rev (n) VALUES (0)').run();
+    }
+    // slug + object_uri verschillen per bron; de rest is voor alle vier gelijk.
+    const zet = (naam, gebeurtenis, tabel, slug, uri, kind, extra = '', wanneer = '') => `
+      DROP TRIGGER IF EXISTS ${naam};
+      CREATE TRIGGER ${naam} AFTER ${gebeurtenis} ON ${tabel}${wanneer ? ` WHEN ${wanneer}` : ''} BEGIN
+        UPDATE ap_feed_rev SET n = n + 1;
+        INSERT INTO ap_feed_state (slug, object_uri, rev, kind)
+          ${extra || `VALUES (${slug}, ${uri}, (SELECT n FROM ap_feed_rev), '${kind}')`}
+          ON CONFLICT(slug, object_uri) DO UPDATE
+            SET rev = excluded.rev, kind = excluded.kind, at = CURRENT_TIMESTAMP;
+      END;`;
+    const joinPosts = (uri, kind) => `
+          SELECT s.slug, ${uri}, (SELECT n FROM ap_feed_rev), '${kind}'
+            FROM posts p JOIN sites s ON s.id = p.site_id`;
+    db.exec([
+      zet('trg_feed_tl_ins', 'INSERT', 'ap_timeline', 'NEW.slug', 'NEW.id', 'new'),
+      zet('trg_feed_tl_upd', 'UPDATE OF content, media_json, nsfw, cw, url, poll_json, quote_json, embed_json', 'ap_timeline', 'NEW.slug', 'NEW.id', 'updated'),
+      zet('trg_feed_tl_del', 'DELETE', 'ap_timeline', 'OLD.slug', 'OLD.id', 'deleted'),
+      zet('trg_feed_mn_ins', 'INSERT', 'ap_mentions', 'NEW.slug', 'NEW.object_uri', 'new'),
+      zet('trg_feed_mn_upd', 'UPDATE OF content, media_json, quote_json, embed_json', 'ap_mentions', 'NEW.slug', 'NEW.object_uri', 'updated'),
+      zet('trg_feed_mn_del', 'DELETE', 'ap_mentions', 'OLD.slug', 'OLD.object_uri', 'deleted'),
+      zet('trg_feed_ob_ins', 'INSERT', 'ap_outbox', 'NEW.site_slug', 'NEW.id', 'new'),
+      zet('trg_feed_ob_upd', 'UPDATE OF content, attachments', 'ap_outbox', 'NEW.site_slug', 'NEW.id', 'updated'),
+      zet('trg_feed_ob_del', 'DELETE', 'ap_outbox', 'OLD.site_slug', 'OLD.id', 'deleted'),
+      // ap_interactions draagt geen slug: die hangt aan de POST. Vandaar de join,
+      // en vandaar dat deze drie niet in de gewone vorm passen.
+      //
+      // De WHEN op kind='reply' is nodig omdat deze tabel ook likes en announces
+      // draagt, en die schrijven object_uri = '' (zie recordInteraction). Zonder de
+      // WHEN bumpte elke inkomende like de rev, werd elke wachter gewekt en kreeg
+      // die de hele collectie opnieuw terwijl er niets aan veranderd was: precies de
+      // kosten die de 304 moest wegnemen. Bovendien belandde er dan een rij op de
+      // lege string in ap_feed_state, die feedChangesSince vervolgens uitdeelt.
+      // De oude cursor filterde hier wel op kind; bij ap_timeline is dit ook gedaan
+      // (de UPDATE OF sluit liked/boosted uit) en één tabel verder vergeten.
+      zet('trg_feed_ia_ins', 'INSERT', 'ap_interactions', '', '', '', `${joinPosts('NEW.object_uri', 'new')} WHERE p.id = NEW.post_id`, "NEW.kind = 'reply'"),
+      zet('trg_feed_ia_upd', 'UPDATE OF content, media_json, quote_json, embed_json', 'ap_interactions', '', '', '', `${joinPosts('NEW.object_uri', 'updated')} WHERE p.id = NEW.post_id`, "NEW.kind = 'reply'"),
+      zet('trg_feed_ia_del', 'DELETE', 'ap_interactions', '', '', '', `${joinPosts('OLD.object_uri', 'deleted')} WHERE p.id = OLD.post_id`, "OLD.kind = 'reply'"),
+    ].join('\n'));
+  } catch (e) {
+    // Niet fataal: zonder deze tabel valt het wachten terug op "altijd de tijd
+    // volmaken", en dat is traag maar niet stuk.
+    console.error('❌ feed-state triggers:', e.message);
+  }
 }
 
 function ensureColumn(table, column, definition) {

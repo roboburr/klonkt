@@ -199,8 +199,8 @@ export async function renderPage(req, res, viewName, data = {}) {
     canSeeBeheer,
     canManageFedi,
     apEnabled: apEnabled(),
-    // Cirkel = the artists you feature (auto-boost). Shown when AP is on and you
-    // auto-boost ≥1 account, or (legacy) on a circle-tenancy site.
+    // Cirkel = the artists you feature (auto-boost): shown when AP is on and
+    // you auto-boost at least one account.
     hasCirkel: !!(_site && apEnabled() && (ActivityPubService.autoBoostCount(_site.slug) > 0 || ActivityPubService.boostedCount(_site.slug) > 0)),
     isViewer: _isViewer,
     canMutate: !_isViewer,
@@ -212,8 +212,6 @@ export async function renderPage(req, res, viewName, data = {}) {
     audioEnabled: audioFeatureEnabled(),
     audioTracks: data.audioTracks || res.locals.audioTracks || [],
     siteUrlBase: res.locals.siteUrlBase || '',
-    tenancy: res.locals.tenancy || 'solo',
-    hubTitle: getSetting('hub_title') || '',
     footerNewsletter: getSetting('footer_newsletter') === '1', // newsletter sign-up in footer (premium)
     agendaEnabled: getSetting('agenda_enabled') === '1', // show agenda/events in the pill (premium, opt-in)
     platforms_catalog: PLATFORMS_CATALOG,
@@ -250,6 +248,11 @@ export async function renderPage(req, res, viewName, data = {}) {
       || (data.site && data.site.title) || 'Klonkt',
     appVersion: APP_VERSION,
     bodyClass: data.bodyClass || 'on-home',
+    // Welke module(s) deze pagina nodig heeft (shaer-bqr). De shell zet ze op
+    // body[data-js]; de bootstrap daar importeert ze uit /assets/js/mod/.
+    // Alleen kleine letters, cijfers, streepjes en spaties -- de naam wordt een
+    // pad.
+    pageJs: /^[a-z0-9 -]*$/.test(String(data.pageJs || '')) ? (data.pageJs || '') : '',
     socialDescr: data.socialDescr || '',
     socialImage: data.socialImage || '',
     cspNonce: () => '',
@@ -287,8 +290,12 @@ export async function renderPage(req, res, viewName, data = {}) {
       const _navAccent = (_site && _site.accent && /^#[0-9a-fA-F]{6}$/.test(_site.accent))
         ? _site.accent : '#e8b04b';
       const _navPalette = (_site && _site.palette) ? _site.palette : 'klonkt';
+      // Welke modules de nieuwe pagina wil (shaer-bqr). De bootstrap in de shell
+      // zet dit op de body en haalt op wat er nieuw bij staat; 'chrome' hoort er
+      // altijd bij, want die komt bij elke navigatie opnieuw binnen.
+      const _navJs = ('chrome ' + (locals.pageJs || '')).trim();
       const triggerJson = JSON.stringify({
-        pcmsNav: { bodyClass: locals.bodyClass, accent: _navAccent, palette: _navPalette },
+        pcmsNav: { bodyClass: locals.bodyClass, accent: _navAccent, palette: _navPalette, js: _navJs },
         pcmsPostSwap: data.post ? {
           title: data.post.title,
           slug: data.post.slug,

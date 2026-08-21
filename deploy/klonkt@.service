@@ -1,0 +1,45 @@
+#  Klonkt: one service per instance, one shared copy of the code.
+#
+#  Install as /etc/systemd/system/klonkt@.service, then start an instance with
+#  its slug:
+#
+#      systemctl enable --now klonkt@boiert
+#
+#  %i is the slug. Code is shared and read-only at runtime; everything the
+#  instance writes lives under /var/lib/klonkt/<slug>/. Adding an instance is
+#  therefore a directory plus an .env file, nothing else.
+
+[Unit]
+Description=Klonkt (%i)
+Documentation=https://github.com/roboburr/klonkt
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=klonkt
+Group=klonkt
+
+# Shared code. Never instance specific, never written to at runtime.
+WorkingDirectory=/opt/klonkt
+
+# All configuration for this instance. Port, domain, secret and the data paths
+# live here, which is what keeps instances apart.
+EnvironmentFile=/var/lib/klonkt/%i/.env
+Environment=NODE_ENV=production
+
+ExecStart=/usr/bin/node src/server.js
+Restart=always
+RestartSec=3
+
+# The whole filesystem is read-only to this process except its own data
+# directory. An instance therefore cannot write into the code, nor into another
+# instance's data, even if something goes wrong inside the app.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/klonkt/%i
+
+[Install]
+WantedBy=multi-user.target

@@ -11,6 +11,7 @@
 
 import express from 'express';
 import db from '../config/database.js';
+import { siteOpenTracks } from '../services/ActivityPubService.js';
 
 const router = express.Router();
 
@@ -42,36 +43,113 @@ function postsForFeed(siteId, limit = 30) {
 }
 
 // ==================== RSS 2.0 ====================
-router.get('/feed.xml', (req, res) => {
+/**
+ * Twee feeds, een bouwer.
+ *
+ *   /feed.xml    de site: posts EN open tracks door elkaar, chronologisch
+ *   /tracks.xml  alleen de open tracks -- de hele site als muziekkanaal
+ *
+ * WAAROM DIE TWEEDE (Robins vraag, 10-8). Hij vroeg naar een "hele site, open
+ * tracks"-library voor Funkwhale. Als AS2-object helpt zo'n ding daar niet: een
+ * Funkwhale-KANAAL wijst nergens naar een library, en hun library is een eigen
+ * actor met inbox en sleutel -- de optie die op 7 augustus is afgewezen. Maar de
+ * vorm waarin Funkwhale een kanaal WEL uitgeeft is RSS met iTunes en een
+ * enclosure per item, en dat is precies wat Klonkt hier al doet. Naast een echte
+ * kanaalfeed gelegd (audio.pepemoss.com/api/v1/channels/tnd/rss): dezelfde
+ * namespaces, dezelfde enclosure.
+ *
+ * Het enige verschil was dat onze feed ook gewone posts draagt. Een muziekkanaal
+ * met blogberichten ertussen is er geen, dus die feed staat er nu apart -- een
+ * URL om te plakken, zonder dat er iets naar buiten geduwd wordt.
+ */
+function stuurFeed(req, res, { alleenTracks }) {
   const site = res.locals.site;
   if (!site) return res.status(404).send('No site');
 
   const origin = siteOrigin(req);
   const base = origin + (res.locals.siteUrlBase || '');
-  const posts = postsForFeed(site.id);
-  const lastBuild = posts[0]?.published_at || new Date().toISOString();
+  const posts = alleenTracks ? [] : postsForFeed(site.id);
 
-  res.set('Content-Type', 'application/rss+xml; charset=utf-8');
-  res.send(`<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
-  <channel>
-    <title>${escapeXml(site.title)}</title>
-    <link>${escapeXml(base + '/')}</link>
-    <description>${escapeXml(site.description || site.tagline || '')}</description>
-    <language>${escapeXml(site.language || 'nl')}</language>
-    <lastBuildDate>${new Date(lastBuild).toUTCString()}</lastBuildDate>
-    <atom:link href="${escapeXml(base + '/feed.xml')}" rel="self" type="application/rss+xml" />
-${posts.map(p => `    <item>
+  // De tracks die deze site aan de federatie heeft opengezet, elk als eigen
+  // item met een <enclosure> (shaer-0nh). Dat laatste is wat een podcast-app
+  // zoekt: zonder enclosure is een feed voor hem leeg, hoe veel items er ook
+  // in staan -- en de actor adverteert deze feed nu juist als kanaal-feed.
+  //
+  // EEN ITEM PER TRACK, want RSS 2.0 staat maar EEN enclosure per item toe.
+  // Een album in een item proppen zou betekenen dat er van vijf nummers vier
+  // verdwijnen. Dezelfde keuze als in de outbox: de post is het bericht, de
+  // track is de publicatie.
+  //
+  // Welke tracks open zijn beslist de AP-service, niet deze route: dat is een
+  // poortregel en die hoort op een plek te staan.
+  const tracks = siteOpenTracks(site.id);
+  const lastBuild = posts[0]?.published_at || tracks[0]?.created_at || new Date().toISOString();
+
+  // De itunes-velden waar een podcast-app een kanaal aan herkent. Funkwhale
+  // bouwde onze kanaalpagina langs de RSS-kant op en liet de categorie leeg,
+  // want die leest hij hier -- niet uit `category` op de AP-actor.
+  //
+  // De categorie volgt DEZELFDE regel als daar: alleen 'Music' als er ook
+  // werkelijk publieke muziek is. Een blog zonder open track is naar buiten
+  // toe geen muziekkanaal, en gated muziek telt niet mee -- afwezig is
+  // afwezig, ook in een categorie.
+  const abs = (u) => !u ? null : (/^https?:/i.test(u) ? u : `${base}${u.startsWith('/') ? '' : '/'}${u}`);
+  const kanaalKunst = abs(site.profile_photo || site.og_image_default || null);
+  const kanaalTags = [
+    `    <itunes:author>${escapeXml(site.author || site.title || '')}</itunes:author>`,
+    site.description || site.tagline
+      ? `    <itunes:summary>${escapeXml(site.description || site.tagline)}</itunes:summary>` : null,
+    kanaalKunst ? `    <itunes:image href="${escapeXml(kanaalKunst)}" />` : null,
+    tracks.length ? '    <itunes:category text="Music" />' : null,
+  ].filter(Boolean).join('\n');
+
+  const wanneer = (d) => { const t = Date.parse(d); return Number.isNaN(t) ? 0 : t; };
+  const items = [
+    ...posts.map((p) => ({ op: wanneer(p.published_at), xml: `    <item>
       <title>${escapeXml(p.title || '(untitled)')}</title>
       <link>${escapeXml(base + '/' + p.slug)}</link>
       <guid isPermaLink="true">${escapeXml(base + '/' + p.slug)}</guid>
       <pubDate>${new Date(p.published_at).toUTCString()}</pubDate>
       <author>${escapeXml((p.author_email || 'noreply@localhost') + ' (' + p.author_username + ')')}</author>
       <description>${escapeXml(p.excerpt || '')}</description>
-    </item>`).join('\n')}
+    </item>` })),
+    ...tracks.map((t) => {
+      const fn = t.filename || (t.storage_path || '').split('/').pop();
+      // Geen <link>: Klonkt heeft geen trackpagina, en een post over vijf
+      // nummers is niet de pagina van dit ene nummer. De guid is daarom geen
+      // permalink maar de stabiele AP-id van de track.
+      return { op: wanneer(t.created_at), xml: `    <item>
+      <title>${escapeXml(t.title || 'Audio')}</title>
+      <guid isPermaLink="false">${escapeXml(`${base}/ap/users/${encodeURIComponent(site.slug)}/tracks/${encodeURIComponent(t.id)}`)}</guid>
+      <pubDate>${new Date(t.created_at || Date.now()).toUTCString()}</pubDate>
+      <description>${escapeXml(t.artist || '')}</description>
+      <enclosure url="${escapeXml(`${base}/audio/stream/${encodeURIComponent(fn)}`)}" length="${Number(t.size) || 0}" type="${escapeXml(t.mime_type || 'audio/mpeg')}" />${t.duration ? `
+      <itunes:duration>${Math.round(t.duration)}</itunes:duration>` : ''}${t.artist ? `
+      <itunes:author>${escapeXml(t.artist)}</itunes:author>` : ''}${abs(t.cover_url) ? `
+      <itunes:image href="${escapeXml(abs(t.cover_url))}" />` : ''}
+    </item>` };
+    }),
+  ].sort((a, b) => b.op - a.op).map((x) => x.xml).join('\n');
+
+  res.set('Content-Type', 'application/rss+xml; charset=utf-8');
+  res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
+  <channel>
+    <title>${escapeXml(alleenTracks ? `${site.title} \u2014 muziek` : site.title)}</title>
+    <link>${escapeXml(base + '/')}</link>
+    <description>${escapeXml(site.description || site.tagline || '')}</description>
+    <language>${escapeXml(site.language || 'nl')}</language>
+    <lastBuildDate>${new Date(lastBuild).toUTCString()}</lastBuildDate>
+    <atom:link href="${escapeXml(base + (alleenTracks ? '/tracks.xml' : '/feed.xml'))}" rel="self" type="application/rss+xml" />
+${kanaalTags}
+${items}
   </channel>
 </rss>`);
-});
+}
+
+router.get('/feed.xml', (req, res) => stuurFeed(req, res, { alleenTracks: false }));
+// De hele site als muziekkanaal: alleen wat op de federatie openstaat.
+router.get('/tracks.xml', (req, res) => stuurFeed(req, res, { alleenTracks: true }));
 
 // ==================== Atom 1.0 ====================
 router.get('/atom.xml', (req, res) => {

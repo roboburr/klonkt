@@ -1,0 +1,17 @@
+<%#
+  Servergegevens naar een module (shaer-bqr).
+
+  Een module is een statisch bestand, dus er kan geen EJS-tag in. Alles wat een
+  script van de server nodig heeft -- vertalingen, ids, instellingen -- komt
+  hierlangs, en de module leest het met pageData() uit mod/lib.js.
+
+  Waarom dit GEEN CSP-probleem is terwijl het een script-element is: een script
+  met een ander type dan JavaScript wordt niet uitgevoerd en niet opgehaald, dus
+  script-src heeft er niets over te zeggen. Het is een gegevensblok dat toevallig
+  in een script-tag staat, en het werkt daarmee ook in inhoud die via htmx
+  binnenkomt.
+
+  De kleiner-dan wordt ontsnapt: zonder dat sluit een sluitende script-tag IN de
+  gegevens dit blok voortijdig af, en dan staat de rest als HTML op de pagina.
+-%>
+<% if (typeof pageData !== 'undefined' && pageData) { %><script type="application/json" data-page-data><%- JSON.stringify(pageData).replace(/</g, '\\u003c') %></script><% } %>
