@@ -164,6 +164,19 @@ function artistCredit(base, site, creditTekst, wanneer) {
   }];
 }
 
+/**
+ * De identiteit van een track op de draad.
+ *
+ * Staat apart omdat hij op TWEE momenten nodig is die ver uit elkaar liggen:
+ * bij het bouwen van het Audio-object, en bij het verwijderen ervan, wanneer de
+ * rij al weg is en er dus niets meer te bouwen valt. Toen dit nog inline stond,
+ * kende alleen de bouwkant de vorm en ging er bij verwijderen geen Delete uit --
+ * elke server die de track had geindexeerd hield hem voor altijd (21-8).
+ */
+export function trackUri(base, site, id) {
+  return `${actorId(base, site.slug)}/tracks/${encodeURIComponent(id)}`;
+}
+
 export function buildTrackAudio(base, site, r, opts = {}) {
   const abs = (u) => !u ? null : (/^https?:/i.test(u) ? u : `${base}${u.startsWith('/') ? '' : '/'}${u}`);
   const fn = r.filename || (r.storage_path || '').split('/').pop();
@@ -186,7 +199,7 @@ export function buildTrackAudio(base, site, r, opts = {}) {
 
   const a = {
     ...(opts.standalone ? { '@context': AP_CONTEXT } : {}),
-    id: `${actorId(base, site.slug)}/tracks/${encodeURIComponent(r.id)}`,
+    id: trackUri(base, site, r.id),
     type: 'Audio',
     name: r.title || 'Audio',
     attributedTo: actorId(base, site.slug),

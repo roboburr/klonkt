@@ -36,7 +36,7 @@ export { AP_CONTEXT, actorId, noteId, guessMediaType };
 import { luisteraars } from './music/index.js';
 import { TRACK_KOLOMMEN,
   playlistOpenTracks, siteOpenTracks, openTrack, trackHostPosts,
-  buildTrackAudio, buildTrackCollection, buildTrackCreate,
+  buildTrackAudio, buildTrackCollection, buildTrackCreate, trackUri,
   buildPlaylistCollection, listPlaylistsAP, playlistLinkTags,
   buildPostTrackCollection, uitgavePost,
   buildLibrary, libraryId,
@@ -3106,24 +3106,52 @@ async function backfillNewFollower(base, slug, inbox) {
 }
 
 // Tell followers a post is gone (Delete + Tombstone) so it's removed from their feeds.
-export async function deliverDelete(site, post) {
+/**
+ * Delete(Tombstone) voor een van onze EIGEN objecten, naar alle volgers.
+ *
+ * De romp staat apart omdat een post niet het enige is dat wij de draad op
+ * sturen. Een track is een eersterangs Audio-object met een eigen id
+ * (shaer-0nh), en die werd bij verwijderen nergens aangekondigd: de rij ging
+ * weg, het object ging 404 en elke server die hem had geindexeerd hield hem
+ * voor altijd. Op de hub kwam dat op 21-8 aan het licht als een track die naar
+ * een dode URL wees.
+ *
+ * Het object-id komt van de aanroeper. Dat moet ook wel: bij verwijderen is de
+ * rij vaak al weg, dus er valt niets meer op te zoeken.
+ */
+export async function deliverObjectDelete(site, objectId) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
-  if (!base || !site || !site.slug || !post || !post.id) return;
+  if (!base || !site || !site.slug || !objectId) return;
   const followers = fStmts().list.all(site.slug);
   if (!followers.length) return;
   const inboxes = [...new Set(followers.map((f) => f.shared_inbox || f.inbox).filter(Boolean))];
   const keys = getOrCreateKeys(site.slug);
   const me = actorId(base, site.slug);
-  const nid = noteId(base, post.id);
   const del = {
     '@context': AP_CONTEXT,
-    id: `${nid}#delete-${Date.now()}-${rid()}`,
+    id: `${objectId}#delete-${Date.now()}-${rid()}`,
     type: 'Delete',
     actor: me,
     to: [PUBLIC],
-    object: { id: nid, type: 'Tombstone' },
+    object: { id: objectId, type: 'Tombstone' },
   };
   for (const inbox of inboxes) deliverWithRetry(site.slug, inbox, del, `${me}#main-key`, keys.private_pem);
+}
+
+export async function deliverDelete(site, post) {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  if (!base || !post || !post.id) return;
+  return deliverObjectDelete(site, noteId(base, post.id));
+}
+
+/**
+ * Zelfde voor een track. Roep dit aan VOOR het verwijderen van de rij, net als
+ * bij een post: daarna is `id` er nog wel maar de context niet meer.
+ */
+export async function deliverTrackDelete(site, trackId) {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  if (!base || !site || !site.slug || !trackId) return;
+  return deliverObjectDelete(site, trackUri(base, site, trackId));
 }
 
 // Tell followers an already-published post changed (Update + edited Note) so
@@ -6965,7 +6993,7 @@ export default {
   buildPlaylistCollection, playlistOpenTracks, listPlaylistsAP, playlistLinkTags,
   buildPostTrackCollection, uitgavePost,
   buildLibrary, libraryId,
-  followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
+  followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverObjectDelete, deliverTrackDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
   feedCursor, feedChangesSince, waitForFeedChange,
   getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, buildReplyNote, getOutboxNote, getSentNotes, deliverReply, resolveRemoteNote, noteAudience, mayReadNote,
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate, deliverDirectNote,

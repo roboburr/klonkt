@@ -22,6 +22,7 @@ import { requireGod } from '../middleware/auth.js';
 import { transcodeToMp3, retagMp3 } from '../services/AudioTranscoder.js';
 import { audioUrl } from '../services/AudioStreamService.js';
 import { mediaDir } from '../config/paths.js';
+import * as ActivityPubService from '../services/ActivityPubService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Audio files live OUTSIDE storage/media so the public /media static
@@ -300,6 +301,12 @@ router.post('/:id/delete', requireGod, (req, res) => {
 
   if (!track) return res.redirect('/admin/audio?error=Not+found');
 
+  // Zeg de fediverse dat de track weg is, VOOR de rij verdwijnt -- zelfde
+  // volgorde en zelfde reden als bij een post (posts.js). Zonder dit blijft
+  // elke server die hem indexeerde ernaar wijzen terwijl het object 404 geeft;
+  // op de hub stond daardoor op 21-8 een track met een dode link.
+  ActivityPubService.deliverTrackDelete(site, track.track_id).catch(() => { /* best-effort */ });
+
   db.prepare('DELETE FROM audio_tracks WHERE id = ?').run(track.track_id);
   if (track.media_id) {
     db.prepare('DELETE FROM media WHERE id = ?').run(track.media_id);
@@ -370,7 +377,13 @@ router.post('/cleanup', requireGod, (req, res) => {
     db.prepare('DELETE FROM audio_tracks WHERE id = ?').run(o.track_id);
     if (o.media_id) db.prepare('DELETE FROM media WHERE id = ?').run(o.media_id);
   });
-  for (const o of orphans) deleteOne(o);
+  for (const o of orphans) {
+    // Ook hier aankondigen. Een wees is voor ONS een track zonder bestand, maar
+    // voor de buitenwereld was het een gewoon Audio-object dat zij hebben
+    // opgeslagen; stil weggooien laat hun kopie staan.
+    ActivityPubService.deliverTrackDelete(site, o.track_id).catch(() => { /* best-effort */ });
+    deleteOne(o);
+  }
 
   res.json({ ok: true, deleted: orphans.length });
 });
