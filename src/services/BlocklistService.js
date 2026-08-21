@@ -55,7 +55,26 @@ function purgeBlocked(kind, target) {
 // Block an actor (@handle or actor URL) or a whole domain; purges their content.
 // `resolveHandle` (async handle → actor URL) is injected by the caller so this
 // service needs nothing from ActivityPubService (no circular import).
-export async function blockTarget(site, input, resolveHandle) {
+/**
+ * Een blokkade is pas een blokkade als de ander het merkt (Robin, 21-8).
+ *
+ * Tot vandaag bleef hij binnenshuis: rij in ap_blocks, inhoud opruimen, volger
+ * eruit -- en verder niets. De andere kant volgde je dan nog steeds in zijn
+ * eigen boeken en bleef je publieke outbox lezen. Precies wat de hub deed:
+ * kanaal en berichten stonden er gewoon nog. Vandaar dat we het nu ook
+ * VERSTUREN, zoals Mastodon dat doet: een Block naar de inbox van wie je
+ * blokkeert, en bij opheffen een Undo(Block) zodat de weg terug openligt.
+ *
+ * Alleen voor een actor-blokkade: een heel domein heeft geen inbox om aan te
+ * schrijven. En bezorgen mag nooit de blokkade zelf tegenhouden -- die staat
+ * al vast in de database voordat we ook maar iets proberen te versturen.
+ */
+async function meldBlokkade(site, target, kind, bezorg, undo = false) {
+  if (kind !== 'actor' || typeof bezorg !== 'function') return;
+  try { await bezorg(site, target, undo); } catch { /* de blokkade staat, de melding is een gunst */ }
+}
+
+export async function blockTarget(site, input, resolveHandle, bezorg) {
   const raw = String(input || '').trim();
   if (!site || !site.slug || !raw) return { error: 'empty' };
   let kind, target, label;
@@ -68,9 +87,17 @@ export async function blockTarget(site, input, resolveHandle) {
   blStmts().ins.run(site.slug, target, kind, label);
   purgeBlocked(kind, target);
   console.log('[AP] block', site.slug, kind, target);
+  await meldBlokkade(site, target, kind, bezorg);
   return { ok: true, label };
 }
 
-export function unblock(site, target) { blStmts().del.run(site.slug, target); return { ok: true }; }
+export async function unblock(site, target, bezorg) {
+  const rij = blStmts().list.all(site.slug).find((b) => b.target === target);
+  blStmts().del.run(site.slug, target);
+  // Undo(Block) zodat de ander weet dat de deur weer open is; zonder dit blijft
+  // hij bij zichzelf geblokkeerd staan en komt hij nooit terug.
+  await meldBlokkade(site, target, (rij && rij.kind) || 'actor', bezorg, true);
+  return { ok: true };
+}
 
 export default { listBlocks, isBlockedAny, blockTarget, unblock };

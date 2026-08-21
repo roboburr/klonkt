@@ -3599,7 +3599,7 @@ export async function ingestOutboxActivity(site, user, activity) {
         if (innerType === 'Follow') { await unfollowActor(site, innerTarget); return { status: 202, url: innerTarget }; }
         if (innerType === 'Block') {
           if (!innerTarget) return { status: 400, error: 'missing_object' };
-          unblock(site, innerTarget);   // release from Orbit
+          unblock(site, innerTarget).catch(() => {});   // release from Orbit
           return { status: 202, url: innerTarget };
         }
         if (innerType === 'Like' || innerType === 'Announce') {
@@ -6665,9 +6665,26 @@ export function isBlockedAny(actorUri) { return Blocklist.isBlockedAny(actorUri)
 
 // Block an actor (@handle or actor URL) or a whole domain; purges their content.
 // The handle resolver is ours; the storage/purge lives in BlocklistService.
-export async function blockTarget(site, input) { return Blocklist.blockTarget(site, input, webfingerResolve); }
+//
+// De BEZORGING hoort ook hier: BlocklistService kent de database, niet het
+// afleveren. Een Block gaat naar de inbox van wie je blokkeert, een
+// Undo(Block) bij het opheffen -- zonder retry-wachtrij, want een blokkade
+// wacht niet op een server die even plat ligt (en bij opheffen komt de ander
+// vanzelf weer langs).
+async function bezorgBlokkade(site, target, undo) {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  const me = actorId(base, site.slug);
+  const blok = { id: `${me}#block-${Date.now()}-${rid()}`, type: 'Block', actor: me, object: target, to: [target] };
+  const activiteit = undo
+    ? { '@context': AP_CONTEXT, id: `${me}#unblock-${Date.now()}-${rid()}`, type: 'Undo', actor: me, object: blok, to: [target] }
+    : { '@context': AP_CONTEXT, ...blok };
+  const r = await deliverToActor(site, target, activiteit);
+  console.log('[AP]', undo ? 'Undo(Block)' : 'Block', site.slug, '→', target, r && r.delivered ? 'bezorgd' : 'niet bezorgd');
+}
 
-export function unblock(site, target) { return Blocklist.unblock(site, target); }
+export async function blockTarget(site, input) { return Blocklist.blockTarget(site, input, webfingerResolve, bezorgBlokkade); }
+
+export function unblock(site, target) { return Blocklist.unblock(site, target, bezorgBlokkade); }
 
 // ── Guardianship module wiring (src/services/guardianship/) ────────
 // The module owns FEP-633c (context, relations, handshake, queues, the

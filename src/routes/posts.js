@@ -1533,7 +1533,7 @@ router.post('/blocking/add', requireSiteManager, async (req, res) => {
 
 router.post('/blocking/remove', requireSiteManager, (req, res) => {
   const site = res.locals.site;
-  if (site) { try { ActivityPubService.unblock(site, (req.body.target || '').toString()); } catch (e) { /* ignore */ } }
+  if (site) { try { ActivityPubService.unblock(site, (req.body.target || '').toString()).catch(() => {}); } catch (e) { /* ignore */ } }
   res.redirect('/blocking?success=' + encodeURIComponent('Deblokkeerd'));
 });
 

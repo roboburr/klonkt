@@ -1257,6 +1257,15 @@ router.get('/ap/notes/:id', async (req, res) => {
   // to a friends-only post (Shaer's default!) died in
   // cannot_resolve_inReplyTo. Strangers still get the exact same 404, so a
   // note's existence stays as private as before.
+  // EEN GEBLOKKEERDE KRIJGT DE DEUR DICHT (Robin, 21-8), net als bij de outbox:
+  // wie ondertekend aanklopt, klopt met zijn naam erop, en een blokkade is een
+  // gesloten deur. Dezelfde 404 als een vreemde, zodat het bestaan van een note
+  // niets extra's verraadt. Onbetekende verzoeken kunnen we niet thuisbrengen
+  // en houden de publieke weergave -- daarvoor is de Block-bezorging.
+  if (req.headers['signature']) {
+    const wie = await AP.verifyRequest(req).catch(() => null);
+    if (wie && wie.id && AP.isBlockedAny(wie.id)) return res.status(404).end();
+  }
   const post = db.prepare(
     "SELECT * FROM posts WHERE id = ? AND status = 'published'"
   ).get(req.params.id);
