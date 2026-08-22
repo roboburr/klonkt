@@ -5075,3 +5075,177 @@ body:not(.has-audio-player) #pcms-audio-player.is-hidden {
   padding: .4rem 1rem; border-radius: 999px; border: 0;
   background: var(--accent, #e8b04b); color: #1a1205;
 }
+
+/* ── Het bandje (mixtape) ──────────────────────────────────────────────
+   Zelfde familie als .post-album hierboven: dezelfde rand, dezelfde radius,
+   dezelfde papierkleur. Het verschil zit in wat je ziet draaien, niet in een
+   ander jasje -- een mixtape is een soort uitgave binnen Klonkt, geen ander
+   product.
+
+   Alles hieronder gebruikt de bestaande variabelen (--rule, --paper-2, --ink,
+   --accent), dus het volgt licht en donker en het accent van de site vanzelf. */
+.post-tape {
+    position: relative;
+    border: 1px solid var(--rule, rgba(0,0,0,.1));
+    border-radius: 14px;
+    overflow: hidden;
+    margin: 1.25rem 0;
+    background: var(--paper-2, color-mix(in srgb, var(--ink) 3%, transparent));
+}
+
+/* De cassette zelf. De verhouding is die van een echt bandje (ongeveer 10:6),
+   zodat hij ook op een telefoon als cassette leest en niet als balk. */
+.tape-shell {
+    display: grid;
+    grid-template-rows: auto auto;
+    gap: .5rem;
+    padding: .8rem .8rem .4rem;
+}
+.tape-window {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12%;
+    padding: .9rem 1.2rem;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--ink) 8%, transparent);
+    border: 1px solid var(--rule, rgba(0,0,0,.12));
+}
+/* De band tussen de spoelen. Een dun lijntje is genoeg: het gaat om de twee
+   draaiende schijven, dat is wat een cassette een cassette maakt. */
+.tape-band {
+    position: absolute;
+    left: 22%; right: 22%;
+    height: 3px;
+    background: color-mix(in srgb, var(--ink) 35%, transparent);
+    border-radius: 2px;
+}
+.tape-reel {
+    position: relative;
+    width: clamp(48px, 16vw, 76px);
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background:
+      repeating-conic-gradient(from 0deg,
+        color-mix(in srgb, var(--ink) 22%, transparent) 0deg 12deg,
+        transparent 12deg 24deg);
+    border: 2px solid color-mix(in srgb, var(--ink) 30%, transparent);
+    display: grid;
+    place-items: center;
+}
+.tape-reel-hub {
+    width: 34%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: var(--paper, #fff);
+    border: 2px solid color-mix(in srgb, var(--ink) 40%, transparent);
+}
+/* Draaien doet hij alleen als hij speelt. De animatie staat op de spoel en niet
+   op de hele cassette: het label hoort stil te blijven, anders wordt de titel
+   onleesbaar. */
+.post-tape.is-playing .tape-reel { animation: tape-spin 2.4s linear infinite; }
+.post-tape.is-playing .tape-reel--right { animation-duration: 3.2s; }
+@keyframes tape-spin { to { transform: rotate(360deg); } }
+/* Wie liever geen beweging ziet, krijgt geen beweging. De cassette blijft dan
+   gewoon staan; de statusregel eronder vertelt nog steeds wat er speelt. */
+@media (prefers-reduced-motion: reduce) {
+    .post-tape.is-playing .tape-reel { animation: none; }
+}
+
+.tape-label {
+    padding: .5rem .6rem;
+    border-radius: 8px;
+    background-size: cover;
+    background-position: center;
+    position: relative;
+}
+/* Staat er een hoes achter het label, dan moet de tekst leesbaar blijven. */
+.tape-label[style] { color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.7); }
+.tape-kind {
+    margin: 0;
+    font-size: .7rem;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    opacity: .75;
+}
+.tape-title { margin: .1rem 0 0; font-size: 1.05rem; line-height: 1.25; }
+.tape-artist { margin: .05rem 0 0; font-size: .85rem; opacity: .8; }
+.tape-meta { margin: .15rem 0 0; font-size: .75rem; opacity: .65; }
+
+/* De knoppen: terugspoelen, spelen, vooruitspoelen. Meer heeft een bandje niet,
+   en dat is de bedoeling -- er is geen zoekbalk omdat je op een cassette niet
+   kunt zoeken. */
+.tape-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .6rem;
+    padding: .3rem 0 .7rem;
+}
+.tape-btn {
+    display: grid;
+    place-items: center;
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    border: 1px solid var(--rule, rgba(0,0,0,.15));
+    background: var(--paper, #fff);
+    color: var(--ink);
+    cursor: pointer;
+    padding: 0;
+}
+.tape-btn svg { width: 18px; height: 18px; }
+.tape-btn:hover { border-color: var(--accent); color: var(--accent); }
+.tape-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tape-btn--play {
+    width: 52px; height: 52px;
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--paper, #fff);
+}
+.tape-btn--play svg { width: 22px; height: 22px; }
+/* Speelt hij, dan is dezelfde knop de pauzeknop. Twee knoppen zou een bandje
+   niet hebben. */
+.post-tape.is-playing .tape-btn--play svg path { d: path("M7 5h4v14H7zM13 5h4v14h-4z"); }
+
+.tape-now {
+    margin: 0;
+    padding: 0 .8rem .4rem;
+    text-align: center;
+    font-size: .8rem;
+    opacity: .8;
+    min-height: 1.2em;
+}
+
+/* De nummers staan er als INHOUD, niet als knoppen. Geen cursor, geen hover,
+   geen aanwijzing dat je erop kunt drukken: op een cassette kun je dat niet. */
+.tape-tracks {
+    margin: 0;
+    padding: 0 .8rem .8rem;
+    list-style: none;
+    counter-reset: tape;
+    display: grid;
+    gap: .1rem;
+}
+.tape-track {
+    counter-increment: tape;
+    display: flex;
+    gap: .5rem;
+    align-items: baseline;
+    font-size: .85rem;
+    padding: .18rem .3rem;
+    border-radius: 6px;
+    opacity: .75;
+}
+.tape-track::before {
+    content: counter(tape) ".";
+    opacity: .55;
+    min-width: 1.4em;
+    font-variant-numeric: tabular-nums;
+}
+.tape-track-title { flex: 1; }
+.tape-track-dur { opacity: .6; font-variant-numeric: tabular-nums; }
+.tape-track.is-current {
+    opacity: 1;
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+}

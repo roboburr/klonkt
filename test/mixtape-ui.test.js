@@ -95,3 +95,36 @@ test('de renderer kiest zijn label niet meer met een tweewegkeuze', () => {
     'die vorm gaf een mixtape het jasje van een album');
   assert.match(bron, /mixtape: '📼 Mixtape'/);
 });
+
+test('het bandje is een cassette, geen albumlijst', async () => {
+  const AudioEmbedService = (await import('../src/services/AudioEmbedService.js')).default;
+  const pl = {
+    id: 'tape', title: 'De Mixtape', artist: 'robo', kind: 'mixtape', cover: '',
+    tracks: [
+      { id: 't1', title: 'Kant A', artist: 'robo', url: '/a.mp3', duration: 100, cover: '' },
+      { id: 't2', title: 'Kant B', artist: 'robo', url: '/b.mp3', duration: 44, cover: '' },
+    ],
+  };
+  const html = AudioEmbedService.embedPlaylistShortcodes('<p>[[playlist:tape]]</p>', (id) => (id === 'tape' ? pl : null));
+
+  assert.match(html, /class="post-tape"/);
+  assert.match(html, /tape-reel--left/, 'twee spoelen, anders is het geen cassette');
+  assert.match(html, /tape-reel--right/);
+  assert.match(html, /data-tape-go="back"/, 'terugspoelen');
+  assert.match(html, /data-tape-go="fwd"/, 'vooruitspoelen');
+
+  // DE KERN VAN HET IDEE: de nummers staan er als inhoud, niet als knoppen.
+  // Zodra een track een speel-url draagt kun je erop prikken, en dan is het
+  // geen bandje meer maar een lijst met een cassetteplaatje erboven.
+  const lijst = html.slice(html.indexOf('<ol class="tape-tracks"'));
+  assert.doesNotMatch(lijst, /data-pcms-track-url/, 'een aanklikbaar nummer hoort hier niet');
+  assert.doesNotMatch(lijst, /<button/, 'en een knop ook niet');
+
+  // De afspeelknop leunt wel op de bestaande speler, anders bouwen we een
+  // tweede speler naast de site-speler.
+  assert.match(html, /data-pcms-album-id="album-tape"/);
+  assert.match(html, /data-pcms-track-url="\/a\.mp3"/);
+
+  // En geen albumopmaak: dat was de hele reden voor een eigen vorm.
+  assert.doesNotMatch(html, /class="post-album"/);
+});

@@ -544,8 +544,6 @@ ${trackItems}
       // De soort zoals hij is opgeslagen. Stond hier als ternair met twee
       // uitkomsten, en dan draagt een mixtape het jasje en het woord van een
       // album -- dezelfde vorm die op vier andere plekken al misging.
-      // DE SPELER IS ER NOG NIET. Een mixtape rendert voorlopig als de gewone
-      // lijst; wat hier af is, is dat hij zichzelf goed noemt.
       const kind = SOORTEN.includes(pl.kind) ? pl.kind : 'album';
       const KIND_LABEL = { album: '💿 Album', playlist: '📃 Playlist', mixtape: '📼 Mixtape' };
       const kindLabel = KIND_LABEL[kind] || KIND_LABEL.album;
@@ -630,6 +628,18 @@ ${trackItems}
     </li>`;
       }).join('\n');
 
+      // HET BANDJE HEEFT ZIJN EIGEN VORM. Een album toont een genummerde lijst
+      // waar je in kunt prikken; een cassette is juist het tegenovergestelde --
+      // je hoort wat er komt, in de volgorde waarin het is opgenomen. Alles
+      // hierboven (de wachtrij, de metaregel, de duur) is gedeeld; alleen de
+      // opmaak splitst hier.
+      if (kind === 'mixtape') {
+        return this.renderTape({
+          domId: albumDomId, id, titleH, artistH, coverH, metaLine, firstUrl,
+          albumJson, tracks: pl.tracks, isAdmin,
+        });
+      }
+
       return `<div class="post-album" id="${albumDomId}"
      data-pcms-album='${albumJson}'
      data-pcms-album-title="${titleH}"
@@ -669,6 +679,80 @@ ${trackItems}
   </ol>
 </div>`;
     });
+  }
+
+  /**
+   * Het bandje (Robins idee, 21-8).
+   *
+   * WAT HET ANDERS MAAKT DAN EEN ALBUM, en dat is de hele reden dat dit een
+   * eigen vorm heeft: bij een album prik je in een genummerde lijst en spring
+   * je naar nummer zeven. Op een cassette kan dat niet. Je spoelt vooruit of
+   * terug, en wat er komt hoor je in de volgorde waarin het is opgenomen. De
+   * lijst staat er dus wel -- je mag zien wat erop staat -- maar hij is geen
+   * knoppenrij.
+   *
+   * DE SPELER IS DE BESTAANDE SPELER. De knop hieronder draagt exact dezelfde
+   * data-attributen als de albumhoes (data-pcms-track-url + data-pcms-album-id),
+   * dus audio-player.js pakt hem op zonder dat hier iets nieuws bij komt. Vooruit
+   * en terug lopen via window.pcmsAudioPlayer.next()/prev(), en dat is meteen de
+   * reden dat spoelen per NUMMER gaat en niet per seconde: die speler denkt in
+   * een wachtrij, en een tweede speler ernaast bouwen om een band na te doen zou
+   * twee dingen tegelijk laten afspelen.
+   */
+  static renderTape({ domId, id, titleH, artistH, coverH, metaLine, firstUrl, albumJson, tracks, isAdmin }) {
+    // De nummers als tekst, niet als knoppen. Bewust geen data-pcms-track-url:
+    // een aanklikbaar nummer is precies wat een bandje niet heeft.
+    const lijst = tracks.map((t, i) => {
+      const tTitle = this.escape(t.title || ('Track ' + (i + 1)));
+      const dur = t.duration > 0
+        ? `${Math.floor(t.duration / 60)}:${String(t.duration % 60).padStart(2, '0')}`
+        : '—:—';
+      return `      <li class="tape-track" data-tape-index="${i}"><span class="tape-track-title">${tTitle}</span><span class="tape-track-dur">${dur}</span></li>`;
+    }).join('\n');
+
+    const spoel = (richting, label, pad) => `    <button type="button" class="tape-btn tape-btn--${richting}" data-tape-go="${richting}" aria-label="${label}">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">${pad}</svg>
+    </button>`;
+
+    return `<div class="post-tape" id="${domId}"
+     data-pcms-album='${albumJson}'
+     data-pcms-album-title="${titleH}"
+     data-pcms-album-kind="mixtape"
+     data-pcms-playlist-id="${this.escape(id)}">
+${isAdmin ? `  <div class="post-album-actions" role="group" aria-label="Mixtape beheren">
+    <a class="post-album-action" href="/admin/playlists?edit=${this.escape(id)}" title="Bewerk mixtape" aria-label="Bewerk mixtape">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+    </a>
+  </div>
+` : ''}  <div class="tape-shell">
+    <div class="tape-window" aria-hidden="true">
+      <span class="tape-reel tape-reel--left"><span class="tape-reel-hub"></span></span>
+      <span class="tape-band"></span>
+      <span class="tape-reel tape-reel--right"><span class="tape-reel-hub"></span></span>
+    </div>
+    <div class="tape-label"${coverH ? ` style="background-image:url('${coverH}')"` : ''}>
+      <p class="tape-kind">📼 Mixtape</p>
+      <h3 class="tape-title">${titleH}</h3>
+      ${artistH ? `<p class="tape-artist">${artistH}</p>` : ''}
+      <p class="tape-meta">${metaLine}</p>
+    </div>
+  </div>
+  <div class="tape-controls" role="group" aria-label="Bandje bedienen">
+${spoel('back', 'Terugspoelen', '<path d="M11 12l9-7v14zM2 12l9-7v14z"/>')}
+    <button type="button" class="tape-btn tape-btn--play"
+            data-pcms-track-url="${firstUrl}"
+            data-pcms-album-id="${domId}"
+            data-tape-play
+            aria-label="Afspelen">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 4l12 8-12 8z"/></svg>
+    </button>
+${spoel('fwd', 'Vooruitspoelen', '<path d="M13 12L4 5v14zM22 12l-9-7v14z"/>')}
+  </div>
+  <p class="tape-now" data-tape-now aria-live="polite"></p>
+  <ol class="tape-tracks">
+${lijst}
+  </ol>
+</div>`;
   }
 
   /**

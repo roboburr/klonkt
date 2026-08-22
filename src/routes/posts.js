@@ -254,7 +254,7 @@ router.get('/', (req, res) => {
     socialDescr: site.description || site.tagline || '',
     bodyClass: 'on-home',
     // mod/read.js: alleen nog de tik-op-een-bericht in de leesweergave.
-    pageJs: 'read',
+    pageJs: 'read tape',
   });
 });
 
@@ -1694,7 +1694,7 @@ router.get('/:slug', (req, res, next) => {
   const siteAvatar = (site && site.profile_photo) ? site.profile_photo : null;
 
   renderPage(req, res, 'pages/post', {
-    pageJs: 'post reply-editor',
+    pageJs: 'post reply-editor tape',
     post,
     poll: ActivityPubService.ownPollView(post),
     newerPost,
