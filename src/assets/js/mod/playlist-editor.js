@@ -122,6 +122,7 @@ function T(sleutel) {
                   <select id="pli-kind">
                     <option value="album"    ${initial.kind === 'album' ? 'selected' : ''}>💿 ${T('k_album')}</option>
                     <option value="playlist" ${initial.kind === 'playlist' ? 'selected' : ''}>📃 ${T('k_playlist')}</option>
+                    <option value="mixtape"  ${initial.kind === 'mixtape' ? 'selected' : ''}>📼 ${T('k_mixtape')}</option>
                   </select>
                 </label>
                 <label class="pl-field pl-uitgave">
@@ -196,8 +197,11 @@ function T(sleutel) {
     // afspeellijst -- dat is wat de keuze album/playlist betekent. Ze
     // verdwijnen dus als je omschakelt, en de server maakt ze dan ook leeg;
     // dit scherm is de uitleg, niet de bewaking.
+    // ALLEEN een album, en niet "alles behalve playlist". Dat stond er eerst, en
+    // met een derde soort erbij zou een mixtape ineens uitgavevelden tonen die
+    // de server toch weggooit -- een scherm dat iets anders belooft dan het doet.
     const toonUitgave = () => {
-      const album = kindEl.value !== 'playlist';
+      const album = kindEl.value === 'album';
       for (const el of backdrop.querySelectorAll('.pl-uitgave')) el.hidden = !album;
     };
     kindEl.addEventListener('change', toonUitgave);
@@ -419,7 +423,11 @@ function T(sleutel) {
         artist: artistEl.value.trim(),
         year:   parseInt(yearEl.value, 10) || 0,
         cover:  coverEl.value.trim(),
-        kind:   kindEl.value === 'playlist' ? 'playlist' : 'album',
+        // De waarde zelf. Deze regel was `=== 'playlist' ? 'playlist' : 'album'`,
+        // en dat is precies de vorm die een nieuwe soort niet afwijst maar
+        // opslokt: een mixtape werd hier stil een album. De server heeft het
+        // laatste woord via normKind().
+        kind:   kindEl.value,
         release_date:  releaseEl.value.trim(),
         mb_release_id: mbReleaseEl.value.trim(),
         tracks: selected.slice(),

@@ -41,6 +41,11 @@ const _csrf = (typeof csrfToken !== 'undefined' && csrfToken) || '';
       // Pre-fetch loop labels (defensive — keep `t` calls out of the loop body).
       var _aplPlaylist = t('apl.pill_playlist');
       var _aplAlbum    = t('apl.pill_album');
+      var _aplMixtape  = t('apl.pill_mixtape');
+      // Een soort met een eigen teken en een eigen woord. De ternair die hier
+      // stond kende er maar twee, en toonde een mixtape dus als album.
+      var _aplTeken = { album: '💿', playlist: '📃', mixtape: '📼' };
+      var _aplWoord = { album: _aplAlbum, playlist: _aplPlaylist, mixtape: _aplMixtape };
       var _aplTrack    = t('apl.track');
       var _aplTracks   = t('apl.tracks');
       var _aplCopy     = t('apl.copy_click');
@@ -51,13 +56,13 @@ const _csrf = (typeof csrfToken !== 'undefined' && csrfToken) || '';
       <% playlists.forEach(function(p) { %>
         <li class="ax-track" data-id="<%= p.id %>">
           <div class="ax-track-cover" <%- p.cover ? `style="background-image:url('${p.cover}'); background-size:cover; background-position:center"` : '' %>>
-            <% if (!p.cover) { %><span><%= p.kind === 'playlist' ? '📃' : '💿' %></span><% } %>
+            <% if (!p.cover) { %><span><%= _aplTeken[p.kind] || _aplTeken.album %></span><% } %>
           </div>
 
           <div class="ax-track-meta">
             <div class="ax-track-title">
               <%= p.title %>
-              <span class="ax-pill"><%= p.kind === 'playlist' ? '📃 ' + _aplPlaylist : '💿 ' + _aplAlbum %></span>
+              <span class="ax-pill"><%= (_aplTeken[p.kind] || _aplTeken.album) + ' ' + (_aplWoord[p.kind] || _aplAlbum) %></span>
             </div>
             <div class="ax-track-sub">
               <span><%= p.track_count %> <%= p.track_count === 1 ? _aplTrack : _aplTracks %></span>
