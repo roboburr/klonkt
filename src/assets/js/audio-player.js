@@ -26,6 +26,9 @@
     next:  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 5v14M4 5l11 7-11 7V5z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     vol:   '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9H3zM16 8a5 5 0 010 8M19 5a9 9 0 010 14" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     mute:  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9H3zM17 9l5 5M22 9l-5 5" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    // Dubbele driehoeken: het teken voor spoelen, niet voor overslaan.
+    rew:   '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 12l9-7v14zM2 12l9-7v14z" fill="currentColor"/></svg>',
+    ff:    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 12L4 5v14zM22 12l-9-7v14z" fill="currentColor"/></svg>',
     musicNote: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 17V5l12-2v12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="17" r="3" fill="currentColor"/><circle cx="18" cy="15" r="3" fill="currentColor"/></svg>',
   };
 
@@ -127,6 +130,10 @@
   const playBtn = $('audio-play');
   const prevBtn = $('audio-prev');
   const nextBtn = $('audio-next');
+  // De vier knoppen die in bandmodus van betekenis veranderen: vorige/volgende
+  // worden terugspoelen/vooruitspoelen. Ze staan hier bij elkaar zodat het
+  // omzetten op EEN plek gebeurt.
+  const SPOELKNOPPEN = ['audio-prev', 'audio-next', 'audio-sheet-prev', 'audio-sheet-next'];
   const muteBtn = $('audio-mute');
   const volumeSlider = $('audio-volume');
   const expandTrigger = $('audio-expand-trigger');
@@ -490,12 +497,40 @@
     return { cur: audio.currentTime || 0, dur: audio.duration };
   }
 
+  // De lengte van de hele band, uit de bekende trackduren. Null zodra er van
+  // een nummer geen duur bekend is: een som met gaten is een verzonnen getal,
+  // en dan valt de teller liever terug op wat hij wel zeker weet.
+  function bandDuur() {
+    if (!queue.length) return null;
+    let som = 0;
+    for (const t of queue) {
+      const d = Number(t && t.duration) || 0;
+      if (d <= 0) return null;
+      som += d;
+    }
+    return som;
+  }
+
+  /** Hoeveel band ligt er voor nummer `i`. */
+  function bandOffset(i) {
+    let som = 0;
+    for (let n = 0; n < i && n < queue.length; n++) som += Number(queue[n].duration) || 0;
+    return som;
+  }
+
   function displayTimes() {
-    // Een bandje heeft een teller, geen nummerpositie: hij telt door over de
-    // kant heen. Dat is letterlijk de ketentijdlijn, dus hier juist NIET
-    // terugrekenen naar trackcoordinaten.
-    if (tapeMode && useMse() && chain.length) {
-      return { cur: audio.currentTime || 0, dur: chain[chain.length - 1].end };
+    // EEN BANDJE HEEFT EEN TELLER, geen nummerpositie. Hij telt door over de
+    // kant heen.
+    //
+    // Uit de trackduren en niet uit de keten, en dat verschil is zichtbaar: de
+    // keten bevat alleen wat gebufferd is, dus het totaal groeide mee tijdens
+    // het luisteren (2:05 met een nummer geladen, 4:07 met drie). En sprong je
+    // naar nummer drie, dan begon de keten daar opnieuw op nul en stond de
+    // teller weer aan het begin van de band.
+    if (tapeMode) {
+      const totaal = bandDuur();
+      if (totaal) return { cur: bandOffset(currentIndex) + (trackTijd().cur || 0), dur: totaal };
+      if (useMse() && chain.length) return { cur: audio.currentTime || 0, dur: chain[chain.length - 1].end };
     }
     return trackTijd();
   }
@@ -620,6 +655,7 @@
     queue = Array.isArray(tracks) ? tracks.slice() : [];
     albumName = (opts && opts.albumName) || '';
     tapeMode = !!(opts && opts.asTape);
+    zetKnopStanden();
     if (!queue.length) return;
     loadTrack(typeof startIdx === 'number' ? Math.max(0, Math.min(startIdx, queue.length - 1)) : 0, true);
     // Mobile: a track press from an album/playlist auto-opens the full
@@ -680,6 +716,7 @@
     queue = [];
     albumName = '';
     tapeMode = false;
+    zetKnopStanden();
     loadSeq++;  // cancel any in-flight load
     dropPreload();
     teardownChain();
@@ -699,6 +736,11 @@
                   + (t.artist ? `<span class="aqi-artist">${escapeHtml(t.artist)}</span>` : '');
       sheetQueueList.appendChild(li);
     });
+    // OP EEN BANDJE KIES JE NIET. De lijst blijft staan -- je mag zien wat
+    // erop staat -- maar zonder klik en zonder de opmaak die belooft dat het
+    // kan. Dat is hetzelfde onderscheid als bij de cassette in de post.
+    sheetQueueList.classList.toggle('is-tape', tapeMode);
+    if (tapeMode) return;
     sheetQueueList.querySelectorAll('.audio-sheet-queue-item').forEach((li) => {
       li.addEventListener('click', () => {
         const idx = parseInt(li.dataset.idx, 10);
@@ -882,11 +924,43 @@
   // 6. Control wiring
   // ============================================================
   playBtn.addEventListener('click', togglePlay);
-  prevBtn.addEventListener('click', prev);
-  nextBtn.addEventListener('click', next);
+  /**
+   * De vier knoppen in de juiste stand zetten. In bandmodus zijn het
+   * spoelknoppen: ander teken, ander woord, en vasthouden spoelt door.
+   */
+  function zetKnopStanden() {
+    for (const id of SPOELKNOPPEN) {
+      const b = $(id);
+      if (!b) continue;
+      const vooruit = id.endsWith('next');
+      b.innerHTML = tapeMode ? (vooruit ? SVG.ff : SVG.rew) : (vooruit ? SVG.next : SVG.prev);
+      const label = tapeMode ? (vooruit ? 'Vooruitspoelen' : 'Terugspoelen') : (vooruit ? 'Volgende' : 'Vorige');
+      b.setAttribute('aria-label', label);
+      b.setAttribute('title', label);
+      b.classList.toggle('is-wind', tapeMode);
+    }
+  }
+
+  // Een KLIK: een nummer verder, of in bandmodus een stukje spoelen. Dat laatste
+  // is er voor toetsenbord en schermlezer, want vasthouden is met een
+  // spatiebalk geen gebaar.
+  const TIK_SPOEL_S = 5;
+  prevBtn.addEventListener('click', () => (tapeMode ? seekBy(-TIK_SPOEL_S) : prev()));
+  nextBtn.addEventListener('click', () => (tapeMode ? seekBy(TIK_SPOEL_S) : next()));
   sheetPlay.addEventListener('click', togglePlay);
-  sheetPrev.addEventListener('click', prev);
-  sheetNext.addEventListener('click', next);
+  sheetPrev.addEventListener('click', () => (tapeMode ? seekBy(-TIK_SPOEL_S) : prev()));
+  sheetNext.addEventListener('click', () => (tapeMode ? seekBy(TIK_SPOEL_S) : next()));
+
+  // VASTHOUDEN spoelt door. Op de knop zelf indrukken, maar loslaten op
+  // document: glijdt je vinger van de knop af, dan hoort de band te stoppen en
+  // niet door te blijven spoelen.
+  for (const id of SPOELKNOPPEN) {
+    const b = $(id);
+    if (!b) continue;
+    b.addEventListener('pointerdown', () => { if (tapeMode) startWind(id.endsWith('next') ? 1 : -1); });
+  }
+  document.addEventListener('pointerup', stopWind);
+  document.addEventListener('pointercancel', stopWind);
 
   // ============================================================
   // 7. Sheet expand/close + drag-down-to-close
@@ -1198,12 +1272,53 @@
     try { audio.currentTime = Math.max(0, nu + d); } catch (e) {}
   }
 
+  /**
+   * SPOELEN, met de knop ingedrukt.
+   *
+   * Stond eerst in assets/js/mod/tape.js, want daar zat de cassette. Nu de
+   * speler zelf ook spoelknoppen krijgt zou dezelfde lus op twee plekken staan,
+   * en dan lopen ze uit elkaar zodra iemand aan de versnelling draait. Hier is
+   * de enige plek; de cassette op de pagina roept deze aan.
+   */
+  const WIND_START = 4;        // maal de normale snelheid bij het indrukken
+  const WIND_MAX = 16;
+  const WIND_VERSNELLING = 1.35;
+  const WIND_STAP_MS = 120;
+  let winder = null;
+
+  function stopWind() {
+    if (winder) { clearInterval(winder.timer); winder = null; }
+  }
+
+  function startWind(richting) {
+    stopWind();
+    const r = richting < 0 ? -1 : 1;
+    let snelheid = WIND_START;
+    let vorige = null;
+    let stil = 0;
+    const timer = setInterval(() => {
+      snelheid = Math.min(WIND_MAX, snelheid * WIND_VERSNELLING);
+      seekBy(r * snelheid * (WIND_STAP_MS / 1000));
+      // AAN DE KOP EN DE STAART STOPPEN. De positie wordt afgeklemd, dus daar
+      // gebeurt niets meer -- maar zonder deze controle blijft de knop malen en
+      // draaien de spoelen door alsof er nog band is.
+      const nu = displayTimes().cur;
+      if (vorige !== null && Math.abs(nu - vorige) < 0.05) {
+        if (++stil >= 2) { stopWind(); return; }
+      } else stil = 0;
+      vorige = nu;
+    }, WIND_STAP_MS);
+    winder = { timer, richting: r };
+  }
+
   /** Waar staat de teller, over het hele bandje. */
   function tapeTijden() { return displayTimes(); }
 
   window.pcmsAudioPlayer = {
     setQueue, play, pause, next, prev, close, openSheet, closeSheet, seekBy, tapeTijden,
+    startWind, stopWind,
     isTape: () => tapeMode,
+    isWinding: () => !!winder,
     isPlaying: () => isPlaying,
     currentTrack: () => queue[currentIndex] || null,
   };
@@ -1251,6 +1366,7 @@
     queue = s.queue;
     albumName = s.albumName || '';
     tapeMode = !!s.tapeMode;
+    zetKnopStanden();
     pendingSeek = s.time || 0;
     const idx = Math.max(0, Math.min(s.currentIndex || 0, queue.length - 1));
     // playing → fetch + (attempt to) resume; paused → meta-only.

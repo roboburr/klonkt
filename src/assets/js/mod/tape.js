@@ -14,6 +14,10 @@
  * die tijdlijn. Vandaar seekBy() en niet next()/prev() -- springen per nummer
  * is een playlistgebaar, en dan is dit een lijst met een cassetteplaatje.
  *
+ * DE SPOELLUS STAAT IN DE SPELER, niet hier: sinds de speler onderin dezelfde
+ * spoelknoppen heeft zou dezelfde versnelling op twee plekken staan. Deze
+ * module bedient hem en tekent het jasje.
+ *
  * WAAROM ER GEPOLLD WORDT. audio-player.js zendt geen gebeurtenissen uit -- het
  * is een gesloten module met een klein oppervlak (setQueue, play, pause, next,
  * prev, isPlaying, currentTrack). Liever hier vijf keer per seconde kijken dan
@@ -55,6 +59,11 @@ function tekenBand(tape) {
 
   tape.classList.toggle('is-playing', draait);
   tape.classList.toggle('is-loaded', i >= 0);
+  // Spoelt de SPELER (bijvoorbeeld via zijn eigen knoppen onderin), dan hoort
+  // deze cassette dat ook te laten zien.
+  const windt = i >= 0 && !!p && p.isWinding && p.isWinding();
+  if (!windt) tape.classList.remove('is-winding', 'is-winding-back');
+  else tape.classList.add('is-winding');
 
   const knop = tape.querySelector('[data-tape-play]');
   if (knop) {
@@ -90,43 +99,24 @@ function tekenAlles() {
  * Een korte TIK spoelt een klein stukje -- dat is er voor toetsenbord en
  * schermlezer, want vasthouden is met een spatiebalk geen gebaar.
  */
-const START_SNELHEID = 4;    // maal de normale snelheid bij het indrukken
-const MAX_SNELHEID = 16;
-const VERSNELLING = 1.35;    // per stap
-const STAP_MS = 120;
 const TIK_STAP_S = 5;        // een losse klik
 
-let winder = null;
-
 function stopWinden(tape) {
-  if (winder) { clearInterval(winder.timer); winder = null; }
+  const p = speler();
+  if (p && p.stopWind) p.stopWind();
   if (tape) tape.classList.remove('is-winding', 'is-winding-back');
 }
 
 function startWinden(tape, richting) {
   const p = speler();
-  if (!p || huidigeIndex(tape) < 0) return;
-  stopWinden(tape);
-  let snelheid = START_SNELHEID;
-  let vorigePositie = null;
-  let stil = 0;
+  if (!p || !p.startWind || huidigeIndex(tape) < 0) return;
+  // DE LUS STAAT IN DE SPELER. Hij stond hier, en toen kreeg de speler zelf ook
+  // spoelknoppen -- twee kopieen van dezelfde versnelling die uit elkaar lopen
+  // zodra iemand aan een getal draait. Deze module zet alleen nog het jasje:
+  // welke spoelen draaien en hoe hard.
+  p.startWind(richting);
   tape.classList.add('is-winding');
   if (richting < 0) tape.classList.add('is-winding-back');
-  const timer = setInterval(() => {
-    snelheid = Math.min(MAX_SNELHEID, snelheid * VERSNELLING);
-    p.seekBy(richting * snelheid * (STAP_MS / 1000));
-    tekenBand(tape);
-    // AAN HET EIND VAN DE BAND STOPPEN MET SPOELEN. De speler klemt de positie
-    // af, dus daar gebeurt niets meer -- maar de spoelen bleven wel doordraaien
-    // en de knop bleef oplichten, alsof er nog band was. Beweegt de teller twee
-    // rondes niet, dan zijn we bij de kop of de staart.
-    const nu = p.tapeTijden ? p.tapeTijden().cur : null;
-    if (nu !== null && vorigePositie !== null && Math.abs(nu - vorigePositie) < 0.05) {
-      if (++stil >= 2) { stopWinden(tape); return; }
-    } else stil = 0;
-    vorigePositie = nu;
-  }, STAP_MS);
-  winder = { timer, tape };
 }
 
 function opPointerDown(e) {

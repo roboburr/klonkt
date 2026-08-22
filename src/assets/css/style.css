@@ -5234,3 +5234,27 @@ body:not(.has-audio-player) #pcms-audio-player.is-hidden {
     opacity: 1;
     background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
+
+
+/* ── De speler in bandmodus ────────────────────────────────────────────
+   Zelfde speler, ander gedrag: op een cassette kies je geen nummer. De lijst
+   blijft staan zodat je ziet wat erop staat, maar zonder de opmaak die belooft
+   dat je erin kunt prikken. */
+.audio-sheet-queue-list.is-tape .audio-sheet-queue-item {
+    cursor: default;
+    pointer-events: none;
+}
+.audio-sheet-queue-list.is-tape .audio-sheet-queue-item:hover {
+    background: none;
+}
+/* Het lopende nummer blijft wel gemarkeerd -- dat is de enige plek waar je op
+   een bandje leest waar je bent. */
+.audio-sheet-queue-list.is-tape .audio-sheet-queue-item.is-current {
+    opacity: 1;
+}
+/* Spoelknoppen mogen niet als "volgende" voelen: vasthouden hoort geen tekst te
+   selecteren of de pagina te laten zoomen. */
+.audio-btn.is-wind {
+    touch-action: manipulation;
+    user-select: none;
+}

@@ -561,6 +561,11 @@ ${trackItems}
         title:  t.title,
         artist: t.artist || pl.artist || '',
         cover:  t.cover  || pl.cover  || '',
+        // De duur gaat mee omdat een BANDJE een lengte heeft. Zonder dit kan de
+        // speler alleen de gebufferde keten optellen, en dan las de teller
+        // 2:05 met een nummer geladen en 4:07 met drie -- een totaal dat
+        // meegroeit terwijl je luistert.
+        duration: Number(t.duration) || 0,
       }));
       const albumJson = JSON.stringify(tracksData)
         .replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/</g, '&lt;');

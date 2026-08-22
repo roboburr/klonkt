@@ -209,3 +209,38 @@ test('aan het eind van de band gaat de stream dicht', () => {
   assert.match(speler, /const laatsteVanDeBand = tapeMode && qIndex >= queue\.length - 1;/);
   assert.match(speler, /if \(\(queue\.length === 1 \|\| laatsteVanDeBand\) && ms && ms\.readyState === 'open'\)/);
 });
+
+test('de speler-UI schakelt mee in bandmodus (shaer-tmyn)', () => {
+  const speler = fs.readFileSync('src/assets/js/audio-player.js', 'utf8');
+
+  // 1. De tracklijst blijft staan maar is geen keuzelijst meer.
+  assert.match(speler, /sheetQueueList\.classList\.toggle\('is-tape', tapeMode\);\s*\n\s*if \(tapeMode\) return;/,
+    'zonder deze return kun je op een cassette alsnog naar nummer zeven springen');
+
+  // 2. Vorige/volgende worden terugspoelen/vooruitspoelen, op EEN plek geregeld.
+  assert.match(speler, /function zetKnopStanden\(\)/);
+  assert.match(speler, /'Vooruitspoelen' : 'Terugspoelen'/);
+  // en vasthouden spoelt door
+  assert.match(speler, /addEventListener\('pointerdown', \(\) => \{ if \(tapeMode\) startWind/);
+
+  // 3. De spoellus staat in de speler, niet meer in de module -- anders lopen
+  //    twee kopieen van dezelfde versnelling uit elkaar.
+  assert.match(speler, /function startWind\(richting\)/);
+  const mod = fs.readFileSync('src/assets/js/mod/tape.js', 'utf8');
+  assert.doesNotMatch(mod, /VERSNELLING/, 'de versnelling hoort niet meer in de module te staan');
+  assert.match(mod, /p\.startWind\(richting\)/, 'de cassette bedient de gedeelde lus');
+});
+
+test('de bandteller komt uit de trackduren, niet uit de buffer', () => {
+  const speler = fs.readFileSync('src/assets/js/audio-player.js', 'utf8');
+  assert.match(speler, /function bandDuur\(\)/);
+  assert.match(speler, /function bandOffset\(i\)/);
+  // Een som met gaten is een verzonnen getal: ontbreekt er een duur, dan valt
+  // hij terug in plaats van te gokken.
+  assert.match(speler, /if \(d <= 0\) return null;/);
+
+  // En de duur moet mee in de wachtrij, anders kan de speler het niet weten.
+  const embed = fs.readFileSync('src/services/AudioEmbedService.js', 'utf8');
+  assert.match(embed, /duration: Number\(t\.duration\) \|\| 0,/,
+    'zonder dit las de teller de lengte van wat toevallig gebufferd was');
+});
