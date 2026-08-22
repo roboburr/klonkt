@@ -36,7 +36,7 @@ export { AP_CONTEXT, actorId, noteId, guessMediaType };
 import { luisteraars } from './music/index.js';
 import { TRACK_KOLOMMEN,
   playlistOpenTracks, siteOpenTracks, openTrack, trackHostPosts,
-  buildTrackAudio, buildTrackCollection, buildTrackCreate, trackUri,
+  buildTrackAudio, buildTrackCollection, buildTrackCreate, trackUri, buildMixtapeObject, postMusicType,
   buildPlaylistCollection, listPlaylistsAP, playlistLinkTags,
   buildPostTrackCollection, uitgavePost,
   buildLibrary, libraryId,
@@ -793,6 +793,28 @@ export function buildNote(base, site, post, opts = {}) {
       if (x.poster) a.icon = { type: 'Image', url: x.poster }; // the video's still (shaer-zowq)
       return a; });
   for (const a of openAudio) attachment.push(a); // fedi_open tracks → native Audio players
+
+  // HET BANDJE OP DE DRAAD. Zonder dit stuk bestaat `Mixtape` alleen in onze
+  // eigen code: de playlist-collectie blijft namelijk een OrderedCollection
+  // (dat moet, anders verliest een lezer die `type` als tekst uitpakt het hele
+  // object), en dan zegt niets naar buiten toe ooit dat dit een cassette is.
+  // Gemeten op 21-8: in de Note van een mixtape-post kwam het woord Mixtape
+  // niet voor, en de hub gooide zo'n bandje daarom stil weg.
+  //
+  // Als bijlage en niet als het object zelf: de post blijft een Note, zodat
+  // Mastodon en alles wat `Mixtape` niet kent gewoon een bericht met audio
+  // ziet. Wie het type wel kent, vindt het bandje als geheel.
+  try {
+    const soort = postMusicType(post.content || '', site.id);
+    if (soort && soort.type === 'mixtape' && soort.collectie && soort.collectie.id) {
+      const pl = db.prepare('SELECT * FROM playlists WHERE id = ? AND site_id = ?')
+        .get(soort.collectie.id, site.id);
+      if (pl) {
+        const tape = buildMixtapeObject(base, site, { ...pl, _post: post }, playlistOpenTracks(pl.id));
+        if (tape) attachment.push(tape);
+      }
+    }
+  } catch { /* een bandje minder is geen kapotte post */ }
 
   // Inline @user@host mentions: the Mention tag objects + the mentioned actor URIs. Only
   // present when the content was already mention-linked (deliverCreate/Update resolve them
