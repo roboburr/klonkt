@@ -85,7 +85,9 @@ test('een ingesloten mixtape noemt zich mixtape en geen album', async () => {
   // van een post. De vorige versie van deze test riep een methode aan die niet
   // bestaat en sloeg zichzelf dan over -- groen zonder iets te meten.
   const html = AudioEmbedService.embedPlaylistShortcodes('<p>[[playlist:tape]]</p>', (id) => (id === 'tape' ? pl : null));
-  assert.match(html, /📼 Mixtape/, 'een mixtape hoort zichzelf zo te noemen');
+  // Het teken zat eerst in de tekst; nu staat er een echte cassette getekend en
+  // is het woord genoeg. De eis blijft dezelfde: hij noemt zichzelf goed.
+  assert.match(html, /class="tape-kind">Mixtape</, 'een mixtape hoort zichzelf zo te noemen');
   assert.doesNotMatch(html, /💿 Album/, 'en niet het jasje van een album te dragen');
 });
 
@@ -127,4 +129,39 @@ test('het bandje is een cassette, geen albumlijst', async () => {
 
   // En geen albumopmaak: dat was de hele reden voor een eigen vorm.
   assert.doesNotMatch(html, /class="post-album"/);
+});
+
+test('de cassetteknop staat in de selectorlijst van de speler', () => {
+  // DIT IS DE TEST DIE ONTBRAK. De markup-tests hierboven waren groen terwijl
+  // op de knop drukken niets deed: audio-player.js kiest zijn knoppen met een
+  // lijst met KLASSENAMEN, niet met een regel over data-attributen. Alle juiste
+  // data-pcms-* dragen helpt dan niets.
+  const speler = fs.readFileSync('src/assets/js/audio-player.js', 'utf8');
+  const m = speler.match(/const PLAY_SELECTOR =\s*\n?\s*'([^']+)'/);
+  assert.ok(m, 'PLAY_SELECTOR moet te vinden zijn -- is hij hernoemd, dan dekt deze test niets meer');
+  assert.match(m[1], /\.tape-btn--play/,
+    'zonder deze klasse doet de afspeelknop van het bandje niets');
+});
+
+test('een bandje gaat als EEN object de speler in', () => {
+  const speler = fs.readFileSync('src/assets/js/audio-player.js', 'utf8');
+  // De stand moet vanaf het blok worden doorgegeven; zonder dit is een mixtape
+  // in de speler gewoon weer een rij nummers.
+  assert.match(speler, /asTape: album\.dataset\.pcmsAlbumKind === 'mixtape'/);
+  // En hij moet een paginawissel overleven, anders valt de speler halverwege
+  // terug op de nummertitel.
+  assert.match(speler, /queue, currentIndex, albumName, tapeMode,/, 'in de sessie opslaan');
+  assert.match(speler, /tapeMode = !!s\.tapeMode;/, 'en terugzetten');
+  // De opgeslagen tijd is de positie BINNEN het nummer, ook in bandmodus: bij
+  // herstellen begint de keten opnieuw. Slaat hij de bandteller op, dan springt
+  // een hersteld bandje naar een plek die in dat nummer niet bestaat.
+  assert.match(speler, /time: trackTijd\(\)\.cur \|\| 0,/);
+});
+
+test('spoelen gaat in seconden, niet per nummer', () => {
+  const mod = fs.readFileSync('src/assets/js/mod/tape.js', 'utf8');
+  assert.match(mod, /seekBy\(/, 'spoelen hoort over de tijdlijn te gaan');
+  // next()/prev() mag hier niet meer voorkomen als spoelgebaar: dat is een
+  // playlistknop en maakt van de cassette een lijst met een plaatje.
+  assert.doesNotMatch(mod, /p\.next\(\); else p\.prev\(\)/, 'de oude sprong per nummer');
 });

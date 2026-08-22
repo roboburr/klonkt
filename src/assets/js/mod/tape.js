@@ -6,11 +6,13 @@
  * sessie die een paginawissel overleeft. Een tweede speler ernaast bouwen om
  * een bandgevoel na te doen zou twee dingen tegelijk laten klinken en die hele
  * sessie weggooien. Dus: de afspeelknop draagt dezelfde data-attributen als een
- * albumhoes en wordt door die speler opgepakt, en spoelen is next()/prev().
+ * albumhoes en wordt door die speler opgepakt.
  *
- * DAAROM SPOELT HET PER NUMMER en niet per seconde. Die speler denkt in een
- * wachtrij. Dat is een eerlijke benadering van een cassette: je komt vooruit en
- * achteruit, en je springt niet naar nummer zeven.
+ * SPOELEN GAAT IN SECONDEN, over de nummergrenzen heen. Dat kan omdat die
+ * speler een wachtrij in EEN doorlopende MediaSource-tijdlijn giet: "een
+ * trackwissel is een positie, geen omschakeling". Een bandje is dus letterlijk
+ * die tijdlijn. Vandaar seekBy() en niet next()/prev() -- springen per nummer
+ * is een playlistgebaar, en dan is dit een lijst met een cassetteplaatje.
  *
  * WAAROM ER GEPOLLD WORDT. audio-player.js zendt geen gebeurtenissen uit -- het
  * is een gesloten module met een klein oppervlak (setQueue, play, pause, next,
@@ -75,6 +77,59 @@ function tekenAlles() {
   for (const tape of document.querySelectorAll('.post-tape')) tekenBand(tape);
 }
 
+/**
+ * SPOELEN IS VASTHOUDEN, en dat is het verschil met een afspeellijst.
+ *
+ * Eerst deed vooruit en achteruit hier next()/prev(): een nummer verder. Dat is
+ * een playlistgebaar. Op een cassette bestaat "volgend nummer" niet -- je houdt
+ * de knop ingedrukt, de band loopt door, en je laat los waar je bent. Robin
+ * wees daarop (21-8) en hij heeft gelijk: met knoppen die per nummer springen
+ * is het een lijst met een cassetteplaatje erboven.
+ *
+ * Het versnelt terwijl je hem vasthoudt, zoals een echt bandje op gang komt.
+ * Een korte TIK spoelt een klein stukje -- dat is er voor toetsenbord en
+ * schermlezer, want vasthouden is met een spatiebalk geen gebaar.
+ */
+const START_SNELHEID = 4;    // maal de normale snelheid bij het indrukken
+const MAX_SNELHEID = 16;
+const VERSNELLING = 1.35;    // per stap
+const STAP_MS = 120;
+const TIK_STAP_S = 5;        // een losse klik
+
+let winder = null;
+
+function stopWinden(tape) {
+  if (winder) { clearInterval(winder.timer); winder = null; }
+  if (tape) tape.classList.remove('is-winding', 'is-winding-back');
+}
+
+function startWinden(tape, richting) {
+  const p = speler();
+  if (!p || huidigeIndex(tape) < 0) return;
+  stopWinden(tape);
+  let snelheid = START_SNELHEID;
+  tape.classList.add('is-winding');
+  if (richting < 0) tape.classList.add('is-winding-back');
+  const timer = setInterval(() => {
+    snelheid = Math.min(MAX_SNELHEID, snelheid * VERSNELLING);
+    p.seekBy(richting * snelheid * (STAP_MS / 1000));
+    tekenBand(tape);
+  }, STAP_MS);
+  winder = { timer, tape };
+}
+
+function opPointerDown(e) {
+  const knop = e.target.closest && e.target.closest('[data-tape-go]');
+  if (!knop) return;
+  const tape = knop.closest('.post-tape');
+  if (!tape) return;
+  startWinden(tape, knop.dataset.tapeGo === 'fwd' ? 1 : -1);
+}
+
+function opPointerUp() {
+  if (winder) stopWinden(winder.tape);
+}
+
 function opKlik(e) {
   const tape = e.target.closest && e.target.closest('.post-tape');
   if (!tape) return;
@@ -82,20 +137,19 @@ function opKlik(e) {
 
   const spoel = e.target.closest('[data-tape-go]');
   if (spoel) {
-    if (!p) return;
-    // Spoelen kan alleen als DIT bandje loopt. Anders zou de knop de wachtrij
-    // van een ander blok verzetten, en dat is niet wat een spoelknop op deze
-    // cassette hoort te doen.
-    if (huidigeIndex(tape) < 0) return;
-    if (spoel.dataset.tapeGo === 'fwd') p.next(); else p.prev();
-    setTimeout(tekenAlles, 60);
+    // Een tik spoelt een stukje. Vasthouden gaat via de pointer-afhandelaars
+    // hierboven; die hebben dan al gespoeld en deze klik doet er nog een klein
+    // beetje bovenop, wat niet stoort.
+    if (!p || huidigeIndex(tape) < 0) return;
+    p.seekBy(spoel.dataset.tapeGo === 'fwd' ? TIK_STAP_S : -TIK_STAP_S);
+    setTimeout(() => tekenBand(tape), 60);
     return;
   }
 
   const play = e.target.closest('[data-tape-play]');
   if (play && p) {
     // Loopt dit bandje al, dan is deze knop een pauzeknop. De globale
-    // afhandelaar van audio-player.js zou hem anders opnieuw vanaf nummer een
+    // afhandelaar van audio-player.js zou hem anders opnieuw vanaf het begin
     // starten, want die kent alleen "speel deze wachtrij".
     const i = huidigeIndex(tape);
     if (i >= 0) {
@@ -105,7 +159,7 @@ function opKlik(e) {
       setTimeout(tekenAlles, 60);
     }
     // Staat het bandje stil, dan laten we de klik doorlopen: de speler pakt de
-    // data-attributen op en zet de wachtrij op.
+    // data-attributen op en zet de band op.
   }
 }
 
@@ -116,7 +170,14 @@ export function init() {
   // lopen na een paginawissel naar een pagina zonder bandje -- dezelfde fout
   // die in de leesweergave een keer de hele site heeft vastgezet.
   if (tikker) { clearInterval(tikker); tikker = null; }
-  if (gebonden) { gebonden.removeEventListener('click', opKlik, true); gebonden = null; }
+  stopWinden(null);
+  if (gebonden) {
+    gebonden.removeEventListener('click', opKlik, true);
+    gebonden.removeEventListener('pointerdown', opPointerDown, true);
+    gebonden.removeEventListener('pointerup', opPointerUp, true);
+    gebonden.removeEventListener('pointercancel', opPointerUp, true);
+    gebonden = null;
+  }
   if (!tapes.length) return;
 
   // Vangen in de CAPTURE-fase, want de speler luistert zelf op document in de
@@ -124,6 +185,11 @@ export function init() {
   // wachtrij opnieuw wordt gezet.
   gebonden = document;
   gebonden.addEventListener('click', opKlik, true);
+  gebonden.addEventListener('pointerdown', opPointerDown, true);
+  // Loslaten telt ook als je BUITEN de knop loslaat, anders blijft de band
+  // doorspoelen als je met je vinger wegglijdt.
+  gebonden.addEventListener('pointerup', opPointerUp, true);
+  gebonden.addEventListener('pointercancel', opPointerUp, true);
 
   tikker = setInterval(tekenAlles, TIK_MS);
   tekenAlles();

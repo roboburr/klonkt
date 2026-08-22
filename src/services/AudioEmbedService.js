@@ -725,13 +725,44 @@ ${isAdmin ? `  <div class="post-album-actions" role="group" aria-label="Mixtape 
     </a>
   </div>
 ` : ''}  <div class="tape-shell">
-    <div class="tape-window" aria-hidden="true">
-      <span class="tape-reel tape-reel--left"><span class="tape-reel-hub"></span></span>
-      <span class="tape-band"></span>
-      <span class="tape-reel tape-reel--right"><span class="tape-reel-hub"></span></span>
-    </div>
-    <div class="tape-label"${coverH ? ` style="background-image:url('${coverH}')"` : ''}>
-      <p class="tape-kind">📼 Mixtape</p>
+    <svg class="tape-svg" viewBox="0 0 314 200" role="img" aria-label="Cassette" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <clipPath id="tapewin-${domId}"><rect x="72" y="96" width="170" height="62" rx="6"/></clipPath>
+      </defs>
+      <!-- de behuizing -->
+      <rect class="tape-body" x="3" y="3" width="308" height="194" rx="9"/>
+      <rect class="tape-body-inner" x="12" y="12" width="290" height="176" rx="6"/>
+      <!-- het labelvlak: hier komt de HTML-tekst overheen te staan -->
+      <rect class="tape-labelplate" x="24" y="22" width="266" height="62" rx="3"/>
+      <!-- het venster waardoor je de band ziet lopen -->
+      <rect class="tape-glass" x="72" y="96" width="170" height="62" rx="6"/>
+      <g clip-path="url(#tapewin-${domId})">
+        <!-- de bandpakketten om de spoelen; links loopt vol terwijl rechts leegloopt -->
+        <circle class="tape-pack tape-pack--left" cx="112" cy="127" r="30"/>
+        <circle class="tape-pack tape-pack--right" cx="202" cy="127" r="22"/>
+        <rect class="tape-ribbon" x="112" y="150" width="90" height="3"/>
+      </g>
+      <!-- de spoelen zelf: deze twee draaien -->
+      <g class="tape-reel tape-reel--left" style="transform-origin:112px 127px">
+        <circle class="tape-hub" cx="112" cy="127" r="15"/>
+        ${[0, 60, 120, 180, 240, 300].map((a) => `<rect class="tape-tooth" x="109.5" y="112" width="5" height="9" rx="1" transform="rotate(${a} 112 127)"/>`).join('')}
+      </g>
+      <g class="tape-reel tape-reel--right" style="transform-origin:202px 127px">
+        <circle class="tape-hub" cx="202" cy="127" r="15"/>
+        ${[0, 60, 120, 180, 240, 300].map((a) => `<rect class="tape-tooth" x="199.5" y="112" width="5" height="9" rx="1" transform="rotate(${a} 202 127)"/>`).join('')}
+      </g>
+      <!-- de schroefjes in de hoeken, en de openingen voor de kop onderin -->
+      <circle class="tape-screw" cx="22" cy="22" r="3.5"/>
+      <circle class="tape-screw" cx="292" cy="22" r="3.5"/>
+      <circle class="tape-screw" cx="22" cy="178" r="3.5"/>
+      <circle class="tape-screw" cx="292" cy="178" r="3.5"/>
+      <rect class="tape-slot" x="128" y="168" width="26" height="14" rx="2"/>
+      <rect class="tape-slot" x="160" y="168" width="26" height="14" rx="2"/>
+      <rect class="tape-slot tape-slot--capstan" x="98" y="170" width="10" height="12" rx="2"/>
+      <rect class="tape-slot tape-slot--capstan" x="206" y="170" width="10" height="12" rx="2"/>
+    </svg>
+    <div class="tape-label">
+      <p class="tape-kind">Mixtape</p>
       <h3 class="tape-title">${titleH}</h3>
       ${artistH ? `<p class="tape-artist">${artistH}</p>` : ''}
       <p class="tape-meta">${metaLine}</p>

@@ -157,6 +157,13 @@
   let currentIndex = 0;
   let isPlaying = false;
   let albumName = '';
+  // BANDMODUS (Robins eis, 21-8): een mixtape is EEN object, geen wachtrij met
+  // nummers. De MSE-keten hieronder maakt van een wachtrij toch al een
+  // doorlopende tijdlijn -- "een trackwissel is een positie, geen omschakeling"
+  // -- dus een bandje is precies die tijdlijn, alleen anders getoond en anders
+  // bediend: je ziet de titel van het bandje, de teller loopt over het geheel,
+  // en spoelen gaat in seconden in plaats van per nummer.
+  let tapeMode = false;
   // Playback pipeline. We fetch each track's bytes ourselves (X-Audio-Player
   // gate; no plain media URL is ever exposed to the page) and feed them to the
   // <audio> element through one of two engines:
@@ -456,12 +463,26 @@
 
   // Current position/duration in TRACK coordinates (the MSE timeline is the
   // whole chain; the UI always shows the single playing track).
-  function displayTimes() {
+  // De positie BINNEN het huidige nummer. Apart van displayTimes(), want die
+  // geeft in bandmodus de teller over de hele band -- en het opslaan van de
+  // sessie heeft juist de trackpositie nodig: bij het herstellen begint de
+  // keten opnieuw en start dit nummer weer op nul.
+  function trackTijd() {
     if (useMse() && chain.length) {
       const seg = currentSegment();
       if (seg) return { cur: Math.max(0, (audio.currentTime || 0) - seg.start), dur: seg.end - seg.start };
     }
     return { cur: audio.currentTime || 0, dur: audio.duration };
+  }
+
+  function displayTimes() {
+    // Een bandje heeft een teller, geen nummerpositie: hij telt door over de
+    // kant heen. Dat is letterlijk de ketentijdlijn, dus hier juist NIET
+    // terugrekenen naar trackcoordinaten.
+    if (tapeMode && useMse() && chain.length) {
+      return { cur: audio.currentTime || 0, dur: chain[chain.length - 1].end };
+    }
+    return trackTijd();
   }
 
   // metaOnly: show the track in the UI but DON'T download its bytes yet.
@@ -504,10 +525,15 @@
   // All the visible per-track chrome: titles, covers, queue highlight, media
   // session metadata. Called from loadTrack AND from the gapless boundary-cross.
   function updateTrackChrome(t) {
-    titleEl.textContent  = t.title  || 'Untitled';
-    artistEl.textContent = t.artist || '';
-    sheetTitle.textContent  = t.title  || 'Untitled';
-    sheetArtist.textContent = t.artist || '';
+    // In bandmodus staat het BANDJE op de speler. Wat er op dit moment klinkt
+    // staat eronder, zoals een cassette een titel op het label heeft en de
+    // nummers op het doosje.
+    const hoofd = tapeMode ? (albumName || 'Mixtape') : (t.title || 'Untitled');
+    const onder = tapeMode ? (t.title || '') : (t.artist || '');
+    titleEl.textContent  = hoofd;
+    artistEl.textContent = onder;
+    sheetTitle.textContent  = hoofd;
+    sheetArtist.textContent = onder;
     sheetAlbum.textContent  = albumName || '';
     setCoverImage(cover,      t.cover);
     setCoverImage(sheetCover, t.cover);
@@ -578,6 +604,7 @@
   function setQueue(tracks, startIdx, opts) {
     queue = Array.isArray(tracks) ? tracks.slice() : [];
     albumName = (opts && opts.albumName) || '';
+    tapeMode = !!(opts && opts.asTape);
     if (!queue.length) return;
     loadTrack(typeof startIdx === 'number' ? Math.max(0, Math.min(startIdx, queue.length - 1)) : 0, true);
     // Mobile: a track press from an album/playlist auto-opens the full
@@ -628,6 +655,7 @@
     closeSheet();
     queue = [];
     albumName = '';
+    tapeMode = false;
     loadSeq++;  // cancel any in-flight load
     dropPreload();
     teardownChain();
@@ -1009,8 +1037,13 @@
   // restore #pcms-main from its snapshot; a per-element `data-pcms-attached` flag
   // would leave dead buttons (flag baked into the snapshot, listener gone). One
   // delegated listener works regardless of how many times the DOM is (re)swapped.
+  // WELKE KNOPPEN DEZE SPELER BEDIENT. Let op: dit is een LIJST MET NAMEN, geen
+  // regel over data-attributen. Een nieuwe knop die keurig data-pcms-track-url
+  // en data-pcms-album-id draagt doet dus niets zolang hij hier niet bij staat.
+  // Precies daar liep de cassetteknop op vast (21-8): de opmaak klopte, de
+  // gegevens klopten, en er gebeurde niets.
   const PLAY_SELECTOR =
-    '.post-audio-track .pat-play, .post-album-tracks .pat-row, .post-album-cover-btn, .post-album-playall';
+    '.post-audio-track .pat-play, .post-album-tracks .pat-row, .post-album-cover-btn, .post-album-playall, .tape-btn--play';
   document.body.addEventListener('click', (e) => {
     const btn = e.target.closest(PLAY_SELECTOR);
     if (!btn) return;
@@ -1037,7 +1070,14 @@
         // Start at the clicked track if we know its URL, else start at 0
         // (cover-btn and playall both want to start from the beginning).
         const startIdx = trackUrl ? tracks.findIndex(t => t.url === trackUrl) : 0;
-        setQueue(tracks, startIdx >= 0 ? startIdx : 0, { albumName: album.dataset.pcmsAlbumTitle || '' });
+        // Een mixtape gaat als EEN object de speler in: de titel van het bandje
+        // op de speler, de teller over de hele band, en spoelen in seconden.
+        // De soort staat al op het blok (data-pcms-album-kind), dus hier is het
+        // een doorgeefje en geen tweede plek die iets afleidt.
+        setQueue(tracks, startIdx >= 0 ? startIdx : 0, {
+          albumName: album.dataset.pcmsAlbumTitle || '',
+          asTape: album.dataset.pcmsAlbumKind === 'mixtape',
+        });
       } catch(err) { console.error('[pcms-audio] bad album JSON', err, album.dataset.pcmsAlbum); }
     } else if (trackData) {
       try {
@@ -1091,8 +1131,42 @@
   // ============================================================
   // 9. Public API
   // ============================================================
+  /**
+   * SPOELEN, in seconden over de hele band.
+   *
+   * Op de MSE-motor is dit precies wat een cassette doet: `audio.currentTime`
+   * IS de tijdlijn van de hele keten, dus over een nummergrens heen spoelen is
+   * gewoon doortellen. Geen trackwissel, geen nieuwe afspeelsessie.
+   *
+   * Op de blob-motor (iOS Safari, geen MSE) bestaat die doorlopende tijdlijn
+   * niet: daar is elk nummer een eigen bron. Spoelen loopt daar dus tot de rand
+   * van het huidige nummer en stapt dan naar de buur. Grover, maar het is
+   * eerlijker dan doen alsof de band doorloopt terwijl hij dat niet doet.
+   */
+  function seekBy(seconden) {
+    const d = Number(seconden) || 0;
+    if (!d || !audio) return;
+    if (useMse() && chain.length) {
+      const eind = chain[chain.length - 1].end;
+      const doel = Math.max(0, Math.min((audio.currentTime || 0) + d, Math.max(0, eind - 0.25)));
+      try { audio.currentTime = doel; } catch (e) { /* buffer nog niet zover */ }
+      updatePositionState();
+      return;
+    }
+    // Blob-motor: binnen het nummer blijven, en anders naar de buur.
+    const duur = audio.duration || 0;
+    const nu = audio.currentTime || 0;
+    if (duur && nu + d >= duur) { next(); return; }
+    if (nu + d < 0) { prev(); return; }
+    try { audio.currentTime = Math.max(0, nu + d); } catch (e) {}
+  }
+
+  /** Waar staat de teller, over het hele bandje. */
+  function tapeTijden() { return displayTimes(); }
+
   window.pcmsAudioPlayer = {
-    setQueue, play, pause, next, prev, close, openSheet, closeSheet,
+    setQueue, play, pause, next, prev, close, openSheet, closeSheet, seekBy, tapeTijden,
+    isTape: () => tapeMode,
     isPlaying: () => isPlaying,
     currentTrack: () => queue[currentIndex] || null,
   };
@@ -1112,10 +1186,10 @@
     try {
       if (!queue.length) { sessionStorage.removeItem(PLAYER_STATE_KEY); return; }
       sessionStorage.setItem(PLAYER_STATE_KEY, JSON.stringify({
-        queue, currentIndex, albumName,
+        queue, currentIndex, albumName, tapeMode,
         // In-TRACK position (the MSE timeline spans the whole chain; a restore
         // starts a fresh chain where this track begins at 0).
-        time: displayTimes().cur || 0,
+        time: trackTijd().cur || 0,
         playing: !!audio.src && !audio.paused,
       }));
     } catch (e) {}
@@ -1139,6 +1213,7 @@
     if (!s || !Array.isArray(s.queue) || !s.queue.length) return false;
     queue = s.queue;
     albumName = s.albumName || '';
+    tapeMode = !!s.tapeMode;
     pendingSeek = s.time || 0;
     const idx = Math.max(0, Math.min(s.currentIndex || 0, queue.length - 1));
     // playing → fetch + (attempt to) resume; paused → meta-only.

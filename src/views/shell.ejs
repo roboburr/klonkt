@@ -221,7 +221,7 @@ const _embedUrl = _postAudio
 <link rel="preload" href="/assets/fonts/fraunces-latin-full-normal.woff2" as="font" type="font/woff2" crossorigin>
 
 <!-- v9 stylesheet (full palette system) -->
-<link rel="stylesheet" href="/assets/css/style.css?v=106">
+<link rel="stylesheet" href="/assets/css/style.css?v=107">
 <script>
 /* iOS safe-area, built by hand. env(safe-area-inset-top) resolves to 0 on this iOS in
    BOTH Safari and the installed PWA (standalone), even with viewport-fit=cover, so the
@@ -405,7 +405,7 @@ const _embedUrl = _postAudio
 
      ?v=N — cache-buster: bump bij elke audio-player.js wijziging zodat
      Cloudflare (max-age=1y) niet de oude versie blijft serveren. -->
-<script src="/assets/js/audio-player.js?v=32"></script>
+<script src="/assets/js/audio-player.js?v=35"></script>
 <!-- Eigen custom media-embeds (YouTube/SoundCloud/Spotify) via de echte
      player-API's + gedeelde mutual-exclusion registry met de site-speler. -->
 <script src="/assets/js/embed-player.js?v=17" defer></script>
@@ -504,7 +504,7 @@ const _embedUrl = _postAudio
   // reparatie bereikt precies de bezoekers die hem al hebben.
   // Eén nummer voor de hele map. Te vaak bumpen kost één download; te weinig
   // bumpen kost een bugfix die nooit aankomt.
-  var MOD_V = 52;
+  var MOD_V = 53;
 
   // name -> 1 (aan het laden) of de module-namespace (geladen). Een module
   // die `init` exporteert draait die bij ELKE paginawissel waarop hij actief
