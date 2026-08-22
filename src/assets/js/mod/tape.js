@@ -108,12 +108,23 @@ function startWinden(tape, richting) {
   if (!p || huidigeIndex(tape) < 0) return;
   stopWinden(tape);
   let snelheid = START_SNELHEID;
+  let vorigePositie = null;
+  let stil = 0;
   tape.classList.add('is-winding');
   if (richting < 0) tape.classList.add('is-winding-back');
   const timer = setInterval(() => {
     snelheid = Math.min(MAX_SNELHEID, snelheid * VERSNELLING);
     p.seekBy(richting * snelheid * (STAP_MS / 1000));
     tekenBand(tape);
+    // AAN HET EIND VAN DE BAND STOPPEN MET SPOELEN. De speler klemt de positie
+    // af, dus daar gebeurt niets meer -- maar de spoelen bleven wel doordraaien
+    // en de knop bleef oplichten, alsof er nog band was. Beweegt de teller twee
+    // rondes niet, dan zijn we bij de kop of de staart.
+    const nu = p.tapeTijden ? p.tapeTijden().cur : null;
+    if (nu !== null && vorigePositie !== null && Math.abs(nu - vorigePositie) < 0.05) {
+      if (++stil >= 2) { stopWinden(tape); return; }
+    } else stil = 0;
+    vorigePositie = nu;
   }, STAP_MS);
   winder = { timer, tape };
 }

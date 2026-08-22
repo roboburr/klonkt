@@ -165,3 +165,47 @@ test('spoelen gaat in seconden, niet per nummer', () => {
   // playlistknop en maakt van de cassette een lijst met een plaatje.
   assert.doesNotMatch(mod, /p\.next\(\); else p\.prev\(\)/, 'de oude sprong per nummer');
 });
+
+test('een bandje loopt niet rond, aan geen van beide kanten', () => {
+  const speler = fs.readFileSync('src/assets/js/audio-player.js', 'utf8');
+
+  // De keten mag na het laatste nummer niet nummer een er weer achter hangen.
+  // Dat was de stilste van de drie: omdat het EEN doorlopende tijdlijn is merk
+  // je die omloop niet eens als een trackwissel, de band gaat gewoon door.
+  assert.match(speler, /if \(tapeMode && volgendeInRij > queue\.length - 1\) return;/,
+    'de keten hoort te stoppen aan het eind van de band');
+
+  // ended roept next() aan, dus zonder deze tak begint de band opnieuw.
+  assert.match(speler, /if \(tapeMode && currentIndex >= queue\.length - 1\) \{ pause\(\); return; \}/,
+    'aan het eind stoppen in plaats van omlopen');
+
+  // En terugspoelen voorbij het begin levert de kop van de band op, niet het
+  // laatste nummer.
+  assert.match(speler, /if \(tapeMode && currentIndex === 0\) \{/,
+    'aan het begin niet naar achteren omlopen');
+
+  // Alle drie de modulo's zijn nog aanwezig voor de NIET-bandmodus: een gewone
+  // playlist hoort wel te blijven rondlopen.
+  assert.equal((speler.match(/% queue\.length/g) || []).length, 3,
+    'de omloop van een gewone wachtrij mag niet gesneuveld zijn');
+});
+
+test('terugspoelen komt in het vorige nummer uit aan het EIND', () => {
+  const speler = fs.readFileSync('src/assets/js/audio-player.js', 'utf8');
+  // Zonder dit sprong terugspoelen naar de kop van het vorige nummer, en kwam
+  // je nooit ergens in het midden uit -- dat is geen terugspoelen maar
+  // terugspringen. Geldt voor de blob-motor; op MSE is de band een tijdlijn en
+  // gaat het vanzelf goed.
+  assert.match(speler, /pendingSeek = Number\.MAX_SAFE_INTEGER;/);
+});
+
+test('aan het eind van de band gaat de stream dicht', () => {
+  const speler = fs.readFileSync('src/assets/js/audio-player.js', 'utf8');
+  // ZONDER DIT HANGT DE BAND. Bij een MediaSource vuurt `ended` pas als de
+  // stream gesloten is. Sinds een bandje niet meer rondloopt haakt de keten na
+  // het laatste nummer niets meer aan, en dan bleef hij op de laatste seconde
+  // staan: teller stil, isPlaying() waar, spoelen draaiend. Gemeten op dev
+  // (22-8): 125,6 van 125,7 en daar bleef hij staan.
+  assert.match(speler, /const laatsteVanDeBand = tapeMode && qIndex >= queue\.length - 1;/);
+  assert.match(speler, /if \(\(queue\.length === 1 \|\| laatsteVanDeBand\) && ms && ms\.readyState === 'open'\)/);
+});

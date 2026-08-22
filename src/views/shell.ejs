@@ -405,7 +405,7 @@ const _embedUrl = _postAudio
 
      ?v=N — cache-buster: bump bij elke audio-player.js wijziging zodat
      Cloudflare (max-age=1y) niet de oude versie blijft serveren. -->
-<script src="/assets/js/audio-player.js?v=35"></script>
+<script src="/assets/js/audio-player.js?v=37"></script>
 <!-- Eigen custom media-embeds (YouTube/SoundCloud/Spotify) via de echte
      player-API's + gedeelde mutual-exclusion registry met de site-speler. -->
 <script src="/assets/js/embed-player.js?v=17" defer></script>
@@ -504,7 +504,7 @@ const _embedUrl = _postAudio
   // reparatie bereikt precies de bezoekers die hem al hebben.
   // Eén nummer voor de hele map. Te vaak bumpen kost één download; te weinig
   // bumpen kost een bugfix die nooit aankomt.
-  var MOD_V = 53;
+  var MOD_V = 54;
 
   // name -> 1 (aan het laden) of de module-namespace (geladen). Een module
   // die `init` exporteert draait die bij ELKE paginawissel waarop hij actief

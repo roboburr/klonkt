@@ -278,6 +278,7 @@
   // the MSE engine "preloads" by appending ahead (ensureNextAppended).
   function preloadNext() {
     if (queue.length < 2) return;
+    if (tapeMode && currentIndex >= queue.length - 1) return;   // einde band
     const ni = (currentIndex + 1) % queue.length;
     const t = queue[ni];
     if (!t || !t.url) return;
@@ -360,9 +361,17 @@
     const chainEnd = buffered.length ? buffered.end(buffered.length - 1) : 0;
     const start = chain.length ? chain[chain.length - 1].end : (buffered.length ? buffered.start(0) : 0);
     chain.push({ qIndex, start, end: chainEnd });
-    if (queue.length === 1 && ms && ms.readyState === 'open') {
+    // DE STREAM MOET DICHT ALS ER NIETS MEER KOMT, anders vuurt `ended` nooit.
+    // Bij een wachtrij van een was dat al zo. Een BANDJE heeft nu hetzelfde
+    // nodig: sinds hij niet meer rondloopt haakt de keten na het laatste nummer
+    // niets meer aan, en dan bleef de band aan het eind hangen -- de teller
+    // stilstaand op de laatste seconde, isPlaying() waar, en de spoelen
+    // draaiend. Gemeten op dev (22-8): 125,6 van 125,7 en daar bleef hij.
+    const laatsteVanDeBand = tapeMode && qIndex >= queue.length - 1;
+    if ((queue.length === 1 || laatsteVanDeBand) && ms && ms.readyState === 'open') {
       // Single-track queue: close the stream so `ended` fires (which replays
-      // it, matching the old engine's behaviour).
+      // it, matching the old engine's behaviour). Bij een bandje stopt `ended`
+      // hem juist, want next() pauzeert daar aan het eind.
       try { ms.endOfStream(); } catch (e) {}
     }
   }
@@ -373,7 +382,13 @@
     if (queue.length < 2 || !chain.length) return;
     const seg = currentSegment();
     if (!seg || chain.length - 1 - chain.indexOf(seg) >= 1) return;  // already one ahead
-    const nextIdx = (chain[chain.length - 1].qIndex + 1) % queue.length;
+    // EEN BANDJE LOOPT NIET ROND (Robins eis, 22-8). Deze modulo is precies wat
+    // een cassette eindeloos maakte: na het laatste nummer hing hij nummer een
+    // er weer achter, en omdat het een doorlopende keten is merk je dat niet
+    // eens als een trackwissel -- de band gaat gewoon door.
+    const volgendeInRij = chain[chain.length - 1].qIndex + 1;
+    if (tapeMode && volgendeInRij > queue.length - 1) return;   // einde band
+    const nextIdx = volgendeInRij % queue.length;
     const t = queue[nextIdx];
     if (!t || !t.url) return;
     chainFetching = true;
@@ -641,10 +656,19 @@
   function togglePlay() { audio.paused ? play() : pause(); }
   function next() {
     if (!queue.length) return;
+    // Aan het eind van een bandje: stoppen. `ended` roept deze functie aan, dus
+    // zonder deze tak begint de band na het laatste nummer weer vooraan.
+    if (tapeMode && currentIndex >= queue.length - 1) { pause(); return; }
     loadTrack((currentIndex + 1) % queue.length, true);
   }
   function prev() {
     if (!queue.length) return;
+    // En aan het begin ook niet omlopen. Terugspoelen voorbij het begin levert
+    // de kop van de band op, niet het laatste nummer.
+    if (tapeMode && currentIndex === 0) {
+      try { audio.currentTime = 0; } catch (e) { /* nog niets geladen */ }
+      return;
+    }
     loadTrack(currentIndex === 0 ? queue.length - 1 : currentIndex - 1, true);
   }
   function close() {
@@ -1156,8 +1180,21 @@
     // Blob-motor: binnen het nummer blijven, en anders naar de buur.
     const duur = audio.duration || 0;
     const nu = audio.currentTime || 0;
-    if (duur && nu + d >= duur) { next(); return; }
-    if (nu + d < 0) { prev(); return; }
+    if (duur && nu + d >= duur) {
+      // Vooruit voorbij het eind. In bandmodus stopt next() aan het eind van de
+      // band; daarbuiten loopt hij door naar het volgende nummer.
+      next();
+      return;
+    }
+    if (nu + d < 0) {
+      // TERUGSPOELEN VOORBIJ HET BEGIN moet in het vorige nummer landen aan het
+      // EIND, niet aan het begin -- dat is wat terugspoelen doet. Zonder dit
+      // sprong je bij elke druk naar de kop van het vorige nummer en kwam je
+      // nooit ergens in het midden uit.
+      if (!(tapeMode && currentIndex === 0)) pendingSeek = Number.MAX_SAFE_INTEGER;
+      prev();
+      return;
+    }
     try { audio.currentTime = Math.max(0, nu + d); } catch (e) {}
   }
 
