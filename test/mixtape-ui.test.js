@@ -244,3 +244,25 @@ test('de bandteller komt uit de trackduren, niet uit de buffer', () => {
   assert.match(embed, /duration: Number\(t\.duration\) \|\| 0,/,
     'zonder dit las de teller de lengte van wat toevallig gebufferd was');
 });
+
+test('de balk is in bandmodus de hele band (shaer-tmyn, stap 4)', () => {
+  const speler = fs.readFileSync('src/assets/js/audio-player.js', 'utf8');
+
+  // De omrekening ratio -> nummer + positie erin. Zonder dit seekt de balk
+  // binnen het lopende nummer, terwijl hij de hele band TOONT: een balk die
+  // belooft wat hij niet doet is erger dan geen balk.
+  assert.match(speler, /function bandPositie\(ratio\)/);
+  assert.match(speler, /const plek = tapeMode \? bandPositie\(ratio\) : null;/);
+
+  // Zit het doel in het lopende nummer, dan geen herlaadsprong -- anders hoor
+  // je een gat bij het verzetten van een paar seconden.
+  assert.match(speler, /if \(plek\.index === currentIndex\)/);
+
+  // En anders langs pendingSeek, dezelfde weg die het sessieherstel gebruikt.
+  assert.match(speler, /pendingSeek = plek\.binnen;\s*\n\s*loadTrack\(plek\.index, !audio\.paused\);/,
+    'de speelstand hoort mee te gaan: springen mag niet stiekem starten of stoppen');
+
+  // De niet-bandmodus mag hier niets van merken.
+  assert.match(speler, /if \(useMse\(\) && chain\.length\) \{\s*\n\s*\/\/ Seek within the CURRENT track/,
+    'het oude gedrag hoort te blijven staan voor een gewone wachtrij');
+});

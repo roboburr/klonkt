@@ -884,10 +884,63 @@
     return m + ':' + (sec < 10 ? '0' : '') + sec;
   }
 
+  /**
+   * Waar op de BAND ligt deze verhouding? Geeft het nummer en de positie erin.
+   *
+   * Dit is de hele truc van hele-band-seek. De balk toont al de hele band (de
+   * teller rekent met de trackduren), maar aanklikken werkte binnen het lopende
+   * nummer -- en de keten houdt maar een nummer vooruit, dus een balk die de
+   * hele band belooft reikte in werkelijkheid tot nummer twee. Dat is erger dan
+   * geen balk, want het ziet eruit alsof het werkt.
+   *
+   * Omrekenen kan alleen met de echte duren, en die hebben we sinds de teller
+   * uit bandDuur()/bandOffset() komt. Dezelfde omrekening werkt op BEIDE
+   * motoren: de blob-motor heeft helemaal geen doorlopende tijdlijn, dus daar
+   * is dit niet alleen de beste maar de enige manier.
+   */
+  function bandPositie(ratio) {
+    const totaal = bandDuur();
+    if (!totaal) return null;
+    const doel = Math.max(0, Math.min(ratio, 1)) * totaal;
+    for (let i = 0; i < queue.length; i++) {
+      const start = bandOffset(i);
+      const eind = start + (Number(queue[i].duration) || 0);
+      if (doel < eind || i === queue.length - 1) {
+        return { index: i, binnen: Math.max(0, Math.min(doel - start, (Number(queue[i].duration) || 0) - 0.25)) };
+      }
+    }
+    return null;
+  }
+
   function attachSeek(seekEl) {
     seekEl.addEventListener('click', (e) => {
       const rect = seekEl.getBoundingClientRect();
       const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+
+      // BANDMODUS: de balk is de hele band, dus de klik ook.
+      const plek = tapeMode ? bandPositie(ratio) : null;
+      if (plek) {
+        if (plek.index === currentIndex) {
+          // Binnen het lopende nummer: gewoon verzetten, geen herlaadsprong.
+          if (useMse() && chain.length) {
+            const seg = currentSegment();
+            if (seg) { try { audio.currentTime = seg.start + plek.binnen; } catch (er) {} }
+          } else {
+            try { audio.currentTime = plek.binnen; } catch (er) {}
+          }
+          updatePositionState();
+          return;
+        }
+        // Een ander nummer: laden en er meteen in springen. pendingSeek is de
+        // bestaande weg daarvoor -- het sessieherstel doet precies dit -- en
+        // wordt toegepast zodra de metadata er is. Er valt een hoorbaar gat bij
+        // de sprong; dat hoort bij spoelen naar een plek die nog niet in de
+        // buffer zit, en is eerlijker dan een balk die daar niet komt.
+        pendingSeek = plek.binnen;
+        loadTrack(plek.index, !audio.paused);
+        return;
+      }
+
       if (useMse() && chain.length) {
         // Seek within the CURRENT track's segment of the chain timeline.
         const seg = currentSegment();
