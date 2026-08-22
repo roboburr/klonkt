@@ -13,6 +13,7 @@
 
 import db from '../config/database.js';
 import { v4 as uuid } from 'uuid';
+import { SOORTEN } from '../assets/js/shared/post-music-type.js';
 
 /**
  * Een volledige datum of niets (shaer-756s).
@@ -40,6 +41,31 @@ function normMbid(v) {
   const s = String(v == null ? '' : v).trim().toLowerCase();
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(s) ? s : null;
 }
+
+/**
+ * De drie soorten die een playlist kan zijn, op EEN plek.
+ *
+ * Stond eerder vijf keer als `data.kind === 'playlist' ? 'playlist' : 'album'`
+ * verspreid over dit bestand. Met twee soorten kon dat nog; bij een derde is
+ * het een fout die staat te wachten, want een van de vijf vergeten betekent dat
+ * een mixtape stilletjes als album wordt opgeslagen en als Album de deur uit
+ * gaat.
+ *
+ * Album blijft de terugval: een onbekende waarde hoort niet stilzwijgend iets
+ * nieuws te worden. De lijst zelf staat in de gedeelde pure module, want de
+ * editor in de browser moet dezelfde drie kennen.
+ */
+export function normKind(v) {
+  const s = String(v == null ? '' : v).trim().toLowerCase();
+  return SOORTEN.includes(s) ? s : 'album';
+}
+
+/**
+ * Draagt deze soort uitgavegegevens? Alleen een album. Een afspeellijst en een
+ * mixtape hebben geen uitgavedatum en geen release-id: het zijn samenstellingen
+ * van andermans of eigen werk, geen uitgave op zichzelf.
+ */
+export const isUitgave = (kind) => normKind(kind) === 'album';
 
 class PlaylistService {
 
@@ -91,7 +117,7 @@ class PlaylistService {
       artist: r.artist || '',
       year: r.year || 0,
       cover: r.cover_url || '',
-      kind: r.kind || 'album',
+      kind: normKind(r.kind),
       release_date: r.release_date || '',
       mb_release_id: r.mb_release_id || '',
       track_count: r.track_count,
@@ -153,7 +179,7 @@ class PlaylistService {
       artist: p.artist || '',
       year: p.year || 0,
       cover: p.cover_url || fallbackCover,
-      kind: (p.kind === 'playlist') ? 'playlist' : 'album',
+      kind: normKind(p.kind),
       // created_at hoort erbij omdat de AP-kant er `published` van maakt. Zonder
       // dit veld viel buildAlbumObject terug op 1970, en dat stond op 16-8
       // gewoon op de federatie.
@@ -161,8 +187,8 @@ class PlaylistService {
       // Leeg als het een afspeellijst is -- de opslag houdt ze daar al leeg,
       // maar dit is de plek waar de editor leest en die mag niet afhangen van
       // wat er toevallig in de kolom stond.
-      release_date: p.kind === 'playlist' ? '' : (p.release_date || ''),
-      mb_release_id: p.kind === 'playlist' ? '' : (p.mb_release_id || ''),
+      release_date: isUitgave(p.kind) ? (p.release_date || '') : '',
+      mb_release_id: isUitgave(p.kind) ? (p.mb_release_id || '') : '',
       tracks: mappedTracks,
     };
   }
@@ -177,7 +203,7 @@ class PlaylistService {
 
     const id = this.generateId(siteId, title);
     const now = new Date().toISOString();
-    const kind = data.kind === 'playlist' ? 'playlist' : 'album';
+    const kind = normKind(data.kind);
 
     // Alleen een UITGAVE draagt deze twee. Een afspeellijst heeft geen
     // uitgavedatum en geen release-id, en dat onderscheid is precies wat de
@@ -185,7 +211,7 @@ class PlaylistService {
     // niet alleen in het scherm: een scherm kun je omzeilen -- de API ligt open
     // voor de post-editor -- en dan staat er stille rommel op een mixtape die
     // later als Album de deur uit gaat.
-    const uitgave = kind === 'album';
+    const uitgave = isUitgave(kind);
     const releaseDate = uitgave ? normDatum(data.release_date) : null;
     const mbRelease = uitgave ? normMbid(data.mb_release_id) : null;
 
@@ -228,8 +254,8 @@ class PlaylistService {
     // Wat wordt het NA deze wijziging? `kind` hoeft niet in data te staan, dus
     // val terug op wat er ligt.
     const nieuwKind = Object.prototype.hasOwnProperty.call(data, 'kind')
-      ? (data.kind === 'playlist' ? 'playlist' : 'album')
-      : (existing.kind || 'album');
+      ? normKind(data.kind)
+      : normKind(existing.kind);
     if (Object.prototype.hasOwnProperty.call(data, 'title')) {
       const v = String(data.title || '').trim();
       if (!v) return false;  // title is required, can't blank it

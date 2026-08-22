@@ -14,7 +14,7 @@
 
 import db from '../../config/database.js';
 import { AP_CONTEXT, PUBLIC, actorId, noteId, safeUrl, guessMediaType, buildHashtagList, pagedCollection, isMbid } from '../ap-core.js';
-import { afleidenUitInsluitingen, ingeslotenPlaylists } from '../../assets/js/shared/post-music-type.js';
+import { afleidenUitInsluitingen, ingeslotenPlaylists, SOORTEN } from '../../assets/js/shared/post-music-type.js';
 // De luisteraars horen bij de muziekkant; hier doorgegeven zodat
 // ActivityPubService niet in een submap hoeft te grijpen.
 export * as luisteraars from './luisteraars.js';
@@ -494,6 +494,64 @@ export function trackAlbums(siteId) {
  * werkelijk hetzelfde ding. We verzinnen geen tweede adres voor iets dat er al
  * een heeft.
  */
+/**
+ * Het bandje: EEN object, samengesteld uit de nummers van een playlist.
+ *
+ * Waarom het een eigen soort is en geen album met een ander jasje. Een album is
+ * een uitgave: het heeft een uitgavedatum, een release-id, en de nummers
+ * bestaan er los van. Een mixtape is het omgekeerde -- de volgorde IS het werk,
+ * en de nummers zijn er onderdelen van. Vandaar `orderedItems` op het object
+ * zelf in plaats van een collectie ernaast, en vandaar geen `released` en geen
+ * `musicbrainzId`: die zouden beweren dat dit een uitgave is.
+ *
+ * GEEN EIGEN `url`, en dat is een keuze van Robin (21-8) met een prijs die het
+ * waard is om hier op te schrijven. Het bandje is een logische omhulling, geen
+ * gerenderd bestand: er wordt niets samengevoegd. Een ontvanger die `Mixtape`
+ * niet kent heeft dus geen stream om te spelen. Dat is bewust -- de nummers
+ * staan er stuk voor stuk in, met hun eigen id en hun eigen url, dus er gaat
+ * niets verloren; het kost alleen een consument die het type wel begrijpt.
+ *
+ * `type` is een STRING en geen array. Dat is geen slordigheid maar een geleerde
+ * les: er stond bij de playlist-collectie ooit ['OrderedCollection', 'Album'],
+ * geldig AS2 en werkelijk allebei, en een lezer die `type` als tekst uitpakt
+ * (Shaer doet dat) verloor daarmee stil het hele object.
+ */
+export function buildMixtapeObject(base, site, pl, rows) {
+  if (!pl) return null;
+  const abs = (u) => !u ? null : (/^https?:/i.test(u) ? u : `${base}${u.startsWith('/') ? '' : '/'}${u}`);
+  const postDatum = (pl._post && pl._post.uit_wanneer) ? new Date(pl._post.uit_wanneer) : null;
+  const wanneer = postDatum ? postDatum.toISOString()
+    : (pl.created_at ? new Date(pl.created_at).toISOString() : null);
+  // Dezelfde lening als bij het album: de post die het bandje uitbrengt geeft
+  // zijn titel, en de eigen titel blijft als alsoKnownAs staan.
+  const titel = (pl._post && pl._post.title) || pl.title;
+  const items = (rows || []).map((r) => buildTrackAudio(base, site, r, { coverFallback: pl.cover_url || null }));
+  const tape = {
+    type: 'Mixtape',
+    id: `${actorId(base, site.slug)}/playlists/${pl.id}`,
+    name: titel,
+    ...(wanneer ? { published: wanneer } : {}),
+    attributedTo: actorId(base, site.slug),
+    artist_credit: artistCredit(base, site, pl.artist, wanneer || new Date().toISOString()),
+    // De kant die het bandje maakt: eerst dit nummer, dan dat. Vooruit en
+    // achteruit is de speler; de volgorde is het object.
+    totalItems: items.length,
+    orderedItems: items,
+  };
+  if (titel !== pl.title) tape.alsoKnownAs = pl.title;
+  // De speelduur van het geheel, want dat is wat een bandje heeft: een lengte.
+  // Alleen als we van ELK nummer de duur kennen -- een som met gaten erin is
+  // een verzonnen getal, en die zetten we hier niet neer (zelfde regel als bij
+  // de bitrate van een track).
+  const duren = (rows || []).map((r) => Number(r.duration) || 0);
+  if (duren.length && duren.every((d) => d > 0)) {
+    tape.duration = `PT${Math.round(duren.reduce((a, b) => a + b, 0))}S`;
+  }
+  const hoes = abs(pl.cover_url || null);
+  if (hoes) tape.image = { type: 'Image', mediaType: guessMediaType(hoes), url: hoes };
+  return tape;
+}
+
 export function buildAlbumObject(base, site, pl) {
   if (!pl) return null;
   const abs = (u) => !u ? null : (/^https?:/i.test(u) ? u : `${base}${u.startsWith('/') ? '' : '/'}${u}`);
@@ -579,10 +637,21 @@ export function buildPlaylistCollection(base, site, playlist, rows) {
   // geen type-veld en valideert het dus niet: haalt Funkwhale dit adres op als
   // album, dan leest hij deze velden gewoon. En het object dat hij echt gebruikt
   // staat toch al ingesloten op de track.
-  if ((playlist.kind || 'album') === 'album') {
+  const soort = SOORTEN.includes(playlist.kind) ? playlist.kind : 'album';
+  if (soort === 'album') {
     const album = buildAlbumObject(base, site, { ...playlist, _post: post });
     for (const veld of ['published', 'released', 'musicbrainzId', 'artist_credit', 'image']) {
       if (album[veld] !== undefined) out[veld] = album[veld];
+    }
+  }
+  // Een mixtape draagt hier zijn eigen velden, om dezelfde reden als het album:
+  // dit adres is waar een lezer terechtkomt die het bandje wil ophalen, en dan
+  // hoort er hetzelfde te staan als in het ingesloten object. `type` blijft ook
+  // hier OrderedCollection -- zie de uitleg hierboven over Shaer.
+  if (soort === 'mixtape') {
+    const tape = buildMixtapeObject(base, site, { ...playlist, _post: post }, rows);
+    for (const veld of ['published', 'artist_credit', 'image', 'duration', 'alsoKnownAs']) {
+      if (tape[veld] !== undefined) out[veld] = tape[veld];
     }
   }
   return leenVanPost(base, site, out, post);
@@ -800,15 +869,15 @@ export function postMusicType(content, siteId) {
 }
 
 /**
- * De gekozen soort van een playlist: 'album' | 'playlist', of null als hij niet
- * (op deze site) bestaat. Zelfde normalisatie als PlaylistService: alles wat
- * geen 'playlist' zegt is een album.
+ * De gekozen soort van een playlist: 'album' | 'playlist' | 'mixtape', of null
+ * als hij niet (op deze site) bestaat. Zelfde lijst als PlaylistService, via
+ * de gedeelde pure module -- alles wat er niet in staat is een album.
  */
 function playlistKind(id, siteId) {
   if (!siteId) return null;
   try {
     const r = db.prepare('SELECT kind FROM playlists WHERE id = ? AND site_id = ?').get(id, siteId);
     if (!r) return null;
-    return r.kind === 'playlist' ? 'playlist' : 'album';
+    return SOORTEN.includes(r.kind) ? r.kind : 'album';
   } catch { return null; }
 }

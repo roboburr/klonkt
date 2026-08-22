@@ -20,7 +20,11 @@
  *   losse track(s)                -> playlist   metadata van de post geleend
  *   een collectie                 -> die soort  metadata van de post geleend
  *   een collectie + losse tracks  -> album      de losse zijn BONUS-TRACKS
+ *   een MIXTAPE + losse tracks    -> mixtape    de losse zijn BONUS-TRACKS
  *   twee of meer collecties       -> post       NIETS geleend
+ *
+ * Die vierde regel is de uitzondering op de derde en staat er met opzet naast:
+ * bonustracks maken van een uitgave een album, maar een bandje is geen uitgave.
  *
  * Waarom de lening bij de laatste vervalt: die bestaat omdat een collectie soms
  * dun is -- geen eigen hoes, geen eigen titel. Bij twee is de post niet meer de
@@ -38,6 +42,16 @@
 // Dezelfde patronen als de renderer in AudioEmbedService: wat daar niet
 // insluit, telt hier niet mee. Anders zou een shortcode die niets oplevert wel
 // het type van de post kunnen bepalen.
+// De soorten die een playlist kan zijn, en dit is de ENIGE lijst. PlaylistService
+// en music/index.js halen hem hier op, precies omdat het andersom niet kan:
+// deze module draait ook in de browser en mag niets van de database weten.
+//
+// Waarom dat uitmaakt: bij twee soorten stond de keuze vijf keer als
+// `x === 'playlist' ? 'playlist' : 'album'` verspreid over drie bestanden. Zo'n
+// vorm valt niet om bij een derde soort, hij slikt hem -- een mixtape werd
+// stilzwijgend een album en ging als Album de deur uit.
+export const SOORTEN = ['album', 'playlist', 'mixtape'];
+
 const RE_PLAYLIST = /\[\[playlist:([a-z0-9][a-z0-9-]*)\]\]/gi;
 const RE_ALBUM    = /\[\[album:([^\]]+)\]\]/g;
 const RE_TRACK    = /\[\[track:([A-Za-z0-9_-]+)\]\]/g;
@@ -63,7 +77,7 @@ export function afleidenUitInsluitingen(content, kindVan) {
   const onbekend = [];
   const uitPlaylists = playlists.map((id) => {
     const kind = zoek(id);
-    if (kind !== 'album' && kind !== 'playlist') { onbekend.push(id); return null; }
+    if (!SOORTEN.includes(kind)) { onbekend.push(id); return null; }
     return { soort: kind, id };
   }).filter(Boolean);
 
@@ -86,6 +100,16 @@ export function afleidenUitInsluitingen(content, kindVan) {
 
   if (collecties.length === 1) {
     const c0 = collecties[0];
+    // EEN MIXTAPE BLIJFT EEN MIXTAPE, ook met losse tracks erbij. De regel
+    // hieronder maakt van collectie + losse tracks een album met bonustracks, en
+    // dat klopt voor een uitgave: extra nummers bij een plaat zijn bonus. Een
+    // bandje is geen uitgave. Er een album van maken omdat er een los nummer
+    // naast staat zou het ding hernoemen op grond van iets wat er niet bij
+    // hoort. Album en playlist houden bewust hun oude gedrag: dat zijn
+    // bestaande posts en die mogen hier niet stilletjes van soort wisselen.
+    if (c0.soort === 'mixtape') {
+      return { type: 'mixtape', collectie: c0, tracks: [], bonus: tracks, leentMetadata: true };
+    }
     // Losse tracks naast een collectie zijn geen rommelrestje maar bonus-tracks,
     // en dat maakt het geheel een album.
     if (tracks.length) return { type: 'album', collectie: c0, tracks: [], bonus: tracks, leentMetadata: true };
