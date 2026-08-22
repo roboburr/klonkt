@@ -10,6 +10,10 @@
  * </figure>
  */
 
+// Dezelfde lijst soorten als de server en de editor gebruiken. Zie
+// assets/js/shared/post-music-type.js: die module is puur, dus hij mag hier.
+import { SOORTEN } from '../assets/js/shared/post-music-type.js';
+
 // "Open in" icons (brand-colored via CSS .pat-link--).
 const OPEN_IN_SVG = {
   spotify: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm4.6 14.42a.62.62 0 01-.86.21c-2.35-1.44-5.3-1.76-8.79-.96a.62.62 0 11-.28-1.21c3.8-.87 7.07-.5 9.71 1.11.3.18.39.57.22.85zm1.23-2.73a.78.78 0 01-1.07.26c-2.69-1.66-6.79-2.14-9.97-1.17a.78.78 0 11-.45-1.49c3.63-1.1 8.15-.56 11.24 1.33.36.22.48.7.25 1.07zm.1-2.85C14.66 8.95 9.4 8.78 6.3 9.72a.93.93 0 11-.54-1.79c3.56-1.08 9.37-.87 13.07 1.33a.94.94 0 01-.96 1.61z"/></svg>',
@@ -537,8 +541,14 @@ ${trackItems}
       }
 
       const albumDomId = 'album-' + id;
-      const kind = (pl.kind === 'playlist') ? 'playlist' : 'album';
-      const kindLabel = kind === 'playlist' ? '📃 Playlist' : '💿 Album';
+      // De soort zoals hij is opgeslagen. Stond hier als ternair met twee
+      // uitkomsten, en dan draagt een mixtape het jasje en het woord van een
+      // album -- dezelfde vorm die op vier andere plekken al misging.
+      // DE SPELER IS ER NOG NIET. Een mixtape rendert voorlopig als de gewone
+      // lijst; wat hier af is, is dat hij zichzelf goed noemt.
+      const kind = SOORTEN.includes(pl.kind) ? pl.kind : 'album';
+      const KIND_LABEL = { album: '💿 Album', playlist: '📃 Playlist', mixtape: '📼 Mixtape' };
+      const kindLabel = KIND_LABEL[kind] || KIND_LABEL.album;
       const titleH  = this.escape(pl.title || 'Naamloos');
       const artistH = this.escape(pl.artist || '');
       const coverH  = pl.cover ? this.escape(pl.cover) : '';
@@ -637,7 +647,7 @@ ${isAdmin ? `  <div class="post-album-actions" role="group" aria-label="Playlist
     <button type="button" class="post-album-cover-btn"
             data-pcms-track-url="${firstUrl}"
             data-pcms-album-id="${albumDomId}"
-            aria-label="Speel ${kind === 'playlist' ? 'playlist' : 'album'}">
+            aria-label="Speel ${kind}">
       ${coverH
         ? `<span class="post-album-cover" style="background-image:url('${coverH}')"></span>`
         : `<span class="post-album-cover post-album-cover-empty">

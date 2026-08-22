@@ -12,13 +12,18 @@
  * type=audio nog wel, dus /type/audio moet blijven werken en het opslaan van
  * zo'n post mag zijn type niet stilzwijgend weggooien -- tot de backfill hem
  * heeft omgezet. Daarna kan audio hier weg.
+ *
+ * MIXTAPE erbij (Robins idee, 21-8): een bandje, samengesteld uit de nummers
+ * van een playlist, dat alleen vooruit en achteruit speelt. Het draagt muziek,
+ * dus het deelt het muziekpaneel en de afleiding met album en playlist -- het
+ * verschil zit in de playlist die je insluit, niet in wat je hier uploadt.
  */
 
 /** Types die een gebruiker in de editor kan kiezen. */
-export const KEUZE_TYPES = ['post', 'foto', 'video', 'album', 'playlist'];
+export const KEUZE_TYPES = ['post', 'foto', 'video', 'album', 'playlist', 'mixtape'];
 
 /** Alles wat in de kolom posts.type mag staan, inclusief wat er historisch is. */
 export const POST_TYPES = new Set([...KEUZE_TYPES, 'audio']);
 
 /** De types die muziek dragen -- ze delen hetzelfde paneel en dezelfde afleiding. */
-export const MUZIEK_TYPES = new Set(['album', 'playlist', 'audio']);
+export const MUZIEK_TYPES = new Set(['album', 'playlist', 'audio', 'mixtape']);

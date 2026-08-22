@@ -7,7 +7,7 @@
 import { pageData, esc, makeSweeper } from './lib.js';
 // Dezelfde regel die de server gebruikt -- zie shared/post-music-type.js voor
 // waarom hij daar staat en niet twee keer.
-import { afleidenUitInsluitingen } from '../shared/post-music-type.js';
+import { afleidenUitInsluitingen, SOORTEN } from '../shared/post-music-type.js';
 
 // De oude inline scripts draaiden bij ELKE render; een module draait zijn
 // top-level een keer per sessie. Vandaar init(): de bootstrap roept hem aan
@@ -1019,7 +1019,7 @@ function run() {
     // Bij het OPENEN van een post gebeurt er niets: de eerste afleiding wordt
     // alleen als ijkpunt onthouden. Anders zou een oude post van type veranderen
     // door hem te bekijken.
-    const VOLGBAAR = new Set(['post', 'album', 'playlist', 'audio']);
+    const VOLGBAAR = new Set(['post', 'album', 'playlist', 'mixtape', 'audio']);
     const kindVan = new Map();
     let vorigeAfleiding = null;
 
@@ -1027,7 +1027,11 @@ function run() {
       .then((r) => r.json())
       .then((j) => {
         if (j && j.ok && Array.isArray(j.playlists)) {
-          for (const p of j.playlists) kindVan.set(p.id, p.kind === 'playlist' ? 'playlist' : 'album');
+          // De soort ZOALS HIJ IS. Dit was `=== 'playlist' ? 'playlist' : 'album'`,
+          // en dan ziet de editor een mixtape als album terwijl de server hem
+          // als mixtape opslaat: het type verspringt onder je handen bij het
+          // bewaren. SOORTEN is dezelfde lijst die de server gebruikt.
+          for (const p of j.playlists) kindVan.set(p.id, SOORTEN.includes(p.kind) ? p.kind : 'album');
         }
       })
       // Zonder de soorten leidt de regel niets af (elke playlist is dan
