@@ -111,9 +111,13 @@ export {
   voteOnPoll, voteOnRemotePoll,
 };
 // Stap 9 (shaer-drc): de inbox woont in ap-inbox.js. De schakelkast krijgt
-// onderaan zijn tweeendertig werktuigen via wireInbox.
+// onderaan zijn vierendertig werktuigen via wireInbox.
 import { handleInbox, wireInbox } from './ap-inbox.js';
 export { handleInbox };
+// Stap 10 (shaer-drc): de Cirkel woont in ap-cirkel.js. Geen wire: hij leest
+// alleen db.
+import { autoBoostCount, getCirkelPosts, getCirkelMembers } from './ap-cirkel.js';
+export { autoBoostCount, getCirkelPosts, getCirkelMembers };
 // Doorgeven wat hier altijd vandaan kwam, zodat elke bestaande aanroep blijft werken.
 export { AP_CONTEXT, actorId, noteId, guessMediaType };
 // De muziekkant woont in music/ (shaer-drc). Doorgeven wat hier altijd
@@ -2817,34 +2821,6 @@ function storeAuthorEmoji(id, slug, ai) {
 // A display-name emoji map (actorInfo().emojis) → JSON to store, or null.
 function emojiJsonOf(map) { return (map && Object.keys(map).length) ? JSON.stringify(map) : null; }
 
-// ── Cirkel = posts from the accounts you auto-boost ("feature an artist") ──
-let _abCount, _cirkelPosts, _cirkelMembers;
-export function autoBoostCount(slug) {
-  try { if (!_abCount) _abCount = db.prepare('SELECT COUNT(*) AS n FROM ap_following WHERE slug = ? AND auto_boost = 1'); return _abCount.get(slug).n; } catch { return 0; }
-}
-export function getCirkelPosts(slug, limit, offset) {
-  try {
-    // Cirkel = posts from featured (auto_boost) accounts + posts you boosted
-    // (t.boosted), mixed by date. One row per note in ap_timeline → no duplicates.
-    if (!_cirkelPosts) _cirkelPosts = db.prepare(`
-      SELECT t.id, t.author_uri, t.author_name, t.author_handle, t.author_icon, t.author_url,
-             t.content, t.url, t.published, t.media_json, t.nsfw, t.cw,
-             (rb.target_uri IS NOT NULL) AS boosted
-      FROM ap_timeline t
-      LEFT JOIN ap_following f ON f.slug = t.slug AND f.actor_uri = t.author_uri
-      -- Uit de tussentabel, niet uit t.boosted: die kolom is een afgeleide. De
-      -- UNIQUE(site_slug, target_uri, kind) garandeert hoogstens één match, dus
-      -- deze join kan geen rijen verdubbelen.
-      LEFT JOIN ap_my_reactions rb ON rb.site_slug = t.slug AND rb.target_uri = t.id AND rb.kind = 'boost'
-      WHERE t.slug = ? AND (f.auto_boost = 1 OR rb.target_uri IS NOT NULL)
-      ORDER BY COALESCE(t.published, t.created_at) DESC, t.rowid DESC
-      LIMIT ? OFFSET ?`);
-    return _cirkelPosts.all(slug, limit || 60, offset || 0);
-  } catch { return []; }
-}
-export function getCirkelMembers(slug) {
-  try { if (!_cirkelMembers) _cirkelMembers = db.prepare('SELECT name, url, icon FROM ap_following WHERE slug = ? AND auto_boost = 1 ORDER BY name'); return _cirkelMembers.all(slug); } catch { return []; }
-}
 
 
 // ── Self-heal: re-sync the fediverse cache (ap_timeline) after a DRASTIC update ──
