@@ -50,9 +50,15 @@ test('het metadata-adres blijft dicht', async () => {
 test('zonder de omgevingsvariabele is er geen uitzondering', async () => {
   // De lijst is leeg tenzij iemand hem expliciet vult. Dit is de stand waarin
   // elke productie-instance draait.
+  //
+  // De verse import moet het bestand raken waar AP_ALLOW_HOSTS bij het LADEN
+  // wordt bevroren, en dat is sinds de opsplitsing ap-transport.js. Een
+  // gebuste import van ActivityPubService.js zou niets bewijzen: zijn eigen
+  // `import './ap-transport.js'` (zonder query) komt uit de modulecache, met
+  // de lijst van hierboven er nog in.
   const eerder = process.env.AP_ALLOW_HOSTS;
   delete process.env.AP_ALLOW_HOSTS;
-  const mod = await import(`../src/services/ActivityPubService.js?leeg=${Date.now()}`);
+  const mod = await import(`../src/services/ap-transport.js?leeg=${Date.now()}`);
   let fout = null;
   try { await mod.safeFetch('http://[::1]:59321/niets'); } catch (e) { fout = e.message; }
   assert.equal(fout, 'ssrf-blocked-ip');
