@@ -479,16 +479,19 @@ async function startLenis() {
         if (!laatsteRichtingOmlaag) return;
         const doel = lenis.targetScroll;   // de echte landing, niet de raakdelta
         const punten = snap.computeSnaps();
-        let best = -1;
+        // De EERSTE grens voorbij het loslaatpunt, niet de dichtstbijzijnde bij
+        // de landing. Robins regel (24-8): wordt het target voorbijgescrolld,
+        // dan landen we alsnog OP het target. De zone werkt dus alleen aan de
+        // korte kant -- kom je er niet eens bij in de buurt, dan lees je gewoon
+        // binnen een lang bericht en blijft alles vrij. Eroverheen, hoe ver
+        // ook, betekent grijpen. Een harde veeg komt daarmee altijd precies
+        // een bericht verder, nooit twee: dat is het bladeren.
+        let eerste = -1;
         punten.forEach((punt, i) => {
-          if (punt.value <= vertrek + 2) return;
-          if (Math.abs(doel - punt.value) > vangZone()) return;
-          if (best < 0 || Math.abs(doel - punt.value) < Math.abs(doel - punten[best].value)) best = i;
+          if (punt.value > vertrek + 2 && (eerste < 0 || punt.value < punten[eerste].value)) eerste = i;
         });
-        // Landt de uitloop net VOORBIJ een bovenkant, dan is een klein stukje
-        // terug naar die lijn precies de gevraagde snap -- geen terugtrekking,
-        // want punten achter het loslaatpunt zijn hierboven al uitgesloten.
-        if (best >= 0) echtGaNaar(best);
+        if (eerste < 0) return;            // niets meer voor je: vrij uitscrollen
+        if (doel >= punten[eerste].value - vangZone()) echtGaNaar(eerste);
       }, 150);
     });
   }
