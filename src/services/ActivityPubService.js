@@ -495,6 +495,61 @@ export function hasPlayableAudio(content, siteId) {
   return false;
 }
 
+// fedi_open tracks → real AS2 Audio attachments (the actual file URL, served ungated) so
+// EVERY client incl. the Mastodon apps plays them inline natively. Gated tracks (default)
+// stay link/card-only — the file is never exposed for them. Resolve from post.content so a
+// later body mutation can't affect it.
+//
+// Staat apart en niet meer midden in buildNote, omdat een BETAALDE post hem ook
+// nodig heeft: daar staat de muur om de TEKST en niet om de muziek.
+function openAudioAttachments(base, site, post) {
+  const openAudio = [];
+  if (!/\[\[(track|album|playlist):/i.test(post.content || '')) return openAudio;
+  const abs = (u) => !u ? null : (/^https?:/i.test(u) ? u : `${base}${u.startsWith('/') ? '' : '/'}${u}`);
+  const seenA = new Set();
+  const addRow = (r) => {
+    const fn = r.filename || (r.storage_path || '').split('/').pop();
+    if (!fn || seenA.has(fn)) return; seenA.add(fn);
+    const a = { type: 'Audio', mediaType: r.mime_type || 'audio/mpeg', url: `${base}/audio/stream/${encodeURIComponent(fn)}`, name: r.title || 'Audio' };
+    // Cover art on the Audio attachment (AS2 `icon`): track cover, else the post cover.
+    // Mastodon renders it as the artwork thumbnail on its native audio player.
+    const art = abs(r.cover_url || post.cover_image_url || null);
+    if (art) a.icon = { type: 'Image', mediaType: guessMediaType(art), url: art };
+    openAudio.push(a);
+  };
+  const SEL = 'SELECT t.title, t.cover_url, m.filename, m.storage_path, m.mime_type FROM audio_tracks t JOIN media m ON m.id = t.media_id WHERE t.fedi_open = 1 AND ';
+  try {
+    for (const mm of (post.content || '').matchAll(/\[\[track:([A-Za-z0-9_-]+)\]\]/g)) { const r = db.prepare(SEL + 't.id = ?').get(mm[1]); if (r) addRow(r); }
+    for (const mm of (post.content || '').matchAll(/\[\[album:([^\]]+)\]\]/g)) for (const r of db.prepare(SEL + 't.site_id = ? AND t.album = ? ORDER BY t.rowid').all(site.id, mm[1].trim())) addRow(r);
+    for (const mm of (post.content || '').matchAll(/\[\[playlist:([A-Za-z0-9_-]+)\]\]/g)) for (const r of db.prepare('SELECT t.title, t.cover_url, m.filename, m.storage_path, m.mime_type FROM playlist_tracks pt JOIN audio_tracks t ON t.id = pt.track_id JOIN media m ON m.id = t.media_id WHERE t.fedi_open = 1 AND pt.playlist_id = ? ORDER BY pt.position').all(mm[1])) addRow(r);
+  } catch { /* non-fatal */ }
+  return openAudio;
+}
+
+// HET BANDJE OP DE DRAAD. Zonder dit stuk bestaat `Mixtape` alleen in onze
+// eigen code: de playlist-collectie blijft namelijk een OrderedCollection
+// (dat moet, anders verliest een lezer die `type` als tekst uitpakt het hele
+// object), en dan zegt niets naar buiten toe ooit dat dit een cassette is.
+// Gemeten op 21-8: in de Note van een mixtape-post kwam het woord Mixtape
+// niet voor, en de hub gooide zo'n bandje daarom stil weg.
+//
+// Als bijlage en niet als het object zelf: de post blijft een Note, zodat
+// Mastodon en alles wat `Mixtape` niet kent gewoon een bericht met audio
+// ziet. Wie het type wel kent, vindt het bandje als geheel.
+//
+// Het bandje draagt alleen wat al open staat: playlistOpenTracks filtert op
+// fedi_open. Daarom is het veilig om hem ook aan een betaalde teaser te hangen.
+function mixtapeAttachment(base, site, post) {
+  try {
+    const soort = postMusicType(post.content || '', site.id);
+    if (!soort || soort.type !== 'mixtape' || !soort.collectie || !soort.collectie.id) return null;
+    const pl = db.prepare('SELECT * FROM playlists WHERE id = ? AND site_id = ?')
+      .get(soort.collectie.id, site.id);
+    if (!pl) return null;
+    return buildMixtapeObject(base, site, { ...pl, _post: post }, playlistOpenTracks(pl.id)) || null;
+  } catch { return null; /* een bandje minder is geen kapotte post */ }
+}
+
 // A single post as an AS2 Note (the object), and as a Create activity (for outbox/delivery).
 export function buildNote(base, site, post, opts = {}) {
   // Replies are Notes too. buildNote is the single entry point for ALL Notes; a reply is
@@ -564,12 +619,27 @@ export function buildNote(base, site, post, opts = {}) {
   const titleHtml = post.title ? `<p><strong>${escTitle}</strong></p>` : '';
 
   // Paid post (klonkt-demo-aki): federate a PUBLIC teaser + link, never the full
-  // content, so nothing leaks past the paywall. No media attachments either.
+  // content, so nothing leaks past the paywall. Images stay home too.
+  //
+  // MAAR DE OPENGEZETTE AUDIO REIST WEL MEE (Robin, 24-8, naar aanleiding van
+  // boiert.eu/introducing-this-machine). De muur staat om de TEKST. `fedi_open`
+  // is een aparte, eenrichtings, per nummer bewust gezette vlag van de eigenaar,
+  // en die nummers federeren toch al los als eigen Audio-objecten met hun
+  // `context` naar deze post. Hield deze tak het bandje tegen, dan hield hij
+  // niets geheim -- alleen de VOLGORDE en het feit dat het een cassette is. In
+  // de hub viel het bandje daardoor uiteen in vier losse nummers onder een kale
+  // teaserkaart. Een cassette die terugwijst naar "lees verder (supporters)"
+  // dient de betaalde post beter dan vier weesnummers.
   if (post.paid) {
     const esc = (x) => String(x || '').replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
     const _firstP = (String(post.content || '').match(/<p[^>]*>([\s\S]*?)<\/p>/i) || [null, ''])[1] || '';
     const rawTeaser = String(post.excerpt || '').trim()
       || _firstP.replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, ' ').trim().slice(0, 280);
+    const openBijlagen = openAudioAttachments(base, site, post);
+    const band = mixtapeAttachment(base, site, post);
+    // Het bandje alleen als er ook echt iets open in zit: een cassette waarvan
+    // elk nummer gesloten is, is een lege doos met een titel erop.
+    if (band && openBijlagen.length) openBijlagen.push(band);
     return {
       '@context': AP_CONTEXT,
       id,
@@ -578,6 +648,7 @@ export function buildNote(base, site, post, opts = {}) {
       content: `${titleHtml}<p>${esc(rawTeaser)}${rawTeaser ? '…' : ''}</p><p><a href="${human}">Lees de volledige post (supporters)</a></p>`,
       url: human,
       published: toISO(post.published_at || post.created_at || Date.now()),
+      ...(openBijlagen.length ? { attachment: openBijlagen } : {}),
       to: [PUBLIC],
       cc: [`${aId}/followers`],
       tag: [...hashtagTags(base, post.content)],
@@ -704,30 +775,7 @@ export function buildNote(base, site, post, opts = {}) {
       }
     }
   } catch { /* non-fatal */ }
-  // fedi_open tracks → real AS2 Audio attachments (the actual file URL, served ungated) so
-  // EVERY client incl. the Mastodon apps plays them inline natively. Gated tracks (default)
-  // stay link/card-only — the file is never exposed for them. Resolve from post.content so a
-  // later body mutation can't affect it.
-  const openAudio = [];
-  if (hadAudio) {
-    const seenA = new Set();
-    const addRow = (r) => {
-      const fn = r.filename || (r.storage_path || '').split('/').pop();
-      if (!fn || seenA.has(fn)) return; seenA.add(fn);
-      const a = { type: 'Audio', mediaType: r.mime_type || 'audio/mpeg', url: `${base}/audio/stream/${encodeURIComponent(fn)}`, name: r.title || 'Audio' };
-      // Cover art on the Audio attachment (AS2 `icon`): track cover, else the post cover.
-      // Mastodon renders it as the artwork thumbnail on its native audio player.
-      const art = abs(r.cover_url || post.cover_image_url || null);
-      if (art) a.icon = { type: 'Image', mediaType: guessMediaType(art), url: art };
-      openAudio.push(a);
-    };
-    const SEL = 'SELECT t.title, t.cover_url, m.filename, m.storage_path, m.mime_type FROM audio_tracks t JOIN media m ON m.id = t.media_id WHERE t.fedi_open = 1 AND ';
-    try {
-      for (const mm of (post.content || '').matchAll(/\[\[track:([A-Za-z0-9_-]+)\]\]/g)) { const r = db.prepare(SEL + 't.id = ?').get(mm[1]); if (r) addRow(r); }
-      for (const mm of (post.content || '').matchAll(/\[\[album:([^\]]+)\]\]/g)) for (const r of db.prepare(SEL + 't.site_id = ? AND t.album = ? ORDER BY t.rowid').all(site.id, mm[1].trim())) addRow(r);
-      for (const mm of (post.content || '').matchAll(/\[\[playlist:([A-Za-z0-9_-]+)\]\]/g)) for (const r of db.prepare('SELECT t.title, t.cover_url, m.filename, m.storage_path, m.mime_type FROM playlist_tracks pt JOIN audio_tracks t ON t.id = pt.track_id JOIN media m ON m.id = t.media_id WHERE t.fedi_open = 1 AND pt.playlist_id = ? ORDER BY pt.position').all(mm[1])) addRow(r);
-    } catch { /* non-fatal */ }
-  }
+  const openAudio = openAudioAttachments(base, site, post);
   // ONVERTAALD voor een verhuizing (FEP-1580). De doelinstantie IS een Klonkt:
   // die rendert [[track:]], [[album:]] en [[playlist:]] zelf en maakt er een
   // speler van. Bakken we ze eerst om, dan komt er een tekstlink aan en is de
@@ -794,27 +842,9 @@ export function buildNote(base, site, post, opts = {}) {
       return a; });
   for (const a of openAudio) attachment.push(a); // fedi_open tracks → native Audio players
 
-  // HET BANDJE OP DE DRAAD. Zonder dit stuk bestaat `Mixtape` alleen in onze
-  // eigen code: de playlist-collectie blijft namelijk een OrderedCollection
-  // (dat moet, anders verliest een lezer die `type` als tekst uitpakt het hele
-  // object), en dan zegt niets naar buiten toe ooit dat dit een cassette is.
-  // Gemeten op 21-8: in de Note van een mixtape-post kwam het woord Mixtape
-  // niet voor, en de hub gooide zo'n bandje daarom stil weg.
-  //
-  // Als bijlage en niet als het object zelf: de post blijft een Note, zodat
-  // Mastodon en alles wat `Mixtape` niet kent gewoon een bericht met audio
-  // ziet. Wie het type wel kent, vindt het bandje als geheel.
-  try {
-    const soort = postMusicType(post.content || '', site.id);
-    if (soort && soort.type === 'mixtape' && soort.collectie && soort.collectie.id) {
-      const pl = db.prepare('SELECT * FROM playlists WHERE id = ? AND site_id = ?')
-        .get(soort.collectie.id, site.id);
-      if (pl) {
-        const tape = buildMixtapeObject(base, site, { ...pl, _post: post }, playlistOpenTracks(pl.id));
-        if (tape) attachment.push(tape);
-      }
-    }
-  } catch { /* een bandje minder is geen kapotte post */ }
+  // Het bandje als bijlage — zie mixtapeAttachment() voor het waarom.
+  const tape = mixtapeAttachment(base, site, post);
+  if (tape) attachment.push(tape);
 
   // Inline @user@host mentions: the Mention tag objects + the mentioned actor URIs. Only
   // present when the content was already mention-linked (deliverCreate/Update resolve them

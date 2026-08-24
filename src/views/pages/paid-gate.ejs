@@ -9,6 +9,14 @@
     <div class="pg-teaser"><p><%= pgTeaser %></p></div>
   <% } %>
 
+  <%# De opengezette muziek staat VOOR de poort en niet erachter: wie hem in een
+      hub of in Mastodon al kan afspelen, hoort hem ook hier te kunnen afspelen.
+      Alleen de tekst zit achter de poort, en die staat hier niet -- de route
+      geeft alleen de audio-shortcodes mee (paidOpenAudioHtml). %>
+  <% if (typeof pgAudio !== 'undefined' && pgAudio) { %>
+    <div class="pg-audio post-content"><%- pgAudio %></div>
+  <% } %>
+
   <% var _hasPatron = (typeof pgPatronUrl !== 'undefined' && pgPatronUrl); %>
   <section class="pg-card">
     <div class="pg-lock">💶</div>
@@ -38,6 +46,7 @@
   .pg-title { font-family: var(--font-display, serif); font-size: clamp(1.6rem, 4vw, 2.2rem); margin: 0 0 1rem; }
   .pg-teaser { font-family: var(--font-body, serif); font-size: 1.1rem; line-height: 1.7; color: var(--ink); opacity: .95;
     -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent); mask-image: linear-gradient(180deg, #000 55%, transparent); }
+  .pg-audio { margin: 1.5rem 0 0; }
   .pg-card { margin: 1.5rem 0 0; border: 1px solid color-mix(in srgb, var(--ink, #000) 16%, transparent); border-radius: 18px; padding: 30px 26px; text-align: center; }
   .pg-lock { font-size: 38px; margin-bottom: 6px; }
   .pg-h2 { font-size: 22px; margin: 0 0 8px; }

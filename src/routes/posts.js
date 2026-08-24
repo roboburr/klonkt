@@ -821,6 +821,33 @@ function paidTeaser(post, max = 280) {
   return text.length > max ? text.slice(0, max).replace(/\s+\S*$/, '') + '…' : text;
 }
 
+// De muziek van een betaalde post op de poortpagina zelf.
+//
+// WAAROM DIE DAAR HOORT. Zodra een nummer `fedi_open` is, federeert het als
+// eigen Audio-object en speelt het bij iedereen die de post in een hub of in
+// Mastodon tegenkomt. Toonde de poort het dan NIET, dan was de muziek overal
+// beschikbaar behalve op de site die hem uitbrengt -- en dat is de verkeerde
+// kant op (Robin, 24-8). De muur staat om de tekst.
+//
+// ALLES OF NIETS. Alleen als ELK nummer waar de post naar wijst open staat.
+// Een shortcode rendert zijn hele lijst, dus bij een half-open bandje zou de
+// speler ook de gesloten nummers krijgen -- en /audio/stream laat een
+// gelijke-oorsprong-fetch door, dus dat is geen theoretisch lek maar een echt.
+// Half open is hier dus dicht.
+//
+// De TEKST komt hier niet langs: we geven renderPostBodyHtml een post mee die
+// alleen uit de audio-shortcodes bestaat. Wat niet meegegeven wordt kan ook
+// niet lekken -- dezelfde regel als bij readerItems.
+export function paidOpenAudioHtml(site, post, req) {
+  if (!postAudioFediOpen(site.id, post.content)) return '';
+  const codes = String(post.content || '').match(/\[\[(?:track|album|playlist):[^\]]+\]\]/gi) || [];
+  if (!codes.length) return '';
+  const alleenMuziek = codes.join('\n');
+  try {
+    return renderPostBodyHtml(site, { ...post, content: alleenMuziek, content_rendered: alleenMuziek }, req);
+  } catch { return ''; /* geen speler is geen kapotte poort */ }
+}
+
 function postNeighbors(site, post) {
   const ordered = db.prepare(`
     SELECT id, slug, title, pinned FROM posts
@@ -1572,12 +1599,14 @@ router.get('/:slug', (req, res, next) => {
   const _unlocked = _u && _u.purpose === 'unlocked' && _u.siteId === site.id && String(_u.post) === String(post.slug);
   if (post.paid && !canEditThis && !_unlocked) {
     const { newerPost, olderPost } = postNeighbors(site, post);
+    const pgAudio = paidOpenAudioHtml(site, post, req);
     return renderPage(req, res, 'pages/paid-gate', {
-    pageJs: 'paid-gate',
+    pageJs: 'paid-gate' + (pgAudio ? ' tape' : ''),
       pageTitle: post.title || 'Voor supporters',
       bodyClass: 'on-special',
       pgTitle: post.title || '',
       pgTeaser: paidTeaser(post),
+      pgAudio,
       pgCents: post.paid_min_cents || paidDefaultMinCents(site.id),
       pgSlug: post.slug,
       pgPatronUrl: paidPatronUrl(site.id),
