@@ -447,6 +447,52 @@ async function startLenis() {
     if (vooruit < 0) return;              // niets meer voor je: vrij uitscrollen
     if (punten[vooruit].value - nu <= vangZone()) echtGaNaar(vooruit);
   };
+
+  // OP TOUCH DOET DE MODULE-EIGEN TRIGGER HET NIET, en dat is meetbaar in de
+  // vendor-bron, geen vermoeden. Drie feiten op een rij:
+  //
+  //   1. lenis geeft 'virtual-scroll' door met de RUWE vingerdelta, VOOR hij
+  //      de uitloop uitrekent (teken * |snelheid|^touchInertiaExponent).
+  //   2. lenis-snap negeert elke touchmove en beoordeelt dus EEN keer per
+  //      gebaar, op touchend, met `scroll + rawDelta` -- de plek waar je
+  //      vinger LOSLIET.
+  //   3. de uitloop draagt daarna nog honderden pixels verder.
+  //
+  // De snapbeslissing valt dus op een positie die de scroll meteen verlaat.
+  // Op desktop klopt dezelfde som wel: wieldelta's zijn klein en de
+  // smoothWheel-uitloop is kort, dus voorspelling en landing liggen bijeen.
+  // Vandaar: op touch de module-trigger eraf en zelf beoordelen tegen
+  // lenis.targetScroll -- die wordt synchroon bij touchend gezet en IS het
+  // exacte landingspunt van de uitloop.
+  if (OP_TOUCH.matches) {
+    lenis.off('virtual-scroll', snap.onSnapDebounced);
+    let raakTimer = null;
+    let vertrek = 0;   // scrollpositie bij loslaten: punten daarachter zijn
+                       // de bovenkant van het HUIDIGE bericht, nooit grijpen
+    lenis.on('virtual-scroll', (e) => {
+      const soort = e.event && e.event.type;
+      if (soort === 'touchstart' || soort === 'touchmove') { clearTimeout(raakTimer); return; }
+      if (soort !== 'touchend') return;
+      vertrek = lenis.scroll;
+      clearTimeout(raakTimer);
+      raakTimer = setTimeout(() => {
+        if (!laatsteRichtingOmlaag) return;
+        const doel = lenis.targetScroll;   // de echte landing, niet de raakdelta
+        const punten = snap.computeSnaps();
+        let best = -1;
+        punten.forEach((punt, i) => {
+          if (punt.value <= vertrek + 2) return;
+          if (Math.abs(doel - punt.value) > vangZone()) return;
+          if (best < 0 || Math.abs(doel - punt.value) < Math.abs(doel - punten[best].value)) best = i;
+        });
+        // Landt de uitloop net VOORBIJ een bovenkant, dan is een klein stukje
+        // terug naar die lijn precies de gevraagde snap -- geen terugtrekking,
+        // want punten achter het loslaatpunt zijn hierboven al uitgesloten.
+        if (best >= 0) echtGaNaar(best);
+      }, 150);
+    });
+  }
+
   // Native snappen uit: twee mechanismen op dezelfde scroller vechten.
   document.documentElement.style.scrollSnapType = 'none';
 }
