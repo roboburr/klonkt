@@ -2,6 +2,26 @@
 
 This file provides instructions and context for AI coding agents working on this project.
 
+> **The beads database in this repository is retired. Do not write to it.**
+>
+> Klonkt's issues live in `~/Sources/shaer-frontend/.beads` (Dolt database
+> `shaer`). All 32 of them were migrated there on 2026-08-23 keeping their
+> original `prutfolio-src-*` ids, so `bd show prutfolio-src-7cz` works from that
+> repository and means the same issue it always did.
+>
+> Create, update and close Klonkt issues from `~/Sources/shaer-frontend`. The
+> `bd` commands below apply there, not here.
+>
+> Why: this repository has no `core.hooksPath`, so the beads hooks in
+> `.beads/hooks/` never ran. The Dolt database is gitignored and the one tracked
+> artefact, `.beads/issues.jsonl`, is only refreshed by those hooks — it had
+> drifted four days and two issues behind before anyone noticed. shaer-frontend
+> has the hooks wired, so its export stays current.
+>
+> The local database is left in place and still readable for history. Nothing
+> enforces this: it is a convention, and a `bd create` run here will succeed and
+> be lost.
+
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:7510c1e2 -->
 ## Beads Issue Tracker
 
