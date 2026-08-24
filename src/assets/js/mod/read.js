@@ -475,8 +475,14 @@ async function startLenis() {
       if (soort !== 'touchend') return;
       vertrek = lenis.scroll;
       clearTimeout(raakTimer);
+      // TIMEOUT 0, geen 150ms. Dit event komt binnen VOOR lenis zelf de
+      // touchend verwerkt (de emit staat in de bron boven de verwerking), dus
+      // targetScroll is hier nog het oude doel. Een tik later is de uitloop
+      // gestart en staat targetScroll op de echte landing -- en dan sturen we
+      // hem meteen bij, in plaats van de uitloop 150ms te laten lopen en er
+      // dan een aparte snap-animatie overheen te zetten.
       raakTimer = setTimeout(() => {
-        if (!laatsteRichtingOmlaag) return;
+        if (!laatsteRichtingOmlaag || snap.isStopped) return;
         const doel = lenis.targetScroll;   // de echte landing, niet de raakdelta
         const punten = snap.computeSnaps();
         // De EERSTE grens voorbij het loslaatpunt, niet de dichtstbijzijnde bij
@@ -491,8 +497,15 @@ async function startLenis() {
           if (punt.value > vertrek + 2 && (eerste < 0 || punt.value < punten[eerste].value)) eerste = i;
         });
         if (eerste < 0) return;            // niets meer voor je: vrij uitscrollen
-        if (doel >= punten[eerste].value - vangZone()) echtGaNaar(eerste);
-      }, 150);
+        // HET RICHTEN IS DE SNAP (Robins regel, 24-8): geen aparte animatie
+        // met een eigen duur, maar de lopende uitloop een nieuw doel geven,
+        // met DEZELFDE demping (syncTouchLerp) waarmee hij al onderweg is.
+        // Zo is er een doorlopende beweging die toevallig op de lijn eindigt,
+        // in plaats van een glijvlucht met halverwege een muur.
+        if (doel >= punten[eerste].value - vangZone()) {
+          lenis.scrollTo(punten[eerste].value, { lerp: 0.09, force: true, userData: { initiator: 'snap' } });
+        }
+      }, 0);
     });
   }
 
