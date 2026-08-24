@@ -3806,6 +3806,18 @@ async function c2sCreatePost(base, site, user, object) {
     const poster = a.poster ? ` poster="${a.poster}"` : '';
     return `<p><video controls playsinline preload="metadata"${poster} src="${a.url}"></video></p>`;
   }).join('');
+  // De titel (shaer-uply): AS2 zet hem in `name`, en die werd hier nooit
+  // gelezen -- een client kon hem zetten en hij verdween geruisloos, het
+  // slechtste van de drie mogelijke gedragingen. Platte tekst, want dat is wat
+  // `name` per AS2 is en wat de titelkolom overal verwacht; wie er toch HTML
+  // in stopt houdt de tekst over. De grens van 200 is de huisregel voor korte
+  // vrije tekst hier (content warning, sitetitel) -- de posteditor op het web
+  // heeft geen eigen grens, dus strenger dan het web zijn we hiermee niet
+  // op een manier die iemand merkt.
+  // Vanaf de kolom doet de bestaande machinerie de rest: het web toont hem,
+  // en buildNote vouwt hem als vetgedrukte eerste regel in de content
+  // (Mastodon negeert `name` op een Note).
+  const title = HtmlSanitizerService.toPlainText(typeof object.name === 'string' ? object.name : '').trim().slice(0, 200);
   const postId = crypto.randomUUID();
   const slug = 'n-' + postId.slice(0, 8);
   const now = new Date().toISOString();
@@ -3821,13 +3833,15 @@ async function c2sCreatePost(base, site, user, object) {
   // page. The tiles derive their picture from the content instead.
   db.prepare(`INSERT INTO posts (id, site_id, slug, author_id, title, content, excerpt, status, type, language, fan_only, ap_visibility, created_at, updated_at, published_at)
               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-    .run(postId, site.id, slug, user.id, '', html + mediaHtml, '', 'published', 'post', object.language || 'nl', fanOnly, vis, now, now, now);
+    .run(postId, site.id, slug, user.id, title, html + mediaHtml, '', 'published', 'post', object.language || 'nl', fanOnly, vis, now, now, now);
   if (media.length) { try { db.prepare('UPDATE posts SET c2s_attachments = ? WHERE id = ?').run(JSON.stringify(media), postId); } catch { /* column exists via ensureColumn */ } }
   try { db.prepare('UPDATE posts SET content_rendered = ? WHERE id = ?').run(bakePostContent(html + mediaHtml), postId); } catch { /* render fallback covers it */ }
   bakePostContentWithMentions(html + mediaHtml).then((h) => { try { db.prepare('UPDATE posts SET content_rendered = ? WHERE id = ?').run(h, postId); } catch { /* keep sync bake */ } }).catch(() => {});
-  try { db.prepare('INSERT INTO posts_fts(content, title, author, post_id) VALUES (?,?,?,?)').run(HtmlSanitizerService.toPlainText(html), '', user.username || '', postId); } catch { /* FTS non-fatal */ }
+  // Ook in de zoekindex, en niet alleen in de kolom (shaer-uply): anders is
+  // een getitelde C2S-post wel te zien maar niet op zijn titel te vinden.
+  try { db.prepare('INSERT INTO posts_fts(content, title, author, post_id) VALUES (?,?,?,?)').run(HtmlSanitizerService.toPlainText(html), title, user.username || '', postId); } catch { /* FTS non-fatal */ }
   if (vis !== 'direct') {
-    deliverCreate(site, { id: postId, slug, title: '', content: html + mediaHtml, published_at: now, created_at: now, fan_only: fanOnly, ap_visibility: vis, c2s_attachments: media.length ? JSON.stringify(media) : null }).catch(() => { /* best-effort */ });
+    deliverCreate(site, { id: postId, slug, title, content: html + mediaHtml, published_at: now, created_at: now, fan_only: fanOnly, ap_visibility: vis, c2s_attachments: media.length ? JSON.stringify(media) : null }).catch(() => { /* best-effort */ });
   }
   return { status: 201, id: postId, url: `${base}/ap/notes/${postId}` };
 }
