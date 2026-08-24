@@ -643,6 +643,16 @@ export function init() {
   document.querySelectorAll('[data-lenis-prevent].read-post')
     .forEach((a) => a.removeAttribute('data-lenis-prevent'));
 
+  // DE VLAG WORDT HIER GELEZEN, op elke pagina en in elke weergave, en niet pas
+  // in startLenis(). Anders zit er een val in: land je in Grid, dan draait
+  // startLenis() helemaal niet, wordt ?nativesnap=1 nergens opgeschreven, en is
+  // de queryreeks weg zodra je op Lezen tikt. De proef gaat dan stilzwijgend
+  // niet door en je beoordeelt Lenis terwijl je denkt dat je de browser
+  // beoordeelt. Gemeten op dev: weergave 'grid', vlag null.
+  // Dit mag boven de terugval hieronder staan omdat de module op elke pagina
+  // draait (data-js is "chrome read tape"), ook waar geen leesstroom is.
+  nativeSnap();
+
   const s = document.getElementById('read-stream');
   if (!s) return;
   // Op de stroom, niet per artikel: wat "meer laden" erbij zet doet vanzelf mee.
