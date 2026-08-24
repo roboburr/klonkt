@@ -251,41 +251,6 @@ function onTap(e) {
  */
 const RUST_MS = 120;
 
-/**
- * DE PROEF: op mobiel het NATIVE snappen terug (24-8).
- *
- * De vraag die deze vlag beantwoordt is er precies een: houdt de browser zich
- * aan `scroll-snap-stop: always`? Die eigenschap zegt dat een uitloop nooit
- * over een snappunt heen mag vliegen -- en dat is woord voor woord Robins regel
- * ("ook al zou het target voorbijgescrolld worden, alsnog op het target
- * landen"), maar dan uitgevoerd door het toestel met zijn eigen momentumcurve
- * in plaats van door onze nabootsing ervan in JavaScript.
- *
- * Dat overvliegen was destijds de reden om Lenis er op mobiel bij te halen. De
- * eigenschap is toen nooit geprobeerd: hij stond op `normal`, en dan ook nog op
- * .read-post -- een element dat door scroll-snap-align:none helemaal geen
- * snappunt is. Het ankertje dat het snappunt WEL is had hem niet.
- *
- * ACHTER EEN VLAG, want de Lenis-kant blijft staan tot deze proef gewonnen is.
- * Wint hij, dan kan Lenis van de telefoon af en verdwijnen daarmee ook de vier
- * routes waarlangs de native scroll het gebaar nu soms overneemt. Verliest hij,
- * dan hebben we dat geweten voordat er iets weg was.
- *
- * ?nativesnap=1 zet hem aan, ?nativesnap=0 weer uit. De keuze blijft staan
- * zolang het tabblad open is, want een htmx-navigatie gooit de queryreeks weg
- * en dan zou de proef na een klik voorbij zijn.
- */
-function nativeSnap() {
-  try {
-    const q = new URLSearchParams(location.search).get('nativesnap');
-    if (q === '1') sessionStorage.setItem('klonkt:native-snap', '1');
-    if (q === '0') sessionStorage.removeItem('klonkt:native-snap');
-    return sessionStorage.getItem('klonkt:native-snap') === '1';
-  } catch (e) {
-    return false;   // privémodus zonder opslag: gewoon de gewone weg
-  }
-}
-
 let bezig = false;          // loopt er een gebaar of een uitloop?
 let ooitGescrold = false;   // snappen begint UIT, zie zetSnappen()
 let rustTimer = null;
@@ -339,9 +304,6 @@ async function startLenis() {
   // syncTouch juist AANzet op touch. Reden dat Lenis ook op de telefoon meedraait:
   // zijn snap heeft zijn scroll-gebeurtenissen nodig om te kunnen timen.
   if (lenis || !(OP_DESKTOP.matches || OP_TOUCH.matches)) return;
-  // Staat de proef aan, dan blijft Lenis van de telefoon af en doet de browser
-  // het snappen zelf. Desktop merkt hier niets van: daar is OP_TOUCH onwaar.
-  if (OP_TOUCH.matches && nativeSnap()) return;
   const [L, S] = await Promise.all([
     import(`/assets/vendor/lenis.mjs?v=${VENDOR_V}`),
     import(`/assets/vendor/lenis-snap.mjs?v=${VENDOR_V}`),
@@ -580,13 +542,7 @@ function zetSnappen(aan) {
   // niet meteen naar het eerste bericht springt en de header wegvalt. Pas je
   // eerste gebaar naar beneden zet hem aan.
   const el = document.documentElement;
-  // EXPLICIET 'y proximity', geen lege waarde. Leeg betekent "val terug op de
-  // stylesheet", en die zet het snappen op mobiel juist UIT (de mediaquery bij
-  // .read-post, want twee snapsystemen op dezelfde scroller vechten). Zolang
-  // Lenis daar draaide klopte dat; zonder Lenis zou het snappen dan nooit meer
-  // aangaan en zou de proef niets kunnen bewijzen.
-  // Op desktop verandert er niets: dit is exact wat de stylesheet daar geeft.
-  const wil = aan ? 'y proximity' : 'none';
+  const wil = aan ? '' : 'none';
   if (el.style.scrollSnapType !== wil) el.style.scrollSnapType = wil;
 }
 
@@ -642,16 +598,6 @@ export function init() {
   document.body.classList.remove('is-paged');
   document.querySelectorAll('[data-lenis-prevent].read-post')
     .forEach((a) => a.removeAttribute('data-lenis-prevent'));
-
-  // DE VLAG WORDT HIER GELEZEN, op elke pagina en in elke weergave, en niet pas
-  // in startLenis(). Anders zit er een val in: land je in Grid, dan draait
-  // startLenis() helemaal niet, wordt ?nativesnap=1 nergens opgeschreven, en is
-  // de queryreeks weg zodra je op Lezen tikt. De proef gaat dan stilzwijgend
-  // niet door en je beoordeelt Lenis terwijl je denkt dat je de browser
-  // beoordeelt. Gemeten op dev: weergave 'grid', vlag null.
-  // Dit mag boven de terugval hieronder staan omdat de module op elke pagina
-  // draait (data-js is "chrome read tape"), ook waar geen leesstroom is.
-  nativeSnap();
 
   const s = document.getElementById('read-stream');
   if (!s) return;

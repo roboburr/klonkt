@@ -2547,20 +2547,6 @@ html:has(body.on-home[data-feed-view="reader"]),
        GELIJK aan de padding-top van .read-post hierboven; die ging 20-8 van
        2rem naar 4rem, dus deze ook. */
     scroll-margin-top: 4rem;
-    /* NOOIT OVER EEN GRENS HEEN VLIEGEN. Dit is de regel van 24-8 -- "ook al
-       zou het target voorbijgescrolld worden, alsnog op het target landen" --
-       maar dan als eigenschap in plaats van als JavaScript: de browser mag een
-       uitloop niet over dit snappunt heen laten gaan, hoe hard je ook veegt.
-       Een veeg komt daarmee altijd precies EEN bericht verder, nooit twee.
-       Dat overvliegen was de reden om Lenis op mobiel erbij te halen, en deze
-       eigenschap is toen nooit geprobeerd: hij stond op `normal`, en dan ook
-       nog op .read-post hierboven -- een element dat door scroll-snap-align:
-       none helemaal geen snappunt is, dus daar deed hij sowieso niets.
-       Zonder native snappen (de gewone stand op mobiel, en op desktop waar
-       Lenis het overneemt) verandert deze regel niets: er valt dan niets te
-       stoppen. Hij telt alleen mee tijdens de proef, zie nativeSnap() in
-       mod/read.js. */
-    scroll-snap-stop: always;
 }
 /* HET LAATSTE BERICHT SNAPT OOK (Robin, 20-8). Dat kon eerst niet: zijn
    bovenkant was onbereikbaar -- er zat te weinig pagina onder om hem naar de
