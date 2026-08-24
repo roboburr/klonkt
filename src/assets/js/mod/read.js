@@ -465,6 +465,9 @@ async function startLenis() {
   // lenis.targetScroll -- die wordt synchroon bij touchend gezet en IS het
   // exacte landingspunt van de uitloop.
   if (OP_TOUCH.matches) {
+    // Hoe lang het richten naar de lijn duurt, in seconden. De ene knop voor
+    // "snapperiger": 0.18 is direct, 0.3 is landen, 0.5 is zweven.
+    const SNAP_DUUR = 0.22;
     lenis.off('virtual-scroll', snap.onSnapDebounced);
     let raakTimer = null;
     let vertrek = 0;   // scrollpositie bij loslaten: punten daarachter zijn
@@ -497,13 +500,22 @@ async function startLenis() {
           if (punt.value > vertrek + 2 && (eerste < 0 || punt.value < punten[eerste].value)) eerste = i;
         });
         if (eerste < 0) return;            // niets meer voor je: vrij uitscrollen
-        // HET RICHTEN IS DE SNAP (Robins regel, 24-8): geen aparte animatie
-        // met een eigen duur, maar de lopende uitloop een nieuw doel geven,
-        // met DEZELFDE demping (syncTouchLerp) waarmee hij al onderweg is.
-        // Zo is er een doorlopende beweging die toevallig op de lijn eindigt,
-        // in plaats van een glijvlucht met halverwege een muur.
+        // HET RICHTEN IS DE SNAP (Robins regel, 24-8): de lopende uitloop
+        // krijgt het nieuwe doel, er komt geen tweede animatie overheen.
+        //
+        // MET EEN VASTE DUUR, niet met de lerp van de uitloop. Die lerp-vorm
+        // (0.09) is boterzacht maar heeft een exponentiele staart van ruim een
+        // halve seconde -- Robin wilde het korter en beslister (24-8). Een
+        // duur eindigt ECHT, op een instelbaar moment, zoals iOS-paging: vlot
+        // weg, stevig landen. Zelfde easing-familie als de desktop-snap.
+        // SNAP_DUUR is de enige knop: korter is snapperiger, langer is zachter.
         if (doel >= punten[eerste].value - vangZone()) {
-          lenis.scrollTo(punten[eerste].value, { lerp: 0.09, force: true, userData: { initiator: 'snap' } });
+          lenis.scrollTo(punten[eerste].value, {
+            duration: SNAP_DUUR,
+            easing: (t) => 1 - Math.pow(1 - t, 4),
+            force: true,
+            userData: { initiator: 'snap' },
+          });
         }
       }, 0);
     });
