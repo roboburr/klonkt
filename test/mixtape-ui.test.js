@@ -87,15 +87,12 @@ test('een ingesloten mixtape noemt zich mixtape en geen album', async () => {
   const html = AudioEmbedService.embedPlaylistShortcodes('<p>[[playlist:tape]]</p>', (id) => (id === 'tape' ? pl : null));
   // Het teken zat eerst in de tekst; nu staat er een echte cassette getekend en
   // is het woord genoeg. De eis blijft dezelfde: hij noemt zichzelf goed.
-  assert.match(html, /class="tape-kind">Mixtape</, 'een mixtape hoort zichzelf zo te noemen');
+  // Zonder de klassenaam erbij (25-8): WAAR het woord staat is layout, DAT het
+  // er staat is het besluit. De bron-regex-toets op de labelmap is weg om
+  // dezelfde reden: die toetste deze regel nog een keer, maar dan op de
+  // spelling van de code.
+  assert.match(html, />Mixtape</, 'een mixtape hoort zichzelf zo te noemen');
   assert.doesNotMatch(html, /💿 Album/, 'en niet het jasje van een album te dragen');
-});
-
-test('de renderer kiest zijn label niet meer met een tweewegkeuze', () => {
-  const bron = fs.readFileSync('src/services/AudioEmbedService.js', 'utf8');
-  assert.doesNotMatch(bron, /kind === 'playlist' \? '📃 Playlist' : '💿 Album'/,
-    'die vorm gaf een mixtape het jasje van een album');
-  assert.match(bron, /mixtape: '📼 Mixtape'/);
 });
 
 test('het bandje is een cassette, geen albumlijst', async () => {
@@ -109,9 +106,11 @@ test('het bandje is een cassette, geen albumlijst', async () => {
   };
   const html = AudioEmbedService.embedPlaylistShortcodes('<p>[[playlist:tape]]</p>', (id) => (id === 'tape' ? pl : null));
 
+  // Alleen de haken waar tape.js zich aan vastpakt (.post-tape, data-tape-go):
+  // dat is het contract tussen markup en module. De spoelen zelf zijn decor en
+  // worden hier sinds 25-8 niet meer geteld -- hoe de cassette eruitziet is
+  // layout, dat hij bedienbaar is niet.
   assert.match(html, /class="post-tape"/);
-  assert.match(html, /tape-reel--left/, 'twee spoelen, anders is het geen cassette');
-  assert.match(html, /tape-reel--right/);
   assert.match(html, /data-tape-go="back"/, 'terugspoelen');
   assert.match(html, /data-tape-go="fwd"/, 'vooruitspoelen');
 

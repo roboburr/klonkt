@@ -50,13 +50,21 @@ test('de titel van een C2S-post komt in de kolom, de zoekindex en de note', asyn
   assert.match(note.content, /^<p><strong>Mijn eerste getitelde note<\/strong><\/p>/, 'vetgedrukte eerste regel');
 });
 
-test('zonder name blijft alles zoals het was: lege titel, geen kopregel', async () => {
-  const r = await maak({ content: '<p>gewoon een note</p>' });
-  assert.equal(r.status, 201);
-  const post = db.prepare('SELECT * FROM posts WHERE id = ?').get(r.id);
+test('geen echte titel blijft een lege titel: zonder name, en met alleen witruimte', async () => {
+  // Een regel met twee kanten (samengevoegd 25-8): wat er niet is, wordt niet
+  // verzonnen -- of het veld nu ontbreekt of alleen witruimte draagt.
+  const zonder = await maak({ content: '<p>gewoon een note</p>' });
+  assert.equal(zonder.status, 201);
+  const post = db.prepare('SELECT * FROM posts WHERE id = ?').get(zonder.id);
   assert.equal(post.title, '', 'geen name is een lege titel, geen undefined of null');
   const note = AP.buildNote('https://test.example', site, post);
-  assert.ok(!/<strong>/.test(note.content.split('</p>')[0] + '</p>') || !post.title, 'geen verzonnen kopregel');
+  assert.ok(!note.content.startsWith('<p><strong>'), 'geen verzonnen kopregel');
+
+  const wit = await maak({ name: '   ', content: '<p>z</p>' });
+  const witPost = db.prepare('SELECT title FROM posts WHERE id = ?').get(wit.id);
+  assert.equal(witPost.title, '', 'witruimte trimt weg tot leeg');
+  const witNote = AP.buildNote('https://test.example', site, db.prepare('SELECT * FROM posts WHERE id = ?').get(wit.id));
+  assert.ok(!witNote.content.startsWith('<p><strong>'), 'en er komt geen lege kopregel');
 });
 
 test('de titel is platte tekst: HTML erin wordt tekst, en de grens is 200', async () => {
@@ -78,10 +86,3 @@ test('de titel is platte tekst: HTML erin wordt tekst, en de grens is 200', asyn
   assert.equal(langePost.title.length, 200, 'de huisgrens van 200, zoals content warning en sitetitel');
 });
 
-test('een titel met alleen witruimte is geen titel', async () => {
-  const r = await maak({ name: '   ', content: '<p>z</p>' });
-  const post = db.prepare('SELECT title FROM posts WHERE id = ?').get(r.id);
-  assert.equal(post.title, '', 'witruimte trimt weg tot leeg');
-  const note = AP.buildNote('https://test.example', site, post);
-  assert.ok(!note.content.startsWith('<p><strong>'), 'en er komt geen lege kopregel');
-});

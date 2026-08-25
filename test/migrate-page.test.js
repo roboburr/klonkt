@@ -38,7 +38,13 @@ test('de migrate-pagina draagt ze allebei wel', () => {
 });
 
 test('de volgorde op de pagina volgt de verhuizing: claimen eerst, aankondigen laatst', () => {
+  // Volgorde is hier INHOUD, geen layout (25-8): wie deze stappen in de
+  // verkeerde volgorde doet, breekt zijn verhuizing -- de pagina IS het
+  // stappenplan. Daarom mag deze positietoets blijven waar andere sneuvelden.
+  // De losse toets dat het stappenplan "bovenaan, voor de knoppen" staat is
+  // hierin opgegaan: dat het er IS hoort erbij, waar het staat niet.
   const ejs = fs.readFileSync('src/views/pages/admin-migrate.ejs', 'utf8');
+  assert.ok(ejs.indexOf('mig-steps') > -1, 'er hoort een stappenplan te staan');
   const alias = ejs.indexOf('name="ap_aliases"');
   const halen = ejs.indexOf('/admin/migrate/pull');
   const move = ejs.indexOf('name="move_target"');
@@ -66,14 +72,6 @@ test('een alias overleeft het opslaan van je uiterlijk', async () => {
 });
 
 // ── Het stappenplan ───────────────────────────────────────────────
-
-test('het stappenplan zet de volgorde vast die niemand raadt', () => {
-  const ejs = fs.readFileSync('src/views/pages/admin-migrate.ejs', 'utf8');
-  const plan = ejs.indexOf('mig-steps');
-  const alias = ejs.indexOf('name="ap_aliases"');
-  assert.ok(plan > -1, 'er hoort een stappenplan te staan');
-  assert.ok(plan < alias, 'en bovenaan, voor de knoppen die het beschrijft');
-});
 
 test('"hier" draait om als je vanaf de vertrekkende kant kijkt', async () => {
   // Deze pagina draait op BEIDE instanties. Stap 1, 3 en 4 horen op de nieuwe,
