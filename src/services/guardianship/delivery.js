@@ -41,6 +41,13 @@ export function c2sVisibility(object) {
 // guardian on any instance receives it as a private mention (the ward
 // call-for-help path).
 export async function deliverDirectNote(site, { recipients, text, html, language, inReplyTo, attachments, helpRequest, wave, awayUntil, helpMark, gateRequest }) {
+  // EEN MARKERING IS EEN ANTWOORD op de hulpvraag waar hij over gaat (Barts
+  // vraag, 26-8: "welke context heeft 'Ik kijk hiernaar' als ik erop klik?" --
+  // geen). De verwijzing reisde al mee als shaer:-veld, maar dat veld haalt de
+  // berichtenlezing niet, en de tik-route van de clients volgt inReplyTo.
+  // Dus zeggen we het ook in gewoon AS2: dan opent een tik de draad met de
+  // schermafdruk erbij, en threaden andere fediverse-servers hem net zo goed.
+  if (!inReplyTo && helpMark && helpMark.noteUri) inReplyTo = helpMark.noteUri;
   const { actorId, fetchActor, localActor, deliverTo, deriveHandle, escHtml, linkUrls, linkHashtags,
           getOutboxRow, buildReplyNote, AP_CONTEXT, getOrCreateKeys, deliver, enqueueDelivery } = deps;
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');

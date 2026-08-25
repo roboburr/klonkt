@@ -135,6 +135,10 @@ export function markerNote({ id, me, noteUri, kind, to }) {
   const k = kind === 'handled' ? 'handled' : 'pickup';
   return {
     id, type: 'Note', attributedTo: me, to,
+    // Ook als antwoord, in gewoon AS2 (26-8): de markering gaat ergens over,
+    // en inReplyTo is hoe je dat zegt zonder dialect. Zie deliverDirectNote,
+    // die dit voor de echte bezorging net zo doet.
+    inReplyTo: noteUri,
     [k === 'handled' ? 'shaer:helpHandled' : 'shaer:helpPickup']: noteUri,
     content: k === 'handled'
       ? '<p>Deze hulpvraag is afgehandeld.</p>'
