@@ -126,10 +126,10 @@
      naam en het AANTAL blijft staan -- dat aantal is juist ingeklapt het meest
      waard. */
   .msg-thread.is-collapsed .msg-thread-msgs,
-  .msg-thread.is-collapsed .msg-thread-foot { display: none; }
+  .msg-thread.is-collapsed .msg-thread-actions { display: none; }
   /* Tijdens het zoeken wint de treffer van de dichtgeklapte stand. */
   .msg-thread.is-collapsed.is-search-open .msg-thread-msgs { display: flex; }
-  .msg-thread.is-collapsed.is-search-open .msg-thread-foot { display: flex; }
+  .msg-thread.is-collapsed.is-search-open .msg-thread-actions { display: flex; }
   .msg-thread.is-collapsed .msg-thread-chevron { transform: rotate(-90deg); }
   .msg-thread.is-collapsed .msg-thread-head { margin-bottom: 0; }
   @media (prefers-reduced-motion: reduce) { .msg-thread-chevron { transition: none; } }
@@ -155,10 +155,13 @@
   /* Een lange naam of tijd mag de bubbel niet uit de kaart duwen. */
   .msg-sub .msg-line { flex-wrap: wrap; }
 
-  /* De voet van een gesprek: antwoorden en zwaaien naast elkaar, ingeklapt.
+  /* Antwoorden en zwaaien naast elkaar, ingeklapt, en sinds 25-8 BOVEN de
+     berichten -- daar staat het nieuwste, en daar antwoord je dus op. Heette
+     msg-thread-foot toen het onderaan stond; de marge verhuisde mee van top
+     naar bottom, anders plakt de rij tegen de eerste bubbel.
      Een open editor onder elk gesprek maakt de lijst weer onleesbaar -- precies
      wat deze weergave moest oplossen. */
-  .msg-thread-foot { display: flex; align-items: flex-start; gap: .5rem; margin-top: .5rem; flex-wrap: wrap; }
+  .msg-thread-actions { display: flex; align-items: flex-start; gap: .5rem; margin-bottom: .5rem; flex-wrap: wrap; }
   .msg-reply { flex: 1 1 12rem; min-width: 0; }
   .msg-reply > summary { cursor: pointer; font-size: .82rem; color: var(--ink-soft, #888); }
   .msg-reply[open] > summary { margin-bottom: .4rem; }

@@ -68,3 +68,20 @@ test('een zwaai die JIJ stuurde is geen uitnodiging aan jezelf', async () => {
   const eigen = draad({ messages: [{ type: 'sent', to_handle: '@bart@pruts.nl', wave: true, created_at: '2026-08-25T10:00:00Z' }] });
   assert.equal((await render(eigen)).includes('msg-thread-wave'), false);
 });
+
+test('antwoorden en zwaaien staan BOVEN de berichten', async () => {
+  // Sinds het nieuwste bovenaan staat hoort de knop daar ook: onderaan zou hij
+  // bij het OUDSTE bericht komen te staan, en daar antwoord je niet op.
+  const html = await ejs.renderFile(partial, {
+    ...helpers, canMutate: true,
+    n: draad({ replyTo: { actorUri: 'https://pruts.nl/ap/users/bart' } }),
+  });
+  const acties = html.indexOf('msg-thread-actions');
+  const bubbels = html.indexOf('msg-thread-msgs');
+  assert.ok(acties > -1, 'de antwoordrij staat er');
+  assert.ok(bubbels > -1, 'en de berichten ook');
+  assert.ok(acties < bubbels, `antwoordrij boven de berichten, kreeg acties=${acties} bubbels=${bubbels}`);
+  // De zwaai-hand hoort in diezelfde rij, dus ook boven de berichten.
+  const zwaai = html.indexOf('class="msg-wave"');
+  assert.ok(zwaai > -1 && zwaai < bubbels, 'de zwaai-hand staat in de rij erboven');
+});

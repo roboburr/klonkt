@@ -49,29 +49,17 @@
               </a>
             <% } %>
           </div>
-          <%# NIEUWSTE BOVENAAN binnen een gesprek (Robins besluit, 25-8). De
-              LIJST van gesprekken en de meldingen blijven staan zoals ze
-              stonden; alleen binnen een draad leest het van nieuw naar oud, dus
-              wat er net bij kwam staat er meteen en niet onderaan een lange
-              draad.
+          <%# Antwoorden vanuit de draad zelf, BOVEN de berichten (Robins
+              besluit, 25-8). Sinds het nieuwste bovenaan staat, is de bovenkant
+              waar het gesprek nu is: antwoorden hoort bij het laatste bericht,
+              en dat staat er direct onder. Onderaan zou de knop bij het OUDSTE
+              bericht komen te staan, en dat is precies waar je niet op
+              antwoordt.
 
-              Op een KOPIE, want groupConversations sorteert `messages`
-              oplopend en de rest van deze pagina rekent daarop -- `_tnew` en
-              `_tto` hierboven lezen dezelfde array. Een reverse() zonder
-              slice() draait het origineel om en dat werkt door naar alles wat
-              er daarna nog naar kijkt.
-
-              In de MARKUP en niet met column-reverse: die draait alleen het
-              beeld om, terwijl een schermlezer en het toetsenbord de oude
-              volgorde houden. %>
-          <ul class="msg-thread-msgs">
-            <% (n.messages || []).slice().reverse().forEach(function (m) { %><%- include('msg-item', { n: m, seen: _tseen, inThread: true }) %><% }); %>
-          </ul>
-          <%# Antwoorden vanuit de draad zelf. Ingeklapt, want een open editor
-              onder elk gesprek maakt de lijst onleesbaar -- juist het probleem
-              dat deze weergave moest oplossen. De route kiest het pad: een
-              draad aan een post krijgt een reply, een draad aan een persoon een
-              direct bericht. %>
+              Nog steeds ingeklapt, want een open editor onder elk gesprek maakt
+              de lijst onleesbaar -- juist het probleem dat deze weergave moest
+              oplossen. De route kiest het pad: een draad aan een post krijgt
+              een reply, een draad aan een persoon een direct bericht. %>
           <%# shaer-r4c: precies de tak die de server ook kiest. /messages/reply
               gaat naar deliverReply als er een interaction+post is (dat is een
               ANTWOORD en valt onder de poort), en anders naar deliverDirectNote
@@ -79,7 +67,10 @@
           <% var _rt = n.replyTo || {}; var _thread = _rt.interactionId && _rt.postSlug; %>
           <% var _kan = canMutate && ((_thread && locals.mayReply !== false) || (!_thread && _rt.actorUri)); %>
           <% if (_kan) { %>
-            <div class="msg-thread-foot">
+            <%# Heette msg-thread-foot toen hij onderaan stond. Een naam die
+                zegt waar iets staat is een leugen zodra het verhuist, dus nu
+                zegt hij wat het IS. %>
+            <div class="msg-thread-actions">
               <details class="msg-reply">
                 <summary><%= t('fedi.reply') %></summary>
                 <div class="msg-reply-form">
@@ -106,6 +97,24 @@
               <% } %>
             </div>
           <% } %>
+          <%# NIEUWSTE BOVENAAN binnen een gesprek (Robins besluit, 25-8). De
+              LIJST van gesprekken en de meldingen blijven staan zoals ze
+              stonden; alleen binnen een draad leest het van nieuw naar oud, dus
+              wat er net bij kwam staat er meteen en niet onderaan een lange
+              draad.
+
+              Op een KOPIE, want groupConversations sorteert `messages`
+              oplopend en de rest van deze pagina rekent daarop -- `_tnew` en
+              `_tto` hierboven lezen dezelfde array. Een reverse() zonder
+              slice() draait het origineel om en dat werkt door naar alles wat
+              er daarna nog naar kijkt.
+
+              In de MARKUP en niet met column-reverse: die draait alleen het
+              beeld om, terwijl een schermlezer en het toetsenbord de oude
+              volgorde houden. %>
+          <ul class="msg-thread-msgs">
+            <% (n.messages || []).slice().reverse().forEach(function (m) { %><%- include('msg-item', { n: m, seen: _tseen, inThread: true }) %><% }); %>
+          </ul>
         </li>
 <% } else { %>
 <%
