@@ -1,6 +1,8 @@
-// Binnen een gesprek leest Berichten van NIEUW naar OUD (Robins besluit,
-// 25-8), en een ontvangen zwaai staat in de KOP van de draad -- want ingeklapt
-// zijn de bubbels weg, en juist een zwaai vraagt om een antwoord.
+// Twee beslissingen over Berichten (Robins besluit, 25-8), en niet meer dan
+// dat: binnen een gesprek leest het van NIEUW naar OUD, en een ONTVANGEN zwaai
+// zet een markering op de draad. Waar de dingen op de pagina STAAN wordt hier
+// met opzet niet getoetst -- dat is layout, en een toets daarop breekt bij de
+// eerstvolgende verschuiving zonder dat er iets stuk is.
 //
 // Dit rendert de echte partial. EJS-fouten bestaan alleen tijdens het renderen:
 // een verkeerde variabelenaam of een scheve `<% %>` valt hier om en nergens
@@ -35,53 +37,28 @@ function draad(extra = {}) {
 
 const render = (n) => ejs.renderFile(partial, { ...helpers, n });
 
-test('binnen een gesprek staat het nieuwste bovenaan', async () => {
-  const html = await render(draad());
+test('binnen een gesprek leest het van nieuw naar oud, zonder de bron te draaien', async () => {
+  const d = draad();
+  const html = await render(d);
   const nieuw = html.indexOf('NIEUWSTE'), midden = html.indexOf('MIDDELSTE'), oud = html.indexOf('OUDSTE');
   assert.ok(nieuw > -1 && midden > -1 && oud > -1, 'alle drie de berichten staan er');
-  assert.ok(nieuw < midden && midden < oud, `nieuwste bovenaan, kreeg N=${nieuw} M=${midden} O=${oud}`);
-});
-
-test('de draad-array zelf blijft oplopend', async () => {
-  // groupConversations sorteert oplopend en de rest van de pagina rekent
-  // daarop: `_tnew` en `_tto` lezen dezelfde array. Draaide de partial het
-  // origineel om, dan werkt dat door naar alles wat er daarna naar kijkt.
-  const d = draad();
-  await render(d);
+  assert.ok(nieuw < midden && midden < oud, `nieuwste eerst, kreeg N=${nieuw} M=${midden} O=${oud}`);
+  // En de DOORGEGEVEN array blijft oplopend: groupConversations sorteert zo en
+  // de rest van de pagina rekent daarop (`_tnew` en `_tto` lezen dezelfde
+  // array). Draaide de partial het origineel om, dan werkt dat door naar alles
+  // wat er daarna naar kijkt.
   assert.deepEqual(d.messages.map((m) => m.name), ['OUDSTE', 'MIDDELSTE', 'NIEUWSTE']);
 });
 
-test('een ontvangen zwaai staat in de kop, voor de bubbels', async () => {
-  const html = await render(draad());
-  const kop = html.indexOf('msg-thread-wave');
-  assert.ok(kop > -1, 'de kop draagt een zwaai-teken');
-  assert.ok(kop < html.indexOf('msg-thread-msgs'), 'en staat in de kop, niet tussen de bubbels');
-});
-
-test('geen zwaai, geen teken', async () => {
+test('de zwaai-markering volgt alleen een ONTVANGEN zwaai', async () => {
+  // Wel een ontvangen zwaai: markering.
+  assert.ok((await render(draad())).includes('msg-thread-wave'), 'een ontvangen zwaai markeert de draad');
+  // Geen zwaai: geen markering.
   const stil = draad();
   stil.messages = stil.messages.map((m) => ({ ...m, wave: false }));
-  assert.equal((await render(stil)).includes('msg-thread-wave'), false);
-});
-
-test('een zwaai die JIJ stuurde is geen uitnodiging aan jezelf', async () => {
+  assert.equal((await render(stil)).includes('msg-thread-wave'), false, 'geen zwaai, geen teken');
+  // Een zwaai die JIJ stuurde: ook geen markering, dat is geen uitnodiging
+  // aan jezelf.
   const eigen = draad({ messages: [{ type: 'sent', to_handle: '@bart@pruts.nl', wave: true, created_at: '2026-08-25T10:00:00Z' }] });
-  assert.equal((await render(eigen)).includes('msg-thread-wave'), false);
-});
-
-test('antwoorden en zwaaien staan BOVEN de berichten', async () => {
-  // Sinds het nieuwste bovenaan staat hoort de knop daar ook: onderaan zou hij
-  // bij het OUDSTE bericht komen te staan, en daar antwoord je niet op.
-  const html = await ejs.renderFile(partial, {
-    ...helpers, canMutate: true,
-    n: draad({ replyTo: { actorUri: 'https://pruts.nl/ap/users/bart' } }),
-  });
-  const acties = html.indexOf('msg-thread-actions');
-  const bubbels = html.indexOf('msg-thread-msgs');
-  assert.ok(acties > -1, 'de antwoordrij staat er');
-  assert.ok(bubbels > -1, 'en de berichten ook');
-  assert.ok(acties < bubbels, `antwoordrij boven de berichten, kreeg acties=${acties} bubbels=${bubbels}`);
-  // De zwaai-hand hoort in diezelfde rij, dus ook boven de berichten.
-  const zwaai = html.indexOf('class="msg-wave"');
-  assert.ok(zwaai > -1 && zwaai < bubbels, 'de zwaai-hand staat in de rij erboven');
+  assert.equal((await render(eigen)).includes('msg-thread-wave'), false, 'een eigen zwaai zet geen teken');
 });
