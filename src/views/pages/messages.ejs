@@ -133,6 +133,10 @@
   .msg-thread.is-collapsed .msg-thread-chevron { transform: rotate(-90deg); }
   .msg-thread.is-collapsed .msg-thread-head { margin-bottom: 0; }
   @media (prefers-reduced-motion: reduce) { .msg-thread-chevron { transition: none; } }
+  /* De zwaai in de kop: klein, en met dezelfde rust als het aantal ernaast.
+     Hij staat er ook als het gesprek open is -- dan zegt de bubbel het al, maar
+     een kop die van stand verandert leest als iets dat gebeurde. */
+  .msg-thread-wave { flex: 0 0 auto; font-size: .95em; line-height: 1; }
   .msg-thread-count { font-variant-numeric: tabular-nums; opacity: .75; flex: 0 0 auto;
     padding-inline-start: .3rem; border-inline-start: 1px solid color-mix(in srgb, var(--ink, #000) 14%, transparent); }
   .msg-thread-post { display: inline-flex; align-items: center; gap: .3rem; font-size: .85em;

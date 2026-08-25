@@ -10,6 +10,13 @@
            // je schreef, niet een lege naam.
            var _tto = ((n.messages || []).find(function (m) { return m.to_handle; }) || {}).to_handle;
            var _tlabel = _tpeople.length ? _tpeople.join(', ') : (_tto || t('msg.you'));
+           // Zwaaide er iemand in dit gesprek? Dan hoort dat in de KOP
+           // (Robins aanwijzing, 25-8). Ingeklapt zijn de bubbels weg, en juist
+           // een zwaai is het bericht dat om een antwoord vraagt zonder iets te
+           // zeggen -- die mag niet achter een dichtgeklapt gesprek verdwijnen.
+           // Alleen een ONTVANGEN zwaai: je eigen zwaai staat er als 'sent' en
+           // is geen uitnodiging aan jezelf.
+           var _twave = (n.messages || []).some(function (m) { return m.type === 'mention' && m.wave; });
       %>
         <li class="msg-item msg-thread<%= _tnew ? ' is-new' : '' %>" data-kind="conv" data-who="<%= (_tpeople.join(' ') + ' ' + (_tto || '')).toLowerCase() %>">
           <div class="msg-thread-head">
@@ -29,6 +36,9 @@
               <% if (n.count > 1) { %><span class="msg-thread-count"><%= n.count %></span><% } %>
               <svg class="msg-thread-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
             </button>
+            <%# Blijft staan als het gesprek dicht is, net als het aantal in de
+                uitsparing hierboven -- daar is hij juist het meest waard. %>
+            <% if (_twave) { %><span class="msg-thread-wave" role="img" aria-label="<%= t('msg.waved_at_you') %>" title="<%= t('msg.waved_at_you') %>">&#128075;</span><% } %>
             <% if (_tnew) { %><span class="msg-new" title="<%= t('msg.new') %>"></span><% } %>
             <%# De context bij de draad: waar gaat dit gesprek over? Zonder deze
                 link is een antwoord in een lijst niet te plaatsen. %>
@@ -39,8 +49,23 @@
               </a>
             <% } %>
           </div>
+          <%# NIEUWSTE BOVENAAN binnen een gesprek (Robins besluit, 25-8). De
+              LIJST van gesprekken en de meldingen blijven staan zoals ze
+              stonden; alleen binnen een draad leest het van nieuw naar oud, dus
+              wat er net bij kwam staat er meteen en niet onderaan een lange
+              draad.
+
+              Op een KOPIE, want groupConversations sorteert `messages`
+              oplopend en de rest van deze pagina rekent daarop -- `_tnew` en
+              `_tto` hierboven lezen dezelfde array. Een reverse() zonder
+              slice() draait het origineel om en dat werkt door naar alles wat
+              er daarna nog naar kijkt.
+
+              In de MARKUP en niet met column-reverse: die draait alleen het
+              beeld om, terwijl een schermlezer en het toetsenbord de oude
+              volgorde houden. %>
           <ul class="msg-thread-msgs">
-            <% (n.messages || []).forEach(function (m) { %><%- include('msg-item', { n: m, seen: _tseen, inThread: true }) %><% }); %>
+            <% (n.messages || []).slice().reverse().forEach(function (m) { %><%- include('msg-item', { n: m, seen: _tseen, inThread: true }) %><% }); %>
           </ul>
           <%# Antwoorden vanuit de draad zelf. Ingeklapt, want een open editor
               onder elk gesprek maakt de lijst onleesbaar -- juist het probleem
