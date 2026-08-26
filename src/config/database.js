@@ -833,6 +833,7 @@ export function initializeDatabase() {
       actor_uri TEXT, actor_name TEXT, actor_handle TEXT, actor_icon TEXT, actor_url TEXT,
       content TEXT,                 -- sanitized HTML snippet of the mentioning note
       published TEXT,
+      in_reply_to TEXT,             -- de note waarop dit een antwoord is (AS2 inReplyTo)
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(slug, object_uri)
     );
@@ -986,6 +987,12 @@ export function initializeDatabase() {
   ensureColumn('ap_mentions', 'media_json', 'TEXT');
   ensureColumn('ap_mentions', 'quote_json', 'TEXT');        // FEP-044f quoted post
   ensureColumn('ap_mentions', 'embed_json', 'TEXT');        // external link preview
+  // AS2 inReplyTo op een vermelding/bericht. Bestond hier niet, en daarmee ging
+  // de ouder bij het opslaan verloren: elk ANTWOORD in een gesprek kwam bij de
+  // client aan alsof het een gesprek begon (Robins melding, 26-8). Bestaande
+  // rijen blijven leeg -- die ouder is niet meer te achterhalen zonder hem
+  // opnieuw op te halen, en een verzonnen ouder is erger dan geen.
+  ensureColumn('ap_mentions', 'in_reply_to', 'TEXT');
   ensureColumn('ap_interactions', 'media_json', 'TEXT');
   ensureColumn('ap_interactions', 'quote_json', 'TEXT');
   ensureColumn('ap_interactions', 'embed_json', 'TEXT');

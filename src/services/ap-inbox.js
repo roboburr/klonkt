@@ -690,9 +690,20 @@ export async function handleInbox(req, slugParam, preVerified = null) {
         }
         for (const slug of slugs) {
           try {
-            const r = db.prepare(`INSERT OR IGNORE INTO ap_mentions (slug, object_uri, note_url, actor_uri, actor_name, actor_handle, actor_icon, actor_url, content, published, help_request, wave, has_guardians, emoji_json, actor_emoji_json, media_json, created_at)
-                                  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)`)
-              .run(slug, o.id, safeUrl(o.url) || null, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.published || null, help ? 1 : 0, wave ? 1 : 0, hasG ? 1 : 0,
+            // De OUDER gaat mee (Robins melding, 26-8). Hij stond nergens in
+            // deze rij, dus een antwoord binnen een gesprek kwam bij de client
+            // aan alsof het een gesprek begon: de app kan een keten alleen
+            // teruglopen langs inReplyTo, en die was leeg.
+            //
+            // Alleen een http(s)-adres, langs dezelfde poort als `url`: een
+            // inReplyTo komt van een vreemde en mag geen ander schema
+            // binnensmokkelen. AS2 staat een string of een object toe, dus
+            // allebei uitpakken -- alleen de string erkennen zou hetzelfde gat
+            // laten voor iedereen die de objectvorm stuurt.
+            const ouder = safeUrl(typeof o.inReplyTo === 'string' ? o.inReplyTo : (o.inReplyTo && o.inReplyTo.id)) || null;
+            const r = db.prepare(`INSERT OR IGNORE INTO ap_mentions (slug, object_uri, note_url, actor_uri, actor_name, actor_handle, actor_icon, actor_url, content, published, in_reply_to, help_request, wave, has_guardians, emoji_json, actor_emoji_json, media_json, created_at)
+                                  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)`)
+              .run(slug, o.id, safeUrl(o.url) || null, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.published || null, ouder, help ? 1 : 0, wave ? 1 : 0, hasG ? 1 : 0,
                 extractEmojiTags(o.tag), emojiJsonOf(ai.emojis), mediaFromNote(o));
             if (r.changes) {
               // The quote / link-preview card resolves out of band (a remote

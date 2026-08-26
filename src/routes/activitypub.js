@@ -542,6 +542,12 @@ function messageItem(m, { base, me, myHandle, p }) {
       }) : undefined),
       content: AP.stripLeadingMentions(m.content),
       url: m.note_url || undefined,
+      // Waar dit een antwoord op is (Robins melding, 26-8). Zonder dit veld
+      // kwam elk antwoord binnen als het begin van een gesprek: de client kan
+      // een keten alleen teruglopen langs inReplyTo. De andere twee legs
+      // (replyItem uit ap_interactions, sentItem via buildNote) droegen hem
+      // al -- deze was de enige die hem niet eens opsloeg.
+      inReplyTo: m.in_reply_to || undefined,
       published: AP.isoStamp(m.published || m.created_at),
       // Addressed to us and to nobody we know of: the other recipients of a
       // note to several people are not ours to see, so we serve what we know.

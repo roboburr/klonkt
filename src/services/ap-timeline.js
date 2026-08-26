@@ -333,7 +333,7 @@ export function conversationHistory(slug, other, { before = null, limit = 60 } =
 // een kaart die op de ene plek een plaatje heeft en op de andere niet.
 const MESSAGE_COLUMNS = `
       m.object_uri, m.note_url, m.actor_uri, m.actor_name, m.actor_handle, m.actor_icon, m.actor_url,
-      m.content, m.published, m.created_at, m.wave, m.help_request,
+      m.content, m.published, m.created_at, m.wave, m.help_request, m.in_reply_to,
       m.emoji_json, m.actor_emoji_json, m.media_json, m.quote_json, m.embed_json`;
 
 /** Dezelfde berichtrijen, maar op object-uri -- voor een gesprek. */
