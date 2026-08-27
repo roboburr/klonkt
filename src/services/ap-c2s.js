@@ -200,6 +200,27 @@ export async function ingestOutboxActivity(site, user, activity) {
               name: String(a.name || '').slice(0, 120),
             } : null)
             .filter(Boolean);
+          // DE MENTIONS VAN DE CLIENT (Robins melding, 26-8). Zonder deze
+          // regel kreeg deliverReply `mentions: undefined`, en dat betekent
+          // daar "oud gedrag: noem alleen de auteur van de ouder". Een client
+          // die er drie stuurde zag er dus een gepubliceerd worden -- niet
+          // door een filter, maar doordat de andere twee hier nooit aankwamen.
+          //
+          // De tags zijn de bron, niet `to`/`cc`: die dragen ook de
+          // volgerscollectie en Public, en dat zijn geen mensen. `href` is de
+          // actor, `name` de handle zoals de client hem spelt.
+          //
+          // Ontdubbeld op actor, want de ouder-auteur zit meestal ook in de
+          // tags en zou anders twee keer vooraan komen te staan.
+          //
+          // GEEN tags meegestuurd blijft undefined en dus het oude gedrag. Een
+          // LEGE lijst kan niet: dat betekent in deliverReply "niemand noemen",
+          // en dat is een keuze die een client die geen tags kent nooit maakte.
+          const gezien = new Set();
+          const mentions = (Array.isArray(object.tag) ? object.tag : (object.tag ? [object.tag] : []))
+            .filter((t) => t && t.type === 'Mention' && typeof t.href === 'string' && /^https?:\/\//i.test(t.href))
+            .filter((t) => !gezien.has(t.href) && gezien.add(t.href))
+            .map((t) => ({ uri: t.href, url: t.href, handle: typeof t.name === 'string' ? t.name : undefined }));
           // Honour the client's visibility for the reply: 'friends' (followers-
           // only, the Shaer detail-view Reply) drops Public; anything else stays
           // quiet-public. 'direct' was already handled above.
@@ -207,6 +228,7 @@ export async function ingestOutboxActivity(site, user, activity) {
             postId: parent.localPostId || '', postSlug: null, parent, text: plain,
             html: object.content || null, attachments: atts,
             language: object.language || null, visibility: c2sVisibility(object),
+            mentions: mentions.length ? mentions : undefined,
           });
           if (!r || !r.id) return { status: 502, error: 'reply_failed' };
           return { status: 201, id: r.id, url: `${base}/ap/notes/${r.id}` };
