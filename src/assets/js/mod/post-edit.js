@@ -4,7 +4,7 @@
 // door esc(): de EJS-tag ontsnapte die vroeger ook, dus dit is gedragsgelijk en
 // het houdt een apostrof in een vertaling uit de HTML die hier geplakt wordt.
 
-import { pageData, esc, makeSweeper } from './lib.js';
+import { pageData, esc, makeSweeper, VENDOR_V } from './lib.js';
 // Dezelfde regel die de server gebruikt -- zie shared/post-music-type.js voor
 // waarom hij daar staat en niet twee keer.
 import { afleidenUitInsluitingen, SOORTEN } from '../shared/post-music-type.js';
@@ -172,11 +172,13 @@ function run() {
     _cropperReady = new Promise((resolve, reject) => {
       if (!document.querySelector('link[data-cropper-css]')) {
         const l = document.createElement('link');
-        l.rel = 'stylesheet'; l.href = '/assets/vendor/cropper.min.css'; l.setAttribute('data-cropper-css', '');
+        // Met versie, net als het script eronder (shaer-724): /assets wordt een
+        // jaar gecachet en deze twee bestanden dragen geen versie in hun naam.
+        l.rel = 'stylesheet'; l.href = `/assets/vendor/cropper.min.css?v=${VENDOR_V}`; l.setAttribute('data-cropper-css', '');
         document.head.appendChild(l);
       }
       const s = document.createElement('script');
-      s.src = '/assets/vendor/cropper.min.js';
+      s.src = `/assets/vendor/cropper.min.js?v=${VENDOR_V}`;
       s.onload = () => resolve();
       s.onerror = () => reject(new Error('cropper load failed'));
       document.head.appendChild(s);

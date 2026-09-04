@@ -30,6 +30,10 @@
  * scrollen, en cmd/ctrl-klik hoort de browser zelf af te handelen.
  */
 
+// VENDOR_V komt uit lib.js: een nummer voor de hele vendormap (shaer-724),
+// zodat 'ophogen als de bibliotheek wijzigt' op een plek staat.
+import { VENDOR_V } from './lib.js';
+
 // ── Paginamodus ─────────────────────────────────────────────────────────────
 /**
  * Elk bericht een paneel dat zelf scrollt; tussen berichten ga je met knoppen.
@@ -293,7 +297,7 @@ const OP_DESKTOP = window.matchMedia('(hover: hover) and (pointer: fine)');
 // iOS < 16. Dit staat er dus als proef, niet als besluit: voelt het niet goed,
 // dan is OP_TOUCH weer false zetten de hele terugweg.
 const OP_TOUCH = window.matchMedia('(hover: none) and (pointer: coarse)');
-const VENDOR_V = 1;   // ophogen als de bestanden in /assets/js/vendor wijzigen
+// VENDOR_V komt uit lib.js: een nummer voor de hele vendormap (shaer-724).
 
 let lenis = null;
 let snap = null;

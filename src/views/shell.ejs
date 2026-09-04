@@ -119,6 +119,17 @@ if (typeof post !== 'undefined' && post && post.slug) {
     publisher:  _publisher,
   };
 }
+%>
+<%
+// De cache-buster voor alles onder assets/js/mod (en de gedeelde bestanden die
+// die modules importeren). Stond alleen in de bootstrap onderaan; hij staat nu
+// hier omdat de importmap in de <head> hem OOK nodig heeft, en twee losse
+// nummers lopen gegarandeerd een keer uit elkaar.
+//
+// Ophogen bij ELKE wijziging in assets/js/mod -- /assets wordt buiten
+// ontwikkeling een jaar gecachet, dus zonder bump bereikt een reparatie
+// iedereen behalve wie de fout al heeft.
+const MOD_V = 63;
 %><!DOCTYPE html>
 <html lang="<%- _e(lang) %>" data-palette="<%- _e((typeof palette !== 'undefined' && palette) ? palette : (safeSite.palette || 'klonkt')) %>">
 <head>
@@ -338,6 +349,25 @@ const _embedUrl = _postAudio
 <!-- HTMX — bundled locally from node_modules at boot, zero third-party requests -->
 <script src="/assets/js/htmx.min.js"></script>
 
+<%# De cache-buster reikt ook tot wat de modules ONDERLING importeren (shaer-724).
+    De bootstrap hangt ?v= aan elke module die hij zelf laadt, maar een import
+    BINNEN een module is relatief, en een relatieve specifier erft de query
+    niet: `./lib.js` naast `post.js?v=63` wordt gewoon `/assets/js/mod/lib.js`.
+    Dat bestand wordt met max-age van een jaar geserveerd, dus het bleef bij
+    terugkerende bezoekers staan terwijl de modules eromheen ververst werden --
+    en juist lib.js is gedeeld, dus een fout daarin overleeft elke MOD_V-bump.
+
+    Een importmap lost dat op zonder die elf imports aan te raken: hij vertaalt
+    de OPGELOSTE URL naar zijn geversioneerde vorm. Hij moet in de head staan,
+    voor de eerste module-import. De toets bij dit bestand bewaakt dat elke
+    relatieve import onder assets/js hier een ingang heeft. %>
+<script type="importmap">
+{"imports":{
+  "/assets/js/mod/lib.js": "/assets/js/mod/lib.js?v=<%= MOD_V %>",
+  "/assets/js/shared/post-music-type.js": "/assets/js/shared/post-music-type.js?v=<%= MOD_V %>"
+}}
+</script>
+
 <!-- Per-site custom <head> HTML (analytics, verification, etc.) -->
 <% if (safeSite.custom_head_html) { %>
 <%- safeSite.custom_head_html %>
@@ -504,7 +534,7 @@ const _embedUrl = _postAudio
   // reparatie bereikt precies de bezoekers die hem al hebben.
   // Eén nummer voor de hele map. Te vaak bumpen kost één download; te weinig
   // bumpen kost een bugfix die nooit aankomt.
-  var MOD_V = 63;
+  var MOD_V = <%= MOD_V %>;   // uit de EJS-variabele bovenaan; zie de importmap in de head
 
   // name -> 1 (aan het laden) of de module-namespace (geladen). Een module
   // die `init` exporteert draait die bij ELKE paginawissel waarop hij actief

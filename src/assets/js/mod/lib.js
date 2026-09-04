@@ -82,9 +82,25 @@ export function esc(s) {
  * Faalt het laden, dan geeft dit undefined terug en niet een fout: beide
  * aanroepers hebben al een nette terugval voor "geen WebAuthn hier".
  */
+/**
+ * De cache-buster voor alles in /assets/vendor (shaer-724).
+ *
+ * Die map valt onder dezelfde max-age van een jaar als de rest van /assets, en
+ * een vendorbestand heeft geen versie in zijn naam. Zonder query houdt een
+ * browser die hem ooit zag hem dus een jaar vast, ook na een update van de
+ * bibliotheek.
+ *
+ * EEN nummer voor de hele map, hier, en niet drie losse per module: read.js had
+ * er al een en lib.js en post-edit.js hadden er geen, en dan is "ophogen als de
+ * bibliotheek wijzigt" een opdracht die je op drie plekken moet onthouden. Dat
+ * kost read.js wel een import van dit bestand op de leespagina; die is klein en
+ * staat na de eerste pagina in de cache.
+ */
+export const VENDOR_V = 1;
+
 export async function loadWebAuthn() {
   if (window.SimpleWebAuthnBrowser) return window.SimpleWebAuthnBrowser;
-  try { await import('/assets/vendor/simplewebauthn-browser.umd.min.js'); }
+  try { await import(`/assets/vendor/simplewebauthn-browser.umd.min.js?v=${VENDOR_V}`); }
   catch (e) { console.warn('[paid] WebAuthn-bibliotheek laadt niet:', e && e.message); }
   return window.SimpleWebAuthnBrowser;
 }
