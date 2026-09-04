@@ -21,6 +21,33 @@ db.pragma('foreign_keys = ON');
 db.pragma('busy_timeout = 5000');   // wait up to 5s for a lock instead of failing immediately
 db.pragma('synchronous = NORMAL');  // safe with WAL (no torn writes); fewer fsyncs = faster writes
 
+/**
+ * Tijdstempels in EEN spelling (shaer-a937).
+ *
+ * Deze database draagt twee vormen door elkaar: '2026-08-06 09:02:01' van
+ * CURRENT_TIMESTAMP en '2026-08-06T02:08:01.000Z' van toISOString(). SQLite
+ * vergelijkt ze als TEKST, en op positie 10 staat een 'T' (0x54) tegenover een
+ * spatie (0x20) -- dus binnen dezelfde dag wint de ISO-vorm altijd, hoe laat hij
+ * ook is. Een antwoord van 02:08 kwam zo boven een like van 09:02 te staan.
+ *
+ * `NU_ISO` is wat je SCHRIJFT, `isoSql()` is waarmee je VERGELIJKT of SORTEERT.
+ * De twee horen bij elkaar: het eerste zorgt dat er niets nieuws bijkomt, het
+ * tweede dat wat er al staat toch goed op volgorde komt.
+ *
+ * isoSql valt met COALESCE terug op de RAUWE waarde: strftime geeft NULL op iets
+ * dat het niet als tijd herkent, en zonder die terugval zou zo'n rij uit de
+ * sortering vallen -- of erger, als hij ook geSELECTeerd wordt (de cursor in de
+ * gesprekslezing) zou de client een lege stempel terugkrijgen en zijn plek
+ * kwijtraken. Waar zo'n onleesbare waarde dan LANDT is onbepaald: hij wordt als
+ * tekst vergeleken en 'geen datum' staat nu eenmaal boven '2026-...'. Dat is de
+ * juiste ruil -- data die je niet begrijpt bewaar je, je gooit hem niet weg.
+ *
+ * Ze staan HIER en niet in een dienst omdat ze over de opslag gaan: elke plek
+ * die sorteert importeert `db` toch al uit dit bestand.
+ */
+export const NU_ISO = "strftime('%Y-%m-%dT%H:%M:%SZ','now')";
+export const isoSql = (expr) => `COALESCE(strftime('%Y-%m-%dT%H:%M:%SZ', ${expr}), ${expr})`;
+
 export function initializeDatabase() {
   const tableExists = db.prepare(`
     SELECT name FROM sqlite_master WHERE type='table' AND name='users'

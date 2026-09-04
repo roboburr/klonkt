@@ -12,7 +12,12 @@
  * getReactionsFor, uit het reactiecluster -- komt daarom binnen via
  * wireTimeline, hetzelfde injectiepatroon als guardianship en ap-c2s.
  */
-import db from '../config/database.js';
+import db, { isoSql } from '../config/database.js';
+
+// De helper woont sinds shaer-a937 in config/database.js: elke plek die
+// sorteert had hem nodig, en twee kopieen van dezelfde regel lopen uit elkaar.
+// Bovenaan, want de eerste statements hieronder gebruiken hem al.
+const STEMPEL = isoSql;
 
 // Het ene werktuig uit de dienstlaag. ActivityPubService vult het onderaan
 // zijn eigen evaluatie; een aanroep voor de koppeling is een programmeerfout.
@@ -25,7 +30,7 @@ let _insTl, _listTl, _delTl;
 export function tlStmts() {
   if (!_insTl) {
     _insTl = db.prepare('INSERT OR IGNORE INTO ap_timeline (id, slug, author_uri, author_name, author_handle, author_icon, author_url, content, url, published, media_json, nsfw, cw, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)');
-    _listTl = db.prepare('SELECT * FROM ap_timeline WHERE slug = ? ORDER BY COALESCE(published, created_at) DESC LIMIT ? OFFSET ?');
+    _listTl = db.prepare(`SELECT * FROM ap_timeline WHERE slug = ? ORDER BY ${STEMPEL('COALESCE(published, created_at)')} DESC LIMIT ? OFFSET ?`);
     _delTl = db.prepare('DELETE FROM ap_timeline WHERE id = ?');
   }
   return { ins: _insTl, list: _listTl, del: _delTl };
@@ -118,7 +123,7 @@ export function getReplyMessages(slug, limit) {
       JOIN posts p ON p.id = i.post_id
       JOIN sites s ON s.id = p.site_id
       WHERE s.slug = ? AND i.kind = 'reply'
-      ORDER BY COALESCE(i.published, i.created_at) DESC LIMIT ?`).all(slug, limit || 60);
+      ORDER BY ${STEMPEL('COALESCE(i.published, i.created_at)')} DESC LIMIT ?`).all(slug, limit || 60);
   } catch { return []; }
 }
 
@@ -241,7 +246,6 @@ export async function waitForFeedChange(slug, opts = {}) {
  * JavaScript als LOKALE tijd en `...T19:26:17Z` als UTC. Dezelfde rij gaf dus
  * een leeftijd die twee uur verschilde per vorm.
  */
-const STEMPEL = (rauw) => `COALESCE(strftime('%Y-%m-%dT%H:%M:%SZ', ${rauw}), ${rauw})`;
 
 const CONVERSATION_UNION = `
   SELECT m.actor_uri AS other, ${STEMPEL('COALESCE(m.published, m.created_at)')} AS stamp,
@@ -424,7 +428,7 @@ export function getDirectMessages(slug, limit) {
       FROM ap_mentions m
       WHERE m.slug = ?
         AND NOT EXISTS (SELECT 1 FROM ap_timeline t WHERE t.slug = m.slug AND t.id = m.object_uri)
-      ORDER BY COALESCE(m.published, m.created_at) DESC LIMIT ?`).all(slug, limit || 60);
+      ORDER BY ${STEMPEL('COALESCE(m.published, m.created_at)')} DESC LIMIT ?`).all(slug, limit || 60);
   } catch { return []; }
 }
 

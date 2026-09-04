@@ -6,7 +6,7 @@
  * ap_my_reactions; schrijft niets. De enige snede tot nu toe zonder ook maar
  * een werktuig uit de dienstlaag: alleen db.
  */
-import db from '../config/database.js';
+import db, { isoSql } from '../config/database.js';
 
 // ── Cirkel = posts from the accounts you auto-boost ("feature an artist") ──
 let _abCount, _cirkelPosts, _cirkelMembers;
@@ -28,7 +28,7 @@ export function getCirkelPosts(slug, limit, offset) {
       -- deze join kan geen rijen verdubbelen.
       LEFT JOIN ap_my_reactions rb ON rb.site_slug = t.slug AND rb.target_uri = t.id AND rb.kind = 'boost'
       WHERE t.slug = ? AND (f.auto_boost = 1 OR rb.target_uri IS NOT NULL)
-      ORDER BY COALESCE(t.published, t.created_at) DESC, t.rowid DESC
+      ORDER BY ${isoSql('COALESCE(t.published, t.created_at)')} DESC, t.rowid DESC
       LIMIT ? OFFSET ?`);
     return _cirkelPosts.all(slug, limit || 60, offset || 0);
   } catch { return []; }

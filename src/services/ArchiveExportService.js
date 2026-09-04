@@ -17,7 +17,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import db from '../config/database.js';
+import db, { isoSql } from '../config/database.js';
 import { MEDIA_ROOT, resolveAudioPath } from '../config/paths.js';
 
 // v2: audio zit er eindelijk echt in. Tot v1 kon dat niet: gehoste audio staat
@@ -493,7 +493,7 @@ export function buildArchive(slug, opts = {}) {
   // Vaste volgorde: eerst op publicatiedatum, dan op id. Zonder tweede sleutel
   // is de volgorde van twee posts op dezelfde seconde niet bepaald.
   const posts = db.prepare(`SELECT * FROM posts WHERE site_id = ?
-                             ORDER BY COALESCE(published_at, created_at) ASC, id ASC`).all(site.id);
+                             ORDER BY ${isoSql('COALESCE(published_at, created_at)')} ASC, id ASC`).all(site.id);
 
   for (const post of posts) {
     const attachments = [];
@@ -538,7 +538,7 @@ export function buildArchive(slug, opts = {}) {
     let replies = [];
     try {
       replies = db.prepare(`SELECT * FROM ap_interactions WHERE post_id = ? AND kind = 'reply'
-                             ORDER BY COALESCE(published, created_at) ASC, id ASC`).all(post.id);
+                             ORDER BY ${isoSql('COALESCE(published, created_at)')} ASC, id ASC`).all(post.id);
     } catch { /* tabel kan ontbreken op een heel oude database */ }
     if (replies.length) {
       const coll = {
