@@ -141,21 +141,66 @@ const isFollowedActor = (uri) => {
 // Mislukte dereferences kort onthouden. Mastodon herhaalt een bezorging
 // dagenlang; zonder dit doet elke herhaling de fetch opnieuw, ook als die de
 // vorige twintig keer niets opleverde. Dempt meteen de scherpte van misbruik.
+//
+// DE SLEUTEL IS DE HELE BESCHERMING (shaer-qawr). Er zijn twee soorten
+// mislukking en ze zeggen iets heel verschillends:
+//
+//   TRANSPORTFOUT -- de note is niet op te halen. Dat is een eigenschap van de
+//   note zelf en geldt voor iedereen die hem doorstuurt, dus de objId alleen is
+//   de goede sleutel.
+//
+//   attributedTo-MISMATCH -- de bron zegt dat iemand ANDERS de auteur is. Dat
+//   zegt alles over de doorstuurder en niets over de note, dus die onthouden we
+//   per (note, beweerde actor).
+//
+// Met een enkele sleutel voor allebei was dit een censuurknop: neem de echte
+// note-URI van je slachtoffer, zet er je eigen actor op dezelfde host bij en
+// wijs naar een van onze publieke notes. De fetch slaagt, de mismatch volgt, en
+// die note-URI stond dertig minuten op de zwarte lijst -- waarna het ECHTE
+// doorgestuurde antwoord erop stukliep. Elke dertig minuten herhalen gaf
+// onbeperkte, gerichte onderdrukking van een specifiek antwoord, voor een
+// verzoek per keer. Nu raakt de leugenaar alleen zijn eigen ingang.
+//
+// Query en fragment tellen niet mee. Ze horen zelden bij de identiteit van een
+// note, en met een kale URL als sleutel waren ?x=1, ?x=2 enzovoort losse
+// ingangen: dan is de rem geen rem, want varieren kost niets. Zelfde reden dat
+// de host in kleine letters gaat.
+//
+// GEEN rem per HOST, hoe verleidelijk ook: wie een handvol niet-bestaande
+// URL's op een host laat mislukken zou daarmee die HELE host het zwijgen
+// opleggen. Dat is een grotere versie van precies de fout die hier gerepareerd
+// wordt.
 const _derefMiss = new Map();
 const DEREF_MISS_MS = 30 * 60 * 1000;
-function derefRecentlyFailed(uri) {
-  const t = _derefMiss.get(uri);
-  if (t === undefined) return false;
-  if (Date.now() - t > DEREF_MISS_MS) { _derefMiss.delete(uri); return false; }
-  return true;
+const derefKey = (uri, claimedActor) => {
+  let basis = String(uri || '');
+  try { const u = new URL(basis); basis = `${u.protocol}//${u.host.toLowerCase()}${u.pathname}`; }
+  catch { /* onparseerbaar: de kale string is dan de sleutel */ }
+  // Een NUL-teken als scheiding, als escape geschreven en niet als byte: het
+  // kan in geen enkele URL staan, dus een actor-sleutel is nooit per ongeluk
+  // als note-sleutel te lezen.
+  return claimedActor ? `${basis}\u0000${claimedActor}` : basis;
+};
+function derefRecentlyFailed(uri, claimedActor) {
+  for (const k of [derefKey(uri), derefKey(uri, claimedActor)]) {
+    const t = _derefMiss.get(k);
+    if (t === undefined) continue;
+    if (Date.now() - t > DEREF_MISS_MS) { _derefMiss.delete(k); continue; }
+    return true;
+  }
+  return false;
 }
-function noteDerefFailure(uri) {
+function noteDerefFailure(uri, claimedActor) {
   if (_derefMiss.size > 500) {   // simpele begrenzing: oudste helft eruit
     const oud = [..._derefMiss.entries()].sort((a, b) => a[1] - b[1]).slice(0, 250);
     for (const [k] of oud) _derefMiss.delete(k);
   }
-  _derefMiss.set(uri, Date.now());
+  _derefMiss.set(derefKey(uri, claimedActor), Date.now());
 }
+// Alleen voor de toets: de aanval speelt zich af in deze twee functies, en de
+// weg erheen (dereferenceForwarded) eist https en een echte fetch. De
+// dienstlaag exporteert ze niet, dus het uitvoeroppervlak blijft gelijk.
+export const _derefCacheForTests = { derefRecentlyFailed, noteDerefFailure };
 
 async function dereferenceForwarded(act, claimedActor, type, slugParam) {
   // Every exit states its reason. Five of the six used to return silently, so a
@@ -183,7 +228,7 @@ async function dereferenceForwarded(act, claimedActor, type, slugParam) {
     ? (typeof o.inReplyTo === 'string' ? o.inReplyTo : (o.inReplyTo && o.inReplyTo.id))
     : null;
   if (!knownNoteUri(parent)) return skipped('unknown inReplyTo', parent || '(none)');
-  if (derefRecentlyFailed(objId)) return skipped('recent failure', objId);
+  if (derefRecentlyFailed(objId, claimedActor)) return skipped('recent failure', objId);
   // Onbetekend eerst; tekenen alleen als terugval. Anders kan een ander ons een
   // ONDERTEKEND verzoek naar een adres van zijn keuze laten sturen -- dezelfde
   // reden als bij fetchActor sinds efe5633.
@@ -206,7 +251,10 @@ async function dereferenceForwarded(act, claimedActor, type, slugParam) {
   }
   if (attributed !== claimedActor) {
     // Not a transport hiccup: the source itself says someone else wrote this.
-    noteDerefFailure(objId);
+    // Per (note, beweerde actor), nooit op de note alleen: dit zegt iets over
+    // DEZE doorstuurder, en op de note alleen was het een censuurknop op de
+    // note van een ander (shaer-qawr).
+    noteDerefFailure(objId, claimedActor);
     return skipped('attributedTo mismatch', `${objId} claims ${attributed || '(none)'}`);
   }
   return fetched;
