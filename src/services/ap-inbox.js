@@ -148,6 +148,15 @@ const isFollowedActor = (uri) => {
  *
  * Geen rij, geen markering. Dat sluit meteen de aardigste variant af: iemand
  * die markeringen stuurt voor hulpvragen die hij ergens anders zag.
+ *
+ * GEVOLG DAT JE MOET KENNEN: een markering gaat naar [ward, ...guardians] (zie
+ * routes/guardian.js), en op de instantie van de WARD staat zijn eigen
+ * hulpvraag niet hier maar in ap_outbox. Daar wordt een markering dus
+ * geweigerd. Dat kost vandaag niets -- de enige lezer van deze staat is het
+ * guardian-paneel (queues.helpItemsFor), en dat leest juist deze tabel, dus op
+ * de ward-instantie werd hij alleen geschreven en nooit getoond. Komt er ooit
+ * een scherm waarop het KIND ziet dat er iemand komt, dan is dit de plek: die
+ * moet dan ook de eigen uitgaande hulpvraag als bron erkennen.
  */
 function helpRequestRow(noteUri) {
   if (!noteUri || typeof noteUri !== 'string') return null;
