@@ -138,6 +138,59 @@ const isFollowedActor = (uri) => {
   try { return !!db.prepare('SELECT 1 FROM ap_following WHERE actor_uri = ? LIMIT 1').get(uri); } catch { return false; }
 };
 
+/**
+ * De hulpvraag zoals WIJ hem opsloegen (shaer-gt70).
+ *
+ * Een markering wijst naar een note-URI, en die komt van de afzender. Welke
+ * ward erbij hoort mag daarom niet uit die markering komen maar uit onze eigen
+ * rij: de hulpvraag kwam hier binnen als directe vermelding met help_request=1,
+ * en `actor_uri` daarvan IS de ward.
+ *
+ * Geen rij, geen markering. Dat sluit meteen de aardigste variant af: iemand
+ * die markeringen stuurt voor hulpvragen die hij ergens anders zag.
+ */
+function helpRequestRow(noteUri) {
+  if (!noteUri || typeof noteUri !== 'string') return null;
+  try {
+    return db.prepare('SELECT slug, actor_uri FROM ap_mentions WHERE object_uri = ? AND help_request = 1 LIMIT 1').get(noteUri) || null;
+  } catch { return null; }
+}
+
+/**
+ * Is deze actor guardian van deze ward?
+ *
+ * De WARD is de bron van waarheid over zijn eigen guardians -- onze tabel kent
+ * alleen onze eigen relatie. existingGuardiansOf stelt de vraag op de goede
+ * plek: hosten wij de ward, dan is het een databaselezing; woont hij elders,
+ * dan komt het uit shaer:guardians op zijn actor.
+ *
+ * MET EEN CACHE, want dat tweede geval is een netwerkaanroep in het inbox-pad.
+ * Zonder zou een vreemde onze inbox kunnen laten wachten door markeringen te
+ * blijven sturen. De lokale tak raakt de cache ook, en dat kost daar niets.
+ *
+ * Vijf minuten is kort genoeg dat een verse guardian niet lang buiten staat, en
+ * lang genoeg om herhaald bevragen te dempen. Een geweigerde markering is niet
+ * verloren: de andere kant levert opnieuw af, en dan is de cache ververst.
+ */
+const _guardiansOfWard = new Map();   // ward-uri -> { at, set }
+const GUARDIAN_CACHE_MS = 5 * 60 * 1000;
+async function isGuardianOfWard(actorUri, wardUri) {
+  if (!actorUri || !wardUri) return false;
+  const nu = Date.now();
+  const gecached = _guardiansOfWard.get(wardUri);
+  if (gecached && nu - gecached.at < GUARDIAN_CACHE_MS) return gecached.set.has(actorUri);
+  let lijst = [];
+  try { lijst = await Guardianship.existingGuardiansOf(wardUri); } catch { lijst = []; }
+  // Een MISLUKTE ophaal niet als lege lijst wegschrijven: dan zou een tijdelijk
+  // onbereikbare server vijf minuten lang elke markering weigeren. Bij twijfel
+  // niets onthouden en de volgende keer opnieuw kijken.
+  if (Array.isArray(lijst) && lijst.length) {
+    if (_guardiansOfWard.size > 500) _guardiansOfWard.clear();   // simpele begrenzing
+    _guardiansOfWard.set(wardUri, { at: nu, set: new Set(lijst) });
+  }
+  return Array.isArray(lijst) && lijst.includes(actorUri);
+}
+
 // Mislukte dereferences kort onthouden. Mastodon herhaalt een bezorging
 // dagenlang; zonder dit doet elke herhaling de fetch opnieuw, ook als die de
 // vorige twintig keer niets opleverde. Dempt meteen de scherpte van misbruik.
@@ -686,10 +739,39 @@ export async function handleInbox(req, slugParam, preVerified = null) {
     if (actorUri && !isLocalActor) {
       const mark = Guardianship.help.parseMarker(o);
       if (mark) {
-        const ai = actorInfo(await resolveActor(actorUri).catch(() => null), actorUri);
-        Guardianship.help.record(mark.noteUri, actorUri, mark.kind, ai && ai.handle);
-        wakeGuardian(slug);   // een mede-guardian pakte iets op: het paneel hoort het meteen
-        console.log('[AP] help', mark.kind, actorUri, '→', mark.noteUri);
+        // WIE MAG DIT (shaer-gt70). Hier stond alleen "de actor is niet lokaal",
+        // en dat is geen poort: elke ondertekende actor die de URI van een
+        // hulpvraag kende kon hem op 'handled' zetten. Afgehandeld kent geen
+        // terugdraai en de vraag verdwijnt daarna uit de teller van ELKE
+        // guardian -- een vreemde kon dus de noodknop van een kind uitzetten.
+        //
+        // Ondertekening zegt WIE, niet OF HET MAG. Die tweede laag stond er niet.
+        //
+        // DE WARD IS DE BRON VAN WAARHEID over wie zijn guardians zijn; onze
+        // eigen tabel kent alleen ONZE relatie. existingGuardiansOf stelt die
+        // vraag op de goede plek: lokaal opzoeken als wij de ward hosten,
+        // anders shaer:guardians van zijn actor.
+        //
+        // En WELKE ward dat is komt uit onze EIGEN administratie -- de
+        // hulpvraag zoals wij hem opsloegen -- nooit uit wat de afzender
+        // beweert. Kennen we die hulpvraag niet, dan is er niets te markeren.
+        const vraag = helpRequestRow(mark.noteUri);
+        if (!vraag) {
+          console.warn('[AP] help-markering voor een onbekende hulpvraag, genegeerd:', actorUri, '→', mark.noteUri);
+        } else if (!(await isGuardianOfWard(actorUri, vraag.actor_uri))) {
+          console.warn('[AP] help-markering van iemand die geen guardian van deze ward is, geweigerd:', actorUri, '→', mark.noteUri);
+        } else {
+          const ai = actorInfo(await resolveActor(actorUri).catch(() => null), actorUri);
+          Guardianship.help.record(mark.noteUri, actorUri, mark.kind, ai && ai.handle);
+          // Het paneel dat de hulpvraag HOUDT wordt gewekt, en dat is
+          // `vraag.slug`. Hier stond `slug`, en die bestaat in deze scope niet:
+          // de markering werd vastgelegd en daarna gooide de handler een
+          // ReferenceError, dus het paneel hoorde het nooit en de rest van de
+          // verwerking van deze activiteit viel weg. Gemeten, niet geredeneerd.
+          // slugParam zou hier ook fout zijn: op de gedeelde inbox is die null.
+          wakeGuardian(vraag.slug);   // een mede-guardian pakte iets op: het paneel hoort het meteen
+          console.log('[AP] help', mark.kind, actorUri, '→', mark.noteUri);
+        }
       }
     }
     if (actorUri && !isLocalActor && o.id) {
