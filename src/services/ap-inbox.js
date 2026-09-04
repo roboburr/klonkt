@@ -152,11 +152,16 @@ const isFollowedActor = (uri) => {
  * GEVOLG DAT JE MOET KENNEN: een markering gaat naar [ward, ...guardians] (zie
  * routes/guardian.js), en op de instantie van de WARD staat zijn eigen
  * hulpvraag niet hier maar in ap_outbox. Daar wordt een markering dus
- * geweigerd. Dat kost vandaag niets -- de enige lezer van deze staat is het
- * guardian-paneel (queues.helpItemsFor), en dat leest juist deze tabel, dus op
- * de ward-instantie werd hij alleen geschreven en nooit getoond. Komt er ooit
- * een scherm waarop het KIND ziet dat er iemand komt, dan is dit de plek: die
- * moet dan ook de eigen uitgaande hulpvraag als bron erkennen.
+ * geweigerd. Dat kost vandaag niets, en dat is aan BEIDE kanten nagelopen: de
+ * enige lezer op de server is het guardian-paneel (queues.helpItemsFor), dat
+ * juist deze tabel leest, en de app leest diezelfde queue -- op het account van
+ * een kind levert die alleen zijn INKOMENDE hulpvragen op. Een scherm waarop
+ * het kind zijn eigen vraag met status ziet bestaat niet: HomeBase filtert de
+ * eigen hulpvraag uit de feed en kan hem verder alleen versturen.
+ *
+ * Komt dat scherm er ooit -- "er is iemand mee bezig", en dat is een goed idee
+ * voor een kind dat wacht -- dan is dit de plek: die moet dan ook de eigen
+ * uitgaande hulpvraag (ap_outbox) als bron erkennen.
  */
 function helpRequestRow(noteUri) {
   if (!noteUri || typeof noteUri !== 'string') return null;
