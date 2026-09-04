@@ -4,11 +4,16 @@
 // BINNEN de site binnenkomt (shaer-0i6). Servergegevens komen uit pageData();
 // interpolatie kan niet in een statisch bestand.
 
-import { pageData } from './lib.js';
+import { pageData, loadWebAuthn } from './lib.js';
 
 // Element-bedrading leeft zo lang als de pagina; de bootstrap roept init()
 // aan bij elke paginawissel waarop deze module actief is (shaer-5s1).
-export function init() { run(); }
+//
+// EERST de bibliotheek, dan pas bedraden (shaer-0i6): die stond als
+// `<script src>` in de pagina en overleefde een htmx-navigatie niet. Wacht
+// run() daar niet op, dan ziet hij de global nog niet staan en zet hij de
+// knop uit terwijl er niets aan de hand is.
+export async function init() { await loadWebAuthn(); run(); }
 
 function run() {
 (function () {

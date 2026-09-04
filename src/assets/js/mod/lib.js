@@ -63,3 +63,28 @@ export function esc(s) {
     return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
   });
 }
+
+/**
+ * De WebAuthn-bibliotheek erbij halen, vanuit JavaScript (shaer-0i6).
+ *
+ * Hij stond als `<script src>` in paid-gate.ejs en paid-passkey.ejs, en dat
+ * werkt alleen bij een volledige laadbeurt. Kom je op zo'n pagina via een link
+ * BINNEN de site, dan is het een htmx-fragment met de nonce van een ANDER
+ * verzoek, en weigert de CSP hem. Het gevolg was stil: de module laadde wel,
+ * vond `window.SimpleWebAuthnBrowser` niet, en de knop deed niets -- op het
+ * passkey- en betaalpad.
+ *
+ * Een dynamische import vanuit deze module mag wel: de shell startte hem met
+ * een geldige nonce, en `strict-dynamic` bestaat er juist voor dat vertrouwde
+ * scripts verder mogen laden. Het bestand is een UMD-bundel; zonder CommonJS
+ * of AMD zet die zichzelf op globalThis, dus na afloop staat de global er.
+ *
+ * Faalt het laden, dan geeft dit undefined terug en niet een fout: beide
+ * aanroepers hebben al een nette terugval voor "geen WebAuthn hier".
+ */
+export async function loadWebAuthn() {
+  if (window.SimpleWebAuthnBrowser) return window.SimpleWebAuthnBrowser;
+  try { await import('/assets/vendor/simplewebauthn-browser.umd.min.js'); }
+  catch (e) { console.warn('[paid] WebAuthn-bibliotheek laadt niet:', e && e.message); }
+  return window.SimpleWebAuthnBrowser;
+}

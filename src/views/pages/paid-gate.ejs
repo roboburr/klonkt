@@ -37,8 +37,11 @@
   </section>
 </article>
 
-<script src="/assets/vendor/simplewebauthn-browser.umd.min.js"></script>
-<%# Het script staat in assets/js/mod/paid-gate.js; de gegevens via partials/page-data.ejs (shaer-bqr). %>
+<%# Het script staat in assets/js/mod/paid-gate.js; de gegevens via partials/page-data.ejs (shaer-bqr).
+    De WebAuthn-bibliotheek stond hier als `<script src>` en is weg (shaer-0i6):
+    deze pagina komt via een link binnen de site als htmx-fragment binnen, en
+    dan draagt zo'n tag de nonce van een ander verzoek en weigert de CSP hem.
+    De module haalt hem nu zelf op met loadWebAuthn() uit lib.js. %>
 
 <style>
   .pg-navwrap { max-width: 720px; margin: 0.5rem auto 1.5rem; padding: 0 1rem; }
