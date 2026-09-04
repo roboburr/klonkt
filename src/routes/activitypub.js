@@ -1152,9 +1152,28 @@ router.get('/ap/users/:slug/featured', (req, res) => {
   // NB: Mastodon DISPLAYS the featured collection in REVERSE (pins shown
   // last-processed-first). So we emit it reversed (lowest pin priority first,
   // rank 1 last) → Mastodon flips it back to pin-rank ascending on the profile.
+  // fan_only, ap_visibility, paid en excerpt MOETEN mee, om dezelfde reden als
+  // in outboxSlice en backfillNewFollower (shaer-6oth, en Barts melding van
+  // 15-8). buildNote beslist op deze velden, en een ontbrekende kolom is daar
+  // `undefined` -- wat stilletjes het ruimste gedrag oplevert:
+  //
+  //   zonder `paid`    slaat buildNote zijn redactie over en gaat de VOLLEDIGE
+  //                    tekst van een betaalde post mee. Deze collectie is
+  //                    publiek en onbetekend opvraagbaar, dus dat is de post
+  //                    gewoon te lezen. `excerpt` hoort erbij, anders valt de
+  //                    teaser terug op de eerste alinea van precies de tekst
+  //                    die verborgen moet blijven.
+  //   zonder ap_vis    krijgt een quiet/unlisted post `to: as:Public` in plaats
+  //                    van zijn volgers -- luider dan de schrijver koos.
+  //
+  // Het filter erbij: fan_only stond er al, ap_visibility ontbrak. Een post die
+  // niet publiek bedoeld is hoort niet in een publieke collectie, ook niet als
+  // hij vastgezet is.
   const posts = db.prepare(
-    `SELECT id, slug, title, content, cover_image_url, cover_video_url, nsfw, content_warning, c2s_attachments, published_at, created_at
+    `SELECT id, slug, title, content, cover_image_url, cover_video_url, nsfw, content_warning, c2s_attachments, published_at, created_at,
+            fan_only, ap_visibility, paid, paid_min_cents, excerpt
      FROM posts WHERE site_id = ? AND status = 'published' AND (fan_only IS NULL OR fan_only = 0)
+       AND IFNULL(ap_visibility, 'public') IN ('public', 'quiet')
        AND pinned IS NOT NULL AND pinned > 0
      ORDER BY pinned DESC, COALESCE(published_at, created_at) ASC LIMIT 20`
   ).all(site.id);
