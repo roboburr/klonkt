@@ -12,7 +12,7 @@
  * getReactionsFor, uit het reactiecluster -- komt daarom binnen via
  * wireTimeline, hetzelfde injectiepatroon als guardianship en ap-c2s.
  */
-import db, { isoSql } from '../config/database.js';
+import db, { isoSql, NU_ISO } from '../config/database.js';
 
 // De helper woont sinds shaer-a937 in config/database.js: elke plek die
 // sorteert had hem nodig, en twee kopieen van dezelfde regel lopen uit elkaar.
@@ -29,7 +29,7 @@ export function wireTimeline(deps) {
 let _insTl, _listTl, _delTl;
 export function tlStmts() {
   if (!_insTl) {
-    _insTl = db.prepare('INSERT OR IGNORE INTO ap_timeline (id, slug, author_uri, author_name, author_handle, author_icon, author_url, content, url, published, media_json, nsfw, cw, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)');
+    _insTl = db.prepare(`INSERT OR IGNORE INTO ap_timeline (id, slug, author_uri, author_name, author_handle, author_icon, author_url, content, url, published, media_json, nsfw, cw, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,${NU_ISO})`);
     _listTl = db.prepare(`SELECT * FROM ap_timeline WHERE slug = ? ORDER BY ${STEMPEL('COALESCE(published, created_at)')} DESC LIMIT ? OFFSET ?`);
     _delTl = db.prepare('DELETE FROM ap_timeline WHERE id = ?');
   }

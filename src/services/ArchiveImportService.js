@@ -22,7 +22,7 @@ import path from 'path';
 import zlib from 'zlib';
 import crypto from 'crypto';
 import { randomUUID } from 'crypto';
-import db from '../config/database.js';
+import db, { NU_ISO } from '../config/database.js';
 import { MEDIA_ROOT, AUDIO_ROOT } from '../config/paths.js';
 import { FORMAT_VERSION, parseFollowingCsv } from './ArchiveExportService.js';
 import * as Migration from './MigrationService.js';
@@ -412,7 +412,7 @@ export function importArchive(files, opts = {}) {
      @content_warning, @poll_json, @quote_uri, @quote_actor, @ap_visibility, @paid, @paid_min_cents, @view_count, @c2s_attachments, 'import')`);
   const insReply = db.prepare(`INSERT OR IGNORE INTO ap_interactions
     (kind, post_id, object_uri, actor_uri, actor_name, actor_handle, content, published, parent_uri, created_at)
-    VALUES ('reply', ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`);
+    VALUES ('reply', ?, ?, ?, ?, ?, ?, ?, ?, ${NU_ISO})`);
 
   db.transaction(() => {
     for (const s of [...schrijf, ...trackWerk, ...playlistWerk]) {

@@ -222,7 +222,7 @@ router.post('/reset-request', registerLimiter, async (req, res) => {
 router.get('/reset/:token', (req, res) => {
   const row = db.prepare(`
     SELECT id, username FROM users
-    WHERE reset_token = ? AND reset_token_expires > datetime('now')
+    WHERE reset_token = ? AND datetime(reset_token_expires) > datetime('now')
   `).get(hashToken(req.params.token));
   renderPage(req, res, 'pages/auth-reset', {
     pageTitle: 'Wachtwoord resetten', bodyClass: 'on-special',
@@ -236,7 +236,7 @@ router.post('/reset/:token', (req, res) => {
   const { new_password, confirm } = req.body;
   const row = db.prepare(`
     SELECT id, username FROM users
-    WHERE reset_token = ? AND reset_token_expires > datetime('now')
+    WHERE reset_token = ? AND datetime(reset_token_expires) > datetime('now')
   `).get(hashToken(req.params.token));
 
   const renderError = (msg) => renderPage(req, res, 'pages/auth-reset', {

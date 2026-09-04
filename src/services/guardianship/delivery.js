@@ -11,7 +11,7 @@
  * once via wireDelivery(deps) at ActivityPubService load time.
  */
 import crypto from 'crypto';
-import db from '../../config/database.js';
+import db, { NU_ISO } from '../../config/database.js';
 import { carriesGuardians } from './context.js';
 
 const PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
@@ -123,7 +123,7 @@ export async function deliverDirectNote(site, { recipients, text, html, language
     .map((a) => ({ url: a.url, mediaType: String(a.mediaType), name: String(a.name || '').slice(0, 120) }));
   const id = crypto.randomUUID();
   db.prepare(`INSERT INTO ap_outbox (id, site_slug, post_id, post_slug, in_reply_to, to_actor, to_handle, content, language, attachments, visibility, to_actors, help_request, wave, away_until, created_at)
-              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)`)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,${NU_ISO})`)
     .run(id, site.slug, '', null, inReplyTo || null, resolved[0].uri, resolved[0].handle, content, lang, media.length ? JSON.stringify(media) : null, 'direct', JSON.stringify(resolved.map((r) => r.uri)), helpRequest ? 1 : 0, wave ? 1 : 0, awayUntil || null);
   const row = getOutboxRow(id);
   const note = buildReplyNote(base, site, row);

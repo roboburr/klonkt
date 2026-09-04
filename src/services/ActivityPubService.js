@@ -18,7 +18,7 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import db from '../config/database.js';
+import db, { NU_ISO } from '../config/database.js';
 import HtmlSanitizerService from './HtmlSanitizerService.js';
 import AudioEmbedService from './AudioEmbedService.js';
 import EmbedResolver from './EmbedResolver.js';
@@ -1481,12 +1481,12 @@ export function belongsInTimeline(o) {
 
 function iStmts() {
   if (!_insI) {
-    _insI = db.prepare('INSERT OR IGNORE INTO ap_interactions (kind, post_id, object_uri, actor_uri, actor_name, actor_handle, actor_url, actor_icon, content, published, parent_uri, visibility, emoji_json, actor_emoji_json, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)');
+    _insI = db.prepare(`INSERT OR IGNORE INTO ap_interactions (kind, post_id, object_uri, actor_uri, actor_name, actor_handle, actor_url, actor_icon, content, published, parent_uri, visibility, emoji_json, actor_emoji_json, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,${NU_ISO})`);
     _delLA = db.prepare('DELETE FROM ap_interactions WHERE kind = ? AND post_id = ? AND actor_uri = ?');
     _delReply = db.prepare("DELETE FROM ap_interactions WHERE kind = 'reply' AND object_uri = ?");
     _listI = db.prepare('SELECT id, kind, object_uri, parent_uri, actor_uri, actor_name, actor_handle, actor_url, actor_icon, content, published, created_at, acted_boost, acted_like, visibility, emoji_json, actor_emoji_json FROM ap_interactions WHERE post_id = ? ORDER BY created_at ASC');
     _getI = db.prepare('SELECT * FROM ap_interactions WHERE id = ?');
-    _insO = db.prepare('INSERT INTO ap_outbox (id, site_slug, post_id, post_slug, in_reply_to, to_actor, to_handle, content, language, attachments, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)');
+    _insO = db.prepare(`INSERT INTO ap_outbox (id, site_slug, post_id, post_slug, in_reply_to, to_actor, to_handle, content, language, attachments, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,${NU_ISO})`);
     _listO = db.prepare('SELECT * FROM ap_outbox WHERE post_id = ? ORDER BY created_at ASC');
     _getO = db.prepare('SELECT * FROM ap_outbox WHERE id = ?');
   }

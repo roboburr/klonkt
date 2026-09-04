@@ -34,10 +34,10 @@ export class SqliteSessionStore extends Store {
     );
     this._stmtDestroy = db.prepare('DELETE FROM sessions WHERE sid = ?');
     this._stmtTouch = db.prepare('UPDATE sessions SET expiresAt = ? WHERE sid = ?');
-    this._stmtCount = db.prepare("SELECT COUNT(*) AS c FROM sessions WHERE expiresAt > datetime('now')");
+    this._stmtCount = db.prepare("SELECT COUNT(*) AS c FROM sessions WHERE datetime(expiresAt) > datetime('now')");
     this._stmtClear = db.prepare('DELETE FROM sessions');
-    this._stmtAll = db.prepare("SELECT sid, data FROM sessions WHERE expiresAt > datetime('now')");
-    this._stmtGc = db.prepare("DELETE FROM sessions WHERE expiresAt <= datetime('now')");
+    this._stmtAll = db.prepare("SELECT sid, data FROM sessions WHERE datetime(expiresAt) > datetime('now')");
+    this._stmtGc = db.prepare("DELETE FROM sessions WHERE datetime(expiresAt) <= datetime('now')");
   }
 
   _gc() {

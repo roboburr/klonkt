@@ -1001,6 +1001,36 @@ export function initializeDatabase() {
     db.prepare("UPDATE posts SET cover_video_url = NULL WHERE cover_video_url LIKE '/media/reply-media/%' AND instr(content, cover_video_url) > 0").run();
     db.prepare("UPDATE posts SET cover_image_url = NULL WHERE cover_image_url LIKE '/media/reply-media/%' AND instr(content, cover_image_url) > 0").run();
   } catch { /* posts table absent on fresh init */ }
+  // Bestaande rijen naar EEN spelling (shaer-a937). De schrijfwegen leveren
+  // sinds deze release ISO; dit haalt na wat er in SQL-notatie is blijven
+  // staan, zodat de sortering ook zonder de isoSql-wikkel klopt.
+  //
+  // Alleen rijen met een spatie op positie 11 en geen 'T': dat is precies de
+  // CURRENT_TIMESTAMP-vorm. Idempotent -- een tweede keer draaien vindt niets
+  // meer -- en het raakt een ISO-stempel nooit aan.
+  //
+  // strftime geeft NULL op iets dat het niet als tijd herkent; de WHERE laat
+  // zulke rijen met rust, want een onleesbare stempel vervangen door NULL is
+  // gegevens weggooien. Ze blijven staan zoals ze stonden.
+  {
+    const kolommen = [
+      ['ap_timeline', 'created_at'], ['ap_timeline', 'published'],
+      ['ap_mentions', 'created_at'], ['ap_mentions', 'published'],
+      ['ap_interactions', 'created_at'], ['ap_interactions', 'published'],
+      ['ap_outbox', 'created_at'],
+    ];
+    let veranderd = 0;
+    for (const [tabel, kolom] of kolommen) {
+      try {
+        const r = db.prepare(
+          `UPDATE ${tabel} SET ${kolom} = strftime('%Y-%m-%dT%H:%M:%SZ', ${kolom})
+            WHERE ${kolom} IS NOT NULL AND ${kolom} LIKE '____-__-__ %'
+              AND strftime('%Y-%m-%dT%H:%M:%SZ', ${kolom}) IS NOT NULL`).run();
+        veranderd += r.changes;
+      } catch { /* tabel bestaat nog niet op een verse installatie */ }
+    }
+    if (veranderd) console.log(`🕒 tijdstempels genormaliseerd: ${veranderd} rijen`);
+  }
   ensureColumn('ap_mentions', 'wave', 'INTEGER');  // inbound guardian wave
   // FEP-633c §2.2: object hint that the author is a ward. Register-only for now;
   // used later at reddings-boei / escalation routing.

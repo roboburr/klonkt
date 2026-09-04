@@ -16,7 +16,7 @@
  * De §5.3-goedkeuring (handleFollowApprovalInbox) blijft bij zijn
  * guardian-broers in de dienst, zoals gateOutgoingFollow bij stap 7.
  */
-import db from '../config/database.js';
+import db, { NU_ISO } from '../config/database.js';
 import HtmlSanitizerService from './HtmlSanitizerService.js';
 import * as Guardianship from './guardianship/index.js';
 import { t as i18nT } from './i18n.js';
@@ -129,7 +129,7 @@ function rememberNoteUri(uri) {
     // ouder is dan een maand beantwoordt geen enkele vraag meer.
     if (++_seenSinceSnoei >= 500) {
       _seenSinceSnoei = 0;
-      const r = db.prepare(`DELETE FROM ap_seen_notes WHERE created_at < datetime('now', '-${SEEN_NOTES_DAYS} days')`).run();
+      const r = db.prepare(`DELETE FROM ap_seen_notes WHERE datetime(created_at) < datetime('now', '-${SEEN_NOTES_DAYS} days')`).run();
       if (r.changes) console.log(`[AP] seen notes: ${r.changes} pruned`);
     }
   } catch { /* niet fataal */ }
@@ -750,7 +750,7 @@ export async function handleInbox(req, slugParam, preVerified = null) {
             // laten voor iedereen die de objectvorm stuurt.
             const ouder = safeUrl(typeof o.inReplyTo === 'string' ? o.inReplyTo : (o.inReplyTo && o.inReplyTo.id)) || null;
             const r = db.prepare(`INSERT OR IGNORE INTO ap_mentions (slug, object_uri, note_url, actor_uri, actor_name, actor_handle, actor_icon, actor_url, content, published, in_reply_to, help_request, wave, has_guardians, emoji_json, actor_emoji_json, media_json, created_at)
-                                  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)`)
+                                  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,${NU_ISO})`)
               .run(slug, o.id, safeUrl(o.url) || null, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.published || null, ouder, help ? 1 : 0, wave ? 1 : 0, hasG ? 1 : 0,
                 extractEmojiTags(o.tag), emojiJsonOf(ai.emojis), mediaFromNote(o));
             if (r.changes) {
