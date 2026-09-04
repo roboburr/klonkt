@@ -5,7 +5,7 @@
  */
 
 import express from 'express';
-import db from '../config/database.js';
+import db, { isoSql } from '../config/database.js';
 import { renderPage } from '../middleware/render.js';
 import { requireAuth } from '../middleware/auth.js';
 import { apEnabled } from '../services/SettingsService.js';
@@ -21,7 +21,7 @@ function sitePosts(siteId, siteSlug, limit = 60) {
   return db.prepare(`
     SELECT slug, title, status, published_at, created_at, updated_at
     FROM posts WHERE site_id = ?
-    ORDER BY (status != 'published') DESC, COALESCE(updated_at, published_at, created_at) DESC
+    ORDER BY (status != 'published') DESC, ${isoSql('COALESCE(updated_at, published_at, created_at)')} DESC
     LIMIT ?
   `).all(siteId, limit).map((p) => ({
     ...p,

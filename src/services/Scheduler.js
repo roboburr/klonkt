@@ -7,7 +7,7 @@
  * 'published' yet and therefore invisible until that moment.
  */
 
-import db from '../config/database.js';
+import db, { NU_ISO } from '../config/database.js';
 import HtmlSanitizerService from './HtmlSanitizerService.js';
 import ActivityPubService from './ActivityPubService.js';
 
@@ -21,7 +21,7 @@ export function flipScheduledPosts() {
     `).all();
     if (!due.length) return 0;
     const upd = db.prepare(
-      "UPDATE posts SET status = 'published', published_at = COALESCE(published_at, publish_at, CURRENT_TIMESTAMP) WHERE id = ?"
+      `UPDATE posts SET status = 'published', published_at = COALESCE(published_at, publish_at, ${NU_ISO}) WHERE id = ?`
     );
     const ftsDel = db.prepare('DELETE FROM posts_fts WHERE post_id = ?');
     const fts = db.prepare('INSERT INTO posts_fts(content, title, author, post_id) VALUES (?, ?, ?, ?)');

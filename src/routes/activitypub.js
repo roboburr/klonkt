@@ -13,7 +13,7 @@
  */
 import express from 'express';
 import { readFileSync } from 'fs';
-import db from '../config/database.js';
+import db, { isoSql } from '../config/database.js';
 import AP from '../services/ActivityPubService.js';
 import { apReadLimiter, apInboxLimiter } from '../middleware/rate-limit.js';
 import { apEnabled } from '../services/SettingsService.js';
@@ -1175,7 +1175,7 @@ router.get('/ap/users/:slug/featured', (req, res) => {
      FROM posts WHERE site_id = ? AND status = 'published' AND (fan_only IS NULL OR fan_only = 0)
        AND IFNULL(ap_visibility, 'public') IN ('public', 'quiet')
        AND pinned IS NOT NULL AND pinned > 0
-     ORDER BY pinned DESC, COALESCE(published_at, created_at) ASC LIMIT 20`
+     ORDER BY pinned DESC, ${isoSql('COALESCE(published_at, created_at)')} ASC LIMIT 20`
   ).all(site.id);
   AP.sendAP(res, AP.buildFeatured(baseUrl(req), site, posts, { page: paginaNr(req) }));
 });

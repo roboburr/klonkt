@@ -12,7 +12,7 @@
  * alleen db en ap-core, en NOOIT terug uit ActivityPubService.
  */
 
-import db from '../../config/database.js';
+import db, { isoSql } from '../../config/database.js';
 import { AP_CONTEXT, PUBLIC, actorId, noteId, safeUrl, guessMediaType, buildHashtagList, pagedCollection, isMbid } from '../ap-core.js';
 import { afleidenUitInsluitingen, ingeslotenPlaylists, SOORTEN } from '../../assets/js/shared/post-music-type.js';
 // De luisteraars horen bij de muziekkant; hier doorgegeven zodat
@@ -680,11 +680,11 @@ export function uitgavePost(siteId, playlistId) {
   try {
     const rijen = db.prepare(`
       SELECT id, slug, title, excerpt, content, cover_image_url, tags,
-             COALESCE(published_at, created_at) AS uit_wanneer
+             ${isoSql('COALESCE(published_at, created_at)')} AS uit_wanneer
       FROM posts
       WHERE site_id = ? AND status = 'published'
         AND content LIKE '%[[playlist:' || ? || ']]%'
-      ORDER BY COALESCE(published_at, created_at) DESC
+      ORDER BY ${isoSql('COALESCE(published_at, created_at)')} DESC
     `).all(siteId, playlistId);
     for (const p of rijen) {
       const r = postMusicType(p.content, siteId);

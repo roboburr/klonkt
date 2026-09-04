@@ -18,7 +18,7 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import db, { NU_ISO } from '../config/database.js';
+import db, { NU_ISO, isoSql } from '../config/database.js';
 import HtmlSanitizerService from './HtmlSanitizerService.js';
 import AudioEmbedService from './AudioEmbedService.js';
 import EmbedResolver from './EmbedResolver.js';
@@ -1142,7 +1142,7 @@ export function buildCreate(base, site, post, opts = {}) {
 export function outboxSlice(siteId, { fanOnly = false, offset = 0, limit = MAX_OUTBOX } = {}) {
   const fanClause = fanOnly ? '' : 'AND (p.fan_only IS NULL OR p.fan_only = 0)';
   const unie = `
-    SELECT 'post' AS soort, p.id AS id, COALESCE(p.published_at, p.created_at) AS wanneer
+    SELECT 'post' AS soort, p.id AS id, ${isoSql('COALESCE(p.published_at, p.created_at)')} AS wanneer
       FROM posts p WHERE p.site_id = ? AND p.status = 'published' ${fanClause}
     UNION ALL
     SELECT 'track', t.id, t.created_at
@@ -1926,7 +1926,7 @@ async function backfillNewFollower(base, slug, inbox) {
             c2s_attachments, published_at, created_at, fan_only, ap_visibility, paid, paid_min_cents
      FROM posts WHERE site_id = ? AND status = 'published' AND (fan_only IS NULL OR fan_only = 0)
        AND IFNULL(ap_visibility, 'public') = 'public'
-     ORDER BY COALESCE(published_at, created_at) DESC LIMIT 20`
+     ORDER BY ${isoSql('COALESCE(published_at, created_at)')} DESC LIMIT 20`
   ).all(site.id).reverse();
   if (!recent.length) return;
   const keys = getOrCreateKeys(slug);
@@ -2084,7 +2084,7 @@ async function doResyncFeaturedPins(site, alsoRemove = []) {
   const pinned = db.prepare(
     `SELECT id FROM posts WHERE site_id = ? AND status = 'published' AND (fan_only IS NULL OR fan_only = 0)
        AND pinned IS NOT NULL AND pinned > 0
-     ORDER BY pinned DESC, COALESCE(published_at, created_at) ASC LIMIT 20`
+     ORDER BY pinned DESC, ${isoSql('COALESCE(published_at, created_at)')} ASC LIMIT 20`
   ).all(site.id);
   const removeIds = [...new Set([...pinned.map((p) => p.id), ...alsoRemove])];
   // 1. Remove every current pin so Mastodon can recreate them in order.
