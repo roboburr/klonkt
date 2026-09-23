@@ -159,7 +159,13 @@ export async function ingestOutboxActivity(site, user, activity) {
         const plain = (object.source && object.source.content) || HtmlSanitizerService.toPlainText(object.content || '');
         // A picture (or a recording) can be the whole message: media-only
         // notes pass here; c2sCreatePost validates the attachments themselves.
-        if (!plain.trim() && !object.content && !(Array.isArray(object.attachment) && object.attachment.length)) {
+        // `!object.content` stond hier en zette de controle in de praktijk uit:
+        // Shaer stuurde bij lege tekst `<p></p>`, en die string is waar, dus
+        // een leeg bericht kwam er gewoon langs en werd een lege alinea in de
+        // tijdlijn. `plain` is al uit content afgeleid, dus die tweede term
+        // voegde niets toe behalve dat gat. Een bijlage mag nog steeds het hele
+        // bericht zijn -- dat is wat een foto-post is.
+        if (!plain.trim() && !(Array.isArray(object.attachment) && object.attachment.length)) {
           return { status: 400, error: 'empty_note' };
         }
         // Direct (private mention, shaer-tqc): NOT a post. Delivered over the
