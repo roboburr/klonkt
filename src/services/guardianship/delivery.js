@@ -34,6 +34,26 @@ export function c2sVisibility(object) {
   return 'direct';
 }
 
+/**
+ * Heeft dit directe bericht iets te zeggen? Puur, zodat de regel te toetsen is
+ * zonder database, netwerk of scherm.
+ *
+ * EEN FOTO KAN HET HELE BERICHT ZIJN. Hier stond alleen `!text.trim()`, en dat
+ * betekende: een direct bericht zonder woorden gaf null terug, waar de inname
+ * "502 direct_failed" van maakte. Precies wat je kreeg als je een foto op een
+ * gesprek liet vallen en niets typte -- de inname liet een bijlage-only note
+ * door, en deze laag eronder weigerde hem alsnog. Twee lagen die het niet eens
+ * waren over wat een bericht is.
+ *
+ * Een leeg bericht blijft geweigerd: geen tekst, geen opmaak en geen bijlage is
+ * niets, en dat hoort niet de deur uit te gaan.
+ */
+export function directNoteHasContent({ text, html, attachments } = {}) {
+  if (String(text || '').trim()) return true;
+  if (String(html || '').trim()) return true;
+  return Array.isArray(attachments) && attachments.length > 0;
+}
+
 // A direct note: a NEW conversation (or a direct reply) addressed to specific
 // actors only. Stored in ap_outbox with visibility 'direct' + the recipient
 // list, delivered to exactly those inboxes: no followers fan-out, no Public,
@@ -52,7 +72,8 @@ export async function deliverDirectNote(site, { recipients, text, html, language
           getOutboxRow, buildReplyNote, AP_CONTEXT, getOrCreateKeys, deliver, enqueueDelivery } = deps;
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   const list = [...new Set((recipients || []).filter((u) => /^https?:\/\//i.test(String(u || ''))))].slice(0, 8);
-  if (!base || !site || !site.slug || !list.length || !String(text || '').trim()) return null;
+  if (!base || !site || !site.slug || !list.length) return null;
+  if (!directNoteHasContent({ text, html, attachments })) return null;
   const me = actorId(base, site.slug);
   // Resolve every recipient for a mention anchor + a delivery inbox.
   const resolved = [];
@@ -107,7 +128,7 @@ export async function deliverDirectNote(site, { recipients, text, html, language
   // een leeggepoetste editor mag geen leeg bericht versturen.
   const richClean = html ? deps.sanitizeHtml(String(html)) : '';
   const rich = richClean && deps.htmlToPlainText(richClean).trim() ? richClean : '';
-  const body = escHtml(String(text).trim()).replace(/\r?\n/g, '<br>');
+  const body = escHtml(String(text || '').trim()).replace(/\r?\n/g, '<br>');
   // De mention-anker blijft een eigen alinea vooraan: de ontvanger moet in het
   // bericht genoemd staan, ook als de rijke inhoud met een kop of lijst begint.
   const content = rich

@@ -76,3 +76,39 @@ test('C2S Announce/Like of a non-public local post is refused (403)', async () =
   const like = await AP.ingestOutboxActivity(site, user, { type: 'Like', object: noteUrl });
   assert.equal(like.status, 403);
 });
+
+// Een bijlage KAN het hele bericht zijn (shaer-6lcc).
+//
+// Twee lagen waren het oneens over wat een bericht is: de inname liet een
+// note met alleen een bijlage door, en deliverDirectNote weigerde hem een
+// laag lager op `!text.trim()`. Wie een foto op een gesprek liet vallen en
+// niets typte kreeg daardoor "502 direct_failed".
+test('een direct bericht met alleen een bijlage telt als inhoud', async () => {
+  const { directNoteHasContent } = await import('../src/services/guardianship/delivery.js');
+
+  assert.equal(directNoteHasContent({ text: 'hallo' }), true);
+  assert.equal(directNoteHasContent({ html: '<p>hallo</p>' }), true);
+  assert.equal(directNoteHasContent({
+    text: '',
+    attachments: [{ url: '/media/reply-media/x.png', mediaType: 'image/png' }],
+  }), true, 'een foto zonder woorden is een bericht');
+  assert.equal(directNoteHasContent({
+    text: '   \n  ',
+    attachments: [{ url: '/media/reply-media/x.png', mediaType: 'image/png' }],
+  }), true, 'witruimte is geen tekst, maar de bijlage draagt hem');
+
+  // En leeg blijft leeg: dit mag de deur niet uit.
+  assert.equal(directNoteHasContent({}), false);
+  assert.equal(directNoteHasContent({ text: '   ', html: '', attachments: [] }), false);
+  assert.equal(directNoteHasContent(), false);
+});
+
+// De inname en de bezorging horen dezelfde grens te trekken. Loopt er eentje
+// weg, dan is dat precies de 502 hierboven, en die valt buiten de tests om.
+test('inname en bezorging zijn het eens over een leeg bericht', async () => {
+  const { directNoteHasContent } = await import('../src/services/guardianship/delivery.js');
+  const src = (await import('fs')).readFileSync('src/services/ap-c2s.js', 'utf8');
+  assert.ok(src.includes("error: 'empty_note'"), 'de inname heeft nog een lege-bericht-controle');
+  // De inname laat een bijlage-only note door; de bezorging hoort dat ook te doen.
+  assert.equal(directNoteHasContent({ text: '', attachments: [{ url: '/media/x.png' }] }), true);
+});
