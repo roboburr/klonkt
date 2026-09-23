@@ -972,12 +972,30 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
 const AP_MEDIA_DIR = mediaDir('REPLY_MEDIA_PATH', 'reply-media');
 fs.mkdirSync(AP_MEDIA_DIR, { recursive: true });
 const AP_MEDIA_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.mp3', '.m4a', '.ogg', '.opus', '.flac', '.wav', '.mp4', '.webm', '.mov']);
+
+// Wat een bijlage mag wegen, PER SOORT (Barts 600 MB, 22-9).
+//
+// Eén plafond voor alles kan hier niet meer. 32 MB was voor een foto en een
+// spraakmemo royaal en voor bewegend beeld niets: een half uur 720p op een
+// bitrate die op een scherm goed oogt (~1,5 Mbit/s) is ruim 350 MB, dus het
+// plafond moet daar overheen. Datzelfde getal voor een JPEG laten gelden zou
+// een half-gigabyte-foto toelaten, en dat is geen limiet meer.
+//
+// Multer kent de soort nog NIET als het zijn limiet zet -- fileFilter draait
+// op de naam, niet op de inhoud -- dus daar staat het hoogste getal en de
+// soort-controle volgt in de handler, zodra req.file.mimetype er is.
+const MAX_VIDEO_BYTES = 600 * 1024 * 1024;
+const MAX_AUDIO_BYTES = 64 * 1024 * 1024;
+const MAX_PICTURE_BYTES = 16 * 1024 * 1024;
+const maxBytesFor = (mime) => (mime.startsWith('video/') ? MAX_VIDEO_BYTES
+  : mime.startsWith('audio/') ? MAX_AUDIO_BYTES : MAX_PICTURE_BYTES);
+
 const apMediaUpload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => cb(null, AP_MEDIA_DIR),
     filename: (req, file, cb) => cb(null, `${randomUUID()}${path.extname(file.originalname || '').toLowerCase()}`),
   }),
-  limits: { fileSize: 32 * 1024 * 1024 },
+  limits: { fileSize: MAX_VIDEO_BYTES },
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname || '').toLowerCase();
     if (!AP_MEDIA_EXT.has(ext)) return cb(new Error('Media must be an image, audio or video file'));
@@ -988,12 +1006,25 @@ router.post('/ap/users/:slug/uploadMedia', (req, res) => {
   const auth = OAuth.verifyBearer(req.headers.authorization);
   if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
   apMediaUpload.single('file')(req, res, (err) => {
-    if (err) return res.status(400).json({ error: err.message });
+    // Te groot is 413 en geen 400: een client die zijn eigen grens niet kent
+    // moet aan de STATUS kunnen zien dat dit over de maat ging en niet over de
+    // vorm, en `limit` geeft hem het getal in plaats van een gok.
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'File too large', limit: MAX_VIDEO_BYTES });
+      return res.status(400).json({ error: err.message });
+    }
     if (!req.file) return res.status(400).json({ error: 'No file' });
     const mime = String(req.file.mimetype || '');
     if (!/^(image|audio|video)\//.test(mime)) {
       try { fs.unlinkSync(req.file.path); } catch { /* best effort */ }
       return res.status(400).json({ error: 'Media must be an image, audio or video file' });
+    }
+    // De soort-grens, nu de soort bekend is. Het bestand staat al op schijf --
+    // multer schrijft tijdens het ontvangen -- dus opruimen hoort erbij.
+    const maxBytes = maxBytesFor(mime);
+    if (req.file.size > maxBytes) {
+      try { fs.unlinkSync(req.file.path); } catch { /* best effort */ }
+      return res.status(413).json({ error: 'File too large', limit: maxBytes });
     }
     // A video gets a poster frame next to it (shaer-zowq), best-effort and
     // out of band: ffmpeg pulls one frame at 1s into <name>.poster.jpg. On a
