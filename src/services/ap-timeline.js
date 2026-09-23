@@ -485,12 +485,15 @@ export function extractEmojiTags(tag) {
 
 /** Bijlagen door de beeld- en muziekpoort. Leeg wordt undefined, zoals de
  *  serialisatie dat overal doet. */
-export function gateAttachments(atts, { images = true, audio = true } = {}) {
+export function gateAttachments(atts, { images = true, audio = true, video = true } = {}) {
   if (!Array.isArray(atts)) return atts;
   const out = atts.filter((a) => {
     const mt = String((a && a.mediaType) || '');
     if (!images && mt.startsWith('image/')) return false;
     if (!audio && (mt.startsWith('audio/') || (a && a.type === 'Audio'))) return false;
+    // Film hoorde hier ook thuis (shaer-mxh2) en stond er niet: met plaatjes en
+    // muziek dicht kwam een video er nog steeds gewoon doorheen.
+    if (!video && (mt.startsWith('video/') || (a && a.type === 'Video'))) return false;
     return true;
   });
   return out.length ? out : undefined;

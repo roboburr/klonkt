@@ -364,7 +364,7 @@ function authorInfoFrom(r, prefix, gates) {
 function timelineItem(t, { p, reactions }) {
   const authorInfo = (r, prefix) => authorInfoFrom(r, prefix, p);
   const {
-    embedsAllowed, playbackAllowed, imagesAllowed, musicAllowed, quotesAllowed, emojiAllowed,
+    embedsAllowed, playbackAllowed, imagesAllowed, musicAllowed, videoAllowed, quotesAllowed, emojiAllowed,
   } = p;
   const reacties = reactions || new Map();
     const auteur = authorInfo(t, 'author_');
@@ -391,7 +391,7 @@ function timelineItem(t, { p, reactions }) {
       summary: t.cw || undefined,
       // Friends' media travels along (media_json → AS2 attachment), so the
       // client renders their images/audio like own outbox posts.
-      attachment: AP.gateAttachments(AP.timelineAttachments(t.media_json), { images: imagesAllowed, audio: musicAllowed }),
+      attachment: AP.gateAttachments(AP.timelineAttachments(t.media_json), { images: imagesAllowed, audio: musicAllowed, video: videoAllowed }),
       // The note's preserved tags, so the client can render them: FEP-9098
       // Emoji tags (:shortcode: → image) and FEP-e232 Link tags (quotes /
       // inline object references). Combined into one `tag` array; omitted
@@ -466,6 +466,7 @@ function capabilitiesOf(p, gate) {
       'shaer:messages': p.messagesAllowed,
       'shaer:images': p.imagesAllowed,
       'shaer:music': p.musicAllowed,
+      'shaer:video': p.videoAllowed,
       'shaer:quoteCards': p.quotesAllowed,
       'shaer:customEmoji': p.emojiAllowed,
       'shaer:externalThreads': p.threadsAllowed,
@@ -494,6 +495,7 @@ function gatesFor(site) {
     playbackAllowed: embeds && Guardianship.externalPlaybackAllowed(site.external_playback, isWard),
     imagesAllowed: gate('gate_images'),
     musicAllowed: gate('gate_music'),
+    videoAllowed: gate('gate_video'),
     quotesAllowed: gate('gate_quote_cards'),
     emojiAllowed: emoji,
     messagesAllowed: gate('gate_messages'),
@@ -556,7 +558,7 @@ function messageItem(m, { base, me, myHandle, p }) {
       // groups the note into a conversation. No FEP-e232 link tags here: a
       // mention row keeps the resolved quote, not the raw tags.
       tag: [{ type: 'Mention', href: me, name: myHandle }, ...(p.emojiAllowed ? (AP.timelineEmojis(m.emoji_json) || []) : [])],
-      attachment: AP.gateAttachments(AP.timelineAttachments(m.media_json), { images: p.imagesAllowed, audio: p.musicAllowed }),
+      attachment: AP.gateAttachments(AP.timelineAttachments(m.media_json), { images: p.imagesAllowed, audio: p.musicAllowed, video: p.videoAllowed }),
       // FEP-633c: what kind of message this is. The wave is a gentle nudge from
       // a guardian; the help request is the buoy. Both render differently.
       'shaer:wave': m.wave ? true : undefined,
@@ -828,7 +830,7 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
   // kopie krijgen die kan gaan afwijken.
   const P = gatesFor(auth.site);
   const {
-    embedsAllowed, playbackAllowed, imagesAllowed, musicAllowed, quotesAllowed,
+    embedsAllowed, playbackAllowed, imagesAllowed, musicAllowed, videoAllowed, quotesAllowed,
     emojiAllowed, messagesAllowed, composeAllowed, repliesAllowed, threadsAllowed,
     followingAllowed, gateAuthor,
   } = P;
@@ -1422,9 +1424,10 @@ router.get('/ap/users/:slug/thread', async (req, res) => {
   const gate2 = (col) => Guardianship.wardGateAllowed(auth.site[col], isWard);
   const kring = threadsOpen ? { notes: uit.notes, hidden: 0 } : AP.filterThreadToCircle(auth.site.slug, uit.notes);
   const imagesOk = gate2('gate_images'), musicOk = gate2('gate_music'), emojiOk = gate2('gate_custom_emoji');
+  const videoOk = gate2('gate_video');
   uit.notes = kring.notes.map((n) => ({
     ...n,
-    attachment: AP.gateAttachments(n.attachment, { images: imagesOk, audio: musicOk }),
+    attachment: AP.gateAttachments(n.attachment, { images: imagesOk, audio: musicOk, video: videoOk }),
     tag: emojiOk ? n.tag : AP.stripEmojiTags(n.tag),
     // De emoji-poort knipt in de byline zelf: FEP-9098 zit in de tag van de
     // ingesloten actor, niet meer in een eigen emoji-kaart ernaast.

@@ -64,6 +64,7 @@ const FEATURES = {
   'shaer:compose': 'gate_compose',
   'shaer:replies': 'gate_replies',
   'shaer:music': 'gate_music',
+  'shaer:video': 'gate_video',
   'shaer:quoteCards': 'gate_quote_cards',
   'shaer:customEmoji': 'gate_custom_emoji',
   'shaer:accountMove': 'gate_account_move',
@@ -109,6 +110,10 @@ export const GATE_CATALOGUE = [
   // maar geen eigen podium heeft, en ook precies andersom.
   { feature: 'shaer:replies', kind: 'setting', reversible: true, bead: 'shaer-r4c' },
   { feature: 'shaer:music', kind: 'setting', reversible: true, bead: 'shaer-rmz' },
+  // Film, en die stond hier niet (shaer-mxh2). Plaatjes en muziek hadden een
+  // poort, video niet, dus de zwaarste soort was de enige die altijd door
+  // mocht -- in beide richtingen: te zien krijgen en zelf versturen.
+  { feature: 'shaer:video', kind: 'setting', reversible: true, bead: 'shaer-mxh2' },
   { feature: 'shaer:quoteCards', kind: 'setting', reversible: true, bead: 'shaer-mls' },
   { feature: 'shaer:customEmoji', kind: 'setting', reversible: true, bead: 'shaer-ytw' },
   { feature: 'shaer:accountMove', kind: 'setting', reversible: true, bead: 'shaer-tge' },

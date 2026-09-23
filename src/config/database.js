@@ -258,6 +258,10 @@ export function initializeDatabase() {
   ensureColumn('sites', 'gate_messages', 'INTEGER');      // heel Messages (shaer-3ow)
   ensureColumn('sites', 'gate_compose', 'INTEGER');       // zelf posten, de (+) kaart (shaer-qgev)
   ensureColumn('sites', 'gate_music', 'INTEGER');         // audiobijlagen (shaer-rmz)
+  // Film had als enige soort GEEN poort (shaer-mxh2). Dat is geen gat dat je
+  // kunt laten staan: een kind met plaatjes en muziek dicht kon wel een half
+  // uur video plaatsen, en dat is de zwaarste soort van de drie.
+  ensureColumn('sites', 'gate_video', 'INTEGER');         // videobijlagen (shaer-mxh2)
   ensureColumn('sites', 'gate_quote_cards', 'INTEGER');   // ingebedde quote-kaarten (shaer-mls)
   ensureColumn('sites', 'gate_custom_emoji', 'INTEGER');  // FEP-9098 emoji-plaatjes (shaer-ytw)
   ensureColumn('sites', 'gate_account_move', 'INTEGER');  // FEP-7628 Move (shaer-tge)

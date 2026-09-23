@@ -174,3 +174,73 @@ test('replies dicht houdt OOK het webpad tegen, niet alleen de app', async () =>
   assert.equal(uit, null);
   db.prepare("UPDATE sites SET gate_replies = NULL WHERE slug = 'kind'").run();
 });
+
+// ── De soort-poorten: ook bij het VERSTUREN, en film heeft er nu een ──────
+//
+// Twee gaten die naast elkaar stonden en elkaar versterkten (shaer-qc9o en
+// shaer-mxh2). gate_images en gate_music golden alleen bij het SERVEREN: wat
+// een ward niet te zien kreeg mocht hij wel plaatsen, dus het stond bij
+// iedereen behalve bij hemzelf. En film had helemaal geen poort, dus de
+// zwaarste soort van de drie was de enige die altijd door mocht.
+//
+// Samen betekende dat: een kind met plaatjes en muziek dicht kon een half uur
+// video de wereld in sturen, en het paneel van de guardian zei dat alles wat
+// er te sluiten viel gesloten was.
+
+const PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
+const beeld = { type: 'Document', mediaType: 'image/jpeg', url: 'https://klonkt.test/media/x.jpg' };
+const film = { type: 'Document', mediaType: 'video/mp4', url: 'https://klonkt.test/media/x.mp4' };
+const geluid = { type: 'Audio', mediaType: 'audio/mpeg', url: 'https://klonkt.test/media/x.mp3' };
+
+/** Alle poorten open, behalve die je noemt. Zo toetst elke zaak zijn eigen
+ *  weigering en niet een die van een vorige toets bleef staan. */
+function poorten(dicht = {}) {
+  const kolommen = ['gate_compose', 'gate_replies', 'gate_messages', 'gate_images', 'gate_music', 'gate_video'];
+  const zet = kolommen.map((k) => `${k} = ${dicht[k] === 0 ? 0 : 1}`).join(', ');
+  db.prepare(`UPDATE sites SET ${zet} WHERE slug = 'kind'`).run();
+}
+
+test('film wordt bij het serveren weggeknipt als de video-poort dicht is', () => {
+  const atts = [beeld, geluid, film];
+  assert.deepEqual(AP.gateAttachments(atts, { video: false }).map((a) => a.mediaType), ['image/jpeg', 'audio/mpeg']);
+  // Ook als hij als AS2-Video binnenkomt zonder mediaType: de soort staat dan
+  // in `type`, en een poort die alleen naar mediaType kijkt mist hem.
+  assert.equal(AP.gateAttachments([{ type: 'Video', url: 'https://x/v' }], { video: false }), undefined);
+});
+
+test('een bijlage van een dichte soort wordt aan de outbox geweigerd', async () => {
+  for (const [kolom, bijlage, fout] of [
+    ['gate_images', beeld, 'gated_images'],
+    ['gate_music', geluid, 'gated_music'],
+    ['gate_video', film, 'gated_video'],
+  ]) {
+    poorten({ [kolom]: 0 });
+    const post = { type: 'Create', object: { type: 'Note', content: '<p>kijk</p>', to: [PUBLIC], attachment: [bijlage] } };
+    const uit = await AP.ingestOutboxActivity(site(), user, post);
+    assert.equal(uit.status, 403, `${kolom} dicht hoort te weigeren`);
+    assert.equal(uit.error, fout);
+  }
+});
+
+test('een dichte poort raakt alleen zijn eigen soort', async () => {
+  poorten({ gate_images: 0 });
+  const post = { type: 'Create', object: { type: 'Note', content: '<p>luister</p>', to: [PUBLIC], attachment: [geluid] } };
+  const uit = await AP.ingestOutboxActivity(site(), user, post);
+  assert.notEqual(uit.error, 'gated_images', 'muziek hoort niet op de beeldpoort te stuiten');
+});
+
+test('de reddingsboei gaat door een dichte beeldpoort heen', async () => {
+  // Een hulpvraag draagt vaak juist een schermafdruk: dat is het bewijs van
+  // waar het kind van schrikt. Een dichte beeldpoort mag precies het kanaal
+  // niet sluiten dat hem veilig houdt.
+  poorten({ gate_images: 0, gate_video: 0, gate_music: 0 });
+  const boei = {
+    type: 'Create',
+    object: {
+      type: 'Note', content: '<p>help</p>', 'shaer:helpRequest': true,
+      to: ['https://elders.test/u/oma'], attachment: [beeld],
+    },
+  };
+  const uit = await AP.ingestOutboxActivity(site(), user, boei);
+  assert.notEqual(uit.error, 'gated_images', 'de boei hoort door elke dichte deur heen te gaan');
+});

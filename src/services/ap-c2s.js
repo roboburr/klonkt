@@ -122,6 +122,36 @@ export async function ingestOutboxActivity(site, user, activity) {
             if (object.inReplyTo && !Guardianship.wardGateAllowed(site.gate_replies, isWard)) {
               return { status: 403, error: 'gated_replies' };
             }
+            // DE SOORT-POORTEN TELLEN OOK BIJ HET VERSTUREN (shaer-qc9o).
+            //
+            // gate_images en gate_music werden alleen bij het SERVEREN
+            // afgedwongen. Wat een ward niet te zien kreeg mocht hij dus wel
+            // plaatsen: het stond bij iedereen behalve bij hemzelf. Dan is het
+            // geen poort meer maar een filter op zijn eigen scherm, en dat is
+            // niet wat een guardian dichtzet.
+            //
+            // Weigeren en niet wegknippen: stilletjes de bijlage verwijderen
+            // publiceert een bericht dat het kind niet geschreven heeft. Dat de
+            // reddingsboei hierboven al langs is, is het hele punt -- een
+            // hulpvraag met een schermafdruk gaat door elke dichte deur heen.
+            const soortVan = (a) => {
+              const mt = String((a && a.mediaType) || '');
+              const t = a && a.type;
+              if (mt.startsWith('image/') || t === 'Image') return 'images';
+              if (mt.startsWith('audio/') || t === 'Audio') return 'music';
+              if (mt.startsWith('video/') || t === 'Video') return 'video';
+              return '';
+            };
+            const KOLOM = { images: 'gate_images', music: 'gate_music', video: 'gate_video' };
+            const meegestuurd = new Set((Array.isArray(object.attachment) ? object.attachment : [object.attachment])
+              .filter((a) => a && typeof a === 'object')
+              .map(soortVan)
+              .filter(Boolean));
+            for (const soort of meegestuurd) {
+              if (!Guardianship.wardGateAllowed(site[KOLOM[soort]], isWard)) {
+                return { status: 403, error: `gated_${soort}` };
+              }
+            }
           }
         }
         // Client sends `source` (plain/markdown) + `content` (HTML). deliverReply
