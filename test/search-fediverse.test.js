@@ -50,8 +50,10 @@ AP.resolveRemoteNote = async (uri, opts) => {
     sensitive: uri.includes('/cw'), cw: uri.includes('/cw') ? 'Spinnen' : '',
   };
 };
-AP.resolveRemoteActor = async (uri) => {
+let actorOpties = [];
+AP.resolveRemoteActor = async (uri, opts) => {
   gevraagd.push(['actor', uri]);
+  actorOpties.push(opts || {});
   if (!uri.includes('/u/')) return null;
   return {
     actor_uri: uri, actor_name: 'Oma', actor_handle: '@oma@elders.test',
@@ -278,5 +280,45 @@ test('de interactiepagina opent het antwoordvenster op verzoek, en haalt onderte
   const open = await pagina('&reply=1');
   assert.match(open, /<section class="rp-reply" id="rp-reply">/, 'met ?reply=1 staat het open, ook zonder JS');
   assert.ok(open.includes('action="/authorize_interaction"'), 'en het venster heeft zijn formulier');
+});
+
+// ── Een profiel op een instance met authorized fetch ────────────────────────
+//
+// mastodon.social geeft een onbetekende GET van een profiel een 401; arvr.social
+// niet. Het profiel werd onbetekend opgehaald, dus het ene Mastodon toonde een
+// profiel en het andere "niet gevonden". De post-kant was al ondertekend, de
+// profiel-kant niet (gemeten op dev, 30-9: onbetekend niets, als dev gevonden).
+//
+// En de regel eronder: ondertekenen is deze site die voor het verzoek instaat,
+// en dat mag alleen namens een INGELOGDE beheerder. Een bezoeker laat niets
+// ophalen, ondertekend of niet.
+
+test('een profiel wordt ondertekend opgehaald, op de zoekpagina en in de preview', async () => {
+  actorOpties = [];
+  await zoek('https://elders.test/u/oma');
+  assert.equal(actorOpties[0] && actorOpties[0].asSlug, 'robo', 'de zoekpagina haalt het profiel als de site op');
+  actorOpties = [];
+  await preview('https://elders.test/u/oma');
+  assert.equal(actorOpties[0] && actorOpties[0].asSlug, 'robo', 'de preview ook');
+});
+
+test('ook de interactiepagina haalt een profiel ondertekend op', async () => {
+  actorOpties = [];
+  await fetch(`http://127.0.0.1:${poort2}/authorize_interaction?uri=${encodeURIComponent('https://elders.test/u/oma')}`,
+    { signal: AbortSignal.timeout(10000) });
+  assert.equal(actorOpties[0] && actorOpties[0].asSlug, 'robo');
+});
+
+test('niet ingelogd gaat er geen enkel verzoek uit, dus ook geen ondertekend', async () => {
+  ingelogd = false;
+  try {
+    actorOpties = [];
+    await zoek('https://elders.test/u/oma');
+    await preview('https://elders.test/u/oma');
+    assert.deepEqual(gevraagd, [], 'geen post- en geen profielopvraging');
+    assert.deepEqual(actorOpties, [], 'en dus niets dat de sleutel van de site gebruikt');
+  } finally {
+    ingelogd = true;
+  }
 });
 

@@ -171,11 +171,22 @@ export async function followActor(site, handle, autoBoost = false, { approved = 
 // Resolve a profile URL or @handle to a followable remote actor (for the
 // authorize_interaction "Follow" flow). Returns display fields + inbox, or null
 // when it isn't a reachable actor (e.g. the input was a post, not a profile).
-export async function resolveRemoteActor(input) {
+//
+// ONDERTEKEND ALLEEN ALS DE AANROEPER DE SITE NOEMT (opts.asSlug). Een instance
+// met authorized fetch (mastodon.social) geeft een onbetekende GET een 401, en
+// dan leek een bestaand profiel te ontbreken -- terwijl een ander Mastodon
+// zonder die instelling het wel toonde. fetchActor probeert eerst onbetekend en
+// tekent pas als dat niet lukt.
+//
+// Tekenen is deze site die voor het verzoek instaat, met haar eigen sleutel.
+// Dat mag alleen namens een ingelogde beheerder van die site: de zoekbalk
+// (achter mayLookUp) en /authorize_interaction (requireSiteManager) zijn de
+// enige die asSlug meegeven. Zonder opts blijft dit onbetekend.
+export async function resolveRemoteActor(input, opts = {}) {
   const s = String(input || '').trim();
   const actorUrl = /^https?:\/\//i.test(s) ? (safeUrl(s) || null) : await webfingerResolve(s);
   if (!actorUrl) return null;
-  const actor = await fetchActor(actorUrl).catch(() => null);
+  const actor = await fetchActor(actorUrl, opts.asSlug ? { asSlug: opts.asSlug } : {}).catch(() => null);
   if (!actor || !actor.id || !actor.inbox) return null;
   const ai = actorInfo(actor, actor.id);
   return { actor_uri: actor.id, actor_name: ai.name, actor_handle: ai.handle, actor_url: ai.url, actor_icon: ai.icon, inbox: actor.inbox };

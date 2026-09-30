@@ -880,7 +880,7 @@ router.get('/authorize_interaction', requireSiteManager, async (req, res) => {
     // "niet gevonden" over een post die de preview wel liet zien.
     try { target = await ActivityPubService.resolveRemoteNote(uri, site ? { asSlug: site.slug } : {}); } catch { /* ignore */ }
     // Not a post? Maybe the URI is a profile/actor → offer Follow, not reply.
-    if (!target) { try { followTarget = await ActivityPubService.resolveRemoteActor(uri); } catch { /* ignore */ } }
+    if (!target) { try { followTarget = await ActivityPubService.resolveRemoteActor(uri, site ? { asSlug: site.slug } : {}); } catch { /* ignore */ } }
   }
   renderPage(req, res, 'pages/authorize-interaction', {
     pageJs: 'authorize-interaction reply-editor',

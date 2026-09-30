@@ -119,7 +119,9 @@ async function lookUpRemote(remoteUri, site) {
   try { remote = await ActivityPubService.resolveRemoteNote(remoteUri, { asSlug: site.slug }); } catch { /* onbereikbaar */ }
   if (remote) remoteKind = 'note';
   if (!remote) {
-    try { remote = await ActivityPubService.resolveRemoteActor(remoteUri); } catch { /* onbereikbaar */ }
+    // Ook ondertekend: een profiel op een instance met authorized fetch
+    // (mastodon.social) geeft anders een 401 en leek dan niet te bestaan.
+    try { remote = await ActivityPubService.resolveRemoteActor(remoteUri, { asSlug: site.slug }); } catch { /* onbereikbaar */ }
     if (remote) remoteKind = 'actor';
   }
   const reacted = remoteKind === 'note'
