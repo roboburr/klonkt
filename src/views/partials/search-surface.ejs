@@ -1,0 +1,50 @@
+<%#
+  Het zoeken, in twee vormen en verder niets: de zoekbalk bovenaan, en
+  daaronder het vak met resultaten dat alle ruimte krijgt (Robins ontwerp,
+  30-9). Er is geen aparte resultatenpagina meer die er anders uitziet.
+
+  EEN PARTIAL, TWEE INGANGEN:
+    mode 'overlay'  in de topnav, op elke pagina; verborgen tot je op zoeken
+                    tikt. Draagt de id's waar chrome.js hem aan herkent.
+    mode 'page'     /search?q=...: dezelfde vorm, open, met de resultaten al
+                    op de server gerenderd. Een gedeelde link en Enter zonder
+                    JavaScript komen zo op precies hetzelfde beeld uit.
+
+  Verwacht: mode, t, siteUrlBase. Voor 'page' ook query en de resultaten
+  (zie search-results.ejs).
+%>
+<%
+  const _page = locals.mode === 'page';
+  const _base = locals.siteUrlBase || '';
+  const _q = _page ? (locals.query || '') : '';
+%>
+<div class="search-surface<%= _page ? ' is-page' : '' %>"<% if (!_page) { %> id="search-overlay" hidden<% } %>
+     role="search"
+     data-results="<%= _base %>/search/results" data-action="<%= _base %>/search"
+     data-i18n="<%= JSON.stringify({ looking: t('search.fedi_looking') }) %>">
+  <div class="search-bar">
+    <form class="search-bar-form" method="get" action="<%= _base %>/search">
+      <input type="search" name="q" value="<%= _q %>" placeholder="<%= t('search.placeholder') %>"
+             autocomplete="off" aria-label="<%= t('nav.search') %>"<%= (_page && !_q) ? ' autofocus' : '' %>>
+      <button type="submit" class="search-bar-btn" aria-label="<%= t('search.button') %>">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </button>
+      <% if (_page) { %>
+        <%# Op de pagina is "sluiten" teruggaan waar je vandaan kwam. Zonder JS
+            brengt de link je naar het begin van de site. %>
+        <a class="search-bar-btn" href="<%= _base || '/' %>" data-search-leave aria-label="<%= t('imed.cancel') %>">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </a>
+      <% } else { %>
+        <button type="button" class="search-bar-btn" id="search-close" aria-label="<%= t('imed.cancel') %>">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      <% } %>
+    </form>
+  </div>
+  <div class="search-box" data-lenis-prevent>
+    <div class="search-box-inner"<% if (!_page) { %> id="search-suggest"<% } %> aria-live="polite">
+      <% if (_page) { %><%- include('./search-results', locals) %><% } %>
+    </div>
+  </div>
+</div>

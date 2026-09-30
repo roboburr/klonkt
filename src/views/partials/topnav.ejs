@@ -174,24 +174,10 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
   </div>
 </header>
 
-<!-- Search overlay (shared by mobile bottom-tab + desktop top-nav) -->
-<%# De teksten staan op het element dat ze gebruikt, niet in het script: een
-    module is een statisch bestand en kan geen vertaling interpoleren. %>
-<div id="search-overlay" class="search-overlay" hidden data-suggest="<%= _siteUrlBase %>/search/suggest" data-remote="<%= _siteUrlBase %>/search/remote" data-action="<%= _siteUrlBase %>/search"
-     data-i18n="<%= JSON.stringify({ posts: t('search.section_posts'), tracks: t('search.section_tracks'), events: t('search.section_events'), pages: t('search.section_pages'), all: t('search.suggest_all'), none: t('search.suggest_empty'), looking: t('search.fedi_looking') }) %>">
-  <div class="container">
-    <form class="search-overlay-form" method="get" action="<%= _siteUrlBase %>/search">
-      <input type="search" name="q" placeholder="<%= t('search.placeholder') %>" autocomplete="off">
-      <button type="submit" class="nav-btn" aria-label="<%= t('search.button') %>">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      </button>
-      <button type="button" class="nav-btn" id="search-close" aria-label="<%= t('imed.cancel') %>">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-    </form>
-    <div id="search-suggest" class="search-suggest" data-lenis-prevent></div>
-  </div>
-</div>
+<!-- Het zoeken (gedeeld door de tabbalk op mobiel en de topnav op desktop) -->
+<%# Balk + vak, dezelfde partial als de pagina /search: zie search-surface.ejs. %>
+<%- include('./search-surface', { mode: 'overlay', t: t, siteUrlBase: _siteUrlBase }) %>
+<%- include('./search-styles') %>
 
 <%# Het script van de topnav staat in assets/js/mod/chrome.js (shaer-bqr). %>
 
@@ -440,43 +426,7 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
   color: #dc2626;
 }
 
-/* ── Search overlay ── */
-.search-overlay {
-  position: fixed; top: 0; left: 0; right: 0;
-  background: color-mix(in srgb, var(--paper) 96%, transparent);
-  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-  border-bottom: 1px solid var(--rule);
-  padding: 1rem 0; z-index: 200;
-  padding-top: calc(1rem + env(safe-area-inset-top, 0));
-  box-shadow: 0 8px 24px color-mix(in srgb, var(--ink) 8%, transparent);
-}
-.search-overlay-form { display: flex; gap: .5rem; align-items: center; }
-.search-overlay-form input {
-  flex: 1; padding: .85rem 1rem;
-  min-height: 44px;
-  border: 1px solid var(--rule); border-radius: 8px;
-  font-family: var(--font-ui); font-size: 1rem;
-  background: var(--paper); color: var(--ink);
-}
-.search-overlay-form input:focus {
-  outline: 2px solid var(--accent); outline-offset: 0;
-}
-.search-overlay-form .nav-btn {
-  width: 44px; height: 44px;
-  display: inline-flex; align-items: center; justify-content: center;
-}
-/* Live-resultaten dropdown */
-.search-suggest { margin-top: .6rem; max-height: 60vh; max-height: 70dvh; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; gap: .25rem; }
-.search-suggest:empty { display: none; }
-.ss-group { padding: .25rem 0; }
-.ss-title { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-soft, var(--ink-muted)); padding: .35rem .25rem .2rem; }
-.ss-item { display: block; padding: .55rem .6rem; border-radius: 8px; color: var(--ink); text-decoration: none; font-size: .95rem; }
-.ss-item:hover { background: var(--paper-2); color: var(--accent); }
-.ss-item.ss-noclick { opacity: .7; cursor: default; }
-.ss-sub { color: var(--ink-soft, var(--ink-muted)); font-size: .85em; }
-.ss-empty { padding: .8rem .6rem; color: var(--ink-soft, var(--ink-muted)); font-size: .9rem; }
-.ss-all { display: block; margin-top: .35rem; padding: .55rem .6rem; border-top: 1px solid var(--rule); color: var(--accent); font-weight: 600; text-decoration: none; font-size: .9rem; }
-.ss-all:hover { text-decoration: underline; }
+/* Het zoeken heeft zijn opmaak in partials/search-styles.ejs. */
 /* Notification bell + unread badge */
 .nav-notif { position: relative; }
 .notif-badge {

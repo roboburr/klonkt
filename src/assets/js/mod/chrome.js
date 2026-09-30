@@ -118,9 +118,28 @@
     document.documentElement.setAttribute('data-theme', next);
     try { localStorage.setItem('pcms-theme', next); } catch (e) {}
   }
+  // ── Het zoeken: de balk bovenaan, het vak met resultaten eronder ─────
+  // Twee plekken, één vorm (Robins ontwerp, 30-9): de overlay die op elke
+  // pagina kan openen, en de pagina /search?q=... zelf. Alles hieronder werkt
+  // op elk .search-surface, zodat de twee zich ook hetzelfde gedragen.
   function overlay() { return document.getElementById('search-overlay'); }
-  function openSearch() { var o = overlay(); if (o) { o.hidden = false; var i = o.querySelector('input'); if (i) i.focus(); } }
-  function closeSearch() { var o = overlay(); if (o) { o.hidden = true; var b = document.getElementById('search-suggest'); if (b) b.innerHTML = ''; } }
+  function openSearch() {
+    var o = overlay(); if (!o) return;
+    var inp = o.querySelector('input[name="q"]');
+    var box = o.querySelector('.search-box-inner');
+    // Een verse start: tekst en resultaten van de vorige keer horen niet te
+    // blijven staan als je hem opnieuw opent.
+    if (inp) inp.value = '';
+    if (box) box.innerHTML = '';
+    o.hidden = false;
+    document.documentElement.classList.add('search-open');
+    if (inp) inp.focus();
+  }
+  function closeSearch() {
+    var o = overlay(); if (!o) return;
+    o.hidden = true;
+    document.documentElement.classList.remove('search-open');
+  }
 
   document.body.addEventListener('click', function(e) {
     if (e.target.closest('#theme-toggle, #theme-toggle-mobile, #theme-toggle-footer')) { toggleTheme(); return; }
@@ -136,86 +155,76 @@
     if (e.key === 'Escape') { var o = overlay(); if (o && !o.hidden) closeSearch(); }
   });
 
-  // ── Live results while typing ───────────────────────────────────
-  // De teksten komen van de overlay zelf, elke keer opnieuw: bij een
-  // htmx-navigatie wordt die vervangen en kan de taal gewisseld zijn.
-  function _st() {
-    var o = document.getElementById('search-overlay');
-    try { return JSON.parse((o && o.getAttribute('data-i18n')) || '{}'); } catch (e) { return {}; }
-  }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
-  function renderSuggest(box, d, q, ov) {
-    var html = '';
-    function grp(title, items, fmt) {
-      if (!items || !items.length) return;
-      html += '<div class="ss-group"><div class="ss-title">' + esc(title) + '</div>' + items.map(fmt).join('') + '</div>';
+  function texts(surface) { try { return JSON.parse(surface.getAttribute('data-i18n') || '{}'); } catch (e) { return {}; } }
+
+  // Iets dat van een andere server moet komen: een adres of een handle. Dezelfde
+  // regels als lookupUri en lookupHandle in routes/search.js. Hier alleen om te
+  // weten of er meteen een wachtregel moet staan: de server beslist daarna
+  // zelf, met de rechten erbij.
+  function isRemoteLookup(q) {
+    if (/^https?:\/\//i.test(q) && !/\s/.test(q)) {
+      try { return new URL(q).hostname.indexOf('.') >= 0; } catch (e) { return false; }
     }
-    grp(_st().posts, d.posts, function(p){ return '<a class="ss-item" href="' + esc(p.url) + '">' + esc(p.title) + '</a>'; });
-    grp(_st().tracks, d.tracks, function(tk){ var sub = tk.artist ? ' <span class="ss-sub">' + esc(tk.artist) + '</span>' : ''; return tk.url ? '<a class="ss-item" href="' + esc(tk.url) + '">' + esc(tk.title) + sub + '</a>' : '<span class="ss-item ss-noclick">' + esc(tk.title) + sub + '</span>'; });
-    grp(_st().events, d.events, function(ev){ return '<a class="ss-item" href="' + esc(ev.url) + '">' + esc(ev.where || ev.when) + ' <span class="ss-sub">' + esc(ev.when) + '</span></a>'; });
-    grp(_st().pages, d.pages, function(pg){ return '<a class="ss-item" href="' + esc(pg.url) + '">' + esc(pg.label) + '</a>'; });
-    var hasAny = (d.posts && d.posts.length) || (d.tracks && d.tracks.length) || (d.events && d.events.length) || (d.pages && d.pages.length);
-    if (!hasAny) { box.innerHTML = '<div class="ss-empty">' + esc(_st().none) + '</div>'; return; }
-    var action = (ov && ov.getAttribute('data-action')) || '/search';
-    html += '<a class="ss-all" href="' + esc(action) + '?q=' + encodeURIComponent(q) + '">' + esc(_st().all) + '</a>';
-    box.innerHTML = html;
+    return /^@?[a-z0-9_.-]+@[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/i.test(q);
   }
-  // Een ADRES is geen zoekterm (shaer-utpi). Dezelfde regel als lookupUri in
-  // routes/search.js: een schema is verplicht, anders wordt zoeken naar
-  // "soundfabrics.nl" een netwerkverzoek. De server beslist daarna nog eens,
-  // met de rechten erbij; dit scheelt alleen een vraag die toch nee oplevert.
-  function lookupUri(q) {
-    if (!/^https?:\/\//i.test(q) || /\s/.test(q)) return null;
-    try { var u = new URL(q); return u.hostname.indexOf('.') < 0 ? null : u.href; } catch (e) { return null; }
-  }
-  function allLink(ov, q) {
-    var action = (ov && ov.getAttribute('data-action')) || '/search';
-    return '<a class="ss-all" href="' + esc(action) + '?q=' + encodeURIComponent(q) + '">' + esc(_st().all) + '</a>';
-  }
-  function fetchSuggest(box, q, ov, seq) {
-    var url = (ov && ov.getAttribute('data-suggest')) || '/search/suggest';
-    fetch(url + '?q=' + encodeURIComponent(q))
-      .then(function(r){ return r.ok ? r.json() : null; })
-      .then(function(d){ if (d && seq === _sSeq) renderSuggest(box, d, q, ov); })
-      .catch(function(){});
-  }
-  // Elke toetsaanslag krijgt een volgnummer. Een ophaling van een andere
-  // server duurt soms seconden; zonder nummer overschrijft een traag antwoord
-  // op een oude vraag wat je inmiddels hebt getypt.
-  var _sTimer, _sSeq = 0;
-  document.addEventListener('input', function(e) {
-    var inp = e.target.closest && e.target.closest('#search-overlay input[name="q"]');
-    if (!inp) return;
-    var box = document.getElementById('search-suggest');
-    if (!box) return;
+
+  // Elke zoekopdracht krijgt een volgnummer per vlak. Een ophaling van een
+  // andere server duurt soms seconden; zonder nummer overschrijft een traag
+  // antwoord op een oude vraag wat je inmiddels hebt getypt.
+  function runSearch(surface, now) {
+    if (!surface) return;
+    var inp = surface.querySelector('input[name="q"]');
+    var box = surface.querySelector('.search-box-inner');
+    if (!inp || !box) return;
     var q = inp.value.trim();
-    var seq = ++_sSeq;
-    clearTimeout(_sTimer);
+    var seq = (surface.__seq = (surface.__seq || 0) + 1);
+    clearTimeout(surface.__timer);
     if (q.length < 2) { box.innerHTML = ''; return; }
-    var ov = document.getElementById('search-overlay');
-    var address = lookupUri(q);
-    if (!address) { _sTimer = setTimeout(function() { fetchSuggest(box, q, ov, seq); }, 200); return; }
-    // Een geplakt adres: de post zelf, niet de tekst van de link doorzocht.
-    box.innerHTML = '<div class="ss-remote-loading">' + esc(_st().looking) + '</div>';
-    _sTimer = setTimeout(function() {
-      var url = (ov && ov.getAttribute('data-remote')) || '/search/remote';
-      fetch(url + '?q=' + encodeURIComponent(address), { credentials: 'same-origin', headers: { 'X-Requested-With': 'fetch' } })
-        .then(function(r) {
-          if (seq !== _sSeq) return;
-          // 204: geen recht om op te halen (of toch geen adres). Dan is het
-          // gewoon een zoekterm en krijg je de gewone suggesties.
-          if (r.status === 204 || !r.ok) { fetchSuggest(box, q, ov, seq); return; }
-          return r.text().then(function(html) { if (seq === _sSeq) box.innerHTML = html + allLink(ov, q); });
+    var remote = isRemoteLookup(q);
+    if (remote) box.innerHTML = '<div class="sr-loading">' + esc(texts(surface).looking) + '</div>';
+    // Op de pagina beweegt het adres mee, zodat wat je ziet te delen blijft.
+    if (surface.classList.contains('is-page') && history.replaceState) {
+      history.replaceState(history.state, '', (surface.getAttribute('data-action') || '/search') + '?q=' + encodeURIComponent(q));
+    }
+    surface.__timer = setTimeout(function() {
+      var url = surface.getAttribute('data-results') || '/search/results';
+      fetch(url + '?q=' + encodeURIComponent(q), { credentials: 'same-origin', headers: { 'X-Requested-With': 'fetch' } })
+        .then(function(r) { return r.status === 200 ? r.text() : ''; })
+        .then(function(html) {
+          if (seq !== surface.__seq) return;
+          box.innerHTML = html;
+          // De links naar een post zijn htmx-links; wat via innerHTML binnenkomt
+          // kent htmx nog niet.
+          if (window.htmx && window.htmx.process) window.htmx.process(box);
         })
-        .catch(function() { if (seq === _sSeq) fetchSuggest(box, q, ov, seq); });
-    }, 300);
+        .catch(function() {});
+    }, now ? 0 : (remote ? 300 : 200));
+  }
+  document.addEventListener('input', function(e) {
+    var inp = e.target.closest && e.target.closest('.search-surface input[name="q"]');
+    if (inp) runSearch(inp.closest('.search-surface'), false);
   });
-  // Een klik op een suggestie sluit de overlay, want de link gaat ergens heen.
-  // Behalve wat in een nieuw tabblad opent (het origineel, een profiel): dan
-  // blijf je hier, en hoort de kaart er nog te staan als je terugkomt.
+  // Enter blijft waar hij is: het vak IS de resultaten. Zonder JS gaat het
+  // formulier naar /search, dat er precies zo uitziet.
+  document.addEventListener('submit', function(e) {
+    var f = e.target.closest && e.target.closest('.search-bar-form');
+    if (!f) return;
+    e.preventDefault();
+    runSearch(f.closest('.search-surface'), true);
+  });
+  // Sluiten op de pagina is teruggaan, als je van deze site kwam; anders volgt
+  // de link naar het begin van de site.
   document.addEventListener('click', function(e) {
-    var a = e.target.closest && e.target.closest('#search-suggest a');
-    if (a && a.getAttribute('target') !== '_blank') { var o = overlay(); if (o) o.hidden = true; }
+    var leave = e.target.closest && e.target.closest('[data-search-leave]');
+    if (!leave) return;
+    if (document.referrer.indexOf(location.origin + '/') === 0 && history.length > 1) { e.preventDefault(); history.back(); }
+  });
+  // Een klik op een resultaat in de overlay sluit hem, want de link gaat ergens
+  // heen. Behalve wat in een nieuw tabblad opent: dan blijf je hier.
+  document.addEventListener('click', function(e) {
+    var a = e.target.closest && e.target.closest('#search-overlay .search-box a');
+    if (a && a.getAttribute('target') !== '_blank') closeSearch();
   });
 })();
 

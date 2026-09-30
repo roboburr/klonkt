@@ -25,7 +25,7 @@ const db = dbMod.default;
 const AP = (await import('../src/services/ActivityPubService.js')).default;
 const searchMod = await import('../src/routes/search.js');
 const router = searchMod.default;
-const { lookupUri } = searchMod;
+const { lookupUri, lookupHandle } = searchMod;
 
 db.prepare('INSERT INTO users (id, username, email, password_hash, role) VALUES (?,?,?,?,?)')
   .run('u1', 'baas', 'b@t.nl', 'x', 'god');
@@ -54,10 +54,11 @@ let actorOpties = [];
 AP.resolveRemoteActor = async (uri, opts) => {
   gevraagd.push(['actor', uri]);
   actorOpties.push(opts || {});
-  if (!uri.includes('/u/')) return null;
+  const actorUri = uri === '@oma@elders.test' ? 'https://elders.test/u/oma' : uri;
+  if (!actorUri.includes('/u/')) return null;
   return {
-    actor_uri: uri, actor_name: 'Oma', actor_handle: '@oma@elders.test',
-    actor_url: uri, actor_icon: 'https://elders.test/avatar.png', inbox: uri + '/inbox',
+    actor_uri: actorUri, actor_name: 'Oma', actor_handle: '@oma@elders.test',
+    actor_url: actorUri, actor_icon: 'https://elders.test/avatar.png', inbox: actorUri + '/inbox',
   };
 };
 
@@ -104,7 +105,7 @@ test('een gewone zoekopdracht haalt niets op', async () => {
   const { status, html } = await zoek('muziek');
   assert.equal(status, 200);
   assert.deepEqual(gevraagd, [], 'een zoekterm hoort geen netwerkverzoek te worden');
-  assert.ok(!html.includes('search-remote'), 'en er hoort geen fediverse-blok te staan');
+  assert.ok(!html.includes('sr-fediverse'), 'en er hoort geen fediverse-blok te staan');
 });
 
 test('een post van een andere server komt met zijn knoppen binnen', async () => {
@@ -112,11 +113,14 @@ test('een post van een andere server komt met zijn knoppen binnen', async () => 
   assert.deepEqual(gevraagd, [['note', 'https://elders.test/notes/1']]);
   assert.ok(html.includes('Een bericht van ver weg'), 'de inhoud hoort er te staan');
   assert.ok(html.includes('@oma@elders.test'), 'en van wie het is');
-  // De functies van authorize_interaction, op de zoekpagina.
-  for (const actie of ['/authorize_interaction/like', '/authorize_interaction/boost', '/authorize_interaction/report']) {
+  // Waarderen en boosten kan ter plekke; antwoorden en melden op de volle
+  // interactiepagina. De zoekpagina ziet er sinds 30-9 precies zo uit als het
+  // live vak, dus ook hier de compacte kaart.
+  for (const actie of ['/authorize_interaction/like', '/authorize_interaction/boost']) {
     assert.ok(html.includes(`action="${actie}"`), `${actie} ontbreekt`);
   }
-  assert.ok(html.includes('action="/authorize_interaction"'), 'het antwoordvenster ontbreekt');
+  assert.ok(html.includes('/authorize_interaction?uri=https%3A%2F%2Felders.test%2Fnotes%2F1&amp;reply=1'),
+    'antwoorden wijst naar de volle pagina, met het venster open');
 });
 
 test('een profiel levert de volgknop', async () => {
@@ -130,8 +134,8 @@ test('een adres dat niets oplevert laat de rest van de zoekpagina staan', async 
   const { status, html } = await zoek('https://elders.test/iets-anders');
   assert.equal(status, 200);
   assert.equal(gevraagd.length, 2, 'beide vormen zijn geprobeerd');
-  assert.ok(html.includes('search-remote'), 'het blok staat er, met de melding erin');
-  assert.ok(html.includes('search-page-form'), 'en de zoekpagina zelf is niet weggevallen');
+  assert.ok(/sr-fediverse[\s\S]*class="sr-note"/.test(html), 'het blok staat er, met de melding erin');
+  assert.ok(html.includes('search-bar-form'), 'en de zoekbalk zelf is niet weggevallen');
 });
 
 test('een bezoeker laat deze server niets ophalen', async () => {
@@ -202,7 +206,7 @@ test('een profiel op de interactiepagina levert dezelfde volgknop', async () => 
 
 const preview = async (q) => {
   gevraagd = []; opties = [];
-  const r = await fetch(`http://127.0.0.1:${poort}/search/remote?q=${encodeURIComponent(q)}`, { signal: AbortSignal.timeout(10000) });
+  const r = await fetch(`http://127.0.0.1:${poort}/search/results?q=${encodeURIComponent(q)}`, { signal: AbortSignal.timeout(10000) });
   return { status: r.status, html: await r.text(), cache: r.headers.get('cache-control') };
 };
 
@@ -239,11 +243,11 @@ test('een bezoeker laat via de preview niets ophalen', async () => {
   ingelogd = false;
   try {
     const { status, html } = await preview('https://elders.test/notes/1');
-    // 204 en geen 403: voor een bezoeker is een geplakte link gewoon een
-    // zoekterm, en de zoekbalk valt dan terug op de gewone suggesties.
-    assert.equal(status, 204);
+    // Voor een bezoeker is een geplakte link gewoon een zoekterm: hij krijgt
+    // de gewone resultaten en de zin waarom er verder niets staat.
+    assert.equal(status, 200);
     assert.deepEqual(gevraagd, [], 'zonder rechten hoort er geen enkel verzoek uit te gaan');
-    assert.equal(html, '');
+    assert.ok(!html.includes('/authorize_interaction/like'), 'en er staan geen knoppen');
   } finally {
     ingelogd = true;
   }
@@ -251,8 +255,8 @@ test('een bezoeker laat via de preview niets ophalen', async () => {
 
 test('een zoekterm in de preview haalt niets op', async () => {
   const { status } = await preview('soundfabrics.nl');
-  assert.equal(status, 204);
-  assert.deepEqual(gevraagd, []);
+  assert.equal(status, 200, 'gewoon zoeken');
+  assert.deepEqual(gevraagd, [], 'maar niets ophalen');
 });
 
 test('een inhoudswaarschuwing blijft dicht tot je ervoor kiest', async () => {
@@ -317,6 +321,64 @@ test('niet ingelogd gaat er geen enkel verzoek uit, dus ook geen ondertekend', a
     await preview('https://elders.test/u/oma');
     assert.deepEqual(gevraagd, [], 'geen post- en geen profielopvraging');
     assert.deepEqual(actorOpties, [], 'en dus niets dat de sleutel van de site gebruikt');
+  } finally {
+    ingelogd = true;
+  }
+});
+
+// ── Eén zoekvlak: de pagina en het live vak zijn hetzelfde ─────────────────
+//
+// Robins ontwerp van 30-9: de zoekbalk en het vak eronder zijn het hele
+// zoeken, en /search?q=... ziet er hetzelfde uit. Dat is alleen waar zolang
+// beide dezelfde render gebruiken; deze toets vangt het moment dat ze uit
+// elkaar gaan lopen.
+
+test('de pagina en het live vak tonen dezelfde resultaten, teken voor teken', async () => {
+  const pagina = (await zoek('https://elders.test/notes/1')).html;
+  const vak = (await preview('https://elders.test/notes/1')).html.trim();
+  assert.ok(vak.startsWith('<div class="sr">'), 'het vak levert de resultaten-render');
+  assert.ok(pagina.includes(vak), 'de pagina bevat exact dezelfde render als het live vak');
+});
+
+test('een lege vraag in het live vak levert niets en haalt niets op', async () => {
+  const { status } = await preview('x');
+  assert.equal(status, 204);
+  assert.deepEqual(gevraagd, []);
+});
+
+// ── WebFinger: @naam@server in de zoekbalk ───────────────────────────────────
+
+test('een handle wordt herkend, een naam of zin niet', () => {
+  assert.equal(lookupHandle('@oma@elders.test'), '@oma@elders.test');
+  assert.equal(lookupHandle('oma@Elders.Test'), '@oma@elders.test', 'zonder @ vooraan, zoals Mastodon');
+  assert.equal(lookupHandle('  @oma.v_d-berg@sub.elders.test  '), '@oma.v_d-berg@sub.elders.test');
+  assert.equal(lookupHandle('@oma'), null, 'een naam om naar te zoeken, geen adres');
+  assert.equal(lookupHandle('@oma@localhost'), null, 'een server zonder domeinnaam');
+  assert.equal(lookupHandle('oma @elders.test'), null, 'een spatie maakt er een zoekopdracht van');
+  assert.equal(lookupHandle('https://elders.test/@oma'), null, 'een adres is een adres, geen handle');
+});
+
+test('een handle haalt het profiel op, ondertekend, zonder eerst een post te proberen', async () => {
+  actorOpties = [];
+  const { html } = await preview('@oma@elders.test');
+  assert.deepEqual(gevraagd, [['actor', '@oma@elders.test']], 'alleen het profiel: een handle is nooit een post');
+  assert.equal(actorOpties[0] && actorOpties[0].asSlug, 'robo', 'het profiel achter de handle gaat ondertekend');
+  assert.ok(html.includes('action="/authorize_interaction/follow"'), 'met de volgknop');
+  assert.ok(html.includes('https://elders.test/u/oma'), 'voor het profiel dat WebFinger opleverde');
+});
+
+test('een handle op de zoekpagina geeft hetzelfde profiel', async () => {
+  const { html } = await zoek('oma@elders.test');
+  assert.ok(html.includes('action="/authorize_interaction/follow"'));
+});
+
+test('niet ingelogd levert een handle geen enkel verzoek op', async () => {
+  ingelogd = false;
+  try {
+    const { status, html } = await preview('@oma@elders.test');
+    assert.equal(status, 200);
+    assert.deepEqual(gevraagd, [], 'geen WebFinger en geen profiel');
+    assert.ok(!html.includes('/authorize_interaction/follow'));
   } finally {
     ingelogd = true;
   }

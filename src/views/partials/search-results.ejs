@@ -1,0 +1,138 @@
+<%#
+  Wat er onder de zoekbalk staat. EEN render voor beide ingangen: het live
+  resultatenvak (via /search/results) en de pagina /search?q=... zelf. Zo zien
+  ze er per constructie hetzelfde uit; twee renders lopen gegarandeerd uit de
+  pas.
+
+  Verwacht: query, results (posts), tracks, events, pages, queryError,
+  remoteUri, remote, remoteKind, mayLookup, remoteReacted, siteTitle,
+  siteUrlBase, formatDate, t.
+
+  GEEN SCRIPT hierin: het live vak zet dit via innerHTML neer, en daar draait
+  niets. Gedrag (afspelen, waarderen, htmx-links) luistert op document.
+%>
+<%
+  const _base = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteUrlBase : '';
+  const _results = (typeof results !== 'undefined' && results) ? results : [];
+  const _tracks = (typeof tracks !== 'undefined' && tracks) ? tracks : [];
+  const _events = (typeof events !== 'undefined' && events) ? events : [];
+  const _pages = (typeof pages !== 'undefined' && pages) ? pages : [];
+  const _remote = (typeof remoteUri !== 'undefined' && remoteUri) ? remoteUri : '';
+  // Alles via locals: een veld dat een aanroeper vergeet mag de render niet
+  // laten omvallen (een kale verwijzing naar iets ongedefinieerds gooit).
+  const _queryError = !!locals.queryError;
+  const _mayLookup = !!locals.mayLookup;
+  const _found = locals.remote || null;
+  const _kind = locals.remoteKind || null;
+  const _reacted = locals.remoteReacted || { liked: false, boosted: false };
+  const _siteTitle = locals.siteTitle || '';
+  const _inPost = t('search.in_post');
+  const _any = _results.length || _tracks.length || _events.length || _pages.length;
+%>
+<% if (locals.query) { %>
+<div class="sr">
+  <% if (_remote) { %>
+    <%# Een geplakt adres is geen zoekterm maar een aanwijzing (shaer-utpi).
+        Ophalen doen we alleen namens een ingelogde beheerder van de site. %>
+    <section class="sr-section sr-fediverse">
+      <h2 class="sr-title"><%= t('search.section_fediverse') %></h2>
+      <% if (!_mayLookup) { %>
+        <p class="sr-note"><%= t('search.fedi_signin') %></p>
+      <% } else if (_found && _kind === 'note') { %>
+        <%- include('./remote-object', { target: _found, uri: _remote, reacted: _reacted, siteTitle: _siteTitle, compact: true }) %>
+      <% } else if (_found && _kind === 'actor') { %>
+        <%- include('./remote-actor', { actor: _found, siteTitle: _siteTitle, compact: true }) %>
+      <% } else { %>
+        <p class="sr-note"><%= t('fedi.remote_notfound') %></p>
+      <% } %>
+      <% if (_found) { %><%- include('./fedi-interact-styles') %><% } %>
+    </section>
+  <% } %>
+
+  <% if (_queryError) { %>
+    <p class="sr-note"><%= t('search.error') %></p>
+  <% } %>
+
+  <% if (_tracks.length) { %>
+    <section class="sr-section">
+      <h2 class="sr-title"><%= t('search.section_tracks') %></h2>
+      <div class="sr-tracks">
+        <% _tracks.forEach(function (tr) {
+             const tj = JSON.stringify({ id: tr.id, url: tr.url, title: tr.title, artist: tr.artist || '', cover: tr.cover || '' })
+               .replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/</g, '&lt;'); %>
+          <div class="post-audio-track sr-track" id="track-<%= tr.id %>"
+               data-pcms-track-id="<%= tr.id %>" data-pcms-track-url="<%= tr.url %>"
+               data-pcms-track='<%- tj %>'>
+            <button type="button" class="pat-play" aria-label="<%= tr.title %>">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 4l12 8-12 8z"/></svg>
+            </button>
+            <% if (tr.cover) { %>
+              <span class="sr-track-cover" style="background-image:url('<%= tr.cover %>')" aria-hidden="true"></span>
+            <% } %>
+            <div class="pat-info">
+              <div class="pat-title"><%= tr.title %></div>
+              <% if (tr.artist || tr.album) { %>
+                <div class="pat-artist"><%= tr.artist %><% if (tr.artist && tr.album) { %> &middot; <% } %><%= tr.album %></div>
+              <% } %>
+            </div>
+            <% if (tr.postUrl) { %>
+              <a class="sr-track-link" href="<%= tr.postUrl %>"
+                 hx-get="<%= tr.postUrl %>?partial=1" hx-target="#pcms-main" hx-swap="innerHTML" hx-push-url="<%= tr.postUrl %>"><%= _inPost %></a>
+            <% } %>
+          </div>
+        <% }); %>
+      </div>
+    </section>
+  <% } %>
+
+  <% if (_results.length) { %>
+    <section class="sr-section">
+      <h2 class="sr-title"><%= t('search.section_posts') %></h2>
+      <ol class="sr-list">
+        <% _results.forEach(function (r) { %>
+          <li>
+            <a class="sr-item" href="<%= _base %>/<%= r.slug %>"
+               hx-get="<%= _base %>/<%= r.slug %>?partial=1" hx-target="#pcms-main" hx-swap="innerHTML"
+               hx-push-url="<%= _base %>/<%= r.slug %>" hx-indicator="#pcms-loading">
+              <span class="sr-item-title"><%= r.title || '(zonder titel)' %></span>
+              <span class="sr-item-meta"><%= r.author_username %><% if (r.published_at) { %> &middot; <%= formatDate(r.published_at) %><% } %></span>
+              <% if (r.snippet) { %><span class="sr-item-snippet"><%- r.snippet %></span><% } %>
+            </a>
+          </li>
+        <% }); %>
+      </ol>
+    </section>
+  <% } %>
+
+  <% if (_events.length) { %>
+    <section class="sr-section">
+      <h2 class="sr-title"><%= t('search.section_events') %></h2>
+      <ol class="sr-list">
+        <% _events.forEach(function (ev) { %>
+          <li>
+            <a class="sr-item" href="<%= ev.url %>">
+              <span class="sr-item-title"><%= ev.where || ev.date %></span>
+              <span class="sr-item-meta"><%= [ev.date, ev.time].filter(Boolean).join(' ') %></span>
+            </a>
+          </li>
+        <% }); %>
+      </ol>
+    </section>
+  <% } %>
+
+  <% if (_pages.length) { %>
+    <section class="sr-section">
+      <h2 class="sr-title"><%= t('search.section_pages') %></h2>
+      <ul class="sr-list">
+        <% _pages.forEach(function (pg) { %>
+          <li><a class="sr-item sr-item-row" href="<%= pg.url %>"><span class="sr-item-title"><%= pg.label %></span><span aria-hidden="true">→</span></a></li>
+        <% }); %>
+      </ul>
+    </section>
+  <% } %>
+
+  <% if (!_queryError && !_any && !_remote) { %>
+    <p class="sr-empty"><%= t('search.empty') %></p>
+  <% } %>
+</div>
+<% } %>

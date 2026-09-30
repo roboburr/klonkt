@@ -20,7 +20,7 @@
 
 import express from 'express';
 import db from '../config/database.js';
-import { renderPage } from '../middleware/render.js';
+import { renderPage, formatDate } from '../middleware/render.js';
 import { audioUrl } from '../services/AudioStreamService.js';
 import { getSetting } from '../services/SettingsService.js';
 import { premiumUnlocked } from '../services/PatreonService.js';
@@ -85,6 +85,22 @@ export function lookupUri(q) {
 }
 
 /**
+ * Is dit een HANDLE (@naam@server) en geen zoekterm? Dan de genormaliseerde
+ * handle, anders null.
+ *
+ * Met of zonder @ vooraan, zoals Mastodon het ook aanneemt. De server moet een
+ * echte domeinnaam zijn (met een punt en een extensie): "@robin" is een naam om
+ * naar te zoeken, geen adres. Een spatie maakt er een zoekopdracht van.
+ *
+ * WebFinger zelf is openbaar en gaat niet ondertekend; het profiel erachter
+ * wel, via resolveRemoteActor, en alleen namens een ingelogde beheerder.
+ */
+export function lookupHandle(q) {
+  const m = /^@?([a-z0-9_.-]+)@([a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,})$/i.exec(String(q || '').trim());
+  return m ? `@${m[1]}@${m[2].toLowerCase()}` : null;
+}
+
+/**
  * Mag deze bezoeker een adres laten OPHALEN?
  *
  * Dezelfde grens als /authorize_interaction (requireSiteManager), en met opzet:
@@ -113,10 +129,14 @@ function mayLookUp(req, res) {
  * ONDERTEKEND als de site: een post die alleen voor volgers zichtbaar is weigert
  * een anonieme GET, en dan lijkt een bestaande post te ontbreken.
  */
-async function lookUpRemote(remoteUri, site) {
+async function lookUpRemote(remoteUri, site, { handle = false } = {}) {
   let remote = null;
   let remoteKind = null;
-  try { remote = await ActivityPubService.resolveRemoteNote(remoteUri, { asSlug: site.slug }); } catch { /* onbereikbaar */ }
+  // Een handle wijst altijd naar een persoon: geen post-poging, die zou alleen
+  // een verzoek kosten dat niets kan opleveren.
+  if (!handle) {
+    try { remote = await ActivityPubService.resolveRemoteNote(remoteUri, { asSlug: site.slug }); } catch { /* onbereikbaar */ }
+  }
   if (remote) remoteKind = 'note';
   if (!remote) {
     // Ook ondertekend: een profiel op een instance met authorized fetch
@@ -225,87 +245,79 @@ function searchSite(req, res, rawQ, lim) {
   return out;
 }
 
-// ── Full results page ────────────────────────────────────────────────────────
+// ── Wat er bij een zoekopdracht hoort ────────────────────────────────────────
+//
+// EEN verzameling voor beide ingangen: de pagina /search?q=... en het live vak
+// onder de zoekbalk (/search/results). Ze tonen sinds Robins ontwerp van 30-9
+// hetzelfde, dus ze horen ook hetzelfde op te halen.
+//
+// Een adres wordt OPGEHAALD, niet doorzocht (shaer-utpi). Eerst als post, dan
+// als profiel; ondertekend, en alleen namens een ingelogde beheerder.
+async function gather(req, res, rawQ) {
+  const site = res.locals.site;
+  // Een adres (https://...) of een handle (@naam@server): allebei iets dat van
+  // een andere server moet komen, dus allebei achter dezelfde rechtengrens.
+  const uri = lookupUri(rawQ);
+  const handle = uri ? null : lookupHandle(rawQ);
+  const remoteUri = uri || handle;
+  const mayLookup = remoteUri ? mayLookUp(req, res) : false;
+  const { remote, remoteKind, reacted: remoteReacted } = (remoteUri && mayLookup)
+    ? await lookUpRemote(remoteUri, site, { handle: !!handle })
+    : { remote: null, remoteKind: null, reacted: { liked: false, boosted: false } };
+  const r = searchSite(req, res, rawQ, { posts: 50, tracks: 25, events: 25, pages: 8 });
+  return {
+    query: rawQ,
+    results: r.results, tracks: r.tracks, events: r.events, pages: r.pages,
+    total: r.results.length + r.tracks.length + r.events.length + r.pages.length,
+    queryError: r.queryError,
+    remoteUri, remote, remoteKind, mayLookup, remoteReacted,
+    siteTitle: site.title || '',
+  };
+}
+
+// ── De pagina: het zoekvlak, open, met de resultaten erin ────────────────────
 router.get('/', async (req, res) => {
   const site = res.locals.site;
   if (!site) return res.status(404).send('No site');
-  const rawQ = (req.query.q || '').toString().trim();
-
-  if (!rawQ) {
-    return renderPage(req, res, 'pages/search', {
-      pageTitle: 'Zoeken', bodyClass: 'on-special', query: '',
-      results: [], tracks: [], events: [], pages: [], total: 0,
-    });
-  }
-
-  // Een adres wordt OPGEHAALD, niet doorzocht (shaer-utpi). Eerst als post,
-  // dan als profiel: een URL die geen van beide oplevert is gewoon een
-  // zoekterm die toevallig op een link lijkt, en dan blijft de rest staan.
-  const remoteUri = lookupUri(rawQ);
-  const mayLookup = remoteUri ? mayLookUp(req, res) : false;
-  const { remote, remoteKind, reacted: remoteReacted } = (remoteUri && mayLookup)
-    ? await lookUpRemote(remoteUri, site)
-    : { remote: null, remoteKind: null, reacted: { liked: false, boosted: false } };
-
-  const r = searchSite(req, res, rawQ, { posts: 50, tracks: 25, events: 25, pages: 8 });
-  const total = r.results.length + r.tracks.length + r.events.length + r.pages.length;
+  const rawQ = (req.query.q || '').toString().trim().slice(0, 2048);
+  const data = rawQ ? await gather(req, res, rawQ) : { query: '' };
   renderPage(req, res, 'pages/search', {
-    pageTitle: `Zoeken: ${rawQ}`, bodyClass: 'on-special', query: rawQ,
-    results: r.results, tracks: r.tracks, events: r.events, pages: r.pages,
-    total, queryError: r.queryError,
-    remoteUri, remote, remoteKind, mayLookup,
-    remoteReacted,
-    siteTitle: site.title || '',
+    pageTitle: rawQ ? `Zoeken: ${rawQ}` : 'Zoeken', bodyClass: 'on-special',
+    ...data,
   });
 });
 
-// ── De live-preview van een adres (HTML-fragment) ─────────────────────────────
+// ── Het live vak onder de zoekbalk (HTML-fragment) ───────────────────────────
 //
-// Plak je een link in de zoekbalk, dan haalt de uitklaplijst de post zelf op
-// in plaats van te zoeken naar de tekst van de link (shaer-utpi).
+// Dezelfde render als de pagina (partials/search-results.ejs), zodat het vak
+// en de pagina er per constructie hetzelfde uitzien. Dit verving twee routes:
+// /suggest (JSON, dat de browser zelf tot een lijstje bouwde, anders dan de
+// pagina) en /remote (alleen het adres).
 //
-// Dezelfde grens als de volle pagina, en hier weegt hij zwaarder: deze route
-// wordt bij elke toetsaanslag geraakt, dus zonder die grens is hij een
-// haalservice die iedereen deze server op adressen naar keuze laat afsturen.
-// Mag je niet ophalen, of is het geen adres, dan 204: de zoekbalk valt dan
-// terug op de gewone suggesties. Geen 403, want voor een bezoeker is een
-// geplakte link gewoon een zoekterm en geen geweigerde handeling.
+// De rechtengrens voor het ophalen zit in gather en is dezelfde als voor de
+// pagina; hier weegt hij zwaarder, want dit wordt bij elke toetsaanslag
+// geraakt. Een bezoeker die een link plakt krijgt de gewone resultaten en de
+// zin waarom er verder niets staat, en er gaat geen verzoek uit.
 const VIEWS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'views');
 
-router.get('/remote', async (req, res) => {
+router.get('/results', async (req, res) => {
   const site = res.locals.site;
-  const remoteUri = lookupUri(String(req.query.q || '').slice(0, 2048));
-  if (!site || !remoteUri || !mayLookUp(req, res)) return res.status(204).end();
-  const { remote, remoteKind, reacted } = await lookUpRemote(remoteUri, site);
-  // Dezelfde taal als de pagina eromheen, anders staat er een Engelse kaart
+  const rawQ = String(req.query.q || '').trim().slice(0, 2048);
+  if (!site || rawQ.length < 2) return res.status(204).end();
+  const data = await gather(req, res, rawQ);
+  // Dezelfde taal als de pagina eromheen, anders staat er een Engelse lijst
   // in een Nederlandse zoekbalk.
   const lang = resolveLang(req, { userLang: req.session?.user?.lang, defaultLang: getSetting('default_lang') });
-  const html = await ejs.renderFile(path.join(VIEWS_DIR, 'partials', 'remote-preview.ejs'), {
+  const html = await ejs.renderFile(path.join(VIEWS_DIR, 'partials', 'search-results.ejs'), {
+    ...data,
     t: (k, vars) => i18nT(lang, k, vars),
-    remote, remoteKind, remoteUri, reacted,
-    siteTitle: site.title || '',
+    formatDate,
+    siteUrlBase: res.locals.siteUrlBase || '',
   }, { async: false });
   // Wat deze bezoeker ziet hangt van zijn rechten en zijn reacties af: niet
   // bewaren, niet delen.
   res.set('Cache-Control', 'private, no-store');
   res.type('html').send(html);
-});
-
-// ── Live suggestions (JSON) ──────────────────────────────────────────────────
-router.get('/suggest', (req, res) => {
-  const site = res.locals.site;
-  if (!site) return res.json({ posts: [], tracks: [], events: [], pages: [] });
-  const rawQ = (req.query.q || '').toString().trim().slice(0, 100);
-  if (rawQ.length < 2) return res.json({ posts: [], tracks: [], events: [], pages: [] });
-
-  const urlFor = (slug) => `/${slug}`;
-  const r = searchSite(req, res, rawQ, { posts: 5, tracks: 4, events: 3, pages: 4 });
-  res.json({
-    posts: r.results.map((p) => ({ title: p.title || '(zonder titel)', url: urlFor(p.slug) })),
-    tracks: r.tracks.map((tr) => ({ title: tr.title, artist: tr.artist, url: tr.postUrl })),
-    events: r.events.map((e) => ({ when: [e.date, e.time].filter(Boolean).join(' '), where: e.where, url: e.url })),
-    pages: r.pages,
-  });
 });
 
 export default router;

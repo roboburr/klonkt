@@ -158,18 +158,10 @@
   .rp-report-form textarea { width: 100%; box-sizing: border-box; padding: .6rem .8rem; font: inherit; resize: vertical; border-radius: 12px;
     border: 1px solid color-mix(in srgb, var(--ink, #000) 18%, transparent); background: var(--paper, #fff); color: var(--ink, #000); }
 
-  /* De live-preview: open-link onder de kaart, en de kaart zonder rand-marge. */
+  /* De compacte kaart in het zoekvak: de link naar de volle pagina eronder. */
   .rp-open { display: block; padding: 10px 4px 2px; text-align: right; font-weight: 600; font-size: .88rem;
     color: var(--accent, #06c); text-decoration: none; }
   .rp-open:hover { text-decoration: underline; }
-  .ss-remote { padding: 4px 0 6px; }
-  .ss-remote-note { padding: .8rem .6rem; color: var(--ink-soft, var(--ink-muted)); font-size: .9rem; }
-  .ss-remote-loading { display: flex; align-items: center; gap: 10px; padding: .9rem .6rem; color: var(--ink-soft, var(--ink-muted)); font-size: .9rem; }
-  .ss-remote-loading::before { content: ''; width: 16px; height: 16px; border-radius: 50%; flex: 0 0 16px;
-    border: 2px solid color-mix(in srgb, var(--accent, #06c) 30%, transparent); border-top-color: var(--accent, #06c);
-    animation: ss-spin .8s linear infinite; }
-  @keyframes ss-spin { to { transform: rotate(360deg); } }
-  @media (prefers-reduced-motion: reduce) { .ss-remote-loading::before { animation: none; } }
 
   /* Smal scherm: alleen de tekens, gelijk verdeeld over de breedte. De woorden
      blijven bestaan voor wie het scherm voorgelezen krijgt. */

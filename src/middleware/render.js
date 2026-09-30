@@ -107,7 +107,7 @@ const parseStamp = (v) => {
   return Number.isNaN(d.getTime()) ? null : d;
 };
 
-const formatDate = (iso) => {
+export const formatDate = (iso) => {
   const d = parseStamp(iso);
   return d ? d.toLocaleDateString('nl-NL', { timeZone: siteTimezone(), day: 'numeric', month: 'long', year: 'numeric' }) : '';
 };
