@@ -90,6 +90,9 @@
         var _aaudDelete   = t('aaud.delete');
         var _aaudCopy     = t('aaud.copy_click');
         var _aaudDelConfirm = t('aaud.delete_confirm');
+        var _aaudFediBtn     = t('aaud.fedi_open_btn');
+        var _aaudFediOn      = t('aaud.fedi_open_on');
+        var _aaudFediConfirm = t('aaud.fedi_open_confirm');
       %>
       <ul class="ax-list">
         <% tracks.forEach(function(t) { %>
@@ -124,6 +127,21 @@
                 <button type="button" class="ax-icon-btn" data-track-dl data-id="<%= t.id %>" data-on="<%= t.downloadable ? '1' : '0' %>"
                         aria-label="<%= t.downloadable ? _aaudDlOn : _aaudDlOff %>" title="<%= t.downloadable ? _aaudDlOn : _aaudDlOff %>"
                         style="<%= t.downloadable ? 'color:var(--accent,#6b8f71)' : 'opacity:.5' %>">⬇</button>
+              <% } %>
+              <%# Openbaar op de fediverse, per track (Robin, 30-9). EENRICHTINGS, net
+                  als het vinkje in de post-editor: open is een slotje en geen knop meer,
+                  want een bestand dat al verspreid is haal je niet terug. Alleen bij een
+                  track met een eigen bestand; een link heeft niets om te openen. Een
+                  formulier en geen fetch: werkt zonder JS, en data-confirm vraagt het
+                  eerst (shell.ejs). %>
+              <% if (t.media_id) { %>
+                <% if (t.fedi_open) { %>
+                  <span class="ax-icon-btn ax-fedi-on" role="img" aria-label="<%= _aaudFediOn %>" title="<%= _aaudFediOn %>"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span>
+                <% } else { %>
+                  <form action="/admin/audio/<%= t.id %>/fedi-open" method="post" data-confirm="<%= _aaudFediConfirm %>" class="ax-track-fedi">
+                    <button type="submit" class="ax-icon-btn ax-fedi-off" aria-label="<%= _aaudFediBtn %>" title="<%= _aaudFediBtn %>"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></button>
+                  </form>
+                <% } %>
               <% } %>
               <form action="/admin/audio/<%= t.id %>/delete" method="post" data-confirm="<%= _aaudDelConfirm %>" class="ax-track-delete">
                 <button type="submit" class="ax-icon-btn ax-icon-btn-danger" aria-label="<%= _aaudDelete %>" title="<%= _aaudDelete %>">🗑</button>
@@ -246,6 +264,12 @@
   min-width: 0;
 }
 .ax-file-name[data-empty] { color: var(--ink-muted, var(--ink-soft)); }
+/* Openbaar op de fediverse: dicht is gedimd, net als een uitgezette download;
+   open is de accentkleur en geen knop meer, want terug kan niet. */
+.ax-track-fedi { display: inline; }
+.ax-fedi-off { opacity: .5; }
+.ax-fedi-off:hover, .ax-fedi-off:focus-visible { opacity: 1; }
+.ax-fedi-on { color: var(--accent, #6b8f71); cursor: default; }
 
 .ax-form-actions {
   display: flex; gap: 0.5rem;

@@ -23,6 +23,8 @@ import { transcodeToMp3, retagMp3 } from '../services/AudioTranscoder.js';
 import { audioUrl } from '../services/AudioStreamService.js';
 import { mediaDir } from '../config/paths.js';
 import * as ActivityPubService from '../services/ActivityPubService.js';
+import { postsEmbeddingTrack } from '../services/music/index.js';
+import { t as i18nT, resolveLang } from '../services/i18n.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Audio files live OUTSIDE storage/media so the public /media static
@@ -95,7 +97,8 @@ router.get('/', requireGod, (req, res) => {
 
   const rows = db.prepare(`
     SELECT t.id, t.title, t.artist, t.album, t.duration, t.cover_url,
-           t.position, t.created_at, t.downloadable, m.filename, m.size, m.mime_type
+           t.position, t.created_at, t.downloadable, t.fedi_open, t.media_id,
+           m.filename, m.size, m.mime_type
     FROM audio_tracks t
     LEFT JOIN media m ON m.id = t.media_id
     WHERE t.site_id = ?
@@ -287,6 +290,62 @@ router.post('/:id/downloadable', requireGod, (req, res) => {
       .run(row.downloadable ? 0 : 1, req.params.id, site.id);
   }
   res.redirect('/admin/audio');
+});
+
+/**
+ * Een track openbaar op de fediverse zetten, vanuit de mediamanager (Robin,
+ * 30-9: "Fedi open audio ook per track aan kunnen zetten").
+ *
+ * Tot nu toe kon dat alleen per POST, met het vinkje in de editor, dat elke
+ * track in die post opende. De vlag zelf was altijd al per track
+ * (audio_tracks.fedi_open): hij opent het BESTAND en maakt er een echte
+ * Audio-bijlage van. Dit is dezelfde vlag, met een eigen knop.
+ *
+ * EENRICHTINGS, net als in de editor. Een bestand dat al gefedereerd is, staat
+ * op andere servers; het hier weer afschermen zou schijnveiligheid zijn. Er is
+ * dus geen weg terug, en die bouwen we ook niet.
+ *
+ * EN DE POSTS GAAN OPNIEUW DE DEUR UIT. Het vinkje in de editor werkt zichtbaar
+ * omdat het opslaan van de post een Update stuurt, met de audio erin. Een knop
+ * die alleen de vlag zet, laat elke post die al verstuurd is zonder speler
+ * staan tot iemand hem bewerkt. Dus hier dezelfde Update, voor elke
+ * gepubliceerde post waar de track in staat -- rechtstreeks, via een playlist of
+ * via zijn album. De bibliotheek (Funkwhale) hoeft niets: die wordt opgehaald,
+ * en een open track staat er meteen in.
+ *
+ * Alleen een track met een eigen BESTAND: een track die alleen een link is heeft
+ * niets om te openen.
+ *
+ * `deliver` is er voor de toetsen; de route gebruikt de echte deliverUpdate.
+ */
+export function openTrackOnFediverse(site, trackId, { deliver = (s, p) => ActivityPubService.deliverUpdate(s, p) } = {}) {
+  const t = db.prepare('SELECT id, media_id, fedi_open FROM audio_tracks WHERE id = ? AND site_id = ?').get(trackId, site.id);
+  if (!t) return { ok: false, reason: 'not_found' };
+  if (!t.media_id) return { ok: false, reason: 'no_file' };
+  if (t.fedi_open) return { ok: true, changed: false, updated: 0 };
+  db.prepare('UPDATE audio_tracks SET fedi_open = 1 WHERE id = ? AND site_id = ?').run(trackId, site.id);
+  const postIds = postsEmbeddingTrack(site.id, trackId);
+  for (const id of postIds) {
+    const post = db.prepare('SELECT * FROM posts WHERE id = ? AND site_id = ?').get(id, site.id);
+    if (!post) continue;
+    // Op de achtergrond: een trage volger houdt de knop niet vast.
+    Promise.resolve()
+      .then(() => deliver(site, post))
+      .catch((e) => console.warn('[admin-audio] Update na openen mislukt:', post.id, e.message));
+  }
+  return { ok: true, changed: true, updated: postIds.length };
+}
+
+router.post('/:id/fedi-open', requireGod, (req, res) => {
+  const site = res.locals.site;
+  if (!site) return res.status(404).send('Site required');
+  const lang = resolveLang(req, { userLang: req.session?.user?.lang });
+  const r = openTrackOnFediverse(site, req.params.id);
+  if (!r.ok) {
+    const msg = r.reason === 'no_file' ? i18nT(lang, 'aaud.fedi_no_file') : 'Not found';
+    return res.redirect('/admin/audio?error=' + encodeURIComponent(msg));
+  }
+  res.redirect('/admin/audio?success=' + encodeURIComponent(i18nT(lang, 'aaud.fedi_opened', { n: r.updated })));
 });
 
 router.post('/:id/delete', requireGod, (req, res) => {

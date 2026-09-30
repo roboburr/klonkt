@@ -136,6 +136,40 @@ export function trackHostPosts(siteId) {
 }
 
 /**
+ * Elke GEPUBLICEERDE post waar deze track in staat, op welke manier ook:
+ * rechtstreeks ([[track:id]]), via een playlist of via zijn albumnaam.
+ *
+ * Voor iets anders dan trackHostPosts, dat per track EEN post kiest voor de
+ * bibliotheek. Opent de mediamanager een track (shaer, 30-9), dan moeten ALLE
+ * posts met die track opnieuw de deur uit, anders krijgt een volger de speler
+ * pas bij de volgende bewerking van die post.
+ *
+ * Alleen posts van deze site: playlists.id is een globale sleutel, en het
+ * filter hoort op de post en de track, niet op de playlist (zie de
+ * tenancy-toets bij setAudioFediOpen).
+ */
+export function postsEmbeddingTrack(siteId, trackId) {
+  const t = db.prepare('SELECT id, album FROM audio_tracks WHERE id = ? AND site_id = ?').get(trackId, siteId);
+  if (!t) return [];
+  const rows = db.prepare(`
+    SELECT p.id FROM posts p
+     WHERE p.site_id = ? AND p.status = 'published'
+       AND p.content LIKE '%[[track:' || ? || ']]%'
+    UNION
+    SELECT p.id FROM playlist_tracks pt
+      JOIN posts p ON p.site_id = ? AND p.status = 'published'
+                  AND p.content LIKE '%[[playlist:' || pt.playlist_id || ']]%'
+     WHERE pt.track_id = ?
+    UNION
+    SELECT p.id FROM posts p
+     WHERE p.site_id = ? AND p.status = 'published'
+       AND ? IS NOT NULL AND ? <> ''
+       AND p.content LIKE '%[[album:' || ? || ']]%'
+  `).all(siteId, t.id, siteId, t.id, siteId, t.album, t.album, t.album);
+  return rows.map((r) => r.id);
+}
+
+/**
  * De artiest-credit, gedeeld door track en album (shaer-3f8a / shaer-756s).
  *
  * De ENTITEIT is de site-actor: een echt, opvraagbaar adres. De credittekst --
