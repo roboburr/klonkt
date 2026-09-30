@@ -28,6 +28,7 @@ import {
 import { tlStmts, extractEmojiTags, extractLinkJson, quoteHrefOf } from './ap-timeline.js';
 import { parsePoll, recordPollBallot } from './ap-polls.js';
 import { fwStmts } from './ap-following.js';
+import * as HubInvite from './hub-invite.js';
 
 /**
  * Welke objectsoorten deze inbox in de tijdlijn opneemt.
@@ -558,7 +559,12 @@ export async function handleInbox(req, slugParam, preVerified = null) {
     // verzamelplatform hangen zonder dat de eigenaar ja heeft gezegd.
     // Wards vallen hier nooit: de guardianpoort hierboven gaat vóór.
     const ownerGate = db.prepare('SELECT approve_followers FROM sites WHERE slug = ?').get(slug);
-    if (ownerGate && ownerGate.approve_followers) {
+    // Behalve als de eigenaar dat ja al gaf: [Add to HUB] op /connect geldt
+    // een dag als toestemming voor een Follow van de hub. Alleen als de hub
+    // hem ZELF ondertekende. Zie services/hub-invite.js.
+    const alGoedgekeurd = !!(verified && verified.id === who && HubInvite.isInvited(slug, who));
+    if (alGoedgekeurd) console.log('[AP] Follow', who, '→', slug, '(pre-approved via Add to HUB)');
+    if (ownerGate && ownerGate.approve_followers && !alGoedgekeurd) {
       const followId = (typeof act.id === 'string' && act.id) || `${who}#follow-${Date.now()}-${rid()}`;
       Guardianship.follows.recordPending(slug, {
         id: followId, follower: who, inbox: remote.inbox, sharedInbox,

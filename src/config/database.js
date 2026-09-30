@@ -69,6 +69,9 @@ export function initializeDatabase() {
   // STANDAARD AAN (ook Robins wens, zelfde dag): een nieuwe of bijgewerkte
   // klonkt beschermt zijn eigenaar meteen; uitzetten is de bewuste keuze.
   ensureColumn('sites', 'approve_followers', 'INTEGER DEFAULT 1');
+  // [Add to HUB]: tot wanneer de eigenaar een Follow van de hub vooraf goedkeurt
+  // (ms sinds epoch). Zie services/hub-invite.js.
+  ensureColumn('sites', 'hub_invite_until', 'INTEGER');
   // (Verwijderd 31-7-2026: sites.guardian_only en ap_guardian_invites hoorden
   // bij de guardian-lite accounts. Bestaande installaties houden kolom en tabel
   // ongebruikt; nieuwe krijgen ze niet meer.)

@@ -50,6 +50,26 @@
       stond hij bovendien zonder enige opmaak: labels als losse tekst naast hun
       invoerveld. Op die pagina erft hij de kaartopmaak. %>
 
+  <%# [Add to HUB] (Robin, 30-9): je klonkt op de Klonkt Hub zetten. De knop
+      gaat naar het aanmeldformulier van de hub, vooraf ingevuld, en keurt de
+      Follow die daarop volgt hier alvast goed -- anders moest je straks je
+      eigen aanmelding nog accepteren. Een nieuw tabblad, zodat deze pagina
+      blijft staan. Staat hij er al op, dan een bevestiging in plaats van de knop. %>
+  <% if (typeof hub !== 'undefined' && hub && !(typeof movedTo !== 'undefined' && movedTo)) { %>
+    <section class="conn-hub">
+      <h2 class="conn-h"><%= t('tl.hub_title') %></h2>
+      <% if (hub.onHub) { %>
+        <p class="conn-unreach-lead">&#10003; <%= t('tl.hub_on') %> <a href="<%= hub.url %>" target="_blank" rel="noopener"><%= t('tl.hub_open') %></a></p>
+      <% } else { %>
+        <p class="conn-unreach-lead"><%= t('tl.hub_lead') %></p>
+        <% if (hub.ward) { %><p class="conn-unreach-lead"><%= t('tl.hub_ward') %></p><% } %>
+        <form method="post" action="/connect/add-to-hub" target="_blank">
+          <button type="submit" class="btn btn-primary"><%= t('tl.hub_add') %></button>
+        </form>
+      <% } %>
+    </section>
+  <% } %>
+
   <%# De eigenaarspoort (Robins wens, 18-8): volgverzoeken die wachten op
       een beslissing van de eigenaar. Alleen buiten voogdij — een ward ziet
       dit nooit, want daar beslissen de guardians. De poort zelf zit hier

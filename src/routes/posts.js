@@ -20,6 +20,7 @@ import { toWebp } from '../services/ImageWebpService.js';
 import VideoCoverService from '../services/VideoCoverService.js';
 import ActivityPubService from '../services/ActivityPubService.js';
 import * as Guardianship from '../services/guardianship/index.js';
+import * as HubInvite from '../services/hub-invite.js';
 import { premiumUnlocked } from '../services/PatreonService.js';
 import { defaultMinCents as paidDefaultMinCents, patreonUrl as paidPatronUrl } from '../services/PaidPatreonService.js';
 import { verifyBlob } from '../services/CryptoBox.js';
@@ -1339,6 +1340,8 @@ router.get('/connect', requireSiteManager, (req, res) => {
     pageTitle: 'Connect', bodyClass: 'on-special',
     connections, myGuardians, followRequests,
     approveFollowers: !!(site && site.approve_followers),
+    // [Add to HUB]: staat hij er al op, dan een bevestiging in plaats van de knop.
+    hub: site ? { url: HubInvite.hubUrl(), onHub: HubInvite.onHub(site.slug), ward: myGuardians.length > 0 } : null,
     // Na een verhuizing staat de uitgaande kant op slot. Dat hoort te blijken
     // VOORDAT je op een knop drukt, niet daarna uit een foutmelding.
     movedTo: ActivityPubService.movedLock(site).movedTo,
@@ -1368,6 +1371,42 @@ router.post('/connect/approve-followers', requireSiteManager, (req, res) => {
       .run(req.body.on ? 1 : 0, site.id);
   }
   return res.redirect(`${base}/connect`);
+});
+
+// [Add to HUB] (Robin, 30-9): zet deze klonkt op de Klonkt Hub.
+//
+// De knop stuurt je naar het aanmeldformulier van de hub, vooraf ingevuld met
+// je eigen handle; aanmelden blijft daar een eigen klik. Hier gebeurt het
+// deel dat de hub niet kan: de eigenaar geeft alvast zijn ja voor de Follow
+// die daarop volgt, zodat hij straks niet zijn eigen aanmelding hoeft goed te
+// keuren (zie services/hub-invite.js).
+//
+// Staat er al een verzoek van de hub te wachten -- iemand meldde je eerder
+// aan -- dan is deze klik precies het ja waar dat verzoek op wacht, en hoef je
+// niet langs het formulier. Bij een WARD nooit: daar beslissen de guardians.
+router.post('/connect/add-to-hub', requireSiteManager, async (req, res) => {
+  const site = res.locals.site;
+  const base = res.locals.siteUrlBase || '';
+  if (!site) return res.redirect(`${base}/connect`);
+  if (ActivityPubService.movedLock(site).movedTo) {
+    return res.redirect(`${base}/connect?error=` + encodeURIComponent('Dit account is verhuisd'));
+  }
+  const pub = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  const handle = ActivityPubService.deriveHandle(ActivityPubService.actorId(pub, site.slug)).replace(/^@/, '');
+  const hub = HubInvite.hubUrl();
+  const isWard = Guardianship.listGuardians(site.slug).length > 0;
+
+  if (!isWard) {
+    const wacht = Guardianship.follows.listForWard(site.slug)
+      .find((f) => f.status === 'pending' && HubInvite.isHubActor(f.follower_uri));
+    if (wacht) {
+      await ActivityPubService.acceptGatedFollow(wacht);
+      Guardianship.follows.remove(wacht.id);
+      return res.redirect(303, `${hub}/?klonkt=${encodeURIComponent(handle)}`);
+    }
+  }
+  HubInvite.invite(site.id);
+  return res.redirect(303, `${hub}/?add=${encodeURIComponent(handle)}`);
 });
 
 // De eigenaarspoort beslist (Robins wens, 18-8): accepteer of weiger een
