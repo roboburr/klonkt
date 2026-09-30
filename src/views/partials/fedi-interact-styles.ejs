@@ -1,0 +1,111 @@
+<%#
+  De opmaak van de fediverse-interactieschermen. Staat apart zodat de pagina en
+  de zoekresultaten dezelfde render krijgen zonder de regels twee keer op te
+  schrijven (een tweede kopie loopt gegarandeerd uit de pas).
+%>
+<style>
+  .auth-interact { max-width: 640px; margin: 1rem auto; padding: 0 1rem; }
+  .auth-interact-title { margin: 0 0 1rem; }
+  .auth-interact-meta { color: var(--ink-soft, #888); margin: 0 0 .75rem; }
+  .auth-interact-preview {
+    margin: 0 0 1rem; padding: .75rem 1rem; border-left: 3px solid var(--accent, #888);
+    background: color-mix(in srgb, var(--ink, #000) 4%, transparent); border-radius: 0 12px 12px 0;
+    color: var(--ink, inherit);
+  }
+  .auth-interact-form { display: flex; flex-direction: column; gap: .75rem; }
+  .auth-interact-form textarea, .auth-interact-form input[type=url] {
+    width: 100%; box-sizing: border-box; padding: .6rem .8rem; font: inherit; resize: vertical;
+    border-radius: 12px; border: 1px solid color-mix(in srgb, var(--ink, #000) 18%, transparent);
+    background: var(--paper, #fff); color: var(--ink, #000);
+  }
+  .auth-interact-actions { display: flex; gap: .5rem; align-items: center; }
+  .auth-interact-note { color: var(--ink-soft, #999); font-size: .85rem; margin-top: 1rem; }
+  .auth-interact-where { margin: .25rem 0 .85rem; padding: .6rem .8rem; font-size: .85rem; line-height: 1.5; border-radius: 10px; background: color-mix(in srgb, var(--accent, #888) 12%, transparent); color: var(--ink, inherit); }
+  .auth-interact-content { line-height: 1.55; }
+  .auth-interact-content p { margin: .35rem 0; }
+  .auth-interact-content p:first-child { margin-top: 0; }
+  .auth-interact-img { max-width: 100%; height: auto; border-radius: 10px; margin: .5rem 0 0; display: block; }
+  .auth-interact-orig { margin: .75rem 0 0; font-size: .85rem; }
+  .auth-interact-orig a { color: var(--accent, #06c); }
+  .auth-view-src { display: inline-flex; align-items: center; gap: .5rem; margin: 0 0 1.1rem; padding: .6rem 1rem;
+    border: 1px solid color-mix(in srgb, var(--accent, #888) 45%, transparent); border-radius: 12px;
+    background: color-mix(in srgb, var(--accent, #888) 10%, transparent); color: var(--accent, #06c);
+    text-decoration: none; font-weight: 600; font-size: .92rem; transition: background .15s, border-color .15s; }
+  .auth-view-src:hover { background: color-mix(in srgb, var(--accent, #888) 18%, transparent); border-color: var(--accent, #888); }
+  .auth-interact-react { display: flex; gap: .6rem; flex-wrap: wrap; margin: 0 0 .25rem; }
+  .auth-interact-react form { margin: 0; }
+  .fedi-bigact { display: inline-flex; align-items: center; gap: .5rem; padding: .55rem 1.1rem; border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--ink, #000) 14%, transparent);
+    background: color-mix(in srgb, var(--ink, #000) 4%, transparent);
+    color: var(--ink, inherit); font: inherit; font-weight: 600; font-size: .92rem; cursor: pointer; white-space: nowrap;
+    transition: background .12s, border-color .12s; }
+  .fedi-bigact svg { width: 17px; height: 17px; flex: 0 0 17px; }
+  .fedi-bigact-like svg { color: #e8b04b; }
+  .fedi-bigact-like:hover, .fedi-bigact-like.is-on { background: color-mix(in srgb, #e8b04b 16%, transparent); border-color: color-mix(in srgb, #e8b04b 55%, transparent); }
+  .fedi-bigact-boost svg { color: #2fa85a; }
+  .fedi-bigact-boost:hover, .fedi-bigact-boost.is-on { background: color-mix(in srgb, #2fa85a 16%, transparent); border-color: color-mix(in srgb, #2fa85a 55%, transparent); }
+  .fedi-manage { list-style: none; padding: 0; margin: 1.25rem 0 1rem; display: flex; flex-direction: column; gap: .7rem; }
+  .fedi-manage-item { padding: .9rem 1rem; border-radius: 14px; background: color-mix(in srgb, var(--ink, #000) 3.5%, transparent); border: 1px solid color-mix(in srgb, var(--ink, #000) 9%, transparent); transition: border-color .15s ease, box-shadow .15s ease; }
+  .fedi-manage-item:hover { border-color: color-mix(in srgb, var(--accent, #888) 28%, transparent); box-shadow: 0 2px 12px color-mix(in srgb, var(--ink, #000) 6%, transparent); }
+  .fedi-manage-head { display: flex; align-items: center; gap: .5rem; margin: 0 0 .5rem; }
+  .fedi-manage-icon { flex: 0 0 26px; width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+    background: color-mix(in srgb, var(--accent, #888) 16%, transparent); color: var(--accent, #06c); }
+  .fedi-manage-icon svg { width: 14px; height: 14px; }
+  .fedi-manage-to { font-weight: 600; color: var(--ink, inherit); font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .fedi-manage-time { color: var(--ink-soft, #999); font-size: .76rem; margin-left: auto; flex: 0 0 auto; white-space: nowrap; }
+  .fedi-manage-content { line-height: 1.55; overflow-wrap: anywhere; padding-left: calc(26px + .5rem); }
+  .fedi-manage-content p { margin: .15rem 0; }
+  .fedi-manage-content p:first-child { margin-top: 0; }
+  .fedi-manage-content p:last-child { margin-bottom: 0; }
+  .fedi-manage-foot { display: flex; align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: .5rem; margin-top: .65rem; }
+  .fedi-goto-btn { display: inline-flex; align-items: center; gap: .35rem; border: 1px solid color-mix(in srgb, var(--accent, #888) 45%, transparent); background: color-mix(in srgb, var(--accent, #888) 12%, transparent); color: var(--accent, #06c); border-radius: 999px; padding: .3rem .8rem; font-size: .82rem; text-decoration: none; transition: background .15s ease; }
+  .fedi-goto-btn:hover { background: color-mix(in srgb, var(--accent, #888) 22%, transparent); }
+  .fedi-del-btn { display: inline-flex; align-items: center; gap: .35rem; border: 1px solid color-mix(in srgb, #d9534f 45%, transparent); background: color-mix(in srgb, #d9534f 12%, transparent); color: #e06b66; border-radius: 999px; padding: .3rem .8rem; font: inherit; font-size: .82rem; cursor: pointer; transition: background .15s ease; }
+  .fedi-del-btn:hover { background: color-mix(in srgb, #d9534f 24%, transparent); }
+  .fedi-bm { margin: 0 0 1.5rem; padding: 1rem; border-radius: 14px;
+    border: 1px dashed color-mix(in srgb, var(--accent, #888) 45%, transparent);
+    background: color-mix(in srgb, var(--accent, #888) 7%, transparent); }
+  .fedi-bm-btn { display: inline-flex; align-items: center; gap: .45rem; padding: .5rem 1rem; border-radius: 999px;
+    background: var(--accent, #06c); color: #fff; font: inherit; font-weight: 600; font-size: .9rem; text-decoration: none;
+    cursor: grab; user-select: none; box-shadow: 0 2px 8px color-mix(in srgb, var(--accent, #000) 30%, transparent); }
+  .fedi-bm-btn:active { cursor: grabbing; }
+  .fedi-bm-btn.nudge { animation: fedi-bm-nudge .6s ease; }
+  @keyframes fedi-bm-nudge { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+  .fedi-bm-help { color: var(--ink-soft, #888); font-size: .82rem; line-height: 1.5; margin: .6rem 0 0; }
+  .fedi-edit-btn { display: inline-flex; align-items: center; gap: .35rem; border: 1px solid color-mix(in srgb, var(--ink, #888) 28%, transparent);
+    background: color-mix(in srgb, var(--ink, #888) 8%, transparent); color: var(--ink-soft, #aaa); border-radius: 999px; padding: .3rem .8rem;
+    font: inherit; font-size: .82rem; cursor: pointer; transition: background .15s ease, color .15s ease; }
+  .fedi-edit-btn:hover { background: color-mix(in srgb, var(--ink, #888) 16%, transparent); }
+  .fedi-edit-btn.is-open { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  .fedi-del-form { margin-left: auto; }
+  .fedi-edit-form { display: none; margin: .55rem 0 0; }
+  .fedi-edit-form.is-open { display: block; }
+  .fedi-edit-ta { width: 100%; box-sizing: border-box; min-height: 70px; resize: vertical; padding: .55rem .7rem;
+    border: 1.5px solid var(--rule, #333); border-radius: 10px; background: var(--paper-2, #14141a); color: var(--ink, #eee); font: inherit; font-size: .9rem; }
+  .fedi-edit-ta:focus { outline: none; border-color: var(--accent); }
+  .fedi-edit-actions { display: flex; justify-content: flex-end; margin-top: .5rem; }
+  .fedi-edit-save { padding: .4rem 1rem; border: 0; border-radius: 999px; background: var(--accent); color: var(--paper, #fff);
+    font: inherit; font-weight: 600; font-size: .82rem; cursor: pointer; }
+  /* Poll ballot / results on the interact page */
+  .auth-poll { display: flex; flex-direction: column; gap: 8px; margin: 0 0 1rem; }
+  .auth-poll-choice { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; cursor: pointer;
+    border: 1px solid color-mix(in srgb, var(--ink, #000) 14%, transparent); }
+  .auth-poll-choice:hover { border-color: var(--accent); }
+  .auth-poll-choice input { accent-color: var(--accent); }
+  .auth-poll-res { position: relative; padding: 9px 12px; border-radius: 10px; overflow: hidden; display: flex; align-items: center; gap: 8px;
+    background: color-mix(in srgb, var(--ink, #000) 6%, transparent); }
+  .auth-poll-fill { position: absolute; inset: 0 auto 0 0; background: color-mix(in srgb, var(--accent) 22%, transparent); z-index: 0; }
+  .auth-poll-name { position: relative; z-index: 1; flex: 1; font-size: .95rem; }
+  .auth-poll-pct { position: relative; z-index: 1; font-variant-numeric: tabular-nums; font-weight: 500; }
+  .auth-poll-foot { font-size: .82rem; color: var(--ink-soft, #888); margin: .1rem 0 0; }
+  .auth-report { margin: .6rem 0 0; }
+  .auth-report summary { cursor: pointer; font-size: .85rem; color: var(--ink-soft, #888); }
+  .auth-report summary:hover, .auth-report[open] summary { color: #c0392b; }
+  .auth-report[open] summary { margin-bottom: .5rem; }
+  .auth-report-note { font-size: .82rem; color: var(--ink-muted, #999); margin: 0 0 .5rem; }
+  /* Het gezicht van een profiel dat we net hebben opgehaald. */
+  .remote-actor { display: flex; align-items: center; gap: .75rem; }
+  .remote-actor .auth-interact-meta { margin: 0; }
+  .remote-actor-icon { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; flex: 0 0 48px;
+    background: color-mix(in srgb, var(--ink, #000) 8%, transparent); }
+</style>

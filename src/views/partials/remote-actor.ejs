@@ -1,0 +1,29 @@
+<%#
+  Een PERSOON van een andere server: wie het is, en de knop om te volgen.
+
+  Zelfde reden als remote-object: de zoekbalk en /authorize_interaction laten
+  hetzelfde zien, dus staat het op één plek. Het volgen zelf gaat naar
+  /authorize_interaction/follow, want daar zit de poort van de guardians
+  (shaer-p729) en die hoort niet twee keer geschreven te worden.
+
+  Verwacht: actor (uit resolveRemoteActor). Optioneel: cancelUrl, siteTitle.
+%>
+<% const _annuleer = (typeof cancelUrl !== 'undefined' && cancelUrl) ? cancelUrl : '/'; %>
+<div class="remote-actor">
+  <% if (actor.actor_icon) { %>
+    <img class="remote-actor-icon" src="<%= actor.actor_icon %>" alt="" loading="lazy" width="48" height="48">
+  <% } %>
+  <p class="auth-interact-meta">
+    <%= t('fedi.follow_intro') %>
+    <a href="<%= actor.actor_url %>" rel="nofollow noopener" target="_blank"><strong><%= actor.actor_name %></strong></a>
+    <span class="fedi-handle"><%= actor.actor_handle %></span>
+  </p>
+</div>
+<form method="post" action="/authorize_interaction/follow" class="auth-interact-form">
+  <input type="hidden" name="uri" value="<%= actor.actor_uri %>">
+  <div class="auth-interact-actions">
+    <button type="submit" class="btn btn-primary"><%= t('fedi.follow_btn') %></button>
+    <a href="<%= _annuleer %>" class="btn"><%= t('comments.cancel') %></a>
+  </div>
+</form>
+<p class="auth-interact-note"><%= t('fedi.remote_as', { site: typeof siteTitle !== 'undefined' ? siteTitle : '' }) %></p>

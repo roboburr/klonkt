@@ -8,6 +8,11 @@
  *   3. Events (shows) on city / venue / country / notes — when the agenda is enabled.
  *   4. Pages (Agenda / Downloads / Links / Press kit / Archive) by name — only
  *      the available ones.
+ *   5. Een ADRES van een andere server (shaer-utpi): plak je een link naar een
+ *      fediverse-post of -profiel, dan is dat geen zoekterm maar een aanwijzing.
+ *      Die halen we op en tonen we, met dezelfde knoppen als
+ *      /authorize_interaction: antwoorden, waarderen, boosten, stemmen,
+ *      volgen, melden.
  *
  * FTS5: user input is tokenised on non-letter/digit chars and each token is wrapped
  * in double quotes + `*` → prefix-match, no operator-soup/syntax-errors.
@@ -20,6 +25,8 @@ import { audioUrl } from '../services/AudioStreamService.js';
 import { getSetting } from '../services/SettingsService.js';
 import { premiumUnlocked } from '../services/PatreonService.js';
 import { t as i18nT, resolveLang } from '../services/i18n.js';
+import ActivityPubService from '../services/ActivityPubService.js';
+import PermissionsService from '../services/PermissionsService.js';
 
 const router = express.Router();
 
@@ -44,6 +51,53 @@ function cleanSnippet(html, excerpt) {
     .trim();
   if (!s || /^[…\s]*$/.test(s)) return esc((excerpt || '').slice(0, 160));
   return s;
+}
+
+/**
+ * Is dit een ADRES en geen zoekterm? Dan het genormaliseerde adres, anders null.
+ *
+ * HET SCHEMA IS VERPLICHT, en dat is een keuze. "soundfabrics.nl" is een
+ * geldige zoekterm -- iemand zoekt naar de naam -- en een bare domeinnaam als
+ * adres opvatten maakt van elke zoekopdracht met een punt erin een
+ * netwerkverzoek. Met https:// ervoor is er geen twijfel over de bedoeling.
+ *
+ * De fragmentverwijzing gaat eraf: die hoort bij de browser, niet bij het
+ * object, en met #comment eraan is het een andere sleutel voor hetzelfde ding.
+ */
+export function lookupUri(q) {
+  const s = String(q || '').trim();
+  if (!/^https?:\/\//i.test(s) || /\s/.test(s)) return null;
+  try {
+    const u = new URL(s);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+    // Een naam zonder punt is geen adres op het open net (localhost, een
+    // intern hostname). De SSRF-bewaking in de transportlaag houdt de rest
+    // tegen; dit scheelt het verzoek.
+    if (!u.hostname.includes('.')) return null;
+    u.hash = '';
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Mag deze bezoeker een adres laten OPHALEN?
+ *
+ * Dezelfde grens als /authorize_interaction (requireSiteManager), en met opzet:
+ * ophalen is een uitgaand verzoek dat deze server namens iemand anders doet.
+ * Voor een willekeurige bezoeker zou de zoekbalk daarmee een haalservice zijn
+ * waarmee je andermans server kunt laten aankloppen op adressen naar keuze.
+ *
+ * Dit spiegelt requireSiteManager in plaats van hem aan te roepen: die stuurt
+ * je naar het inlogscherm, en een zoekopdracht hoort niemand weg te sturen.
+ */
+function mayLookUp(req, res) {
+  const u = req.session && req.session.user;
+  if (!u) return false;
+  if (u.role === 'god' || u.role === 'kijker') return true;
+  const site = res.locals.site;
+  return !!(site && PermissionsService.canAdminSite(u, site));
 }
 
 // ── Core: search all sources for one site. `lim` caps results per group
@@ -142,7 +196,7 @@ function searchSite(req, res, rawQ, lim) {
 }
 
 // ── Full results page ────────────────────────────────────────────────────────
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const site = res.locals.site;
   if (!site) return res.status(404).send('No site');
   const rawQ = (req.query.q || '').toString().trim();
@@ -154,12 +208,33 @@ router.get('/', (req, res) => {
     });
   }
 
+  // Een adres wordt OPGEHAALD, niet doorzocht (shaer-utpi). Eerst als post,
+  // dan als profiel: een URL die geen van beide oplevert is gewoon een
+  // zoekterm die toevallig op een link lijkt, en dan blijft de rest staan.
+  const remoteUri = lookupUri(rawQ);
+  const mayLookup = remoteUri ? mayLookUp(req, res) : false;
+  let remote = null;
+  let remoteKind = null;
+  if (remoteUri && mayLookup) {
+    // Ondertekend als deze site: een post die alleen voor volgers zichtbaar is
+    // weigert een anonieme GET, en dan lijkt een bestaande post te ontbreken.
+    try { remote = await ActivityPubService.resolveRemoteNote(remoteUri, { asSlug: site.slug }); } catch { /* onbereikbaar */ }
+    if (remote) remoteKind = 'note';
+    if (!remote) {
+      try { remote = await ActivityPubService.resolveRemoteActor(remoteUri); } catch { /* onbereikbaar */ }
+      if (remote) remoteKind = 'actor';
+    }
+  }
+
   const r = searchSite(req, res, rawQ, { posts: 50, tracks: 25, events: 25, pages: 8 });
   const total = r.results.length + r.tracks.length + r.events.length + r.pages.length;
   renderPage(req, res, 'pages/search', {
     pageTitle: `Zoeken: ${rawQ}`, bodyClass: 'on-special', query: rawQ,
     results: r.results, tracks: r.tracks, events: r.events, pages: r.pages,
     total, queryError: r.queryError,
+    remoteUri, remote, remoteKind, mayLookup,
+    remoteReacted: (remoteKind === 'note') ? ActivityPubService.getReaction(site.slug, remote.object_uri || remoteUri) : { liked: false, boosted: false },
+    siteTitle: site.title || '',
   });
 });
 

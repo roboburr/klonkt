@@ -27,6 +27,28 @@
     </p>
   <% } %>
 
+  <%# Een geplakt adres is geen zoekterm maar een aanwijzing (shaer-utpi): het
+      object van de andere server staat bovenaan, met dezelfde knoppen als op
+      /authorize_interaction -- dezelfde partial, dus één render en één plek
+      waar een poort of een sanitizer kan wonen. %>
+  <% if (typeof remoteUri !== 'undefined' && remoteUri) { %>
+    <h2 class="search-section-title"><%= t('search.section_fediverse') %></h2>
+    <div class="auth-interact search-remote">
+      <% if (!mayLookup) { %>
+        <%# Ophalen is een uitgaand verzoek namens deze server; dat doen we niet
+            op verzoek van een willekeurige bezoeker. %>
+        <p class="auth-interact-note"><%= t('search.fedi_signin') %></p>
+      <% } else if (remote && remoteKind === 'note') { %>
+        <%- include('../partials/remote-object', { target: remote, uri: remoteUri, reacted: remoteReacted, siteTitle: siteTitle, cancelUrl: _base + '/search' }) %>
+      <% } else if (remote && remoteKind === 'actor') { %>
+        <%- include('../partials/remote-actor', { actor: remote, cancelUrl: _base + '/search', siteTitle: siteTitle }) %>
+      <% } else { %>
+        <p class="auth-interact-note"><%= t('fedi.remote_notfound') %></p>
+      <% } %>
+    </div>
+    <%- include('../partials/fedi-interact-styles') %>
+  <% } %>
+
   <% if (_tracks.length) { %>
     <h2 class="search-section-title"><%= t('search.section_tracks') %></h2>
     <% var _inPost = t('search.in_post'); /* t() vóór de loop ophalen: function(t) overschaduwt 'm */ %>
