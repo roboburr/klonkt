@@ -2456,21 +2456,15 @@ body.on-home[data-feed-view="reader"]:has(.feed-reader) .article-footer {
     .view-switch-btn.vs-alleen-desktop { display: none; }
 }
 
-/* Snappen doet de SCROLLCONTAINER, en dat is het document -- niet .read-stream,
-   die heeft overflow: visible en scrollt zelf niet. Proximity en geen mandatory:
-   in een bericht dat langer is dan het scherm moet je rustig door kunnen lezen. */
-html:has(body.on-home[data-feed-view="reader"]) {
-    scroll-snap-type: y proximity;
-    /* GEEN scroll-behavior:smooth hier. Dat maakte elke beweging op deze
-       scroller traag, ook het snappen zelf -- en een snap moet vlot zijn
-       (Robin, 20-8: "vlot maar geanimeerd, mag niet te lang duren"). De browser
-       animeert een snap uit zichzelf al, en korter dan zijn smooth-scroll.
-       De terug-naar-boven-knop vraagt zijn animatie expliciet aan in
-       mod/read.js, dus die blijft vloeiend. */
-}
-/* En de browser niet óók laten compenseren als Load more er berichten bij zet:
-   Chrome en Firefox schuiven bij invoegen zelf mee (scroll anchoring), en dat
-   vecht met het snappen. */
+/* GEWOON SCROLLEN (Robin, 30-9: "Reader view normaal scrollen, Lenis mag
+   helemaal uit klonkt"). Hier stond scroll-snap-type op het document, en Lenis
+   deed het snappen erbovenop. Er snapt niets meer: de reader scrolt zoals elke
+   andere pagina. De .read-anker-punten hieronder staan er nog, maar zonder
+   snap-container doen ze niets. Terug willen? Zie de vault, "Klonkt Reader
+   Scroll": native snappen had bekende nadelen, en die staan daar. */
+/* Scroll anchoring uit: als Load more er berichten bij zet, schuiven Chrome en
+   Firefox anders zelf mee. Stond er voor het snappen, maar ook zonder snappen
+   hoort wat je leest niet te verspringen. */
 html:has(body.on-home[data-feed-view="reader"]),
 .feed-reader .read-stream { overflow-anchor: none; }
 
@@ -2560,8 +2554,9 @@ html:has(body.on-home[data-feed-view="reader"]),
    100lvh en niet 100svh: op een telefoon met een verdwijnende adresbalk is het
    zichtbare scherm soms de GROTE viewport, en dan komt svh net tekort.
    Zichtbaar kost dit niets: berichten hebben geen kader, alleen een scheidings-
-   lijn erboven, dus het laatste bericht krijgt hooguit witruimte eronder. */
-.feed-reader .read-post:last-child { min-height: 100lvh; }
+   lijn erboven, dus het laatste bericht krijgt hooguit witruimte eronder.
+   SINDS 30-9 WEG: zonder snappen hoeft die bovenkant nergens meer heen, en dan is
+   de volle schermhoogte alleen nog een leeg scherm aan het eind van de stroom. */
 
 /* ELK BERICHT EEN EIGEN SCHERM, als de site dat wil (Instellingen -> Weergave).
    Aan: een kort bericht vult het scherm en je ziet het volgende pas na een snap.
@@ -2574,26 +2569,21 @@ body[data-reader-pages="1"] .feed-reader .read-post { min-height: 100svh; }
    een bericht per scherm de vorm die werkt -- je veegt van bericht naar bericht.
    Op desktop blijft het een keuze, want daar lees je in een kolom naast veel
    witruimte en is een doorlopende stroom vaak prettiger. */
-@media (hover: none) and (pointer: coarse) {
-    /* Op mobiel draait Lezen in paginamodus (body.is-paged), en die zet hieronder
-       een vaste hoogte. Deze regel is de terugval voor het moment vóór de module
-       geladen is, zodat de berichten niet eerst als losse stroom in beeld
-       springen. */
-    .feed-reader .read-post { min-height: 100svh; }
-/* Geen native snap op mobiel: dat doet lenis/snap, met een instelbare vangzone
-       en duur. Twee snapsystemen op dezelfde scroller vechten. */
-    html:has(body.on-home[data-feed-view="reader"]) { scroll-snap-type: none; }
-}
+/* SINDS 30-9 NIET MEER OP MOBIEL AFGEDWONGEN. Een scherm per bericht hoorde bij
+   vegen van bericht naar bericht, en dat vegen was het snappen. Zonder snappen
+   gaf het onder een kort bericht een leeg scherm -- dezelfde leegte waar Robin
+   op 20-8 op desktop over viel. De instelling hierboven geldt nu overal: wie een
+   scherm per bericht wil, zet hem aan. */
 
 /* -------- PAGINAMODUS --------
    Elk bericht is een paneel van precies een scherm dat ZELF scrollt; tussen
    berichten ga je met knoppen. Daarmee doet het scrollgevoel er niet meer toe:
    geen momentum om na te bouwen en geen snap die vangt.
-   De stroom zelf vangt geen vingers meer -- dat regelt lenis.stop() in
-   mod/read.js -- en data-lenis-prevent op het paneel houdt de scroll BINNEN een
-   bericht ongemoeid (die controle staat in Lenis vóór de gestopt-controle).
+   De stroom zelf scrolt niet: dat deed lenis.stop(), en sinds Lenis weg is
+   (30-9) de regel hieronder op het document. Het paneel scrolt zelf.
    Geldt waar een bericht een eigen scherm heeft: op mobiel altijd, op desktop
    als de site dat zo instelt. */
+html:has(body.is-paged) { overflow: hidden; }
 body.is-paged .feed-reader .read-post {
     height: 100svh;
     min-height: 0;
@@ -2800,7 +2790,6 @@ body.has-audio-player .read-top { bottom: calc(env(safe-area-inset-bottom, 0) + 
 
 @media (prefers-reduced-motion: reduce) {
     html:has(body.on-home[data-feed-view="reader"]) {
-        scroll-snap-type: none;
         scroll-behavior: auto;
     }
 }

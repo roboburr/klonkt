@@ -42,7 +42,7 @@
       <% } %>
     </form>
   </div>
-  <div class="search-box" data-lenis-prevent>
+  <div class="search-box">
     <div class="search-box-inner"<% if (!_page) { %> id="search-suggest"<% } %> aria-live="polite">
       <% if (_page) { %><%- include('./search-results', locals) %><% } %>
     </div>
