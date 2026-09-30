@@ -875,7 +875,10 @@ router.get('/authorize_interaction', requireSiteManager, async (req, res) => {
   const reported = !!req.query.reported;
   let target = null, followTarget = null;
   if (!sent && !followed && !voted && !reported && uri) {
-    try { target = await ActivityPubService.resolveRemoteNote(uri); } catch { /* ignore */ }
+    // Ondertekend als de site, net als de zoekbalk: een post die alleen voor
+    // volgers zichtbaar is weigert een anonieme GET, en dan zegt deze pagina
+    // "niet gevonden" over een post die de preview wel liet zien.
+    try { target = await ActivityPubService.resolveRemoteNote(uri, site ? { asSlug: site.slug } : {}); } catch { /* ignore */ }
     // Not a post? Maybe the URI is a profile/actor → offer Follow, not reply.
     if (!target) { try { followTarget = await ActivityPubService.resolveRemoteActor(uri); } catch { /* ignore */ } }
   }
@@ -894,6 +897,10 @@ router.get('/authorize_interaction', requireSiteManager, async (req, res) => {
     boosted: !!req.query.boosted,
     reacted: (site && uri) ? ActivityPubService.getReaction(site.slug, uri) : { liked: false, boosted: false },
     siteTitle: site ? site.title : '',
+    // De knoppen in de preview wijzen hierheen met ?reply=1 of ?report=1: dan
+    // staat dat deel al open en hoef je niet twee keer te tikken.
+    replyOpen: !!req.query.reply,
+    reportOpen: !!req.query.report,
   });
 });
 

@@ -1,0 +1,28 @@
+<%#
+  De live-preview van een geplakt adres, onder de zoekbalk (shaer-utpi).
+
+  Een los fragment, geen pagina: de zoekbalk haalt dit op terwijl je plakt en
+  zet het in de uitklaplijst. Daarom:
+
+    - GEEN SCRIPT. Wat via innerHTML binnenkomt draait niet, en onder de
+      strenge CSP zou het ook niet mogen. Het gedrag (waarderen en boosten
+      zonder de pagina te verlaten) zit in chrome.js, dat op elke pagina staat.
+    - DE OPMAAK REIST MEE. De overlay staat op elke pagina en die heeft de
+      opmaak van de kaart niet vanzelf; style-src staat inline toe.
+    - COMPACT. Antwoorden en melden gebeuren op de volle pagina: een editor in
+      een uitklaplijst is op een telefoon geen plek om te schrijven.
+
+  Verwacht: remote, remoteKind ('note' | 'actor' | null), remoteUri, reacted,
+  siteTitle.
+%>
+<%- include('./fedi-interact-styles') %>
+<div class="ss-remote">
+  <div class="ss-title"><%= t('search.section_fediverse') %></div>
+  <% if (remote && remoteKind === 'note') { %>
+    <%- include('./remote-object', { target: remote, uri: remoteUri, reacted: reacted, siteTitle: siteTitle, compact: true }) %>
+  <% } else if (remote && remoteKind === 'actor') { %>
+    <%- include('./remote-actor', { actor: remote, siteTitle: siteTitle, compact: true }) %>
+  <% } else { %>
+    <div class="ss-remote-note"><%= t('fedi.remote_notfound') %></div>
+  <% } %>
+</div>

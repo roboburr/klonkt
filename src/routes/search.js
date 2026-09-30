@@ -26,6 +26,9 @@ import { getSetting } from '../services/SettingsService.js';
 import { premiumUnlocked } from '../services/PatreonService.js';
 import { t as i18nT, resolveLang } from '../services/i18n.js';
 import ActivityPubService from '../services/ActivityPubService.js';
+import ejs from 'ejs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import PermissionsService from '../services/PermissionsService.js';
 
 const router = express.Router();
@@ -98,6 +101,31 @@ function mayLookUp(req, res) {
   if (u.role === 'god' || u.role === 'kijker') return true;
   const site = res.locals.site;
   return !!(site && PermissionsService.canAdminSite(u, site));
+}
+
+/**
+ * Haal het object achter een adres op: eerst als post, dan als profiel.
+ *
+ * Eén weg voor de zoekpagina en de live-preview. Staan ze los, dan verschilt er
+ * vroeg of laat iets -- de ondertekening bijvoorbeeld, en dan toont de preview
+ * een post als ontbrekend die de pagina wel vindt.
+ *
+ * ONDERTEKEND als de site: een post die alleen voor volgers zichtbaar is weigert
+ * een anonieme GET, en dan lijkt een bestaande post te ontbreken.
+ */
+async function lookUpRemote(remoteUri, site) {
+  let remote = null;
+  let remoteKind = null;
+  try { remote = await ActivityPubService.resolveRemoteNote(remoteUri, { asSlug: site.slug }); } catch { /* onbereikbaar */ }
+  if (remote) remoteKind = 'note';
+  if (!remote) {
+    try { remote = await ActivityPubService.resolveRemoteActor(remoteUri); } catch { /* onbereikbaar */ }
+    if (remote) remoteKind = 'actor';
+  }
+  const reacted = remoteKind === 'note'
+    ? ActivityPubService.getReaction(site.slug, remote.object_uri || remoteUri)
+    : { liked: false, boosted: false };
+  return { remote, remoteKind, reacted };
 }
 
 // ── Core: search all sources for one site. `lim` caps results per group
@@ -213,18 +241,9 @@ router.get('/', async (req, res) => {
   // zoekterm die toevallig op een link lijkt, en dan blijft de rest staan.
   const remoteUri = lookupUri(rawQ);
   const mayLookup = remoteUri ? mayLookUp(req, res) : false;
-  let remote = null;
-  let remoteKind = null;
-  if (remoteUri && mayLookup) {
-    // Ondertekend als deze site: een post die alleen voor volgers zichtbaar is
-    // weigert een anonieme GET, en dan lijkt een bestaande post te ontbreken.
-    try { remote = await ActivityPubService.resolveRemoteNote(remoteUri, { asSlug: site.slug }); } catch { /* onbereikbaar */ }
-    if (remote) remoteKind = 'note';
-    if (!remote) {
-      try { remote = await ActivityPubService.resolveRemoteActor(remoteUri); } catch { /* onbereikbaar */ }
-      if (remote) remoteKind = 'actor';
-    }
-  }
+  const { remote, remoteKind, reacted: remoteReacted } = (remoteUri && mayLookup)
+    ? await lookUpRemote(remoteUri, site)
+    : { remote: null, remoteKind: null, reacted: { liked: false, boosted: false } };
 
   const r = searchSite(req, res, rawQ, { posts: 50, tracks: 25, events: 25, pages: 8 });
   const total = r.results.length + r.tracks.length + r.events.length + r.pages.length;
@@ -233,9 +252,41 @@ router.get('/', async (req, res) => {
     results: r.results, tracks: r.tracks, events: r.events, pages: r.pages,
     total, queryError: r.queryError,
     remoteUri, remote, remoteKind, mayLookup,
-    remoteReacted: (remoteKind === 'note') ? ActivityPubService.getReaction(site.slug, remote.object_uri || remoteUri) : { liked: false, boosted: false },
+    remoteReacted,
     siteTitle: site.title || '',
   });
+});
+
+// ── De live-preview van een adres (HTML-fragment) ─────────────────────────────
+//
+// Plak je een link in de zoekbalk, dan haalt de uitklaplijst de post zelf op
+// in plaats van te zoeken naar de tekst van de link (shaer-utpi).
+//
+// Dezelfde grens als de volle pagina, en hier weegt hij zwaarder: deze route
+// wordt bij elke toetsaanslag geraakt, dus zonder die grens is hij een
+// haalservice die iedereen deze server op adressen naar keuze laat afsturen.
+// Mag je niet ophalen, of is het geen adres, dan 204: de zoekbalk valt dan
+// terug op de gewone suggesties. Geen 403, want voor een bezoeker is een
+// geplakte link gewoon een zoekterm en geen geweigerde handeling.
+const VIEWS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'views');
+
+router.get('/remote', async (req, res) => {
+  const site = res.locals.site;
+  const remoteUri = lookupUri(String(req.query.q || '').slice(0, 2048));
+  if (!site || !remoteUri || !mayLookUp(req, res)) return res.status(204).end();
+  const { remote, remoteKind, reacted } = await lookUpRemote(remoteUri, site);
+  // Dezelfde taal als de pagina eromheen, anders staat er een Engelse kaart
+  // in een Nederlandse zoekbalk.
+  const lang = resolveLang(req, { userLang: req.session?.user?.lang, defaultLang: getSetting('default_lang') });
+  const html = await ejs.renderFile(path.join(VIEWS_DIR, 'partials', 'remote-preview.ejs'), {
+    t: (k, vars) => i18nT(lang, k, vars),
+    remote, remoteKind, remoteUri, reacted,
+    siteTitle: site.title || '',
+  }, { async: false });
+  // Wat deze bezoeker ziet hangt van zijn rechten en zijn reacties af: niet
+  // bewaren, niet delen.
+  res.set('Cache-Control', 'private, no-store');
+  res.type('html').send(html);
 });
 
 // ── Live suggestions (JSON) ──────────────────────────────────────────────────

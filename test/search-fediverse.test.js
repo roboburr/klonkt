@@ -36,15 +36,18 @@ const site = () => db.prepare('SELECT * FROM sites WHERE id = ?').get('s1');
 // De echte resolvers doen netwerk. Hier staat wat ze zouden vinden, plus een
 // teller: "is er überhaupt opgehaald" is de helft van wat deze toets bewaakt.
 let gevraagd = [];
-AP.resolveRemoteNote = async (uri) => {
+let opties = [];
+AP.resolveRemoteNote = async (uri, opts) => {
   gevraagd.push(['note', uri]);
+  opties.push(opts || {});
   if (!uri.includes('/notes/')) return null;
   return {
     object_uri: uri, url: uri,
     actor_uri: 'https://elders.test/u/oma', actor_url: 'https://elders.test/@oma',
     actor_handle: '@oma@elders.test', actor_name: 'Oma', actor_icon: '',
     content: '<p>Een bericht van ver weg</p>', images: [], media: [], poll: null,
-    preview: 'Een bericht van ver weg', threadInboxes: [], localPostId: '', sensitive: false, cw: '',
+    preview: 'Een bericht van ver weg', threadInboxes: [], localPostId: '',
+    sensitive: uri.includes('/cw'), cw: uri.includes('/cw') ? 'Spinnen' : '',
   };
 };
 AP.resolveRemoteActor = async (uri) => {
@@ -175,7 +178,7 @@ test('de interactiepagina toont hetzelfde als de zoekpagina', async () => {
   }
   // En de opmaak reist mee: die staat sinds deze ronde in een eigen partial,
   // en een render zonder opmaak ziet er kapot uit zonder dat er iets faalt.
-  assert.ok(html.includes('.auth-interact-preview'), 'de opmaak van het blok ontbreekt');
+  assert.ok(html.includes('.rp-card'), 'de opmaak van de kaart ontbreekt');
 });
 
 test('een profiel op de interactiepagina levert dezelfde volgknop', async () => {
@@ -187,3 +190,93 @@ test('een profiel op de interactiepagina levert dezelfde volgknop', async () => 
   assert.ok(html.includes('action="/authorize_interaction/follow"'), 'de volgknop ontbreekt');
   assert.ok(html.includes('@oma@elders.test'));
 });
+
+// ── De live-preview onder de zoekbalk ───────────────────────────────────────
+//
+// Plak je een link, dan laadt de uitklaplijst de post zelf. Deze route wordt bij
+// elke toetsaanslag geraakt, en dat maakt de rechtencheck hier zwaarder dan op
+// de pagina: zonder hem is dit een haalservice waarmee iedereen deze server op
+// adressen naar keuze laat afsturen.
+
+const preview = async (q) => {
+  gevraagd = []; opties = [];
+  const r = await fetch(`http://127.0.0.1:${poort}/search/remote?q=${encodeURIComponent(q)}`, { signal: AbortSignal.timeout(10000) });
+  return { status: r.status, html: await r.text(), cache: r.headers.get('cache-control') };
+};
+
+test('de preview laadt de post zelf, ondertekend als de site', async () => {
+  const { status, html, cache } = await preview('https://elders.test/notes/1');
+  assert.equal(status, 200);
+  assert.ok(html.includes('Een bericht van ver weg'), 'de inhoud hoort in de preview te staan');
+  assert.ok(html.includes('@oma@elders.test'));
+  assert.equal(opties[0].asSlug, 'robo', 'een post voor volgers weigert een anonieme GET');
+  // Wat iemand ziet hangt van zijn rechten en reacties af.
+  assert.match(cache || '', /no-store/);
+});
+
+test('in de preview kun je waarderen en boosten, antwoorden gaat naar de volle pagina', async () => {
+  const { html } = await preview('https://elders.test/notes/1');
+  for (const actie of ['/authorize_interaction/like', '/authorize_interaction/boost']) {
+    assert.ok(html.includes(`action="${actie}"`), `${actie} hoort in de preview te staan`);
+  }
+  // Een editor in een uitklaplijst is op een telefoon geen plek om te
+  // schrijven: de antwoordknop wijst naar de volle pagina, met het venster open.
+  assert.ok(!html.includes('action="/authorize_interaction"'), 'geen antwoordvenster in de preview');
+  assert.ok(!html.includes('action="/authorize_interaction/report"'), 'melden gebeurt op de volle pagina');
+  assert.ok(html.includes('/authorize_interaction?uri=https%3A%2F%2Felders.test%2Fnotes%2F1&amp;reply=1'),
+    'de antwoordknop moet naar de volle pagina met het venster al open');
+});
+
+test('een profiel in de preview geeft de volgknop', async () => {
+  const { status, html } = await preview('https://elders.test/u/oma');
+  assert.equal(status, 200);
+  assert.ok(html.includes('action="/authorize_interaction/follow"'));
+});
+
+test('een bezoeker laat via de preview niets ophalen', async () => {
+  ingelogd = false;
+  try {
+    const { status, html } = await preview('https://elders.test/notes/1');
+    // 204 en geen 403: voor een bezoeker is een geplakte link gewoon een
+    // zoekterm, en de zoekbalk valt dan terug op de gewone suggesties.
+    assert.equal(status, 204);
+    assert.deepEqual(gevraagd, [], 'zonder rechten hoort er geen enkel verzoek uit te gaan');
+    assert.equal(html, '');
+  } finally {
+    ingelogd = true;
+  }
+});
+
+test('een zoekterm in de preview haalt niets op', async () => {
+  const { status } = await preview('soundfabrics.nl');
+  assert.equal(status, 204);
+  assert.deepEqual(gevraagd, []);
+});
+
+test('een inhoudswaarschuwing blijft dicht tot je ervoor kiest', async () => {
+  // De oude render toonde alles open, ook wat de schrijver achter een
+  // waarschuwing had gezet.
+  const { html } = await preview('https://elders.test/notes/cw');
+  const cw = html.indexOf('<details class="rp-cw">');
+  assert.ok(cw >= 0, 'de post hoort achter een waarschuwing te staan');
+  assert.ok(html.indexOf('Spinnen', cw) > cw, 'met de tekst van de waarschuwing erop');
+  assert.ok(html.indexOf('Een bericht van ver weg') > cw, 'en de inhoud erachter, niet ervoor');
+});
+
+test('de interactiepagina opent het antwoordvenster op verzoek, en haalt ondertekend op', async () => {
+  const pagina = async (extra) => {
+    opties = [];
+    const r = await fetch(
+      `http://127.0.0.1:${poort2}/authorize_interaction?uri=${encodeURIComponent('https://elders.test/notes/1')}${extra}`,
+      { signal: AbortSignal.timeout(10000) },
+    );
+    return r.text();
+  };
+  const dicht = await pagina('');
+  assert.match(dicht, /<section class="rp-reply" id="rp-reply" hidden>/, 'zonder verzoek is het venster dicht');
+  assert.equal(opties[0].asSlug, 'robo', 'ook hier ondertekend, anders "niet gevonden" voor een volgerspost');
+  const open = await pagina('&reply=1');
+  assert.match(open, /<section class="rp-reply" id="rp-reply">/, 'met ?reply=1 staat het open, ook zonder JS');
+  assert.ok(open.includes('action="/authorize_interaction"'), 'en het venster heeft zijn formulier');
+});
+

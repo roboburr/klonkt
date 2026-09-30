@@ -1,103 +1,161 @@
 <%#
-  Een object van een andere server: hoe het eruit ziet, en wat je ermee kunt.
+  Een post van een andere server: hoe hij eruit ziet, en wat je ermee kunt.
 
-  EEN PLEK, TWEE INGANGEN (de zoekbalk en /authorize_interaction). Dit stond
-  alleen op die tweede pagina, en toen de zoekfunctie een URL leerde herkennen
-  zou het een tweede render worden -- en daarmee een tweede plek waar een poort,
-  een sanitizer of een knop vergeten kan worden. De formulieren posten dus ook
-  vanaf de zoekpagina naar /authorize_interaction/..., want daar zit het werk en
-  daar zit de rechtencontrole.
+  EEN PLEK, DRIE INGANGEN: de live-preview onder de zoekbalk, de zoekpagina en
+  /authorize_interaction. Eén render, zodat een poort, een sanitizer of een knop
+  niet op één plek vergeten kan worden. De formulieren posten overal naar
+  /authorize_interaction/..., want daar zit het werk en de rechtencontrole.
+
+  Hij ziet eruit als een POST, niet als een formulier over een post: kop met
+  gezicht, de inhoud, en één rij knoppen eronder. Wat daar vroeger omheen stond
+  (een zin "je reageert op", een aparte knop naar het origineel, twee grote
+  pillen, "of reageer:" en een altijd open antwoordvenster) is teruggebracht tot
+  die ene rij. Antwoorden klapt pas open als je erom vraagt, melden staat
+  onderaan en niet in de weg.
 
   Verwacht: target (uit resolveRemoteNote), uri, reacted {liked,boosted}.
-  Optioneel: mayReply (false = alleen lezen en reageren, geen antwoordvenster),
-  cancelUrl (waar Annuleren heen gaat, standaard het origineel), siteTitle.
+  Optioneel:
+    compact    de live-preview: geen antwoordvenster en geen meldformulier; die
+               twee staan een tik verder op de volle pagina. Een editor in een
+               uitklaplijst is op een telefoon geen plek om te schrijven.
+    mayReply   false = alleen lezen en reageren, geen antwoordknop
+    replyOpen  het antwoordvenster staat al open (?reply=1, de terugval zonder JS)
+    reportOpen idem voor melden (?report=1)
+    cancelUrl  waar Annuleren heen gaat zonder JS, standaard de volle pagina
+    siteTitle
 %>
-<% const _cancel = (typeof cancelUrl !== 'undefined' && cancelUrl) ? cancelUrl : uri; %>
-    <p class="auth-interact-meta">
-      <%= t('fedi.remote_replying_to') %>
-      <a href="<%= target.actor_url %>" rel="nofollow noopener" target="_blank"><strong><%= target.actor_name %></strong></a>
-      <span class="fedi-handle"><%= target.actor_handle %></span>
-    </p>
-    <blockquote class="auth-interact-preview">
-      <% if (target.content) { %><div class="auth-interact-content"><%- target.content %></div>
-      <% } else if (target.preview) { %><%= target.preview %><% } %>
-      <% (target.images || []).forEach(function(im){ %>
-        <img class="auth-interact-img" src="<%= im %>" alt="" loading="lazy">
-      <% }); %>
-    </blockquote>
-    <% if (target.url || uri) { %>
-      <a class="auth-view-src" href="<%= target.url || uri %>" target="_blank" rel="nofollow noopener">
-        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg>
-        <span><%= t('fedi.remote_view_original') %></span>
+<%
+  const _compact = !!locals.compact;
+  const _mayReply = locals.mayReply !== false;
+  const _full = '/authorize_interaction?uri=' + encodeURIComponent(uri);
+  const _cancel = locals.cancelUrl || _full;
+  const _liked = !!(locals.reacted && reacted.liked);
+  const _boosted = !!(locals.reacted && reacted.boosted);
+  const _src = target.url || uri;
+  // Een inhoudswaarschuwing wordt gerespecteerd. De oude render toonde alles
+  // gewoon open, ook wat de schrijver achter een waarschuwing had gezet.
+  const _warn = target.cw || (target.sensitive ? t('fedi.sensitive') : '');
+  const _imgs = (target.images || []).slice(0, 4);
+  const _initial = String(target.actor_name || target.actor_handle || '?').replace(/^@/, '').slice(0, 1).toUpperCase();
+%>
+<article class="rp-card<%= _compact ? ' rp-compact' : '' %>">
+  <header class="rp-head">
+    <% if (target.actor_icon) { %>
+      <img class="rp-avatar" src="<%= target.actor_icon %>" alt="" width="40" height="40" loading="lazy">
+    <% } else { %>
+      <span class="rp-avatar rp-avatar-empty" aria-hidden="true"><%= _initial %></span>
+    <% } %>
+    <div class="rp-who">
+      <a class="rp-name" href="<%= target.actor_url || target.actor_uri %>" rel="nofollow noopener" target="_blank"><%= target.actor_name || target.actor_handle %></a>
+      <span class="rp-handle"><%= target.actor_handle %></span>
+    </div>
+  </header>
+
+  <% if (_warn) { %>
+  <details class="rp-cw">
+    <summary><span class="rp-cw-text"><%= _warn %></span><span class="rp-cw-open"><%= t('fedi.cw_open') %></span></summary>
+  <% } %>
+    <% if (target.content) { %>
+      <div class="rp-body"><%- target.content %></div>
+    <% } else if (target.preview) { %>
+      <div class="rp-body"><p><%= target.preview %></p></div>
+    <% } %>
+    <% if (_imgs.length) { %>
+      <div class="rp-media rp-media-<%= _imgs.length %>">
+        <% _imgs.forEach(function (im) { %>
+          <a href="<%= im %>" target="_blank" rel="nofollow noopener"><img src="<%= im %>" alt="" loading="lazy"></a>
+        <% }); %>
+      </div>
+    <% } %>
+  <% if (_warn) { %>
+  </details>
+  <% } %>
+
+  <% if (target.poll) { var _pl = target.poll; var _tot = _pl.options.reduce(function(s,o){return s+(o.count||0);},0); var _vn = (_pl.voters!=null?_pl.voters:_tot); %>
+    <% if (!_pl.closed) { %>
+      <form method="post" action="/authorize_interaction/vote" class="rp-poll">
+        <input type="hidden" name="uri" value="<%= uri %>">
+        <% _pl.options.forEach(function(o){ %>
+          <label class="rp-poll-choice"><input type="<%= _pl.multiple ? 'checkbox' : 'radio' %>" name="choice" value="<%= o.name %>"><span><%= o.name %></span></label>
+        <% }); %>
+        <div class="rp-poll-foot">
+          <span><%= _vn %> <%= _vn === 1 ? t('poll.voter_one') : t('poll.voter_many') %><% if (_pl.endTime) { %> · <%= t('poll.closes') %> <%= new Date(_pl.endTime).toLocaleString() %><% } %><% if (_pl.multiple) { %> · <%= t('poll.multiple') %><% } %></span>
+          <button type="submit" class="rp-act rp-primary"><%= t('poll.vote') %></button>
+        </div>
+      </form>
+    <% } else { %>
+      <div class="rp-poll">
+        <% _pl.options.forEach(function(o){ var _pct = _tot ? Math.round((o.count||0)*100/_tot) : 0; %>
+          <div class="rp-poll-res"><span class="rp-poll-fill" style="width:<%= _pct %>%"></span><span class="rp-poll-name"><%= o.name %></span><span class="rp-poll-pct"><%= _pct %>%</span></div>
+        <% }); %>
+        <div class="rp-poll-foot"><span><%= _vn %> <%= _vn === 1 ? t('poll.voter_one') : t('poll.voter_many') %> · <%= t('poll.closed') %></span></div>
+      </div>
+    <% } %>
+  <% } %>
+
+  <%# Eén rij. Op een smalle telefoon vallen de woorden weg en blijven de
+      tekens staan, elk minstens 44 punten groot: een duim is geen muis. De
+      woorden blijven voor een schermlezer wel gewoon bestaan. %>
+  <footer class="rp-actions">
+    <% if (_mayReply) { %>
+      <a class="rp-act rp-reply-btn" href="<%= _full %>&amp;reply=1#rp-reply" data-rp-reply<% if (!_compact) { %> aria-controls="rp-reply" aria-expanded="<%= locals.replyOpen ? 'true' : 'false' %>"<% } %>>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span class="rp-act-label"><%= t('fedi.reply_short') %></span>
       </a>
     <% } %>
-    <% if (target.poll) { var _pl = target.poll; var _tot = _pl.options.reduce(function(s,o){return s+(o.count||0);},0); var _vn = (_pl.voters!=null?_pl.voters:_tot); %>
-      <% if (!_pl.closed) { %>
-        <form method="post" action="/authorize_interaction/vote" class="auth-poll">
-          <input type="hidden" name="uri" value="<%= uri %>">
-          <% _pl.options.forEach(function(o){ %>
-            <label class="auth-poll-choice"><input type="<%= _pl.multiple ? 'checkbox' : 'radio' %>" name="choice" value="<%= o.name %>"><span><%= o.name %></span></label>
-          <% }); %>
-          <div class="auth-interact-actions">
-            <button type="submit" class="btn btn-primary"><%= t('poll.vote') %></button>
-          </div>
-          <p class="auth-poll-foot"><%= _vn %> <%= _vn === 1 ? t('poll.voter_one') : t('poll.voter_many') %> · <%= t('poll.open') %><% if (_pl.endTime) { %> · <%= t('poll.closes') %> <%= new Date(_pl.endTime).toLocaleString() %><% } %><% if (_pl.multiple) { %> · <%= t('poll.multiple') %><% } %></p>
-        </form>
-      <% } else { %>
-        <div class="auth-poll">
-          <% _pl.options.forEach(function(o){ var _pct = _tot ? Math.round((o.count||0)*100/_tot) : 0; %>
-            <div class="auth-poll-res"><span class="auth-poll-fill" style="width:<%= _pct %>%"></span><span class="auth-poll-name"><%= o.name %></span><span class="auth-poll-pct"><%= _pct %>%</span></div>
-          <% }); %>
-          <p class="auth-poll-foot"><%= _vn %> <%= _vn === 1 ? t('poll.voter_one') : t('poll.voter_many') %> · <%= t('poll.closed') %><% if (_pl.multiple) { %> · <%= t('poll.multiple') %><% } %></p>
-        </div>
-      <% } %>
-    <% } %>
-    <% var _liked = (typeof reacted !== 'undefined' && reacted.liked); var _boosted = (typeof reacted !== 'undefined' && reacted.boosted); %>
-    <div class="auth-interact-react">
-      <form method="post" action="/authorize_interaction/like" class="fedi-react-form">
-        <input type="hidden" name="uri" value="<%= uri %>">
-        <button type="submit" class="fedi-bigact fedi-bigact-like<%= _liked ? ' is-on' : '' %>" data-on="<%= t('fedi.unlike_short') %>" data-off="<%= t('fedi.like_short') %>">
-          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.6l2.9 5.88 6.49.95-4.7 4.58 1.11 6.46L12 17.96l-5.8 3.06 1.1-6.46-4.69-4.58 6.49-.95z"/></svg>
-          <span class="fedi-bigact-label"><%= _liked ? t('fedi.unlike_short') : t('fedi.like_short') %></span>
-        </button>
-      </form>
-      <form method="post" action="/authorize_interaction/boost" class="fedi-react-form">
-        <input type="hidden" name="uri" value="<%= uri %>">
-        <button type="submit" class="fedi-bigact fedi-bigact-boost<%= _boosted ? ' is-on' : '' %>" data-on="<%= t('tl.unboost') %>" data-off="<%= t('fedi.boost_short') %>">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
-          <span class="fedi-bigact-label"><%= _boosted ? t('tl.unboost') : t('fedi.boost_short') %></span>
-        </button>
-      </form>
-    </div>
-    <% if (locals.mayReply !== false) { %>
-    <p class="auth-interact-or"><%= t('fedi.or_reply') %></p>
-    <p class="auth-interact-where">💬 <%= t('fedi.reply_where') %></p>
-    <div class="auth-interact-form">
-      <%- include('./reply-editor', {
-        action: '/authorize_interaction',
-        hiddenFields: [{ name: 'uri', value: uri }],
-        placeholder: t('fedi.reply_ph'),
-        submitLabel: t('fedi.send'),
-        rows: 4,
-        participants: (target && target.actor_uri) ? [{
-          uri: target.actor_uri,
-          url: target.actor_url || target.actor_uri,
-          handle: target.actor_handle || '',
-        }] : [],
-      }) %>
-      <div class="auth-interact-actions"><a href="<%= _cancel %>" class="btn"><%= t('comments.cancel') %></a></div>
-    </div>
-    <% } %>
-    <p class="auth-interact-note"><%= t('fedi.remote_as', { site: siteTitle }) %></p>
-    <details class="auth-report">
-      <summary>🚩 <%= t('fedi.report_open') %></summary>
-      <form method="post" action="/authorize_interaction/report" class="auth-interact-form">
-        <input type="hidden" name="uri" value="<%= uri %>">
-        <input type="hidden" name="actor_uri" value="<%= target.actor_uri %>">
-        <p class="auth-report-note"><%= t('fedi.report_where') %></p>
-        <textarea name="reason" rows="3" maxlength="3000" placeholder="<%= t('fedi.report_ph') %>"></textarea>
-        <div class="auth-interact-actions">
-          <button type="submit" class="btn btn-danger"><%= t('fedi.report_send') %></button>
-        </div>
-      </form>
-    </details>
+    <form method="post" action="/authorize_interaction/like" class="fedi-react-form">
+      <input type="hidden" name="uri" value="<%= uri %>">
+      <button type="submit" class="rp-act rp-like<%= _liked ? ' is-on' : '' %>" aria-pressed="<%= _liked %>" data-on="<%= t('fedi.unlike_short') %>" data-off="<%= t('fedi.like_short') %>">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.6l2.9 5.88 6.49.95-4.7 4.58 1.11 6.46L12 17.96l-5.8 3.06 1.1-6.46-4.69-4.58 6.49-.95z"/></svg>
+        <span class="rp-act-label"><%= _liked ? t('fedi.unlike_short') : t('fedi.like_short') %></span>
+      </button>
+    </form>
+    <form method="post" action="/authorize_interaction/boost" class="fedi-react-form">
+      <input type="hidden" name="uri" value="<%= uri %>">
+      <button type="submit" class="rp-act rp-boost<%= _boosted ? ' is-on' : '' %>" aria-pressed="<%= _boosted %>" data-on="<%= t('tl.unboost') %>" data-off="<%= t('fedi.boost_short') %>">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+        <span class="rp-act-label"><%= _boosted ? t('tl.unboost') : t('fedi.boost_short') %></span>
+      </button>
+    </form>
+    <a class="rp-act rp-src" href="<%= _src %>" target="_blank" rel="nofollow noopener" title="<%= t('fedi.remote_view_original') %>">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg>
+      <span class="rp-act-label"><%= t('fedi.src_short') %></span>
+    </a>
+  </footer>
+</article>
+
+<% if (_compact) { %>
+  <a class="rp-open" href="<%= _full %>"><%= t('fedi.open_full') %> →</a>
+<% } else { %>
+  <% if (_mayReply) { %>
+  <%# Dicht tot je op Reageer tikt. Zonder JS opent ?reply=1 hem, zodat de
+      knop ook dan ergens heen gaat. %>
+  <section class="rp-reply" id="rp-reply"<%= locals.replyOpen ? '' : ' hidden' %>>
+    <p class="rp-reply-where"><%= t('fedi.reply_where') %></p>
+    <%- include('./reply-editor', {
+      action: '/authorize_interaction',
+      hiddenFields: [{ name: 'uri', value: uri }],
+      placeholder: t('fedi.reply_ph'),
+      submitLabel: t('fedi.send'),
+      rows: 4,
+      participants: (target && target.actor_uri) ? [{
+        uri: target.actor_uri,
+        url: target.actor_url || target.actor_uri,
+        handle: target.actor_handle || '',
+      }] : [],
+    }) %>
+    <div class="rp-reply-foot"><a href="<%= _cancel %>" class="rp-act" data-rp-reply-close><%= t('comments.cancel') %></a></div>
+  </section>
+  <% } %>
+  <p class="rp-as"><%= t('fedi.remote_as', { site: siteTitle }) %></p>
+  <details class="rp-report" id="rp-report"<%= locals.reportOpen ? ' open' : '' %>>
+    <summary><%= t('fedi.report_open') %></summary>
+    <form method="post" action="/authorize_interaction/report" class="rp-report-form">
+      <input type="hidden" name="uri" value="<%= uri %>">
+      <input type="hidden" name="actor_uri" value="<%= target.actor_uri %>">
+      <p class="rp-report-note"><%= t('fedi.report_where') %></p>
+      <textarea name="reason" rows="3" maxlength="3000" placeholder="<%= t('fedi.report_ph') %>"></textarea>
+      <div><button type="submit" class="btn btn-danger"><%= t('fedi.report_send') %></button></div>
+    </form>
+  </details>
+<% } %>

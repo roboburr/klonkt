@@ -6,12 +6,6 @@
 <style>
   .auth-interact { max-width: 640px; margin: 1rem auto; padding: 0 1rem; }
   .auth-interact-title { margin: 0 0 1rem; }
-  .auth-interact-meta { color: var(--ink-soft, #888); margin: 0 0 .75rem; }
-  .auth-interact-preview {
-    margin: 0 0 1rem; padding: .75rem 1rem; border-left: 3px solid var(--accent, #888);
-    background: color-mix(in srgb, var(--ink, #000) 4%, transparent); border-radius: 0 12px 12px 0;
-    color: var(--ink, inherit);
-  }
   .auth-interact-form { display: flex; flex-direction: column; gap: .75rem; }
   .auth-interact-form textarea, .auth-interact-form input[type=url] {
     width: 100%; box-sizing: border-box; padding: .6rem .8rem; font: inherit; resize: vertical;
@@ -20,30 +14,6 @@
   }
   .auth-interact-actions { display: flex; gap: .5rem; align-items: center; }
   .auth-interact-note { color: var(--ink-soft, #999); font-size: .85rem; margin-top: 1rem; }
-  .auth-interact-where { margin: .25rem 0 .85rem; padding: .6rem .8rem; font-size: .85rem; line-height: 1.5; border-radius: 10px; background: color-mix(in srgb, var(--accent, #888) 12%, transparent); color: var(--ink, inherit); }
-  .auth-interact-content { line-height: 1.55; }
-  .auth-interact-content p { margin: .35rem 0; }
-  .auth-interact-content p:first-child { margin-top: 0; }
-  .auth-interact-img { max-width: 100%; height: auto; border-radius: 10px; margin: .5rem 0 0; display: block; }
-  .auth-interact-orig { margin: .75rem 0 0; font-size: .85rem; }
-  .auth-interact-orig a { color: var(--accent, #06c); }
-  .auth-view-src { display: inline-flex; align-items: center; gap: .5rem; margin: 0 0 1.1rem; padding: .6rem 1rem;
-    border: 1px solid color-mix(in srgb, var(--accent, #888) 45%, transparent); border-radius: 12px;
-    background: color-mix(in srgb, var(--accent, #888) 10%, transparent); color: var(--accent, #06c);
-    text-decoration: none; font-weight: 600; font-size: .92rem; transition: background .15s, border-color .15s; }
-  .auth-view-src:hover { background: color-mix(in srgb, var(--accent, #888) 18%, transparent); border-color: var(--accent, #888); }
-  .auth-interact-react { display: flex; gap: .6rem; flex-wrap: wrap; margin: 0 0 .25rem; }
-  .auth-interact-react form { margin: 0; }
-  .fedi-bigact { display: inline-flex; align-items: center; gap: .5rem; padding: .55rem 1.1rem; border-radius: 999px;
-    border: 1px solid color-mix(in srgb, var(--ink, #000) 14%, transparent);
-    background: color-mix(in srgb, var(--ink, #000) 4%, transparent);
-    color: var(--ink, inherit); font: inherit; font-weight: 600; font-size: .92rem; cursor: pointer; white-space: nowrap;
-    transition: background .12s, border-color .12s; }
-  .fedi-bigact svg { width: 17px; height: 17px; flex: 0 0 17px; }
-  .fedi-bigact-like svg { color: #e8b04b; }
-  .fedi-bigact-like:hover, .fedi-bigact-like.is-on { background: color-mix(in srgb, #e8b04b 16%, transparent); border-color: color-mix(in srgb, #e8b04b 55%, transparent); }
-  .fedi-bigact-boost svg { color: #2fa85a; }
-  .fedi-bigact-boost:hover, .fedi-bigact-boost.is-on { background: color-mix(in srgb, #2fa85a 16%, transparent); border-color: color-mix(in srgb, #2fa85a 55%, transparent); }
   .fedi-manage { list-style: none; padding: 0; margin: 1.25rem 0 1rem; display: flex; flex-direction: column; gap: .7rem; }
   .fedi-manage-item { padding: .9rem 1rem; border-radius: 14px; background: color-mix(in srgb, var(--ink, #000) 3.5%, transparent); border: 1px solid color-mix(in srgb, var(--ink, #000) 9%, transparent); transition: border-color .15s ease, box-shadow .15s ease; }
   .fedi-manage-item:hover { border-color: color-mix(in srgb, var(--accent, #888) 28%, transparent); box-shadow: 0 2px 12px color-mix(in srgb, var(--ink, #000) 6%, transparent); }
@@ -86,26 +56,129 @@
   .fedi-edit-actions { display: flex; justify-content: flex-end; margin-top: .5rem; }
   .fedi-edit-save { padding: .4rem 1rem; border: 0; border-radius: 999px; background: var(--accent); color: var(--paper, #fff);
     font: inherit; font-weight: 600; font-size: .82rem; cursor: pointer; }
-  /* Poll ballot / results on the interact page */
-  .auth-poll { display: flex; flex-direction: column; gap: 8px; margin: 0 0 1rem; }
-  .auth-poll-choice { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; cursor: pointer;
-    border: 1px solid color-mix(in srgb, var(--ink, #000) 14%, transparent); }
-  .auth-poll-choice:hover { border-color: var(--accent); }
-  .auth-poll-choice input { accent-color: var(--accent); }
-  .auth-poll-res { position: relative; padding: 9px 12px; border-radius: 10px; overflow: hidden; display: flex; align-items: center; gap: 8px;
-    background: color-mix(in srgb, var(--ink, #000) 6%, transparent); }
-  .auth-poll-fill { position: absolute; inset: 0 auto 0 0; background: color-mix(in srgb, var(--accent) 22%, transparent); z-index: 0; }
-  .auth-poll-name { position: relative; z-index: 1; flex: 1; font-size: .95rem; }
-  .auth-poll-pct { position: relative; z-index: 1; font-variant-numeric: tabular-nums; font-weight: 500; }
-  .auth-poll-foot { font-size: .82rem; color: var(--ink-soft, #888); margin: .1rem 0 0; }
-  .auth-report { margin: .6rem 0 0; }
-  .auth-report summary { cursor: pointer; font-size: .85rem; color: var(--ink-soft, #888); }
-  .auth-report summary:hover, .auth-report[open] summary { color: #c0392b; }
-  .auth-report[open] summary { margin-bottom: .5rem; }
-  .auth-report-note { font-size: .82rem; color: var(--ink-muted, #999); margin: 0 0 .5rem; }
-  /* Het gezicht van een profiel dat we net hebben opgehaald. */
-  .remote-actor { display: flex; align-items: center; gap: .75rem; }
-  .remote-actor .auth-interact-meta { margin: 0; }
-  .remote-actor-icon { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; flex: 0 0 48px;
+
+  /* ── De kaart van een post of profiel van een andere server ──────────────
+     Eén kaart voor de live-preview, de zoekpagina en /authorize_interaction.
+     De telefoon is het uitgangspunt: knoppen van minstens 44 punten, en op
+     een smal scherm vallen de woorden weg en blijven de tekens staan. */
+  .rp-card { position: relative; padding: 14px 16px 4px; border-radius: 16px;
+    border: 1px solid color-mix(in srgb, var(--ink, #000) 10%, transparent);
+    background: color-mix(in srgb, var(--ink, #000) 2.5%, var(--paper, transparent));
+    color: var(--ink, inherit); overflow: hidden; }
+  .rp-head { display: flex; align-items: center; gap: 10px; min-width: 0; margin: 0 0 10px; }
+  .rp-avatar { flex: 0 0 40px; width: 40px; height: 40px; border-radius: 50%; object-fit: cover;
     background: color-mix(in srgb, var(--ink, #000) 8%, transparent); }
+  .rp-profile .rp-avatar { flex-basis: 56px; width: 56px; height: 56px; }
+  .rp-avatar-empty { display: inline-flex; align-items: center; justify-content: center;
+    font-weight: 700; color: var(--ink-soft, #888); }
+  .rp-who { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+  .rp-name { font-weight: 700; color: var(--ink, inherit); text-decoration: none;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rp-name:hover { text-decoration: underline; }
+  .rp-handle { font-size: .82rem; color: var(--ink-soft, #888); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .rp-body { line-height: 1.55; overflow-wrap: anywhere; }
+  .rp-body p { margin: .45rem 0; }
+  .rp-body > :first-child { margin-top: 0; }
+  .rp-body > :last-child { margin-bottom: 0; }
+  .rp-body a { color: var(--accent, #06c); }
+  .rp-body img { max-width: 100%; height: auto; }
+
+  /* Beeld als raster: één foto op volle breedte, meer als tegels, zodat een
+     lange reeks de knoppen niet van het scherm duwt. */
+  /* Vaste rijhoogtes in plaats van verhoudingen: met verhoudingen groeit het
+     raster mee met de breedte, en werd op een desktop de eerste van drie foto's
+     zo hoog dat de knoppen onder de vouw van de uitklaplijst verdwenen. */
+  .rp-media { display: grid; gap: 3px; margin: 10px 0 0; border-radius: 12px; overflow: hidden; }
+  .rp-media a { display: block; min-width: 0; }
+  .rp-media img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .rp-media-1 img { height: auto; max-height: 480px; }
+  .rp-media-2, .rp-media-3, .rp-media-4 { grid-template-columns: 1fr 1fr; grid-auto-rows: clamp(120px, 28vw, 220px); }
+  .rp-media-3 a:first-child { grid-column: 1 / -1; }
+  .rp-compact .rp-media-1 img { max-height: 240px; }
+  .rp-compact .rp-media-2, .rp-compact .rp-media-3, .rp-compact .rp-media-4 { grid-auto-rows: 110px; }
+
+  /* Een inhoudswaarschuwing: dicht tot je ervoor kiest. */
+  .rp-cw > summary { list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    min-height: 44px; padding: 8px 12px; border-radius: 10px; cursor: pointer; font-weight: 600;
+    background: color-mix(in srgb, #e8b04b 12%, transparent); border: 1px solid color-mix(in srgb, #e8b04b 35%, transparent); }
+  .rp-cw > summary::-webkit-details-marker { display: none; }
+  .rp-cw-text { min-width: 0; overflow-wrap: anywhere; }
+  .rp-cw-open { flex: 0 0 auto; font-size: .8rem; color: var(--accent, #06c); }
+  .rp-cw[open] > summary { margin: 0 0 10px; }
+  .rp-cw[open] .rp-cw-open { display: none; }
+
+  /* De rij knoppen: gelijke tekens, het origineel rechts. */
+  .rp-actions { display: flex; align-items: center; gap: 2px; margin: 10px -8px 0; padding: 2px 0;
+    border-top: 1px solid color-mix(in srgb, var(--ink, #000) 8%, transparent); }
+  .rp-actions form { margin: 0; }
+  .rp-act { display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    min-width: 44px; min-height: 44px; padding: 0 12px; border: 0; border-radius: 999px;
+    background: transparent; color: var(--ink-soft, #888); font: inherit; font-size: .88rem; font-weight: 600;
+    text-decoration: none; cursor: pointer; white-space: nowrap; -webkit-tap-highlight-color: transparent;
+    transition: background .12s, color .12s; }
+  .rp-act svg { flex: 0 0 18px; width: 18px; height: 18px; }
+  .rp-act:hover { background: color-mix(in srgb, var(--ink, #000) 6%, transparent); color: var(--ink, inherit); }
+  .rp-act:focus-visible { outline: 2px solid var(--accent, #06c); outline-offset: 2px; }
+  .rp-act[disabled] { opacity: .55; cursor: progress; }
+  .rp-like.is-on { color: #d99a1e; }
+  .rp-like.is-on svg { fill: currentColor; }
+  .rp-boost.is-on { color: #2fa85a; }
+  .rp-reply-btn[aria-expanded="true"] { color: var(--accent, #06c); }
+  .rp-src { margin-left: auto; }
+  .rp-primary { background: var(--accent, #06c); color: var(--paper, #fff); }
+  .rp-primary:hover { background: var(--accent, #06c); color: var(--paper, #fff); filter: brightness(1.08); }
+  .rp-profile .rp-actions { border-top: 0; margin-top: 4px; padding-bottom: 8px; }
+  .rp-profile .rp-actions form { flex: 0 0 auto; }
+
+  /* Een peiling in de kaart. */
+  .rp-poll { display: flex; flex-direction: column; gap: 6px; margin: 12px 0 0; }
+  .rp-poll-choice { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 12px; border-radius: 10px; cursor: pointer;
+    border: 1px solid color-mix(in srgb, var(--ink, #000) 14%, transparent); }
+  .rp-poll-choice:hover { border-color: var(--accent, #06c); }
+  .rp-poll-choice input { accent-color: var(--accent, #06c); }
+  .rp-poll-res { position: relative; display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 10px; overflow: hidden;
+    background: color-mix(in srgb, var(--ink, #000) 6%, transparent); }
+  .rp-poll-fill { position: absolute; inset: 0 auto 0 0; background: color-mix(in srgb, var(--accent, #06c) 22%, transparent); }
+  .rp-poll-name { position: relative; flex: 1; }
+  .rp-poll-pct { position: relative; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .rp-poll-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+    font-size: .82rem; color: var(--ink-soft, #888); }
+
+  /* Wat er onder de kaart staat, op de volle pagina. */
+  .rp-reply { margin: 12px 0 0; }
+  .rp-reply-where { margin: 0 0 8px; font-size: .85rem; line-height: 1.5; color: var(--ink-soft, #888); }
+  .rp-reply-foot { display: flex; justify-content: flex-end; margin-top: 4px; }
+  .rp-as { margin: 12px 2px 0; font-size: .8rem; color: var(--ink-soft, #999); }
+  .rp-report { margin: 6px 2px 0; }
+  .rp-report > summary { display: inline-block; padding: 8px 0; cursor: pointer; font-size: .8rem; color: var(--ink-soft, #888); }
+  .rp-report > summary:hover, .rp-report[open] > summary { color: #c0392b; }
+  .rp-report-form { display: flex; flex-direction: column; gap: .6rem; }
+  .rp-report-note { margin: 0; font-size: .82rem; color: var(--ink-soft, #999); }
+  .rp-report-form textarea { width: 100%; box-sizing: border-box; padding: .6rem .8rem; font: inherit; resize: vertical; border-radius: 12px;
+    border: 1px solid color-mix(in srgb, var(--ink, #000) 18%, transparent); background: var(--paper, #fff); color: var(--ink, #000); }
+
+  /* De live-preview: open-link onder de kaart, en de kaart zonder rand-marge. */
+  .rp-open { display: block; padding: 10px 4px 2px; text-align: right; font-weight: 600; font-size: .88rem;
+    color: var(--accent, #06c); text-decoration: none; }
+  .rp-open:hover { text-decoration: underline; }
+  .ss-remote { padding: 4px 0 6px; }
+  .ss-remote-note { padding: .8rem .6rem; color: var(--ink-soft, var(--ink-muted)); font-size: .9rem; }
+  .ss-remote-loading { display: flex; align-items: center; gap: 10px; padding: .9rem .6rem; color: var(--ink-soft, var(--ink-muted)); font-size: .9rem; }
+  .ss-remote-loading::before { content: ''; width: 16px; height: 16px; border-radius: 50%; flex: 0 0 16px;
+    border: 2px solid color-mix(in srgb, var(--accent, #06c) 30%, transparent); border-top-color: var(--accent, #06c);
+    animation: ss-spin .8s linear infinite; }
+  @keyframes ss-spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .ss-remote-loading::before { animation: none; } }
+
+  /* Smal scherm: alleen de tekens, gelijk verdeeld over de breedte. De woorden
+     blijven bestaan voor wie het scherm voorgelezen krijgt. */
+  @media (max-width: 480px) {
+    .rp-card { padding: 12px 12px 2px; border-radius: 14px; }
+    .rp-actions { margin: 8px -4px 0; justify-content: space-between; }
+    .rp-act .rp-act-label { position: absolute; width: 1px; height: 1px; overflow: hidden;
+      clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+    .rp-src { margin-left: 0; }
+    .rp-media-1 img { max-height: 360px; }
+  }
 </style>

@@ -40,29 +40,6 @@ function run() {
 
 // ── volgend blok ──
 
-/* Like/Boost toggle in place — POST via fetch, flip the button, stay on the page. */
-(function(){
-  if (window.__fediReactWired) return; window.__fediReactWired = true;
-  document.addEventListener('submit', function(e){
-    var f = e.target.closest && e.target.closest('.fedi-react-form');
-    if (!f) return;
-    e.preventDefault();
-    var btn = f.querySelector('button'); if (!btn || btn.disabled) return;
-    btn.disabled = true;
-    var body = new URLSearchParams();
-    new FormData(f).forEach(function(v, k){ body.append(k, v); });
-    fetch(f.action, { method: 'POST', body: body, headers: { 'X-Requested-With': 'fetch' }, credentials: 'same-origin' })
-      .then(function(r){ return r.ok ? r.json() : null; })
-      .then(function(j){
-        if (j) {
-          var on = !!j.on;
-          btn.classList.toggle('is-on', on);
-          var lbl = btn.querySelector('.fedi-bigact-label');
-          if (lbl) lbl.textContent = on ? (btn.getAttribute('data-on') || lbl.textContent) : (btn.getAttribute('data-off') || lbl.textContent);
-        }
-      })
-      .catch(function(){})
-      .then(function(){ btn.disabled = false; });
-  });
-})();
+/* Waarderen en boosten ter plekke staat sinds de herbouw van de kaart in
+   chrome.js: de kaart staat nu ook in de zoekbalk, op elke pagina. */
 }

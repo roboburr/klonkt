@@ -160,27 +160,119 @@
     html += '<a class="ss-all" href="' + esc(action) + '?q=' + encodeURIComponent(q) + '">' + esc(_st().all) + '</a>';
     box.innerHTML = html;
   }
-  var _sTimer;
+  // Een ADRES is geen zoekterm (shaer-utpi). Dezelfde regel als lookupUri in
+  // routes/search.js: een schema is verplicht, anders wordt zoeken naar
+  // "soundfabrics.nl" een netwerkverzoek. De server beslist daarna nog eens,
+  // met de rechten erbij; dit scheelt alleen een vraag die toch nee oplevert.
+  function lookupUri(q) {
+    if (!/^https?:\/\//i.test(q) || /\s/.test(q)) return null;
+    try { var u = new URL(q); return u.hostname.indexOf('.') < 0 ? null : u.href; } catch (e) { return null; }
+  }
+  function allLink(ov, q) {
+    var action = (ov && ov.getAttribute('data-action')) || '/search';
+    return '<a class="ss-all" href="' + esc(action) + '?q=' + encodeURIComponent(q) + '">' + esc(_st().all) + '</a>';
+  }
+  function fetchSuggest(box, q, ov, seq) {
+    var url = (ov && ov.getAttribute('data-suggest')) || '/search/suggest';
+    fetch(url + '?q=' + encodeURIComponent(q))
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ if (d && seq === _sSeq) renderSuggest(box, d, q, ov); })
+      .catch(function(){});
+  }
+  // Elke toetsaanslag krijgt een volgnummer. Een ophaling van een andere
+  // server duurt soms seconden; zonder nummer overschrijft een traag antwoord
+  // op een oude vraag wat je inmiddels hebt getypt.
+  var _sTimer, _sSeq = 0;
   document.addEventListener('input', function(e) {
     var inp = e.target.closest && e.target.closest('#search-overlay input[name="q"]');
     if (!inp) return;
     var box = document.getElementById('search-suggest');
     if (!box) return;
     var q = inp.value.trim();
+    var seq = ++_sSeq;
     clearTimeout(_sTimer);
     if (q.length < 2) { box.innerHTML = ''; return; }
+    var ov = document.getElementById('search-overlay');
+    var address = lookupUri(q);
+    if (!address) { _sTimer = setTimeout(function() { fetchSuggest(box, q, ov, seq); }, 200); return; }
+    // Een geplakt adres: de post zelf, niet de tekst van de link doorzocht.
+    box.innerHTML = '<div class="ss-remote-loading">' + esc(_st().looking) + '</div>';
     _sTimer = setTimeout(function() {
-      var ov = document.getElementById('search-overlay');
-      var url = (ov && ov.getAttribute('data-suggest')) || '/search/suggest';
-      fetch(url + '?q=' + encodeURIComponent(q))
-        .then(function(r){ return r.ok ? r.json() : null; })
-        .then(function(d){ if (d) renderSuggest(box, d, q, ov); })
-        .catch(function(){});
-    }, 200);
+      var url = (ov && ov.getAttribute('data-remote')) || '/search/remote';
+      fetch(url + '?q=' + encodeURIComponent(address), { credentials: 'same-origin', headers: { 'X-Requested-With': 'fetch' } })
+        .then(function(r) {
+          if (seq !== _sSeq) return;
+          // 204: geen recht om op te halen (of toch geen adres). Dan is het
+          // gewoon een zoekterm en krijg je de gewone suggesties.
+          if (r.status === 204 || !r.ok) { fetchSuggest(box, q, ov, seq); return; }
+          return r.text().then(function(html) { if (seq === _sSeq) box.innerHTML = html + allLink(ov, q); });
+        })
+        .catch(function() { if (seq === _sSeq) fetchSuggest(box, q, ov, seq); });
+    }, 300);
   });
-  // Click on a suggestion → close the overlay (the link/boost handles navigation).
+  // Een klik op een suggestie sluit de overlay, want de link gaat ergens heen.
+  // Behalve wat in een nieuw tabblad opent (het origineel, een profiel): dan
+  // blijf je hier, en hoort de kaart er nog te staan als je terugkomt.
   document.addEventListener('click', function(e) {
-    if (e.target.closest && e.target.closest('#search-suggest a')) { var o = overlay(); if (o) o.hidden = true; }
+    var a = e.target.closest && e.target.closest('#search-suggest a');
+    if (a && a.getAttribute('target') !== '_blank') { var o = overlay(); if (o) o.hidden = true; }
+  });
+})();
+
+// ── De kaart van een post van een andere server ─────────────────────────
+// Staat hier en niet in authorize-interaction.js, want de kaart staat nu op
+// drie plekken: de live-preview (elke pagina, via de zoekbalk), de zoekpagina
+// en /authorize_interaction. Alles luistert op document, dus een kaart die
+// later binnenkomt (de preview, een htmx-wissel) doet vanzelf mee.
+(function() {
+  if (window.__remoteCardWired) return; window.__remoteCardWired = true;
+
+  // Waarderen en boosten ter plekke: POST via fetch, de knop omzetten, blijven
+  // waar je bent. Zonder JS doet het formulier hetzelfde met een omweg.
+  document.addEventListener('submit', function(e) {
+    var f = e.target.closest && e.target.closest('.fedi-react-form');
+    if (!f) return;
+    e.preventDefault();
+    var btn = f.querySelector('button'); if (!btn || btn.disabled) return;
+    btn.disabled = true;
+    var body = new URLSearchParams();
+    new FormData(f).forEach(function(v, k) { body.append(k, v); });
+    fetch(f.action, { method: 'POST', body: body, headers: { 'X-Requested-With': 'fetch' }, credentials: 'same-origin' })
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(j) {
+        if (!j) return;
+        var on = !!j.on;
+        btn.classList.toggle('is-on', on);
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        var lbl = btn.querySelector('.rp-act-label');
+        if (lbl) lbl.textContent = on ? (btn.getAttribute('data-on') || lbl.textContent) : (btn.getAttribute('data-off') || lbl.textContent);
+      })
+      .catch(function() {})
+      .then(function() { btn.disabled = false; });
+  });
+
+  // Antwoorden klapt open waar de kaart staat. Staat er geen venster (de
+  // preview), dan volgt de knop gewoon zijn link naar de volle pagina, met het
+  // venster daar al open.
+  document.addEventListener('click', function(e) {
+    var open = e.target.closest && e.target.closest('[data-rp-reply]');
+    var close = !open && e.target.closest && e.target.closest('[data-rp-reply-close]');
+    if (!open && !close) return;
+    var panel = document.getElementById('rp-reply');
+    if (!panel) return;
+    e.preventDefault();
+    var btn = document.querySelector('[data-rp-reply][aria-controls="rp-reply"]');
+    var show = !!open && panel.hidden;
+    panel.hidden = !show;
+    if (btn) btn.setAttribute('aria-expanded', show ? 'true' : 'false');
+    if (show) {
+      var ed = panel.querySelector('.re-editor, textarea');
+      if (ed) ed.focus();
+      // Op een telefoon staat het venster vaak onder de vouw.
+      if (panel.scrollIntoView) panel.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    } else if (btn) {
+      btn.focus();
+    }
   });
 })();
 

@@ -177,8 +177,8 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
 <!-- Search overlay (shared by mobile bottom-tab + desktop top-nav) -->
 <%# De teksten staan op het element dat ze gebruikt, niet in het script: een
     module is een statisch bestand en kan geen vertaling interpoleren. %>
-<div id="search-overlay" class="search-overlay" hidden data-suggest="<%= _siteUrlBase %>/search/suggest" data-action="<%= _siteUrlBase %>/search"
-     data-i18n="<%= JSON.stringify({ posts: t('search.section_posts'), tracks: t('search.section_tracks'), events: t('search.section_events'), pages: t('search.section_pages'), all: t('search.suggest_all'), none: t('search.suggest_empty') }) %>">
+<div id="search-overlay" class="search-overlay" hidden data-suggest="<%= _siteUrlBase %>/search/suggest" data-remote="<%= _siteUrlBase %>/search/remote" data-action="<%= _siteUrlBase %>/search"
+     data-i18n="<%= JSON.stringify({ posts: t('search.section_posts'), tracks: t('search.section_tracks'), events: t('search.section_events'), pages: t('search.section_pages'), all: t('search.suggest_all'), none: t('search.suggest_empty'), looking: t('search.fedi_looking') }) %>">
   <div class="container">
     <form class="search-overlay-form" method="get" action="<%= _siteUrlBase %>/search">
       <input type="search" name="q" placeholder="<%= t('search.placeholder') %>" autocomplete="off">
@@ -466,7 +466,7 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
   display: inline-flex; align-items: center; justify-content: center;
 }
 /* Live-resultaten dropdown */
-.search-suggest { margin-top: .6rem; max-height: 60vh; overflow-y: auto; display: flex; flex-direction: column; gap: .25rem; }
+.search-suggest { margin-top: .6rem; max-height: 60vh; max-height: 70dvh; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; gap: .25rem; }
 .search-suggest:empty { display: none; }
 .ss-group { padding: .25rem 0; }
 .ss-title { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-soft, var(--ink-muted)); padding: .35rem .25rem .2rem; }

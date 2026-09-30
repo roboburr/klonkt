@@ -39,9 +39,9 @@
             op verzoek van een willekeurige bezoeker. %>
         <p class="auth-interact-note"><%= t('search.fedi_signin') %></p>
       <% } else if (remote && remoteKind === 'note') { %>
-        <%- include('../partials/remote-object', { target: remote, uri: remoteUri, reacted: remoteReacted, siteTitle: siteTitle, cancelUrl: _base + '/search' }) %>
+        <%- include('../partials/remote-object', { target: remote, uri: remoteUri, reacted: remoteReacted, siteTitle: siteTitle, cancelUrl: _base + '/search?q=' + encodeURIComponent(query) }) %>
       <% } else if (remote && remoteKind === 'actor') { %>
-        <%- include('../partials/remote-actor', { actor: remote, cancelUrl: _base + '/search', siteTitle: siteTitle }) %>
+        <%- include('../partials/remote-actor', { actor: remote, siteTitle: siteTitle }) %>
       <% } else { %>
         <p class="auth-interact-note"><%= t('fedi.remote_notfound') %></p>
       <% } %>
