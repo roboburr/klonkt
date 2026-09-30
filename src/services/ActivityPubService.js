@@ -1158,26 +1158,24 @@ export function outboxSlice(siteId, { fanOnly = false, offset = 0, limit = MAX_O
   const trackIds = rijen.filter((r) => r.soort === 'track').map((r) => r.id);
   const gaten = (n) => Array.from({ length: n }, () => '?').join(',');
   const posts = postIds.length ? db.prepare(
-    // fan_only en ap_visibility MOETEN mee. buildNote adresseert hierop, en
-    // zonder deze twee kolommen is post.fan_only altijd undefined: elke
-    // fan-only post ging dan de outbox uit met to: as:Public, terwijl hij
-    // alleen aan vrienden geserveerd wordt. Een volger kreeg dus een
-    // vrienden-post met een publiek etiket erop, en die mag hij dan publiek
-    // boosten. Gevonden tijdens de FEP-1580 end-to-end test (shaer-fuyo).
-    // EN paid + excerpt, om exact dezelfde reden (Barts melding, 15-8). Zonder
-    // `paid` is post.paid hier `undefined`, dan slaat buildNote zijn redactie
-    // over en gaat de VOLLEDIGE tekst van een betaalde post de outbox uit. Zo
-    // kwam een post via een hub-actor gewoon te lezen. `excerpt` moet mee omdat
-    // de teaser daaruit komt; zonder dat veld valt hij terug op de eerste
-    // alinea van precies de tekst die verborgen hoort te blijven.
+    // ALLE KOLOMMEN, zoals /ap/notes/:id ook doet. Hier stond een lijst, en
+    // die faalde stil: een vergeten kolom is `undefined` en geen fout, en
+    // buildNote besluit dan zonder dat veld. Het ging vier keer mis voordat
+    // deze regel er stond --
+    //   fan_only/ap_visibility: een vriendenpost ging de deur uit als publiek
+    //     (shaer-fuyo);
+    //   paid/excerpt: de VOLLEDIGE tekst van een betaalde post stond in de
+    //     outbox (Barts melding, 15-8);
+    //   tags, poll_json, quote_uri/quote_actor, cover_alt, language: geen
+    //     hashtags, een peiling als gewone post, een citaat zonder citaat
+    //     (Robin, 30-9 -- de hub vond de tags van soundfabrics niet, want die
+    //     staan niet in de tekst en kwamen alleen via de outbox binnen).
     //
-    // Dit is een KOLOMMENLIJST, en die faalt stil: een vergeten kolom is
-    // `undefined` en niet een fout. Wie hier een veld toevoegt waar buildNote
-    // op beslist, moet het HIER ook toevoegen.
-    `SELECT id, slug, title, excerpt, content, cover_image_url, cover_video_url, nsfw, content_warning,
-            c2s_attachments, quote_json, embed_json, published_at, created_at,
-            fan_only, ap_visibility, paid, paid_min_cents
-       FROM posts WHERE id IN (${gaten(postIds.length)})`).all(...postIds) : [];
+    // De outbox en de losse Note horen HETZELFDE object te zijn; wie een post
+    // op twee manieren ophaalt, hoort geen twee verschillende berichten te
+    // zien. test/outbox-gelijk-aan-note.test.js legt dat vast, voor elk veld,
+    // ook voor velden die er later bijkomen.
+    `SELECT * FROM posts WHERE id IN (${gaten(postIds.length)})`).all(...postIds) : [];
   const tracks = trackIds.length ? db.prepare(
     `SELECT ${TRACK_KOLOMMEN}
        FROM audio_tracks t JOIN media m ON m.id = t.media_id
