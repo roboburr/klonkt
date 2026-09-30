@@ -126,4 +126,36 @@ export function listPlatforms() {
   return PLATFORM_ORDER.map(k => ({ key: k, ...PLATFORMS[k] }));
 }
 
-export default { PLATFORMS, PLATFORM_ORDER, listPlatforms, CONTACT_PLATFORMS, linkHref };
+/**
+ * De profiellinks uit een formulier (profile_link_platform[] + profile_link_url[])
+ * als de JSON die in sites.profile_links staat, of null als er niets over is.
+ *
+ * Stond in routes/admin-sites.js, toen de links op de Appearance-pagina stonden.
+ * Sinds 30-9 bewerk je ze bij je profiel (/account), en een tweede kopie van
+ * deze keuring loopt gegarandeerd uit de pas -- dus hij staat hier.
+ */
+export function buildProfileLinks(body) {
+  const platforms = (body && body.profile_link_platform) || [];
+  const urls = (body && body.profile_link_url) || [];
+  const arr = [];
+  const platformsArr = Array.isArray(platforms) ? platforms : [platforms];
+  const urlsArr      = Array.isArray(urls)      ? urls      : [urls];
+  for (let i = 0; i < platformsArr.length; i++) {
+    const p = (platformsArr[i] || '').toString().trim();
+    const u = (urlsArr[i] || '').toString().trim();
+    if (!p || !u) continue;
+    if (!PLATFORMS[p]) continue;
+    if (!/^https?:\/\//i.test(u) && p !== 'email') continue;
+    if (p === 'email' && !/^mailto:|^[^\s@]+@[^\s@]+$/i.test(u)) continue;
+    arr.push({ platform: p, url: u });
+  }
+  return arr.length ? JSON.stringify(arr) : null;
+}
+
+/** sites.profile_links terug als lijst; een kapotte waarde is een lege lijst. */
+export function parseProfileLinks(json) {
+  if (!json) return [];
+  try { const a = JSON.parse(json); return Array.isArray(a) ? a : []; } catch { return []; }
+}
+
+export default { PLATFORMS, PLATFORM_ORDER, listPlatforms, CONTACT_PLATFORMS, linkHref, buildProfileLinks, parseProfileLinks };

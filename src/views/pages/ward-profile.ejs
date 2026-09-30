@@ -1,0 +1,145 @@
+<%#
+  Het profiel van een ward, en het enige dat een bezoeker van de site ziet
+  (Robins ontwerp, 30-9; zie middleware/ward-profile.js).
+
+  Omdat dit ALLES is wat er openbaar staat, mag het er verzorgd uitzien: een
+  eigen pagina en geen voorpagina met een lege stroom eronder.
+
+  Dezelfde bronnen als de profielkop (partials/profile-header.ejs), zodat het
+  profiel op geen twee plekken iets anders kan zeggen: naam uit profile_name of
+  title, tekst uit profile_bio, description of tagline, links uit profile_links.
+
+  NERGENS "KIND" OF "WARD". Dat deze account guardians heeft staat al openbaar op
+  de fediverse (shaer:guardians, FEP-633c 2.1); deze pagina hoeft dat niet in
+  koeienletters te herhalen. Wat een bezoeker wel hoort te weten, is dat de
+  berichten er niet voor hem staan -- neutraal gezegd.
+
+  Verwacht: site, wardHandle, wardLinks, platforms_catalog, avatar, t.
+%>
+<%
+  const _name = site.profile_name || site.title || site.slug;
+  const _bio = site.profile_bio || site.description || site.tagline || '';
+  const _photo = site.profile_photo || '';
+  const _catalog = (typeof platforms_catalog !== 'undefined' && platforms_catalog) || {};
+  const _links = (wardLinks || []).filter(function (l) { return l && _catalog[l.platform]; });
+  const _href = function (p, u) {
+    u = String(u || '').trim();
+    if (p === 'email' && u.indexOf('mailto:') !== 0) return 'mailto:' + u;
+    if (p === 'phone' && !/^tel:/i.test(u)) return 'tel:' + u.replace(/[^\d+]/g, '');
+    return u;
+  };
+  const _showFollow = site.slug && (typeof apEnabled === 'undefined' || apEnabled);
+%>
+<div class="wp" aria-labelledby="wp-name">
+  <div class="wp-glow" aria-hidden="true"></div>
+  <article class="wp-card">
+    <div class="wp-photo">
+      <% if (_photo) { %>
+        <img src="<%= avatar(_photo, 320) %>" alt="" width="160" height="160">
+      <% } else { %>
+        <span class="wp-photo-initial" aria-hidden="true"><%= String(_name).charAt(0).toUpperCase() %></span>
+      <% } %>
+    </div>
+
+    <h1 class="wp-name" id="wp-name"><%= _name %></h1>
+    <p class="wp-handle"><span><%= wardHandle %></span></p>
+    <% if (_bio) { %><p class="wp-bio"><%= _bio %></p><% } %>
+
+    <% if (_links.length || _showFollow) { %>
+      <ul class="wp-links">
+        <% if (_showFollow) { %>
+          <li>
+            <%# Opent de volgdialoog uit de profielkop (chrome.js). Een volgverzoek
+                aan deze account gaat eerst langs de guardians (FEP-633c 5.3). %>
+            <button type="button" class="wp-link wp-follow profile-fedi-link" data-fedi-actor-slug="<%= site.slug %>">
+              <span class="wp-link-ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+              </span>
+              <span class="wp-link-label"><%= t('fedi.profile_follow') %></span>
+              <span class="wp-link-go" aria-hidden="true">→</span>
+            </button>
+          </li>
+        <% } %>
+        <% _links.forEach(function (l) { var meta = _catalog[l.platform]; var ext = (l.platform !== 'email' && l.platform !== 'phone'); %>
+          <li>
+            <a class="wp-link" href="<%= _href(l.platform, l.url) %>" <% if (ext) { %>target="_blank" rel="noopener noreferrer"<% } %> style="--brand: <%= meta.brand %>">
+              <span class="wp-link-ico" aria-hidden="true"><%- meta.svg %></span>
+              <span class="wp-link-label"><%= meta.label %></span>
+              <span class="wp-link-go" aria-hidden="true"><%= ext ? '↗' : '→' %></span>
+            </a>
+          </li>
+        <% }); %>
+      </ul>
+    <% } %>
+
+    <p class="wp-note">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+      <span><%= t('ward.followers_only', { name: _name }) %></span>
+    </p>
+  </article>
+</div>
+
+<style>
+  /* ── Het profiel, en verder niets ───────────────────────────────────────── */
+  body.on-ward-profile { background: var(--paper); }
+  .wp { position: relative; min-height: calc(100svh - 9rem); display: grid; place-items: center;
+    padding: clamp(2rem, 6vw, 4rem) 1.25rem calc(3rem + env(safe-area-inset-bottom, 0px)); overflow: hidden; isolation: isolate; }
+  /* Een zachte gloed in de accentkleur van de site, achter de kaart. */
+  .wp-glow { position: absolute; inset: -20% -10% auto; height: 70%; z-index: -1; pointer-events: none;
+    background:
+      radial-gradient(40% 55% at 30% 40%, color-mix(in srgb, var(--accent) 28%, transparent), transparent 70%),
+      radial-gradient(35% 50% at 72% 30%, color-mix(in srgb, var(--accent) 16%, var(--ink) 4%), transparent 70%);
+    filter: blur(28px); opacity: .9; }
+  .wp-card { width: 100%; max-width: 30rem; text-align: center; display: flex; flex-direction: column; align-items: center; }
+
+  .wp-photo { position: relative; width: 9.5rem; height: 9.5rem; border-radius: 50%; padding: 5px;
+    background: conic-gradient(from 210deg, var(--accent), color-mix(in srgb, var(--accent) 35%, var(--paper)), var(--accent));
+    box-shadow: 0 18px 50px color-mix(in srgb, var(--accent) 30%, transparent); }
+  .wp-photo img, .wp-photo-initial { display: block; width: 100%; height: 100%; border-radius: 50%; object-fit: cover;
+    border: 4px solid var(--paper); box-sizing: border-box; background: var(--paper-2, var(--paper)); }
+  .wp-photo-initial { display: grid; place-items: center; font: 700 3.5rem/1 var(--font-display, var(--font-ui, inherit)); color: var(--accent); }
+
+  .wp-name { margin: 1.4rem 0 .35rem; font-family: var(--font-display, inherit); font-size: clamp(2rem, 7vw, 2.8rem);
+    line-height: 1.1; letter-spacing: -.01em; color: var(--ink); overflow-wrap: anywhere; }
+  .wp-handle { margin: 0; }
+  .wp-handle span { display: inline-block; max-width: 100%; padding: .3rem .8rem; border-radius: 999px;
+    background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink-soft, var(--ink)); font-size: .9rem;
+    user-select: all; -webkit-user-select: all; overflow-wrap: anywhere; }
+  .wp-bio { margin: 1.1rem 0 0; font-size: 1.05rem; line-height: 1.6; color: var(--ink); max-width: 26rem; white-space: pre-line; }
+
+  /* De links: brede knoppen, zoals een link-in-bio. */
+  .wp-links { list-style: none; margin: 1.8rem 0 0; padding: 0; width: 100%; display: flex; flex-direction: column; gap: .6rem; }
+  .wp-link { display: flex; align-items: center; gap: .85rem; width: 100%; min-height: 3.25rem; padding: .55rem .9rem .55rem .6rem;
+    box-sizing: border-box; border-radius: 16px; border: 1px solid var(--rule); background: color-mix(in srgb, var(--paper) 88%, var(--ink) 4%);
+    color: var(--ink); text-decoration: none; font: inherit; font-weight: 600; text-align: left; cursor: pointer;
+    transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease; -webkit-tap-highlight-color: transparent; }
+  .wp-link:hover, .wp-link:focus-visible { transform: translateY(-1px); border-color: color-mix(in srgb, var(--brand, var(--accent)) 55%, var(--rule));
+    box-shadow: 0 8px 22px color-mix(in srgb, var(--brand, var(--accent)) 18%, transparent); }
+  .wp-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .wp-link-ico { flex: 0 0 2.2rem; width: 2.2rem; height: 2.2rem; border-radius: 12px; display: grid; place-items: center;
+    background: var(--brand, var(--accent)); color: #fff; }
+  .wp-link-ico svg { width: 1.2rem; height: 1.2rem; fill: currentColor; }
+  .wp-follow .wp-link-ico { background: var(--accent); }
+  .wp-follow .wp-link-ico svg { fill: none; }
+  .wp-link-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wp-link-go { flex: 0 0 auto; color: var(--ink-soft, var(--ink)); opacity: .7; }
+
+  /* Loopt de zin over twee regels, dan hoort hij naast het slotje te beginnen en
+     niet gecentreerd ver ervan af -- vandaar links uitgelijnd en een ronding die
+     ook bij twee regels klopt. */
+  .wp-note { display: inline-flex; align-items: center; gap: .6rem; max-width: 24rem; margin: 2rem 0 0; padding: .6rem .95rem;
+    border-radius: 14px; text-align: left; font-size: .85rem; line-height: 1.45;
+    color: var(--ink-soft, var(--ink)); background: color-mix(in srgb, var(--ink) 5%, transparent); }
+  .wp-note svg { flex: 0 0 1rem; width: 1rem; height: 1rem; }
+
+  /* Rustig binnenkomen; niet voor wie minder beweging wil. */
+  @media (prefers-reduced-motion: no-preference) {
+    .wp-card > * { animation: wp-in .5s cubic-bezier(.2, .7, .2, 1) both; }
+    .wp-card > :nth-child(2) { animation-delay: .05s; }
+    .wp-card > :nth-child(3) { animation-delay: .1s; }
+    .wp-card > :nth-child(4) { animation-delay: .15s; }
+    .wp-card > :nth-child(5) { animation-delay: .2s; }
+    .wp-card > :nth-child(6) { animation-delay: .25s; }
+    @keyframes wp-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  }
+</style>

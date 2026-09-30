@@ -149,38 +149,10 @@
       </label>
     </fieldset>
 
-    <fieldset class="profile-links-fieldset">
-      <legend><%= t('asite.links') %></legend>
-      <p class="form-hint"><%= t('asite.links_hint') %></p>
-
-      <div id="profile-links-rows">
-        <% (parsedLinks || []).forEach(function(l) { %>
-          <div class="profile-link-row">
-            <select name="profile_link_platform[]">
-              <% platforms.forEach(function(p) { %>
-                <option value="<%= p.key %>" <%= l.platform === p.key ? 'selected' : '' %>><%= p.label %></option>
-              <% }); %>
-            </select>
-            <input type="text" name="profile_link_url[]" value="<%= l.url %>" placeholder="https://…" required>
-            <button type="button" class="btn btn-danger pl-remove">×</button>
-          </div>
-        <% }); %>
-      </div>
-
-      <template id="profile-link-template">
-        <div class="profile-link-row">
-          <select name="profile_link_platform[]">
-            <% platforms.forEach(function(p) { %>
-              <option value="<%= p.key %>"><%= p.label %></option>
-            <% }); %>
-          </select>
-          <input type="text" name="profile_link_url[]" placeholder="https://…" required>
-          <button type="button" class="btn btn-danger pl-remove">×</button>
-        </div>
-      </template>
-
-      <button type="button" id="profile-link-add" class="btn"><%= t('asite.link_add') %></button>
-    </fieldset>
+    <%# De profiellinks staan sinds 30-9 bij je profiel, naast je naam, bio en foto:
+        dat is waar ze bij horen, en in de wardmodus is dat profiel het enige dat
+        een bezoeker ziet. %>
+    <p class="form-hint profile-links-moved"><%= t('asite.links_moved') %> <a href="/account#links"><%= t('asite.links_moved_link') %></a></p>
 
     <%# Aliassen en verhuizen staan sinds 14-8 op /admin/migrate, bij elkaar met
         exporteren, importeren en ophalen (Robin: alle migratie-opties op de
@@ -476,14 +448,4 @@
 /* Mobile-first: platform selector on its own line (full width), URL input + remove
    button below. Prevents horizontal overflow on phones (fixed 160px column +
    non-shrinkable input together ~447px > screen width). */
-.profile-link-row {
-  display: grid; grid-template-columns: 1fr auto; gap: 0.5rem; margin-bottom: 0.5rem;
-}
-.profile-link-row select { padding: 0.45rem 0.6rem; grid-column: 1 / -1; }
-.profile-link-row input { min-width: 0; }
-@media (min-width: 520px) {
-  .profile-link-row { grid-template-columns: 160px 1fr auto; }
-  .profile-link-row select { grid-column: auto; }
-}
-.profile-links-fieldset details > label { margin-top: 0.4rem; }
 </style>

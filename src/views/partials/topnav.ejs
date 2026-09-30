@@ -15,7 +15,9 @@ const _siteUrlBase = (typeof siteUrlBase !== 'undefined' && siteUrlBase) ? siteU
 const _isAdmin     = typeof bodyClass !== 'undefined' && bodyClass.indexOf('on-admin') >= 0;
 // Fediverse pages (on-special) get the same top-nav "back to site" treatment as admin.
 const _isSpecial   = typeof bodyClass !== 'undefined' && bodyClass.indexOf('on-special') >= 0;
-const _hasSearch   = !site || site.show_search === undefined || site.show_search;
+// In de wardmodus is zoeken dicht voor een bezoeker: geen knop naar een deur op slot.
+const _hasSearch   = (!site || site.show_search === undefined || site.show_search)
+                     && !(typeof wardProfile !== 'undefined' && wardProfile);
 const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
                      && permissions && permissions.canCreatePost && permissions.canCreatePost(user, site);
 %>
@@ -46,7 +48,8 @@ const _canPost     = user && (typeof canMutate === 'undefined' || canMutate)
     <!-- Desktop-only: full action row -->
     <nav class="top-nav top-nav-desktop" aria-label="Hoofdnavigatie">
 
-      <% if (!_isAdmin && !_isSpecial) { %>
+      <%# Niet in de wardmodus: daar is het archief dicht voor een bezoeker. %>
+      <% if (!_isAdmin && !_isSpecial && !(typeof wardProfile !== 'undefined' && wardProfile)) { %>
         <a class="nav-link" href="<%= _siteUrlBase %>/archive"
            hx-get="<%= _siteUrlBase %>/archive?partial=1" hx-target="#pcms-main"
            hx-swap="innerHTML" hx-push-url="<%= _siteUrlBase %>/archive"

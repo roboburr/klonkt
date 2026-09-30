@@ -47,7 +47,8 @@ else if (_p.indexOf('/auth/login') === 0) _active = 'login';
     <span class="bottom-tab-label"><%= t('tab.home') %></span>
   </a>
 
-  <!-- Zoek -->
+  <!-- Zoek (niet in de wardmodus: daar is zoeken dicht voor een bezoeker) -->
+  <% if (!(typeof wardProfile !== 'undefined' && wardProfile)) { %>
   <button type="button" class="bottom-tab-item<%= _active === 'search' ? ' is-active' : '' %>"
           id="bottom-tab-search-toggle" aria-label="<%= t('nav.search') %>">
     <svg class="bottom-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -56,6 +57,7 @@ else if (_p.indexOf('/auth/login') === 0) _active = 'login';
     </svg>
     <span class="bottom-tab-label"><%= t('tab.search') %></span>
   </button>
+  <% } %>
 
   <!-- Plus (FAB-style, only when user can post) -->
   <% if (_canPost) { %>

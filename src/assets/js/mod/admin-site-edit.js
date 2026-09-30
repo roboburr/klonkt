@@ -41,24 +41,7 @@ function run() {
   var sh = document.getElementById('slug-host');
   if (sh) sh.textContent = location.host + (sh.dataset.prefix || '/');
 })();
-(function() {
-  // Profile-links repeater: add row from <template>, remove on click.
-  var rows = document.getElementById('profile-links-rows');
-  var tpl  = document.getElementById('profile-link-template');
-  var add  = document.getElementById('profile-link-add');
-  if (!rows || !tpl || !add) return;
-
-  add.addEventListener('click', function() {
-    var clone = tpl.content.cloneNode(true);
-    rows.appendChild(clone);
-  });
-  rows.addEventListener('click', function(e) {
-    if (e.target && e.target.classList.contains('pl-remove')) {
-      var row = e.target.closest('.profile-link-row');
-      if (row) row.remove();
-    }
-  });
-})();
+// De profiellinks staan sinds 30-9 bij je profiel: zie mod/profile-links.js.
 
 // P63 — Profile photo picker: upload via /admin/sites/upload-photo,
 // then write the returned URL into the visible input. Live thumb preview.

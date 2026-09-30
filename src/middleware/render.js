@@ -212,6 +212,9 @@ export async function renderPage(req, res, viewName, data = {}) {
     audioEnabled: audioFeatureEnabled(),
     audioTracks: data.audioTracks || res.locals.audioTracks || [],
     siteUrlBase: res.locals.siteUrlBase || '',
+    // De wardmodus (middleware/ward-profile.js): een bezoeker van een ward-site ziet
+    // alleen het profiel, en de chrome biedt dan niets aan wat toch dicht is.
+    wardProfile: !!res.locals.wardProfile,
     footerNewsletter: getSetting('footer_newsletter') === '1', // newsletter sign-up in footer (premium)
     agendaEnabled: getSetting('agenda_enabled') === '1', // show agenda/events in the pill (premium, opt-in)
     platforms_catalog: PLATFORMS_CATALOG,

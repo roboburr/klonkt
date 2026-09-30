@@ -21,6 +21,7 @@ import { SqliteSessionStore } from './services/SqliteSessionStore.js';
 import { ensurePrimarySite } from './services/ensurePrimarySite.js';
 import { getThumbnail, getRemoteThumbnail, verifyImg, THUMB_SIZES } from './services/ThumbnailService.js';
 import { resolveSite, loadAudioTracks, loadTheme } from './middleware/site.js';
+import { wardProfileGate } from './middleware/ward-profile.js';
 import { isViewer } from './middleware/auth.js';
 import { renderPage } from './middleware/render.js';
 import { audioEnabled } from './config/features.js';
@@ -395,6 +396,10 @@ app.use((req, res, next) => {
   next();
 });
 
+// De wardmodus (30-9): heeft deze Klonkt guardians, dan ziet een bezoeker alleen
+// het profiel. Hier en niet eerder: de federatie, OAuth, /media en /assets hangen
+// hierboven en moeten gewoon blijven werken. Zie middleware/ward-profile.js.
+app.use(wardProfileGate);
 app.use('/auth', authRoutes);
 app.use('/account', accountRoutes);
 // NB: /notifications is the fediverse notifications page (in postsRoutes). The old

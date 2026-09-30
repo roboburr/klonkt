@@ -54,24 +54,6 @@ const photoUpload = multer({
   },
 });
 
-/** Coerce req.body fields into the JSON profile_links array. */
-function buildProfileLinks(body) {
-  const platforms = body.profile_link_platform || [];
-  const urls = body.profile_link_url || [];
-  const arr = [];
-  const platformsArr = Array.isArray(platforms) ? platforms : [platforms];
-  const urlsArr      = Array.isArray(urls)      ? urls      : [urls];
-  for (let i = 0; i < platformsArr.length; i++) {
-    const p = (platformsArr[i] || '').toString().trim();
-    const u = (urlsArr[i] || '').toString().trim();
-    if (!p || !u) continue;
-    if (!PLATFORMS[p]) continue;
-    if (!/^https?:\/\//i.test(u) && p !== 'email') continue;
-    if (p === 'email' && !/^mailto:|^[^\s@]+@[^\s@]+$/i.test(u)) continue;
-    arr.push({ platform: p, url: u });
-  }
-  return arr.length ? JSON.stringify(arr) : null;
-}
 
 /**
  * FEP-7628 aliases (alsoKnownAs): one former identity per line, as an actor
@@ -210,7 +192,6 @@ router.get('/new', requireGod, (req, res) => {
     palettes: ThemeService.listPalettes(),
     accents: ThemeService.listAccents(),
     platforms: listPlatforms(),
-    parsedLinks: [],
     apAliases: '',
     error: null,
   });
@@ -274,10 +255,6 @@ router.get('/:slug/edit', requireSiteManagerBySlug, (req, res) => {
   const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(req.params.slug);
   if (!site) return res.redirect('/admin/sites?error=Not+found');
 
-  let parsedLinks = [];
-  if (site.profile_links) {
-    try { parsedLinks = JSON.parse(site.profile_links) || []; } catch {}
-  }
 
   let apAliases = '';
   try { apAliases = (JSON.parse(site.ap_aliases || '[]') || []).join('\n'); } catch { /* show empty on malformed */ }
@@ -292,7 +269,6 @@ router.get('/:slug/edit', requireSiteManagerBySlug, (req, res) => {
     palettes: ThemeService.listPalettes(),
     accents: ThemeService.listAccents(),
     platforms: listPlatforms(),
-    parsedLinks,
     apAliases,
     success: req.query.success || null,
     error: req.query.error || null,
@@ -332,7 +308,9 @@ router.post('/:slug/save', requireSiteManagerBySlug, async (req, res) => {
   // Nu betekent de waarde weer wat er staat.
   const feedAlt = ['timeline', 'auto'].includes(f.feed_alt_view) ? f.feed_alt_view : 'reader';
   const feedViewDef = f.feed_view_default === 'grid' ? 'grid' : feedAlt;
-  const profileLinksJson = buildProfileLinks(f);
+  // De profiellinks staan sinds 30-9 bij je profiel (/account). Deze pagina
+  // schrijft ze dus NIET meer: met de velden weg zou elke keer opslaan hier ze
+  // wissen. De kolom blijft van /account/links.
 
   // FEP-7628 aliases — validated/resolved before anything is written.
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
@@ -365,7 +343,6 @@ router.post('/:slug/save', requireSiteManagerBySlug, async (req, res) => {
       title = ?, description = ?, tagline = ?, language = ?,
       palette = ?, accent = ?, theme_override = ?, profile_photo = ?,
       profile_enabled = ?,
-      profile_links = ?,
       ap_aliases = ?,
       is_public = ?, robots_index = ?, require_login_to_comment = ?,
       enable_audio_player = ?,
@@ -385,7 +362,6 @@ router.post('/:slug/save', requireSiteManagerBySlug, async (req, res) => {
     themeOverride,
     f.profile_photo || null,
     f.profile_enabled ? 1 : 0,
-    profileLinksJson,
     apAliasesJson,
     f.is_public ? 1 : 0,
     f.robots_index ? 1 : 0,

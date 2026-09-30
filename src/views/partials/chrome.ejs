@@ -33,7 +33,9 @@ var _headerless = hubLanding || _isChat || _featurePage;
   <%- include('topnav') %>
   <% if (!_headerless) { %>
     <%- include('profile-header') %>
-    <% if (!_isAdmin && (typeof site !== 'undefined' && site)) { %><%- include('view-switcher') %><% } %>
+    <%# Niet in de wardmodus: een bezoeker ziet daar alleen het profiel, en er
+        is geen stroom om tussen Lezen en Grid te wisselen. %>
+    <% if (!_isAdmin && (typeof site !== 'undefined' && site) && !(typeof wardProfile !== 'undefined' && wardProfile)) { %><%- include('view-switcher') %><% } %>
   <% } %>
 <% } %>
 </div>

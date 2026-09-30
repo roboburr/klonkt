@@ -114,6 +114,56 @@
   </section>
   <% } %>
 
+  <%# ── PROFIELLINKS ───────────────────────────────────────────
+      Sinds 30-9 hier, bij je profiel, en niet meer op de Appearance-pagina: ze
+      horen bij je naam, bio en foto. In de wardmodus is dat profiel het enige
+      dat een bezoeker van de site ziet. %>
+  <% if (typeof editableSite !== 'undefined' && editableSite && canMutate) { %>
+  <section class="ax-card" id="links">
+    <div class="ax-card-title"><%= t('asite.links') %></div>
+    <p class="form-hint"><%= t('asite.links_hint') %></p>
+    <form action="/account/links" method="post" class="ax-form">
+      <div id="profile-links-rows">
+        <% (profileLinks || []).forEach(function (l) { %>
+          <div class="profile-link-row">
+            <select name="profile_link_platform[]" aria-label="<%= t('acct.link_platform') %>">
+              <% platforms.forEach(function (p) { %>
+                <option value="<%= p.key %>" <%= l.platform === p.key ? 'selected' : '' %>><%= p.label %></option>
+              <% }); %>
+            </select>
+            <input type="text" name="profile_link_url[]" value="<%= l.url %>" placeholder="https://…" required aria-label="<%= t('acct.link_url') %>">
+            <button type="button" class="ax-btn pl-remove" aria-label="<%= t('acct.link_remove') %>">×</button>
+          </div>
+        <% }); %>
+      </div>
+      <template id="profile-link-template">
+        <div class="profile-link-row">
+          <select name="profile_link_platform[]" aria-label="<%= t('acct.link_platform') %>">
+            <% platforms.forEach(function (p) { %>
+              <option value="<%= p.key %>"><%= p.label %></option>
+            <% }); %>
+          </select>
+          <input type="text" name="profile_link_url[]" placeholder="https://…" required aria-label="<%= t('acct.link_url') %>">
+          <button type="button" class="ax-btn pl-remove" aria-label="<%= t('acct.link_remove') %>">×</button>
+        </div>
+      </template>
+      <div class="ax-form-actions">
+        <button type="button" id="profile-link-add" class="ax-btn"><%= t('asite.link_add') %></button>
+        <button type="submit" class="ax-btn ax-btn-primary"><%= t('acct.links_save') %></button>
+      </div>
+    </form>
+  </section>
+  <style>
+    .profile-link-row { display: grid; grid-template-columns: 1fr auto; gap: .5rem; margin-bottom: .5rem; }
+    .profile-link-row select { padding: .45rem .6rem; grid-column: 1 / -1; }
+    .profile-link-row input { min-width: 0; }
+    @media (min-width: 520px) {
+      .profile-link-row { grid-template-columns: 160px 1fr auto; }
+      .profile-link-row select { grid-column: auto; }
+    }
+  </style>
+  <% } %>
+
   <%# ── PASSWORD ──────────────────────────────────────────── %>
   <%# In viewer mode there is no password section (nothing to change). %>
   <%# ── CONNECTED APPS (OAuth C2S) ─────────────────────────── %>

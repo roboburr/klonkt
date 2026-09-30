@@ -13,6 +13,7 @@
  */
 
 import express from 'express';
+import { listPlatforms, buildProfileLinks, parseProfileLinks } from '../services/PlatformIcons.js';
 import path from 'path';
 import fs from 'fs';
 import bcrypt from 'bcryptjs';
@@ -68,6 +69,11 @@ router.get('/', requireAuth, (req, res) => {
   renderPage(req, res, 'pages/account', {
     pageTitle: 'Account',
     bodyClass: 'on-special',
+    // De profiellinks staan sinds 30-9 hier, bij je profiel, en niet meer op de
+    // Appearance-pagina (Robins verzoek).
+    pageJs: 'profile-links',
+    platforms: listPlatforms(),
+    profileLinks: editableSite ? parseProfileLinks(editableSite.profile_links) : [],
     account,
     hasPassword,
     editableSite,
@@ -105,7 +111,9 @@ router.post('/lang', requireAuth, (req, res) => {
 // (owner_id), or for a god the primary site. Null if nothing found.
 function ownedSite(user) {
   if (!user) return null;
-  let site = db.prepare('SELECT id, title, tagline, slug, owner_id, profile_photo FROM sites WHERE owner_id = ? ORDER BY created_at LIMIT 1').get(user.id);
+  // profile_links hoort erbij sinds de links hier staan (30-9). Zonder die kolom
+  // toonde de pagina nul links, en wiste opslaan ze dus.
+  let site = db.prepare('SELECT id, title, tagline, slug, owner_id, profile_photo, profile_links FROM sites WHERE owner_id = ? ORDER BY created_at LIMIT 1').get(user.id);
   if (!site && user.role === 'god') {
     site = getPrimarySite(); // primary/main site as fallback
   }
@@ -125,6 +133,21 @@ router.post('/site', requireAuth, (req, res) => {
   db.prepare('UPDATE sites SET title = ?, tagline = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
     .run(title, tagline || null, site.id);
   res.redirect('/account?success=' + encodeURIComponent('Site-naam bijgewerkt'));
+});
+
+// ==================== PROFIELLINKS ====================
+// Sinds 30-9 hier en niet meer op Appearance: ze horen bij je profiel, naast je
+// naam, bio en foto. Dezelfde rechten als de site-naam hierboven: de eigenaar
+// van de site, of god.
+router.post('/links', requireAuth, (req, res) => {
+  const site = ownedSite(req.session.user);
+  if (!site) return res.redirect('/account?error=' + encodeURIComponent('Geen site om te bewerken.'));
+  if (site.owner_id !== req.session.user.id && req.session.user.role !== 'god') {
+    return res.redirect('/account?error=' + encodeURIComponent('Geen rechten om deze site te bewerken.'));
+  }
+  db.prepare('UPDATE sites SET profile_links = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+    .run(buildProfileLinks(req.body), site.id);
+  res.redirect('/account?success=' + encodeURIComponent('Links bijgewerkt') + '#links');
 });
 
 // ==================== UPDATE BIO ====================

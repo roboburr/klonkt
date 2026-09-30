@@ -9,9 +9,13 @@
 <%
 // Show profile-header unless we're on an admin page or the site explicitly
 // disabled it via profile_enabled=0.
-const _showProfile = site
-  && (site.profile_enabled === undefined || site.profile_enabled !== 0)
-  && !(typeof bodyClass !== 'undefined' && bodyClass.indexOf('on-admin') >= 0);
+// In de wardmodus IS de pagina het profiel (pages/ward-profile.ejs). Dan valt de
+// kop hier weg, maar de volgdialoog hieronder blijft: de volgknop op die pagina
+// opent hem.
+const _wardPage = typeof wardProfile !== 'undefined' && wardProfile;
+const _showProfile = site && (_wardPage || (
+  (site.profile_enabled === undefined || site.profile_enabled !== 0)
+  && !(typeof bodyClass !== 'undefined' && bodyClass.indexOf('on-admin') >= 0)));
 
 // profile_name and profile_bio used to be optional overrides exposed in the
 // admin form. P62 removed those form fields — title and description are the
@@ -19,6 +23,9 @@ const _showProfile = site
 // backward compat with any legacy data, but the form no longer writes them.
 const _displayName = (site && (site.profile_name || site.title)) || '';
 const _bioText     = (site && (site.profile_bio || site.description || site.tagline)) || '';
+// Volgen via de fediverse. Hier boven en niet in de kop: op de wardpagina valt
+// de kop weg, maar de volgdialoog onderaan hoort er dan nog te staan.
+const _showFollow = (typeof canManageFedi === 'undefined' || !canManageFedi) && site && site.slug && (typeof apEnabled === 'undefined' || apEnabled);
 
 // Parse profile_links JSON column once.
 let _profileLinks = [];
@@ -37,6 +44,7 @@ let _sinceStr = ''; try { if (site && site.created_at) _sinceStr = new Date(site
 %>
 
 <% if (_showProfile) { %>
+<% if (!_wardPage) { %>
 <aside class="profile-header" aria-label="Site profile">
   <div class="container profile-header-inner">
 
@@ -73,7 +81,6 @@ let _sinceStr = ''; try { if (site && site.created_at) _sinceStr = new Date(site
 
       <%# Follow-via-fediverse: a compact icon in the links row (keeps the header
           short), and hidden for the owner — you don't follow yourself. %>
-      <% var _showFollow = (typeof canManageFedi === 'undefined' || !canManageFedi) && site && site.slug && (typeof apEnabled === 'undefined' || apEnabled); %>
       <% if (_profileLinks.length || _showFollow) { %>
         <% const _platforms = (typeof platforms_catalog !== 'undefined' && platforms_catalog) || {}; %>
         <ul class="profile-links" aria-label="External links">
@@ -143,6 +150,7 @@ let _sinceStr = ''; try { if (site && site.created_at) _sinceStr = new Date(site
     <% if (_sinceStr) { %><p class="pf-summary-since"><%= t('profile.since') %> <%= _sinceStr %></p><% } %>
   </div>
 </div>
+<% } /* !_wardPage */ %>
 <% if (_showFollow) { %>
 <%# Follow-via-fediverse modal — replaces the native prompt() (which looked ugly). %>
 <div class="pf-follow">
