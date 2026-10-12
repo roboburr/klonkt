@@ -19,6 +19,7 @@ import { apReadLimiter, apInboxLimiter } from '../middleware/rate-limit.js';
 import { apEnabled } from '../services/SettingsService.js';
 import OAuth from '../services/OAuthService.js';
 import * as Guardianship from '../services/guardianship/index.js';
+import * as ConversationKey from '../services/conversation-key.js';
 import * as Migration from '../services/MigrationService.js';
 import { getPrimarySite } from '../middleware/site.js';
 import multer from 'multer';
@@ -625,6 +626,17 @@ function conversationItems(req, auth, refs) {
       if (n) pairs.push({ head: r, item: sentItem(n, { me, mine }) });
     }
   }
+  // WELK GESPREK, EN MET WIE (shaer-mbji). De client kon dat afleiden uit de
+  // adressering van de note -- maar een binnenkomer draagt die niet mee in zijn
+  // kaart, dus een bericht van Anna aan jou en Ben las als iets van Anna alleen.
+  // De server weet het: de sleutel staat in de kop. Twee termen, zodat een
+  // client die alleen de deelnemers wil niet een sleutel hoeft te ontleden.
+  for (const { head, item } of pairs) {
+    const obj = item && item.object;
+    if (!obj || !head.other) continue;
+    obj['shaer:conversation'] = head.other;
+    obj['shaer:participants'] = ConversationKey.participantsOfKey(head.other);
+  }
   return pairs;
 }
 
@@ -672,8 +684,16 @@ router.get('/ap/users/:slug/conversations', (req, res) => {
 router.get('/ap/users/:slug/messages', (req, res) => {
   const auth = OAuth.verifyBearer(req.headers.authorization);
   if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
-  const other = String(req.query.with || '');
-  if (!/^https?:\/\//i.test(other)) return res.status(400).json({ error: 'with must be an actor URI' });
+  // EÉN OF MEER `with` (shaer-mbji). Eén is het gesprek met die persoon, zoals
+  // altijd; meer is de zachte groep van precies die mensen. De sleutel komt
+  // uit dezelfde functie als bij het schrijven, dus {Anna, Ben} en {Ben, Anna}
+  // vragen hetzelfde gesprek op.
+  const withs = [].concat(req.query.with || []).map(String);
+  if (!withs.length || !withs.every((u) => /^https?:\/\//i.test(u))) {
+    return res.status(400).json({ error: 'with must be one or more actor URIs' });
+  }
+  const other = ConversationKey.conversationKey(withs);
+  if (!other) return res.status(400).json({ error: 'with must be one or more actor URIs' });
   const page = AP.conversationHistory(auth.site.slug, other, {
     before: req.query.before ? String(req.query.before) : null,
     limit: req.query.limit,
@@ -683,7 +703,11 @@ router.get('/ap/users/:slug/messages', (req, res) => {
   // pagina er ook 30 te zijn. Zonder dit wordt hij stilletjes de standaard, en
   // dan klopt het ritme van een 'load more' niet meer met wat de gebruiker ziet.
   const size = req.query.limit ? `&limit=${encodeURIComponent(String(req.query.limit))}` : '';
-  const self = `${baseUrl(req)}/ap/users/${encodeURIComponent(auth.site.slug)}/messages?with=${encodeURIComponent(other)}`;
+  // Elke deelnemer een eigen `with`, zodat de next-link hetzelfde gesprek
+  // opvraagt. De sleutel zelf er kaal in zetten zou bij een groep een spatie in
+  // de URL leggen, en wie die als één adres leest vraagt iets anders op.
+  const withQuery = ConversationKey.participantsOfKey(other).map((u) => `with=${encodeURIComponent(u)}`).join('&');
+  const self = `${baseUrl(req)}/ap/users/${encodeURIComponent(auth.site.slug)}/messages?${withQuery}`;
   AP.sendAP(res, {
     '@context': AP.AP_CONTEXT,
     id: req.query.before ? `${self}${size}&before=${encodeURIComponent(String(req.query.before))}` : `${self}${size}`,

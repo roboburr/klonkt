@@ -29,6 +29,7 @@ import { tlStmts, extractEmojiTags, extractLinkJson, quoteHrefOf } from './ap-ti
 import { parsePoll, recordPollBallot } from './ap-polls.js';
 import { fwStmts } from './ap-following.js';
 import * as HubInvite from './hub-invite.js';
+import * as ConversationKey from './conversation-key.js';
 
 /**
  * Welke objectsoorten deze inbox in de tijdlijn opneemt.
@@ -851,10 +852,24 @@ export async function handleInbox(req, slugParam, preVerified = null) {
             // allebei uitpakken -- alleen de string erkennen zou hetzelfde gat
             // laten voor iedereen die de objectvorm stuurt.
             const ouder = safeUrl(typeof o.inReplyTo === 'string' ? o.inReplyTo : (o.inReplyTo && o.inReplyTo.id)) || null;
-            const r = db.prepare(`INSERT OR IGNORE INTO ap_mentions (slug, object_uri, note_url, actor_uri, actor_name, actor_handle, actor_icon, actor_url, content, published, in_reply_to, help_request, wave, has_guardians, emoji_json, actor_emoji_json, media_json, created_at)
-                                  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,${NU_ISO})`)
+            // WIE ER NOG MEER BIJ WAS (shaer-mbji). De afzender plus iedere
+            // persoon in to/cc, zonder ons. Zonder dit wist een bericht van
+            // Anna aan jou en Ben niet meer dat Ben erbij was, en kwam het
+            // alleen in het gesprek met Anna terecht.
+            //
+            // ALLEEN VOOR EEN DIRECT BERICHT. Deze tabel draagt ook publieke
+            // posts die ons noemen, en een openbare post aan jou en Ben is geen
+            // besloten gesprek met z'n drieën -- dat zou een groep verzinnen
+            // die niemand begon. Die blijft bij zijn afzender, zoals altijd.
+            const ander = noteVisibility(o) === 'direct'
+              ? ConversationKey.participantsOf(o, actorUri, actorId(base, slug))
+              : [actorUri];
+            const conv = ConversationKey.conversationKey(ander) || actorUri;
+            const r = db.prepare(`INSERT OR IGNORE INTO ap_mentions (slug, object_uri, note_url, actor_uri, actor_name, actor_handle, actor_icon, actor_url, content, published, in_reply_to, help_request, wave, has_guardians, emoji_json, actor_emoji_json, media_json, conv, participants, context, created_at)
+                                  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,${NU_ISO})`)
               .run(slug, o.id, safeUrl(o.url) || null, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.published || null, ouder, help ? 1 : 0, wave ? 1 : 0, hasG ? 1 : 0,
-                extractEmojiTags(o.tag), emojiJsonOf(ai.emojis), mediaFromNote(o));
+                extractEmojiTags(o.tag), emojiJsonOf(ai.emojis), mediaFromNote(o),
+                conv, JSON.stringify(ander), ConversationKey.contextOf(o));
             if (r.changes) {
               // The quote / link-preview card resolves out of band (a remote
               // fetch), exactly as it does for a timeline post, so the inbox

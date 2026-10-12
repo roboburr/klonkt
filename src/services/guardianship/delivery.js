@@ -13,6 +13,7 @@
 import crypto from 'crypto';
 import db, { NU_ISO } from '../../config/database.js';
 import { carriesGuardians } from './context.js';
+import * as ConversationKey from '../conversation-key.js';
 
 const PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
 
@@ -32,6 +33,28 @@ export function c2sVisibility(object) {
   if (to.some(isFollowers) || cc.some(isFollowers)) return 'friends';
   if (!to.length && !cc.length) return 'public';   // no addressing at all: legacy client, keep old behavior
   return 'direct';
+}
+
+/**
+ * De context (FEP-7888) van het bericht waarop geantwoord wordt, als we die
+ * kennen: uit wat binnenkwam of uit wat we zelf stuurden. Een antwoord hoort in
+ * het gesprek van zijn ouder, en niet in een vers gesprek ernaast.
+ */
+function contextFor(slug, inReplyTo) {
+  if (!inReplyTo) return null;
+  try {
+    const binnen = db.prepare('SELECT context FROM ap_mentions WHERE slug = ? AND object_uri = ? AND context IS NOT NULL')
+      .get(slug, inReplyTo);
+    if (binnen && binnen.context) return binnen.context;
+    // Een eigen note heeft als uri .../ap/notes/<id>; de id is de outbox-sleutel.
+    const eigen = /\/ap\/notes\/([^/?#]+)$/.exec(String(inReplyTo));
+    if (eigen) {
+      const rij = db.prepare('SELECT context FROM ap_outbox WHERE site_slug = ? AND id = ? AND context IS NOT NULL')
+        .get(slug, eigen[1]);
+      if (rij && rij.context) return rij.context;
+    }
+  } catch { /* geen context is ook een antwoord */ }
+  return null;
 }
 
 /**
@@ -143,9 +166,16 @@ export async function deliverDirectNote(site, { recipients, text, html, language
     .slice(0, 4)
     .map((a) => ({ url: a.url, mediaType: String(a.mediaType), name: String(a.name || '').slice(0, 120) }));
   const id = crypto.randomUUID();
-  db.prepare(`INSERT INTO ap_outbox (id, site_slug, post_id, post_slug, in_reply_to, to_actor, to_handle, content, language, attachments, visibility, to_actors, help_request, wave, away_until, created_at)
-              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,${NU_ISO})`)
-    .run(id, site.slug, '', null, inReplyTo || null, resolved[0].uri, resolved[0].handle, content, lang, media.length ? JSON.stringify(media) : null, 'direct', JSON.stringify(resolved.map((r) => r.uri)), helpRequest ? 1 : 0, wave ? 1 : 0, awayUntil || null);
+  // Het gesprek waar dit bij hoort (shaer-mbji): de set ontvangers. Aan Anna en
+  // Ben samen is één gesprek, en niet twee die elk de helft dragen.
+  const conv = ConversationKey.conversationKey(resolved.map((r) => r.uri));
+  // FEP-7888: het gesprek een naam geven die andere servers ook lezen. Is dit
+  // een antwoord op iets met een context, dan hoort het in diezelfde; anders
+  // begint hier een nieuwe.
+  const context = contextFor(site.slug, inReplyTo) || `${base}/ap/contexts/${crypto.randomUUID()}`;
+  db.prepare(`INSERT INTO ap_outbox (id, site_slug, post_id, post_slug, in_reply_to, to_actor, to_handle, content, language, attachments, visibility, to_actors, help_request, wave, away_until, conv, context, created_at)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,${NU_ISO})`)
+    .run(id, site.slug, '', null, inReplyTo || null, resolved[0].uri, resolved[0].handle, content, lang, media.length ? JSON.stringify(media) : null, 'direct', JSON.stringify(resolved.map((r) => r.uri)), helpRequest ? 1 : 0, wave ? 1 : 0, awayUntil || null, conv, context);
   const row = getOutboxRow(id);
   const note = buildReplyNote(base, site, row);
   // Markering op een hulpvraag (shaer-lgo): een gewone directe note die er een

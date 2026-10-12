@@ -1057,6 +1057,19 @@ export function initializeDatabase() {
   // rijen blijven leeg -- die ouder is niet meer te achterhalen zonder hem
   // opnieuw op te halen, en een verzonnen ouder is erger dan geen.
   ensureColumn('ap_mentions', 'in_reply_to', 'TEXT');
+  // Zachte groepen (shaer-mbji, src/services/conversation-key.js). Een gesprek
+  // is de SET deelnemers; die werd bij een binnenkomende note nergens bewaard,
+  // dus een bericht van Anna aan jou en Ben wist niet meer dat Ben erbij was.
+  //
+  // `conv` is de sleutel, één keer berekend bij het schrijven: elke lezing
+  // hoeft hem dan alleen te lezen, en een sleutel die bij elke query opnieuw
+  // uit JSON gebouwd wordt is een plek om het verschillend te doen. NULL op
+  // oude rijen, en dan valt de lezing terug op wat hij altijd deed.
+  ensureColumn('ap_mentions', 'conv', 'TEXT');
+  ensureColumn('ap_mentions', 'participants', 'TEXT');  // JSON: de anderen, zonder mij
+  ensureColumn('ap_mentions', 'context', 'TEXT');       // FEP-7888
+  ensureColumn('ap_outbox', 'conv', 'TEXT');
+  ensureColumn('ap_outbox', 'context', 'TEXT');
   ensureColumn('ap_interactions', 'media_json', 'TEXT');
   ensureColumn('ap_interactions', 'quote_json', 'TEXT');
   ensureColumn('ap_interactions', 'embed_json', 'TEXT');

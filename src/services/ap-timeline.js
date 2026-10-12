@@ -247,17 +247,35 @@ export async function waitForFeedChange(slug, opts = {}) {
  * een leeftijd die twee uur verschilde per vorm.
  */
 
+// `other` is hier DE GESPREKSSLEUTEL (shaer-mbji, conversation-key.js), en niet
+// meer per se één persoon. Voor één ander is dat zijn URI, precies zoals
+// altijd; voor een groep de gesorteerde set. De naam van de kolom bleef, want
+// koppen, geschiedenis, leesmarkeringen en ongelezen lezen hem allemaal -- en
+// die werken nu per gesprek in plaats van per persoon zonder dat er een regel
+// in hoefde te veranderen.
+//
+// Oude rijen hebben geen `conv` en lezen zoals ze altijd lazen: een binnenkomer
+// bij zijn afzender, een uitgaande bij elke ontvanger afzonderlijk. Geen
+// migratie die de geschiedenis herschikt; alleen wat nieuw is, groepeert.
 const CONVERSATION_UNION = `
-  SELECT m.actor_uri AS other, ${STEMPEL('COALESCE(m.published, m.created_at)')} AS stamp,
+  SELECT COALESCE(NULLIF(m.conv, ''), m.actor_uri) AS other,
+         ${STEMPEL('COALESCE(m.published, m.created_at)')} AS stamp,
          'in' AS direction, m.object_uri AS ref
     FROM ap_mentions m
    WHERE m.slug = @slug AND m.actor_uri IS NOT NULL AND m.actor_uri <> ''
+  UNION ALL
+  SELECT o.conv AS other, ${STEMPEL('o.created_at')} AS stamp,
+         'out' AS direction, o.id AS ref
+    FROM ap_outbox o
+   WHERE o.site_slug = @slug AND o.visibility = 'direct'
+     AND o.conv IS NOT NULL AND o.conv <> ''
   UNION ALL
   SELECT j.value AS other, ${STEMPEL('o.created_at')} AS stamp,
          'out' AS direction, o.id AS ref
     FROM ap_outbox o
     JOIN json_each(COALESCE(NULLIF(o.to_actors, ''), json_array(o.to_actor))) j
    WHERE o.site_slug = @slug AND o.visibility = 'direct'
+     AND (o.conv IS NULL OR o.conv = '')
      AND j.value IS NOT NULL AND j.value <> ''`;
 
 /**

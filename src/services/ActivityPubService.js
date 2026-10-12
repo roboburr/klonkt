@@ -548,6 +548,10 @@ export function buildNote(base, site, post, opts = {}) {
       type: 'Note',
       attributedTo: meR,
       inReplyTo: post.in_reply_to || undefined,
+      // FEP-7888 (shaer-mbji): het gesprek waar dit bij hoort, in AS2 dat
+      // andere servers ook lezen. Alleen op wat er een heeft -- oude rijen en
+      // gewone antwoorden blijven precies zoals ze waren.
+      context: post.context || undefined,
       content: post.content,
       // Reply language (rich replies): the AS2 language map next to `content`.
       contentMap: post.language ? { [post.language]: post.content } : undefined,
