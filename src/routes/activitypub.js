@@ -1410,6 +1410,23 @@ router.get('/ap/users/:slug/card', async (req, res) => {
   }, 'private, no-store');
 });
 
+// De poorten op één vreemde note, voor de thread en voor de losse note:
+// beeld, muziek, video en emoji, per verzoek en buiten elke cache om. De
+// emoji-poort knipt in de byline zelf: FEP-9098 zit in de tag van de
+// ingesloten actor, niet meer in een eigen emoji-kaart ernaast.
+function readerGates(site, isWard) {
+  const gate = (col) => Guardianship.wardGateAllowed(site[col], isWard);
+  const images = gate('gate_images'), audio = gate('gate_music'), video = gate('gate_video');
+  const emoji = gate('gate_custom_emoji');
+  return (n) => ({
+    ...n,
+    attachment: AP.gateAttachments(n.attachment, { images, audio, video }),
+    tag: emoji ? n.tag : AP.stripEmojiTags(n.tag),
+    attributedTo: (!emoji && n.attributedTo && typeof n.attributedTo === 'object')
+      ? { ...n.attributedTo, tag: undefined } : n.attributedTo,
+  });
+}
+
 // ── De thread onder een post (shaer-tqz): ophalen, niet bewaren ────
 //
 // Bearer-only: dit is de eigen app van deze account die vraagt, nooit een
@@ -1445,19 +1462,8 @@ router.get('/ap/users/:slug/thread', async (req, res) => {
   // buiten valt wordt geteld. Beeld, muziek en emoji gaan door dezelfde
   // poorten als de tijdlijn -- per verzoek, buiten de threadcache om.
   const threadsOpen = Guardianship.wardGateAllowed(auth.site.external_threads, isWard);
-  const gate2 = (col) => Guardianship.wardGateAllowed(auth.site[col], isWard);
   const kring = threadsOpen ? { notes: uit.notes, hidden: 0 } : AP.filterThreadToCircle(auth.site.slug, uit.notes);
-  const imagesOk = gate2('gate_images'), musicOk = gate2('gate_music'), emojiOk = gate2('gate_custom_emoji');
-  const videoOk = gate2('gate_video');
-  uit.notes = kring.notes.map((n) => ({
-    ...n,
-    attachment: AP.gateAttachments(n.attachment, { images: imagesOk, audio: musicOk, video: videoOk }),
-    tag: emojiOk ? n.tag : AP.stripEmojiTags(n.tag),
-    // De emoji-poort knipt in de byline zelf: FEP-9098 zit in de tag van de
-    // ingesloten actor, niet meer in een eigen emoji-kaart ernaast.
-    attributedTo: (!emojiOk && n.attributedTo && typeof n.attributedTo === 'object')
-      ? { ...n.attributedTo, tag: undefined } : n.attributedTo,
-  }));
+  uit.notes = kring.notes.map(readerGates(auth.site, isWard));
   uit.hidden = kring.hidden;
   // Liked/boosted per antwoord, BUITEN de cache om: de genormaliseerde notes
   // mogen twee minuten oud zijn, maar of JIJ iets geliked hebt hoort van nu te
@@ -1478,6 +1484,33 @@ router.get('/ap/users/:slug/thread', async (req, res) => {
     })),
     'shaer:hidden': uit.hidden || undefined,
   }, 'private, no-store');
+});
+
+// ── Eén note, voor wie een gesprek naar boven volgt ────────────────
+//
+// De thread hierboven geeft wat onder een post hangt; dit geeft de post zelf.
+// Een lezer die een antwoord kreeg en de ouder niet, kan die ouder bij een
+// server in secure mode alleen ondertekend halen, en de sleutel staat hier.
+// Bearer-only en niets bewaren, net als de thread. Dezelfde weigering-of-
+// storing en dezelfde poorten; voor een ward met een dichte kring is een note
+// van buiten de kring er niet, en dat wordt gezegd in plaats van verzwegen.
+router.get('/ap/users/:slug/object', async (req, res) => {
+  const auth = OAuth.verifyBearer(req.headers.authorization);
+  if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
+  const objectUri = String(req.query.uri || '');
+  if (!/^https:\/\//i.test(objectUri)) return res.status(400).json({ error: 'uri must be an https URI' });
+  const uit = await AP.getObject(auth.site.slug, objectUri);
+  if (!uit.found) {
+    const geweigerd = [401, 403, 404, 410].includes(uit.sourceStatus);
+    return res.status(geweigerd ? 404 : 502)
+      .json({ error: geweigerd ? 'not shared by source' : 'source unreachable', sourceStatus: uit.sourceStatus || undefined });
+  }
+  const isWard = (() => { try { return Guardianship.listGuardians(auth.site.slug).length > 0; } catch { return false; } })();
+  const threadsOpen = Guardianship.wardGateAllowed(auth.site.external_threads, isWard);
+  if (!threadsOpen && !AP.filterThreadToCircle(auth.site.slug, [uit.note]).notes.length) {
+    return res.status(404).json({ error: 'outside the circle', 'shaer:hidden': 1 });
+  }
+  AP.sendAP(res, { '@context': AP.AP_CONTEXT, ...readerGates(auth.site, isWard)(uit.note) }, 'private, no-store');
 });
 
 router.get('/ap/notes/:id/replies', (req, res) => {

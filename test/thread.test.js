@@ -239,3 +239,100 @@ test('een weigering van de bron is 404, een storing is 502', async (t) => {
   assert.equal(broken.status, 502);
   assert.equal(broken.body.error, 'source unreachable');
 });
+
+// ── Eén note, naar boven (de object-route) ───────────────────────────
+//
+// De thread geeft alleen wat onder een post hangt. Een lezer die een antwoord
+// kreeg en de ouder niet, vraagt de ouder hier. Wat hier stil kan breken: een
+// ouder die verzonnen wordt (de thread-fallback die meelekt), een geblokkeerde
+// die toch zichtbaar wordt, en een route zonder bearer-check.
+test('getObject geeft de note zelf, met alleen de ouder die de bron noemde', async (t) => {
+  const vorige = globalThis.fetch;
+  t.after(() => { globalThis.fetch = vorige; });
+  const KIND_REPLY = 'https://203.0.113.60/notes/antwoord';
+  const WORTEL = 'https://203.0.113.60/notes/wortel';
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    const json = (o) => new Response(JSON.stringify(o), { status: 200, headers: { 'content-type': 'application/activity+json' } });
+    if (u === KIND_REPLY) return json({ id: KIND_REPLY, type: 'Note', attributedTo: TANTE, inReplyTo: WORTEL, content: '<p>ja <script>x</script></p>', published: '2026-09-07T13:42:26Z' });
+    if (u === WORTEL) return json({ id: WORTEL, type: 'Note', attributedTo: TANTE, content: '<p>begin</p>' });
+    if (u === TANTE) return json(actorDoc(TANTE, 'tante'));
+    return new Response('not found', { status: 404 });
+  };
+
+  const antwoord = await AP.getObject('kind', KIND_REPLY);
+  assert.equal(antwoord.found, true);
+  assert.equal(antwoord.note.inReplyTo, WORTEL, 'de ouder die de bron gaf');
+  assert.equal(antwoord.note.attributedTo.name, 'tante');
+  assert.ok(!antwoord.note.content.includes('<script'), 'geschoond');
+
+  const wortel = await AP.getObject('kind', WORTEL);
+  assert.equal(wortel.found, true);
+  assert.equal(wortel.note.inReplyTo, undefined, 'geen ouder verzonnen voor een wortel');
+});
+
+test('getObject: een geblokkeerde auteur is er niet, een weigering is een weigering', async (t) => {
+  const vorige = globalThis.fetch;
+  t.after(() => { globalThis.fetch = vorige; });
+  const VAN_NAAR = 'https://203.0.113.40/notes/van-naar';
+  globalThis.fetch = async (url) => (String(url) === VAN_NAAR
+    ? new Response(JSON.stringify({ id: VAN_NAAR, type: 'Note', attributedTo: GEBLOKT, content: 'x' }), { status: 200 })
+    : new Response('nope', { status: 410 }));
+
+  const geblokt = await AP.getObject('kind', VAN_NAAR);
+  assert.equal(geblokt.found, false);
+  assert.equal(geblokt.note, null);
+
+  const weg = await AP.getObject('kind', 'https://203.0.113.61/notes/weg');
+  assert.equal(weg.found, false);
+  assert.equal(weg.sourceStatus, 410);
+});
+
+test('de object-route: alleen met de eigen bearer, en een weigering is 404', async (t) => {
+  const crypto = await import('crypto');
+  const express = (await import('express')).default;
+  const routes = (await import('../src/routes/activitypub.js')).default;
+
+  // Een eigen site zonder guardians, zodat de poorten van de tests hierboven
+  // (de ward met de dichte emoji-poort) hier niet meetellen.
+  db.prepare('INSERT INTO sites (id, slug, title, owner_id) VALUES (?,?,?,?)').run('s-lezer', 'lezer', 'Lezer', 'u1');
+  const bearer = 'test-token-' + 'e'.repeat(24);
+  db.prepare('INSERT INTO oauth_tokens (token_hash, client_id, user_id, site_slug, scope) VALUES (?,?,?,?,?)')
+    .run(crypto.createHash('sha256').update(bearer).digest('base64url'), 'c', 'u1', 'lezer', 'read write');
+
+  const app = express();
+  app.use(routes);
+  const server = app.listen(0);
+  t.after(() => server.close());
+  await new Promise((r) => server.once('listening', r));
+
+  const vorige = globalThis.fetch;
+  t.after(() => { globalThis.fetch = vorige; });
+  const OUDER = 'https://203.0.113.62/notes/ouder';
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u === OUDER) return new Response(JSON.stringify({ id: OUDER, type: 'Note', attributedTo: VREEMDE, content: '<p>de ouder</p>', inReplyTo: BRON }), { status: 200 });
+    if (u === VREEMDE) return new Response(JSON.stringify(actorDoc(VREEMDE, 'vreemde')), { status: 200 });
+    return new Response('nope', { status: 404 });
+  };
+  const ask = async (slug, uri, auth = `Bearer ${bearer}`) => {
+    const r = await realFetch(
+      `http://127.0.0.1:${server.address().port}/ap/users/${slug}/object?uri=${encodeURIComponent(uri)}`,
+      { headers: auth ? { Authorization: auth } : {} });
+    return { status: r.status, body: r.status === 403 ? null : await r.json() };
+  };
+
+  assert.equal((await ask('lezer', OUDER, null)).status, 403, 'zonder bearer niets');
+  assert.equal((await ask('kind', OUDER)).status, 403, 'niet met de bearer van een ander');
+  assert.equal((await ask('lezer', 'http://203.0.113.62/notes/ouder')).status, 400, 'alleen https');
+
+  const ok = await ask('lezer', OUDER);
+  assert.equal(ok.status, 200);
+  assert.equal(ok.body.id, OUDER);
+  assert.equal(ok.body.inReplyTo, BRON);
+  assert.equal(ok.body.attributedTo.name, 'vreemde');
+
+  const dicht = await ask('lezer', 'https://203.0.113.63/notes/dicht');
+  assert.equal(dicht.status, 404);
+  assert.equal(dicht.body.error, 'not shared by source');
+});

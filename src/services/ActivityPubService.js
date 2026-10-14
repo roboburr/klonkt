@@ -2495,6 +2495,50 @@ function collectionItems(coll) {
 }
 
 /**
+ * Eén vreemde note in de vorm die de C2S-lezer krijgt: geschoonde HTML, de
+ * byline ingesloten in attributedTo, alleen emoji-tags. Gedeeld door de thread
+ * (antwoorden) en getObject (één note), zodat die twee niet uit elkaar lopen.
+ *
+ * `parentFallback` is voor de thread: een antwoord in de replies-collectie van
+ * X dat zelf geen inReplyTo noemt, hangt aantoonbaar onder X. Voor één losse
+ * note is er zo'n bewijs niet, en dan blijft inReplyTo leeg.
+ */
+function readerNote(o, actorUri, authorDoc, parentFallback = null) {
+  return {
+    id: o.id,
+    type: 'Note',
+    // De ingesloten actor (shaer-nmw): de byline hoort in attributedTo, waar
+    // elke AP-lezer hem zoekt, en niet in een eigen property ernaast.
+    attributedTo: actorObject(actorUri, actorInfo(authorDoc, actorUri)),
+    inReplyTo: (typeof o.inReplyTo === 'string' ? o.inReplyTo : (o.inReplyTo && o.inReplyTo.id)) || parentFallback || undefined,
+    content: HtmlSanitizerService.sanitize(String(o.content || '').slice(0, 50_000)),
+    url: safeUrl(typeof o.url === 'string' ? o.url : (o.url && o.url.href)) || undefined,
+    published: typeof o.published === 'string' ? o.published : undefined,
+    sensitive: !!o.sensitive,
+    summary: (contentWarning(o) || '').slice(0, 500) || undefined,
+    attachment: (() => {
+      const arr = Array.isArray(o.attachment) ? o.attachment : (o.attachment ? [o.attachment] : []);
+      const out = arr.map((a) => ({ type: 'Document', mediaType: (a && a.mediaType) || undefined, url: safeUrl(a && a.url), name: (a && typeof a.name === 'string') ? a.name.slice(0, 1500) : undefined }))
+        .filter((a) => a.url);
+      return out.length ? out.slice(0, 8) : undefined;
+    })(),
+    // FEP-9098: de custom emoji van het antwoord (":shortcode:" -> plaatje).
+    // Zonder deze tags rendert een reply van een Mastodon-account zijn emoji
+    // als kale tekst (Barts punt, 8-8). Alleen naam + geschoond icoon-adres
+    // gaan door; de rest van de vreemde tag-array blijft achter.
+    tag: (() => {
+      const j = extractEmojiTags(o.tag);
+      if (!j) return undefined;
+      const out = JSON.parse(j)
+        .map((t) => ({ type: 'Emoji', name: t.name, icon: { type: 'Image', url: safeUrl(t.icon && (t.icon.url || (Array.isArray(t.icon) && t.icon[0] && t.icon[0].url))) } }))
+        .filter((t) => t.icon.url)
+        .slice(0, 30);
+      return out.length ? out : undefined;
+    })(),
+  };
+}
+
+/**
  * De directe antwoorden op één note, genormaliseerd voor de C2S-lezer.
  *
  * ALLEEN ophalen en normaliseren; de poorten zitten in de route. De
@@ -2565,38 +2609,8 @@ export async function getThread(slug, objectUri) {
     authors.set(uri, localActorObject(uri) || await signedGetJson(slug, uri).catch(() => null));
   }));
 
-  const notes = kept.map(({ o, actorUri }) => ({
-    id: o.id,
-    type: 'Note',
-    // De ingesloten actor (shaer-nmw): de byline hoort in attributedTo, waar
-    // elke AP-lezer hem zoekt, en niet in een eigen property ernaast.
-    attributedTo: actorObject(actorUri, actorInfo(authors.get(actorUri), actorUri)),
-    inReplyTo: (typeof o.inReplyTo === 'string' ? o.inReplyTo : (o.inReplyTo && o.inReplyTo.id)) || objectUri,
-    content: HtmlSanitizerService.sanitize(String(o.content || '').slice(0, 50_000)),
-    url: safeUrl(typeof o.url === 'string' ? o.url : (o.url && o.url.href)) || undefined,
-    published: typeof o.published === 'string' ? o.published : undefined,
-    sensitive: !!o.sensitive,
-    summary: (contentWarning(o) || '').slice(0, 500) || undefined,
-    attachment: (() => {
-      const arr = Array.isArray(o.attachment) ? o.attachment : (o.attachment ? [o.attachment] : []);
-      const out = arr.map((a) => ({ type: 'Document', mediaType: (a && a.mediaType) || undefined, url: safeUrl(a && a.url), name: (a && typeof a.name === 'string') ? a.name.slice(0, 1500) : undefined }))
-        .filter((a) => a.url);
-      return out.length ? out.slice(0, 8) : undefined;
-    })(),
-    // FEP-9098: de custom emoji van het antwoord (":shortcode:" -> plaatje).
-    // Zonder deze tags rendert een reply van een Mastodon-account zijn emoji
-    // als kale tekst (Barts punt, 8-8). Alleen naam + geschoond icoon-adres
-    // gaan door; de rest van de vreemde tag-array blijft achter.
-    tag: (() => {
-      const j = extractEmojiTags(o.tag);
-      if (!j) return undefined;
-      const out = JSON.parse(j)
-        .map((t) => ({ type: 'Emoji', name: t.name, icon: { type: 'Image', url: safeUrl(t.icon && (t.icon.url || (Array.isArray(t.icon) && t.icon[0] && t.icon[0].url))) } }))
-        .filter((t) => t.icon.url)
-        .slice(0, 30);
-      return out.length ? out : undefined;
-    })(),
-  })).sort((a, b) => String(a.published || '').localeCompare(String(b.published || '')));
+  const notes = kept.map(({ o, actorUri }) => readerNote(o, actorUri, authors.get(actorUri), objectUri))
+    .sort((a, b) => String(a.published || '').localeCompare(String(b.published || '')));
 
   const out = { notes, found: !!note, sourceStatus };
   threadViewCache.set(key, { at: Date.now(), out });
@@ -2605,6 +2619,29 @@ export async function getThread(slug, objectUri) {
     if (oldest) threadViewCache.delete(oldest[0]);
   }
   return out;
+}
+
+/**
+ * Eén note, ondertekend opgehaald, in dezelfde vorm als een thread-antwoord.
+ *
+ * De thread hierboven geeft alleen wat ONDER een post hangt. Wie een gesprek
+ * naar boven wil volgen -- een antwoord kwam binnen, de ouder nooit -- kan die
+ * ouder zonder de sleutel die hier woont niet halen bij een server in secure
+ * mode. Niets wordt bewaard, net als bij de thread.
+ *
+ * inReplyTo staat er alleen als de bron hem gaf: een verzonnen ouder is erger
+ * dan geen. Een geblokkeerde auteur maakt de note onvindbaar, met dezelfde
+ * status als een bron die nee zegt -- een blokkade hoort onzichtbaar te zijn.
+ */
+export async function getObject(slug, objectUri) {
+  let sourceStatus = 0;
+  const o = localNoteObject(objectUri, slug)
+    || await signedGetJson(slug, objectUri, (st) => { sourceStatus = st; });
+  if (!o || !o.id || !o.attributedTo) return { note: null, found: false, sourceStatus };
+  const actorUri = actorUriOf(o.attributedTo);
+  if (!actorUri || isBlockedAny(actorUri)) return { note: null, found: false, sourceStatus: 404 };
+  const author = localActorObject(actorUri) || await signedGetJson(slug, actorUri).catch(() => null);
+  return { note: readerNote(o, actorUri, author), found: true, sourceStatus };
 }
 
 /**
@@ -4345,7 +4382,7 @@ export default {
   autoBoostCount, boostedCount, setReaction, getReaction, getReactionsFor, canonicalReactionUri, migrateReactions, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
-  sendMaybe304, etagFor, onGuardian, wakeGuardian, onGuardianshipEvent, proposeGate, getReplyUris, getThread, filterThreadToCircle, gateAttachments, stripEmojiTags, actorObject, previewObject, quoteObject, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
+  sendMaybe304, etagFor, onGuardian, wakeGuardian, onGuardianshipEvent, proposeGate, getReplyUris, getThread, getObject, filterThreadToCircle, gateAttachments, stripEmojiTags, actorObject, previewObject, quoteObject, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,
   linkifyBody, bakePostContent, bakePostContentWithMentions, listFollowers, removeFollower, listConnections,
   noteVisibility, belongsInTimeline, playerUrlFor, isRejectedObject, rejectInteraction, interactionReportTarget,
   getMessages, notificationsSeenAt, ingestOutboxActivity, c2sVisibility, actorDisplay, buildActorRef, prefersEnriched, selfAuthor, getReplyMessages, onNews, wakeNews,
