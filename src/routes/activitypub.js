@@ -20,6 +20,7 @@ import { apEnabled } from '../services/SettingsService.js';
 import OAuth from '../services/OAuthService.js';
 import * as Guardianship from '../services/guardianship/index.js';
 import * as ConversationKey from '../services/conversation-key.js';
+import * as IdentityProof from '../services/IdentityProof.js';
 import * as Migration from '../services/MigrationService.js';
 import { getPrimarySite } from '../middleware/site.js';
 import multer from 'multer';
@@ -1028,6 +1029,53 @@ const apMediaUpload = multer({
     cb(null, true);
   },
 });
+// ── Identiteitsbewijzen (FEP-c390, shaer-jpxj) ────────────────────
+//
+// De eigenaar biedt een verklaring aan die met een sleutel van ELDERS is
+// ondertekend: "did:key:... is ook deze actor". Deze server ondertekent niets;
+// hij controleert (IdentityProof.checkStatement) en publiceert onder
+// `attachment` op de actor, waar iedereen hem zelf kan nalopen.
+//
+// Eén per did:key: een nieuwe verklaring met dezelfde sleutel vervangt de
+// vorige, want een verhuizing of een vernieuwde datum is dezelfde bewering.
+// Een handvol is genoeg; meer is geen identiteit meer maar een verzameling.
+const MAX_IDENTITY_PROOFS = 3;
+function readProofs(site) {
+  try { const a = JSON.parse(site.identity_proofs || '[]'); return Array.isArray(a) ? a : []; } catch { return []; }
+}
+function writeProofs(site, list) {
+  db.prepare('UPDATE sites SET identity_proofs = ? WHERE id = ?').run(list.length ? JSON.stringify(list) : null, site.id);
+  // De volgers horen dat de actor veranderde; anders blijft hun kopie de oude.
+  const vers = db.prepare('SELECT * FROM sites WHERE id = ?').get(site.id);
+  if (vers) AP.deliverActorUpdate(vers).catch((e) => console.warn('[c390] actor-update:', e && e.message));
+}
+router.post('/ap/users/:slug/identityProofs', express.json({ limit: '16kb', type: ['application/json', 'application/activity+json', 'application/ld+json'] }), (req, res) => {
+  const auth = OAuth.verifyBearer(req.headers.authorization);
+  if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
+  const base = baseUrl(req);
+  const me = AP.actorId(base, auth.site.slug);
+  const stmt = req.body;
+  const uitslag = IdentityProof.checkStatement(stmt, me);
+  if (!uitslag.ok) return res.status(422).json({ error: uitslag.error });
+  const site = db.prepare('SELECT * FROM sites WHERE id = ?').get(auth.site.id);
+  const rest = readProofs(site).filter((b) => b && b.subject !== uitslag.subject);
+  if (rest.length >= MAX_IDENTITY_PROOFS) return res.status(409).json({ error: 'too_many_identity_proofs', max: MAX_IDENTITY_PROOFS });
+  writeProofs(site, [...rest, stmt]);
+  res.status(201).json({ subject: uitslag.subject, alsoKnownAs: me });
+});
+router.delete('/ap/users/:slug/identityProofs', (req, res) => {
+  const auth = OAuth.verifyBearer(req.headers.authorization);
+  if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
+  const subject = String(req.query.subject || '');
+  if (!IdentityProof.publicKeyFromDidKey(subject)) return res.status(400).json({ error: 'subject must be an Ed25519 did:key' });
+  const site = db.prepare('SELECT * FROM sites WHERE id = ?').get(auth.site.id);
+  const voor = readProofs(site);
+  const na = voor.filter((b) => b && b.subject !== subject);
+  if (na.length === voor.length) return res.status(404).json({ error: 'no_such_identity_proof' });
+  writeProofs(site, na);
+  res.status(204).end();
+});
+
 router.post('/ap/users/:slug/uploadMedia', (req, res) => {
   const auth = OAuth.verifyBearer(req.headers.authorization);
   if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();

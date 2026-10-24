@@ -244,6 +244,10 @@ export function initializeDatabase() {
   // lege ruimte. Stond eerst vast op AAN, is toen vast op UIT gezet omdat een
   // kort bericht een halve pagina leegte gaf; nu is het een keuze.
   ensureColumn('sites', 'reader_full_page', 'INTEGER DEFAULT 0');
+  // Identiteitsbewijzen (FEP-c390, shaer-jpxj): de ondertekende verklaringen,
+  // als JSON-lijst, precies zoals ze binnenkwamen -- een handtekening hangt aan
+  // elke byte van de canonieke vorm, dus herschrijven zou hem breken.
+  ensureColumn('sites', 'identity_proofs', 'TEXT');
   ensureColumn('sites', 'show_search',     'INTEGER DEFAULT 1');
   ensureColumn('sites', 'show_archive_link', 'INTEGER DEFAULT 1');
   // Gated feature (FEP-633c): may external (non-fediverse) embeds be shown to

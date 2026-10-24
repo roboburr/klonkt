@@ -57,6 +57,10 @@ const AS2 = new Set([
   'shaer:openComplete',
   // ActivityPub §4.1 `endpoints` vocabulary (same category as sharedInbox), used for C2S.
   'oauthAuthorizationEndpoint', 'oauthTokenEndpoint', 'uploadMedia',
+  // FEP-c390 (shaer-jpxj): waar de eigenaar een identiteitsbewijs aanbiedt. De
+  // verklaringen zelf staan onder `attachment` en dragen hun eigen @context
+  // (did/v1, data-integrity/v1, fep/c390), dus hun termen horen niet hier.
+  'shaer:identityProofs',
   'publicKey', 'owner', 'publicKeyPem',
   'Note', 'Person', 'Create', 'Update', 'Delete', 'Tombstone', 'Announce', 'Like', 'Follow',
   'Accept', 'Reject', 'Undo', 'Add', 'Remove', 'Flag', 'Document', 'Image', 'Audio', 'Video',

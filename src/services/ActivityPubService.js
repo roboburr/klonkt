@@ -392,6 +392,9 @@ export function buildActor(base, site) {
       oauthAuthorizationEndpoint: `${base}/oauth/authorize`,
       oauthTokenEndpoint: `${base}/oauth/token`,
       uploadMedia: `${id}/uploadMedia`,
+      // FEP-c390 (shaer-jpxj): waar de eigenaar een identiteitsbewijs aanbiedt.
+      // Alleen met zijn token; Shaer vindt het hier in plaats van het te raden.
+      'shaer:identityProofs': `${id}/identityProofs`,
     },
     publicKey: {
       id: `${id}#main-key`,
@@ -448,6 +451,16 @@ export function buildActor(base, site) {
       if (rows.length) actor.attachment = rows;
     }
   } catch { /* skip malformed profile_links */ }
+  // FEP-c390: de identiteitsbewijzen, ACHTER de profiellinks. Ongewijzigd uit de
+  // database: ze werden bij binnenkomst gecontroleerd, en een handtekening hangt
+  // aan elke byte. Elke verklaring draagt haar eigen @context, dus de actor zelf
+  // hoeft er geen bij.
+  try {
+    const bewijzen = JSON.parse(site.identity_proofs || '[]');
+    if (Array.isArray(bewijzen) && bewijzen.length) {
+      actor.attachment = [...(actor.attachment || []), ...bewijzen.filter((b) => b && b.type === 'VerifiableIdentityStatement')];
+    }
+  } catch { /* skip malformed identity_proofs */ }
   return actor;
 }
 
