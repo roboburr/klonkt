@@ -166,6 +166,39 @@ router.get('/.well-known/webfinger', (req, res) => {
       ],
     }));
   }
+  // ── Een did:key: welk account zegt dat het deze sleutel is? ──────
+  //
+  // FEP-c390 zet het bewijs op de actor en zegt niets over vinden. Wie een
+  // papieren sleutel vasthoudt (shaer-jpxj) en wil weten bij welk account hij
+  // hoort -- bij een verhuizing, of om iemand na te lopen -- vraagt het hier:
+  // RFC 7033 laat elke URI als resource toe, dus dit is gewoon WebFinger.
+  //
+  // Alleen wat NU klopt: elke verklaring wordt opnieuw nagelopen tegen de
+  // actor waar ze op staat, en alleen openbare sites tellen, net als bij acct:.
+  // Twee accounts met dezelfde sleutel zijn mogelijk en horen er dan allebei
+  // te staan: dat is precies het oude en het nieuwe account na een verhuizing.
+  // De vrager leert niets dat niet al op die actors staat.
+  const did = String(req.query.resource || '').trim();
+  if (IdentityProof.publicKeyFromDidKey(did)) {
+    const base = baseUrl(req);
+    // De LIKE voorselecteert alleen; base58 bevat geen % of _.
+    const actors = db.prepare('SELECT * FROM sites WHERE identity_proofs LIKE ? AND (is_public IS NULL OR is_public = 1) ORDER BY slug')
+      .all(`%${did}%`)
+      .filter((site) => {
+        const me = AP.actorId(base, site.slug);
+        return readProofs(site).some((b) => b && b.subject === did && IdentityProof.checkStatement(b, me).ok);
+      })
+      .map((site) => AP.actorId(base, site.slug));
+    if (!actors.length) return res.status(404).end();
+    res.type('application/jrd+json; charset=utf-8');
+    // Korter dan bij acct:: wie een sleutel net weghaalde, hoort dat snel terug te zien.
+    res.set('Cache-Control', 'public, max-age=60');
+    return res.send(JSON.stringify({
+      subject: did,
+      aliases: actors,
+      links: actors.map((href) => ({ rel: 'self', type: 'application/activity+json', href })),
+    }));
+  }
   const user = webfingerGebruiker(req.query.resource);
   if (!user) return res.status(400).type('text/plain').send('bad resource');
   let site = publicSite(user);
