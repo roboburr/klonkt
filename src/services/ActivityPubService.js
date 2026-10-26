@@ -3198,7 +3198,12 @@ async function resolveCard(o) {
 // top-level posts into the timeline for `slug`. Push (Create delivery) cannot backfill
 // history-from-before-you-followed or a delivery that was missed while you were down;
 // reading the outbox is the spec-conform way to catch up. PULL ONLY — sends nothing.
-export async function backfillFromOutbox(slug, actorUri, limit = 20) {
+//
+// `since` (ms of een ISO-datum): alleen wat daarna gepubliceerd is. Voor het
+// inhalen na een afwezigheid (shaer-xzab.4): dan hoort niet de hele eerste
+// pagina erbij, alleen wat er sinds het wegvallen bij kwam. Een post zonder
+// datum telt dan niet mee -- van die weet je niet of hij gemist is.
+export async function backfillFromOutbox(slug, actorUri, limit = 20, { since = null } = {}) {
   try {
     if (!slug || !actorUri) return 0;
     const actor = await fetchActor(actorUri);
@@ -3222,6 +3227,10 @@ export async function backfillFromOutbox(slug, actorUri, limit = 20) {
       if (!o || !o.id) continue;
       if (o.type && o.type !== 'Note' && o.type !== 'Article' && o.type !== 'Question') continue; // skip boosts/other
       if (o.inReplyTo) continue;                                          // top-level only
+      if (since != null) {
+        const t = Date.parse(o.published || '');
+        if (!Number.isFinite(t) || t < new Date(since).getTime()) continue;
+      }
       const auth = actorUriOf(o.attributedTo);
       if (auth && auth !== actorUri) continue;                            // their OWN posts only
       const html = HtmlSanitizerService.sanitize(o.content || '');
