@@ -92,7 +92,7 @@ export async function deliverDirectNote(site, { recipients, text, html, language
   // schermafdruk erbij, en threaden andere fediverse-servers hem net zo goed.
   if (!inReplyTo && helpMark && helpMark.noteUri) inReplyTo = helpMark.noteUri;
   const { actorId, fetchActor, localActor, deliverTo, deriveHandle, escHtml, linkUrls, linkHashtags,
-          getOutboxRow, buildReplyNote, AP_CONTEXT, getOrCreateKeys, deliver, enqueueDelivery } = deps;
+          getOutboxRow, buildReplyNote, AP_CONTEXT, getOrCreateKeys, deliverNowOrQueue } = deps;
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   const list = [...new Set((recipients || []).filter((u) => /^https?:\/\//i.test(String(u || ''))))].slice(0, 8);
   if (!base || !site || !site.slug || !list.length) return null;
@@ -206,11 +206,9 @@ export async function deliverDirectNote(site, { recipients, text, html, language
     if (res && res.delivered) delivered++;
   }
   // Remote: one POST per inbox, so two guardians on the same server share it.
+  // Langs de volgorde per inbox (shaer-xzab.3), zoals elke bezorging.
   for (const inbox of [...new Set(resolved.filter((x) => !x.local).map((r) => r.inbox))]) {
-    let ok = false;
-    try { const st = await deliver(inbox, create, keyId, keys.private_pem); ok = st >= 200 && st < 300; } catch { ok = false; }
-    if (ok) delivered++;
-    else enqueueDelivery(site.slug, inbox, create);
+    if ((await deliverNowOrQueue(site.slug, inbox, create, keyId, keys.private_pem)) === 'sent') delivered++;
   }
   console.log('[AP] direct note', site.slug, '→', resolved.length, 'recipient(s), delivered', delivered);
   return { id, content, delivered, teapots };

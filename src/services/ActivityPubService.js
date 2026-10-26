@@ -33,12 +33,12 @@ import { PUBLIC, AP_CONTEXT, safeUrl, actorId, noteId, guessMediaType, normalize
 // importeur blijft werken, hetzelfde patroon als de Guardianship-exports onderaan.
 import {
   safeFetch, getOrCreateKeys, deliver, fetchActor,
-  enqueueDelivery, deliverWithRetry, processDeliveryQueue, startDeliveryWorker,
+  enqueueDelivery, deliverWithRetry, deliverNowOrQueue, processDeliveryQueue, startDeliveryWorker,
   anySigningSlug, verifyRequest, signedGetHeaders, signedGetJson, apGetJson,
 } from './ap-transport.js';
 export {
   safeFetch, getOrCreateKeys, deliver, fetchActor,
-  enqueueDelivery, deliverWithRetry, processDeliveryQueue, startDeliveryWorker,
+  enqueueDelivery, deliverWithRetry, deliverNowOrQueue, processDeliveryQueue, startDeliveryWorker,
   verifyRequest, signedGetHeaders, signedGetJson,
 };
 // Stap 4 (shaer-drc): de C2S-inname woont in ap-c2s.js. Die is een coordinator
@@ -2415,10 +2415,9 @@ export async function deliverReply(site, { postId, postSlug, parent, text, html,
   inboxes.delete(`${base}/ap/inbox`);  // (our own shared inbox) → avoids a self-duplicate
   let delivered = 0;
   for (const inbox of [...inboxes].filter(Boolean)) {
-    let ok = false;
-    try { const st = await deliver(inbox, create, keyId, keys.private_pem); ok = st >= 200 && st < 300; } catch { ok = false; }
-    if (ok) delivered++;
-    else enqueueDelivery(site.slug, inbox, create); // durable: retry a briefly-offline recipient (was silently dropped)
+    // Langs de volgorde per inbox (shaer-xzab.3); wat niet meteen kan, gaat
+    // in de rij en wordt later opnieuw geprobeerd.
+    if ((await deliverNowOrQueue(site.slug, inbox, create, keyId, keys.private_pem)) === 'sent') delivered++;
   }
   console.log('[AP] outreply', site.slug, '→', parent.actor_uri, 'delivered', delivered);
   return { id, content, delivered };
@@ -2788,10 +2787,10 @@ export async function deliverOutboxDelete(site, outboxId) {
     const inboxes = new Set();
     if (row.to_actor) { const a = await fetchActor(row.to_actor).catch(() => null); if (a) inboxes.add((a.endpoints && a.endpoints.sharedInbox) || a.inbox); }
     for (const f of fStmts().list.all(site.slug)) inboxes.add(f.shared_inbox || f.inbox);
-    for (const inbox of [...inboxes].filter(Boolean)) {
-      try { const st = await deliver(inbox, del, `${me}#main-key`, keys.private_pem); if (st >= 200 && st < 300) continue; } catch { /* queue below */ }
-      enqueueDelivery(site.slug, inbox, del); // durable: a failed comment-delete now retries (was silently dropped)
-    }
+    // Langs de volgorde per inbox (shaer-xzab.3): deze Delete mag niet vóór
+    // de Create van dezelfde reactie aankomen als die nog in de rij wacht --
+    // dan stond de reactie daarna weer op die server.
+    for (const inbox of [...inboxes].filter(Boolean)) await deliverNowOrQueue(site.slug, inbox, del, `${me}#main-key`, keys.private_pem);
   }
   db.prepare('DELETE FROM ap_outbox WHERE id = ?').run(outboxId);
   return true;
@@ -4163,7 +4162,7 @@ export async function deliverToActor(site, actorUri, activity) {
 Guardianship.wireDelivery({
   actorId, fetchActor, localActor, deliverTo: deliverToActor, deriveHandle, escHtml, linkUrls, linkHashtags,
   getOutboxRow: (id) => iStmts().getO.get(id),
-  buildReplyNote, AP_CONTEXT, getOrCreateKeys, deliver, enqueueDelivery,
+  buildReplyNote, AP_CONTEXT, getOrCreateKeys, deliverNowOrQueue,
   // Rijke directe berichten: dezelfde sanitizer als deliverReply gebruikt, zodat
   // een antwoord uit Berichten door precies één poort gaat.
   sanitizeHtml: (h) => HtmlSanitizerService.sanitize(h),

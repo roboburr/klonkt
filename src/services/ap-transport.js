@@ -277,20 +277,30 @@ function markFollowerDelivery(slug, inbox, ok) {
     (ok ? _fDelivOk : _fDelivErr).run(slug, inbox, inbox);
   } catch { /* health tracking is non-fatal */ }
 }
-// Deliver now; queue for retry if it fails.
+// Deliver now, or queue: zegt welke van de twee het werd ('sent' | 'queued'),
+// voor de aanroepers die tellen wat er meteen aankwam.
 //
 // Niet meteen als er voor deze inbox al iets in de wachtrij staat (dan zou dit
 // er voorbij gaan: een Delete vóór de Create die nog wacht), en niet als deze
 // server net faalde en in zijn backoff zit (dan kost het alleen acht seconden
 // time-out om hetzelfde te horen). Dan achteraan in de rij.
-export async function deliverWithRetry(slug, inbox, activity, keyId, privPem) {
-  if (!inbox) return;
+//
+// DE ENIGE WEG om iets direct te versturen dat bij een mislukking in de rij
+// hoort (shaer-xzab.3). Drie plekken deden eerst zelf deliver() en pas bij een
+// mislukking enqueueDelivery(), en gingen zo langs de volgorde per inbox.
+export async function deliverNowOrQueue(slug, inbox, activity, keyId, privPem) {
+  if (!inbox) return 'queued';
   try {
     const st = deliveryStmts();
-    if (st.pendInbox.get(inbox) || st.hostWaits.get(inboxHost(inbox))) { enqueueDelivery(slug, inbox, activity); return; }
+    if (st.pendInbox.get(inbox) || st.hostWaits.get(inboxHost(inbox))) { enqueueDelivery(slug, inbox, activity); return 'queued'; }
   } catch { /* geen wachtrij te lezen: gewoon proberen */ }
-  try { const st = await deliver(inbox, activity, keyId, privPem); if (st >= 200 && st < 300) { markFollowerDelivery(slug, inbox, true); return; } } catch { /* queue below */ }
+  try { const st = await deliver(inbox, activity, keyId, privPem); if (st >= 200 && st < 300) { markFollowerDelivery(slug, inbox, true); return 'sent'; } } catch { /* queue below */ }
   enqueueDelivery(slug, inbox, activity);
+  return 'queued';
+}
+// Deliver now; queue for retry if it fails.
+export async function deliverWithRetry(slug, inbox, activity, keyId, privPem) {
+  await deliverNowOrQueue(slug, inbox, activity, keyId, privPem);
 }
 let _processingDeliv = false;
 export async function processDeliveryQueue() {
