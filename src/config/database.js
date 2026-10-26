@@ -888,6 +888,25 @@ export function initializeDatabase() {
     );
     CREATE INDEX IF NOT EXISTS idx_ap_reports_slug ON ap_reports(slug, created_at);
   `);
+  // De bezorgwachtrij per SERVER en per INBOX (shaer-xzab.3). `host` zodat één
+  // mislukking naar een server al zijn rijen opschuift, in plaats van dertig
+  // rijen met elk acht seconden time-out op dezelfde dode server; de index op
+  // (inbox, id) zodat "oudste eerst per inbox" geen volle scan per rij is.
+  // Rijen van voor deze kolom krijgen hun host hier, eenmalig.
+  ensureColumn('ap_delivery', 'host', 'TEXT');
+  try {
+    const zonder = db.prepare('SELECT id, inbox FROM ap_delivery WHERE host IS NULL').all();
+    const zet = db.prepare('UPDATE ap_delivery SET host = ? WHERE id = ?');
+    for (const r of zonder) {
+      let h = null;
+      try { h = new URL(r.inbox).host.toLowerCase(); } catch { /* onleesbaar: blijft null */ }
+      zet.run(h, r.id);
+    }
+  } catch { /* een lege of ontbrekende wachtrij is geen fout */ }
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_ap_delivery_inbox ON ap_delivery(inbox, id);
+    CREATE INDEX IF NOT EXISTS idx_ap_delivery_host ON ap_delivery(host);
+  `);
   // "Feature" a followed account: its posts show in the local Cirkel. Heet in de
   // UI "Uitgelicht" / "Featured" (tl.autoboost), en zo heet de kolom ook in
   // following.csv. Niet te verwarren met `featured` op de ACTOR: dat is de

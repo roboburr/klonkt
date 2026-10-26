@@ -192,21 +192,76 @@ export async function fetchActor(url, opts = {}) {
 // non-2xx) they're queued and retried with backoff so a briefly-offline follower
 // doesn't silently miss the post. The signing key is NOT stored — the worker
 // re-derives it from the actor slug at send time.
-const DELIVERY_MAX_ATTEMPTS = 6;
-const DELIVERY_BACKOFF_MIN = [1, 5, 15, 60, 180, 360];
-let _insDeliv, _dueDeliv, _delDeliv, _bumpDeliv;
+//
+// KLONKT DIE NIET ALTIJD AAN STAAT (shaer-xzab). Een Klonkt op een Mac thuis
+// slaapt, gaat de trein in, staat een weekend uit. Daarom:
+//
+//  - Een bezorging VERLOOPT OP LEEFTIJD (5 dagen sinds created_at), niet na een
+//    aantal pogingen (xzab.1). Zes pogingen waren ~4,5 uur, en de laatste trede
+//    van 360 minuten werd nooit gebruikt: de telling was er eerder.
+//  - OFFLINE ZIJN KOST GEEN POGINGEN (xzab.2). Mislukt een hele beurt op
+//    netwerkniveau, naar meer dan één server en zonder één HTTP-antwoord, dan
+//    ligt het aan ons: alles een paar minuten opschuiven, de telling ongemoeid,
+//    en niets laten verlopen. Slapen kost al niets, want dan loopt de timer niet.
+//  - BACKOFF PER SERVER, VOLGORDE PER INBOX (xzab.3). Eén mislukking naar een
+//    server schuift al zijn rijen op. En per inbox oudste eerst, ook bij het
+//    directe versturen: bij een venster van dagen mag een herhaalde Create niet
+//    NA de Delete van dezelfde post aankomen.
+const DELIVERY_MAX_AGE_MS = 5 * 24 * 60 * 60 * 1000;
+// Minuten tot de volgende poging, op de poging die net mislukte; de laatste
+// trede herhaalt tot de bezorging verloopt.
+const DELIVERY_BACKOFF_MIN = [1, 5, 15, 60, 180, 360, 720, 1440];
+// Hoe ver een beurt opschuift als WIJ offline blijken.
+const OFFLINE_RETRY_MIN = 2;
+
+export function deliveryBackoffMinutes(attemptsSoFar) {
+  return DELIVERY_BACKOFF_MIN[Math.min(Math.max(0, attemptsSoFar), DELIVERY_BACKOFF_MIN.length - 1)];
+}
+
+/** De host (met poort) van een inbox, in kleine letters; null als het geen URL is. */
+export function inboxHost(inbox) {
+  try { return new URL(inbox).host.toLowerCase(); } catch { return null; }
+}
+
+/** Is een bezorging zo oud dat hij opgegeven wordt? created_at is SQLite-UTC
+ *  ('YYYY-MM-DD HH:MM:SS', zonder zone). */
+export function deliveryExpired(createdAt, now = Date.now()) {
+  if (!createdAt) return false;
+  const t = Date.parse(String(createdAt).replace(' ', 'T') + (/[zZ]|[+-]\d\d:?\d\d$/.test(createdAt) ? '' : 'Z'));
+  return Number.isFinite(t) && now - t >= DELIVERY_MAX_AGE_MS;
+}
+
+/** Faalde dit op NETWERKNIVEAU (geen HTTP-antwoord)? Een SSRF-weigering is
+ *  dat niet: die is een besluit, en blijft een besluit als we weer online zijn. */
+function isNetworkError(e) {
+  return !/^ssrf/.test(String((e && e.message) || ''));
+}
+
+let _insDeliv, _dueDeliv, _delDeliv, _bumpDeliv, _hostDeliv, _offDeliv, _pendInbox, _hostWaits;
 function deliveryStmts() {
   if (!_insDeliv) {
-    _insDeliv = db.prepare('INSERT INTO ap_delivery (slug, inbox, body, attempts, next_at) VALUES (?,?,?,0,CURRENT_TIMESTAMP)');
-    _dueDeliv = db.prepare("SELECT * FROM ap_delivery WHERE datetime(next_at) <= datetime('now') ORDER BY next_at LIMIT 30");
+    _insDeliv = db.prepare('INSERT INTO ap_delivery (slug, inbox, host, body, attempts, next_at) VALUES (?,?,?,?,0,CURRENT_TIMESTAMP)');
+    // Alleen de OUDSTE openstaande rij per inbox: een nieuwere wacht op hem, ook
+    // als hij zelf al aan de beurt zou zijn. Op id, want dat is de volgorde
+    // waarin ze ontstonden.
+    _dueDeliv = db.prepare(`SELECT d.* FROM ap_delivery d
+      WHERE datetime(d.next_at) <= datetime('now')
+        AND NOT EXISTS (SELECT 1 FROM ap_delivery o WHERE o.inbox = d.inbox AND o.id < d.id)
+      ORDER BY d.id LIMIT 30`);
     _delDeliv = db.prepare('DELETE FROM ap_delivery WHERE id = ?');
     _bumpDeliv = db.prepare('UPDATE ap_delivery SET attempts = ?, next_at = ? WHERE id = ?');
+    // Een server die faalde: al zijn rijen niet eerder dan de nieuwe poging.
+    _hostDeliv = db.prepare('UPDATE ap_delivery SET next_at = ? WHERE host = ? AND datetime(next_at) < datetime(?)');
+    // Wij offline: opschuiven, de telling ongemoeid.
+    _offDeliv = db.prepare('UPDATE ap_delivery SET next_at = ? WHERE id = ?');
+    _pendInbox = db.prepare('SELECT 1 FROM ap_delivery WHERE inbox = ? LIMIT 1');
+    _hostWaits = db.prepare("SELECT 1 FROM ap_delivery WHERE host = ? AND datetime(next_at) > datetime('now') LIMIT 1");
   }
-  return { ins: _insDeliv, due: _dueDeliv, del: _delDeliv, bump: _bumpDeliv };
+  return { ins: _insDeliv, due: _dueDeliv, del: _delDeliv, bump: _bumpDeliv, host: _hostDeliv, off: _offDeliv, pendInbox: _pendInbox, hostWaits: _hostWaits };
 }
 export function enqueueDelivery(slug, inbox, activity) {
   if (!slug || !inbox || !activity) return;
-  try { deliveryStmts().ins.run(slug, inbox, JSON.stringify(activity)); } catch { /* ignore */ }
+  try { deliveryStmts().ins.run(slug, inbox, inboxHost(inbox), JSON.stringify(activity)); } catch { /* ignore */ }
 }
 // Record delivery health per follower so the followers list can flag dead accounts.
 // Keyed by inbox: a shared-inbox POST reaches every follower behind it, so all of them
@@ -223,8 +278,17 @@ function markFollowerDelivery(slug, inbox, ok) {
   } catch { /* health tracking is non-fatal */ }
 }
 // Deliver now; queue for retry if it fails.
+//
+// Niet meteen als er voor deze inbox al iets in de wachtrij staat (dan zou dit
+// er voorbij gaan: een Delete vóór de Create die nog wacht), en niet als deze
+// server net faalde en in zijn backoff zit (dan kost het alleen acht seconden
+// time-out om hetzelfde te horen). Dan achteraan in de rij.
 export async function deliverWithRetry(slug, inbox, activity, keyId, privPem) {
   if (!inbox) return;
+  try {
+    const st = deliveryStmts();
+    if (st.pendInbox.get(inbox) || st.hostWaits.get(inboxHost(inbox))) { enqueueDelivery(slug, inbox, activity); return; }
+  } catch { /* geen wachtrij te lezen: gewoon proberen */ }
   try { const st = await deliver(inbox, activity, keyId, privPem); if (st >= 200 && st < 300) { markFollowerDelivery(slug, inbox, true); return; } } catch { /* queue below */ }
   enqueueDelivery(slug, inbox, activity);
 }
@@ -237,20 +301,50 @@ export async function processDeliveryQueue() {
     try { rows = deliveryStmts().due.all(); } catch { return; }
     if (!rows || !rows.length) return;
     const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+    // Eerst alles proberen, pas daarna beslissen: of het aan ons lag, zie je
+    // pas aan de hele beurt.
+    const failed = [];          // { row, network }
+    const down = new Set();     // servers die in deze beurt al faalden
+    const skipped = [];         // rijen van zo'n server, niet meer geprobeerd
+    let answered = false;       // kwam er ergens een HTTP-antwoord?
     for (const row of rows) {
-      let ok = false;
+      const host = row.host || inboxHost(row.inbox);
+      if (host && down.has(host)) { skipped.push(row); continue; }
+      let ok = false, network = false;
       try {
         const keys = getOrCreateKeys(row.slug);
         const st = await deliver(row.inbox, JSON.parse(row.body), `${actorId(base, row.slug)}#main-key`, keys.private_pem);
+        answered = true;
         ok = st >= 200 && st < 300;
-      } catch { ok = false; }
+      } catch (e) { network = isNetworkError(e); }
       if (ok) { markFollowerDelivery(row.slug, row.inbox, true); deliveryStmts().del.run(row.id); continue; }
-      const attempts = row.attempts + 1;
-      if (attempts >= DELIVERY_MAX_ATTEMPTS) { markFollowerDelivery(row.slug, row.inbox, false); deliveryStmts().del.run(row.id); console.warn('[AP] delivery gave up after', attempts, 'tries →', row.inbox); continue; }
-      // Index the backoff on the CURRENT attempt count (row.attempts) so the first
-      // retry uses the 1-min tier instead of skipping it.
-      const mins = DELIVERY_BACKOFF_MIN[Math.min(row.attempts, DELIVERY_BACKOFF_MIN.length - 1)];
-      deliveryStmts().bump.run(attempts, new Date(Date.now() + mins * 60000).toISOString(), row.id);
+      failed.push({ row, network, host });
+      if (host) down.add(host);
+    }
+    if (!failed.length) return;
+
+    // Lag het aan ons? Niets beantwoord, alles op netwerkniveau, en naar meer
+    // dan één server -- bij één server is "hij ligt eruit" net zo waarschijnlijk.
+    const hosts = new Set(failed.map((f) => f.host));
+    const offline = !answered && failed.every((f) => f.network) && hosts.size > 1;
+    if (offline) {
+      const later = new Date(Date.now() + OFFLINE_RETRY_MIN * 60000).toISOString();
+      for (const r of [...failed.map((f) => f.row), ...skipped]) deliveryStmts().off.run(later, r.id);
+      console.warn('[AP] delivery: no network for', failed.length, 'deliveries to', hosts.size, 'servers; retrying in', OFFLINE_RETRY_MIN, 'min, attempts untouched');
+      return;
+    }
+
+    for (const { row, host } of failed) {
+      if (deliveryExpired(row.created_at)) {
+        markFollowerDelivery(row.slug, row.inbox, false);
+        deliveryStmts().del.run(row.id);
+        console.warn('[AP] delivery gave up after', row.attempts + 1, 'tries over 5 days →', row.inbox);
+        continue;
+      }
+      const next = new Date(Date.now() + deliveryBackoffMinutes(row.attempts) * 60000).toISOString();
+      deliveryStmts().bump.run(row.attempts + 1, next, row.id);
+      // De hele server wacht mee: zijn andere rijen niet eerder dan deze.
+      if (host) deliveryStmts().host.run(next, host, next);
     }
   } finally { _processingDeliv = false; }
 }
