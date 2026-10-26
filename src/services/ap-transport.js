@@ -240,7 +240,7 @@ function isNetworkError(e) {
 let _insDeliv, _dueDeliv, _delDeliv, _bumpDeliv, _hostDeliv, _offDeliv, _pendInbox, _hostWaits;
 function deliveryStmts() {
   if (!_insDeliv) {
-    _insDeliv = db.prepare('INSERT INTO ap_delivery (slug, inbox, host, body, attempts, next_at) VALUES (?,?,?,?,0,CURRENT_TIMESTAMP)');
+    _insDeliv = db.prepare('INSERT INTO ap_delivery (slug, inbox, host, body, attempts, next_at, tried) VALUES (?,?,?,?,0,CURRENT_TIMESTAMP,?)');
     // Alleen de OUDSTE openstaande rij per inbox: een nieuwere wacht op hem, ook
     // als hij zelf al aan de beurt zou zijn. Op id, want dat is de volgorde
     // waarin ze ontstonden.
@@ -259,9 +259,46 @@ function deliveryStmts() {
   }
   return { ins: _insDeliv, due: _dueDeliv, del: _delDeliv, bump: _bumpDeliv, host: _hostDeliv, off: _offDeliv, pendInbox: _pendInbox, hostWaits: _hostWaits };
 }
-export function enqueueDelivery(slug, inbox, activity) {
+// `tried`: ging er al een poging aan vooraf? Standaard ja, want zo riep iedereen
+// dit aan: na een mislukte deliver(). Alleen wie in de rij zet zonder te
+// proberen (deliverNowOrQueue bij een wachtende inbox of server) zegt nee.
+export function enqueueDelivery(slug, inbox, activity, { tried = true } = {}) {
   if (!slug || !inbox || !activity) return;
-  try { deliveryStmts().ins.run(slug, inbox, inboxHost(inbox), JSON.stringify(activity)); } catch { /* ignore */ }
+  try { deliveryStmts().ins.run(slug, inbox, inboxHost(inbox), JSON.stringify(activity), tried ? 1 : 0); } catch { /* ignore */ }
+}
+
+function objectIdOf(activity) {
+  const o = activity && activity.object;
+  return typeof o === 'string' ? o : (o && typeof o.id === 'string' ? o.id : null);
+}
+
+/**
+ * Een Delete van iets dat voor deze inbox nog in de rij staat (Robins vraag,
+ * 26-10: "shouldn't a Delete on an undelivered Create resolve internally?").
+ *
+ * Ja: haal de wachtende Create en Update van dat object uit de rij. Dan komt
+ * wat gewist is nooit meer aan bij een server die het nog niet had -- de
+ * volgorde per inbox alleen zorgde er wel voor dat de Delete NA de Create
+ * kwam, maar de Create kwam dan nog steeds.
+ *
+ * Of de Delete daarna nog hoeft, hangt af van of er iets aangekomen KAN zijn:
+ * een rij die al eens geprobeerd is, kan dat (een time-out nadat de ander hem
+ * verwerkte). Dan gaat de Delete toch; die is onschuldig als ze hem niet
+ * kenden, en zonder hem blijft de post daar misschien staan.
+ */
+export function cancelUndelivered(inbox, objectId) {
+  if (!inbox || !objectId) return { cancelled: 0, mayHaveArrived: false };
+  let cancelled = 0, mayHaveArrived = false;
+  try {
+    for (const r of db.prepare('SELECT id, body, attempts, tried FROM ap_delivery WHERE inbox = ?').all(inbox)) {
+      let a; try { a = JSON.parse(r.body); } catch { continue; }
+      if (!a || (a.type !== 'Create' && a.type !== 'Update') || objectIdOf(a) !== objectId) continue;
+      if (r.tried || r.attempts > 0) mayHaveArrived = true;
+      deliveryStmts().del.run(r.id);
+      cancelled++;
+    }
+  } catch { /* geen wachtrij te lezen: dan gewoon de Delete */ }
+  return { cancelled, mayHaveArrived };
 }
 // Record delivery health per follower so the followers list can flag dead accounts.
 // Keyed by inbox: a shared-inbox POST reaches every follower behind it, so all of them
@@ -288,11 +325,18 @@ function markFollowerDelivery(slug, inbox, ok) {
 // DE ENIGE WEG om iets direct te versturen dat bij een mislukking in de rij
 // hoort (shaer-xzab.3). Drie plekken deden eerst zelf deliver() en pas bij een
 // mislukking enqueueDelivery(), en gingen zo langs de volgorde per inbox.
+//
+// 'cancelled': een Delete van iets dat deze inbox nooit kreeg; er gaat niets
+// heen (zie cancelUndelivered).
 export async function deliverNowOrQueue(slug, inbox, activity, keyId, privPem) {
   if (!inbox) return 'queued';
+  if (activity && activity.type === 'Delete') {
+    const r = cancelUndelivered(inbox, objectIdOf(activity));
+    if (r.cancelled && !r.mayHaveArrived) return 'cancelled';
+  }
   try {
     const st = deliveryStmts();
-    if (st.pendInbox.get(inbox) || st.hostWaits.get(inboxHost(inbox))) { enqueueDelivery(slug, inbox, activity); return 'queued'; }
+    if (st.pendInbox.get(inbox) || st.hostWaits.get(inboxHost(inbox))) { enqueueDelivery(slug, inbox, activity, { tried: false }); return 'queued'; }
   } catch { /* geen wachtrij te lezen: gewoon proberen */ }
   try { const st = await deliver(inbox, activity, keyId, privPem); if (st >= 200 && st < 300) { markFollowerDelivery(slug, inbox, true); return 'sent'; } } catch { /* queue below */ }
   enqueueDelivery(slug, inbox, activity);

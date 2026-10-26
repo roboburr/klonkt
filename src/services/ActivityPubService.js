@@ -33,12 +33,12 @@ import { PUBLIC, AP_CONTEXT, safeUrl, actorId, noteId, guessMediaType, normalize
 // importeur blijft werken, hetzelfde patroon als de Guardianship-exports onderaan.
 import {
   safeFetch, getOrCreateKeys, deliver, fetchActor,
-  enqueueDelivery, deliverWithRetry, deliverNowOrQueue, processDeliveryQueue, startDeliveryWorker,
+  enqueueDelivery, deliverWithRetry, deliverNowOrQueue, cancelUndelivered, processDeliveryQueue, startDeliveryWorker,
   anySigningSlug, verifyRequest, signedGetHeaders, signedGetJson, apGetJson,
 } from './ap-transport.js';
 export {
   safeFetch, getOrCreateKeys, deliver, fetchActor,
-  enqueueDelivery, deliverWithRetry, deliverNowOrQueue, processDeliveryQueue, startDeliveryWorker,
+  enqueueDelivery, deliverWithRetry, deliverNowOrQueue, cancelUndelivered, processDeliveryQueue, startDeliveryWorker,
   verifyRequest, signedGetHeaders, signedGetJson,
 };
 // Stap 4 (shaer-drc): de C2S-inname woont in ap-c2s.js. Die is een coordinator
@@ -2849,11 +2849,11 @@ export async function deliverOutboxUpdate(site, outboxId, newText, opts = {}) {
   mres.inboxes.forEach((i) => inboxes.add(i)); // people @mentioned inline in the edit
   inboxes.delete(`${me}/inbox`); inboxes.delete(`${base}/ap/inbox`);
   let delivered = 0;
+  // Langs de volgorde per inbox (shaer-xzab.3): een bewerking die vóór de nog
+  // wachtende Create aankomt, wordt genegeerd, en daarna brengt de Create de
+  // oude tekst.
   for (const inbox of [...inboxes].filter(Boolean)) {
-    let ok = false;
-    try { const st = await deliver(inbox, update, `${me}#main-key`, keys.private_pem); ok = st >= 200 && st < 300; } catch { ok = false; }
-    if (ok) delivered++;
-    else enqueueDelivery(site.slug, inbox, update); // durable: retry the edit later (was silently dropped)
+    if ((await deliverNowOrQueue(site.slug, inbox, update, `${me}#main-key`, keys.private_pem)) === 'sent') delivered++;
   }
   console.log('[AP] outreply edit', site.slug, 'delivered', delivered);
   return { ok: true, content, delivered };
@@ -4151,12 +4151,10 @@ export async function deliverToActor(site, actorUri, activity) {
     console.warn('[AP] guardianship: could not resolve an inbox for', actorUri, '(offer recorded, not sent)');
     return { delivered: false, inbox: null };
   }
-  try {
-    const st = await deliver(inbox, payload, `${me}#main-key`, keys.private_pem);
-    if (st >= 200 && st < 300) { console.log('[AP] guardianship', activity.type, 'delivered →', inbox, st); return { delivered: true, inbox }; }
-    console.warn('[AP] guardianship', activity.type, 'got', st, 'from', inbox, '→ queued for retry');
-  } catch (e) { console.warn('[AP] guardianship', activity.type, 'to', inbox, 'failed:', e.message, '→ queued for retry'); }
-  enqueueDelivery(site.slug, inbox, payload);
+  // Langs de volgorde per inbox (shaer-xzab.3), zoals elke bezorging.
+  const hoe = await deliverNowOrQueue(site.slug, inbox, payload, `${me}#main-key`, keys.private_pem);
+  if (hoe === 'sent') console.log('[AP] guardianship', activity.type, 'delivered →', inbox);
+  else console.warn('[AP] guardianship', activity.type, 'to', inbox, '→ queued for retry');
   return { delivered: true, inbox };   // queued: the retry worker gets it there
 }
 Guardianship.wireDelivery({

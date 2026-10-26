@@ -55,7 +55,10 @@ const typen = () => rij().map((r) => JSON.parse(r.body).type);
 const leeg = () => { db.prepare('DELETE FROM ap_delivery').run(); ontvangen.length = 0; status = 202; };
 const stil = (f) => async () => { const l = console.log, w = console.warn; console.log = () => {}; console.warn = () => {}; try { await f(); } finally { console.log = l; console.warn = w; } };
 
-test('een gewist antwoord komt niet aan vóór het antwoord zelf', stil(async () => {
+test('een gewist antwoord dat nog wachtte, komt nooit meer aan', stil(async () => {
+  // Robins vraag (26-10): een Delete van een Create die nog in de rij staat,
+  // hoort intern opgelost te worden. Eerst zorgde de volgorde per inbox er
+  // alleen voor dat de Delete NA de Create kwam -- maar de Create kwam dan nog.
   leeg();
   status = 503;                                            // de server van de volger hapert
   const r = await AP.deliverReply(site, { postId: '', postSlug: null, parent, text: 'eerst' });
@@ -65,12 +68,61 @@ test('een gewist antwoord komt niet aan vóór het antwoord zelf', stil(async ()
   status = 202;                                            // hij is er weer, de rij is nog niet geweest
   ontvangen.length = 0;
   await AP.deliverOutboxDelete(site, r.id);
-  assert.deepEqual(ontvangen, [], 'de Delete gaat niet voor');
-  assert.deepEqual(typen(), ['Create', 'Delete'], 'hij wacht achter de Create');
+  await AP.processDeliveryQueue();
+  assert.ok(!ontvangen.some((o) => o.type === 'Create'), 'het gewiste antwoord gaat niet meer de deur uit');
+  // Hij is wel één keer geprobeerd (de 503), en dan KAN hij aangekomen zijn:
+  // dan gaat de Delete toch, voor de zekerheid.
+  assert.deepEqual(ontvangen.map((o) => o.type), ['Delete']);
+  assert.deepEqual(rij(), []);
+}));
 
-  await AP.processDeliveryQueue();
-  await AP.processDeliveryQueue();
-  assert.deepEqual(ontvangen.map((o) => o.type), ['Create', 'Delete'], 'en zo komen ze aan');
+test('nooit geprobeerd en gewist: er gaat helemaal niets heen', stil(async () => {
+  leeg();
+  // De server zit in zijn backoff, dus het antwoord gaat meteen de rij in,
+  // zonder poging; daarna wordt het gewist.
+  AP.enqueueDelivery('me', `http://${host}/ander-pad`, { type: 'Create', id: 'https://klonkt.test/iets' });
+  db.prepare("UPDATE ap_delivery SET next_at = datetime('now', '+30 minutes')").run();
+  const r = await AP.deliverReply(site, { postId: '', postSlug: null, parent, text: 'nooit verstuurd' });
+  assert.equal(rij().filter((x) => x.inbox === inbox).length, 1, 'het antwoord wacht, ongeprobeerd');
+  await AP.deliverOutboxDelete(site, r.id);
+  assert.deepEqual(rij().filter((x) => x.inbox === inbox), [], 'Create weg, en geen Delete erachteraan');
+  assert.deepEqual(ontvangen, []);
+  assert.equal(rij().length, 1, 'wat er voor een andere inbox wachtte, blijft');
+}));
+
+test('alleen de Create en Update van DAT object, en alleen voor die inbox', () => {
+  leeg();
+  const obj = 'https://klonkt.test/ap/notes/x';
+  AP.enqueueDelivery('me', inbox, { type: 'Create', id: `${obj}#create`, object: { id: obj } }, { tried: false });
+  AP.enqueueDelivery('me', inbox, { type: 'Update', id: `${obj}#update`, object: { id: obj } }, { tried: false });
+  AP.enqueueDelivery('me', inbox, { type: 'Create', id: 'y#create', object: { id: 'https://klonkt.test/ap/notes/y' } }, { tried: false });
+  AP.enqueueDelivery('me', `http://${host}/elders`, { type: 'Create', id: `${obj}#create`, object: { id: obj } }, { tried: false });
+  // Bewust ALLEEN wat de inhoud draagt. Een Announce of Add van een gewist
+  // object is onschuldig: de ontvanger haalt het op en krijgt een 404.
+  AP.enqueueDelivery('me', inbox, { type: 'Announce', id: `${obj}#boost`, object: obj }, { tried: false });
+  const r = AP.cancelUndelivered(inbox, obj);
+  assert.deepEqual(r, { cancelled: 2, mayHaveArrived: false });
+  assert.deepEqual(rij().map((x) => [x.inbox.endsWith('/inbox') ? 'deze' : 'andere', JSON.parse(x.body).type, String(JSON.parse(x.body).object.id || JSON.parse(x.body).object).slice(-1)]),
+    [['deze', 'Create', 'y'], ['andere', 'Create', 'x'], ['deze', 'Announce', 'x']]);
+});
+
+test('een bewerking gaat niet voorbij het antwoord dat nog wacht', stil(async () => {
+  leeg();
+  status = 503;
+  const r = await AP.deliverReply(site, { postId: '', postSlug: null, parent, text: 'origineel' });
+  status = 202; ontvangen.length = 0;
+  await AP.deliverOutboxUpdate(site, r.id, 'bewerkt');
+  assert.deepEqual(ontvangen, [], 'de Update gaat niet voor: dan negeert de ander hem, en brengt de Create daarna de oude tekst');
+  assert.deepEqual(typen(), ['Create', 'Update']);
+}));
+
+test('een guardian-activiteit gaat niet voorbij wat er voor die inbox wacht', stil(async () => {
+  leeg();
+  const omaInbox = `http://${host}/users/oma/inbox`;
+  AP.enqueueDelivery('me', omaInbox, { type: 'Create', id: 'https://klonkt.test/eerder' });
+  await AP.deliverToActor(site, `http://${host}/users/oma`, { type: 'Offer', id: 'https://klonkt.test/offer/1' });
+  assert.deepEqual(ontvangen, []);
+  assert.equal(rij().filter((x) => x.inbox === omaInbox).length, 2);
 }));
 
 test('een antwoord gaat niet voorbij wat er voor die inbox al wacht', stil(async () => {

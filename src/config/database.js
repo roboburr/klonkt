@@ -894,6 +894,12 @@ export function initializeDatabase() {
   // (inbox, id) zodat "oudste eerst per inbox" geen volle scan per rij is.
   // Rijen van voor deze kolom krijgen hun host hier, eenmalig.
   ensureColumn('ap_delivery', 'host', 'TEXT');
+  // Is deze rij al eens geprobeerd? Dan KAN hij aangekomen zijn, ook al gaf het
+  // een fout (een time-out nadat de ander hem verwerkte). Een Delete voor iets
+  // dat nooit de deur uitging, hoeft niet; voor iets dat misschien aankwam wel.
+  // Standaard 1: van rijen van voor deze kolom weten we het niet, en dan is
+  // "misschien aangekomen" de veilige kant. Nieuwe rijen zeggen het zelf.
+  ensureColumn('ap_delivery', 'tried', 'INTEGER DEFAULT 1');
   try {
     const zonder = db.prepare('SELECT id, inbox FROM ap_delivery WHERE host IS NULL').all();
     const zet = db.prepare('UPDATE ap_delivery SET host = ? WHERE id = ?');
