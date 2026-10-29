@@ -350,6 +350,57 @@ export function conversationHistory(slug, other, { before = null, limit = 60 } =
   } catch { return { rows: [], more: false, oldest: null }; }
 }
 
+/**
+ * Een pagina van de inbox, nieuwste eerst, met een cursor (shaer-ewrt).
+ *
+ * De inbox-lezing is vier poten van elk de nieuwste zestig, en daaronder hield
+ * het op: wat ouder was kon de app nergens vragen. Dit is de weg naar beneden.
+ *
+ * EEN LIMIET VOOR ALLE VIER SAMEN, om dezelfde reden als bij een gesprek: per
+ * poot afkappen geeft een pagina die bij de ene poot tot vorige week reikt en
+ * bij de andere tot gisteren, en dan valt er bij de volgende pagina iets in het
+ * gat ertussen. Over de unie afgekapt is een pagina compleet voor zijn periode.
+ *
+ * Alleen referenties: welke poot, welk object, welk stempel. Het kaartwerk doet
+ * de route met dezelfde bouwers als de verschil-lezing, zodat een kaart er
+ * hetzelfde uitziet hoe hij ook binnenkwam.
+ *
+ * De poten zijn dezelfde als in de volle lezing: de berichtpoot slaat over wat
+ * ook in de tijdlijn staat (getDirectMessages), en de stempels zijn die waarop
+ * elke poot daar sorteert.
+ */
+const INBOX_UNION = `
+  SELECT 'timeline' AS leg, t.id AS ref, ${STEMPEL('COALESCE(t.published, t.created_at)')} AS stamp
+    FROM ap_timeline t WHERE t.slug = @slug
+  UNION ALL
+  SELECT 'message', m.object_uri, ${STEMPEL('COALESCE(m.published, m.created_at)')}
+    FROM ap_mentions m
+   WHERE m.slug = @slug
+     AND NOT EXISTS (SELECT 1 FROM ap_timeline t WHERE t.slug = m.slug AND t.id = m.object_uri)
+  UNION ALL
+  SELECT 'reply', i.object_uri, ${STEMPEL('COALESCE(i.published, i.created_at)')}
+    FROM ap_interactions i JOIN posts p ON p.id = i.post_id JOIN sites s ON s.id = p.site_id
+   WHERE s.slug = @slug AND i.kind = 'reply'
+  UNION ALL
+  SELECT 'sent', o.id, ${STEMPEL('o.created_at')}
+    FROM ap_outbox o WHERE o.site_slug = @slug`;
+
+export function inboxPage(slug, { before = null, limit = 60 } = {}) {
+  try {
+    const n = Math.min(Math.max(parseInt(limit, 10) || 60, 1), 200);
+    const sep = String(before || '').indexOf('|');
+    const bStamp = before && sep > 0 ? String(before).slice(0, sep) : null;
+    const bRef = before && sep > 0 ? String(before).slice(sep + 1) : null;
+    const rows = db.prepare(`
+      SELECT leg, ref, stamp FROM (${INBOX_UNION})
+       WHERE (@bStamp IS NULL OR stamp < @bStamp OR (stamp = @bStamp AND ref < @bRef))
+       ORDER BY stamp DESC, ref DESC LIMIT @n`).all({ slug, bStamp, bRef, n: n + 1 });
+    const more = rows.length > n;
+    const page = more ? rows.slice(0, n) : rows;
+    return { rows: page, more, oldest: cursorOf(page[page.length - 1]) };
+  } catch { return { rows: [], more: false, oldest: null }; }
+}
+
 // De kolommen die een bericht tot kaart maken. Een constante, want de
 // gesprekslezing haalt dezelfde rows op: twee lijsten die uiteenlopen leveren
 // een kaart die op de ene plek een plaatje heeft en op de andere niet.

@@ -964,6 +964,56 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
       'shaer:cursor': AP.feedCursor(auth.site.slug),
     }, 'private, no-store');
   }
+  // ── Ouder dan wat je hebt (shaer-ewrt) ──────────────────────────
+  //
+  // De volle lezing hieronder is vier poten van de nieuwste zestig, en wat
+  // daaronder lag was nergens te vragen: een 'load more' had geen adres. Dit is
+  // dat adres, met een samengestelde cursor zoals bij /messages, en het antwoord
+  // is een OrderedCollectionPage met partOf -- een deel, en dat zegt het ook.
+  //
+  // De pagina's volgen elkaar via `next`; de client bouwt er geen na.
+  const inboxId = `${base}/ap/users/${auth.site.slug}/inbox`;
+  const size = req.query.limit ? `&limit=${encodeURIComponent(String(req.query.limit))}` : '';
+  const ouderLink = (pagina) => (pagina.more && pagina.oldest
+    ? `${inboxId}?before=${encodeURIComponent(pagina.oldest)}${size}` : undefined);
+  if (req.query.before) {
+    const pagina = AP.inboxPage(auth.site.slug, { before: String(req.query.before), limit: req.query.limit });
+    const ids = (leg) => pagina.rows.filter((r) => r.leg === leg).map((r) => r.ref);
+    const tl = new Map(AP.timelineRowsByIds(auth.site.slug, ids('timeline')).map((r) => [r.id, r]));
+    const mn = new Map(AP.messageRowsByUri(auth.site.slug, ids('message')).map((r) => [r.object_uri, r]));
+    const rp = new Map(AP.replyRowsByUri(auth.site.slug, ids('reply')).map((r) => [r.object_uri, r]));
+    const reacties = AP.getReactionsFor(auth.site.slug, [...tl.keys()]);
+    const ctx = { base, me, myHandle, p: P };
+    const mine = AP.selfAuthor(base, auth.site);
+    const items = [];
+    for (const r of pagina.rows) {
+      if (r.leg === 'timeline') {
+        const t = tl.get(r.ref);
+        if (t) items.push(timelineItem(t, { p: P, reactions: reacties }));
+      } else if (r.leg === 'message') {
+        // Dezelfde poort als de volle lezing: een dichte berichtenpoort houdt
+        // vreemden buiten, nooit de hulpvraag en nooit de guardians.
+        const m = mn.get(r.ref);
+        if (m && (messagesAllowed || m.help_request || guardianUris.has(m.actor_uri))) items.push(messageItem(m, ctx));
+      } else if (r.leg === 'reply') {
+        const m = rp.get(r.ref);
+        if (m) items.push(replyItem(m, ctx));
+      } else {
+        const n = AP.getOutboxNote(base, r.ref);
+        if (n) items.push(sentItem(n, { me, mine }));
+      }
+    }
+    return AP.sendAP(res, {
+      '@context': AP.AP_CONTEXT,
+      id: `${inboxId}?before=${encodeURIComponent(String(req.query.before))}${size}`,
+      type: 'OrderedCollectionPage',
+      partOf: inboxId,
+      orderedItems: items,
+      // Ontbreekt next, dan is de inbox op. De client hoort dat te weten zonder
+      // te gokken, anders kan zijn knop niet eerlijk verdwijnen.
+      next: ouderLink(pagina),
+    }, 'private, no-store');
+  }
   const rows = AP.getTimeline(auth.site.slug, 60);
   // Eén query voor de hele pagina (shaer-9e9 fase 2): shaer:liked komt uit de
   // tussentabel, de bron van waarheid, en niet meer uit de afgeleide kolom op
@@ -1020,6 +1070,18 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
     'shaer:cursor': AP.feedCursor(auth.site.slug),
     totalItems: items.length,
     orderedItems: items,
+    // Waar het oudere begint (shaer-ewrt). Een `next` op de wortel en geen
+    // `first`, en dat is een afweging: de items hierboven ZIJN de eerste
+    // pagina, en een `first` ernaast laat een lezer die de paginaweg voorrang
+    // geeft -- de onze, op iOS en op Android -- bij elke verversing de hele
+    // inbox opnieuw in pagina's binnenhalen. `next` volgt niemand vanzelf; hij
+    // is er voor wie erom vraagt.
+    //
+    // De cursor komt uit dezelfde unie als de pagina's, over de nieuwste zestig
+    // van alle poten samen. Die zitten hier allemaal tussen, dus de volgende
+    // pagina sluit aan zonder gat; wat de wortel per poot dieper had komt daar
+    // hooguit nog een keer langs.
+    next: ouderLink(AP.inboxPage(auth.site.slug, { limit: req.query.limit || 60 })),
   });
   return undefined;
 });
