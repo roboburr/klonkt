@@ -154,3 +154,34 @@ test('limit reist mee in next', async () => {
   assert.equal(p.orderedItems.length, 10);
   assert.ok(p.next.endsWith('&limit=10'), 'anders wordt de tweede pagina stilletjes de standaard');
 });
+
+// ── Een greep uit je geschiedenis (inbox-zero) ─────────────────────────────
+
+test('een willekeurige pagina begint bij een post, en loopt van daar gewoon door', () => {
+  // Alle tijdlijnrijen op volgorde, zoals de unie ze ziet.
+  const posts = AP.inboxPage('lezer', { limit: 500 }).rows.filter((r) => r.leg === 'timeline');
+  for (const k of [0, 1, 40, posts.length - 1]) {
+    const p = AP.inboxRandomPage('lezer', { limit: 10, rnd: () => k / posts.length });
+    const eerstePost = p.rows.find((r) => r.leg === 'timeline');
+    assert.equal(eerstePost.ref, posts[k].ref, `anker ${k} is de eerste post van de pagina`);
+    // En het is een echte pagina: met zijn start opnieuw gevraagd geeft hij hetzelfde.
+    if (p.start) assert.deepEqual(AP.inboxPage('lezer', { before: p.start, limit: 10 }).rows, p.rows);
+  }
+  // Een lege geschiedenis is geen fout.
+  assert.deepEqual(AP.inboxRandomPage('niemand', { limit: 10 }).rows, []);
+});
+
+test('?random=1 geeft een pagina die zichzelf naar zijn echte begin noemt', async () => {
+  for (let i = 0; i < 5; i++) {
+    const p = await haal(`http://127.0.0.1:${poort}/ap/users/lezer/inbox?random=1&limit=15`);
+    assert.equal(p.type, 'OrderedCollectionPage');
+    assert.ok(p.partOf.endsWith('/ap/users/lezer/inbox'));
+    assert.ok(p.orderedItems.length > 0);
+    assert.ok(p.orderedItems.some((x) => x.object && String(x.object.id).startsWith('https://elders/n/')), 'er zit een post in');
+    if (p.id.includes('?before=')) {
+      const zelfde = await haal(p.id);
+      assert.deepEqual(zelfde.orderedItems.map(idVan), p.orderedItems.map(idVan), 'het id is een adres, niet een toevalstreffer');
+      assert.ok(p.id.endsWith('&limit=15'));
+    }
+  }
+});

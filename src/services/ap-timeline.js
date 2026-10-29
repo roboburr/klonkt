@@ -401,6 +401,32 @@ export function inboxPage(slug, { before = null, limit = 60 } = {}) {
   } catch { return { rows: [], more: false, oldest: null }; }
 }
 
+/**
+ * Een pagina vanaf een willekeurige post in je geschiedenis (shaer-ewrt).
+ *
+ * Het anker is een TIJDLIJNRIJ, geen willekeurige rij uit de unie: de app
+ * toont posts in het raster, en een greep die op een stapel berichten landt
+ * laat niets zien. Vanaf daar is het een gewone pagina over alle poten, dus
+ * `start` is een echte cursor en `next` loopt gewoon door.
+ *
+ * `rnd` is er voor de toetsen.
+ */
+export function inboxRandomPage(slug, { limit = 60, rnd = Math.random } = {}) {
+  try {
+    const { n } = db.prepare('SELECT COUNT(*) AS n FROM ap_timeline WHERE slug = ?').get(slug);
+    const k = n ? Math.min(Math.floor(rnd() * n), n - 1) : 0;
+    if (k === 0) return { ...inboxPage(slug, { limit }), start: null };
+    // De rij er net boven: de pagina begint direct daaronder, met het anker
+    // als eerste post. Zelfde stempel en volgorde als de unie.
+    const boven = db.prepare(`
+      SELECT id AS ref, ${STEMPEL('COALESCE(published, created_at)')} AS stamp
+        FROM ap_timeline WHERE slug = ?
+       ORDER BY stamp DESC, ref DESC LIMIT 1 OFFSET ?`).get(slug, k - 1);
+    const start = cursorOf(boven);
+    return { ...inboxPage(slug, { before: start, limit }), start };
+  } catch { return { rows: [], more: false, oldest: null, start: null }; }
+}
+
 // De kolommen die een bericht tot kaart maken. Een constante, want de
 // gesprekslezing haalt dezelfde rows op: twee lijsten die uiteenlopen leveren
 // een kaart die op de ene plek een plaatje heeft en op de andere niet.

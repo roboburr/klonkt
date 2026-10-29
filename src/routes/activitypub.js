@@ -976,8 +976,16 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
   const size = req.query.limit ? `&limit=${encodeURIComponent(String(req.query.limit))}` : '';
   const ouderLink = (pagina) => (pagina.more && pagina.oldest
     ? `${inboxId}?before=${encodeURIComponent(pagina.oldest)}${size}` : undefined);
-  if (req.query.before) {
-    const pagina = AP.inboxPage(auth.site.slug, { before: String(req.query.before), limit: req.query.limit });
+  // ?random=1 is dezelfde pagina, maar vanaf een willekeurige plek in je
+  // geschiedenis: met inbox-zero aan is 'ouder' alles wat je al doorgenomen
+  // hebt, en dan is een greep eruit zinniger dan een rij ervan. De pagina
+  // noemt zichzelf naar waar hij werkelijk begint, en `next` loopt vanaf daar
+  // gewoon door naar beneden.
+  if (req.query.before || req.query.random) {
+    const pagina = req.query.random
+      ? AP.inboxRandomPage(auth.site.slug, { limit: req.query.limit })
+      : AP.inboxPage(auth.site.slug, { before: String(req.query.before), limit: req.query.limit });
+    const vanaf = req.query.random ? pagina.start : String(req.query.before);
     const ids = (leg) => pagina.rows.filter((r) => r.leg === leg).map((r) => r.ref);
     const tl = new Map(AP.timelineRowsByIds(auth.site.slug, ids('timeline')).map((r) => [r.id, r]));
     const mn = new Map(AP.messageRowsByUri(auth.site.slug, ids('message')).map((r) => [r.object_uri, r]));
@@ -1005,7 +1013,7 @@ router.get('/ap/users/:slug/inbox', async (req, res) => {
     }
     return AP.sendAP(res, {
       '@context': AP.AP_CONTEXT,
-      id: `${inboxId}?before=${encodeURIComponent(String(req.query.before))}${size}`,
+      id: vanaf ? `${inboxId}?before=${encodeURIComponent(vanaf)}${size}` : `${inboxId}?random=1${size}`,
       type: 'OrderedCollectionPage',
       partOf: inboxId,
       orderedItems: items,
