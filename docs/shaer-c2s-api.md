@@ -43,7 +43,7 @@ requests send and accept `application/activity+json`.
    `GET /.well-known/oauth-authorization-server` returns
    `authorization_endpoint`, `token_endpoint`, `registration_endpoint`,
    `code_challenge_methods_supported: ["S256"]`,
-   `token_endpoint_auth_methods_supported: ["none"]`, `scopes_supported: ["c2s", "write:door"]`.
+   `token_endpoint_auth_methods_supported: ["none"]`, `scopes_supported: ["read", "write", "c2s", "write:door"]`.
 
 If the actor lacks the OAuth endpoints, the server does not support posting from
 apps; the client should degrade to read-only.
@@ -67,13 +67,22 @@ Public clients only. No client secret. PKCE with S256 is required.
    `grant_type=authorization_code`, `code`, `client_id`, `redirect_uri`,
    `code_verifier`. Returns `{ "access_token": "...", "token_type": "Bearer" }`.
 
-**Scopes** (space-separated, RFC 6749 §3.3). `c2s` is everything below and
-is what an empty scope means. `write:door` is Playtime's door (§5a) and
-nothing else: no reads, no outbox. Any other scope is refused with
-`invalid_scope`. Scopes are enforced, closed by default: a route that names
-none asks for full access, so a `write:door` token gets `403` everywhere but
-the door. `read` and `write` (FEP-d8c2) follow with shaer-4jb1; `write` will
-include `write:door`.
+**Scopes** (space-separated, RFC 6749 §3.3; the names follow FEP-d8c2's
+example). `c2s` is everything below and is what an empty scope means. `read`
+reads, `write` writes, and `write` includes `write:door`. `write:door` is
+Playtime's door (§5a), its own key under identityProofs, and the open-doors
+switch, nothing else: no reads, no outbox. Playtime asks for `read write:door`.
+Any other scope is refused with `invalid_scope`.
+
+What a request needs follows from its METHOD: `GET`/`HEAD` need `read`,
+everything else `write`, so a route added later cannot be forgotten. Three
+paths differ: the door (`GET` public, the rest `write:door`), `identityProofs`
+(`write:door`, but such a token only reaches the keys its own client linked;
+`write` reaches all), and `openDoors` (`GET` needs `read`, `PUT` needs
+`write:door`). A known token whose scope does not cover the request gets
+`403 application/problem+json` with FEP-c180's
+`https://w3id.org/fep/c180#client-not-authorized` and the `client` id; an
+unknown or dead token gets the route's own `401`/`403`, as before.
 
 The bearer is scoped to one user and one site. Send it as
 `Authorization: Bearer <token>` on every authenticated call. Tokens are stored
@@ -263,9 +272,34 @@ when a GET of its own door returns 404.
   (a follower, or someone the owner follows); anyone else gets a `Reject`.
   An `Undo` of the Follow ends it. A door subscriber is not a follower.
 - **Coming online** (a `201` PUT, including the first after a restart)
-  delivers `Update { object: { id, type: "shaer:Door", attributedTo } }`
-  to the subscribers only. It carries the stub, not the door, so no other
-  server ever stores the address; replacing an open door sends nothing.
+  delivers `Update { object: { id, type: "shaer:Door", attributedTo, "shaer:open": true } }`
+  to the subscribers only, and **closing** (a `204` DELETE) the same with
+  `"shaer:open": false`. They carry the stub, not the door, so no other server
+  ever stores the address; replacing an open door sends nothing. A restart
+  closes silently; the subscribers' own check after their restart, and
+  Playtime's fresh GET before dialling, cover that.
+
+### 5b. The open doors in your sky (`shaer:openDoors`)
+
+Playtime has no inbox, so the owner's Klonkt follows the doors for it and
+keeps their state in memory.
+
+- `PUT <actor>/openDoors` (`write:door`) with `{"shaer:followDoors": true}`
+  turns it on: Klonkt follows the door of everyone in the owner's sky
+  (followers, and accepted following) whose actor carries a `shaer:door`
+  object on its own host, 25 new actors per round, a round every 15 minutes.
+  Someone without a door is looked at again after a week. Who leaves the sky
+  gets an `Undo`. `false` unfollows every door and empties the list.
+- `GET <actor>/openDoors` (`read`, owner only, `no-store`):
+  `OrderedCollection` with `shaer:followDoors`, `shaer:cursor`, and per open
+  door `{ id, type: "shaer:Door", attributedTo: <friend>, "shaer:openSince" }`,
+  newest first. `?since=<cursor>&wait=<s>` (up to 50) holds the request until
+  a door opens or closes, and answers `304` when nothing changed, like the inbox.
+- Only an `Update` signed by the friend whose door it is, for a door we
+  follow, changes the list. After a restart the list starts empty and Klonkt
+  asks each followed door once, one a second (`200` open, `404` closed).
+- The list says who is open, not how to get in: Playtime fetches the door fresh
+  before dialling, and a `404` is closed.
 
 ## 6. The `shaer:` vocabulary (FEP-633c)
 

@@ -22,6 +22,7 @@ import * as Guardianship from '../services/guardianship/index.js';
 import * as ConversationKey from '../services/conversation-key.js';
 import * as IdentityProof from '../services/IdentityProof.js';
 import Door from '../services/door.js';
+import DoorWatch from '../services/door-watch.js';
 import * as Migration from '../services/MigrationService.js';
 import { getPrimarySite } from '../middleware/site.js';
 import multer from 'multer';
@@ -61,6 +62,19 @@ router.use((req, res, next) => { if (!apEnabled()) return next('router'); next()
 // en hield hem leeg: vandaar een Too many requests die niet overging. De
 // kijkbuis die dit vond: een lege /ap-teller naast remaining: 0.
 router.use(['/ap', '/.well-known', '/nodeinfo'], apReadLimiter);
+
+// De scopepoort (shaer-4jb1). Een token dat we kennen maar dat dit verzoek niet
+// dekt, krijgt hier al een FEP-c180-antwoord, zodat een app hoort WAAROM, in
+// plaats van een kale 403 die op een dood token lijkt. Een onbekend of
+// ontbrekend token gaat door: dan beslist de route, zoals altijd. De routes
+// controleren daarna zelf nog eens met dezelfde needFor.
+router.use('/ap/users/:slug', (req, res, next) => {
+  const t = OAuth.inspectBearer(req.headers.authorization);
+  if (!t) return next();
+  const need = OAuth.needFor(req);
+  if (!need || OAuth.scopeAllows(t.scope, need)) return next();
+  return OAuth.clientNotAuthorized(res, { clientId: t.client_id, need });
+});
 let _ver = '1.0.0';
 try { _ver = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url))).version || _ver; } catch { /* keep default */ }
 
@@ -258,7 +272,7 @@ router.get('/ap/users/:slug/outbox', async (req, res) => {
   //    even the public set: a block is a closed door, and a signed fetch is
   //    the caller knocking with their name on it;
   //  - everyone else gets the public collection, exactly as before.
-  const bearer = OAuth.verifyBearer(req.headers.authorization);
+  const bearer = OAuth.verifyBearer(req.headers.authorization, OAuth.needFor(req));
   let verifiedActor = null;
   if (!bearer && req.headers['signature']) {
     const verified = await AP.verifyRequest(req).catch(() => null);
@@ -676,7 +690,7 @@ function conversationItems(req, auth, refs) {
 }
 
 router.get('/ap/users/:slug/conversations', (req, res) => {
-  const auth = OAuth.verifyBearer(req.headers.authorization);
+  const auth = OAuth.verifyBearer(req.headers.authorization, OAuth.needFor(req));
   if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
   const heads = AP.conversationHeads(auth.site.slug);
   const pairs = conversationItems(req, auth, heads);
@@ -717,7 +731,7 @@ router.get('/ap/users/:slug/conversations', (req, res) => {
 });
 
 router.get('/ap/users/:slug/messages', (req, res) => {
-  const auth = OAuth.verifyBearer(req.headers.authorization);
+  const auth = OAuth.verifyBearer(req.headers.authorization, OAuth.needFor(req));
   if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
   // EÉN OF MEER `with` (shaer-mbji). Eén is het gesprek met die persoon, zoals
   // altijd; meer is de zachte groep van precies die mensen. De sleutel komt
@@ -773,7 +787,7 @@ router.get('/ap/users/:slug/messages', (req, res) => {
 // want ze bepalen wat de rest te zien krijgt. Geen nieuwe collectie: deze
 // bestond al en staat al op de actor, alleen de toegang verbreedt.
 router.get('/ap/users/:slug/blocked', async (req, res) => {
-  const auth = OAuth.verifyBearer(req.headers.authorization);
+  const auth = OAuth.verifyBearer(req.headers.authorization, OAuth.needFor(req));
   let slug = (auth && auth.site.slug === req.params.slug) ? auth.site.slug : null;
   if (!slug && req.headers['signature']) {
     const verified = await AP.verifyRequest(req).catch(() => null);
@@ -799,7 +813,7 @@ router.get('/ap/users/:slug/blocked', async (req, res) => {
 // contract as the Shaer test daemon.
 function queueRoute(name, build) {
   router.get(`/ap/users/:slug/queues/${name}`, (req, res) => {
-    const auth = OAuth.verifyBearer(req.headers.authorization);
+    const auth = OAuth.verifyBearer(req.headers.authorization, OAuth.needFor(req));
     if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
     const base = baseUrl(req);
     const me = `${base}/ap/users/${auth.site.slug}`;
@@ -826,7 +840,7 @@ queueRoute('guardians', (id, slug) => Guardianship.guardiansCollection(id, slug)
 // bearer. Het bestaat omdat een weigering anders alleen te merken viel doordat
 // er iets uit een lijst verdween, en "het is weg" is geen reden.
 router.get('/ap/users/:slug/log', (req, res) => {
-  const auth = OAuth.verifyBearer(req.headers.authorization);
+  const auth = OAuth.verifyBearer(req.headers.authorization, OAuth.needFor(req));
   if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
   const me = `${baseUrl(req)}/ap/users/${auth.site.slug}`;
   AP.sendAP(res, {
@@ -845,7 +859,7 @@ queueRoute('help', (id, slug) => Guardianship.helpCollection(id, slug));
 // they follow) as Create(Note) items, so an app (Shaer) can build a unified
 // feed. Anyone else gets 403; the inbox stays write-only for the public.
 router.get('/ap/users/:slug/inbox', async (req, res) => {
-  const auth = OAuth.verifyBearer(req.headers.authorization);
+  const auth = OAuth.verifyBearer(req.headers.authorization, OAuth.needFor(req));
   if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
   const base = baseUrl(req);
   // Wachten is een UITBREIDING van deze lezing, geen tweede endpoint (shaer-n05).
@@ -1147,14 +1161,24 @@ const MAX_IDENTITY_PROOFS = 3;
 function readProofs(site) {
   try { const a = JSON.parse(site.identity_proofs || '[]'); return Array.isArray(a) ? a : []; } catch { return []; }
 }
-function writeProofs(site, list) {
+function writeProofs(site, list, { announce = true } = {}) {
   db.prepare('UPDATE sites SET identity_proofs = ? WHERE id = ?').run(list.length ? JSON.stringify(list) : null, site.id);
   // De volgers horen dat de actor veranderde; anders blijft hun kopie de oude.
+  // Behalve als alleen het bewijs van een sleutel die er al stond vernieuwd
+  // is: Playtime koppelt bij elke aanmelding opnieuw, en dan zou elke
+  // aanmelding een Update naar alle volgers sturen voor dezelfde bewering.
+  if (!announce) return;
   const vers = db.prepare('SELECT * FROM sites WHERE id = ?').get(site.id);
   if (vers) AP.deliverActorUpdate(vers).catch((e) => console.warn('[c390] actor-update:', e && e.message));
 }
+// Wie koppelde deze sleutel? Een write:door-token komt alleen aan zijn eigen.
+const proofClient = (slug, subject) => {
+  const r = db.prepare('SELECT client_id FROM identity_proof_clients WHERE slug = ? AND subject = ?').get(slug, subject);
+  return r ? r.client_id : null;
+};
+const vollePen = (auth) => OAuth.grantsOf(auth.scope).has('write');
 router.post('/ap/users/:slug/identityProofs', express.json({ limit: '16kb', type: ['application/json', 'application/activity+json', 'application/ld+json'] }), (req, res) => {
-  const auth = OAuth.verifyBearer(req.headers.authorization);
+  const auth = OAuth.verifyBearer(req.headers.authorization, OAuth.needFor(req));
   if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
   const base = baseUrl(req);
   const me = AP.actorId(base, auth.site.slug);
@@ -1162,13 +1186,21 @@ router.post('/ap/users/:slug/identityProofs', express.json({ limit: '16kb', type
   const uitslag = IdentityProof.checkStatement(stmt, me);
   if (!uitslag.ok) return res.status(422).json({ error: uitslag.error });
   const site = db.prepare('SELECT * FROM sites WHERE id = ?').get(auth.site.id);
-  const rest = readProofs(site).filter((b) => b && b.subject !== uitslag.subject);
+  const alles = readProofs(site);
+  const stondEr = alles.some((b) => b && b.subject === uitslag.subject);
+  // write:door vernieuwt zijn eigen sleutel, en koppelt nieuwe; die van een
+  // andere client (de papieren sleutel uit Shaer) laat hij met rust.
+  if (!vollePen(auth) && stondEr && proofClient(auth.site.slug, uitslag.subject) !== auth.client_id) {
+    return OAuth.clientNotAuthorized(res, { clientId: auth.client_id, need: 'write' });
+  }
+  const rest = alles.filter((b) => b && b.subject !== uitslag.subject);
   if (rest.length >= MAX_IDENTITY_PROOFS) return res.status(409).json({ error: 'too_many_identity_proofs', max: MAX_IDENTITY_PROOFS });
-  writeProofs(site, [...rest, stmt]);
+  writeProofs(site, [...rest, stmt], { announce: !stondEr });
+  db.prepare('INSERT OR IGNORE INTO identity_proof_clients (slug, subject, client_id) VALUES (?,?,?)').run(auth.site.slug, uitslag.subject, auth.client_id);
   res.status(201).json({ subject: uitslag.subject, alsoKnownAs: me });
 });
 router.delete('/ap/users/:slug/identityProofs', (req, res) => {
-  const auth = OAuth.verifyBearer(req.headers.authorization);
+  const auth = OAuth.verifyBearer(req.headers.authorization, OAuth.needFor(req));
   if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
   const subject = String(req.query.subject || '');
   if (!IdentityProof.publicKeyFromDidKey(subject)) return res.status(400).json({ error: 'subject must be an Ed25519 did:key' });
@@ -1176,7 +1208,11 @@ router.delete('/ap/users/:slug/identityProofs', (req, res) => {
   const voor = readProofs(site);
   const na = voor.filter((b) => b && b.subject !== subject);
   if (na.length === voor.length) return res.status(404).json({ error: 'no_such_identity_proof' });
+  if (!vollePen(auth) && proofClient(auth.site.slug, subject) !== auth.client_id) {
+    return OAuth.clientNotAuthorized(res, { clientId: auth.client_id, need: 'write' });
+  }
   writeProofs(site, na);
+  db.prepare('DELETE FROM identity_proof_clients WHERE slug = ? AND subject = ?').run(auth.site.slug, subject);
   res.status(204).end();
 });
 
@@ -1205,7 +1241,7 @@ router.put('/ap/users/:slug/door', express.json({ limit: '16kb', type: ['applica
   // Dezelfde JSON terug als er kwam. Niet per se dezelfde bytes (witruimte),
   // maar de handtekening is over de JCS-vorm, dus die klopt bij elke lezer.
   const { cameOnline } = Door.set(auth.site.slug, JSON.stringify(req.body));
-  if (cameOnline) Door.announceOnline(base, auth.site.slug);
+  if (cameOnline) Door.announce(base, auth.site.slug, true);
   res.set('Cache-Control', 'no-store');
   res.status(cameOnline ? 201 : 200).json({ id: url, open: true });
 });
@@ -1216,11 +1252,44 @@ router.delete('/ap/users/:slug/door', (req, res) => {
   // die sluit moet altijd dicht kunnen.
   Door.allowWrite(auth.site.slug);
   if (!Door.close(auth.site.slug)) return res.status(404).json({ error: 'door_closed' });
+  Door.announce(baseUrl(req), auth.site.slug, false);
   res.status(204).end();
 });
 
+// ── De open deuren in je lucht (shaer-3dwr) ──────────────────────────
+//
+// Eigenaar-only, met `read`. `since` (de shaer:cursor van je vorige antwoord)
+// en `wait` (tot 50 s) werken zoals bij de inbox: het antwoord blijft hangen tot
+// er een deur open of dicht gaat, en is 304 als er niets veranderde. PUT met
+// {"shaer:followDoors": true|false} zet het volgen aan of uit (write:door).
+router.get('/ap/users/:slug/openDoors', async (req, res) => {
+  const auth = OAuth.verifyBearer(req.headers.authorization, OAuth.needFor(req));
+  if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
+  res.set('Cache-Control', 'no-store');
+  const wachtS = Math.min(Math.max(parseInt(req.query.wait, 10) || 0, 0), 50);
+  if (req.query.since && wachtS > 0) {
+    const afbreken = new AbortController();
+    res.on('close', () => afbreken.abort());
+    const uit = await DoorWatch.waitForChange(auth.site.slug, { since: String(req.query.since), waitMs: wachtS * 1000, signal: afbreken.signal });
+    if (res.writableEnded || afbreken.signal.aborted) return undefined;
+    if (!uit.changed) return res.status(304).end();
+  }
+  AP.sendAP(res, DoorWatch.buildCollection(baseUrl(req), auth.site.slug));
+});
+router.put('/ap/users/:slug/openDoors', express.json({ limit: '4kb', type: ['application/json', 'application/activity+json', 'application/ld+json'] }), async (req, res) => {
+  const auth = OAuth.verifyBearer(req.headers.authorization, OAuth.needFor(req));
+  if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
+  const aan = req.body && req.body['shaer:followDoors'];
+  if (typeof aan !== 'boolean') return res.status(400).json({ error: 'shaer:followDoors must be true or false' });
+  const base = baseUrl(req);
+  // Aanzetten haalt een deel van de lucht op; daar wacht het antwoord niet op.
+  DoorWatch.setFollowing(base, auth.site.slug, aan).catch((e) => console.warn('[door-watch] aan/uit:', e && e.message));
+  res.set('Cache-Control', 'no-store');
+  AP.sendAP(res, DoorWatch.buildCollection(base, auth.site.slug));
+});
+
 router.post('/ap/users/:slug/uploadMedia', (req, res) => {
-  const auth = OAuth.verifyBearer(req.headers.authorization);
+  const auth = OAuth.verifyBearer(req.headers.authorization, OAuth.needFor(req));
   if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
   apMediaUpload.single('file')(req, res, (err) => {
     // Te groot is 413 en geen 400: een client die zijn eigen grens niet kent
@@ -1306,7 +1375,7 @@ function wantsEnriched(req, res) {
 }
 
 router.get('/ap/users/:slug/followers', (req, res) => {
-  const auth = OAuth.verifyBearer(req.headers.authorization);
+  const auth = OAuth.verifyBearer(req.headers.authorization, OAuth.needFor(req));
   const owner = auth && auth.site.slug === req.params.slug;
   const site = owner ? auth.site : publicSite(req.params.slug);
   if (!site) return res.status(404).end();
@@ -1322,7 +1391,7 @@ router.get('/ap/users/:slug/followers', (req, res) => {
 
 // ── Following (count-only public, full for the owner) ─────────────
 router.get('/ap/users/:slug/following', (req, res) => {
-  const auth = OAuth.verifyBearer(req.headers.authorization);
+  const auth = OAuth.verifyBearer(req.headers.authorization, OAuth.needFor(req));
   const owner = auth && auth.site.slug === req.params.slug;
   const site = owner ? auth.site : publicSite(req.params.slug);
   if (!site) return res.status(404).end();
@@ -1348,7 +1417,7 @@ router.get('/ap/users/:slug/following', (req, res) => {
  * antwoorden op dezelfde vraag lopen vroeg of laat uiteen.
  */
 async function magAlles(req, slug) {
-  const auth = OAuth.verifyBearer(req.headers.authorization);
+  const auth = OAuth.verifyBearer(req.headers.authorization, OAuth.needFor(req));
   if (auth && auth.site.slug === slug) return true;
   if (!req.headers['signature']) return false;
   const v = await AP.verifyRequest(req).catch(() => null);
@@ -1369,7 +1438,7 @@ router.get('/ap/users/:slug/migration', async (req, res) => {
   const site = publicSite(req.params.slug);
   if (!site) return res.status(404).end();
   let alles = false;
-  const auth = OAuth.verifyBearer(req.headers.authorization);
+  const auth = OAuth.verifyBearer(req.headers.authorization, OAuth.needFor(req));
   if (auth && auth.site.slug === site.slug) alles = true;
   else if (req.headers['signature']) {
     const v = await AP.verifyRequest(req).catch(() => null);
@@ -1588,7 +1657,7 @@ router.get('/ap/notes/:id', async (req, res) => {
 // langs de eigen poort van de lezer -- een ward zonder open embeds-poort
 // krijgt in de composer geen kaart die zijn feed hem ook niet zou tonen.
 router.get('/ap/users/:slug/card', async (req, res) => {
-  const auth = OAuth.verifyBearer(req.headers.authorization);
+  const auth = OAuth.verifyBearer(req.headers.authorization, OAuth.needFor(req));
   if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
   const uit = await AP.previewCard(String(req.query.url || ''));
   const isWard = (() => { try { return Guardianship.listGuardians(auth.site.slug).length > 0; } catch { return false; } })();
@@ -1630,7 +1699,7 @@ function readerGates(site, isWard) {
 // er buiten viel. De telling staat er zodat de UI eerlijk kan zijn -- OF hij
 // getoond wordt is onderdeel van datzelfde besluit.
 router.get('/ap/users/:slug/thread', async (req, res) => {
-  const auth = OAuth.verifyBearer(req.headers.authorization);
+  const auth = OAuth.verifyBearer(req.headers.authorization, OAuth.needFor(req));
   if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
   const objectUri = String(req.query.object || '');
   if (!/^https:\/\//i.test(objectUri)) return res.status(400).json({ error: 'object must be an https URI' });
@@ -1686,7 +1755,7 @@ router.get('/ap/users/:slug/thread', async (req, res) => {
 // storing en dezelfde poorten; voor een ward met een dichte kring is een note
 // van buiten de kring er niet, en dat wordt gezegd in plaats van verzwegen.
 router.get('/ap/users/:slug/object', async (req, res) => {
-  const auth = OAuth.verifyBearer(req.headers.authorization);
+  const auth = OAuth.verifyBearer(req.headers.authorization, OAuth.needFor(req));
   if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
   const objectUri = String(req.query.uri || '');
   if (!/^https:\/\//i.test(objectUri)) return res.status(400).json({ error: 'uri must be an https URI' });
@@ -1761,7 +1830,7 @@ router.post(['/ap/users/:slug/inbox', '/ap/inbox'], apInboxLimiter, apJson, asyn
 // consent), so it must match the slug in the URL. (Declared after apJson, which
 // this shares with the inbox handler.)
 router.post('/ap/users/:slug/outbox', apInboxLimiter, apJson, async (req, res) => {
-  const auth = OAuth.verifyBearer(req.headers.authorization);
+  const auth = OAuth.verifyBearer(req.headers.authorization, OAuth.needFor(req));
   if (!auth) { res.set('WWW-Authenticate', 'Bearer'); return res.status(401).json({ error: 'invalid_token' }); }
   if (auth.site.slug !== req.params.slug) return res.status(403).json({ error: 'wrong_site', detail: 'token is scoped to a different site' });
   if (auth.user.readonly) return res.status(403).json({ error: 'read_only_account' });

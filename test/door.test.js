@@ -109,14 +109,15 @@ const volg = (wie) => inbox({ '@context': 'https://www.w3.org/ns/activitystreams
 
 // ── De scope ──────────────────────────────────────────────────────
 
-test('scope: leeg is c2s, write:door bestaat, al het andere is invalid_scope', () => {
+test('scope: leeg is c2s, de vier bestaan, al het andere is invalid_scope', () => {
   assert.equal(OAuth.parseScope('').scope, 'c2s');
   assert.equal(OAuth.parseScope(undefined).scope, 'c2s');
   assert.equal(OAuth.parseScope('  write:door ').scope, 'write:door');
   assert.equal(OAuth.parseScope('c2s write:door c2s').scope, 'c2s write:door');
-  assert.equal(OAuth.parseScope('read').error, 'invalid_scope', 'read komt met shaer-4jb1, niet stil eerder');
+  assert.equal(OAuth.parseScope('read write:door').scope, 'read write:door', 'wat Playtime vraagt');
+  assert.equal(OAuth.parseScope('admin').error, 'invalid_scope');
   assert.equal(OAuth.parseScope('write:door bogus').error, 'invalid_scope');
-  assert.deepEqual(OAuth.SCOPES_SUPPORTED, ['c2s', 'write:door']);
+  assert.deepEqual(OAuth.SCOPES_SUPPORTED, ['read', 'write', 'c2s', 'write:door']);
 });
 
 test('createCode weigert een onbekende scope in plaats van c2s te geven', () => {
@@ -128,6 +129,8 @@ test('het toestemmingsscherm belooft alleen wat de scope geeft', () => {
   assert.deepEqual(scopeLines(['c2s']), ['oauth.scope_read', 'oauth.scope_write']);
   assert.deepEqual(scopeLines(['write:door']), ['oauth.scope_door']);
   assert.deepEqual(scopeLines(['c2s', 'write:door']), ['oauth.scope_read', 'oauth.scope_write'], 'write dekt de deur al');
+  assert.deepEqual(scopeLines(['read', 'write:door']), ['oauth.scope_read', 'oauth.scope_door'], 'Playtime: lezen en de deur');
+  assert.deepEqual(scopeLines(['read']), ['oauth.scope_read']);
 });
 
 test('verifyBearer staat standaard dicht: een deurtoken komt nergens anders in', () => {
@@ -256,8 +259,19 @@ test('online komen stuurt een Update naar de abonnees, met het stompje en niet h
   assert.equal(activiteit.type, 'Update');
   assert.equal(activiteit.actor, ACTOR);
   assert.deepEqual(activiteit.to, [VRIEND]);
-  assert.deepEqual(activiteit.object, { id: DEUR, type: 'shaer:Door', attributedTo: ACTOR });
+  assert.deepEqual(activiteit.object, { id: DEUR, type: 'shaer:Door', attributedTo: ACTOR, 'shaer:open': true });
   assert.ok(!JSON.stringify(activiteit).includes('2001:db8'), 'geen adres naar een andere server');
+});
+
+test('sluiten zegt het de abonnees ook, zodat hun lijst vers blijft', async () => {
+  bezorgd.length = 0;
+  assert.equal((await sluit()).status, 204);
+  await even();
+  assert.equal(bezorgd.length, 1);
+  assert.equal(bezorgd[0].activiteit.type, 'Update');
+  assert.deepEqual(bezorgd[0].activiteit.object, { id: DEUR, type: 'shaer:Door', attributedTo: ACTOR, 'shaer:open': false });
+  bezorgd.length = 0;
+  assert.equal((await zet(deur())).status, 201, 'en weer open, voor wat volgt');
 });
 
 test('een herstart sluit de deur, maar de abonnees blijven; opnieuw zetten is online komen', async () => {

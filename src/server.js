@@ -69,6 +69,7 @@ import apRoutes from './routes/activitypub.js';
 import owaRoutes, { owaMiddleware } from './routes/openwebauth.js';
 import oauthRoutes from './routes/oauth.js';
 import { apWants, startDeliveryWorker, selfHealTimeline, migrateReactions } from './services/ActivityPubService.js';
+import { startDoorWorker } from './services/door-watch.js';
 import { startWakeWatch } from './services/wake.js';
 
 // SESSION_SECRET: use the env var if set. Otherwise auto-generate a strong one
@@ -210,6 +211,7 @@ app.use((req, res, next) => {
 initializeDatabase();
 startScheduler(); // release planning: publish scheduled posts when publish_at is reached
 startDeliveryWorker(); // retry failed fediverse deliveries with backoff
+startDoorWorker(); // shaer-3dwr: de deuren in de lucht volgen, en na een herstart navragen
 // Wakker worden na echte afwezigheid (shaer-xzab.4/.5): aankondigen en inhalen.
 // Niet bij een gewone herstart; zie services/wake.js.
 startWakeWatch();

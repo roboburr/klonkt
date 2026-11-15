@@ -63,7 +63,7 @@ const AS2 = new Set([
   'shaer:identityProofs',
   // De deur van Playtime (shaer-ivi4): een stompje op de actor, de deur zelf
   // draagt zijn eigen @context en staat niet in de actor.
-  'shaer:door', 'shaer:Door',
+  'shaer:door', 'shaer:Door', 'shaer:openDoors',
   'publicKey', 'owner', 'publicKeyPem',
   'Note', 'Person', 'Create', 'Update', 'Delete', 'Tombstone', 'Announce', 'Like', 'Follow',
   'Accept', 'Reject', 'Undo', 'Add', 'Remove', 'Flag', 'Document', 'Image', 'Audio', 'Video',

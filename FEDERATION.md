@@ -29,6 +29,8 @@ wire, following [FEP-67ff](https://codeberg.org/fediverse/fep/src/branch/main/fe
 - [FEP-7628: Move actor](https://codeberg.org/fediverse/fep/src/branch/main/fep/7628/fep-7628.md) (DRAFT): account migration — `alsoKnownAs`, `movedTo` and the `Move` activity, sent and received. See "Account migration".
 - [FEP-1580: Move Actor Objects with a `migration` Collection](https://codeberg.org/fediverse/fep/src/branch/main/fep/1580/fep-1580.md) (DRAFT): the objects a `Move` leaves behind, exposed as a `migration` collection alongside `moves`.
 - [FEP-61cf: The OpenWebAuth Protocol](https://codeberg.org/fediverse/fep/src/branch/main/fep/61cf/fep-61cf.md) (DRAFT): federated single sign-on, implemented in **both** roles. As a *target*, Klonkt lets a visitor from another server prove who they are and read follower-only posts without an account here. As a *home instance*, a site owner can sign in to another OpenWebAuth site using their own actor. See "Authentication".
+- [FEP-c180: Problem Details for ActivityPub](https://codeberg.org/fediverse/fep/src/branch/main/fep/c180/fep-c180.md) (DRAFT): partly. A C2S token whose scope does not cover a request gets `client-not-authorized`, with the `client` id.
+- [FEP-d8c2: OAuth 2.0 Profile for the ActivityPub API](https://codeberg.org/fediverse/fep/src/branch/main/fep/d8c2/fep-d8c2.md) (DRAFT): partly. The scope names `read` and `write` follow its example; the client is still registered with RFC 7591, not identified by an AP object.
 - [FEP-888d: Using `https://w3id.org/fep` as a base for FEP-specific namespaces](https://codeberg.org/fediverse/fep/src/branch/main/fep/888d/fep-888d.md) (DRAFT): the FEP-1580 terms are declared under `https://w3id.org/fep/1580/`, as that FEP registers them.
 
 Two further proposals are our own and are not (yet) part of the FEP index:
@@ -153,9 +155,11 @@ Mastodon client API: Mastodon apps (Ivory and the like) are not supported here.
   `/.well-known/oauth-authorization-server` (RFC 8414) returns the authorization,
   token and registration endpoints, `response_types=["code"]`,
   `grant_types=["authorization_code"]`, `code_challenge_methods=["S256"]`,
-  `token_endpoint_auth_methods=["none"]` and `scopes_supported=["c2s", "write:door"]`.
-  Scopes are enforced: `write:door` reaches only Playtime's door
-  (`<actor>/door`, see docs/shaer-c2s-api.md §5a), and an unknown scope is
+  `token_endpoint_auth_methods=["none"]` and `scopes_supported=["read", "write", "c2s", "write:door"]`.
+  Scopes are enforced by method (`GET` needs `read`, the rest `write`);
+  `write:door` reaches only Playtime's door, its own key and the open-doors
+  switch (docs/shaer-c2s-api.md §5a, §5b). A token whose scope does not cover
+  a request gets FEP-c180's `client-not-authorized`; an unknown scope is
   refused with `invalid_scope`.
 - Registration: `POST /oauth/register` (RFC 7591), public clients only.
 - Authorization: PKCE authorization-code flow with a consent screen where the
@@ -172,7 +176,7 @@ Mastodon client API: Mastodon apps (Ivory and the like) are not supported here.
   `(request-target) host date digest`, with a configurable clock-skew tolerance
   and reverse-proxy-aware host matching. Object Integrity Proofs
   (FEP-8b32) are not used.
-- C2S: OAuth 2.0 bearer tokens, public clients with PKCE (S256), scope `c2s`.
+- C2S: OAuth 2.0 bearer tokens, public clients with PKCE (S256), scopes `read`, `write`, `c2s` and `write:door`.
 - Visitors: OpenWebAuth (FEP-61cf), described below.
 
 ### OpenWebAuth (FEP-61cf)
@@ -256,8 +260,10 @@ with a note in the changelog.
 - Search-indexing consent: FEP-5feb (DRAFT). No `indexable` flag is emitted yet.
 - Actor public keys as Multikey: FEP-521a (FINAL). Klonkt still uses the legacy
   `publicKey` representation.
-- Object Integrity Proofs: FEP-8b32 (DRAFT). Not used. This is also what leaves
-  the `moves` collection unsigned; see "Account migration".
+- Object Integrity Proofs: FEP-8b32 (DRAFT). Klonkt signs nothing with it. It
+  verifies two documents a client signed (eddsa-jcs-2022): FEP-c390 identity
+  statements, and Playtime's door. Not signing is also what leaves the `moves`
+  collection unsigned; see "Account migration".
 - Followers collection synchronization: FEP-8fcf (FINAL). Not implemented.
 
 ## Additional documentation

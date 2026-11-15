@@ -16,7 +16,9 @@
  *   Follow met de deur als object), niet naar de volgers van de actor. Een
  *   vervanging terwijl hij open staat stuurt niets: Playtime vervangt hem bij
  *   elke netwerkwissel en elke nieuwe sessiesleutel, soms vaker dan eens per
- *   kwartier.
+ *   kwartier. SLUITEN stuurt er ook een, met `shaer:open: false`, zodat de
+ *   lijst van open deuren bij de abonnees vers blijft (shaer-3dwr). Een
+ *   herstart sluit stil; die vangt hun navraag op.
  *
  * Klonkt ondertekent niets. Hij controleert dat de deur zichzelf noemt, dat de
  * FEP-8b32-handtekening klopt en dat die sleutel via FEP-c390 aan deze actor
@@ -158,32 +160,32 @@ export function inSky(slug, actorUri) {
 }
 
 /**
- * De deur is online gekomen: zeg het tegen de abonnees. De Update draagt
- * alleen het stompje (id en type), niet de deur: zo bewaart geen andere server
- * ooit het adres, en wie wil bellen haalt hem vers.
+ * De deur kwam online, of ging dicht: zeg het tegen de abonnees. De Update
+ * draagt alleen het stompje (id, type, en of hij open is), niet de deur: zo
+ * bewaart geen andere server ooit het adres, en wie wil bellen haalt hem vers.
  */
-export function announceOnline(base, slug) {
+export function announce(base, slug, isOpen) {
   const lijst = subscribers(slug);
   if (!lijst.length) return 0;
   const me = actorId(base, slug);
   const keys = getOrCreateKeys(slug);
   const update = {
     '@context': AP_CONTEXT,
-    id: `${doorUrl(base, slug)}#online-${Date.now()}`,
+    id: `${doorUrl(base, slug)}#${isOpen ? 'online' : 'closed'}-${Date.now()}`,
     type: 'Update',
     actor: me,
     to: lijst.map((r) => r.actor_uri),
-    object: { ...doorStub(base, slug), attributedTo: me },
+    object: { ...doorStub(base, slug), attributedTo: me, 'shaer:open': !!isOpen },
   };
   const inboxen = [...new Set(lijst.map((r) => r.shared_inbox || r.inbox).filter(Boolean))];
   for (const inbox of inboxen) {
     deliverWithRetry(slug, inbox, update, `${me}#main-key`, keys.private_pem)
-      .catch((e) => console.warn('[door] online-Update:', inbox, e && e.message));
+      .catch((e) => console.warn('[door] Update:', inbox, e && e.message));
   }
   return inboxen.length;
 }
 
 export default {
   MAX_DOOR_BYTES, DOOR_WRITES_PER_HOUR, doorUrl, doorStub, get, set, close, allowWrite,
-  linkedKeys, checkDoor, subscribe, unsubscribe, subscribers, inSky, announceOnline, _forgetAll,
+  linkedKeys, checkDoor, subscribe, unsubscribe, subscribers, inSky, announce, _forgetAll,
 };

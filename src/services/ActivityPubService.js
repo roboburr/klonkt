@@ -386,6 +386,9 @@ export function buildActor(base, site) {
     // en altijd hetzelfde: open of dicht zie je aan de deur zelf (200 of 404),
     // zodat de actor er nooit een Update voor nodig heeft. Geen adres hier.
     'shaer:door': doorStub(base, site.slug),
+    // En de deuren in JOUW lucht die open staan (shaer-3dwr): eigenaar-only,
+    // zoals `blocked`. Hier staat alleen waar Playtime het leest.
+    'shaer:openDoors': `${id}/openDoors`,
     // FEP-633c §2: shaer:guardians / shaer:isGuardian / shaer:queues
     // (guardianship module owns these).
     ...Guardianship.guardianshipActorProps(id, site.slug),

@@ -31,6 +31,7 @@ import { fwStmts } from './ap-following.js';
 import * as HubInvite from './hub-invite.js';
 import * as ConversationKey from './conversation-key.js';
 import * as Door from './door.js';
+import * as DoorWatch from './door-watch.js';
 
 /**
  * Welke objectsoorten deze inbox in de tijdlijn opneemt.
@@ -395,6 +396,18 @@ export async function handleInbox(req, slugParam, preVerified = null) {
       if (ev.restored.length) console.log('[AP] guardian restored (one answer, 3.6):', claimedActor, '→', ev.restored.join(', '));
       for (const c of ev.cancelledLapses) console.log('[AP] lapse cancelled by an answer from its target:', c.id);
     } catch { /* availability is never load-bearing for delivery */ }
+  }
+
+  // De deuren die WIJ volgen (shaer-3dwr). Vóór alle andere Accept/Reject-takken:
+  // een Reject van een deurabonnement is geen 'ontvolg deze actor', en een
+  // Accept ervan mag geen wachtende gewone Follow openzetten.
+  if ((type === 'Accept' || type === 'Reject') && DoorWatch.handleAnswer(act, claimedActor)) {
+    console.log('[AP] door follow', type === 'Accept' ? 'accepted' : 'rejected', 'by', claimedActor);
+    return 202;
+  }
+  if (type === 'Update' && act.object && typeof act.object === 'object' && act.object.type === 'shaer:Door') {
+    DoorWatch.handleUpdate(act, claimedActor);
+    return 202;
   }
 
   // FEP-633c §5.3 (modelled on the adoption offer): a gated follow forwarded to

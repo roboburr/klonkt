@@ -294,6 +294,8 @@ export function initializeDatabase() {
   // Derden pollen op deze vlag, dus hij moet ook "er valt niets te wachten"
   // kunnen zeggen.
   ensureColumn('sites', 'migration_complete', 'INTEGER DEFAULT 1');
+  // shaer-3dwr: volgt Klonkt de deuren in de lucht van deze eigenaar? Uit tot Playtime het vraagt.
+  ensureColumn('sites', 'follow_doors', 'INTEGER DEFAULT 0');
 
   // Per-post noindex + type
   ensureColumn('posts', 'noindex', 'INTEGER DEFAULT 0');
@@ -490,6 +492,34 @@ export function initializeDatabase() {
       shared_inbox TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE (slug, actor_uri)
+    );
+
+    -- DEUREN DIE WIJ VOLGEN (shaer-3dwr). Met follow_doors aan volgt Klonkt de
+    -- deur van iedereen in de lucht van de eigenaar. Hier staat de RELATIE
+    -- (welke deur, welke Follow, geaccepteerd of niet); of hij open staat leeft
+    -- alleen in het geheugen. status: none (geen deur), pending, accepted, rejected.
+    CREATE TABLE IF NOT EXISTS ap_door_follows (
+      slug TEXT NOT NULL,
+      friend_uri TEXT NOT NULL,
+      door_id TEXT,
+      inbox TEXT,
+      follow_id TEXT,
+      status TEXT NOT NULL DEFAULT 'none',
+      checked_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (slug, friend_uri)
+    );
+
+    -- WIE EEN SLEUTEL KOPPELDE (shaer-ivi4). Een token met alleen write:door
+    -- mag de sleutels van Playtime koppelen en weghalen, maar niet aan die van
+    -- een ander komen (de papieren sleutel uit Shaer). Hier staat per sleutel
+    -- welke client hem als eerste koppelde. De verklaring zelf blijft op de site.
+    CREATE TABLE IF NOT EXISTS identity_proof_clients (
+      slug TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      client_id TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (slug, subject)
     );
 
     -- OpenWebAuth (FEP-61cf): eenmalige tokens waarmee een BEZOEKER van elders

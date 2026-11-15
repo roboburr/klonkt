@@ -9,10 +9,11 @@
  *     PKCE S256 is REQUIRED on the authorization-code flow.
  *   - A token is scoped to ONE user + ONE site (multi-site hub: the consent
  *     page picks the site).
- *   - The scope is ENFORCED, closed by default (shaer-ivi4). `c2s` is
- *     everything; `write:door` is only Playtime's door. A route that names
- *     no scope asks for read + write, so a narrow token cannot slip into a
- *     route that forgot to say what it needs.
+ *   - The scope is ENFORCED, closed by default (shaer-ivi4, shaer-4jb1).
+ *     `c2s` is everything; `read` reads, `write` writes (FEP-d8c2's names);
+ *     `write:door` is only Playtime's door. What a request needs follows from
+ *     its METHOD (needFor), not from a list a new route could be left out of,
+ *     and verifyBearer without a need asks for read + write.
  *   - Tokens are stored hashed (sha256); codes are single-use, 10 min TTL.
  */
 
@@ -66,11 +67,10 @@ export function getClient(clientId) {
 // ── Scopes ─────────────────────────────────────────────────────────────
 //
 // Wat een scope toestaat, in rechten. `c2s` is alles wat er is, zodat de
-// tokens van Shaer en Android blijven werken. `write:door` is alleen de deur
-// van Playtime (shaer-ivi4): zetten en weghalen, verder niets, ook niet
-// lezen. De naam volgt write:<ding>, zodat hij straks onder de `write` van
-// shaer-4jb1 valt; `read` en `write` staan hier al, maar worden pas
-// aangeboden als de routes ze uit elkaar houden.
+// tokens van Shaer en Android blijven werken. `read` en `write` zijn de namen
+// uit het voorbeeld van FEP-d8c2 (shaer-4jb1). `write:door` is alleen de deur
+// van Playtime (shaer-ivi4) en zijn eigen sleutel: zetten en weghalen, verder
+// niets, ook niet lezen. De naam volgt write:<ding>, dus `write` omvat hem.
 const GRANTS = {
   c2s: ['read', 'write', 'write:door'],
   read: ['read'],
@@ -78,7 +78,7 @@ const GRANTS = {
   'write:door': ['write:door'],
 };
 /** Wat een client vandaag mag vragen (RFC 8414 scopes_supported). */
-export const SCOPES_SUPPORTED = ['c2s', 'write:door'];
+export const SCOPES_SUPPORTED = ['read', 'write', 'c2s', 'write:door'];
 /** Wat een route vraagt als hij niets noemt: alles van vóór de scopes. */
 const FULL = ['read', 'write'];
 
@@ -107,6 +107,46 @@ export function grantsOf(scope) {
 export function scopeAllows(scope, need = FULL) {
   const heeft = grantsOf(scope);
   return [].concat(need).every((n) => heeft.has(n));
+}
+
+/**
+ * Wat een C2S-verzoek vraagt. Op de METHODE, zodat een route die er later
+ * bijkomt niet vergeten kan worden: lezen is `read`, al het andere `write`.
+ * Drie paden wijken af, en dat zijn alle drie die van Playtime:
+ *   - de deur: lezen is openbaar (null), zetten en weghalen is `write:door`;
+ *   - de identiteitsbewijzen: `write:door`, en de route laat zo'n token alleen
+ *     aan de sleutels komen die het zelf koppelde (`write` mag alles);
+ *   - de open deuren: lezen is `read`, de schakelaar is `write:door`.
+ */
+export function needFor(req) {
+  const pad = String(req.path || '').replace(/\/+$/, '');
+  const lezen = req.method === 'GET' || req.method === 'HEAD';
+  if (/\/door$/.test(pad)) return lezen ? null : 'write:door';
+  if (/\/identityProofs$/.test(pad)) return 'write:door';
+  if (/\/openDoors$/.test(pad)) return lezen ? 'read' : 'write:door';
+  return lezen ? 'read' : 'write';
+}
+
+/** Het token achter een header, zonder iets te controleren of bij te werken. */
+export function inspectBearer(authHeader) {
+  const m = /^Bearer\s+([A-Za-z0-9_-]{20,})$/i.exec(String(authHeader || '').trim());
+  if (!m) return null;
+  const row = db.prepare('SELECT scope, client_id FROM oauth_tokens WHERE token_hash = ?').get(b64url(sha256(m[1])));
+  return row || null;
+}
+
+/**
+ * FEP-c180 "Client not authorized": de gebruiker mag het misschien wel, deze
+ * client niet -- zijn scope dekt het niet. 403 met het client-id erbij.
+ */
+export function clientNotAuthorized(res, { clientId, need }) {
+  return res.status(403).type('application/problem+json').send(JSON.stringify({
+    type: 'https://w3id.org/fep/c180#client-not-authorized',
+    title: 'Client not authorized',
+    status: 403,
+    detail: need ? `This token's scope does not include ${need}.` : "This token's scope does not cover this request.",
+    client: clientId || null,
+  }));
 }
 
 // Authorization step (after user consent): mint a single-use code.
@@ -194,4 +234,5 @@ export function revokeAuthorization(userId, tokenHash) {
 export default {
   registerClient, getClient, createCode, exchangeCode, verifyBearer, revokeToken, validRedirectUri,
   listAuthorizations, revokeAuthorization, parseScope, grantsOf, scopeAllows, SCOPES_SUPPORTED,
+  needFor, inspectBearer, clientNotAuthorized,
 };
