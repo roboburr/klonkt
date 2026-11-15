@@ -21,6 +21,7 @@ import OAuth from '../services/OAuthService.js';
 import * as Guardianship from '../services/guardianship/index.js';
 import * as ConversationKey from '../services/conversation-key.js';
 import * as IdentityProof from '../services/IdentityProof.js';
+import Door from '../services/door.js';
 import * as Migration from '../services/MigrationService.js';
 import { getPrimarySite } from '../middleware/site.js';
 import multer from 'multer';
@@ -1176,6 +1177,45 @@ router.delete('/ap/users/:slug/identityProofs', (req, res) => {
   const na = voor.filter((b) => b && b.subject !== subject);
   if (na.length === voor.length) return res.status(404).json({ error: 'no_such_identity_proof' });
   writeProofs(site, na);
+  res.status(204).end();
+});
+
+// ── De deur van Playtime (shaer-ivi4) ────────────────────────────────
+//
+// GET is openbaar zolang hij open staat (Bart, 15-11: geen lezerscontrole, geen
+// authorized fetch), en nooit uit een cache: het adres verandert met het
+// netwerk. PUT en DELETE alleen met een token van de eigenaar dat write:door
+// heeft -- c2s heeft dat ook, een write:door-token heeft verder niets.
+router.get('/ap/users/:slug/door', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const d = Door.get(req.params.slug);
+  if (!d) return res.status(404).json({ error: 'door_closed' });
+  res.type('application/activity+json').send(d.body);
+});
+router.put('/ap/users/:slug/door', express.json({ limit: '16kb', type: ['application/json', 'application/activity+json', 'application/ld+json'] }), (req, res) => {
+  const auth = OAuth.verifyBearer(req.headers.authorization, 'write:door');
+  if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
+  const mag = Door.allowWrite(auth.site.slug);
+  if (!mag.ok) { res.set('Retry-After', String(mag.retryAfter)); return res.status(429).json({ error: 'too_many_door_writes', max_per_hour: Door.DOOR_WRITES_PER_HOUR }); }
+  const base = baseUrl(req);
+  const url = Door.doorUrl(base, auth.site.slug);
+  const site = db.prepare('SELECT * FROM sites WHERE id = ?').get(auth.site.id);
+  const uitslag = Door.checkDoor(req.body, { url, actor: AP.actorId(base, auth.site.slug), keys: Door.linkedKeys(site) });
+  if (!uitslag.ok) return res.status(422).json({ error: uitslag.error });
+  // Dezelfde JSON terug als er kwam. Niet per se dezelfde bytes (witruimte),
+  // maar de handtekening is over de JCS-vorm, dus die klopt bij elke lezer.
+  const { cameOnline } = Door.set(auth.site.slug, JSON.stringify(req.body));
+  if (cameOnline) Door.announceOnline(base, auth.site.slug);
+  res.set('Cache-Control', 'no-store');
+  res.status(cameOnline ? 201 : 200).json({ id: url, open: true });
+});
+router.delete('/ap/users/:slug/door', (req, res) => {
+  const auth = OAuth.verifyBearer(req.headers.authorization, 'write:door');
+  if (!auth || auth.site.slug !== req.params.slug) return res.status(403).end();
+  // Dichtdoen telt mee voor de grens, maar wordt nooit geweigerd: een eigenaar
+  // die sluit moet altijd dicht kunnen.
+  Door.allowWrite(auth.site.slug);
+  if (!Door.close(auth.site.slug)) return res.status(404).json({ error: 'door_closed' });
   res.status(204).end();
 });
 

@@ -30,6 +30,7 @@ import { parsePoll, recordPollBallot } from './ap-polls.js';
 import { fwStmts } from './ap-following.js';
 import * as HubInvite from './hub-invite.js';
 import * as ConversationKey from './conversation-key.js';
+import * as Door from './door.js';
 
 /**
  * Welke objectsoorten deze inbox in de tijdlijn opneemt.
@@ -40,6 +41,16 @@ import * as ConversationKey from './conversation-key.js';
  * vormen. Een Audio is geen Note, en die soort willen we kunnen blijven zien.
  */
 const TIJDLIJN_SOORTEN = new Set(['Note', 'Article', 'Question', 'Audio']);
+
+/**
+ * De site achter een deur-uri, of null. Dezelfde strengheid als de
+ * bibliotheek: ONZE basis, en een site die bestaat.
+ */
+function doorOwnerSlug(uri) {
+  const u = String(uri || '');
+  if (!u.endsWith('/door')) return null;
+  return localSlugOf(u.slice(0, -'/door'.length));
+}
 
 // De werktuigen uit de dienstlaag; ActivityPubService vult ze onderaan.
 let actorInfo, actorUriOf, backfillFromOutbox, backfillNewFollower,
@@ -471,6 +482,33 @@ export async function handleInbox(req, slugParam, preVerified = null) {
     //
     // De bibliotheek is openbaar (alles erin is fedi_open), dus dit accepteert
     // meteen. Er valt niets goed te keuren, en dan is wachten oneerlijk.
+    // De DEUR van Playtime (shaer-ivi4): wie hierop abonneert, hoort wanneer
+    // hij online komt. Alleen uit de lucht van de eigenaar (wie hem volgt of
+    // wie hij volgt); de rest krijgt een Reject, zodat een opening nooit post
+    // naar vreemden stuurt.
+    const doorSlug = doorOwnerSlug(typeof act.object === 'string' ? act.object : (act.object && act.object.id));
+    if (who && doorSlug) {
+      const remote = await fetchActor(who);
+      if (!remote || !remote.inbox) return 202;
+      const me = actorId(base, doorSlug);
+      const keys = getOrCreateKeys(doorSlug);
+      const welkom = Door.inSky(doorSlug, who);
+      if (welkom) {
+        Door.subscribe(doorSlug, {
+          actorUri: who, inbox: remote.inbox,
+          sharedInbox: (remote.endpoints && remote.endpoints.sharedInbox) || null,
+        });
+      }
+      const antwoord = {
+        '@context': AP_CONTEXT,
+        id: `${me}#${welkom ? 'accept' : 'reject'}-door-${Date.now()}-${rid()}`,
+        type: welkom ? 'Accept' : 'Reject', actor: me, object: act,
+      };
+      deliver(remote.inbox, antwoord, `${me}#main-key`, keys.private_pem)
+        .catch(() => { /* het abonnement staat (of niet); een mislukt antwoord verandert dat niet */ });
+      console.log('[AP] door subscription from', who, '->', doorSlug, welkom ? '(in the sky)' : '(refused: not in the sky)');
+      return 202;
+    }
     const libSlug = libraryOwnerSlug(typeof act.object === 'string' ? act.object : (act.object && act.object.id));
     if (who && libSlug) {
       const remote = await fetchActor(who);
@@ -608,6 +646,11 @@ export async function handleInbox(req, slugParam, preVerified = null) {
     const doel = typeof act.object.object === 'string' ? act.object.object : (act.object.object && act.object.object.id);
     const libSlug = libraryOwnerSlug(doel);
     const wie = typeof act.actor === 'string' ? act.actor : (act.actor && act.actor.id);
+    const deurSlug = doorOwnerSlug(doel);
+    if (deurSlug && wie) {
+      if (Door.unsubscribe(deurSlug, wie)) console.log('[AP] door unsubscribe from', wie, '->', deurSlug);
+      return 202;
+    }
     if (libSlug && wie && luisteraars.verwijder(libSlug, wie)) {
       console.log('[AP] library unfollow from', wie, '->', libSlug);
       return 202;

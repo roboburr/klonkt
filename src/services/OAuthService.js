@@ -8,7 +8,11 @@
  *   - PUBLIC clients only (native apps, RFC 8252): no client secrets,
  *     PKCE S256 is REQUIRED on the authorization-code flow.
  *   - A token is scoped to ONE user + ONE site (multi-site hub: the consent
- *     page picks the site). Scope string is informational ('c2s').
+ *     page picks the site).
+ *   - The scope is ENFORCED, closed by default (shaer-ivi4). `c2s` is
+ *     everything; `write:door` is only Playtime's door. A route that names
+ *     no scope asks for read + write, so a narrow token cannot slip into a
+ *     route that forgot to say what it needs.
  *   - Tokens are stored hashed (sha256); codes are single-use, 10 min TTL.
  */
 
@@ -59,15 +63,64 @@ export function getClient(clientId) {
   return { client_id: row.client_id, client_name: row.client_name, redirect_uris: uris };
 }
 
+// ── Scopes ─────────────────────────────────────────────────────────────
+//
+// Wat een scope toestaat, in rechten. `c2s` is alles wat er is, zodat de
+// tokens van Shaer en Android blijven werken. `write:door` is alleen de deur
+// van Playtime (shaer-ivi4): zetten en weghalen, verder niets, ook niet
+// lezen. De naam volgt write:<ding>, zodat hij straks onder de `write` van
+// shaer-4jb1 valt; `read` en `write` staan hier al, maar worden pas
+// aangeboden als de routes ze uit elkaar houden.
+const GRANTS = {
+  c2s: ['read', 'write', 'write:door'],
+  read: ['read'],
+  write: ['write', 'write:door'],
+  'write:door': ['write:door'],
+};
+/** Wat een client vandaag mag vragen (RFC 8414 scopes_supported). */
+export const SCOPES_SUPPORTED = ['c2s', 'write:door'];
+/** Wat een route vraagt als hij niets noemt: alles van vóór de scopes. */
+const FULL = ['read', 'write'];
+
+/**
+ * Een gevraagde scope (RFC 6749 §3.3: met spaties gescheiden) lezen.
+ * Leeg is `c2s`, zoals altijd. Een onbekende scope wordt GEWEIGERD en niet
+ * stil c2s: een app die om minder vraagt mag niet meer krijgen.
+ */
+export function parseScope(scope) {
+  const delen = [...new Set(String(scope == null ? '' : scope).split(/\s+/).filter(Boolean))];
+  if (!delen.length) return { scope: 'c2s', parts: ['c2s'] };
+  const onbekend = delen.filter((d) => !SCOPES_SUPPORTED.includes(d));
+  if (onbekend.length) return { error: 'invalid_scope', error_description: `unsupported scope: ${onbekend.join(' ')}` };
+  return { scope: delen.join(' '), parts: delen };
+}
+
+/** De rechten achter een opgeslagen scope. Een leeg veld is een oud c2s-token. */
+export function grantsOf(scope) {
+  const uit = new Set();
+  const delen = String(scope == null ? '' : scope).split(/\s+/).filter(Boolean);
+  for (const d of (delen.length ? delen : ['c2s'])) for (const g of (GRANTS[d] || [])) uit.add(g);
+  return uit;
+}
+
+/** Mag een token met deze scope wat de route vraagt? */
+export function scopeAllows(scope, need = FULL) {
+  const heeft = grantsOf(scope);
+  return [].concat(need).every((n) => heeft.has(n));
+}
+
 // Authorization step (after user consent): mint a single-use code.
 export function createCode({ clientId, userId, siteSlug, redirectUri, codeChallenge, scope }) {
   if (!codeChallenge || !/^[A-Za-z0-9_-]{43}$/.test(String(codeChallenge))) {
     return { error: 'invalid_request', error_description: 'PKCE S256 code_challenge is required' };
   }
+  const gelezen = parseScope(scope);
+  if (gelezen.error) return gelezen;
+  scope = gelezen.scope;
   const code = b64url(crypto.randomBytes(24));
   db.prepare(`INSERT INTO oauth_codes (code, client_id, user_id, site_slug, redirect_uri, code_challenge, scope, expires_at)
               VALUES (?,?,?,?,?,?,?,?)`)
-    .run(code, clientId, userId, siteSlug, redirectUri, codeChallenge, scope || 'c2s',
+    .run(code, clientId, userId, siteSlug, redirectUri, codeChallenge, scope,
          new Date(Date.now() + CODE_TTL_MS).toISOString());
   return { code };
 }
@@ -91,12 +144,18 @@ export function exchangeCode({ code, client_id, redirect_uri, code_verifier }) {
 
 // Resolve "Authorization: Bearer <token>" → { user, site } or null. The C2S
 // caller must additionally check the site matches the URL and permissions.
-export function verifyBearer(authHeader) {
+//
+// `need` is what the route asks for. Leave it out and the route asks for
+// read + write, which only c2s gives: closed by default, so a route nobody
+// thought about refuses a narrow token instead of serving it. A token that
+// lacks the scope gets null, exactly like an unknown one.
+export function verifyBearer(authHeader, need = FULL) {
   const m = /^Bearer\s+([A-Za-z0-9_-]{20,})$/i.exec(String(authHeader || '').trim());
   if (!m) return null;
   const hash = b64url(sha256(m[1]));
   const row = db.prepare('SELECT * FROM oauth_tokens WHERE token_hash = ?').get(hash);
   if (!row) return null;
+  if (!scopeAllows(row.scope, need)) return null;
   try { db.prepare('UPDATE oauth_tokens SET last_used_at = CURRENT_TIMESTAMP WHERE token_hash = ?').run(hash); } catch { /* non-fatal */ }
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(row.user_id);
   const site = db.prepare('SELECT * FROM sites WHERE slug = ?').get(row.site_slug);
@@ -134,5 +193,5 @@ export function revokeAuthorization(userId, tokenHash) {
 
 export default {
   registerClient, getClient, createCode, exchangeCode, verifyBearer, revokeToken, validRedirectUri,
-  listAuthorizations, revokeAuthorization,
+  listAuthorizations, revokeAuthorization, parseScope, grantsOf, scopeAllows, SCOPES_SUPPORTED,
 };

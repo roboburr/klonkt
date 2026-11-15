@@ -43,7 +43,7 @@ requests send and accept `application/activity+json`.
    `GET /.well-known/oauth-authorization-server` returns
    `authorization_endpoint`, `token_endpoint`, `registration_endpoint`,
    `code_challenge_methods_supported: ["S256"]`,
-   `token_endpoint_auth_methods_supported: ["none"]`, `scopes_supported: ["c2s"]`.
+   `token_endpoint_auth_methods_supported: ["none"]`, `scopes_supported: ["c2s", "write:door"]`.
 
 If the actor lacks the OAuth endpoints, the server does not support posting from
 apps; the client should degrade to read-only.
@@ -66,6 +66,14 @@ Public clients only. No client secret. PKCE with S256 is required.
 3. **Token**: `POST /oauth/token` (form-encoded) with
    `grant_type=authorization_code`, `code`, `client_id`, `redirect_uri`,
    `code_verifier`. Returns `{ "access_token": "...", "token_type": "Bearer" }`.
+
+**Scopes** (space-separated, RFC 6749 §3.3). `c2s` is everything below and
+is what an empty scope means. `write:door` is Playtime's door (§5a) and
+nothing else: no reads, no outbox. Any other scope is refused with
+`invalid_scope`. Scopes are enforced, closed by default: a route that names
+none asks for full access, so a `write:door` token gets `403` everywhere but
+the door. `read` and `write` (FEP-d8c2) follow with shaer-4jb1; `write` will
+include `write:door`.
 
 The bearer is scoped to one user and one site. Send it as
 `Authorization: Bearer <token>` on every authenticated call. Tokens are stored
@@ -230,6 +238,34 @@ render it as an alert; other servers read a normal private mention. See FEP-633c
 `multipart/form-data`, field name `file`, one image/audio/video, up to 32 MB.
 Returns `201 { "url": "/media/reply-media/...", "mediaType": "image/png", "name": "..." }`.
 Use `url` in an `attachment` on the next note.
+
+## 5a. The door (Playtime, `shaer:door`)
+
+While its owner is "Open to BETA", Playtime announces where the phone can be
+reached. Klonkt keeps that **in memory only**: never in the database, a
+backup or the move-out zip. A restart closes every door; Playtime puts it back
+when a GET of its own door returns 404.
+
+- The actor always carries `"shaer:door": { "id": "<actor>/door", "type": "shaer:Door" }`.
+  It never changes and holds no address, so the door never needs an actor `Update`.
+- `GET <actor>/door`: public, `Cache-Control: no-store`. `200` with the door
+  while open, `404 {"error":"door_closed"}` while closed.
+- `PUT <actor>/door` (bearer with `write:door` or `c2s`, owner only): sets or
+  replaces it. `201` when it was closed (it came online), `200` for a
+  replacement. Klonkt checks that `id` is the door URL, that `attributedTo`
+  (if present) is the actor, and that a FEP-8b32 `proof` (DataIntegrityProof,
+  eddsa-jcs-2022, `assertionMethod`) verifies with a did:key this actor links
+  via FEP-c390. Everything else passes through unread. `422 {"error": ...}`
+  names the rule that failed; at most 60 writes an hour (`429` with `Retry-After`).
+- `DELETE <actor>/door`: closes it, `204`, or `404` when already closed. Never refused by the rate limit.
+- **Subscribing** is server to server: a `Follow` whose `object` is the door id,
+  delivered to the owner's inbox. It is accepted only from the owner's sky
+  (a follower, or someone the owner follows); anyone else gets a `Reject`.
+  An `Undo` of the Follow ends it. A door subscriber is not a follower.
+- **Coming online** (a `201` PUT, including the first after a restart)
+  delivers `Update { object: { id, type: "shaer:Door", attributedTo } }`
+  to the subscribers only. It carries the stub, not the door, so no other
+  server ever stores the address; replacing an open door sends nothing.
 
 ## 6. The `shaer:` vocabulary (FEP-633c)
 

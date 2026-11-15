@@ -479,6 +479,19 @@ export function initializeDatabase() {
       UNIQUE (slug, actor_uri)
     );
 
+    -- DEURABONNEES (shaer-ivi4). Wie hoort wanneer de deur van Playtime online
+    -- komt: een Follow met de deur als object. Net als de luisteraars een eigen
+    -- tabel, zodat een postbezorging ze niet meeneemt. Hier staan alleen actor
+    -- en inbox; de deur zelf leeft in het geheugen en komt nooit in de database.
+    CREATE TABLE IF NOT EXISTS ap_door_subscribers (
+      slug TEXT NOT NULL,
+      actor_uri TEXT NOT NULL,
+      inbox TEXT,
+      shared_inbox TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (slug, actor_uri)
+    );
+
     -- OpenWebAuth (FEP-61cf): eenmalige tokens waarmee een BEZOEKER van elders
     -- bewijst wie hij is. Klonkt is hier de 'target instance': we hebben nooit
     -- iemands prive-sleutel nodig, alleen zijn publieke -- dus staat hier ook

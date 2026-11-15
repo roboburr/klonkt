@@ -61,6 +61,9 @@ const AS2 = new Set([
   // verklaringen zelf staan onder `attachment` en dragen hun eigen @context
   // (did/v1, data-integrity/v1, fep/c390), dus hun termen horen niet hier.
   'shaer:identityProofs',
+  // De deur van Playtime (shaer-ivi4): een stompje op de actor, de deur zelf
+  // draagt zijn eigen @context en staat niet in de actor.
+  'shaer:door', 'shaer:Door',
   'publicKey', 'owner', 'publicKeyPem',
   'Note', 'Person', 'Create', 'Update', 'Delete', 'Tombstone', 'Announce', 'Like', 'Follow',
   'Accept', 'Reject', 'Undo', 'Add', 'Remove', 'Flag', 'Document', 'Image', 'Audio', 'Video',

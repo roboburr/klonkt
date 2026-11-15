@@ -77,6 +77,18 @@ function authError(res, redirectUri, state, error, desc) {
   return res.status(400).json({ error, error_description: desc });
 }
 
+// Wat het toestemmingsscherm belooft: alleen wat de scope geeft. Een app die
+// alleen de deur vraagt, krijgt geen regel over posten en volgen te zien.
+export function scopeLines(parts) {
+  const g = new Set();
+  for (const p of parts) for (const x of OAuth.grantsOf(p)) g.add(x);
+  const regels = [];
+  if (g.has('read')) regels.push('oauth.scope_read');
+  if (g.has('write')) regels.push('oauth.scope_write');
+  else if (g.has('write:door')) regels.push('oauth.scope_door');
+  return regels;
+}
+
 // ── RFC 8414: server metadata ────────────────────────────────────────────
 router.get('/.well-known/oauth-authorization-server', (req, res) => {
   const base = baseUrl(req);
@@ -89,7 +101,7 @@ router.get('/.well-known/oauth-authorization-server', (req, res) => {
     grant_types_supported: ['authorization_code'],
     code_challenge_methods_supported: ['S256'],
     token_endpoint_auth_methods_supported: ['none'],
-    scopes_supported: ['c2s'],
+    scopes_supported: OAuth.SCOPES_SUPPORTED,
   });
 });
 
@@ -110,12 +122,18 @@ router.get('/oauth/authorize', requireAuth, (req, res) => {
   if (response_type !== 'code') return authError(res, redirect_uri, state, 'unsupported_response_type');
   if (code_challenge_method !== 'S256' || !code_challenge) return authError(res, redirect_uri, state, 'invalid_request', 'PKCE S256 required');
 
+  // RFC 6749 §4.1.2.1: een scope die we niet kennen gaat terug als
+  // invalid_scope, vóór het toestemmingsscherm -- niet stil als c2s.
+  const gevraagd = OAuth.parseScope(scope);
+  if (gevraagd.error) return authError(res, redirect_uri, state, gevraagd.error, gevraagd.error_description);
+
   const sites = manageableSites(req.session.user);
   if (!sites.length) return authError(res, redirect_uri, state, 'access_denied', 'no manageable sites for this account');
 
   return renderPage(req, res, 'pages/oauth-consent', {
     pageTitleKey: 'oauth.title', bodyClass: 'on-special',
-    client, sites, params: { client_id, redirect_uri, code_challenge, scope: scope || 'c2s', state: state || '' },
+    client, sites, scopeLines: scopeLines(gevraagd.parts),
+    params: { client_id, redirect_uri, code_challenge, scope: gevraagd.scope, state: state || '' },
   });
 });
 

@@ -153,7 +153,10 @@ Mastodon client API: Mastodon apps (Ivory and the like) are not supported here.
   `/.well-known/oauth-authorization-server` (RFC 8414) returns the authorization,
   token and registration endpoints, `response_types=["code"]`,
   `grant_types=["authorization_code"]`, `code_challenge_methods=["S256"]`,
-  `token_endpoint_auth_methods=["none"]` and `scopes_supported=["c2s"]`.
+  `token_endpoint_auth_methods=["none"]` and `scopes_supported=["c2s", "write:door"]`.
+  Scopes are enforced: `write:door` reaches only Playtime's door
+  (`<actor>/door`, see docs/shaer-c2s-api.md §5a), and an unknown scope is
+  refused with `invalid_scope`.
 - Registration: `POST /oauth/register` (RFC 7591), public clients only.
 - Authorization: PKCE authorization-code flow with a consent screen where the
   user picks which site the app may act for. Tokens are hashed at rest and bound

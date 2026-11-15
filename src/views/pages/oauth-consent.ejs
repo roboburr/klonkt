@@ -25,8 +25,9 @@
     <% } %>
 
     <ul class="oa-scopes">
-      <li><%= t('oauth.scope_read') %></li>
-      <li><%= t('oauth.scope_write') %></li>
+      <% (typeof scopeLines !== 'undefined' ? scopeLines : ['oauth.scope_read', 'oauth.scope_write']).forEach(function(k){ %>
+        <li><%= t(k) %></li>
+      <% }); %>
     </ul>
 
     <div class="oa-actions">

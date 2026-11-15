@@ -178,7 +178,7 @@
           <li class="ax-oauth-item">
             <div class="ax-oauth-info">
               <strong><%= a.client_name || t('acct.oauth_unknown_app') %></strong>
-              <span class="ax-oauth-meta">@<%= a.site_slug %> · <%= a.scope || 'c2s' %> · <%= t('acct.oauth_last_used') %> <%= a.last_used_at ? formatDate(a.last_used_at) : t('acct.oauth_never') %></span>
+              <span class="ax-oauth-meta">@<%= a.site_slug %> · <%= (a.scope === 'write:door') ? t('oauth.scope_name_door') : (!a.scope || a.scope === 'c2s') ? t('oauth.scope_name_c2s') : a.scope %> · <%= t('acct.oauth_last_used') %> <%= a.last_used_at ? formatDate(a.last_used_at) : t('acct.oauth_never') %></span>
             </div>
             <form action="/account/oauth/revoke" method="post">
               <input type="hidden" name="token_hash" value="<%= a.token_hash %>">

@@ -123,6 +123,7 @@ export { AP_CONTEXT, actorId, noteId, guessMediaType };
 // De muziekkant woont in music/ (shaer-drc). Doorgeven wat hier altijd
 // vandaan kwam, zodat elke bestaande aanroep blijft werken.
 import { luisteraars } from './music/index.js';
+import { doorStub } from './door.js';
 import { TRACK_KOLOMMEN,
   playlistOpenTracks, siteOpenTracks, openTrack, trackHostPosts,
   buildTrackAudio, buildTrackCollection, buildTrackCreate, trackUri, buildMixtapeObject, postMusicType,
@@ -381,6 +382,10 @@ export function buildActor(base, site) {
     // server die dit niet kent" anders niet uit elkaar te houden zijn.
     migration: `${id}/migration`,
     moves: `${id}/moves`,
+    // De deur van Playtime (shaer-ivi4). Altijd een OBJECT, nooit een kale IRI,
+    // en altijd hetzelfde: open of dicht zie je aan de deur zelf (200 of 404),
+    // zodat de actor er nooit een Update voor nodig heeft. Geen adres hier.
+    'shaer:door': doorStub(base, site.slug),
     // FEP-633c §2: shaer:guardians / shaer:isGuardian / shaer:queues
     // (guardianship module owns these).
     ...Guardianship.guardianshipActorProps(id, site.slug),
