@@ -32,6 +32,7 @@ import * as HubInvite from './hub-invite.js';
 import * as ConversationKey from './conversation-key.js';
 import * as Door from './door.js';
 import * as DoorWatch from './door-watch.js';
+import { luisteraars } from './music/index.js';
 
 /**
  * Welke objectsoorten deze inbox in de tijdlijn opneemt.
@@ -538,8 +539,11 @@ export async function handleInbox(req, slugParam, preVerified = null) {
         id: `${actorId(base, libSlug)}#accept-library-${Date.now()}-${rid()}`,
         type: 'Accept', actor: actorId(base, libSlug), object: act,
       };
-      deliver(remote.inbox, accept, `${actorId(base, libSlug)}#main-key`, keys.privatePem)
-        .catch(() => { /* de volger staat er; een mislukte Accept mag dat niet omgooien */ });
+      // De volger staat er; een mislukte Accept mag dat niet omgooien. Wel
+      // hardop: hier stond `keys.privatePem` (de rij heet private_pem), en een
+      // stille catch verborg dat geen enkele Accept vertrok.
+      deliver(remote.inbox, accept, `${actorId(base, libSlug)}#main-key`, keys.private_pem)
+        .catch((e) => console.warn('[AP] library Accept delivery failed:', e.message));
       console.log('[AP] library follow from', who, '->', libSlug);
       return 202;
     }
