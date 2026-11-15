@@ -1292,7 +1292,9 @@ function fStmts() {
     _listF = db.prepare('SELECT inbox, shared_inbox FROM ap_followers WHERE slug = ?');
     _cntF = db.prepare('SELECT COUNT(*) n FROM ap_followers WHERE slug = ?');
   }
-  return { ins: _insF, del: _delF, list: _listF, cnt: _cntF };
+  // updDisp hoort erbij: ap-inbox.js krijgt deze set via wireInbox en kan niet
+  // bij de module-privé naam (shaer-yn3l).
+  return { ins: _insF, updDisp: _updFDisp, del: _delF, list: _listF, cnt: _cntF };
 }
 export function followerCount(slug) { return fStmts().cnt.get(slug).n; }
 

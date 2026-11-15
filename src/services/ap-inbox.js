@@ -599,10 +599,13 @@ export async function handleInbox(req, slugParam, preVerified = null) {
           fetchActor(g).then((ga) => {
             const inbox = ga && ((ga.endpoints && ga.endpoints.sharedInbox) || ga.inbox);
             if (!inbox) return;
-            const beslissend2 = Guardianship.gated.isDecisive(0, Guardianship.follows.followThreshold(guardians.length));
+            // wardGuardians, niet `guardians`: die naam bestaat alleen in de
+            // uitgaande variant in de dienst. Hier gooide dat, en de stille catch
+            // eronder hield elke Offer naar een remote guardian tegen (shaer-yn3l).
+            const beslissend2 = Guardianship.gated.isDecisive(0, Guardianship.follows.followThreshold(wardGuardians.length));
             const offer = { '@context': AP_CONTEXT, id: `${wardActor}#followoffer-${Date.now()}-${rid()}`, type: 'Offer', actor: wardActor, to: [g], object: followObj, 'shaer:followApproval': true, 'shaer:decisive': beslissend2 };
             deliverWithRetry(slug, inbox, offer, `${wardActor}#main-key`, wardKeys.private_pem).catch(() => {});
-          }).catch(() => {});
+          }).catch((e) => console.warn('[AP] follow offer to guardian failed:', g, e.message));
         }
       }
       console.log('[AP] Follow', who, '→ ward', slug, '(gated, awaiting guardians)');
@@ -637,7 +640,7 @@ export async function handleInbox(req, slugParam, preVerified = null) {
       return 202;
     }
     fStmts().ins.run(slug, who, remote.inbox, sharedInbox, fi.name, fi.handle, fi.icon);
-    try { _updFDisp.run(fi.name, fi.handle, fi.icon, slug, who); } catch { /* best effort */ }
+    try { fStmts().updDisp.run(fi.name, fi.handle, fi.icon, slug, who); } catch { /* best effort */ }
     { const L = pushLang(slug); pushEvent(slug, { type: 'follow', title: i18nT(L, 'push.n_follow_t'), body: i18nT(L, 'push.n_follow_b', { who: fi.name || fi.handle || i18nT(L, 'notif.someone') }), url: `${pushPrefix(slug)}/connect` }); }
     const me = actorId(base, slug);
     const keys = getOrCreateKeys(slug);
