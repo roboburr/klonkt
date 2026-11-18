@@ -32,8 +32,11 @@ db.prepare('INSERT INTO sites (id, slug, title, owner_id, is_public) VALUES (?,?
 
 // Een post in de cirkel met precies de vorm die het omver haalde.
 const zet = (id, media) => {
-  db.prepare(`INSERT INTO ap_timeline (id, slug, author_uri, author_name, content, url, published, media_json)
-              VALUES (?,?,?,?,?,?,?,?)`)
+  // visibility 'public': sinds shaer-7jkp toont de Cirkel alleen wat zeker
+  // openbaar is. Zonder deze kolom viel de rij er stil af en was deze test
+  // groen zonder het media-pad ooit te raken.
+  db.prepare(`INSERT INTO ap_timeline (id, slug, author_uri, author_name, content, url, published, media_json, visibility)
+              VALUES (?,?,?,?,?,?,?,?,'public')`)
     .run(id, 'dev', 'https://elders.test/u/a', 'Iemand', '<p><strong>Titel</strong></p>',
          'https://elders.test/n/' + id, '2026-08-13T12:00:00Z', media);
   db.prepare(`INSERT INTO ap_my_reactions (site_slug, target_uri, kind) VALUES (?,?,'boost')`)

@@ -29,7 +29,9 @@ export function wireTimeline(deps) {
 let _insTl, _listTl, _delTl;
 export function tlStmts() {
   if (!_insTl) {
-    _insTl = db.prepare(`INSERT OR IGNORE INTO ap_timeline (id, slug, author_uri, author_name, author_handle, author_icon, author_url, content, url, published, media_json, nsfw, cw, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,${NU_ISO})`);
+    // visibility als laatste (shaer-7jkp): wat de afzender ervan zei, zodat
+    // de openbare Cirkel geen vriendenpost van een ander laat zien.
+    _insTl = db.prepare(`INSERT OR IGNORE INTO ap_timeline (id, slug, author_uri, author_name, author_handle, author_icon, author_url, content, url, published, media_json, nsfw, cw, visibility, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,${NU_ISO})`);
     _listTl = db.prepare(`SELECT * FROM ap_timeline WHERE slug = ? ORDER BY ${STEMPEL('COALESCE(published, created_at)')} DESC LIMIT ? OFFSET ?`);
     _delTl = db.prepare('DELETE FROM ap_timeline WHERE id = ?');
   }

@@ -768,7 +768,7 @@ export async function handleInbox(req, slugParam, preVerified = null) {
         // fediverse is only ever a deliberate, manual per-post action (the 🔁 on
         // the timeline).
         for (const s of subs) {
-          tlStmts().ins.run(o.id, s.slug, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, _url, o.published || null, media, o.sensitive ? 1 : 0, contentWarning(o));
+          tlStmts().ins.run(o.id, s.slug, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, _url, o.published || null, media, o.sensitive ? 1 : 0, contentWarning(o), noteVisibility(o));
           // FEP-633c §2.2: register the ward hint on the stored object (no action yet).
           if (Guardianship.objectHasGuardians(o)) { try { db.prepare('UPDATE ap_timeline SET has_guardians = 1 WHERE id = ? AND slug = ?').run(o.id, s.slug); } catch { /* ignore */ } }
           // FEP-9098: keep the note's custom-emoji tags so the C2S inbox read can serve them.
@@ -1038,7 +1038,7 @@ export async function handleInbox(req, slugParam, preVerified = null) {
             // reblogs at reblog-time, not the original's date). INSERT OR IGNORE: if we already
             // have the note (e.g. we also follow the author), keep it and DON'T relabel it.
             let inserted = false;
-            try { const r = tlStmts().ins.run(bn.id, s.slug, origUri || '', oai.name, oai.handle, oai.icon, oai.url, html, bn.url || null, new Date().toISOString(), media, bn.sensitive ? 1 : 0, contentWarning(bn)); inserted = r.changes > 0; } catch { /* ignore */ }
+            try { const r = tlStmts().ins.run(bn.id, s.slug, origUri || '', oai.name, oai.handle, oai.icon, oai.url, html, bn.url || null, new Date().toISOString(), media, bn.sensitive ? 1 : 0, contentWarning(bn), noteVisibility(bn)); inserted = r.changes > 0; } catch { /* ignore */ }
             if (inserted) { try { db.prepare('UPDATE ap_timeline SET reblog_name = ?, reblog_handle = ?, reblog_icon = ?, reblog_emoji_json = ? WHERE slug = ? AND id = ?').run(booster.name, booster.handle, booster.icon, (booster.emojis && Object.keys(booster.emojis).length) ? JSON.stringify(booster.emojis) : null, s.slug, bn.id); } catch { /* ignore */ } }
             storeAuthorEmoji(bn.id, s.slug, oai);   // custom-emoji display name for the byline
             // A boost carries the same renderable tags as a Create: capture the

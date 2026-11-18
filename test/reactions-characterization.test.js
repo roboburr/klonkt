@@ -42,10 +42,12 @@ db.prepare('INSERT INTO sites (id, slug, title, owner_id) VALUES (?,?,?,?)').run
 
 const uri = (n) => `https://r.test/ap/notes/${n}`;
 
-/** Een post van iemand anders in JOUW tijdlijn-cache. */
+/** Een post van iemand anders in JOUW tijdlijn-cache. Openbaar, zoals de inbox
+ *  hem sinds shaer-7jkp opslaat: de Cirkel toont niets waarvan de
+ *  zichtbaarheid onbekend is, en dit bestand toetst de tussentabel, niet dat. */
 function seedTimeline(id, author = 'https://r.test/users/anna') {
-  db.prepare(`INSERT OR IGNORE INTO ap_timeline (id, slug, author_uri, author_name, content, created_at)
-              VALUES (?,?,?,?,?,?)`).run(id, 'me', author, 'Anna', '<p>x</p>', '2026-08-06 09:00:00');
+  db.prepare(`INSERT OR IGNORE INTO ap_timeline (id, slug, author_uri, author_name, content, created_at, visibility)
+              VALUES (?,?,?,?,?,?,'public')`).run(id, 'me', author, 'Anna', '<p>x</p>', '2026-08-06 09:00:00');
 }
 
 // ── Ingang 1: de tijdlijn-route (posts.js ~1279-1304) ────────────────────
@@ -117,7 +119,7 @@ test('upsertBoostedNote trekt een post die je NIET volgt je tijdlijn in', () => 
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM ap_timeline WHERE id=?').get(u).n, 0);
   AP.upsertBoostedNote('me', {
     object_uri: u, actor_uri: 'https://r.test/users/bo', actor_name: 'Bo',
-    content: '<p>geboost</p>', media: '[]',
+    content: '<p>geboost</p>', media: '[]', visibility: 'public',   // zoals resolveRemoteNote hem levert
   });
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM ap_timeline WHERE id=?').get(u).n, 1, 'de rij hoort aangemaakt te worden');
   assert.equal(AP.getTimelineReaction('me', u).boosted, true, 'en meteen als geboost gemarkeerd');
@@ -193,7 +195,7 @@ test('setReaction: een boost met note trekt de post je tijdlijn in EN vult beide
   // vlag nergens, dus zou de boost onvindbaar zijn.
   const u = uri('sr2');
   AP.setReaction('me', u, 'boost', true, {
-    note: { object_uri: u, actor_uri: 'https://r.test/users/bo', actor_name: 'Bo', content: '<p>x</p>', media: '[]' },
+    note: { object_uri: u, actor_uri: 'https://r.test/users/bo', actor_name: 'Bo', content: '<p>x</p>', media: '[]', visibility: 'public' },
   });
   assert.equal(AP.getMyReactions('me', u).boosted, true, 'tussentabel');
   assert.equal(AP.getTimelineReaction('me', u).boosted, true, 'afgeleide vlag');

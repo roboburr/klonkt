@@ -66,6 +66,9 @@ router.get('/cirkel', (req, res, next) => {
 
   const append = req.query.append === '1';
   const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
+  // Oude rijen zonder zichtbaarheid staan er niet op tot ze nagekeken zijn
+  // (shaer-7jkp); de eerste keer dat de Cirkel gevraagd wordt, begint dat.
+  ActivityPubService.recheckCirkelOnce(site.slug);
   const rows = ActivityPubService.getCirkelPosts(site.slug, CIRKEL_PAGE + 1, offset);
   const hasMore = rows.length > CIRKEL_PAGE;
   const posts = rows.slice(0, CIRKEL_PAGE).map((r) => {

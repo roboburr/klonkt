@@ -966,6 +966,10 @@ export function initializeDatabase() {
   ensureColumn('ap_timeline', 'liked', 'INTEGER DEFAULT 0'); // a feed post you liked (⭐) → toggle
   ensureColumn('ap_timeline', 'nsfw', 'INTEGER DEFAULT 0');  // remote sensitive post → blur in the Cirkel
   ensureColumn('ap_timeline', 'cw', 'TEXT');                 // remote content-warning text
+  // public|unlisted|followers|direct uit de adressering (noteVisibility), of
+  // 'onbekend' na een herkeuring die niets opleverde. NULL = nog niet bekend:
+  // een rij van voor shaer-7jkp. De Cirkel toont alleen wat zeker openbaar is.
+  ensureColumn('ap_timeline', 'visibility', 'TEXT');
   ensureColumn('ap_timeline', 'emoji_json', 'TEXT');         // FEP-9098 custom emoji Emoji tags from the inbound note, served back as `tag`
   ensureColumn('ap_timeline', 'link_json', 'TEXT');          // FEP-e232 object-link (quote/ref) tags from the inbound note, served back as `tag`
   ensureColumn('ap_timeline', 'quote_json', 'TEXT');         // FEP-044f resolved quoted-post snapshot (author + content), for the embedded quote card

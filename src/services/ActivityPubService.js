@@ -116,8 +116,18 @@ import { handleInbox, wireInbox } from './ap-inbox.js';
 export { handleInbox };
 // Stap 10 (shaer-drc): de Cirkel woont in ap-cirkel.js. Geen wire: hij leest
 // alleen db.
-import { autoBoostCount, getCirkelPosts, getCirkelMembers } from './ap-cirkel.js';
+import { autoBoostCount, getCirkelPosts, getCirkelMembers, herkeurCirkel } from './ap-cirkel.js';
 export { autoBoostCount, getCirkelPosts, getCirkelMembers };
+
+// De herkeuring van oude Cirkel-rijen (shaer-7jkp), één keer per site per
+// proces: wie de Cirkel opvraagt zet hem in gang, niemand wacht erop.
+const _herkeurd = new Set();
+export function recheckCirkelOnce(slug) {
+  if (!slug || _herkeurd.has(slug)) return null;
+  _herkeurd.add(slug);
+  return herkeurCirkel(slug, { get: signedGetJson, zicht: noteVisibility })
+    .catch((e) => { console.warn('[AP] Cirkel-herkeuring mislukt:', e && e.message); return null; });
+}
 // Doorgeven wat hier altijd vandaan kwam, zodat elke bestaande aanroep blijft werken.
 export { AP_CONTEXT, actorId, noteId, guessMediaType };
 // De muziekkant woont in music/ (shaer-drc). Doorgeven wat hier altijd
@@ -1646,7 +1656,7 @@ export function getInteractions(postId, base, site) {
   // via notifications (post context + reference included there). Legacy rows without a
   // visibility value are treated as public. Likes/boosts stay counted (count-only).
   const rows = s.list.all(postId).filter((r) =>
-    r.kind !== 'reply' || !(r.visibility === 'followers' || r.visibility === 'direct'));
+    r.kind !== 'reply' || !(r.visibility === 'followers' || r.visibility === 'direct' || r.visibility === 'onbekend'));
   const baseClean = (base || process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   const postNoteId = baseClean ? `${baseClean}/ap/notes/${postId}` : null;
   // Our own (outbound) replies show the SITE identity for everyone (not "You").
@@ -1682,7 +1692,11 @@ export function getInteractions(postId, base, site) {
       children: [],
     });
   }
-  for (const o of s.listO.all(postId)) {
+  // Ook ONZE eigen antwoorden alleen als ze openbaar waren (shaer-7jkp): een
+  // vriendenantwoord of een DM in dit draadje stond hier voor iedereen, en
+  // vertelde zo ook met wie we spraken. Dezelfde regel als hierboven voor de
+  // antwoorden van een ander.
+  for (const o of s.listO.all(postId).filter((r) => r.visibility !== 'friends' && r.visibility !== 'direct')) {
     nodes.push({
       noteId: baseClean ? `${baseClean}/ap/notes/${o.id}` : o.id, parent: o.in_reply_to || null,
       mine: true, outboxId: o.id, content: stripLeadingMentions(o.content), created_at: o.created_at,
@@ -2846,6 +2860,7 @@ export async function resolveRemoteNote(url, opts = {}) {
     localPostId: localTgt ? localTgt.post_id : '',          // our post this belongs to (if any)
     poll: parsePoll(note),                                  // a Question → its options/counts (else null)
     preview: HtmlSanitizerService.toPlainText(note.content || '').slice(0, 240),
+    visibility: noteVisibility(note),                       // voor de Cirkel (shaer-7jkp)
   };
 }
 
@@ -3330,7 +3345,7 @@ export async function backfillFromOutbox(slug, actorUri, limit = 20, { since = n
       const html = HtmlSanitizerService.sanitize(o.content || '');
       const poll = parsePoll(o); // a Question (poll) → carry its options/counts on backfill too
       try {
-        const r = tlStmts().ins.run(o.id, slug, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.url || null, o.published || null, mediaFromNote(o), o.sensitive ? 1 : 0, contentWarning(o));
+        const r = tlStmts().ins.run(o.id, slug, actorUri, ai.name, ai.handle, ai.icon, ai.url, html, o.url || null, o.published || null, mediaFromNote(o), o.sensitive ? 1 : 0, contentWarning(o), noteVisibility(o));
         if (r && r.changes > 0) added++;
         // FEP-9098: keep custom-emoji tags from backfilled posts too.
         { const ej = extractEmojiTags(o.tag); if (ej) { try { db.prepare('UPDATE ap_timeline SET emoji_json = ? WHERE id = ? AND slug = ?').run(ej, o.id, slug); } catch { /* ignore */ } } }
@@ -4493,7 +4508,7 @@ export default {
   acceptGatedFollow, rejectGatedFollow, isWardGuardian, outboxAudience, sendFollowDecision,
   gateOutgoingFollow, performApprovedFollow, recordGuardianEvent, listGuardianEvents, GUARDIAN_EVENT_KEEP,
   parseOwnPoll, pollTally, ownPollView, deliverPollUpdate, maybeCrawlThread, sendReport, localMentionSlugs, previewCard,
-  autoBoostCount, boostedCount, setReaction, getReaction, getReactionsFor, canonicalReactionUri, migrateReactions, upsertBoostedNote, getCirkelPosts, getCirkelMembers, selfHealTimeline,
+  autoBoostCount, boostedCount, setReaction, getReaction, getReactionsFor, canonicalReactionUri, migrateReactions, upsertBoostedNote, getCirkelPosts, getCirkelMembers, recheckCirkelOnce, selfHealTimeline,
   getNotifications, listBlocks, isBlockedAny, blockTarget, unblock,
   deliverWithRetry, enqueueDelivery, processDeliveryQueue, startDeliveryWorker,
   sendMaybe304, etagFor, onGuardian, wakeGuardian, onGuardianshipEvent, proposeGate, getReplyUris, getThread, getObject, filterThreadToCircle, gateAttachments, stripEmojiTags, actorObject, previewObject, quoteObject, markNotificationsSeen, countUnseenNotifications, hasPlayableAudio,

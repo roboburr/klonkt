@@ -286,7 +286,7 @@ export function upsertBoostedNote(slug, note) {
   try {
     const r = tlStmts().ins.run(id, slug, note.actor_uri || '', note.actor_name || '', note.actor_handle || '',
       note.actor_icon || '', note.actor_url || '', note.content || '', note.url || null,
-      new Date().toISOString(), media, note.sensitive ? 1 : 0, note.cw || null);
+      new Date().toISOString(), media, note.sensitive ? 1 : 0, note.cw || null, note.visibility || null);
     if (!r.changes) {
       // Row already cached (INSERT OR IGNORE) → refresh it with the freshly
       // resolved note. Without this a row cached without its cover (or with
@@ -295,8 +295,8 @@ export function upsertBoostedNote(slug, note) {
       // used to clobber a good media_json (the followed copy had the video, the
       // boost wiped it to []).
       db.prepare(`UPDATE ap_timeline SET content = ?, media_json = CASE WHEN ? = '[]' THEN media_json ELSE ? END,
-                  nsfw = ?, cw = ?, url = COALESCE(?, url) WHERE slug = ? AND id = ?`)
-        .run(note.content || '', media, media, note.sensitive ? 1 : 0, note.cw || null, note.url || null, slug, id);
+                  nsfw = ?, cw = ?, url = COALESCE(?, url), visibility = COALESCE(?, visibility) WHERE slug = ? AND id = ?`)
+        .run(note.content || '', media, media, note.sensitive ? 1 : 0, note.cw || null, note.url || null, note.visibility || null, slug, id);
     }
   } catch { /* ignore */ }
   markBoosted(slug, id);

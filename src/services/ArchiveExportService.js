@@ -556,6 +556,9 @@ export function buildArchive(slug, opts = {}) {
           published: toISO(r.published || r.created_at) || undefined,
           'shaer:actorName': r.actor_name || undefined,
           'shaer:actorHandle': r.actor_handle || undefined,
+          // Ging niet mee, en de import maakte alles openbaar: een
+          // vriendenantwoord stond na een verhuizing voor iedereen (shaer-7jkp).
+          'shaer:visibility': r.visibility || undefined,
         })),
       };
       bestanden.set(`replies/${post.id}.json`, Buffer.from(stableJson(coll), 'utf8'));

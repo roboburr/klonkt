@@ -411,8 +411,14 @@ export function importArchive(files, opts = {}) {
      @pinned, @type, @tags, @published_at, @created_at, @updated_at, @noindex, @publish_at, @fan_only, @nsfw, @language,
      @content_warning, @poll_json, @quote_uri, @quote_actor, @ap_visibility, @paid, @paid_min_cents, @view_count, @c2s_attachments, 'import')`);
   const insReply = db.prepare(`INSERT OR IGNORE INTO ap_interactions
-    (kind, post_id, object_uri, actor_uri, actor_name, actor_handle, content, published, parent_uri, created_at)
-    VALUES ('reply', ?, ?, ?, ?, ?, ?, ?, ?, ${NU_ISO})`);
+    (kind, post_id, object_uri, actor_uri, actor_name, actor_handle, content, published, parent_uri, visibility, created_at)
+    VALUES ('reply', ?, ?, ?, ?, ?, ?, ?, ?, ?, ${NU_ISO})`);
+  // De zichtbaarheid van een antwoord (shaer-7jkp). Een oud archief draagt
+  // hem niet; dan weten we het niet, en wat we niet weten tonen we niet --
+  // Barts keuze. 'onbekend' houdt het antwoord bewaard maar uit het openbare
+  // draadje, net als een vriendenantwoord.
+  const ZICHT = new Set(['public', 'unlisted', 'followers', 'direct']);
+  const zichtVan = (it) => (ZICHT.has(it['shaer:visibility']) ? it['shaer:visibility'] : 'onbekend');
 
   db.transaction(() => {
     for (const s of [...schrijf, ...trackWerk, ...playlistWerk]) {
@@ -423,7 +429,7 @@ export function importArchive(files, opts = {}) {
       }
       if (s.soort === 'reply') {
         insReply.run(s.postId, s.it.id || '', s.it.attributedTo || '', s.it['shaer:actorName'] || null,
-          s.it['shaer:actorHandle'] || null, s.it.content || '', s.it.published || null, s.it.inReplyTo || null);
+          s.it['shaer:actorHandle'] || null, s.it.content || '', s.it.published || null, s.it.inReplyTo || null, zichtVan(s.it));
         continue;
       }
       if (s.soort === 'track') {
