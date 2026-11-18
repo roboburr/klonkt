@@ -294,8 +294,16 @@ router.get('/ap/users/:slug/outbox', async (req, res) => {
   // De tracks gaan mee voor iedereen die de deur door mag; de blocked-tak
   // hierboven levert bewust een outbox ZONDER posts en zonder tracks.
   const nr = paginaNr(req);
-  const { posts, tracks, totaal } = AP.outboxSlice(site.id, {
+  // Wie de maker IS, krijgt ook de posts voor alleen de mensen erin
+  // (shaer-ypug): de eigen app, en de instantie waar het account naartoe
+  // verhuisde -- FEP-1580 behandelt die als ons. Een volger of guardian niet.
+  // En wie ondertekend vraagt, krijgt de DM's die aan HEM gericht waren.
+  const metDirect = !!(bearer && bearer.site.slug === req.params.slug)
+    || (verifiedActor ? AP.isMoveTarget(site.slug, verifiedActor) : false);
+  const { posts, tracks, dms, totaal } = AP.outboxSlice(site.id, {
     fanOnly: audience === 'friend',
+    metDirect,
+    dmVoor: verifiedActor || null,
     offset: (Math.max(1, nr || 1) - 1) * AP.PAGINA_GROOTTE,
     limit: AP.PAGINA_GROOTTE,
   });
@@ -305,7 +313,7 @@ router.get('/ap/users/:slug/outbox', async (req, res) => {
   // daar aan als tekstlink, en is bovendien onherstelbaar afgeknot: het
   // bakken plakt hooguit vier titels aan.
   const rauweInhoud = verifiedActor ? AP.isMoveTarget(site.slug, verifiedActor) : false;
-  const ob = AP.buildOutbox(baseUrl(req), site, posts, tracks, { page: nr, totalItems: totaal, alGesneden: true, rauweInhoud });
+  const ob = AP.buildOutbox(baseUrl(req), site, posts, tracks, { page: nr, totalItems: totaal, alGesneden: true, rauweInhoud, dms });
   if (audience === 'friend') {
     // The owner's app builds its feed from this leg, and every note here is
     // by the site itself, so give it a byline too (avatar + name): de
@@ -340,7 +348,7 @@ router.get('/ap/users/:slug/outbox', async (req, res) => {
       }
     }
   }
-  AP.sendAP(res, ob, audience === 'friend' ? 'private, no-store' : undefined);
+  AP.sendAP(res, ob, (audience === 'friend' || (dms && dms.length)) ? 'private, no-store' : undefined);
 });
 
 // ── Follow-QR (Robins verzoek, 31-7) ──────────────────────────────
@@ -1618,7 +1626,8 @@ router.get('/ap/notes/:id', async (req, res) => {
     // default-export entry manifested while building this). Any error here
     // reads as "not authorized", never as silence.
     try {
-      if (AP.noteAudience(post) === 'direct') return res.status(404).end();
+      // Ook 'direct' loopt nu door mayReadNote: die laat alleen de
+      // verhuisbestemming door (shaer-ypug), en verder niemand.
       const gsite = db.prepare('SELECT * FROM sites WHERE id = ?').get(post.site_id);
       const actor = await AP.verifyRequest(req).catch(() => null);
       if (!actor || !AP.mayReadNote(gsite, post, actor.id)) return res.status(404).end();
@@ -1626,6 +1635,21 @@ router.get('/ap/notes/:id', async (req, res) => {
   }
   if (!post) {
     // Could be one of OUR outbound replies (ap_outbox), not a post.
+    // Deze gaf elke rij aan iedereen, ook ongetekend -- een DM of een
+    // 🛟-hulpvraag was te lezen voor wie het id had (shaer-ypug). Nu dezelfde
+    // poort als de note zelf adresseert; wie er niet bij mag krijgt dezelfde
+    // 404 als bij een id dat niet bestaat, en ook geen doorverwijzing naar de
+    // ouder.
+    const rij = AP.getSentRow(req.params.id);
+    if (!rij) return res.status(404).end();
+    if (rij.visibility === 'direct' || rij.visibility === 'friends') {
+      try {
+        const eigen = OAuth.verifyBearer(req.headers.authorization, OAuth.needFor(req));
+        const vanMij = !!(eigen && eigen.site && eigen.site.slug === rij.site_slug);
+        const wie = vanMij ? null : await AP.verifyRequest(req).catch(() => null);
+        if (!vanMij && !AP.mayReadSentNote(rij, wie && wie.id)) return res.status(404).end();
+      } catch { return res.status(404).end(); }
+    }
     const note = AP.getOutboxNote(baseUrl(req), req.params.id);
     if (!note) return res.status(404).end();
     if (!AP.apWants(req)) {

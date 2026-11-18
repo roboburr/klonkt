@@ -679,6 +679,12 @@ export async function ingestFromSource(site, {
         // hetzelfde webadres als op de oude instantie, en blijft een link die
         // iemand ergens plakte kloppen op het nieuwe domein.
         const basisSlug = slugUitUri(o.url || '') || o.name || slugUitUri(o.id) || id;
+        // De zichtbaarheid van het origineel, uit zijn adressering (shaer-ypug).
+        // Hier stond fan_only 0 en ap_visibility null voor ALLES: de oude
+        // instantie geeft de verhuisbestemming juist ook de vriendenposts mee,
+        // en die kwamen hier aan als openbare posts.
+        const zicht = zichtbaarheid(o);
+        const apVis = zicht === 'unlisted' ? 'quiet' : zicht === 'followers' ? 'friends' : zicht === 'direct' ? 'direct' : null;
         // De publicatiedatum blijft die van het origineel. De spec eist dat, en
         // het is ook het enige eerlijke: het bericht is niet vandaag geschreven.
         insPost.run({
@@ -687,10 +693,10 @@ export async function ingestFromSource(site, {
           cover_image_url: cover ? cover.url : null,
           tags: Array.isArray(o.tag) ? o.tag.filter((t) => t && t.type === 'Hashtag').map((t) => String(t.name || '').replace(/^#/, '')).filter(Boolean).join(', ') || null : null,
           published_at: o.published || null, updated_at: o.updated || o.published || null,
-          fan_only: 0, nsfw: o.sensitive ? 1 : 0,
+          fan_only: (apVis === 'friends' || apVis === 'direct') ? 1 : 0, nsfw: o.sensitive ? 1 : 0,
           language: (o.contentMap && Object.keys(o.contentMap)[0]) || null,
           content_warning: o.summary || null,
-          ap_visibility: null,
+          ap_visibility: apVis,
           c2s_attachments: rest.length ? JSON.stringify(rest.map((b) => ({ url: b.url, mediaType: b.type, name: b.naam || undefined }))) : null,
         });
         recordMigrated(site.slug, {
@@ -702,7 +708,7 @@ export async function ingestFromSource(site, {
           // ook de schrijfwijzen 'as:Public' en 'Public', en de rest van Klonkt
           // beslist er al mee. Een tweede, dunnere versie van dezelfde vraag is
           // precies hoe twee antwoorden uit elkaar gaan lopen.
-          isPublic: zichtbaarheid(o) === 'public',
+          isPublic: zicht === 'public',
         });
         rapport.posts++;
       }

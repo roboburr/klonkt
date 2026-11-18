@@ -596,7 +596,10 @@ router.post('/posts/:slug/save', requireAuth, (req, res) => {
   // ActivityPub: federate edits to followers. A post that BECOMES published →
   // Create (new post); an already-published post that's edited → Update (so
   // Mastodon refreshes its cached copy). fan_only → followers-only (option A).
-  if (finalStatus === 'published') {
+  // Een post voor alleen de mensen erin gaat nooit naar de volgers, ook niet
+  // als hij hier bewerkt wordt (shaer-ypug). De rij weet het; het object
+  // hieronder droeg ap_visibility niet mee.
+  if (finalStatus === 'published' && post.ap_visibility !== 'direct') {
     const apPost = {
       id: post.id, slug: finalSlug, title: title || finalSlug,
       content: cleanContent, cover_image_url: cover_image_url || null, cover_video_url: req.body.cover_video_url || null, cover_alt: coverAlt, language,

@@ -91,11 +91,21 @@ test('een geblokkeerde actor wint van de verhuizing', () => {
   assert.equal(AP.outboxAudience('ik', { verifiedActor: BRON }), 'blocked');
 });
 
-test('direct-berichten gaan nooit over de lijn, ook niet bij een verhuizing', () => {
+test('een post voor alleen de mensen erin gaat mee naar de doelinstantie, en naar niemand anders', () => {
+  // Stond hier tot 18-11 andersom (Robin, 27-8: "een DM is aan iemand
+  // gericht; die migreer je niet via een GET"). Barts besluit bij shaer-ypug:
+  // de doelinstantie IS de maker, en zijn eigen werk hoort mee te verhuizen.
+  // Dat kan nu zonder het wijder te maken: buildNote adresseert zo'n post niet
+  // meer aan de volgers, en de ingest neemt de zichtbaarheid over uit de
+  // adressering -- hij komt aan de andere kant aan als direct, niet als
+  // vriendenpost of openbaar. De echte DM's (ap_outbox) verhuizen niet: die
+  // zijn berichten, geen posts.
   site({ movedTo: BRON });
-  const dm = { ap_visibility: 'direct' };
-  assert.equal(AP.mayReadNote({ slug: 'ik' }, dm, BRON), false,
-    'een DM is aan iemand gericht; die migreer je niet via een GET');
+  const direct = { fan_only: 1, ap_visibility: 'direct' };
+  assert.equal(AP.mayReadNote({ slug: 'ik' }, direct, BRON), true, 'de doelinstantie wel');
+  db.prepare('INSERT INTO ap_followers (slug, actor_uri, inbox) VALUES (?,?,?)').run('ik', 'https://elders.example/users/x', 'https://elders.example/inbox');
+  assert.equal(AP.mayReadNote({ slug: 'ik' }, direct, 'https://elders.example/users/x'), false,
+    'een volger is geen deelnemer');
 });
 
 test('de outbox adresseert een fan-only post NIET als publiek', () => {
@@ -332,6 +342,28 @@ test('blokkades komen eerst binnen', async () => {
   assert.equal(r.blocks, 1);
   const b = db.prepare("SELECT target FROM ap_blocks WHERE slug = 'ik' AND kind = 'actor'").all();
   assert.deepEqual(b.map((x) => x.target), ['https://elders.example/users/pest']);
+});
+
+test('de ingest houdt de zichtbaarheid van het origineel (shaer-ypug)', async () => {
+  // Hier kwam ALLES binnen als openbare post: fan_only 0, ap_visibility null.
+  // En de bron geeft de doelinstantie juist ook de vriendenposts mee -- die
+  // stonden na een verhuizing dus voor iedereen open.
+  const s = site({ aliases: [BRON] });
+  const PUB = 'https://www.w3.org/ns/activitystreams#Public';
+  const deps = bronnetje({ items: [
+    note(`${BRON}/notes/open`, { to: [PUB] }),
+    note(`${BRON}/notes/stil`, { to: [`${BRON}/followers`], cc: [PUB] }),
+    note(`${BRON}/notes/vrienden`, { to: [`${BRON}/followers`] }),
+    note(`${BRON}/notes/erin`, { to: ['https://elders.example/users/oma'] }),
+  ] });
+  const r = await stil(() => Mig.ingestFromSource(s, { deps }));
+  assert.equal(r.posts, 4);
+  const zicht = Object.fromEntries(db.prepare('SELECT slug, fan_only, ap_visibility FROM posts WHERE site_id = ?').all('s1')
+    .map((p) => [p.slug, [p.fan_only, p.ap_visibility]]));
+  assert.deepEqual(zicht.open, [0, null]);
+  assert.deepEqual(zicht.stil, [0, 'quiet']);
+  assert.deepEqual(zicht.vrienden, [1, 'friends']);
+  assert.deepEqual(zicht.erin, [1, 'direct']);
 });
 
 test('de ingest neemt geen antwoorden en niets van een ander mee', async () => {

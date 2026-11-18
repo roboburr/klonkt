@@ -855,10 +855,15 @@ export function buildNote(base, site, post, opts = {}) {
     published: new Date(post.published_at || post.created_at || Date.now()).toISOString(),
     // fan_only = "fans only" → followers-only visibility (delivered to your followers
     // but not addressed to Public, so Mastodon shows it only to them and can't boost it).
-    to: (post.fan_only || post.ap_visibility === 'quiet') ? [`${aId}/followers`] : [PUBLIC],
+    // Een post voor alleen de mensen erin (shaer-ypug): geen Public en geen
+    // volgers, alleen wie er met naam in staat. Stond hier als vriendenpost,
+    // omdat hij ook fan_only heeft -- en zo kwam hij bij een verhuizing aan de
+    // andere kant als vriendenpost binnen.
+    to: post.ap_visibility === 'direct' ? [..._mentionCc]
+      : (post.fan_only || post.ap_visibility === 'quiet') ? [`${aId}/followers`] : [PUBLIC],
     // Mentioned actors (from inline @user@host links the caller resolved) are addressed in cc
     // so Mastodon notifies them; empty unless the content was mention-linked (delivery time).
-    cc: [...new Set([
+    cc: post.ap_visibility === 'direct' ? [] : [...new Set([
       ...(post.ap_visibility === 'quiet' ? [PUBLIC] : []),          // quiet public: Public in cc, not to
       ...((post.fan_only || post.ap_visibility === 'quiet') ? [] : [`${aId}/followers`]),
       ..._mentionCc])],
@@ -1164,23 +1169,39 @@ export function buildCreate(base, site, post, opts = {}) {
  *
  * @param {boolean} fanOnly  mag de lezer ook de fans-only posts zien?
  */
-export function outboxSlice(siteId, { fanOnly = false, offset = 0, limit = MAX_OUTBOX } = {}) {
-  const fanClause = fanOnly ? '' : 'AND (p.fan_only IS NULL OR p.fan_only = 0)';
+export function outboxSlice(siteId, { fanOnly = false, metDirect = false, dmVoor = null, offset = 0, limit = MAX_OUTBOX } = {}) {
+  // Drie standen (shaer-ypug). Een vriend krijgt de vriendenposts, maar een
+  // post voor alleen de mensen erin alleen als hij de maker IS: de eigen app,
+  // of de instantie waar het account naartoe verhuisde (metDirect). Zo'n post
+  // heeft ook fan_only, dus zonder die tweede regel ging hij mee naar elke volger.
+  const fanClause = !fanOnly ? 'AND (p.fan_only IS NULL OR p.fan_only = 0)'
+    : metDirect ? '' : "AND COALESCE(p.ap_visibility, '') <> 'direct'";
+  // De directe berichten die aan DEZE lezer gericht waren (dmVoor = zijn
+  // geverifieerde actor). Uit ap_outbox, waar ze sinds shaer-tqc wonen; de
+  // ontvangers staan in to_actors.
+  const slug = dmVoor ? (db.prepare('SELECT slug FROM sites WHERE id = ?').get(siteId) || {}).slug : null;
+  const dmBeen = slug ? `
+    UNION ALL
+    SELECT 'dm', o.id, ${isoSql('o.created_at')}
+      FROM ap_outbox o WHERE o.site_slug = ? AND o.visibility = 'direct'
+       AND (o.to_actor = ? OR EXISTS (SELECT 1 FROM json_each(COALESCE(o.to_actors, '[]')) j WHERE j.value = ?))` : '';
   const unie = `
     SELECT 'post' AS soort, p.id AS id, ${isoSql('COALESCE(p.published_at, p.created_at)')} AS wanneer
       FROM posts p WHERE p.site_id = ? AND p.status = 'published' ${fanClause}
     UNION ALL
     SELECT 'track', t.id, t.created_at
-      FROM audio_tracks t WHERE t.site_id = ? AND t.fedi_open = 1`;
+      FROM audio_tracks t WHERE t.site_id = ? AND t.fedi_open = 1${dmBeen}`;
+  const args = slug ? [siteId, siteId, slug, dmVoor, dmVoor] : [siteId, siteId];
   let rijen = [], totaal = 0;
   try {
-    totaal = db.prepare(`SELECT COUNT(*) n FROM (${unie})`).get(siteId, siteId).n;
+    totaal = db.prepare(`SELECT COUNT(*) n FROM (${unie})`).get(...args).n;
     rijen = db.prepare(`SELECT soort, id FROM (${unie}) ORDER BY wanneer DESC LIMIT ? OFFSET ?`)
-      .all(siteId, siteId, limit, Math.max(0, offset));
-  } catch { return { posts: [], tracks: [], totaal: 0 }; }
+      .all(...args, limit, Math.max(0, offset));
+  } catch { return { posts: [], tracks: [], dms: [], totaal: 0 }; }
 
   const postIds = rijen.filter((r) => r.soort === 'post').map((r) => r.id);
   const trackIds = rijen.filter((r) => r.soort === 'track').map((r) => r.id);
+  const dmIds = rijen.filter((r) => r.soort === 'dm').map((r) => r.id);
   const gaten = (n) => Array.from({ length: n }, () => '?').join(',');
   const posts = postIds.length ? db.prepare(
     // ALLE KOLOMMEN, zoals /ap/notes/:id ook doet. Hier stond een lijst, en
@@ -1205,14 +1226,17 @@ export function outboxSlice(siteId, { fanOnly = false, offset = 0, limit = MAX_O
     `SELECT ${TRACK_KOLOMMEN}
        FROM audio_tracks t JOIN media m ON m.id = t.media_id
       WHERE t.id IN (${gaten(trackIds.length)})`).all(...trackIds) : [];
-  return { posts, tracks, totaal };
+  const dms = dmIds.length ? db.prepare(`SELECT * FROM ap_outbox WHERE id IN (${gaten(dmIds.length)})`).all(...dmIds) : [];
+  return { posts, tracks, dms, totaal };
 }
 
-export function buildOutbox(base, site, posts, tracks = [], { page = false, totalItems, alGesneden = false, rauweInhoud = false } = {}) {
+export function buildOutbox(base, site, posts, tracks = [], { page = false, totalItems, alGesneden = false, rauweInhoud = false, dms = [] } = {}) {
   const id = `${actorId(base, site.slug)}/outbox`;
   const wanneer = (x) => Date.parse(x && x.published ? x.published : 0) || 0;
   const items = [
     ...(posts || []).map((p) => buildCreate(base, site, p, { rauweInhoud })),
+    // De DM's die de route voor deze lezer vrijgaf (outboxSlice dmVoor).
+    ...(dms || []).map((r) => buildSentCreate(base, site, r)),
     // Eén zoekopdracht voor alle tracks samen, niet per stuk.
     ...(() => {
       const posts = (tracks || []).length && site.id ? trackHostPosts(site.id) : null;
@@ -1735,17 +1759,61 @@ export function noteAudience(post) {
   if (post.fan_only || post.ap_visibility === 'friends') return 'followers';
   return 'public';
 }
+/**
+ * Mag deze actor een van ONZE verzonden notes lezen (ap_outbox: antwoorden,
+ * directe berichten, een 🛟-hulpvraag, een zwaai)? (shaer-ypug)
+ *
+ * /ap/notes/:id gaf zo'n rij aan iedereen, ook ongetekend: wie het id had, las
+ * een DM. Nu dezelfde regels als de note zelf adresseert (buildNote, isReply):
+ *   - 'direct'  → alleen wie in to_actors (of to_actor) staat;
+ *   - 'friends' → de ouder-auteur in `to`, en onze volgers;
+ *   - de rest   → quiet-public, iedereen.
+ * Herkend op actor, net als mayReadNote. Een geblokkeerde komt niet zo ver: de
+ * route geeft die al een 404 voordat hij hier vraagt.
+ */
+export function mayReadSentNote(row, actorUri) {
+  if (!row) return false;
+  const vis = row.visibility || 'public';
+  if (vis !== 'direct' && vis !== 'friends') return true;
+  if (!actorUri) return false;
+  if (row.to_actor && row.to_actor === actorUri) return true;
+  if (vis === 'direct') {
+    try { return (JSON.parse(row.to_actors || '[]') || []).includes(actorUri); } catch { return false; }
+  }
+  try { return !!db.prepare('SELECT 1 FROM ap_followers WHERE slug = ? AND actor_uri = ?').get(row.site_slug, actorUri); } catch { return false; }
+}
+
+/** De ruwe ap_outbox-rij achter een note-id, voor de poort in /ap/notes/:id. */
+export function getSentRow(id) {
+  return iStmts().getO.get(id) || null;
+}
+
+/** Een van onze verzonden notes als Create, zoals deliverReply hem bezorgt. */
+export function buildSentCreate(base, site, row) {
+  const note = buildReplyNote(base, site, row);
+  return {
+    '@context': AP_CONTEXT,
+    id: note.id + '#create', type: 'Create', actor: actorId(base, site.slug),
+    published: note.published, to: note.to, cc: note.cc, object: note,
+  };
+}
+
 // A follower earns the friends-only Note; a blocked actor gets the same
 // nothing as a stranger (the standing rule: a blocked actor's signed fetch
 // earns the empty set, gated server-side at serialisation).
 export function mayReadNote(site, post, actorUri) {
   const aud = noteAudience(post);
   if (aud === 'public') return true;
-  if (aud === 'direct' || !site || !actorUri) return false;
+  if (!site || !actorUri) return false;
   // FEP-1580: dezelfde regel als in outboxAudience, en hier net zo hard nodig.
   // De outbox geeft de LIJST vrij; zonder deze tak strandt de doelinstantie
-  // alsnog op elke losse Note die niet publiek is.
+  // alsnog op elke losse Note die niet publiek is. Ook een post voor alleen de
+  // mensen erin (shaer-ypug): de doelinstantie IS de maker, en de outbox geeft
+  // hem die ook.
   if (isMoveTarget(site.slug, actorUri)) return true;
+  // Verder niemand: zo'n post bewaart geen ontvangers, dus er valt niemand te
+  // herkennen. Een volger is geen deelnemer.
+  if (aud === 'direct') return false;
   try {
     const blocked = db.prepare("SELECT 1 FROM ap_blocks WHERE slug = ? AND kind = 'actor' AND target = ?").get(site.slug, actorUri);
     if (blocked) return false;
@@ -1874,8 +1942,20 @@ function movedRefusal(site, wat) {
 
 // Deliver a new post as Create(Note) to all followers' inboxes (fire-and-forget).
 // Needs PUBLIC_BASE_URL (absolute URLs); no-op without followers or base.
+/**
+ * Is dit een post voor alleen de mensen erin? (shaer-ypug) Die gaat nooit naar
+ * de volgers. De aanroeper geeft niet altijd ap_visibility mee -- de web-editor
+ * bouwt zijn eigen object -- dus bij twijfel kijken we in de rij.
+ */
+function isDirectPost(post) {
+  if (!post) return false;
+  if (post.ap_visibility !== undefined) return post.ap_visibility === 'direct';
+  try { return ((db.prepare('SELECT ap_visibility FROM posts WHERE id = ?').get(post.id) || {}).ap_visibility) === 'direct'; } catch { return false; }
+}
+
 export async function deliverCreate(site, post) {
   if (movedLock(site).locked) { console.warn('[AP] Create niet bezorgd, account verhuisd:', site && site.slug); return; }
+  if (isDirectPost(post)) return;
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   if (!base || !site || !site.slug) return;
   // Resolve inline @user@host mentions → link them in the note + collect their inboxes, so a
@@ -2017,6 +2097,7 @@ export async function deliverTrackDelete(site, trackId) {
 export async function deliverUpdate(site, post) {
   const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   if (!base || !site || !site.slug || !post || !post.id) return;
+  if (isDirectPost(post)) return;
   const mres = await resolveMentionsInText(base, post.content || ''); // link mentions + collect inboxes
   const post2 = mres.inboxes.length ? { ...post, content: mres.html } : post;
   const followers = fStmts().list.all(site.slug);
@@ -4402,7 +4483,7 @@ export default {
   buildLibrary, libraryId,
   followerCount, deliver, fetchActor, verifyRequest, handleInbox, deliverCreate, deliverDelete, deliverObjectDelete, deliverTrackDelete, deliverUpdate, deliverActorUpdate, resyncFeaturedPins,
   feedCursor, feedChangesSince, waitForFeedChange,
-  getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, buildReplyNote, getOutboxNote, getSentNotes, deliverReply, resolveRemoteNote, noteAudience, mayReadNote,
+  getInteractions, getInteractionById, setInteractionBoosted, setInteractionLiked, buildReplyNote, getOutboxNote, getSentNotes, deliverReply, resolveRemoteNote, noteAudience, mayReadNote, mayReadSentNote, getSentRow, buildSentCreate,
   listOutbox, deliverOutboxDelete, deliverOutboxUpdate, deliverDirectNote,
   webfingerResolve, followActor, resolveRemoteActor, unfollowActor, handleMoveInbox, moveAccount, listFollowing, setAutoBoost, backfillFromOutbox, getTimeline, timelineRowsByIds, contentWarning, getDirectMessages, readMarkers, markRead, unreadPerConversation, messageRowsByUri, replyRowsByUri, conversationHeads, conversationHistory, inboxPage, inboxRandomPage, isoStamp, timelineAttachments, timelineEmojis, timelineObjectLinks, timelineQuote, timelineEmbed, applyQuoteProps, deliverToActor, sendInteraction, voteOnPoll, voteOnRemotePoll,
   acceptGatedFollow, rejectGatedFollow, isWardGuardian, outboxAudience, sendFollowDecision,
