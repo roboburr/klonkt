@@ -19,7 +19,7 @@ import path from 'path';
 import db from '../config/database.js';
 import HtmlSanitizerService from './HtmlSanitizerService.js';
 import * as Guardianship from './guardianship/index.js';
-import { PUBLIC, actorId } from './ap-core.js';
+import { PUBLIC, actorId, hashtagsIn, tagKey } from './ap-core.js';
 
 // Dezelfde twee als de re-exports in ActivityPubService: het directe-note-been
 // en de zichtbaarheidsregel wonen in guardianship, hier alleen kortgesloten
@@ -472,12 +472,27 @@ async function c2sCreatePost(base, site, user, object) {
   // lands; still followers-gated on the web).
   const vis = c2sVisibility(object);
   const fanOnly = (vis === 'friends' || vis === 'direct') ? 1 : 0;
+  // DE HASHTAGS WORDEN TAGS (shaer-m5s6). Ze federeerden al (buildNote maakt
+  // er Hashtag-tags van) en linkten naar /tag/..., maar die pagina leest de
+  // tags-kolom, en die bleef leeg: een post uit Shaer stond nooit onder zijn
+  // eigen tag. Uit de tekst, en wat de client zelf als Hashtag meestuurde.
+  const tags = [];
+  const tagGezien = new Set();
+  const clientTags = (Array.isArray(object.tag) ? object.tag : (object.tag ? [object.tag] : []))
+    .filter((t) => t && t.type === 'Hashtag' && typeof t.name === 'string')
+    .map((t) => t.name.replace(/^#+/, ''));
+  for (const t of [...hashtagsIn(HtmlSanitizerService.toPlainText(html)), ...clientTags]) {
+    const k = tagKey(t);
+    if (!k || tagGezien.has(k)) continue;
+    tagGezien.add(k);
+    tags.push(t);
+  }
   // Deliberately NO cover (Robins besluit, 30-7): the media lives in the
   // content, and a cover next to it showed the same video twice on the post
   // page. The tiles derive their picture from the content instead.
-  db.prepare(`INSERT INTO posts (id, site_id, slug, author_id, title, content, excerpt, status, type, language, fan_only, ap_visibility, created_at, updated_at, published_at)
-              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-    .run(postId, site.id, slug, user.id, title, html + mediaHtml, '', 'published', 'post', object.language || 'nl', fanOnly, vis, now, now, now);
+  db.prepare(`INSERT INTO posts (id, site_id, slug, author_id, title, content, excerpt, status, type, language, fan_only, ap_visibility, tags, created_at, updated_at, published_at)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+    .run(postId, site.id, slug, user.id, title, html + mediaHtml, '', 'published', 'post', object.language || 'nl', fanOnly, vis, tags.length ? JSON.stringify(tags) : null, now, now, now);
   if (media.length) { try { db.prepare('UPDATE posts SET c2s_attachments = ? WHERE id = ?').run(JSON.stringify(media), postId); } catch { /* column exists via ensureColumn */ } }
   try { db.prepare('UPDATE posts SET content_rendered = ? WHERE id = ?').run(bakePostContent(html + mediaHtml), postId); } catch { /* render fallback covers it */ }
   bakePostContentWithMentions(html + mediaHtml).then((h) => { try { db.prepare('UPDATE posts SET content_rendered = ? WHERE id = ?').run(h, postId); } catch { /* keep sync bake */ } }).catch(() => {});
@@ -485,7 +500,7 @@ async function c2sCreatePost(base, site, user, object) {
   // een getitelde C2S-post wel te zien maar niet op zijn titel te vinden.
   try { db.prepare('INSERT INTO posts_fts(content, title, author, post_id) VALUES (?,?,?,?)').run(HtmlSanitizerService.toPlainText(html), title, user.username || '', postId); } catch { /* FTS non-fatal */ }
   if (vis !== 'direct') {
-    deliverCreate(site, { id: postId, slug, title, content: html + mediaHtml, published_at: now, created_at: now, fan_only: fanOnly, ap_visibility: vis, c2s_attachments: media.length ? JSON.stringify(media) : null }).catch(() => { /* best-effort */ });
+    deliverCreate(site, { id: postId, slug, title, content: html + mediaHtml, published_at: now, created_at: now, fan_only: fanOnly, ap_visibility: vis, tags: tags.length ? JSON.stringify(tags) : null, c2s_attachments: media.length ? JSON.stringify(media) : null }).catch(() => { /* best-effort */ });
   }
   return { status: 201, id: postId, url: `${base}/ap/notes/${postId}` };
 }

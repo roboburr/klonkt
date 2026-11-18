@@ -182,6 +182,35 @@ export function normalizeTags(t) {
  * bevatten en CamelCase is daar de toegankelijkheidsnorm; de slug en de href
  * blijven kleingeschreven ("livemusic").
  */
+/**
+ * De sleutel waarop een tag gevonden wordt (shaer-m5s6): wat tagParts als slug
+ * maakt, dus zonder hoofdletters, spaties en leestekens. 'Live Music',
+ * '#LiveMusic' en 'livemusic' zijn dezelfde tag -- de links zijn kleingeschreven,
+ * de editor bewaart zoals getypt, en die twee moeten elkaar vinden.
+ */
+export function tagKey(raw) {
+  const p = tagParts(String(raw || '').replace(/^#+/, ''));
+  return p ? p.slug : '';
+}
+
+/**
+ * De #hashtags in een tekst, zoals ze GESCHREVEN zijn, ontdubbeld op hun
+ * sleutel. Dezelfde regel als linkHashtags: een # na het begin, witruimte, '>'
+ * of een openend haakje -- niet in een url of een attribuut.
+ */
+export function hashtagsIn(text) {
+  const uit = [], gezien = new Set();
+  const re = /(^|[\s>([{])#([\p{L}\p{M}\p{N}_]+)/gu;
+  let m;
+  while ((m = re.exec(String(text || '')))) {
+    const k = tagKey(m[2]);
+    if (!k || gezien.has(k)) continue;
+    gezien.add(k);
+    uit.push(m[2]);
+  }
+  return uit;
+}
+
 export function tagParts(raw) {
   const words = String(raw || '').trim().split(/[\s_]+/).map((w) => w.replace(/[^\p{L}\p{M}\p{N}]/gu, '')).filter(Boolean);
   if (!words.length) return null;

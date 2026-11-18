@@ -69,6 +69,7 @@ import apRoutes from './routes/activitypub.js';
 import owaRoutes, { owaMiddleware } from './routes/openwebauth.js';
 import oauthRoutes from './routes/oauth.js';
 import { apWants, startDeliveryWorker, selfHealTimeline, migrateReactions } from './services/ActivityPubService.js';
+import { migrateHashtagTags } from './services/hashtag-backfill.js';
 import { startDoorWorker } from './services/door-watch.js';
 import { startWakeWatch } from './services/wake.js';
 
@@ -219,6 +220,9 @@ startWakeWatch();
 // de canonieke object-URI. Moet VOOR het serveren, want vanaf nu leest de code
 // die tabel -- draait hij niet, dan tonen oude likes als niet-gegeven.
 migrateReactions();
+// Eenmalig (shaer-m5s6): hashtags uit de tekst van bestaande posts ook als tags,
+// zodat ze op de tagpagina staan waar hun hashtag al naartoe linkte.
+migrateHashtagTags();
 selfHealTimeline(); // once per SELFHEAL_VERSION bump: re-sync the fediverse cache (covers/edits) after a drastic update
 
 // Safety net: guarantee that there is always a primary site (solo/hub/circle).
