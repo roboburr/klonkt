@@ -2110,7 +2110,11 @@ export async function deliverUpdate(site, post) {
   const update = {
     '@context': AP_CONTEXT,
     id: `${noteId(base, post.id)}#update-${Date.now()}-${rid()}`,
-    type: 'Update', actor: me, to: [PUBLIC], cc: note.cc,
+    // De envelop zegt wat de brief zegt (shaer-otwu), zoals buildCreate dat
+    // doet. Hier stond hard to: [PUBLIC]: de Note van een vriendenpost ging
+    // naar de volgers, maar de Update eromheen heette openbaar -- en een
+    // relay die meeleest stuurt alles met Public verder.
+    type: 'Update', actor: me, to: note.to, cc: note.cc,
     object: note,
   };
   for (const inbox of inboxes) deliverWithRetry(site.slug, inbox, update, `${me}#main-key`, keys.private_pem);
