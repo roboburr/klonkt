@@ -30,7 +30,7 @@ import ejs from 'ejs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import PermissionsService from '../services/PermissionsService.js';
-import { seesFriendsOnly, openbaarSql, nietDirectSql } from '../services/PostAccessService.js';
+import { seesFriendsOnly, openbaarSql, nietDirectSql, postAccess, paidTeaser } from '../services/PostAccessService.js';
 import { viewerFor } from '../services/OpenWebAuthService.js';
 
 const router = express.Router();
@@ -45,17 +45,32 @@ function likeArg(q) {
   return '%' + q.replace(/[%_\\]/g, '\\$&') + '%';
 }
 
-function cleanSnippet(html, excerpt) {
-  const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const s = (html || '')
+const escHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+// De treffer in het fragment. snippet() zet deze twee tekens om het gevonden
+// woord, en pas NA het opschonen worden het <mark>-tags (shaer-y029). Stond
+// hier als '<mark>' rechtstreeks, en dan sloopte het wegpoetsen van '>' (een
+// markdown-citaat) de tag zelf: '<mark kokosnoot</mark voor' -- de browser
+// maakte er een kapot element van en het gezochte woord viel weg.
+const MARK_IN = '\u0002';
+const MARK_UIT = '\u0003';
+
+export function cleanSnippet(raw, excerpt) {
+  const s = (raw || '')
     .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
     .replace(/\[\[[^\]]*?\]\]/g, ' ')
     .replace(/\[\[|\]\]/g, ' ')
-    .replace(/[#>*_`~]+/g, ' ')
+    .replace(/(^|\s)>+(?=\s)/g, '$1')        // markdown-citaat
+    .replace(/[#*_`~]+/g, ' ')
+    // De index bewaart al ontsnapte tekst (toPlainText). Wat er dan nog als
+    // ruwe < of > in staat, is tekst en geen opmaak -- en dit fragment gaat
+    // ongefilterd de pagina in.
+    .replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/\s+/g, ' ')
     .trim();
-  if (!s || /^[…\s]*$/.test(s)) return esc((excerpt || '').slice(0, 160));
-  return s;
+  const kaal = s.split(MARK_IN).join('').split(MARK_UIT).join('');
+  if (!kaal || /^[…\s]*$/.test(kaal)) return escHtml((excerpt || '').slice(0, 160));
+  return s.split(MARK_IN).join('<mark>').split(MARK_UIT).join('</mark>');
 }
 
 /**
@@ -172,20 +187,31 @@ function searchSite(req, res, rawQ, lim) {
   // deze bezoeker ook mag lezen (shaer-8zew): openbaar voor iedereen,
   // vriendenposts voor wie ze open krijgt, en de posts voor alleen de mensen
   // erin nooit -- de maker zoekt die in zijn beheer, niet hier.
-  const zichtbaar = seesFriendsOnly(viewerFor(req, site)) ? nietDirectSql('p.') : openbaarSql('p.');
+  const viewer = viewerFor(req, site);
+  const zichtbaar = seesFriendsOnly(viewer) ? nietDirectSql('p.') : openbaarSql('p.');
   const ftsQuery = buildFtsQuery(rawQ);
   if (ftsQuery) {
     try {
-      out.results = db.prepare(`
+      const rijen = db.prepare(`
         SELECT p.slug, p.title, p.excerpt, p.published_at, u.username AS author_username,
-               snippet(posts_fts, 0, '<mark>', '</mark>', '…', 18) AS snippet, bm25(posts_fts) AS score
+               p.id, p.site_id, p.author_id, p.status, p.paid, p.fan_only, p.ap_visibility, p.content,
+               snippet(posts_fts, 0, '${MARK_IN}', '${MARK_UIT}', '…', 18) AS snippet, bm25(posts_fts) AS score
         FROM posts_fts
         JOIN posts p ON p.id = posts_fts.post_id
         JOIN users u ON u.id = p.author_id
         WHERE posts_fts MATCH ? AND p.site_id = ? AND p.status = 'published' AND ${zichtbaar}
         ORDER BY score ASC LIMIT ?
       `).all(ftsQuery, site.id, lim.posts);
-      out.results = out.results.map((r) => ({ ...r, snippet: cleanSnippet(r.snippet, r.excerpt) }));
+      // Een betaalde post die deze bezoeker niet open krijgt, toont zijn
+      // teaser en niet de woorden rond de treffer (shaer-y029, Barts keuze):
+      // dat fragment kwam van achter de muur, en wie raadt las zo stukje voor
+      // stukje mee. De teaser staat al voor iedereen op de betaalpoort.
+      // Gevonden worden op de hele tekst mag wel.
+      out.results = rijen.map((r) => ({
+        slug: r.slug, title: r.title, excerpt: r.excerpt, published_at: r.published_at,
+        author_username: r.author_username, score: r.score,
+        snippet: postAccess(r, viewer) === 'paid' ? escHtml(paidTeaser(r)) : cleanSnippet(r.snippet, r.excerpt),
+      }));
     } catch (err) { out.queryError = err.message; }
   }
 
