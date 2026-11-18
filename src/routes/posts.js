@@ -24,7 +24,7 @@ import * as HubInvite from '../services/hub-invite.js';
 import { premiumUnlocked } from '../services/PatreonService.js';
 import { defaultMinCents as paidDefaultMinCents, patreonUrl as paidPatronUrl } from '../services/PaidPatreonService.js';
 import { verifyBlob } from '../services/CryptoBox.js';
-import { postEntry } from '../services/PostAccessService.js';
+import { postEntry, listingRow, nietDirectSql } from '../services/PostAccessService.js';
 import * as OWA from '../services/OpenWebAuthService.js';
 import MusicMeta from '../services/MusicMeta.js';
 import { mediaDir } from '../config/paths.js';
@@ -207,6 +207,11 @@ router.get('/', (req, res) => {
     });
   }
 
+  // Wie kijkt er: een vriendenpost staat voor iedereen in de lijst, maar alleen
+  // wie hem mag lezen krijgt hem met inhoud mee (listingRow, shaer-8zew). Een
+  // post voor alleen de mensen erin staat er voor niemand in.
+  const viewer = OWA.viewerFor(req, site, { unlockedSlug: null });
+
   // Pinned first — ordered by their rank (1 = top, 2 = below, etc).
   // pinned column is now an integer rank: 0 = not pinned, 1+ = pinned at
   // that position. Older boolean usage where pinned was always 1 still
@@ -215,8 +220,9 @@ router.get('/', (req, res) => {
     SELECT p.*, u.username as author_username
     FROM posts p JOIN users u ON p.author_id = u.id
     WHERE p.site_id = ? AND p.status = 'published' AND p.pinned > 0
+      AND ${nietDirectSql('p.')}
     ORDER BY p.pinned ASC, p.published_at DESC
-  `).all(site.id);
+  `).all(site.id).map((p) => listingRow(p, viewer));
 
   // Regular posts: anything with pinned = 0. Paged in blocks of 72 (Load more).
   const append = req.query.append === '1';
@@ -225,9 +231,10 @@ router.get('/', (req, res) => {
     SELECT p.*, u.username as author_username
     FROM posts p JOIN users u ON p.author_id = u.id
     WHERE p.site_id = ? AND p.status = 'published' AND p.pinned = 0
+      AND ${nietDirectSql('p.')}
     ORDER BY p.published_at DESC
     LIMIT ? OFFSET ?
-  `).all(site.id, FEED_PAGE + 1, offset);
+  `).all(site.id, FEED_PAGE + 1, offset).map((p) => listingRow(p, viewer));
   const hasMore = rows.length > FEED_PAGE;
   const posts = rows.slice(0, FEED_PAGE);
   const moreBase = res.locals.siteUrlBase || '';
@@ -235,7 +242,7 @@ router.get('/', (req, res) => {
   if (append) {
     return renderPage(req, res, 'partials/home-append', {
       posts, hasMore, nextOffset: offset + FEED_PAGE, moreBase,
-      readerItems: readerItems(site, posts, req),
+      readerItems: readerItems(site, posts, req, viewer),
     });
   }
 
@@ -247,7 +254,7 @@ router.get('/', (req, res) => {
   renderPage(req, res, 'pages/home', {
     pinnedPosts,
     posts,
-    readerItems: readerItems(site, [...pinnedPosts, ...posts], req),
+    readerItems: readerItems(site, [...pinnedPosts, ...posts], req, viewer),
     hasMore, nextOffset: offset + FEED_PAGE, moreBase,
     movedTo,
     movedToLabel: movedTo ? (ActivityPubService.actorDisplay(site.slug, movedTo).handle || movedTo) : null,
@@ -660,7 +667,7 @@ router.get('/archive', (req, res) => {
   const posts = db.prepare(`
     SELECT p.*, u.username as author_username
     FROM posts p JOIN users u ON p.author_id = u.id
-    WHERE p.site_id = ? AND p.status = 'published'
+    WHERE p.site_id = ? AND p.status = 'published' AND ${nietDirectSql('p.')}
     ORDER BY p.published_at DESC
   `).all(site.id);
 
@@ -702,8 +709,7 @@ router.get('/archive', (req, res) => {
 //
 // Het lijf loopt door PostAccessService: een gesloten poort levert hier GEEN
 // tekst op, want wat niet gerenderd wordt kan ook niet lekken.
-function readerItems(site, rows, req) {
-  const viewer = OWA.viewerFor(req, site, { unlockedSlug: null });
+function readerItems(site, rows, req, viewer = OWA.viewerFor(req, site, { unlockedSlug: null })) {
   return rows.map((post) => ({
     post,
     entry: postEntry(post, viewer, { renderBody: (p) => renderPostBodyHtml(site, p, req) }),
@@ -852,7 +858,7 @@ export function paidOpenAudioHtml(site, post, req) {
 function postNeighbors(site, post) {
   const ordered = db.prepare(`
     SELECT id, slug, title, pinned FROM posts
-    WHERE site_id = ? AND status = 'published'
+    WHERE site_id = ? AND status = 'published' AND ${nietDirectSql()}
     ORDER BY (pinned = 0) ASC, pinned ASC, published_at DESC
   `).all(site.id);
   const idx = ordered.findIndex((p) => p.id === post.id);
@@ -1631,6 +1637,15 @@ router.get('/:slug', (req, res, next) => {
     if (!canEdit) return res.status(403).send('Not published');
   }
 
+  // Alleen voor de mensen erin (shaer-8zew): voor iedereen behalve de maker
+  // dezelfde nette 404 als een onbekende slug, zoals /ap/notes/:id dat al doet.
+  // Geen fan-poort: die zou de titel tonen en een login beloven die niets
+  // opent -- een volger is geen deelnemer.
+  if (post.ap_visibility === 'direct'
+      && !(req.session?.user && PermissionsService.canEditPost(req.session.user, post, site))) {
+    return next();
+  }
+
   // Paid gate (klonkt-demo-aki): a paid post shows only a teaser to anyone who
   // is not the owner/editor. Checked BEFORE the fan gate: a post that is both
   // fan_only and paid unlocks with a passkey, not with a Klonkt-login, so the
@@ -1714,7 +1729,7 @@ router.get('/:slug', (req, res, next) => {
   const candidates = db.prepare(`
     SELECT id, slug, title, cover_image_url, cover_video_url, published_at, tags, nsfw, content_warning
     FROM posts
-    WHERE site_id = ? AND status = 'published' AND id != ?
+    WHERE site_id = ? AND status = 'published' AND id != ? AND ${nietDirectSql()}
     ORDER BY published_at DESC LIMIT 50
   `).all(site.id, post.id);
 

@@ -8,6 +8,7 @@
 import express from 'express';
 import db from '../config/database.js';
 import { renderPage } from '../middleware/render.js';
+import { nietDirectSql } from '../services/PostAccessService.js';
 
 const router = express.Router();
 
@@ -28,14 +29,14 @@ router.get('/:username', (req, res) => {
   const posts = db.prepare(`
     SELECT p.id, p.slug, p.title, p.excerpt, p.cover_image_url, p.cover_video_url, p.published_at
     FROM posts p
-    WHERE p.author_id = ? AND p.site_id = ? AND p.status = 'published'
+    WHERE p.author_id = ? AND p.site_id = ? AND p.status = 'published' AND ${nietDirectSql('p.')}
     ORDER BY p.published_at DESC
     LIMIT 100
   `).all(author.id, site.id);
 
   // Total across all sites — useful context, doesn't leak content
   const totalPosts = db.prepare(`
-    SELECT COUNT(*) AS c FROM posts WHERE author_id = ? AND status = 'published'
+    SELECT COUNT(*) AS c FROM posts WHERE author_id = ? AND status = 'published' AND ${nietDirectSql()}
   `).get(author.id).c;
 
   renderPage(req, res, 'pages/user', {

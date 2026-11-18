@@ -63,6 +63,12 @@ export function postAccess(post, { user = null, site = null, unlockedSlug = null
   // De eigenaar/redacteur ziet altijd zijn eigen werk, betaald of niet.
   if (canEdit) return 'full';
 
+  // Alleen voor de mensen erin (shaer-8zew). Een volger is geen deelnemer, dus
+  // hier helpt geen login en geen OpenWebAuth: over AP is zo'n post al voor
+  // iedereen een 404 (noteAudience 'direct'), en het web hoort niet ruimer te
+  // zijn dan de federatie.
+  if (post.ap_visibility === 'direct') return 'forbidden';
+
   if (post.paid && String(unlockedSlug || '') !== String(post.slug)) return 'paid';
   // `fan_only` betekende altijd al "mijn volgers op de fediverse", maar de poort
   // vroeg om een lokaal account -- de verkeerde vraag, die juist de mensen
@@ -72,8 +78,50 @@ export function postAccess(post, { user = null, site = null, unlockedSlug = null
   //
   // Het lokale account blijft er ook door, zoals het altijd deed: dat is een
   // andere manier om te weten wie iemand is, niet een mindere.
-  if (post.fan_only && !user && !isFollower) return 'fan';
+  if (post.fan_only && !seesFriendsOnly({ user, isFollower })) return 'fan';
   return 'full';
+}
+
+/** Mag deze bezoeker vriendenposts lezen? De regel uit postAccess, los te vragen. */
+export function seesFriendsOnly({ user = null, isFollower = false } = {}) {
+  return !!(user || isFollower);
+}
+
+/**
+ * Welke posts een openbare lijst mag NOEMEN, als SQL (shaer-8zew).
+ *
+ * `nietDirectSql`: alles behalve de posts voor alleen de mensen erin. Voor de
+ * lijsten waar een vriendenpost als teaser blijft staan -- home, archief,
+ * feeds, sitemap, auteur, type, buren. Wat zo'n teaser LAAT ZIEN regelt
+ * listingRow hieronder.
+ *
+ * `openbaarSql`: alleen wat iedereen mag lezen. Voor de lijsten die uit de
+ * INHOUD putten (zoeken, de tagpagina): daar is meedoen al prijsgeven -- wie
+ * een woord raadt en de post vindt, weet dat het erin staat.
+ *
+ * `a` is de tabelalias met punt ('p.'), of '' zonder alias.
+ */
+export const nietDirectSql = (a = '') => `COALESCE(${a}ap_visibility, '') <> 'direct'`;
+export const openbaarSql = (a = '') =>
+  `(${a}fan_only IS NULL OR ${a}fan_only = 0) AND COALESCE(${a}ap_visibility, '') NOT IN ('friends', 'direct')`;
+
+/**
+ * Een rij uit een openbare lijst, zoals deze bezoeker hem mag zien.
+ *
+ * Een vriendenpost staat in de lijst als teaser, maar een teaser is wat de
+ * maker ERVOOR schreef -- titel, excerpt, cover -- en niets uit de tekst zelf.
+ * De kaart, de tegel en de leesweergave leiden bij een titelloze post (elke
+ * post uit Shaer) titel, beeld en teaser af uit `content`; die krijgen ze hier
+ * dus niet mee. Ook de tags niet: uit Shaer zijn dat de hashtags uit de tekst.
+ * Wat niet meegegeven wordt, kan ook niet lekken -- dezelfde regel als bij
+ * postEntry.
+ *
+ * `locked` laat het sjabloon weten dat er een poort zit, zodat een post zonder
+ * titel 'Alleen voor vrienden' heet in plaats van '(zonder titel)'.
+ */
+export function listingRow(post, viewer) {
+  if (!post || postAccess(post, viewer) !== 'fan') return post;
+  return { ...post, content: '', content_rendered: '', tags: null, locked: true };
 }
 
 /** Handig voor sjablonen: mag de bezoeker de echte inhoud zien? */
@@ -100,9 +148,14 @@ export function postEntry(post, viewer, { renderBody } = {}) {
     access,
     // Alleen bij een gesloten poort een teaser, en nooit allebei: de teaser is
     // de vervanging van het lijf, niet een voorproefje ernaast.
-    teaser: full || access === 'forbidden' ? null : paidTeaser(post),
+    // Een vriendenpost alleen met het excerpt dat de maker er zelf voor schreef
+    // (shaer-8zew): de eerste alinea van een post uit Shaer is meestal de hele
+    // post. De betaalmuur houdt zijn eerste alinea; dat is daar het product.
+    teaser: full || access === 'forbidden' ? null
+      : access === 'fan' ? (String((post && post.excerpt) || '').trim() || null)
+      : paidTeaser(post),
     content_html: full && typeof renderBody === 'function' ? renderBody(post) : null,
   };
 }
 
-export default { postAccess, canReadBody, paidTeaser, postEntry };
+export default { postAccess, canReadBody, paidTeaser, postEntry, seesFriendsOnly, listingRow, nietDirectSql, openbaarSql };

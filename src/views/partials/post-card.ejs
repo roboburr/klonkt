@@ -41,6 +41,9 @@ if (!_title && post.content) {
   const _txt = String(post.content).replace(/<[^>]*>/g, ' ').replace(/&[a-zA-Z#0-9]+;/g, ' ').replace(/\s+/g, ' ').trim();
   if (_txt) _title = _txt.length > 64 ? _txt.slice(0, 63).replace(/\s+\S*$/, '') + '…' : _txt;
 }
+// Een vriendenpost die deze bezoeker niet mag lezen komt zonder inhoud binnen
+// (listingRow, shaer-8zew); zonder eigen titel heet hij dan naar zijn poort.
+if (!_title && post.locked) _title = '🔒 ' + (typeof t === 'function' ? t('fgate.title') : 'Alleen voor vrienden');
 if (!_title) _title = _cAudio ? '♪ audio' : _cVideo ? '▶ video' : '(zonder titel)';
 const _typeLabel = (post.type && post.type !== 'overig' && post.type !== 'post') ? post.type : '';
 const _isPinned  = !!post.pinned;

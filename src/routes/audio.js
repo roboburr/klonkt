@@ -30,6 +30,7 @@ import { fileURLToPath } from 'url';
 import db from '../config/database.js';
 import { recordPlay } from '../services/StatsService.js';
 import AP from '../services/ActivityPubService.js';
+import { nietDirectSql } from '../services/PostAccessService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Audio files live OUTSIDE storage/media — the public /media static handler
@@ -193,7 +194,7 @@ router.get('/track/:id/post', (req, res) => {
   const row = db.prepare(`
     SELECT p.slug, s.slug AS site_slug
     FROM posts p JOIN sites s ON s.id = p.site_id
-    WHERE p.status = 'published' AND p.content LIKE ?
+    WHERE p.status = 'published' AND p.content LIKE ? AND ${nietDirectSql('p.')}
     ORDER BY p.published_at DESC LIMIT 1
   `).get('%[[track:' + id + ']]%');
   if (!row) return res.status(404).json({ error: 'not found' });

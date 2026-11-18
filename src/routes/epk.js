@@ -14,6 +14,7 @@
 import express from 'express';
 import db from '../config/database.js';
 import { renderPage } from '../middleware/render.js';
+import { nietDirectSql } from '../services/PostAccessService.js';
 import { premiumUnlocked } from '../services/PatreonService.js';
 import { getSetting } from '../services/SettingsService.js';
 
@@ -54,7 +55,7 @@ router.get('/pers', (req, res, next) => {
   const posts = db.prepare(
     `SELECT slug, title, created_at
        FROM posts
-      WHERE site_id = ? AND status = 'published'
+      WHERE site_id = ? AND status = 'published' AND ${nietDirectSql()}
       ORDER BY created_at DESC
       LIMIT 5`
   ).all(site.id);

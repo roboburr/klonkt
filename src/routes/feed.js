@@ -12,6 +12,7 @@
 import express from 'express';
 import db from '../config/database.js';
 import { siteOpenTracks } from '../services/ActivityPubService.js';
+import { nietDirectSql } from '../services/PostAccessService.js';
 
 const router = express.Router();
 
@@ -36,7 +37,7 @@ function postsForFeed(siteId, limit = 30) {
     SELECT p.id, p.slug, p.title, p.excerpt, p.content, p.published_at, p.updated_at,
            u.username AS author_username, u.email AS author_email
     FROM posts p JOIN users u ON u.id = p.author_id
-    WHERE p.site_id = ? AND p.status = 'published'
+    WHERE p.site_id = ? AND p.status = 'published' AND ${nietDirectSql('p.')}
     ORDER BY p.published_at DESC
     LIMIT ?
   `).all(siteId, limit);
@@ -198,7 +199,7 @@ router.get('/sitemap.xml', (req, res) => {
   const posts = db.prepare(`
     SELECT slug, COALESCE(updated_at, published_at) AS lastmod
     FROM posts
-    WHERE site_id = ? AND status = 'published'
+    WHERE site_id = ? AND status = 'published' AND ${nietDirectSql()}
     ORDER BY lastmod DESC
     LIMIT 1000
   `).all(site.id);

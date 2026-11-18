@@ -9,6 +9,7 @@ import express from 'express';
 import db from '../config/database.js';
 import { POST_TYPES } from '../config/post-types.js';
 import { renderPage } from '../middleware/render.js';
+import { nietDirectSql } from '../services/PostAccessService.js';
 
 const router = express.Router();
 // Een lijst, drie gebruikers: zie config/post-types.js.
@@ -25,7 +26,7 @@ router.get('/:type', (req, res) => {
     SELECT p.id, p.slug, p.title, p.excerpt, p.cover_image_url, p.cover_video_url,
            p.published_at, p.type, u.username AS author_username
     FROM posts p JOIN users u ON u.id = p.author_id
-    WHERE p.site_id = ? AND p.status = 'published' AND p.type = ?
+    WHERE p.site_id = ? AND p.status = 'published' AND p.type = ? AND ${nietDirectSql('p.')}
     ORDER BY p.published_at DESC
     LIMIT 100
   `).all(site.id, type);

@@ -30,6 +30,8 @@ import ejs from 'ejs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import PermissionsService from '../services/PermissionsService.js';
+import { seesFriendsOnly, openbaarSql, nietDirectSql } from '../services/PostAccessService.js';
+import { viewerFor } from '../services/OpenWebAuthService.js';
 
 const router = express.Router();
 
@@ -165,6 +167,12 @@ function searchSite(req, res, rawQ, lim) {
   const like = likeArg(rawQ);
 
   // 1. Posts (FTS5)
+  // Zoeken put uit de INHOUD: de snippet toont de woorden rond de treffer, en
+  // alleen al gevonden worden zegt dat het woord erin staat. Dus alleen wat
+  // deze bezoeker ook mag lezen (shaer-8zew): openbaar voor iedereen,
+  // vriendenposts voor wie ze open krijgt, en de posts voor alleen de mensen
+  // erin nooit -- de maker zoekt die in zijn beheer, niet hier.
+  const zichtbaar = seesFriendsOnly(viewerFor(req, site)) ? nietDirectSql('p.') : openbaarSql('p.');
   const ftsQuery = buildFtsQuery(rawQ);
   if (ftsQuery) {
     try {
@@ -174,7 +182,7 @@ function searchSite(req, res, rawQ, lim) {
         FROM posts_fts
         JOIN posts p ON p.id = posts_fts.post_id
         JOIN users u ON u.id = p.author_id
-        WHERE posts_fts MATCH ? AND p.site_id = ? AND p.status = 'published'
+        WHERE posts_fts MATCH ? AND p.site_id = ? AND p.status = 'published' AND ${zichtbaar}
         ORDER BY score ASC LIMIT ?
       `).all(ftsQuery, site.id, lim.posts);
       out.results = out.results.map((r) => ({ ...r, snippet: cleanSnippet(r.snippet, r.excerpt) }));
@@ -193,7 +201,7 @@ function searchSite(req, res, rawQ, lim) {
     const playable = trackRows.filter((t) => t.filename);
     let posts = [];
     if (playable.length) {
-      posts = db.prepare("SELECT slug, content FROM posts WHERE site_id = ? AND status = 'published' ORDER BY published_at DESC").all(site.id);
+      posts = db.prepare(`SELECT slug, content FROM posts WHERE site_id = ? AND status = 'published' AND ${nietDirectSql()} ORDER BY published_at DESC`).all(site.id);
     }
     const postUrlForTrack = (tr) => {
       let hit = posts.find((p) => p.content && p.content.includes('[[track:' + tr.id + ']]'));
