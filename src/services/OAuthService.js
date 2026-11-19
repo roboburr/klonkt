@@ -124,6 +124,9 @@ export function needFor(req) {
   if (/\/door$/.test(pad)) return lezen ? null : 'write:door';
   if (/\/identityProofs$/.test(pad)) return 'write:door';
   if (/\/openDoors$/.test(pad)) return lezen ? 'read' : 'write:door';
+  // Gezichten verversen (shaer-9r7f) is een POST, maar verandert niets van de
+  // gebruiker: het haalt alleen openbare profielen opnieuw op.
+  if (/\/actors\/refresh$/.test(pad)) return 'read';
   return lezen ? 'read' : 'write';
 }
 

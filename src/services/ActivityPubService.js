@@ -1336,7 +1336,7 @@ export function followerCount(slug) { return fStmts().cnt.get(slug).n; }
 // first, then oldest successful delivery first — i.e. the cleanup candidates on top.
 export function listFollowers(slug) {
   return db.prepare(
-    `SELECT id, actor_uri, inbox, shared_inbox, created_at, last_delivery_at, last_error_at
+    `SELECT id, actor_uri, inbox, shared_inbox, created_at, last_delivery_at, last_error_at, name, handle, icon
      FROM ap_followers WHERE slug = ?
      ORDER BY (last_delivery_at IS NULL) DESC, last_delivery_at ASC, created_at ASC`
   ).all(slug);
@@ -1407,6 +1407,16 @@ export function refreshActorDisplay(actorUri, doc) {
     n += db.prepare(`UPDATE ap_following SET name = COALESCE(?, name), handle = COALESCE(?, handle), icon = ?,
                      url = COALESCE(?, url), display_at = CURRENT_TIMESTAMP WHERE actor_uri = ?`).run(fi.name, fi.handle, fi.icon, fi.url, actorUri).changes;
   } catch { /* best effort: een verouderde avatar is geen storing */ }
+  // En elke KOPIE (shaer-9r7f): bij een bericht in de tijdlijn, een antwoord
+  // onder een post en een bericht aan ons kreeg de schrijver zijn naam en
+  // avatar mee zoals ze toen waren. De app en het web tonen die kopieën, en
+  // ze verouderden net zo.
+  for (const [tabel, pre] of [['ap_timeline', 'author'], ['ap_interactions', 'actor'], ['ap_mentions', 'actor']]) {
+    try {
+      n += db.prepare(`UPDATE ${tabel} SET ${pre}_name = COALESCE(?, ${pre}_name), ${pre}_handle = COALESCE(?, ${pre}_handle),
+                       ${pre}_icon = ? WHERE ${pre}_uri = ?`).run(fi.name, fi.handle, fi.icon, actorUri).changes;
+    } catch { /* tabel of kolom ontbreekt op een oude database */ }
+  }
   return n;
 }
 
@@ -1443,6 +1453,54 @@ export async function refreshStaleDisplays(slug, { dagen = 7, max = 25, get = si
     }
   }
   return { ververst, bekeken: uris.length };
+}
+
+/**
+ * Op verzoek van de app (shaer-9r7f): deze mensen opnieuw ophalen. De app weet
+ * welke gezichten alleen een initiaal tonen; die vraagt hij, en Klonkt haalt
+ * hun actor-document op en ververst elke kopie van naam en avatar.
+ *
+ * Begrensd, want het is een verzoek van buiten:
+ *   - alleen wie we KENNEN (volger, gevolgd, schrijver in de tijdlijn, van een
+ *     antwoord of een bericht) -- geen ophaaldienst voor willekeurige adressen;
+ *   - per actor hooguit eens per dag, ook als het mislukte;
+ *   - hooguit `max` per verzoek.
+ * Antwoordt meteen; het ophalen loopt erachter, en de volgende keer dat de app
+ * de lijst of de berichten laadt, staat het er.
+ */
+const _gevraagd = new Map();   // actor -> laatste poging (ms)
+function bekendeActor(slug, uri) {
+  const vragen = [
+    ['SELECT 1 FROM ap_followers WHERE slug = ? AND actor_uri = ? LIMIT 1', [slug, uri]],
+    ['SELECT 1 FROM ap_following WHERE slug = ? AND actor_uri = ? LIMIT 1', [slug, uri]],
+    ['SELECT 1 FROM ap_timeline WHERE slug = ? AND author_uri = ? LIMIT 1', [slug, uri]],
+    ['SELECT 1 FROM ap_mentions WHERE slug = ? AND actor_uri = ? LIMIT 1', [slug, uri]],
+    ['SELECT 1 FROM ap_interactions WHERE actor_uri = ? LIMIT 1', [uri]],
+  ];
+  for (const [sql, args] of vragen) { try { if (db.prepare(sql).get(...args)) return true; } catch { /* tabel ontbreekt */ } }
+  return false;
+}
+export function refreshActorsOnRequest(slug, uris, { max = 25, get = signedGetJson, nu = Date.now() } = {}) {
+  const invoer = Array.isArray(uris) ? uris : [];
+  const lijst = [...new Set(invoer.filter((u) => typeof u === 'string' && /^https:\/\//i.test(u)))];
+  const gaan = [];
+  for (const uri of lijst) {
+    if (gaan.length >= max || nu - (_gevraagd.get(uri) || 0) < 24 * 3600_000 || isBlockedAny(uri) || !bekendeActor(slug, uri)) continue;
+    _gevraagd.set(uri, nu);
+    gaan.push(uri);
+  }
+  // Overgeslagen = alles uit het verzoek dat niet opgehaald wordt: onbekend,
+  // vandaag al gedaan, geen https-adres, dubbel of boven de grens.
+  const overgeslagen = invoer.length - gaan.length;
+  const klaar = (async () => {
+    let ververst = 0;
+    for (const uri of gaan) {
+      const doc = await Promise.resolve(get(slug, uri)).catch(() => null);
+      if (doc && doc.id === uri && ACTOR_TYPES.has(doc.type) && refreshActorDisplay(uri, doc)) ververst++;
+    }
+    return ververst;
+  })().catch(() => 0);
+  return { gevraagd: gaan.length, overgeslagen, klaar };
 }
 
 // Hooguit eens per uur per site, en niemand wacht erop: de lijst die de app
@@ -1524,8 +1582,11 @@ export function listConnections(slug) {
   for (const fo of listFollowers(slug)) {
     const e = byUri.get(fo.actor_uri);
     if (e) { e.follower = true; e.last_delivery_at = fo.last_delivery_at; e.last_error_at = fo.last_error_at; e.follower_id = fo.id; }
+    // Naam en avatar die we van een volger bewaren (shaer-9r7f): stonden er
+    // wel, maar werden hier niet gelezen -- wie alleen ons volgde, stond op
+    // Connect zonder gezicht.
     else byUri.set(fo.actor_uri, {
-      actor_uri: fo.actor_uri, name: null, handle: null, icon: null, url: null,
+      actor_uri: fo.actor_uri, name: fo.name || null, handle: fo.handle || null, icon: fo.icon || null, url: null,
       auto_boost: 0, status: null, following: false, follower: true,
       last_delivery_at: fo.last_delivery_at, last_error_at: fo.last_error_at, follower_id: fo.id,
     });
@@ -4560,7 +4621,7 @@ wireInbox({
 
 export default {
   movedLock,
-  refreshActorDisplay, refreshStaleDisplays, refreshStaleDisplaysSoon,
+  refreshActorDisplay, refreshStaleDisplays, refreshStaleDisplaysSoon, refreshActorsOnRequest,
   // FEP-1580 bronkant. Vergeet je hem hier, dan werpt elke route die hem
   // aanroept een 500 en lijkt het alsof de poort dicht staat terwijl hij
   // ontbreekt (precies hoe movedLock zich een dag eerder verstopte).

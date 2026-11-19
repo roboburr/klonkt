@@ -1401,6 +1401,17 @@ router.get('/ap/users/:slug/followers', (req, res) => {
   AP.sendAP(res, AP.buildFollowers(baseUrl(req), site, n, null, { page: paginaNr(req) }));
 });
 
+// ── Gezichten verversen op verzoek van de app (shaer-9r7f) ─────────
+// { "actors": ["https://..."] } -- de mensen die in de app alleen een initiaal
+// tonen. 202 met hoeveel er gevraagd en overgeslagen zijn; het ophalen loopt
+// erachter (refreshActorsOnRequest begrenst het).
+router.post('/ap/users/:slug/actors/refresh', express.json({ limit: '64kb', type: ['application/json', 'application/activity+json', 'application/ld+json'] }), (req, res) => {
+  const auth = OAuth.verifyBearer(req.headers.authorization, OAuth.needFor(req));
+  if (!auth || auth.site.slug !== req.params.slug) return res.status(401).end();
+  const { gevraagd, overgeslagen } = AP.refreshActorsOnRequest(auth.site.slug, req.body && req.body.actors);
+  res.status(202).json({ requested: gevraagd, skipped: overgeslagen });
+});
+
 // ── Following (count-only public, full for the owner) ─────────────
 router.get('/ap/users/:slug/following', (req, res) => {
   const auth = OAuth.verifyBearer(req.headers.authorization, OAuth.needFor(req));
