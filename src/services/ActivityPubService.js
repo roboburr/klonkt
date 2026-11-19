@@ -1383,6 +1383,78 @@ export function meldNietLangerVolger(slug, actorUri) {
 // Best cached display for an actor URI, across the caches Klonkt already fills:
 // followers (now with name/icon), following, interactions, timeline, mentions.
 // Falls back to a handle derived from the URI. Display info is not sensitive.
+/**
+ * Naam en avatar van een actor verversen, overal waar we hem als volger of
+ * gevolgde bewaren (shaer-xc4g).
+ *
+ * Dat gebeurde alleen bij een (herhaalde) Follow; daarna veroudert het. Wisselt
+ * iemand van avatar, dan gooit zijn server het oude bestand weg, en serveerden
+ * wij in de vriendenlijst een dode URL -- de hemel viel terug op een initiaal
+ * (Hotel, 19-11).
+ *
+ * `doc` is het actor-document zelf, dus gezaghebbend: ook GEEN icoon is een
+ * antwoord (wie zijn avatar weghaalt, krijgt hier geen oude terug). Naam en
+ * handle alleen als er iets staat.
+ */
+export const ACTOR_TYPES = new Set(['Person', 'Service', 'Group', 'Application', 'Organization']);
+export function refreshActorDisplay(actorUri, doc) {
+  if (!actorUri || !doc || doc.id !== actorUri) return 0;
+  const fi = actorInfo(doc, actorUri);
+  let n = 0;
+  try {
+    n += db.prepare(`UPDATE ap_followers SET name = COALESCE(?, name), handle = COALESCE(?, handle), icon = ?,
+                     display_at = CURRENT_TIMESTAMP WHERE actor_uri = ?`).run(fi.name, fi.handle, fi.icon, actorUri).changes;
+    n += db.prepare(`UPDATE ap_following SET name = COALESCE(?, name), handle = COALESCE(?, handle), icon = ?,
+                     url = COALESCE(?, url), display_at = CURRENT_TIMESTAMP WHERE actor_uri = ?`).run(fi.name, fi.handle, fi.icon, fi.url, actorUri).changes;
+  } catch { /* best effort: een verouderde avatar is geen storing */ }
+  return n;
+}
+
+/**
+ * Oude rijen opnieuw ophalen (shaer-xc4g). Wie ons volgt maar die wij niet
+ * volgen, stuurt ons zijn Update niet; die rijen verversen we dus zelf, af en
+ * toe en begrensd: hooguit `max` per keer, alleen wat ouder is dan `dagen`.
+ * Ondertekend als de site, want een server met authorized fetch weigert
+ * anders ook een gewoon profiel.
+ *
+ *   gelukt          → refreshActorDisplay;
+ *   4xx (weg, dicht) → alleen display_at, zodat hij een week met rust blijft;
+ *   storing         → niets, de volgende keer opnieuw.
+ */
+export async function refreshStaleDisplays(slug, { dagen = 7, max = 25, get = signedGetJson } = {}) {
+  let uris = [];
+  try {
+    const oud = `(display_at IS NULL OR display_at < datetime('now', '-${Math.max(1, Math.floor(dagen))} days'))`;
+    uris = db.prepare(`SELECT actor_uri FROM ap_followers WHERE slug = ? AND ${oud}
+                       UNION SELECT actor_uri FROM ap_following WHERE slug = ? AND status = 'accepted' AND ${oud}
+                       LIMIT ?`).all(slug, slug, max).map((r) => r.actor_uri);
+  } catch { return { ververst: 0, bekeken: 0 }; }
+  let ververst = 0;
+  for (const uri of uris) {
+    let status = 0;
+    const doc = await Promise.resolve(get(slug, uri, (st) => { status = st; })).catch(() => null);
+    if (doc && doc.id === uri && ACTOR_TYPES.has(doc.type)) {
+      if (refreshActorDisplay(uri, doc)) ververst++;
+    } else if (status >= 400 && status < 500) {
+      try {
+        db.prepare('UPDATE ap_followers SET display_at = CURRENT_TIMESTAMP WHERE slug = ? AND actor_uri = ?').run(slug, uri);
+        db.prepare('UPDATE ap_following SET display_at = CURRENT_TIMESTAMP WHERE slug = ? AND actor_uri = ?').run(slug, uri);
+      } catch { /* volgende keer */ }
+    }
+  }
+  return { ververst, bekeken: uris.length };
+}
+
+// Hooguit eens per uur per site, en niemand wacht erop: de lijst die de app
+// nu vraagt, krijgt wat er staat; de volgende keer staat het er beter.
+const _laatsteVerversing = new Map();
+export function refreshStaleDisplaysSoon(slug) {
+  const nu = Date.now();
+  if (!slug || nu - (_laatsteVerversing.get(slug) || 0) < 3600_000) return null;
+  _laatsteVerversing.set(slug, nu);
+  return refreshStaleDisplays(slug).catch((e) => { console.warn('[AP] avatars verversen mislukt:', e && e.message); return null; });
+}
+
 export function actorDisplay(slug, uri) {
   const ok = (r) => r && (r.name || r.icon);
   try {
@@ -4483,11 +4555,12 @@ wireInbox({
   localPostExists, localSlugOf, mediaFromNote, noteVisibility,
   postIdFromNoteUrl, pushEvent, pushLang, pushPostCtx, pushPrefix,
   resolveCard, resolveExternalEmbed, resolveQuote, rid, slugFromActorUrl,
-  storeAuthorEmoji, timelineFields, wakeGuardian,
+  storeAuthorEmoji, timelineFields, wakeGuardian, refreshActorDisplay, ACTOR_TYPES,
 });
 
 export default {
   movedLock,
+  refreshActorDisplay, refreshStaleDisplays, refreshStaleDisplaysSoon,
   // FEP-1580 bronkant. Vergeet je hem hier, dan werpt elke route die hem
   // aanroept een 500 en lijkt het alsof de poort dicht staat terwijl hij
   // ontbreekt (precies hoe movedLock zich een dag eerder verstopte).

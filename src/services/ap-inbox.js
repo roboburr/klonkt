@@ -62,7 +62,7 @@ let actorInfo, actorUriOf, backfillFromOutbox, backfillNewFollower,
   localPostExists, localSlugOf, mediaFromNote, noteVisibility,
   postIdFromNoteUrl, pushEvent, pushLang, pushPostCtx, pushPrefix,
   resolveCard, resolveExternalEmbed, resolveQuote, rid, slugFromActorUrl,
-  storeAuthorEmoji, timelineFields, wakeGuardian;
+  storeAuthorEmoji, timelineFields, wakeGuardian, refreshActorDisplay, ACTOR_TYPES;
 export function wireInbox(deps) {
   ({ actorInfo, actorUriOf, backfillFromOutbox, backfillNewFollower,
     belongsInTimeline, contentWarning, emojiJsonOf, fetchNoteAP,
@@ -71,7 +71,8 @@ export function wireInbox(deps) {
     localMentionSlugs, localPostExists, localSlugOf, mediaFromNote,
     noteVisibility, postIdFromNoteUrl, pushEvent, pushLang, pushPostCtx,
     pushPrefix, resolveCard, resolveExternalEmbed, resolveQuote, rid,
-    slugFromActorUrl, storeAuthorEmoji, timelineFields, wakeGuardian } = deps);
+    slugFromActorUrl, storeAuthorEmoji, timelineFields, wakeGuardian,
+    refreshActorDisplay, ACTOR_TYPES } = deps);
 }
 
 /**
@@ -408,6 +409,16 @@ export async function handleInbox(req, slugParam, preVerified = null) {
   }
   if (type === 'Update' && act.object && typeof act.object === 'object' && act.object.type === 'shaer:Door') {
     DoorWatch.handleUpdate(act, claimedActor);
+    return 202;
+  }
+  // Een actor die zijn eigen profiel bijwerkt (shaer-xc4g): naam en avatar in
+  // onze volgers- en gevolgdlijst mee. Werd genegeerd, en zo bleef een avatar
+  // staan die zijn server allang had weggegooid. Alleen over ZICHZELF: wie een
+  // ander profiel aanlevert, verandert hier niets.
+  if (type === 'Update' && act.object && typeof act.object === 'object' && ACTOR_TYPES.has(act.object.type)) {
+    if (act.object.id === claimedActor && refreshActorDisplay(claimedActor, act.object)) {
+      console.log('[AP] profiel bijgewerkt:', claimedActor);
+    }
     return 202;
   }
 

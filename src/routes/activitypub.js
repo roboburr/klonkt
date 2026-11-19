@@ -1390,7 +1390,11 @@ router.get('/ap/users/:slug/followers', (req, res) => {
   if (owner) {
     const uris = db.prepare('SELECT actor_uri FROM ap_followers WHERE slug = ? ORDER BY created_at').all(site.slug).map((r) => r.actor_uri);
     // Default = bare references; enrich only when the client asks (FEP-9876).
-    const items = wantsEnriched(req, res) ? uris.map((u) => AP.buildActorRef(site.slug, u)) : uris;
+    const enrich = wantsEnriched(req, res);
+    const items = enrich ? uris.map((u) => AP.buildActorRef(site.slug, u)) : uris;
+    // Wie naam en avatar vraagt, krijgt wat er staat -- en daarna worden oude
+    // rijen op de achtergrond ververst (shaer-xc4g), hooguit eens per uur.
+    if (enrich) AP.refreshStaleDisplaysSoon(site.slug);
     return AP.sendAP(res, AP.buildFollowers(baseUrl(req), site, items.length, items, { page: paginaNr(req) }));
   }
   const n = db.prepare('SELECT COUNT(*) n FROM ap_followers WHERE slug = ?').get(site.slug).n;
@@ -1409,6 +1413,7 @@ router.get('/ap/users/:slug/following', (req, res) => {
     try {
       const uris = db.prepare("SELECT actor_uri FROM ap_following WHERE slug = ? AND status = 'accepted' ORDER BY created_at").all(site.slug).map((r) => r.actor_uri);
       items = enrich ? uris.map((u) => AP.buildActorRef(site.slug, u)) : uris;
+      if (enrich) AP.refreshStaleDisplaysSoon(site.slug);   // shaer-xc4g
     } catch { /* table may not exist */ }
     return AP.sendAP(res, AP.buildFollowing(baseUrl(req), site, items.length, items, { page: paginaNr(req) }));
   }

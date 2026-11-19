@@ -1152,6 +1152,11 @@ export function initializeDatabase() {
   ensureColumn('ap_followers', 'name', 'TEXT');    // cached display name (shaer-aa3)
   ensureColumn('ap_followers', 'handle', 'TEXT');  // @user@host
   ensureColumn('ap_followers', 'icon', 'TEXT');    // avatar URL
+  // Wanneer naam en avatar voor het laatst uit het actor-document kwamen
+  // (shaer-xc4g). NULL = nooit na de Follow: zo'n rij komt als eerste aan de
+  // beurt bij refreshStaleDisplays.
+  ensureColumn('ap_followers', 'display_at', 'DATETIME');
+  ensureColumn('ap_following', 'display_at', 'DATETIME');
   feedStateTriggers();
 }
 
